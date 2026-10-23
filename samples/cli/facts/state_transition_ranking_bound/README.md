@@ -25,6 +25,17 @@ Every place carries the same construct and operation: a terminating, ranked stat
 | Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A separate evaluation machine carries the loop-exit value |
 | Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies for all four hosted targets evaluate subtraction |
 
+Pinned fixtures:
+
+- Pass: `tests/omega/pass/facts/state_transition_ranking_bound_through_<place>_exit/`
+  — byte-identical copy of `<place>/main.omg`, with `Build::application`
+  renamed to the fixture directory name.
+- Reject: `tests/omega/fail/facts/state_transition_ranking_bound_through_<place>_rejected/`
+  — byte-identical copy of `<place>/invalid/main.omg`, with `expected.txt`
+  carrying the `may overflow \`u64\`` fragment. Feeding both halves through
+  `git diff` shows only the construct's own guard and exit-bound values moved
+  (`60u64 -> 61u64`).
+
 ### Verification commands
 
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
@@ -47,6 +58,26 @@ Each place has an `invalid/` twin whose terminal guard and loop-exit bound is we
 ```sh
 omega --check samples/cli/facts/state_transition_ranking_bound/<place>/invalid/main.omg
 ```
+
+## Run record
+
+Producer: the shared generation `gen-9d9ba4fb625` (`omega` sha256
+`5a2fde4a3a914444db08f00e9849e06557fe0d6c8cf5fd5591c9b413bdd0e9ab`,
+reported build profile `{"opt_level":"1"}`), built at base `9d9ba4fb625`.
+Host `macos_arm64`; `OMEGA_LIBRARY_ROOT=<worktree>/source/library`.
+
+Root `main.omg` and all nine places report `native exit 0` together with
+`interp exit: 0` under `omega run --both` (`< /dev/null`): Terminal Psi and
+native execution agree at exit 0 in ten of ten positives. All nine
+`<place>/invalid/main.omg` twins reject at
+`omega --check --target macos_arm64` (exit 1) with the pinned diagnostic
+`exact arithmetic in machine ... may overflow \`u64\`` (`target_body` carries
+two such diagnostics, the others one each).
+
+Corpus goldens recorded on that revision with the generation
+`corpus_runner`: 18 fixtures {`checked`: 9, `rejected`: 9} in
+`tests/omega/corpus_outcomes.txt` and nine `built <ms> exit:0` rows in
+`tests/omega/corpus_native_macos_arm64.txt`.
 
 ## Requirements and Evidence
 

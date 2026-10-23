@@ -1,0 +1,50 @@
+// Fact: exiting a ranked state-transition loop under a terminal guard (remaining <= 60u64) preserves the loop-exit bound across all nine places, discharging exact subtraction 60u64 - remaining with exit code 0.
+// Invalid: terminal guard and exit bound are widened to 61u64, so 60u64 - remaining underflows. Place: parameter.
+// Expected diagnostic: may overflow `u64`
+
+machine ranked_loop(current: u64) -> u64
+requires current <= 100 && current >= 20
+terminates by current;
+ensures result <= 61
+{
+    transition current <= 61 {
+        true -> done(current)
+        false -> step(current)
+    }
+
+    state step(c: u64) -> u64
+    requires c <= 100 && c > 61
+    {
+        let next: u64 = c - 10;
+        transition next <= 61 {
+            true -> done(next)
+            false -> step(next)
+        }
+    }
+
+    state done(rem: u64) -> u64
+    requires rem <= 61
+    {
+        rem
+    }
+}
+
+machine consume(remaining: u64) -> i32
+requires remaining <= 61
+{
+    let diff: u64 = 60u64 - remaining;
+    diff as i32
+}
+
+machine probe() -> i32 {
+    consume(ranked_loop(100u64))
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
