@@ -64,6 +64,13 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove index \`idx\` is within length 4`).
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/pass/facts/signed_division_remainder_through_*_exit` and
+`tests/omega/fail/facts/signed_division_remainder_through_*_rejected` fixtures: every positive
+place records native exit 0 with Terminal Psi execution agreement, and every reject twin records
+its `cannot prove index \`idx\` is within length 4` diagnostic.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
