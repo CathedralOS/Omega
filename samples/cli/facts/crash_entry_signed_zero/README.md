@@ -110,20 +110,30 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 
 ## Recorded runs
 
-Producer: `factsr1-producer` opt-level 1 CLI at base `9ff26a87021`, macOS
-arm64, stdin closed.
+Corpus rows measured at the landed revision with an opt-level 1 corpus runner on
+macOS arm64 (`python3 tools/corpus_gate.py --both --record --filter
+facts/crash_entry_nan_equality,facts/crash_entry_signed_zero`), ten pass rows and
+ten fail rows for this row:
 
-| Evidence | Command | Result |
+| Leg | Rows | Result |
 | --- | --- | --- |
-| Nine positives | `omega run --both samples/cli/facts/crash_entry_signed_zero/<place>/main.omg` | 9 of 9 exit 0; native exit 0; interpreter exit 0 |
-| Nine twins | `omega run --both .../<place>/invalid/main.omg` (and `omega --check`) | 9 of 9 reject with `has an uncovered Trap crash route` |
+| check | `pass/facts/crash_entry_signed_zero_through_<place>_exit` and the writable-carrier pin | `checked`, `check-target:macos_arm64`, and 0 structural moves against the pinned rows |
+| native | the same ten in `corpus_native_macos_arm64.txt` | `built`, `exit:0` |
+| both | the same ten in `corpus_both_macos_arm64.txt` | `built`, `exit:0`, `interpreter-exit:0`, `interpreter:agrees` |
+| reject twins | `fail/facts/crash_entry_signed_zero_through_<place>_rejected` and the written-local pin | `rejected`, `expected`; 0 rejected without the expected fragment |
+
+Earlier direct runs at `9ff26a87021` with an opt-level 1 CLI and stdin closed:
+9 of 9 positives `omega run --both` exited 0 (native exit 0, interpreter exit 0),
+9 of 9 twins rejected with `has an uncovered Trap crash route`, and each twin's
+direct diagnostic equals its pinned continuation line. The psi flow machinery
+that reads entry origins moved after that measurement (`114906953e1`,
+`539552bc218`), so the corpus rows above are the re-measurement.
 
 The twin diagnostics name the transport the twin interrupts, for example
-`` call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an
-uncovered Trap crash route; publish a same-cause route whose guard covers this
-invocation `` for `local`, `statement 0` for `parameter`, and
-`` call from `read_zero` to `forward` at statement 1 call 0 `` for
-`other_machine` and `target_body`.
+`` call from `read_zero` to `maybe_nonzero` at statement 2 call 0
+has an uncovered Trap crash route; publish a same-cause route whose guard covers
+this invocation `` for `local`, `statement 3` for `field`, and
+`` call from `read_zero` to `forward` `` for `other_machine`.
 
 ## Remaining open under CRASH-CONTRACT
 
