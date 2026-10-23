@@ -153,8 +153,16 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
+            let public_contract =
+                validation::requirement_contract_signature(program, machine_symbol, &site);
+            // Rewriting may replace an evidence child with an executable body
+            // while flow retains its public requirement as the fact's source.
+            // Only the validated invocation contract joins those identities.
+            let exact_source = fact.evidence.source_symbol == call.target_symbol
+                || public_contract
+                    .is_some_and(|(_, signature)| fact.evidence.source_symbol == signature.symbol);
             if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
-                || fact.evidence.source_symbol != call.target_symbol
+                || !exact_source
                 || fact.evidence.requirement_symbol.is_valid()
             {
                 return None;
@@ -168,7 +176,9 @@ pub(super) fn check_call_result_qualifications(
                 call,
                 events: InvocationEvents::Published(facts),
             };
-            let selected = program.requirement_call_signature(machine_symbol, call);
+            let selected = public_contract
+                .map(|(_, signature)| signature)
+                .or_else(|| program.requirement_call_signature(machine_symbol, call));
             let declared = crate::flow::call_result_qualification_identities(
                 program,
                 call.target_symbol,
@@ -187,6 +197,14 @@ pub(super) fn check_call_result_qualifications(
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
             if validation::call_target_has_checked_body_contract(program, call.target_symbol) {
+                return Some(());
+            }
+            // Every ordinary selected conformance owes its full public result
+            // contract, including an open evidence binder's eventual selection.
+            // The body independently proves carrier, predicates and custody.
+            // Boundary requirements retain their separate admission and
+            // conservation obligations below.
+            if public_contract.is_some_and(|(declaration, _)| !declaration.is_boundary) {
                 return Some(());
             }
 

@@ -5760,14 +5760,17 @@ wait for Cathedral's instruction coverage. The interpreter is
   payloads. `tests/omega/pass/domains/bodyless_owner_establishment` checks an
   issuer/forwarder but binds no executable entry.
 
-  - Remaining structural and admitted-boundary lowering: in
+  - Remaining portable issuer evidence and visibility compositions: extend
+    same-project checked ordinary issuance/forwarding to cross-package private
+    routes and selected structural payloads. In
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs`
-    ordinary units publish no conformance applications, and
-    `.../src/unit/attached_unit/catalog.rs` binds result establishments only for boundary requirements with
-    an exact `CallEnsures` receipt. Keep ordinary callee/conformance identities
-    and bind the checked qualification to the exact invocation result, for
-    ordinary and boundary calls. Preserve the checked scalar result transport
-    exercised by `facts/scalar_domain_call_guarantee`; reuse the existing route catalogs.
+    ordinary units still publish no conformance applications, and
+    `.../src/unit/attached_unit/catalog.rs` binds explicit result establishment
+    rows only for admitted boundary requirements. Retain ordinary callable and
+    selected-conformance identities for independent portable route replay, with
+    exact invocation/result correspondence. Preserve
+    `facts/scalar_domain_call_guarantee` and the named ordinary route transport
+    in `facts/structural_issuer_forwarding`; reuse the existing route catalogs.
   - Exercise admitted provider issuance for core's protected `Vacant`/`Resident`
     routes with **BUMP-ALLOCATOR-CANARY**. Ordinary checked adapters must not
     inherit provider authority. Preserve the selected-domain qualification rule,

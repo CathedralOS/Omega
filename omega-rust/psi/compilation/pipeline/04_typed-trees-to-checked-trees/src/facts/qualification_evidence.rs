@@ -118,13 +118,6 @@ pub(crate) fn machine_domain_establishment_route(
         return None;
     }
     let domain = domain_definition(program, domain_symbol)?;
-    let machine_name = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or(machine.name.as_str());
-
     domain
         .establishment_routes
         .iter()
@@ -133,22 +126,33 @@ pub(crate) fn machine_domain_establishment_route(
                 trait_definition,
                 requirement,
             } => {
-                let trait_definition = program.trait_definition_by_symbol(*trait_definition)?;
-                let requirement =
-                    program.trait_machine_signature_by_symbol(trait_definition, *requirement)?;
-                program
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| {
-                        conformance.symbol == trait_definition.symbol
-                            && conformance
-                                .requirement
-                                .as_ref()
-                                .map(|name| name.as_str())
-                                .unwrap_or(machine_name)
-                                == requirement.name.as_str()
+                // Named maps own their realization bodies instead of adding
+                // attached `satisfies` edges. Both forms select exact rows;
+                // spelling or signature compatibility grants no authority.
+                // Executable copies retain invocation/capture ownership of
+                // their authored row, including generic named maps.
+                let attached =
+                    program
+                        .machine_trait_conformances(machine)
+                        .iter()
+                        .any(|conformance| {
+                            conformance.symbol == *trait_definition
+                                && conformance.requirement_symbol == *requirement
+                        });
+                let named = program.conformances().iter().any(|conformance| {
+                    conformance.rows.iter().any(|row| {
+                        row.source.owns_realization()
+                            && row.declaring_trait == *trait_definition
+                            && row.requirement == *requirement
+                            && program
+                                .machine_invokes_declaration(
+                                    machine.symbol,
+                                    row.realization_machine,
+                                )
+                                .unwrap_or(false)
                     })
-                    .then_some(route.clone())
+                });
+                (attached || named).then_some(*route)
             }
             DomainEstablishmentRoute::ExactMachine {
                 machine: authorized,

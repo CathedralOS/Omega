@@ -1716,6 +1716,15 @@ pass/facts/source_indexed_family_through_other_machine_exit built 2460ms exit:0 
 pass/facts/source_indexed_family_through_other_state_exit built 2164ms exit:0 @e0550ac3bf28
 pass/facts/source_indexed_family_through_parameter_exit built 6893ms exit:0 terminal-inspections:match @e0550ac3bf28
 pass/facts/source_indexed_family_through_target_body_exit built 2281ms exit:0 @e0550ac3bf28
+pass/facts/structural_issuer_forwarding_call_result built 3401ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_const_name built 3396ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_field built 3547ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_local built 3710ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_match_join built 3588ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_other_machine built 3518ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_other_state built 4356ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_parameter built 3193ms exit:0 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_target_body built 2890ms exit:0 @d6cf554fd1cb+wt
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit built 20631ms exit:70 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize built 25277ms exit:0 stdout:match @c9eefa9130a0+wt

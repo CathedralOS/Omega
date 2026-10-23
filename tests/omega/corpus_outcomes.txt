@@ -1748,6 +1748,16 @@ fail/domains/module_qualified_cast_domain_false rejected 285ms expected @2012446
 fail/domains/module_qualified_cast_domain_unimported rejected 285ms expected @2012446ad74a+wt
 fail/domains/module_qualified_cast_domain_unknown rejected 285ms expected @2012446ad74a+wt
 fail/domains/named_const_subject_binding rejected 15ms expected @a9ae30e1c334+wt
+fail/domains/named_issuer_independent_predicate rejected 3119ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+fail/domains/named_issuer_no_body_assumption rejected 4327ms expected @d6cf554fd1cb+wt
+	cannot prove requires contract for call consume from Factory::issue: token in Token::Issued in state `issue`
+fail/domains/named_issuer_reconstructed_forwarder rejected 4405ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in forward state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/domains/named_issuer_wrong_member rejected 3388ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/nested_field_domain_write_unestablished rejected 5734ms expected @a9ae30e1c334+wt
 fail/domains/nonboolean_member_predicate rejected 841ms expected @a9ae30e1c334+wt
 fail/domains/offset_borrow_return_unestablished_field rejected 861ms expected @ef7962801508
@@ -7990,6 +8000,33 @@ fail/facts/static_evidence_premise_through_target_body_rejected rejected 1533ms 
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/structural_issuer_forwarding_call_result rejected 3561ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_const_name rejected 4284ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_field rejected 4130ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_local rejected 4395ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_match_join rejected 3483ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_other_machine rejected 3433ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_other_state rejected 3182ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_parameter rejected 2958ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/structural_issuer_forwarding_target_body rejected 2750ms expected @d6cf554fd1cb+wt
+	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
+	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8b8e7e035fdc
 	cannot prove requires contract for call extended from trial: buffer.len >= 1024 (needs fact `buffer.len >= 1024` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `transfer`
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
@@ -15332,6 +15369,15 @@ pass/facts/static_evidence_premise_through_other_machine_exit checked 2368ms che
 pass/facts/static_evidence_premise_through_other_state_exit checked 1917ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/static_evidence_premise_through_parameter_exit checked 2124ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/static_evidence_premise_through_target_body_exit checked 3560ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/structural_issuer_forwarding_call_result checked 4558ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_const_name checked 4633ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_field checked 4733ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_local checked 4290ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_match_join checked 3874ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_other_machine checked 3711ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_other_state checked 3488ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_parameter checked 3626ms check-target:macos_arm64 @d6cf554fd1cb+wt
+pass/facts/structural_issuer_forwarding_target_body checked 4089ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/facts/subslice_state_extent_after_write_exit checked 3987ms check-target:macos_arm64 @cbdcc23565fb
 pass/facts/target_recursive_bound_through_call_result_exit checked 1816ms check-target:macos_arm64 @e2a6d051c734+wt
 pass/facts/target_recursive_bound_through_const_name_exit checked 1815ms check-target:macos_arm64 @e2a6d051c734+wt
