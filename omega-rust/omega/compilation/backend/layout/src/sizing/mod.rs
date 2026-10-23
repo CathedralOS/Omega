@@ -1,5 +1,4 @@
 use crate::TypeLayout;
-use runtime_abi::build_runtime_abi_plan;
 use target::NativeTarget;
 use typed_trees::types::PrimitiveType;
 
@@ -8,10 +7,10 @@ use typed_trees::types::PrimitiveType;
 /// Single source of truth inside layout: derives size/alignment from
 /// `runtime-abi` rather than re-deriving `2 * pointer_size` locally.
 pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
-    let descriptor = build_runtime_abi_plan(target).slice_descriptor();
+    let descriptor = runtime_abi::fat_descriptor_layout(target);
     TypeLayout {
-        size: descriptor.total_size(),
-        alignment: descriptor.align(),
+        size: descriptor.byte_size,
+        alignment: descriptor.alignment,
     }
 }
 
