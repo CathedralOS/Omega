@@ -64,6 +64,31 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`underflow`).
 
+### Pinned Corpus Fixtures
+
+All 18 positive and negative witness fixtures are pinned in the corpus suite:
+
+- Pass fixtures (`tests/omega/pass/facts/`):
+  - [`live_across_seven_calls_preservation_bound_through_local_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_local_exit)
+  - [`live_across_seven_calls_preservation_bound_through_field_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_field_exit)
+  - [`live_across_seven_calls_preservation_bound_through_parameter_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_parameter_exit)
+  - [`live_across_seven_calls_preservation_bound_through_call_result_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_call_result_exit)
+  - [`live_across_seven_calls_preservation_bound_through_match_join_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_match_join_exit)
+  - [`live_across_seven_calls_preservation_bound_through_const_name_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_const_name_exit)
+  - [`live_across_seven_calls_preservation_bound_through_other_state_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_other_state_exit)
+  - [`live_across_seven_calls_preservation_bound_through_other_machine_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_other_machine_exit)
+  - [`live_across_seven_calls_preservation_bound_through_target_body_exit`](../../../../tests/omega/pass/facts/live_across_seven_calls_preservation_bound_through_target_body_exit)
+- Fail fixtures (`tests/omega/fail/facts/`):
+  - [`live_across_seven_calls_preservation_bound_through_local_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_local_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_field_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_field_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_parameter_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_parameter_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_call_result_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_call_result_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_match_join_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_match_join_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_const_name_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_const_name_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_other_state_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_other_state_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_other_machine_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_other_machine_rejected)
+  - [`live_across_seven_calls_preservation_bound_through_target_body_rejected`](../../../../tests/omega/fail/facts/live_across_seven_calls_preservation_bound_through_target_body_rejected)
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
