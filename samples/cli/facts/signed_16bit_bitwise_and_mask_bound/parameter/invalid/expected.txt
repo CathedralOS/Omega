@@ -1,1 +1,1 @@
-cannot prove requires contract
+cannot prove requires contract for call check_param from main: masked >= 40 && masked <= 63
