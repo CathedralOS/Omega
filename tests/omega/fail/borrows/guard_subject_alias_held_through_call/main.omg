@@ -1,0 +1,16 @@
+// Guard completion does not release a descriptor the invocation still holds.
+data Frame [copy] { case Empty; case Ready(value: u64); }
+machine clear_and_read(frames: &mut [Frame; 4], position: u64, saved: &Frame) -> u64
+requires position < 4 {
+    frames[position] = Frame::Empty;
+    transition saved { Frame::Empty -> 0 Frame::Ready { value } -> (value) }
+}
+machine inspect(frames: &mut [Frame; 4], position: u64) -> u64
+requires position < 4 {
+    let saved: &Frame = &frames[position];
+    transition frames[position] {
+        Frame::Ready { value } -> (clear_and_read(frames, position, saved))
+        Frame::Empty -> (clear_and_read(frames, position, saved))
+    }
+}
+machine main() {}

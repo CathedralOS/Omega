@@ -1,0 +1,11 @@
+use omega::language::core::drop;
+data Claim [linear] { value: u64; }
+domain Claim::Issued established by issue;
+machine Claim::drop(claim: &mut Claim) {}
+machine issue() -> Claim in Issued { Claim { value: 3 } }
+machine consume(claim: Claim in Issued, branch: bool) -> u64 {
+    let observed: u64 = claim.value;
+    drop(claim);
+    transition branch { true -> (observed) false -> (claim.value) }
+}
+machine main() {}

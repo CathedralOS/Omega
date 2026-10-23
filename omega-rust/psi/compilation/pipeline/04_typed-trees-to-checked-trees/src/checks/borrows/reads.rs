@@ -45,6 +45,7 @@ pub(super) fn final_holds_in_statement(
     statement: &FlowStatementFact,
     statement_node: &StatementNode,
     occurrences: &[StatementOccurrence],
+    ends_source_path: bool,
 ) -> Vec<(Handle<BorrowLoanFact>, usize)> {
     let destination_root = match statement_node {
         StatementNode::Assignment(assignment) => {
@@ -69,7 +70,21 @@ pub(super) fn final_holds_in_statement(
         .borrow_loan_constraints(statement.entry_constraints)
         .filter_map(|handle| {
             let loan = facts.borrow.loans.get(handle);
-            if loan.last_use_statement_index != statement.statement_index
+            if ends_source_path {
+                let (_, local) = program.state_local_declaration(
+                    program.state_by_symbol(state.state_symbol)?,
+                    loan.owner_symbol,
+                )?;
+                if !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                ) {
+                    return None;
+                }
+            }
+            if (!ends_source_path && loan.last_use_statement_index != statement.statement_index)
                 || !loan.owner_path.is_empty()
                 || destination_root == Some(loan.owner_symbol)
             {
@@ -86,6 +101,115 @@ pub(super) fn final_holds_in_statement(
                 .map(|held_until| (handle, held_until))
         })
         .collect()
+}
+
+/// A completed guard or earlier operand can end a local observation before
+/// an ordinary returning call, not just at a state-scope exit. Reuse the
+/// evaluated occurrence order: an operand held through this invocation ends
+/// at its completion and therefore remains live during it. Missing/ambiguous
+/// correspondence and carried reference leaves never supply this release.
+pub(super) fn loans_ended_before_call(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    flow: &FlowStateFact,
+    call: &checked_trees::BorrowCallFact,
+) -> Vec<Handle<BorrowLoanFact>> {
+    use crate::checks::ownership_occurrences::InvocationIdentity;
+    let Some((machine, state)) =
+        validation::machine_state_by_symbols(program, flow.machine_symbol, flow.state_symbol)
+    else {
+        return Vec::new();
+    };
+    let Some(statement) = facts
+        .flow
+        .control
+        .statements
+        .span_or_empty(flow.statements)
+        .iter()
+        .find(|statement| statement.statement_index == call.statement_index)
+    else {
+        return Vec::new();
+    };
+    let Some(node) = program
+        .statement_table
+        .statement_at(state, call.statement_index)
+    else {
+        return Vec::new();
+    };
+    let Some(site) = validation::find_call_site_in_state(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return Vec::new();
+    };
+    let target = validation::transition_call_target(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        call.call_ordinal,
+    );
+    // An outgoing edge cuts off later lexical guards/statements only when
+    // this is its actual invocation, not a nested call in an operand or guard.
+    let ends_source_path = target.is_some_and(|target| {
+        match (program.statement_table.transition_target(target), site) {
+            (
+                typed_trees::statement::TransitionTargetNode::Value(value),
+                validation::CallSite::Expression { expression, .. },
+            ) => *value == expression,
+            (
+                typed_trees::statement::TransitionTargetNode::Named { .. },
+                validation::CallSite::TransitionNamed { .. },
+            ) => true,
+            _ => false,
+        }
+    });
+    let identity = match site {
+        validation::CallSite::Expression { expression, .. } => {
+            InvocationIdentity::Expression(expression)
+        }
+        validation::CallSite::Statement(_) => InvocationIdentity::Statement,
+        validation::CallSite::TransitionNamed { .. } => {
+            let Some(target) = target else {
+                return Vec::new();
+            };
+            InvocationIdentity::Transition(target)
+        }
+    };
+    let occurrences = crate::checks::ownership_occurrences::statement_steps(
+        program,
+        machine,
+        state,
+        call.statement_index,
+        node,
+        &[],
+        &facts.operators,
+    );
+    let mut completions = occurrences
+        .iter()
+        .enumerate()
+        .filter(|(_, occurrence)| occurrence.invocation == Some(identity));
+    let Some((completion, _)) = completions.next() else {
+        return Vec::new();
+    };
+    if completions.next().is_some() {
+        return Vec::new();
+    }
+    final_holds_in_statement(
+        program,
+        facts,
+        flow,
+        statement,
+        node,
+        &occurrences,
+        ends_source_path,
+    )
+    .into_iter()
+    .filter_map(|(loan, held_until)| (held_until < completion).then_some(loan))
+    .collect()
 }
 
 /// One evaluated observation and the loans live where its statement

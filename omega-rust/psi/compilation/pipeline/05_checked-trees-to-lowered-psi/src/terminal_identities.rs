@@ -266,14 +266,25 @@ pub(crate) fn allocate_dense(next: &mut u64) -> Result<u64, LoweringError> {
     Ok(current)
 }
 
-/// A fresh unqualified scalar `ValueDeclaration` on the next dense identity —
-/// the literal every payload/case emission site mints.
-pub(crate) fn fresh_scalar_declaration(
+/// A selected field snapshot retains its declaration's exact membership in
+/// the shared scalar namespace. Both guard and closed-sum dispatch use this
+/// same observation rule; a scalar carrier alone cannot stand in for it.
+pub(crate) fn fresh_field_snapshot(
     next_value: &mut u64,
     scalar_type: ScalarType,
+    field: semantic_vocabulary::StructuralFieldId,
+    qualifications: &[terminal_psi::ScalarFieldQualification],
 ) -> Result<terminal_psi::ValueDeclaration, LoweringError> {
+    let qualification = qualifications.iter().find(|row| row.field == field);
+    if qualification.is_some_and(|row| row.value_type.scalar_type != scalar_type) {
+        return crate::lowering_error::unsupported(
+            "field snapshot qualification changed its declared carrier",
+        );
+    }
     Ok(terminal_psi::ValueDeclaration {
-        qualifications: Default::default(),
+        qualifications: qualification
+            .map(|row| row.value_type.qualifications)
+            .unwrap_or_default(),
         id: value_id(allocate_dense(next_value)?),
         scalar_type,
     })

@@ -495,6 +495,11 @@ fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 1554ms expecte
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 863ms expected @a9ae30e1c334+wt
 fail/borrows/generic_result_keeps_lifetime_source rejected 1699ms expected @a9ae30e1c334+wt
 fail/borrows/generic_result_retains_lifetime_candidates rejected 1708ms expected @a9ae30e1c334+wt
+fail/borrows/guard_subject_alias_held_through_call rejected 578ms expected @65641cea7412+wt
+	state `clear_and_read` receives `frames` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	state `clear_and_read` receives `frames` while local borrow `saved` is still active
+	statement 3 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0; its last use is at statement 4 and it is released at state exit)
+	statement 4 mutates `frames[__hoist_15]` while local borrow `saved` is still active (borrowed at statement 0)
 fail/borrows/guarded_structural_producer_shared_argument_cannot_mutate rejected 906ms expected @a9ae30e1c334+wt
 fail/borrows/imported_range_retains_backing_loan rejected 580ms expected @71e65af3059c+wt
 fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 1724ms expected @a9ae30e1c334+wt
@@ -1765,6 +1770,9 @@ fail/domains/qualified_fixed_byte_array_write_only_read rejected 280ms expected 
 fail/domains/qualified_fixed_byte_array_write_only_split rejected 894ms expected @ef7962801508
 fail/domains/qualified_fixed_vec_byte_view_overflow rejected 3043ms expected @ef7962801508
 fail/domains/qualified_mutable_invalid_field rejected 106ms expected @dca1c7cd7e6f+wt
+fail/domains/qualified_mutable_scalar_exit_requires_handback rejected 569ms expected @65641cea7412+wt
+	cannot prove default-domain field requirement for return from corrupt at statement 2: value requires [u16; N]::Terminated
+	cannot prove default-domain field requirement for return from corrupt at statement 3: value requires [u16; N]::Terminated
 fail/domains/qualified_record_authored_arithmetic rejected 925ms expected @868a854ecd4d+wt
 fail/domains/qualified_record_capture_after_mutation rejected 843ms expected @868a854ecd4d+wt
 fail/domains/qualified_record_capture_before_mutation rejected 834ms expected @868a854ecd4d+wt
@@ -1808,6 +1816,10 @@ fail/domains/routed_qualification_predicate_cannot_authorize rejected 1300ms exp
 fail/domains/routed_qualification_reference_recast rejected 695ms expected @8137d4f697de+wt
 	machine `forge` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 fail/domains/routed_record_capture_after_sibling_mutation rejected 698ms expected @2ef2ab353498+wt
+fail/domains/routed_selected_copy_partial_membership rejected 662ms expected @65641cea7412+wt
+	cannot prove scalar result domain for return from select at statement 2: u64::Issued
+fail/domains/routed_selected_replacement_unissued rejected 1125ms expected @65641cea7412+wt
+	cannot prove requires contract for call replace from main: 3 in u64::Issued in state `entry`
 fail/domains/scalar_alias_zero_requires_all_predicates rejected 5313ms expected @a9ae30e1c334+wt
 fail/domains/scalar_boundary_erased_other_route_is_not_membership rejected 4076ms expected @8d0f98ca0891+wt
 	cannot prove requires contract for call subtract from main: value as u64 in u64::AtLeast100 in state `entry`
@@ -1925,6 +1937,8 @@ fail/drops/parent_cleanup_requires_before_guarantees rejected 1528ms expected @a
 fail/drops/parent_cleanup_wrong_child_guarantee rejected 1559ms expected @a9ae30e1c334+wt
 fail/drops/partial_move_inside_nominal_child rejected 336ms expected @b5b743bb02aa+wt
 fail/drops/partial_store_preserves_moved_ancestor rejected 368ms expected @a87ecf7b03bf
+fail/drops/qualified_scalar_control_consumed_owner_reused rejected 449ms expected @65641cea7412+wt
+	cannot use `claim.value` in machine `consume` state `entry` (statement 3) after `claim` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `claim` first
 fail/drops/read_after_conditional_call_move rejected 3363ms expected @a9ae30e1c334+wt
 fail/drops/reserved_call_result_cleanup_mutated rejected 1607ms expected @a9ae30e1c334+wt
 fail/drops/result_cleanup_disjunctive_result rejected 657ms expected @76ea4b8c7c50
@@ -4481,6 +4495,27 @@ fail/facts/indexed_element_mut_loan_through_target_body_rejected rejected 1232ms
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 	statement 1 mutates `rooms[selected].exit_count` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
+fail/facts/indexed_owned_case_replacement_through_call_result_rejected rejected 6261ms expected @65641cea7412+wt
+	cannot prove scalar result domain for return from supply at statement 0: u64::PositiveSmall
+fail/facts/indexed_owned_case_replacement_through_const_name_rejected rejected 18ms expected @65641cea7412+wt
+	cannot prove scalar result domain for return from @const-qualification-PAYLOAD-0 at statement 0: u64::PositiveSmall
+fail/facts/indexed_owned_case_replacement_through_field_rejected rejected 255ms expected @65641cea7412+wt
+	construction of `Input` field `payload`: value 0 is outside its declared range `1..=7`
+fail/facts/indexed_owned_case_replacement_through_local_rejected rejected 6231ms expected @65641cea7412+wt
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+fail/facts/indexed_owned_case_replacement_through_match_join_rejected rejected 6269ms expected @65641cea7412+wt
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+fail/facts/indexed_owned_case_replacement_through_other_machine_rejected rejected 6309ms expected @65641cea7412+wt
+	cannot prove requires contract for call forward from witness: 0 in u64::PositiveSmall in state `entry`
+fail/facts/indexed_owned_case_replacement_through_other_state_rejected rejected 6639ms expected @65641cea7412+wt
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+fail/facts/indexed_owned_case_replacement_through_parameter_rejected rejected 7280ms expected @65641cea7412+wt
+	cannot prove requires contract for call witness from main: 0 in u64::PositiveSmall in state `entry`
+fail/facts/indexed_owned_case_replacement_through_target_body_rejected rejected 6398ms expected @65641cea7412+wt
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
+	cannot prove initializer of `payload` in witness is in domain `u64::PositiveSmall`; an annotation cannot establish routed qualification
 fail/facts/indexed_storage_address_identity_missing_bound rejected 2444ms expected @69725a85bb43+wt
 	cannot prove index `index` is within length 2 in probe::entry
 	cannot prove index `index` is within length 2 in probe::entry
@@ -10370,6 +10405,7 @@ pass/borrows/fixed_array_reference_results_exit checked 9558ms check-target:maco
 pass/borrows/foreign_output_captured_reference_exit checked 3727ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/foreign_output_copied_lifetime_last_use checked 684ms @3ea0aec65b44+wt
 pass/borrows/foreign_output_exclusive_anchor_exit checked 3602ms check-target:macos_arm64 @3ea0aec65b44+wt
+pass/borrows/guard_subject_ends_before_returning_call_exit checked 909ms check-target:macos_arm64 @65641cea7412+wt
 pass/borrows/incoming_reference_slot_replacement_exit checked 3580ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/indexed_record_field_replacement_exit checked 11018ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 11225ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -11677,6 +11713,7 @@ pass/domains/policy_plan_shapes checked 9261ms @5041ef1af684+wt
 pass/domains/predicate_domain_param checked 9737ms @5041ef1af684+wt
 pass/domains/progress_domain_provider checked 18456ms @3b422f31da30+wt
 pass/domains/qualified_mutable_field_exit checked 10906ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/domains/qualified_owned_array_scalar_control_exit checked 889ms check-target:macos_arm64 @65641cea7412+wt
 pass/domains/qualified_record_capture_after_mutation checked 2791ms @868a854ecd4d+wt
 pass/domains/qualified_record_capture_before_mutation checked 2882ms @868a854ecd4d+wt
 pass/domains/qualified_record_case_predicate checked 2961ms @868a854ecd4d+wt
@@ -11691,6 +11728,8 @@ pass/domains/refinement_chain_predicates checked 1707ms @a9ae30e1c334+wt
 pass/domains/refinement_chain_routed_provenance checked 1643ms @a9ae30e1c334+wt
 pass/domains/retained_routed_qualification_cast checked 1530ms @e74967d11875
 pass/domains/routed_record_capture_before_sibling_mutation checked 1503ms @e74967d11875
+pass/domains/routed_selected_copy_exit checked 1006ms check-target:macos_arm64 @65641cea7412+wt
+pass/domains/routed_selected_replacement_exit checked 1487ms check-target:macos_arm64 @65641cea7412+wt
 pass/domains/runtime_authored_borrowed_result_domain_exit checked 110108ms check-target:linux_x86_64 @be2b40493220
 pass/domains/runtime_authored_record_result_domain_exit checked 87923ms check-target:linux_x86_64 @be2b40493220
 pass/domains/runtime_authored_result_composed_domain_exit checked 80109ms check-target:linux_x86_64 @be2b40493220
@@ -11758,6 +11797,7 @@ pass/drops/lifetime_owner_drop_hook checked 1710ms @a9ae30e1c334+wt
 pass/drops/ordered_teardown_body checked 1787ms @a9ae30e1c334+wt
 pass/drops/owned_qualified_contextual_cleanup_exit checked 13947ms check-target:macos_arm64 @e74967d11875
 pass/drops/projected_case_subject_root_cleanup_exit checked 733ms check-target:macos_arm64 @cf5a1803718b+wt
+pass/drops/qualified_scalar_control_consumed_owner_exit checked 1058ms check-target:macos_arm64 @65641cea7412+wt
 pass/drops/reference_rebinding_preserves_pointee_exit checked 2294ms check-target:macos_arm64 @c1d3bd9711c2+wt
 pass/drops/result_cleanup_implicit_boolean_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
 pass/drops/result_cleanup_integer_exit checked 3768ms check-target:macos_arm64 @76ea4b8c7c50
@@ -12897,6 +12937,15 @@ pass/facts/indexed_element_mut_loan_through_other_machine_exit checked 7395ms ch
 pass/facts/indexed_element_mut_loan_through_other_state_exit checked 7286ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_parameter_exit checked 7060ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_target_body_exit checked 7074ms check-target:macos_arm64 @dee77250b5b9
+pass/facts/indexed_owned_case_replacement_through_call_result checked 6412ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_const_name checked 6424ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_field checked 6413ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_local checked 6420ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_match_join checked 6450ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_other_machine checked 6417ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_other_state checked 6398ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_parameter checked 6418ms check-target:macos_arm64 @65641cea7412+wt
+pass/facts/indexed_owned_case_replacement_through_target_body checked 6397ms check-target:macos_arm64 @65641cea7412+wt
 pass/facts/indexed_storage_address_identity_through_call_result_exit checked 6365ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_const_name_exit checked 5314ms check-target:macos_arm64 @69725a85bb43+wt
 pass/facts/indexed_storage_address_identity_through_field_exit checked 6371ms check-target:macos_arm64 @69725a85bb43+wt

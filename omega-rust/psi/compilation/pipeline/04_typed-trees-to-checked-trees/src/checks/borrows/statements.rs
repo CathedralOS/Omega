@@ -174,6 +174,7 @@ pub(super) fn check_statement_borrows<'p>(
             statement,
             statement_node,
             &occurrences,
+            false,
         );
         let mut staged_operands = super::reads::StagedOperands::default();
         for (position, occurrence) in occurrences.iter().enumerate() {
@@ -557,19 +558,22 @@ fn loans_live_at_call(
     }
     let exiting_source =
         source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
+    let ended_before_call =
+        super::reads::loans_ended_before_call(program, facts, state_flow, borrow_call);
     loans
         .filter(|loan_handle| {
-            !exiting_source.is_some_and(|state| {
-                local_loan_ends_before_successor(
-                    program,
-                    facts,
-                    state_flow,
-                    state,
-                    *loan_handle,
-                    borrow_call,
-                    call_frames,
-                )
-            })
+            !ended_before_call.contains(loan_handle)
+                && !exiting_source.is_some_and(|state| {
+                    local_loan_ends_before_successor(
+                        program,
+                        facts,
+                        state_flow,
+                        state,
+                        *loan_handle,
+                        borrow_call,
+                        call_frames,
+                    )
+                })
         })
         .collect()
 }

@@ -626,6 +626,11 @@ fn resolve(
                     // captured loan or selected disposal authority. Copy, erasure
                     // and stable-observation permission remain separate; scalar
                     // predicates keep their codecs below.
+                    // These are carrier/storage judgments for scalars and
+                    // arrays too, not a nominal-data exception. The recursive
+                    // carrier classification above still owns descriptor,
+                    // hook and linear-shape restrictions; consumers retain
+                    // membership, custody and copy/disposal obligations.
                     if matches!(requirement,
                         ContentsRequirement::StructuralConstruction
                             | ContentsRequirement::StoredValue
@@ -633,7 +638,6 @@ fn resolve(
                             | ContentsRequirement::BorrowedStorage
                             | ContentsRequirement::BorrowFree
                             | ContentsRequirement::DescriptorCleanup)
-                        && matches!(contents, ContentType::Data { .. })
                         && domain.subject == typed_trees::types::DomainConstraintSubject::Declared
                         && domain.semantic_id.is_valid()
                         && typed_trees::domain::domain_by_symbol(program, domain.symbol).is_some()

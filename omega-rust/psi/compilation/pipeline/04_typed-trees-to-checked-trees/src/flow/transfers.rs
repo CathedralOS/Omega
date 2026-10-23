@@ -40,6 +40,7 @@ mod declared_domains;
 mod owned_qualifications;
 pub(super) use owned_qualifications::append_owned_qualification_transfer;
 mod projected;
+mod replacement;
 mod scalar_values;
 mod write_target;
 pub(super) use write_target::{StatementWrite, narrow_pinned_selectors, statement_write};
@@ -163,6 +164,16 @@ pub(super) fn propagate_statement_transfers(
                 &mut refs,
             );
         }
+        replacement::preserve_owned_memberships(
+            program,
+            semantic,
+            build,
+            &write,
+            statement_fact,
+            assignment_source_contexts,
+            point,
+            &mut refs,
+        );
     }
 
     if !write.target_is_exact {
@@ -243,6 +254,7 @@ pub(super) fn propagate_statement_transfers(
                 semantic,
                 build,
                 assignment_source_contexts,
+                source_expression,
                 source_place,
                 target_place,
                 destination_type,

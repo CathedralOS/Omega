@@ -773,6 +773,7 @@ impl StateGraphEmission<'_, '_> {
                 &values,
                 &self.catalogs.structural_types,
                 &evaluation.structural_parameters,
+                evaluation.shared_qualifications.catalog(),
                 &mut next_value,
                 first_successor_reads_payloads,
             )?),
@@ -1656,6 +1657,7 @@ pub(super) fn plan_short_circuit_guard(
     values: &[ValueDeclaration],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     structural_parameters: &[(u32, terminal_psi::StructuralParameterDeclaration)],
+    qualifications: &terminal_psi::ScalarQualificationCatalog,
     next_value: &mut u64,
     successor_reads_payloads: bool,
 ) -> Result<
@@ -1686,6 +1688,7 @@ pub(super) fn plan_short_circuit_guard(
     let planned = crate::emission::case_payload_dispatch::plan(
         decision,
         &declared_cases,
+        qualifications,
         &mut namespace,
         next_value,
         successor_reads_payloads,

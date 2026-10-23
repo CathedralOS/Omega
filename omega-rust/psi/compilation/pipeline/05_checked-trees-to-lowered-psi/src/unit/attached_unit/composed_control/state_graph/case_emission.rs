@@ -82,6 +82,10 @@ pub(super) fn prepare<'a>(
     let Some(declared) = declaration.shape.sum_cases() else {
         return unsupported("Unit graph case subject is not a sum");
     };
+    let qualifications = catalogs
+        .prepared_scalar_qualifications
+        .map(|prepared| prepared.catalog().fields.as_slice())
+        .unwrap_or(&[]);
     let cases = declared
         .iter()
         .map(|declared| {
@@ -109,7 +113,12 @@ pub(super) fn prepare<'a>(
                 fields.push(field.id);
                 values.push((
                     payload.target_scalar_parameter_index,
-                    crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
+                    crate::terminal_identities::fresh_field_snapshot(
+                        next_value,
+                        scalar_type,
+                        field.id,
+                        qualifications,
+                    )?,
                 ));
             }
             // A wildcard returning arm shared by several cases cannot name
@@ -149,7 +158,12 @@ pub(super) fn prepare<'a>(
                 fields.push(field.id);
                 values.push((
                     u32::MAX,
-                    crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
+                    crate::terminal_identities::fresh_field_snapshot(
+                        next_value,
+                        scalar_type,
+                        field.id,
+                        qualifications,
+                    )?,
                 ));
             }
             Ok(PreparedCase {

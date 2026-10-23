@@ -79,6 +79,7 @@ impl StateGraphEmission<'_, '_> {
                     values,
                     &self.catalogs.structural_types,
                     &evaluation.structural_parameters,
+                    evaluation.shared_qualifications.catalog(),
                     next_value,
                     reads_payloads,
                 )?)

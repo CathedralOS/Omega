@@ -92,6 +92,7 @@ impl Execution<'_, '_, '_> {
             self.semantic,
             self.context,
             *contexts,
+            evaluated.capture.expression,
             source,
             destination,
             type_reference,

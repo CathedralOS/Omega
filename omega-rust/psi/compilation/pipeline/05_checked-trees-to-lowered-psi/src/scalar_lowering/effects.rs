@@ -98,6 +98,10 @@ pub(crate) fn emit(
                         );
                     }
                 };
+                let types = values
+                    .iter()
+                    .map(|value| value.value_type())
+                    .collect::<Vec<_>>();
                 if let checked_trees::CheckedScalarComputationKind::StructuralField {
                     result_type,
                     ..
@@ -107,12 +111,9 @@ pub(crate) fn emit(
                         evaluation
                             .shared_qualifications
                             .value_type(checked, *result_type)?,
+                        &types,
                     )?;
                 }
-                let types = values
-                    .iter()
-                    .map(|value| value.value_type())
-                    .collect::<Vec<_>>();
                 let value_type = expression.value_type(&types)?;
                 let id = emit_direct_expression(&expression, values, next_value, operations);
                 values.push(ValueDeclaration {

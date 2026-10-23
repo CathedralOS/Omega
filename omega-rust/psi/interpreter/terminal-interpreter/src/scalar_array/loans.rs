@@ -66,23 +66,18 @@ impl TerminalExecution<'_> {
             types.get(&parameter.structural_type).map(|row| &row.shape),
             Some(StructuralTypeShape::FixedArray { .. })
         );
-        let supported_memberships = |carrier, whole: &[_], projected: &[_]| {
-            if fixed_array_formal {
-                terminal_semantics::pure_byte_qualifications(
-                    types.values(),
-                    self.program.catalogs.structural_domains.iter(),
-                    carrier,
-                    whole,
-                    projected,
-                )
-            } else {
-                whole.is_empty() && projected.is_empty()
-            }
+        // A fixed-array loan preserves the exact carrier and its standing
+        // memberships, checked against the selected source below. Pinning
+        // backing neither reads bytes nor needs a byte-predicate theory.
+        // An element-view formal changes carrier; it keeps the distinct
+        // qualification-free descriptor contract rather than relabelling the
+        // source array's memberships as view memberships.
+        let preserves_membership_carrier = |whole: &[_], projected: &[_]| {
+            fixed_array_formal || whole.is_empty() && projected.is_empty()
         };
         if argument.access != parameter.access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !supported_memberships(
-                parameter.structural_type,
+            || !preserves_membership_carrier(
                 &parameter.qualifications,
                 &parameter.projected_qualifications,
             )
@@ -166,8 +161,7 @@ impl TerminalExecution<'_> {
                 .get(&argument.place)
                 .ok_or_else(malformed)?;
             if referent.structural_type != collection_type
-                || !supported_memberships(
-                    collection_type,
+                || !preserves_membership_carrier(
                     &referent.qualifications,
                     &referent.projected_qualifications,
                 )
@@ -203,8 +197,7 @@ impl TerminalExecution<'_> {
             (projected.value, projected.collection_home)
         };
         if referent.structural_type != collection_type
-            || !supported_memberships(
-                collection_type,
+            || !preserves_membership_carrier(
                 &referent.qualifications,
                 &referent.projected_qualifications,
             )
@@ -288,7 +281,8 @@ impl TerminalExecution<'_> {
 
 /// Ordinary array loans preserve the selected standing contract without reading
 /// its bytes. Shared access may forget facts; exclusive access retains every
-/// receiving obligation. The caller independently classifies supported theories.
+/// receiving obligation. This compares existing membership identities; neither
+/// pinning the array nor matching its contract establishes a new theory.
 pub(crate) fn borrowed_array_memberships_match(
     value: &TerminalStructuralValue,
     parameter: &StructuralParameterDeclaration,

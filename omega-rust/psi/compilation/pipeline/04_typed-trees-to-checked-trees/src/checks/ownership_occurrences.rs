@@ -44,11 +44,21 @@ impl EvaluationBranch {
 
 pub(super) struct StatementOccurrence {
     pub(super) step: StatementStep,
+    /// Exact invocation completed here, independent of its syntax's scalar
+    /// expression handle (named transitions and statement calls have none).
+    pub(super) invocation: Option<InvocationIdentity>,
     pub(super) route: Vec<EvaluationBranch>,
     /// The last step through which this occurrence's access is held: its own
     /// position, or the completion of the outermost invocation that stages it
     /// as a receiver or operand, since the callee observes it until then.
     pub(super) held_until: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum InvocationIdentity {
+    Expression(ExpressionHandle),
+    Statement,
+    Transition(typed_trees::statement::TransitionTargetHandle),
 }
 
 pub(super) fn routes_compatible(left: &[EvaluationBranch], right: &[EvaluationBranch]) -> bool {
@@ -191,6 +201,11 @@ pub(super) fn statement_steps_at_evaluation(
                 order.expression(*argument, false);
             }
             order.push(StatementStep::Complete(ExpressionHandle::invalid()));
+            order
+                .steps
+                .last_mut()
+                .expect("call completion was just appended")
+                .invocation = Some(InvocationIdentity::Statement);
             order.hold_through_completion(0);
         }
         StatementNode::RootBinding(binding) => {
@@ -247,6 +262,11 @@ pub(super) fn statement_steps_at_evaluation(
                             order.expression(*argument, conditional);
                         }
                         order.push(StatementStep::Complete(ExpressionHandle::invalid()));
+                        order
+                            .steps
+                            .last_mut()
+                            .expect("transition completion was just appended")
+                            .invocation = Some(InvocationIdentity::Transition(target));
                         order.hold_through_completion(first);
                     }
                     _ => {}
@@ -351,6 +371,7 @@ impl StatementOrder<'_> {
         let position = self.steps.len();
         self.steps.push(StatementOccurrence {
             step,
+            invocation: None,
             route: self.route.clone(),
             held_until: position,
         });
@@ -528,6 +549,10 @@ impl StatementOrder<'_> {
         // invocation rows; syntax alone cannot invent an executed boundary.
         self.push(StatementStep::Complete(expression));
         if let Some(first) = invocation {
+            self.steps
+                .last_mut()
+                .expect("expression completion was just appended")
+                .invocation = Some(InvocationIdentity::Expression(expression));
             self.hold_through_completion(first);
         }
         // Capturing a computed dispatch subject also observes its completed

@@ -68,6 +68,7 @@ pub(crate) struct PlannedGuard {
 pub(crate) fn plan<'a>(
     decision: LoweredBooleanDecision,
     declared_cases: &impl Fn(PlaceId) -> Option<&'a [StructuralCaseDeclaration]>,
+    qualifications: &terminal_psi::ScalarQualificationCatalog,
     namespace: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     outcome_reads_payloads: bool,
@@ -75,6 +76,7 @@ pub(crate) fn plan<'a>(
     let decision = plan_decision(
         decision,
         declared_cases,
+        qualifications,
         namespace,
         next_value,
         outcome_reads_payloads,
@@ -89,6 +91,7 @@ pub(crate) fn plan<'a>(
 fn plan_decision<'a>(
     decision: LoweredBooleanDecision,
     declared_cases: &impl Fn(PlaceId) -> Option<&'a [StructuralCaseDeclaration]>,
+    qualifications: &terminal_psi::ScalarQualificationCatalog,
     namespace: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     outcome_reads_payloads: bool,
@@ -108,6 +111,7 @@ fn plan_decision<'a>(
                     when_true: Box::new(plan_decision(
                         *when_true,
                         declared_cases,
+                        qualifications,
                         namespace,
                         next_value,
                         outcome_reads_payloads,
@@ -115,6 +119,7 @@ fn plan_decision<'a>(
                     when_false: Box::new(plan_decision(
                         *when_false,
                         declared_cases,
+                        qualifications,
                         namespace,
                         next_value,
                         outcome_reads_payloads,
@@ -137,6 +142,7 @@ fn plan_decision<'a>(
                     when_true: Box::new(plan_decision(
                         *when_true,
                         declared_cases,
+                        qualifications,
                         namespace,
                         next_value,
                         outcome_reads_payloads,
@@ -144,6 +150,7 @@ fn plan_decision<'a>(
                     when_false: Box::new(plan_decision(
                         *when_false,
                         declared_cases,
+                        qualifications,
                         namespace,
                         next_value,
                         outcome_reads_payloads,
@@ -173,10 +180,13 @@ fn plan_decision<'a>(
                 if field.relevance.is_erased() {
                     continue;
                 }
-                payloads.push((
+                let payload = crate::terminal_identities::fresh_field_snapshot(
+                    next_value,
+                    scalar_type,
                     field.id,
-                    crate::terminal_identities::fresh_scalar_declaration(next_value, scalar_type)?,
-                ));
+                    &qualifications.fields,
+                )?;
+                payloads.push((field.id, payload));
             }
             let bound = payloads
                 .iter()
@@ -205,6 +215,7 @@ fn plan_decision<'a>(
                 when_true: Box::new(plan_decision(
                     when_true,
                     declared_cases,
+                    qualifications,
                     namespace,
                     next_value,
                     outcome_reads_payloads,
@@ -212,6 +223,7 @@ fn plan_decision<'a>(
                 when_false: Box::new(plan_decision(
                     *when_false,
                     declared_cases,
+                    qualifications,
                     namespace,
                     next_value,
                     outcome_reads_payloads,

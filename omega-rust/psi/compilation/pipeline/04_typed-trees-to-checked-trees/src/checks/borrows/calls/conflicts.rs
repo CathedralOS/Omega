@@ -164,6 +164,8 @@ pub(super) fn check_call_access_conflicts<'p>(
         borrow_call,
         call_frames,
     );
+    let ended_before_call =
+        super::super::reads::loans_ended_before_call(program, facts, state_flow, borrow_call);
     let active_loans: Vec<_> = facts
         .flow
         .borrow_loan_constraints(entry_constraints)
@@ -171,17 +173,18 @@ pub(super) fn check_call_access_conflicts<'p>(
             // The same replayed scope closure applies to forwarded argument
             // authority and to the successor's mutations. Ordinary calls,
             // carried loans and unclosed observations remain active.
-            !exiting_source.is_some_and(|source| {
-                super::super::statements::local_loan_ends_before_successor(
-                    program,
-                    facts,
-                    state_flow,
-                    source,
-                    *loan,
-                    borrow_call,
-                    call_frames,
-                )
-            })
+            !ended_before_call.contains(loan)
+                && !exiting_source.is_some_and(|source| {
+                    super::super::statements::local_loan_ends_before_successor(
+                        program,
+                        facts,
+                        state_flow,
+                        source,
+                        *loan,
+                        borrow_call,
+                        call_frames,
+                    )
+                })
         })
         .map(|loan| (loan, facts.borrow.loans.get(loan)))
         .collect();

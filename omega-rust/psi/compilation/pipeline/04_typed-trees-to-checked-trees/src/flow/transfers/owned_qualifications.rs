@@ -12,12 +12,29 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
     semantic: &mut FactPlan,
     contexts: &crate::flow::FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
+    source_expression: typed_trees::expression::ExpressionHandle,
     source: PlaceHandle,
     destination: PlaceHandle,
     destination_type: typed_trees::types::TypeReferenceHandle,
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
+    let ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        ..
+    } = point
+    else {
+        return;
+    };
+    let Some((machine, state)) =
+        validation::machine_state_by_symbols(program, machine_symbol, state_symbol)
+    else {
+        return;
+    };
+    if !validation::value_has_builtin_coordinates(program, machine, state, source_expression) {
+        return;
+    }
     let source = *semantic.places.get(source);
     let destination = *semantic.places.get(destination);
     let source_segments = semantic
@@ -65,7 +82,17 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
         };
         let place = semantic.places.get(place);
         let segments = semantic.place_segments.span_or_empty(place.segments);
-        if place.root != source.root || !segments.starts_with(&source_segments) {
+        // An independently live whole-element extent qualifies whichever
+        // element this captured builtin read selects. A single candidate or
+        // unresolved selector never supplies that universal premise.
+        if place.root != source.root
+            || segments.len() < source_segments.len()
+            || !crate::flow::segments_cover_subject(
+                program,
+                &segments[..source_segments.len()],
+                &source_segments,
+            )
+        {
             continue;
         }
         let relative_path = &segments[source_segments.len()..];
@@ -92,7 +119,7 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
         }) {
             continue;
         }
-        if !segments.iter().chain(&destination_segments).all(|segment| {
+        if !relative_path.iter().chain(&destination_segments).all(|segment| {
             matches!(segment,
             facts::PlaceSegment::Field { symbol } if symbol.is_valid())
                 || matches!(segment, facts::PlaceSegment::Case { variant } if variant.is_valid())

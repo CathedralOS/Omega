@@ -210,7 +210,7 @@ impl super::Expansion<'_> {
                 )?,
             }
         };
-        expression.retain_observed_type(result_type)?;
+        expression.retain_observed_type(result_type, input_types)?;
         let mut arguments = super::parameters(input_types);
         arguments.push(super::parameter(input_types.len(), result_type));
         let observation = self.push(crate::scalar_lowering::branch_states::prepared::LoweredScalarBranchState {

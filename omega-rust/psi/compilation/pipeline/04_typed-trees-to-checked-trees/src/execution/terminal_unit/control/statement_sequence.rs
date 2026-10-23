@@ -268,52 +268,11 @@ pub(in crate::execution::terminal_unit) fn build(
         );
         return None;
     }
-    // A bounded byte owner's primitive predicates survive both a shared loan
-    // and a mutable loan whose stores preserve those predicates. Scalar
-    // completion changes neither that obligation nor the backing's identity.
-    let bounded_owner = |parameter: &CheckedUnitStructuralParameterPlan| {
-        matches!(
-            parameter.access,
-            checked_trees::checked_borrowed_access_pair_pattern!()
-        ) && parameter.projected_qualifications.is_empty()
-            && parameter.qualifications.iter().all(|qualification| {
-                shapes.domains.iter().any(|domain| {
-                    domain.domain == *qualification
-                        && domain.carrier_type_identity == parameter.type_identity
-                        && domain.byte_predicate.is_some()
-                        && domain.establishment_routes.is_empty()
-                })
-            })
-            && program
-                .state_parameters(state)
-                .get(parameter.position as usize)
-                .and_then(|source| {
-                    crate::execution::terminal_unit::types::byte_sequence_carrier(
-                        program,
-                        source.type_reference,
-                        &[],
-                    )
-                })
-                .is_some_and(|carrier| {
-                    matches!(
-                        carrier,
-                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                })
-    };
-    // Completion uses the actual checked exit after this prefix, not entry
-    // claims: calls may already have consumed them. Qualified mutable carriers
-    // still need their separate result contract; a scalar join cannot supply it.
-    trace.phase("statement sequence: scalar control guard");
-    if scalar_control.is_some()
-        && structural_parameters.iter().any(|parameter| {
-            !parameter.qualifications.is_empty()
-                && parameter.access != CheckedStructuralAccess::SharedBorrow
-                && !bounded_owner(parameter)
-        })
-    {
-        return None;
-    }
+    // Scalar completion does not recreate structural entry contracts. The
+    // unchanged parameter roster retains qualifications and access; normal
+    // exit checking proves handback from each current flow exit, and lowering
+    // executes that exit's checked cleanup. This remains true for owned and
+    // borrowed carriers alike, including values consumed by this prefix.
     let mut operations = Vec::new();
     let mut place_loans = Vec::new();
     // Erased borrow carriers have no storage binding: the sequence advances

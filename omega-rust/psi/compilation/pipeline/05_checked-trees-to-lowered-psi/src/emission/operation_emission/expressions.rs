@@ -267,6 +267,7 @@ impl LoweredDirectExpression {
     pub(crate) fn retain_observed_type(
         &mut self,
         value_type: QualifiedScalarType,
+        parameters: &[QualifiedScalarType],
     ) -> Result<(), LoweringError> {
         if self.scalar_type() != value_type.scalar_type {
             return unsupported("storage observation changed its scalar carrier");
@@ -283,11 +284,19 @@ impl LoweredDirectExpression {
                     *qualifications = value_type.qualifications
                 }
                 LoweredBooleanReturnExpression::ScalarObservation { operand } => {
-                    operand.retain_observed_type(value_type)?
+                    operand.retain_observed_type(value_type, parameters)?
                 }
+                LoweredBooleanReturnExpression::Parameter { position }
+                | LoweredBooleanReturnExpression::Local { position }
+                    if parameters.get(*position) == Some(&value_type) => {}
                 _ if value_type.qualifications.is_empty() => {}
                 _ => return unsupported("qualified Boolean observation has no storage read"),
             },
+            // Dispatch extraction has already observed this leaf into a typed
+            // scalar parameter. Reuse its exact qualification; annotating an
+            // arbitrary parameter here would manufacture membership.
+            Self::Parameter { position, .. } | Self::Local { position, .. }
+                if parameters.get(*position) == Some(&value_type) => {}
             _ if value_type.qualifications.is_empty() => {}
             _ => return unsupported("qualified scalar observation has no storage read"),
         }

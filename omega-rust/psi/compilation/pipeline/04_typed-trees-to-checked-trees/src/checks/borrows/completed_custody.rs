@@ -78,6 +78,7 @@ pub(crate) fn require_unborrowed_completion(
         statement,
         node,
         &occurrences,
+        false,
     );
     let mut active = facts
         .flow
