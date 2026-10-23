@@ -1,1 +1,1 @@
-error: exact arithmetic in machine `target_probe` state `entry` local `upper_diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).
+exact arithmetic in machine `target_probe` state `entry` local `upper_diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation).

@@ -1,0 +1,30 @@
+// Multiplying two bounded unsigned u64 values (factor >= 10u64 && factor <= 20u64 and scale >= 3u64 && scale <= 4u64) establishes the exact post-multiplication interval (product >= 30u64 && product <= 80u64), discharging exact subtraction 80u64 - product and product - 30u64 across all nine places.
+// Expected exit: 0
+
+machine probe(factor: u64, scale: u64) -> u64
+    requires factor >= 10u64 && factor <= 20u64 && scale >= 3u64 && scale <= 4u64
+{
+    let product: u64 = factor * scale;
+    transition {
+        _ -> consume(product)
+    }
+
+    state consume(forwarded_product: u64) -> u64
+    requires
+        forwarded_product >= 30u64 && forwarded_product <= 80u64
+    {
+        let upper_diff: u64 = 80u64 - forwarded_product;
+        let lower_diff: u64 = forwarded_product - 30u64;
+        upper_diff + lower_diff
+    }
+}
+
+machine main() crashes Trap {
+    let combined: u64 = probe(15u64, 4u64);
+    transition combined == 50u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

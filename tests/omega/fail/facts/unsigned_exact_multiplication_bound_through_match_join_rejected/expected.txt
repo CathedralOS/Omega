@@ -1,0 +1,1 @@
+cannot prove requires contract for call choose from probe: product >= 30 && product <= 80 && 60 >= 30 && 60 <= 80

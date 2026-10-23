@@ -2,8 +2,13 @@
 
 Fact: Multiplying two bounded unsigned u64 values (factor >= 10u64 && factor <= 20u64 and scale >= 3u64 && scale <= 4u64) establishes the exact post-multiplication interval (product >= 30u64 && product <= 80u64), discharging exact subtraction 80u64 - product and product - 30u64 across all nine places.
 
-Owning Task: `NUMERIC-SCALARS` / `CONSERVATION-CONTRACT` (`TASKS.md`)
-Claim Ticket: `a7d22049b5d4426191d2fc668f0a2b10`
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state parameters
+`requires`, results `ensures`, locals the facts from initializers, guards and calls" — this row
+is one customer group's nine-place transport and execution of that settled proposition-based
+scalar range contract for unsigned `u64` exact multiplication; `ARITHMETIC-POLICY-REALIZATION`
+owns the underlying numeric-policy realization. (The former `NUMERIC-SCALARS` reference names no
+item on the current board.)
+Claim Ticket: `849de924ec9d4048a9e827cd93136e05`
 
 ## Places
 
@@ -68,8 +73,51 @@ The compiler strictly fails closed at compile time with:
 | `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_product from probe: product >= 30 && product <= 80` |
 | `target_body` | native 0 / interp 0 | `exact arithmetic in machine \`target_probe\` state \`entry\` local \`upper_diff\` may overflow \`u64\`` |
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/unsigned_exact_multiplication_bound_through_<place>_exit`
+and `tests/omega/fail/facts/unsigned_exact_multiplication_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample
+place's `main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a
+byte-identical copy of its place twin's `main.omg`/`build.omg`/`expected.txt`. The four twins
+whose diagnostics are overflow refusals (`local`, `field`, `const_name`, `target_body`) carry the
+runner-emitted `exact arithmetic in machine ... may overflow \`u64\` ... (decision 17 -- exact
+arithmetic is a proof obligation).` fragment; the five contract refusals keep their
+`cannot prove requires/ensures contract ...` fragments.
+
+Measured on macOS arm64 with the factsr1 shared producer gen-d3b0020bf6a (revision
+`d3b0020bf6a`, omega sha256 `c6dff3ba4be3a38c720ee83b522d251743afde9c174ca6881390c5812920e344`,
+corpus_runner sha256 `65225cae2bf62dec8f705339afaef606c0bac0e611c005dae984488e67ffa301`), whose Rust
+state is identical to the landing base `f28130ba` (0 `.rs` delta). The row was first recorded
+with gen-f1b0d3326d2 at base `f1b0d3326d2`; as main advanced (psi contract-entailment changes,
+then other rows' fixture landings) the row was re-measured — 36/36 fixtures clean, 0 rows
+moved — and re-recorded scoped at the landing base, so the row content is unchanged and only
+the provenance stamp moved to the landing base:
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+  `interp exit: 0`.
+- the nine twins refuse at checking (CLI exit 200), each observed diagnostic containing its
+  authored `expected.txt` fragment (9/9).
+- `python3 tools/corpus_gate.py --runner <gen>/corpus_runner --record --filter
+  facts/unsigned_exact_addition_bound,facts/unsigned_exact_multiplication_bound` recorded three
+  legs stamped `@f28130ba26ee+wt`: 18 outcome rows (nine `checked check-target:macos_arm64` plus
+  nine `rejected expected` with 12 diagnostic continuation lines), nine native rows
+  (`built ... exit:0`) and nine both rows (`exit:0 interpreter-exit:0 interpreter:agrees`). Every
+  golden diff was a pure addition (0 keys and 0 continuation lines lost), with 0 unimplemented
+  rows and 0 rows recording a lost success (the goldens' pre-existing success-less and
+  regressed-from rows predate this series).
+
 ## Requirements and Evidence (AGENTS.md)
 
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`).
+- **Requirement established:** Exact unsigned `u64` multiplication of two bounded values
+  (`factor >= 10u64 && factor <= 20u64`, `scale >= 3u64 && scale <= 4u64`) statically establishes
+  the post-multiplication interval `[30, 80]`, discharging both exact subtractions
+  `80u64 - product` and `product - 30u64` across all nine places — transported through `requires`
+  facts, `ensures` results, local initializer facts, guards and call results — with Terminal Psi
+  and native execution agreeing (`omega run --both`: root plus nine places, `native exit 0`,
+  `interp exit: 0`).
 - **Establishment**: Precondition bounds `factor >= 10u64 && factor <= 20u64` and `scale >= 3u64 && scale <= 4u64` establish bounded intervals for both multiplier inputs. Unsigned multiplication `factor * scale` synthesizes the post-multiplication interval `[30, 80]`.
 - **Identity and lifetime**: The synthesized interval `product in [30, 80]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without precision or range loss.
 - **Composition**: In each place, the synthesized interval `product in [30, 80]` composes with both bounds subtractions `80u64 - product` and `product - 30u64`, proving non-negative range and eliminating underflow risk without post-hoc caller equality guards.
