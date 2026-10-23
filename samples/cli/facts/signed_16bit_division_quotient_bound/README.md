@@ -2,7 +2,7 @@
 
 Fact: a 16-bit signed i16 division of bounded inputs (dividend >= 400i16 && dividend <= 400i16, divisor >= 8i16 && divisor <= 8i16) establishes quotient >= 50i16 && quotient <= 50i16 so exact 16-bit signed subtraction quotient - 50i16 is proved overflow-free across all nine places.
 
-Owning Task: `SIGNED-16BIT-DIVISION-QUOTIENT`
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`), with `ARITHMETIC-POLICY-REALIZATION` owning the numeric-policy realization
 Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Instruction selection](wiki/spec/resources/storage.md)
 
 This fact row demonstrates that a 16-bit signed `i16` division of bounded inputs (`dividend >= 400i16 && dividend <= 400i16` and `divisor >= 8i16 && divisor <= 8i16`) establishes the exact quotient interval (`quotient >= 50i16 && quotient <= 50i16`) across all nine standard places. The compiler statically derives interval division bounds (`[400, 400] / [8, 8] = [50, 50]`), which directly discharges exact downstream subtraction `quotient - 50i16 == 0i16` and the contract `requires q >= 50i16 && q <= 50i16` of `verify_i16_quotient` without underflow, overflow, or runtime guard checks across both Terminal Psi and native targets.
@@ -60,9 +60,13 @@ omega --check samples/cli/facts/signed_16bit_division_quotient_bound/target_body
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call verify_i16_quotient from ...: quotient >= 50 && quotient <= 50 (needs fact \`q >= 50 && q <= 50\` here; establish it before the call via a prior contract guarantee, domain membership, or guard)`
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_16bit_division_quotient_bound_through_<place>_exit` (nine positives: `main.omg`, `build.omg`, `expected_native_exit.txt`) and `tests/omega/fail/facts/signed_16bit_division_quotient_bound_through_<place>_rejected` (nine reject twins: `main.omg`, `build.omg`, `expected.txt`). Every fixture is a byte-identical copy of its place program, so the sample and the fixture cannot drift apart. The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Recorded from the shared opt-level 1 producer on macOS arm64: `corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows carrying their own diagnostic line, `corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `SIGNED-16BIT-DIVISION-QUOTIENT` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`), with `ARITHMETIC-POLICY-REALIZATION` owning the numeric-policy realization.
 - **Requirement established:** End-to-end nine-place fact preservation for 16-bit signed `i16` division quotient interval synthesis (`dividend >= 400i16 && dividend <= 400i16`, `divisor >= 8i16 && divisor <= 8i16` -> `quotient >= 50i16 && quotient <= 50i16`), discharging exact downstream subtraction `quotient - 50i16` and contract `requires q >= 50i16 && q <= 50i16` across all nine language transport places with differential agreement between Terminal Psi and native execution across hosted targets.
 - **Authority:** [Numeric values](wiki/spec/language/numeric_values.md#exact-subtraction), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Control flow](wiki/spec/terminal-psi/control_flow.md).
 

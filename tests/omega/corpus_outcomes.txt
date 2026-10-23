@@ -7784,6 +7784,48 @@ fail/facts/signed_16bit_bitwise_xor_bound_through_target_body_rejected rejected 
 	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: xored >= 40 && xored <= 63 (needs fact `val >= 40 && val <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_call_result_rejected rejected 16223ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_const_name_rejected rejected 12349ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_field_rejected rejected 12610ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_local_rejected rejected 13047ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_match_join_rejected rejected 9587ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_other_machine_rejected rejected 10583ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_other_state_rejected rejected 11918ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: q >= 50 && q <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_division_quotient_bound_through_parameter_rejected rejected 9258ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from check_quotient: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_quotient_bound_through_target_body_rejected rejected 6232ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i16_quotient from exercise: quotient >= 50 && quotient <= 50 (needs fact `q >= 50 && q <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_call_result_rejected rejected 5873ms expected @69f7d279546e+wt
+	cannot prove ensures contract for exit from remainder at statement 0: result >= 0 && result <= 15
+fail/facts/signed_16bit_division_remainder_bound_through_const_name_rejected rejected 10157ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_rem from probe: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_field_rejected rejected 10003ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_rem from compute_field: holder.rem >= 0 && holder.rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_local_rejected rejected 6397ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_rem from compute_local: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_match_join_rejected rejected 6076ms expected @69f7d279546e+wt
+	cannot prove ensures contract for exit from choose_rem at statement 0: result >= 0 && result <= 15
+fail/facts/signed_16bit_division_remainder_bound_through_other_machine_rejected rejected 9376ms expected @69f7d279546e+wt
+	cannot prove requires contract for call forward from compute_forward: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_other_state_rejected rejected 9374ms expected @69f7d279546e+wt
+	cannot prove requires contract for call step from verify_state: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_parameter_rejected rejected 5682ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_parameter from compute_param: dividend % divisor >= 0 && dividend % divisor <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_division_remainder_bound_through_target_body_rejected rejected 6176ms expected @69f7d279546e+wt
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_saturating_multiplication_bound_through_call_result_rejected rejected 47522ms expected @4c23cc3391c2+wt
 	cannot prove ensures contract for exit from mul_saturating at statement 3: result >= 50 && result <= 200
 fail/facts/signed_16bit_saturating_multiplication_bound_through_const_name_rejected rejected 43660ms expected @4c23cc3391c2+wt
@@ -16487,6 +16529,24 @@ pass/facts/signed_16bit_bitwise_xor_bound_through_other_machine_exit checked 247
 pass/facts/signed_16bit_bitwise_xor_bound_through_other_state_exit checked 27634ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_bitwise_xor_bound_through_parameter_exit checked 27098ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_bitwise_xor_bound_through_target_body_exit checked 30039ms check-target:macos_arm64 @4c23cc3391c2+wt
+pass/facts/signed_16bit_division_quotient_bound_through_call_result_exit checked 14117ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_const_name_exit checked 11354ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_field_exit checked 10247ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_local_exit checked 13621ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_match_join_exit checked 11281ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_other_machine_exit checked 8559ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_other_state_exit checked 14252ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_parameter_exit checked 14796ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_quotient_bound_through_target_body_exit checked 13421ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_call_result_exit checked 15629ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_const_name_exit checked 12851ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_field_exit checked 11620ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_local_exit checked 13435ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_match_join_exit checked 11380ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_other_machine_exit checked 10112ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_other_state_exit checked 13437ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_parameter_exit checked 14131ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_division_remainder_bound_through_target_body_exit checked 14896ms check-target:macos_arm64 @69f7d279546e+wt
 pass/facts/signed_16bit_saturating_multiplication_bound_through_call_result_exit checked 61253ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_saturating_multiplication_bound_through_const_name_exit checked 61289ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_saturating_multiplication_bound_through_field_exit checked 61121ms check-target:macos_arm64 @4c23cc3391c2+wt

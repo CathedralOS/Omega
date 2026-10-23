@@ -1,0 +1,28 @@
+// Fact: a 16-bit signed i16 remainder operation (dividend % divisor where dividend >= 0i16 && dividend <= 100i16, divisor >= 16i16 && divisor <= 16i16) establishes rem >= 0i16 && rem <= 15i16 so exact 16-bit signed subtraction 15i16 - rem is proved overflow-free across all nine places.
+// Invalid: constant remainder 16 % 17 = 16i16 violates verify_rem contract. Place: const_name.
+// Expected diagnostic: cannot prove requires contract for call verify_rem
+
+machine verify_rem(rem: i16) -> i32
+requires rem >= 0i16 && rem <= 15i16
+{
+    let headroom: i16 = 15i16 - rem;
+    0i32
+}
+
+const DIVIDEND: i16 = 16i16;
+const DIVISOR: i16 = 17i16;
+const REM: i16 = DIVIDEND % DIVISOR;
+
+machine probe() -> i32 {
+    let rem: i16 = REM;
+    verify_rem(rem)
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
