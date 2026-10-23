@@ -300,7 +300,11 @@ effort=high`); a publish without one still lands, prints a warning, and
 returns `provenance_warning`. Of 201 notes written in the first day, about 15
 named a model, so the owner label alone cannot answer "which model". The note is a separate push after
 publication: it never blocks or undoes a landing, and the result's
-`provenance` field reports `recorded` or why it was not. Notes commits use a
+`provenance` field reports `recorded` or why it was not.
+Filesystem errors during this advisory write report an unrecorded note, not a
+failed publication; failure to clean its unique local scratch ref likewise
+cannot overturn a confirmed publication or note push.
+Notes commits use a
 fixed `omega-landing` committer, since a lander's private address would be
 refused by GitHub's email-privacy check. Read them with:
 

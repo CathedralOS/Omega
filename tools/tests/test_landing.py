@@ -6,6 +6,7 @@ import copy
 from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 import contextlib
+import errno
 import importlib.util
 import io
 import os
@@ -694,6 +695,62 @@ class LandingTests(unittest.TestCase):
                          "owner: candidate")
         # The finishing writer also must not delete the peer's in-flight ref.
         self.assertEqual(peer.git("rev-parse", shared_scratch).stdout, seeded)
+
+    def test_published_main_survives_provenance_filesystem_errors(self):
+        for boundary in ("note creation", "scratch cleanup"):
+            with self.subTest(boundary=boundary):
+                module = load_landing()
+                claim = self.claim(self.a)
+                candidate = self.commit(self.a, boundary)
+                original_git = module.Landing.git
+                note_created = False
+
+                def fail_advisory_write(client, *arguments, **keywords):
+                    nonlocal note_created
+                    if "notes" in arguments and "add" in arguments:
+                        if boundary == "note creation":
+                            raise OSError(errno.ENOSPC, "No space left on device")
+                        result = original_git(client, *arguments, **keywords)
+                        note_created = True
+                        return result
+                    if boundary == "scratch cleanup" and note_created and arguments[:2] == ("update-ref", "-d"):
+                        raise OSError(errno.ENOSPC, "No space left on device")
+                    return original_git(client, *arguments, **keywords)
+
+                output, errors = io.StringIO(), io.StringIO()
+                with mock.patch.object(module.Landing, "git", fail_advisory_write), \
+                        mock.patch.object(module, "pause") as pause, \
+                        contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                    result = module.main([
+                        "--repository", str(self.a), "publish", "--claim", claim["claim"],
+                        "--base", claim["base"], "--candidate", candidate,
+                        "--provenance", "agent=test model=test"])
+                self.assert_remote(candidate)
+                self.assertEqual(result, 0, errors.getvalue())
+                observed = json.loads(output.getvalue())
+                self.assertEqual(observed["state"], "published")
+                pause.assert_not_called()
+                if boundary == "note creation":
+                    self.assertIn("not recorded:", observed["provenance"])
+                    self.assertIn("No space left on device", observed["provenance"])
+                else:
+                    self.assertEqual(observed["provenance"], "recorded")
+                    self.assertIn("model=test", self.git(
+                        self.remote, "notes", "--ref", "provenance", "show", candidate))
+
+    def test_filesystem_error_before_publication_still_fails(self):
+        module = load_landing()
+        claim = self.claim(self.a)
+        candidate = self.commit(self.a, "unpublished candidate")
+        with mock.patch.object(module.Landing, "clean_head", side_effect=OSError(
+                errno.ENOSPC, "No space left on device")), \
+                contextlib.redirect_stderr(io.StringIO()) as errors:
+            result = module.main([
+                "--repository", str(self.a), "publish", "--claim", claim["claim"],
+                "--base", claim["base"], "--candidate", candidate])
+        self.assertEqual(result, 1)
+        self.assertIn("No space left on device", errors.getvalue())
+        self.assert_remote(self.initial, claim["claim"])
 
     def test_provenance_applies_only_to_publish(self):
         self.run_landing(self.a, "enqueue", "--owner", "writer", "--provenance", "model=x", expected=1)

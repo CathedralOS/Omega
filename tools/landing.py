@@ -971,14 +971,20 @@ class Landing:
                 if not pushed.returncode:
                     return "recorded"
                 failure = (pushed.stderr or pushed.stdout).strip()
+            except OSError as error:
+                # Disk-full/tempfile failures belong to this advisory write,
+                # not the already confirmed main push. Retrying cannot free
+                # local storage; report the missing note without relanding.
+                return f"not recorded: {str(error)[-300:]}"
             except LandingError as error:
                 failure = str(error)
             finally:
                 try:
                     self.git("update-ref", "-d", scratch, allow_failure=True)
-                except LandingError:
-                    # Main is already published. An expired advisory budget may
-                    # leave a uniquely named local scratch ref, never undo success.
+                except (LandingError, OSError):
+                    # Main is already published. An expired advisory budget
+                    # or filesystem failure may leave a uniquely named local
+                    # scratch ref, never undo a confirmed main or notes push.
                     pass
             try:
                 pause(attempt, PUSH_FAILURE_BACKOFF_BASE, PUSH_FAILURE_BACKOFF_CAP,
