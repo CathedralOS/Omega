@@ -1,0 +1,1 @@
+cannot prove requires contract for call verify_sum from exercise: v >= 350 && v <= 600

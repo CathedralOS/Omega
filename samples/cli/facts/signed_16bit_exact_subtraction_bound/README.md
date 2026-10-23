@@ -67,6 +67,25 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64`.
 - 9/9 intended-invalid controls match their authored rejection (`not provably representable`).
 
+## Pinned Fixtures
+
+| Place | Pass fixture | Fail fixture | Pinned rejection fragment |
+| :--- | :--- | :--- | :--- |
+| local | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_local_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_local_rejected` | ``Exact integer cast in machine `subtract_local` state `entry` from `i16` to `u16` is not provably representable`` |
+| field | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_field_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_field_rejected` | ``Exact integer cast in machine `subtract_field` state `entry` from `i16` to `u16` is not provably representable`` |
+| parameter | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_parameter_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_parameter_rejected` | ``Exact integer cast in machine `subtract_param` state `entry` from `i16` to `u16` is not provably representable`` |
+| call result | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_call_result_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_call_result_rejected` | ``Exact integer cast in machine `subtract_call_result` state `entry` from `i16` to `u16` is not provably representable`` |
+| match join | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_match_join_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_match_join_rejected` | ``Exact integer cast in machine `subtract_match_join` state `entry` from `i16` to `u16` is not provably representable`` |
+| const name | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_const_name_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_const_name_rejected` | ``Exact integer cast in machine `subtract_const` state `entry` from `i16` to `u16` is not provably representable`` |
+| another state | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_other_state_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_other_state_rejected` | ``Exact integer cast in machine `subtract_other_state` state `check_state` from `i16` to `u16` is not provably representable`` |
+| another machine | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_other_machine_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_other_machine_rejected` | ``Exact integer cast in machine `forward_eval` state `entry` from `i16` to `u16` is not provably representable`` |
+| another target body | `tests/omega/pass/facts/signed_16bit_exact_subtraction_bound_through_target_body_exit` | `tests/omega/fail/facts/signed_16bit_exact_subtraction_bound_through_target_body_rejected` | ``Exact integer cast in machine `subtract_target` state `entry` from `i16` to `u16` is not provably representable`` (`target_body` records four occurrences, one per target body) |
+
+Each pass fixture is a byte-identical copy of its place program plus a
+`build.omg` binding `ProgramEntry` for all four hosted targets and an authored
+`expected_native_exit.txt` containing `0`; each fail fixture is a byte-identical
+copy of the place's `invalid/main.omg` with its check-route diagnostic pinned.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `TERMINAL-INTEGER-ARITHMETIC-INTERVALS` ([`TASKS.md`](../../../../TASKS.md)).
@@ -87,3 +106,27 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 64-bit and 128-bit signed subtraction bounds.
 - Negative-domain operand subtraction intervals (e.g. `lhs < 0` and `rhs < 0`).
 - Mixed signedness subtraction operators.
+
+## Qualification & Claim Record
+
+- Claim ticket: `7f2480ea23c94d86bbf9cc57a3f05462` (`factsr1-pins-db`).
+- Measured on `macos_arm64` with shared generation `gen-4c23cc3391c` (base
+  `4c23cc3391c`): `omega run --both` on root and all nine places reports
+  `native exit 0` and `interp exit: 0` (10/10, process exit 0); `omega --check`
+  on the nine twins exits 1 with the pinned fragments (9/9);
+  `corpus_gate.py --record --runner gen-4c23cc3391c/corpus_runner --filter
+  signed_16bit_exact_subtraction_bound,signed_16bit_saturating_arithmetic_bound`
+  records all three corpus legs, stamped `@4c23cc3391c2+wt`, as pure additions
+  (0 deletions, 0 timeout rows): `corpus_outcomes.txt` +36 rows (18 `checked`
+  with `check-target:macos_arm64`, 18 `rejected` with every expected fragment
+  satisfied), `corpus_native_macos_arm64.txt` +18 rows (`built exit:0`), and
+  `corpus_both_macos_arm64.txt` +18 rows (`exit:0 interpreter-exit:0
+  interpreter:agrees`).
+- Sample gate on the same producer: `sample_gate.py --cli
+  gen-4c23cc3391c/omega --filter cli/facts/signed_16bit_exact_subtraction_bound,
+  cli/facts/signed_16bit_saturating_arithmetic_bound` reports 38/38 checked with
+  18/18 intended-invalid controls matched (exit 0).
+- Discriminating-oracle control (scratch copy of `local/main.omg`, not landed):
+  perturbing the runtime check to `diff == 321i16` makes `omega run --both`
+  report `native signal 5` and `interp crash: Trap` with exit 255, so the
+  recorded exit 0 is discriminating.

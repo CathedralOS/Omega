@@ -1,0 +1,36 @@
+// Fact: 16-bit signed exact subtraction lhs - rhs with 300i16 <= lhs <= 500i16 and 50i16 <= rhs <= 100i16 establishes 200i16 <= diff <= 450i16 so 450i16 - diff and diff - 200i16 are safe.
+// Place: another machine. The difference is forwarded to another machine for interval verification.
+// Expected exit: 0
+
+machine forward_eval(d: i16) -> i32
+    requires d >= 200i16 && d <= 450i16;
+{
+    let headroom: i16 = 450i16 - d;
+    let margin: i16 = d - 200i16;
+    let check_h: u16 = headroom as u16;
+    let check_m: u16 = margin as u16;
+    transition d == 320i16 && headroom + margin == 250i16 && check_h + check_m == 250u16 {
+        true -> pass()
+        _ -> fail()
+    }
+    state pass() -> i32 { 0 }
+    state fail() -> i32 { 1 }
+}
+
+machine subtract_other_machine(lhs: i16, rhs: i16) -> i32
+    requires lhs >= 300i16 && lhs <= 500i16;
+    requires rhs >= 50i16 && rhs <= 100i16;
+{
+    let diff: i16 = lhs - rhs;
+    forward_eval(diff)
+}
+
+machine main() crashes Trap {
+    let res: i32 = subtract_other_machine(400i16, 80i16);
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

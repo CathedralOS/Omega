@@ -60,6 +60,25 @@ omega --check samples/cli/facts/signed_16bit_saturating_arithmetic_bound/target_
 Every reject twin fails closed with:
 `error: cannot prove requires contract for call verify_sum from ...: ... (needs fact `value >= 350 && value <= 600` here; establish it before the call via a prior contract guarantee, domain membership, or guard)`
 
+## Pinned Fixtures
+
+| Place | Pass fixture | Fail fixture | Pinned rejection fragment |
+| :--- | :--- | :--- | :--- |
+| local | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_local_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_local_rejected` | `cannot prove requires contract for call verify_sum from exercise: v >= 350 && v <= 600` |
+| field | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_field_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_field_rejected` | `cannot prove requires contract for call verify_sum from exercise: carrier.sum >= 350 && carrier.sum <= 600` |
+| parameter | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_parameter_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_parameter_rejected` | `cannot prove requires contract for call verify_sum from helper: s >= 350 && s <= 600` |
+| call result | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_call_result_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_call_result_rejected` | `cannot prove requires contract for call verify_sum from exercise: sum >= 350 && sum <= 600` |
+| match join | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_match_join_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_match_join_rejected` | `cannot prove requires contract for call verify_sum from exercise: joined >= 350 && joined <= 600` |
+| const name | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_const_name_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_const_name_rejected` | `cannot prove requires contract for call verify_sum from exercise: s >= 350 && s <= 600` |
+| another state | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_other_state_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_other_state_rejected` | `cannot prove requires contract for call verify_sum from exercise: s >= 350 && s <= 600` |
+| another machine | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_other_machine_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_other_machine_rejected` | `cannot prove requires contract for call verify_sum from exercise: relayed >= 350 && relayed <= 600` |
+| another target body | `tests/omega/pass/facts/signed_16bit_saturating_arithmetic_bound_through_target_body_exit` | `tests/omega/fail/facts/signed_16bit_saturating_arithmetic_bound_through_target_body_rejected` | `cannot prove requires contract for call verify_sum from exercise: s >= 350 && s <= 600` (`target_body` records four occurrences, one per target body) |
+
+Each pass fixture is a byte-identical copy of its place program plus a
+`build.omg` binding `ProgramEntry` for all four hosted targets and an authored
+`expected_native_exit.txt` containing `0`; each fail fixture is a byte-identical
+copy of the place's `invalid/main.omg` with its check-route diagnostic pinned.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `SIGNED-16BIT-SATURATING-ARITHMETIC` (`TASKS.md`).
@@ -80,3 +99,27 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Saturating subtraction (`lhs -| rhs`), saturating multiplication, 32-bit saturating arithmetic (`i32 in Saturating`), unsigned saturating arithmetic (`u16 in Saturating`), and SIMD packed vector saturation remain governed under the wider numeric value roadmap.
+
+## Qualification & Claim Record
+
+- Claim ticket: `5c628c73c3214cb6812e9d26a8d38f54` (`factsr1-pins-db`).
+- Measured on `macos_arm64` with shared generation `gen-4c23cc3391c` (base
+  `4c23cc3391c`): `omega run --both` on root and all nine places reports
+  `native exit 0` and `interp exit: 0` (10/10, process exit 0); `omega --check`
+  on the nine twins exits 1 with the pinned fragments (9/9);
+  `corpus_gate.py --record --runner gen-4c23cc3391c/corpus_runner --filter
+  signed_16bit_exact_subtraction_bound,signed_16bit_saturating_arithmetic_bound`
+  records all three corpus legs, stamped `@4c23cc3391c2+wt`, as pure additions
+  (0 deletions, 0 timeout rows): `corpus_outcomes.txt` +36 rows (18 `checked`
+  with `check-target:macos_arm64`, 18 `rejected` with every expected fragment
+  satisfied), `corpus_native_macos_arm64.txt` +18 rows (`built exit:0`), and
+  `corpus_both_macos_arm64.txt` +18 rows (`exit:0 interpreter-exit:0
+  interpreter:agrees`).
+- Sample gate on the same producer: `sample_gate.py --cli
+  gen-4c23cc3391c/omega --filter cli/facts/signed_16bit_exact_subtraction_bound,
+  cli/facts/signed_16bit_saturating_arithmetic_bound` reports 38/38 checked with
+  18/18 intended-invalid controls matched (exit 0).
+- Discriminating-oracle control (scratch copy of `local/main.omg`, not landed):
+  perturbing the runtime check to `transition diff == 1i16` makes
+  `omega run --both` report `native signal 5` and `interp crash: Trap` with
+  exit 255, so the recorded exit 0 is discriminating.
