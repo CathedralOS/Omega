@@ -157,6 +157,16 @@ opt-level = 3
 [profile.dev.package.terminal-semantics]
 opt-level = 3
 
+# Cathedral's next measured build still spent about 216 seconds in native
+# realization. Sampling located repeated spill recovery, liveness and legality
+# analysis in these two owners. Optimize that analysis without weakening its
+# checks or changing the ordinary profile of unrelated development crates.
+[profile.dev.package.selected-instructions-to-selected-instructions]
+opt-level = 3
+
+[profile.dev.package.selected-instructions-to-register-homes]
+opt-level = 3
+
 # Typed programs, checked plans, live ranges, allocation legality and homes
 # each carry a SHA-256 identity, and register allocation's spill recovery
 # recomputes the changed function's digests at every step. Unoptimized, sha2's
