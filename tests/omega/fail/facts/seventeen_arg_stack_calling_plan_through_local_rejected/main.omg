@@ -1,0 +1,80 @@
+// Fact: a 17-argument calling plan across register and stack slots preserves the 17th stack argument bound 40u64 <= a17 <= 80u64 to justify 80u64 - res and res - 40u64.
+// Place: local (invalid twin).
+// Expected diagnostic: exact subtraction underflow
+
+machine pick17(
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
+    a6: u64,
+    a7: u64,
+    a8: u64,
+    a9: u64,
+    a10: u64,
+    a11: u64,
+    a12: u64,
+    a13: u64,
+    a14: u64,
+    a15: u64,
+    a16: u64,
+    a17: u64
+) -> u64
+requires
+    a1 == 1u64 && a2 == 2u64 && a3 == 3u64 && a4 == 4u64 &&
+    a5 == 5u64 && a6 == 6u64 && a7 == 7u64 && a8 == 8u64 &&
+    a9 == 9u64 && a10 == 10u64 && a11 == 11u64 && a12 == 12u64 &&
+    a13 == 13u64 && a14 == 14u64 && a15 == 15u64 && a16 == 16u64 &&
+    a17 >= 40u64 && a17 <= 81u64
+ensures
+    result >= 40u64 && result <= 81u64 && result == a17
+{
+    let prefix: u64 = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16;
+    (prefix - 136u64) + a17
+}
+
+machine probe() -> i32 crashes Trap
+ensures result == 0i32
+{
+    let v1: u64 = 1;
+    let v2: u64 = 2;
+    let v3: u64 = 3;
+    let v4: u64 = 4;
+    let v5: u64 = 5;
+    let v6: u64 = 6;
+    let v7: u64 = 7;
+    let v8: u64 = 8;
+    let v9: u64 = 9;
+    let v10: u64 = 10;
+    let v11: u64 = 11;
+    let v12: u64 = 12;
+    let v13: u64 = 13;
+    let v14: u64 = 14;
+    let v15: u64 = 15;
+    let v16: u64 = 16;
+    let v17: u64 = 81;
+    let res: u64 = pick17(v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17);
+    let headroom: u64 = 80u64 - res;
+    let margin: u64 = res - 40u64;
+    let diff: u64 = (headroom + margin) - 40u64;
+    transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok() {
+        0i32
+    }
+    state bad() {
+        crash Trap;
+    }
+}
+
+machine main() crashes Trap {
+    transition probe() == 0i32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
