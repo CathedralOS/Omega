@@ -64,12 +64,30 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 33: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+
+Each twin's authored `expected.txt` holds the recorded diagnostic verbatim, so a
+rejection that loses its obligation fails as `rejected without its expected
+fragment` instead of passing as a rejection. The same nine twins are also
+mirrored under `invalid/<place>/` with that `expected.txt`, so the invalid
+controls are discoverable by both the per-place route and the batch route; each
+mirror is byte-identical to its per-place twin.
+
+### Pinned fixtures
+
+The fact row is pinned under `tests/omega/` as 18 corpus fixtures:
+- 9 positive pass fixtures: `tests/omega/pass/facts/seventeen_variant_enum_payload_bound_through_<place>_exit/` (`build.omg`, `main.omg`, `expected_native_exit.txt`)
+- 9 reject fail fixtures: `tests/omega/fail/facts/seventeen_variant_enum_payload_bound_through_<place>_rejected/` (`build.omg`, `main.omg`, `expected.txt`)
+
+Each fixture is a byte-identical copy of its place program or twin, so sample and
+fixture cannot drift. `git diff` of a positive place against its twin changes
+only the construct's own contract (`V17(v: u64) where v >= 40u64` becomes
+`v >= 39u64`) and the oracle/comment lines that name it.
 
 ## Requirements and Evidence (AGENTS.md)
 
@@ -81,4 +99,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 17-variant tagged enum `Packet` with its discriminant tag and 8-byte payload (`IntegerAt 8-byte` for `u64`), respecting layout alignment and calling conventions across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA variant tag comparison and branch instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all nine positive places and their nine reject twins (18 corpus fixtures) pass both native and interpreter gates with documented exit 0 and verified negative control rejection.

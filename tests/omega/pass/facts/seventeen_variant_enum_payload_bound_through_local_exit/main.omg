@@ -1,0 +1,69 @@
+// Fact: matching a 17-variant tagged enum payload Packet { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Expected exit: 0
+
+data Packet [copy] {
+    case V1(v: u64) where v >= 40u64 && v <= 80u64;
+    case V2(v: u64) where v >= 40u64 && v <= 80u64;
+    case V3(v: u64) where v >= 40u64 && v <= 80u64;
+    case V4(v: u64) where v >= 40u64 && v <= 80u64;
+    case V5(v: u64) where v >= 40u64 && v <= 80u64;
+    case V6(v: u64) where v >= 40u64 && v <= 80u64;
+    case V7(v: u64) where v >= 40u64 && v <= 80u64;
+    case V8(v: u64) where v >= 40u64 && v <= 80u64;
+    case V9(v: u64) where v >= 40u64 && v <= 80u64;
+    case V10(v: u64) where v >= 40u64 && v <= 80u64;
+    case V11(v: u64) where v >= 40u64 && v <= 80u64;
+    case V12(v: u64) where v >= 40u64 && v <= 80u64;
+    case V13(v: u64) where v >= 40u64 && v <= 80u64;
+    case V14(v: u64) where v >= 40u64 && v <= 80u64;
+    case V15(v: u64) where v >= 40u64 && v <= 80u64;
+    case V16(v: u64) where v >= 40u64 && v <= 80u64;
+    case V17(v: u64) where v >= 40u64 && v <= 80u64;
+}
+
+machine verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine extract(packet: Packet) -> u64 {
+    transition packet {
+        Packet::V1 { v } -> v
+        Packet::V2 { v } -> v
+        Packet::V3 { v } -> v
+        Packet::V4 { v } -> v
+        Packet::V5 { v } -> v
+        Packet::V6 { v } -> v
+        Packet::V7 { v } -> v
+        Packet::V8 { v } -> v
+        Packet::V9 { v } -> v
+        Packet::V10 { v } -> v
+        Packet::V11 { v } -> v
+        Packet::V12 { v } -> v
+        Packet::V13 { v } -> v
+        Packet::V14 { v } -> v
+        Packet::V15 { v } -> v
+        Packet::V16 { v } -> v
+        Packet::V17 { v } -> v
+    }
+}
+
+machine probe(packet: Packet) -> u64 {
+    let res: u64 = extract(packet);
+    let local_res: u64 = res;
+    verify_payload(local_res)
+}
+
+machine main() crashes Trap {
+    let p: Packet = Packet::V17 { v: 60u64 };
+    let combined: u64 = probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
