@@ -17,7 +17,49 @@
 | `other_machine` | passes `omega run --both` exit 0 | `cannot prove requires contract for call forward` |
 | `target_body` | passes `omega run --both` exit 0 | `cannot prove requires contract for call verify_sum` |
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_8bit_wrapping_arithmetic_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_8bit_wrapping_arithmetic_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
+of its place twin's `main.omg`/`build.omg`/`expected.txt` (the place's own `cannot prove requires
+contract ...` / `cannot prove ensures contract ...` fragment). Positive versus twin `git diff` changes
+only the `lhs` operand bound (`lhs <= 80i8` to `lhs <= 81i8`, or constants `60i8`/`15i8` to
+`81i8`/`20i8`), which is the fact's own domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-317bacd12b0` (omega sha256
+`ecbd667e4dbae1b559f1f08f30dc10e3dbc369b8c8630327560227d06058a805`, corpus_runner sha256
+`6065879534a8320403e0dd3918e86f77d1f025ff4e233f6740644b44460daa9c`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with their authored `cannot prove requires contract` /
+  `cannot prove ensures contract` fragment.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `b9f31a0e74de`, so every row is stamped `@b9f31a0e74de+wt`: `tests/omega/corpus_outcomes.txt` gained
+  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with 28 diagnostic
+  continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
+  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); all three legs exited 0
+  with 0 unimplemented rows and 0 rows recording a lost success (the native leg's 2 `regressed-from`
+  rows are the pre-existing memory-canary pins).
+
 ## Requirements and Evidence
+
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state
+  parameters `requires`, results `ensures`, locals the facts from initializers, guards and
+  calls". This row is one customer group's nine-place transport and execution of that settled
+  proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying
+  numeric-policy realization.
+- **Requirement established:** End-to-end nine-place fact preservation and native realization for
+  8-bit signed wrapping (`i8 in Wrapping`) addition interval synthesis. Specifically, wrapping
+  addition `lhs +% rhs` of bounded operands (`lhs >= 40i8 && lhs <= 80i8`,
+  `rhs >= 10i8 && rhs <= 20i8`) statically establishes `sum >= 50i8 && sum <= 100i8`,
+  discharging the consuming exact subtractions `100i8 - sum` (`headroom`) and `sum - 50i8`
+  (`margin`) in `verify_sum` across all nine places without post-hoc caller equality guards, with
+  exact agreement between Terminal Psi and native execution across hosted targets
+  (`omega run --both` exit 0).
 
 - **Establishment:** Performing an 8-bit signed wrapping addition `(lhs as i8 in Wrapping) + (rhs as i8 in Wrapping)` on bounded inputs (`lhs >= 40i8 && lhs <= 80i8` and `rhs >= 10i8 && rhs <= 20i8`) statically establishes the bounded interval `[40 + 10, 80 + 20] = [50, 100]` upon casting back to `i8`. This interval fits strictly within 8-bit signed range `[-128, 127]`, directly proving that downstream exact subtractions `100i8 - sum` (`headroom`) and `sum - 50i8` (`margin`) in `verify_sum` are overflow-free and underflow-free. In invalid twins, widening operand bounds (e.g. `lhs <= 81i8`, allowing `sum = 101i8`) causes downstream contracts (`requires sum <= 100i8` or `ensures result <= 100i8`) to fail closed at compile time.
 - **Identity and lifetime:** The signed 8-bit sum scalar preserves its 8-bit two's complement integer value and refined interval across local bindings, struct fields (`SumContainer`), parameter slots, function call return values, match join points, named constants, state transitions, machine invocations, and target-scoped bodies without truncation, unintended sign-extension, or storage corruption.

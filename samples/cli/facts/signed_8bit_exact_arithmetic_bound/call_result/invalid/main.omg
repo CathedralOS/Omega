@@ -5,8 +5,7 @@ machine add_helper(l: i8, r: i8) -> i8
     requires l >= 20 && l <= 45 && r >= 15 && r <= 90
     ensures result >= 35 && result <= 80
 {
-    let sum: i8 = l + r;
-    sum
+    l + r
 }
 
 machine compute_call_result(lhs: i8, rhs: i8) -> i8

@@ -70,13 +70,37 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_*` and
-`tests/omega/fail/facts/signed_8bit_exact_arithmetic_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under `tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_8bit_exact_arithmetic_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical copy
+of its place twin's `main.omg`/`build.omg`/`expected.txt` (`may overflow \`i8\``). Positive versus twin
+`git diff` changes only the `rhs` operand bound (`rhs <= 35` to `rhs <= 90`, or `const RHS: i8 = 25` to
+`90`), which is the fact's own domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-317bacd12b0` (omega sha256
+`ecbd667e4dbae1b559f1f08f30dc10e3dbc369b8c8630327560227d06058a805`, corpus_runner sha256
+`6065879534a8320403e0dd3918e86f77d1f025ff4e233f6740644b44460daa9c`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with `exact arithmetic ... may overflow \`i8\`: the operands are not provably in range`.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `b9f31a0e74de`, so every row is stamped `@b9f31a0e74de+wt`: `tests/omega/corpus_outcomes.txt` gained
+  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with 28 diagnostic
+  continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
+  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions); all three legs exited 0
+  with 0 unimplemented rows and 0 rows recording a lost success (the native leg's 2 `regressed-from`
+  rows are the pre-existing memory-canary pins).
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state
+  parameters `requires`, results `ensures`, locals the facts from initializers, guards and
+  calls". This row is one customer group's nine-place transport and execution of that settled
+  proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying
+  numeric-policy realization.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for 8-bit signed (`i8`) exact arithmetic bounds (`[numeric values](wiki/spec/language/numeric_values.md)`). Specifically, exact 8-bit signed addition of bounded inputs (`lhs >= 20i8 && lhs <= 45i8`, `rhs >= 15i8 && rhs <= 35i8`) statically establishes `sum >= 35i8 && sum <= 80i8`, discharging consuming 8-bit signed exact subtraction `80i8 - sum` without overflow across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**

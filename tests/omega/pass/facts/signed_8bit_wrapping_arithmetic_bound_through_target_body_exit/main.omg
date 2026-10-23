@@ -1,0 +1,64 @@
+// Fact: 8-bit signed wrapping addition lhs +% rhs with bounded interval 50i8 <= sum <= 100i8 establishes 50i8 <= sum <= 100i8 across all nine places so exact subtractions 100i8 - sum and sum - 50i8 are safe.
+// Place: target_body. Each of four target bodies performs 8-bit signed wrapping addition and discharges subtraction bounds.
+// Expected exit: 0
+
+machine verify_sum(sum: i8) -> i32
+requires sum >= 50i8 && sum <= 100i8
+{
+    let headroom: i8 = 100i8 - sum;
+    let margin: i8 = sum - 50i8;
+    0i32
+}
+
+linux_x86_64 machine verify_target() -> i32 {
+    let lhs: i8 = 60i8;
+    let rhs: i8 = 15i8;
+    let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
+    let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+    let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
+    let sum: i8 = sum_wrap as i8;
+    verify_sum(sum)
+}
+
+linux_arm64 machine verify_target() -> i32 {
+    let lhs: i8 = 60i8;
+    let rhs: i8 = 15i8;
+    let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
+    let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+    let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
+    let sum: i8 = sum_wrap as i8;
+    verify_sum(sum)
+}
+
+macos_arm64 machine verify_target() -> i32 {
+    let lhs: i8 = 60i8;
+    let rhs: i8 = 15i8;
+    let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
+    let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+    let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
+    let sum: i8 = sum_wrap as i8;
+    verify_sum(sum)
+}
+
+windows_x86_64 machine verify_target() -> i32 {
+    let lhs: i8 = 60i8;
+    let rhs: i8 = 15i8;
+    let w_lhs: i8 in Wrapping = lhs as i8 in Wrapping;
+    let w_rhs: i8 in Wrapping = rhs as i8 in Wrapping;
+    let sum_wrap: i8 in Wrapping = w_lhs + w_rhs;
+    let sum: i8 = sum_wrap as i8;
+    verify_sum(sum)
+}
+
+machine probe() -> i32 {
+    verify_target()
+}
+
+machine main() crashes Trap {
+    transition probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
