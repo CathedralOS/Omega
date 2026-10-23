@@ -254,3 +254,13 @@ qualified or linear component inputs, materialized/view-backed inputs, and
 matching-host execution on the other hosted targets remain separate acceptance
 until demonstrated. The fact row and focused fuel witness do not close those
 remaining parent requirements.
+
+## Native component description publication
+
+COMPONENT-SUBSTRATE additionally uses this unchanged independent row to check
+native-description metadata. The nine independent corpus positives require two
+native component descriptions apiece. The source-free consumer checks the exact
+Terminal subject, emitted realization identity and entry-bridge-inclusive stack
+obligation. Publication receipt controls reject missing identity, omitted stack,
+missing files and sibling-export substitution. These are artifact obligations;
+they neither expand the opaque ABI nor establish component replacement support.

@@ -40,7 +40,8 @@ pub(super) fn describe_component(
     // A Psi component capsule has no native realization yet, so it publishes
     // no emitter-derived stack demand and no bound realization identity. The
     // description's own producer owns which rows that omits; nothing is
-    // invented here to stand in for them.
+    // invented here to stand in for them. NativeComponentProduct publishes a
+    // separate native description once image emission supplies those facts.
     let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
         selected_provider_plans: &checked.execution().selected_provider_plan_facts,

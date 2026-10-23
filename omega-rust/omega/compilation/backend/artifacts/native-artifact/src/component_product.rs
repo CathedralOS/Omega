@@ -12,6 +12,7 @@ use terminal_psi_to_abstract_operations::{
 
 pub struct NativeComponentProduct {
     image: image_emission::ComponentSharedImage,
+    description: Vec<u8>,
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     selection: terminal_installation::AdmittedComponentProvider,
     application: calling_conventions::BoundaryCallingApplication,
@@ -37,7 +38,8 @@ impl NativeComponentProduct {
         image: image_emission::ComponentSharedImage,
         runtime: crate::TerminalCallableRuntimeProvisions,
         authority: AdmittedNativeCallableAuthority,
-    ) -> Result<Self, &'static str> {
+        selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    ) -> Result<Self, String> {
         let selection = call.selection();
         let application = call.application();
         if selection.provider() != authority.subject()
@@ -58,22 +60,41 @@ impl NativeComponentProduct {
                 )
         {
             return Err(
-                "component publication product lost its admitted artifact, entry, target or complete ABI application",
+                "component publication product lost its admitted artifact, entry, target or complete ABI application".into(),
             );
         }
         let demand = image
             .stack_demand()
-            .map_err(|_| "component publication lost its exact physical stack evidence")?;
-        if demand.psi() != selection.provider() || demand.target() != application.target {
-            return Err("component image body belongs to another artifact or native target");
+            .map_err(|error| format!("component publication stack evidence: {error:?}"))?;
+        if demand.psi() != selection.provider()
+            || demand.entry() != selection.candidate()
+            || demand.target() != application.target
+        {
+            return Err("component image body belongs to another artifact or native target".into());
         }
         let locator = target::NormalizedComponentLocator::for_image(
             runtime.target(),
             image.image().contents(),
             *image.slot_commitment(),
         )?;
+        let (_, description) = component_description::publish_component_description(
+            component_description::ComponentDescriptionFacts {
+                artifact: call.component().artifact(),
+                selected_provider_plans,
+                stack_demand: Some(
+                    component_description::component_description::StackDemandFacts {
+                        entry: demand.entry(),
+                        ceiling_bytes: demand.ceiling_bytes(),
+                        stack_alignment: demand.stack_alignment(),
+                    },
+                ),
+                realization_identity: Some(*locator.identity_digest()),
+            },
+        )
+        .map_err(|error| format!("native component description publication: {error}"))?;
         Ok(Self {
             image,
+            description,
             artifact: Arc::new(call.component().artifact().clone()),
             selection: selection.clone(),
             application: application.clone(),
@@ -87,6 +108,22 @@ impl NativeComponentProduct {
     }
     pub const fn image(&self) -> &image_emission::ComponentSharedImage {
         &self.image
+    }
+    /// Canonical descriptive bytes for this exact emitted entry and container.
+    /// These rows demand stack provision; they do not supply it or authorize entry.
+    pub fn description(&self) -> &[u8] {
+        &self.description
+    }
+    pub fn description_filename(&self) -> String {
+        format!("{}.component", self.locator.image_filename())
+    }
+    /// Publication binds metadata to the producing product, including facts a
+    /// Terminal-only consumer cannot reconstruct from semantic code alone.
+    pub fn verify_description(&self, description: &[u8]) -> Result<(), &'static str> {
+        if description != self.description {
+            return Err("component description differs from its exact native publication product");
+        }
+        Ok(())
     }
     pub const fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
@@ -177,6 +214,18 @@ impl NativeComponentPublicationReceipt {
             .map_err(|error| format!("component publication {}: {error}", self.path.display()))?;
         self.product
             .verify_contents(&contents)
+            .map_err(str::to_owned)?;
+        let description_path = self
+            .path
+            .with_file_name(self.product.description_filename());
+        let description = std::fs::read(&description_path).map_err(|error| {
+            format!(
+                "component description publication {}: {error}",
+                description_path.display()
+            )
+        })?;
+        self.product
+            .verify_description(&description)
             .map_err(str::to_owned)
     }
 }

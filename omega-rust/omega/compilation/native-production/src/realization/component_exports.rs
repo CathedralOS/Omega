@@ -25,6 +25,7 @@ pub struct ComponentExportRequest<'input> {
 /// callback identity, loader mapping, installed address or runtime era.
 pub struct ComponentNativeExport<'input> {
     component: &'input component_description::VerifiedComponent,
+    selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     body: image_emission::ObjectArtifact,
@@ -38,6 +39,7 @@ pub struct ComponentNativeExport<'input> {
 /// Still not a loaded occurrence or installed entry capability.
 pub struct ComponentExportImage<'input> {
     component: &'input component_description::VerifiedComponent,
+    selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     image: image_emission::ComponentSharedImage,
@@ -50,18 +52,19 @@ impl<'input> ComponentExportImage<'input> {
     pub fn into_product(
         self,
         call: &terminal_psi_to_abstract_operations::AdmittedNativeComponentCall<'_>,
-    ) -> Result<native_artifact::NativeComponentProduct, &'static str> {
+    ) -> Result<native_artifact::NativeComponentProduct, String> {
         if self.component.artifact() != call.component().artifact()
             || self.candidate.candidate != call.selection().candidate()
             || self.calling_application != call.application()
         {
-            return Err("component product conversion changed its checked export owner");
+            return Err("component product conversion changed its checked export owner".into());
         }
         native_artifact::NativeComponentProduct::from_emitted(
             call,
             self.image,
             self.runtime,
             self.authority,
+            self.selected_provider_plans,
         )
     }
 
@@ -92,6 +95,7 @@ impl<'input> ComponentNativeExport<'input> {
     pub fn emit_shared_image(self) -> Result<ComponentExportImage<'input>, Vec<Diagnostic>> {
         let Self {
             component,
+            selected_provider_plans,
             candidate,
             calling_application,
             body,
@@ -109,6 +113,7 @@ impl<'input> ComponentNativeExport<'input> {
             .map_err(|error| vec![error.diagnostic.clone()])?;
         Ok(ComponentExportImage {
             component,
+            selected_provider_plans,
             candidate,
             calling_application,
             image,
@@ -116,7 +121,6 @@ impl<'input> ComponentNativeExport<'input> {
             authority,
         })
     }
-
 }
 
 /// Physical linkage identifies one component version as well as its complete
@@ -256,6 +260,7 @@ pub fn emit_component_exports<'input>(
         .map_err(|error| realization_error("component entry ABI", error))?;
         exports.push(ComponentNativeExport {
             component: inputs.component(),
+            selected_provider_plans: &proposal.providers().selection,
             candidate: export.candidate,
             calling_application: application,
             body,

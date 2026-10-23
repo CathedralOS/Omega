@@ -117,6 +117,15 @@ set. Build-generated annotations cannot narrow the verified inventory.
 The verifier owns the code-to-inventory claim. Packages may compute instance
 graphs from those facts; installers/providers establish actual provider slots.
 Installation-dependent facts remain requirements until matched to exact receipts.
+Native flat publication retains the canonical description beside each emitted
+component image as `<image filename>.component`. Its realization identity binds
+the exact target, image bytes and export-slot commitment; its stack obligation
+uses the emitted entry's complete demand, including entry transport. The early
+Psi-only description omits these native facts. Publication stages descriptions,
+component images and the root together, and its receipts reject missing or
+changed description bytes as well as changed images. These descriptive files
+supply neither installation authority nor stack backing.
+
 Verification grants neither callable authority nor permission to install.
 Wrong subject, incompatible schema, invalid evidence, unaccepted assumptions,
 incomplete authority, and exhausted verification are distinct failure categories.

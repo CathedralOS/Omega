@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+component-description = { path = "../component-description" }
 task-plans = { path = "../../runtime/task-plans" }
 runtime-abi = { path = "../../runtime/runtime-abi" }
 terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }

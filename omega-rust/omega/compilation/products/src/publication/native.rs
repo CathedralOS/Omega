@@ -142,7 +142,7 @@ fn publish_flat_native_files(
     let directory = output_path
         .parent()
         .ok_or("native process root has no directory")?;
-    let mut staged = Vec::with_capacity(components.len() + 1);
+    let mut staged = Vec::with_capacity(components.len().saturating_mul(2) + 1);
     let mut paths = Vec::with_capacity(components.len());
     for component in &components {
         if component.locator().target().native_target() != target {
@@ -155,6 +155,11 @@ fn publish_flat_native_files(
         staged.push(stage_exact_bytes(
             &path,
             component.image().image().contents(),
+            false,
+        )?);
+        staged.push(stage_exact_bytes(
+            &directory.join(component.description_filename()),
+            component.description(),
             false,
         )?);
         paths.push(path);

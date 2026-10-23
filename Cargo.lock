@@ -1164,6 +1164,7 @@ dependencies = [
  "abstract-operations",
  "boundary-applications",
  "calling-conventions",
+ "component-description",
  "diagnostics",
  "effects",
  "function-identity",

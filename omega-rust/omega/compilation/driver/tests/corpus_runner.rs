@@ -154,6 +154,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod artifact_capture;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/native_component_descriptions.rs"]
+mod native_component_descriptions;
 #[path = "support/output_oracles.rs"]
 mod output_oracles;
 #[path = "support/terminal_execution.rs"]
@@ -1166,6 +1168,13 @@ fn build_native_fixture(
             )]
         })?;
     let report = &reports[primary].1;
+    native_component_descriptions::inspect(
+        report,
+        root_path.parent().unwrap_or(root_path),
+        build_dir,
+        capture,
+    )
+    .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     if let Some(artifact) = report.retained_native_artifact() {
         image_emission::verify_retained_target_operations(artifact.object())
             .map_err(|diagnostic| vec![diagnostic])?;

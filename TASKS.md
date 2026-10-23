@@ -6363,10 +6363,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     structural carriers remain fail-closed; broader composition and replacement
     acceptance below remains open. No Independent edge silently fuses.
   - Complete the entry, outgoing-authority, service, mapping, lease, stack and
-    retained-provider inventories; include native stack and realization
-    identity in the published description where a native compilation supplies
-    them. Join an authored runtime/Cathedral deployment consumer to the
-    description contract used by **TOPOLOGY-PLAN-VERIFICATION**; descriptions
+    retained-provider inventories. Join an authored runtime/Cathedral deployment
+    consumer to the description contract used by **TOPOLOGY-PLAN-VERIFICATION**; descriptions
     and installation evidence grant no live deployment authority.
   - The runtime owns replacement eras: compatible imports/exports, new calls
     enter the new era, existing sessions keep theirs, candidate resources fit

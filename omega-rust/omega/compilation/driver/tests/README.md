@@ -163,6 +163,15 @@ producer and reloads its canonical artifact. Debug companions
 must retain the same program identity; changing that identity must reject at
 external ingress. This tests inspection without requiring a native program entry.
 
+An optional `expected_native_component_descriptions.txt` contains the nonzero
+number of independently emitted native component products expected by a fixture.
+The native leg consumes each canonical description through `verify_component`,
+compares its Terminal artifact, realization identity and exact bridge-inclusive
+stack demand with the emitted product, and exercises publication receipt
+rejection of missing/altered metadata and sibling-export substitution. It uses
+source-produced components; no Rust-built module or native body stands in for
+the fixture.
+
 ## Running a fixture through the CLI
 
 The corpus constructs its package inputs explicitly. Its native result does
