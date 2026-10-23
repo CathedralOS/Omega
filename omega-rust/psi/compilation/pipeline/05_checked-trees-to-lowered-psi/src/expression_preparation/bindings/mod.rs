@@ -1751,19 +1751,16 @@ impl ScalarBindings {
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let mut expression = expression.clone();
         self.scalar(&mut expression)?;
-        crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters(
-            identities,
-            &expression,
-            &self.structural_parameters,
-            &self.structural_fields,
-            &self.structural_cases,
-            &self.primitive_storage,
-            &self.element_views,
-            &self.view_locals,
-            &self.structural_locals,
-            Some(self),
+        crate::expression_preparation::prepare_expression::PreparedExpressionContext {
+            structural_fields: &self.structural_fields,
+            structural_cases: &self.structural_cases,
+            primitive_storage: &self.primitive_storage,
+            view_locals: &self.view_locals,
+            structural_locals: &self.structural_locals,
+            scalar_bindings: Some(self),
             proven_indexes,
-        )
+        }
+        .lower_scalar(identities, &expression)
     }
 }
 

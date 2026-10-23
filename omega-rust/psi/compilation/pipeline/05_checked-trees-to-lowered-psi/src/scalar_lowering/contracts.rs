@@ -787,8 +787,6 @@ impl ScalarContractTerms<'_> {
             expression,
             self.namespace,
             self.erased,
-            self.views.parameters,
-            self.views.element_views,
         )
     }
 }

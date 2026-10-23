@@ -5,12 +5,10 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
-use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters;
 use crate::proofs::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression, LoweringError,
     ScalarTerm, ScalarType, ValueDeclaration, lower_checked_scalar_expression, unsupported,
 };
-use crate::proofs::{StructuralParameterDeclaration, StructuralTypeId};
 
 pub(crate) fn checked_boolean_scalar_term(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -118,33 +116,28 @@ pub(crate) fn checked_scalar_term(
     lowered_direct_scalar_term(&expression, values, erased)
 }
 
-/// `checked_scalar_term` carrying the contract's structural parameter roster
-/// and element-view carriers, so a whole-view extent observation resolves
-/// its retained source place instead of failing closed.
+/// `checked_scalar_term` over the contract's evaluated value namespace: the
+/// retained expression lowers against the evaluated scalar bindings those
+/// values establish.
 pub(crate) fn checked_scalar_term_with_views(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     expression: &CheckedScalarExpression,
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
-    structural_parameters: &[(u32, StructuralParameterDeclaration)],
-    element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
 ) -> Result<ScalarTerm, LoweringError> {
     let scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::new(
         values.iter().map(|value| value.scalar_type),
     );
-    let expression = lower_checked_scalar_expression_with_parameters(
-        identities,
-        expression,
-        structural_parameters,
-        &Default::default(),
-        &[],
-        &[],
-        element_views,
-        &[],
-        &[],
-        Some(&scalar_bindings),
-        &[],
-    )?;
+    let expression = crate::expression_preparation::prepare_expression::PreparedExpressionContext {
+        structural_fields: &Default::default(),
+        structural_cases: &[],
+        primitive_storage: &[],
+        view_locals: &[],
+        structural_locals: &[],
+        scalar_bindings: Some(&scalar_bindings),
+        proven_indexes: &[],
+    }
+    .lower_scalar(identities, expression)?;
     lowered_direct_scalar_term(&expression, values, erased)
 }
 
