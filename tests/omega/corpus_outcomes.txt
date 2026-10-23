@@ -9144,6 +9144,27 @@ fail/facts/signed_8bit_wrapping_multiplication_bound_through_target_body_rejecte
 	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 40 && prod <= 96 (needs fact `value >= 40 && value <= 96` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 40 && prod <= 96 (needs fact `value >= 40 && value <= 96` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_prod from compute_target_body: prod >= 40 && prod <= 96 (needs fact `value >= 40 && value <= 96` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_call_result_rejected rejected 2668ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_const_name_rejected rejected 2626ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_field_rejected rejected 3487ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from probe: held.diff >= 40 && held.diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_local_rejected rejected 2549ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_match_join_rejected rejected 2720ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_other_machine_rejected rejected 2568ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call forward from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_other_state_rejected rejected 2682ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call step from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_parameter_rejected rejected 5745ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call check_param from probe: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_wrapping_subtraction_bound_through_target_body_rejected rejected 3537ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_diff from evaluate_diff: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from evaluate_diff: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from evaluate_diff: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_diff from evaluate_diff: diff >= 40 && diff <= 90 (needs fact `diff >= 40 && diff <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_arithmetic_shift_right_through_call_result_rejected rejected 4036ms expected @9d9ba4fb6251+wt
 	cannot prove requires contract for call consume from shift_right: diff >= 0 && diff <= 0 (needs fact `diff >= 0 && diff <= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_arithmetic_shift_right_through_const_name_rejected rejected 4180ms expected @9d9ba4fb6251+wt
@@ -9291,6 +9312,27 @@ fail/facts/signed_shift_left_bound_through_target_body_rejected rejected 504ms e
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/sixteen_variant_enum_payload_bound_through_call_result_rejected rejected 4165ms expected @9b001b8f6afa+wt
+	cannot prove ensures contract for exit from extract_payload at statement 31: result >= 40 && result <= 80
+fail/facts/sixteen_variant_enum_payload_bound_through_const_name_rejected rejected 3014ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_field_rejected rejected 2866ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_local_rejected rejected 2828ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_match_join_rejected rejected 2929ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_other_machine_rejected rejected 2504ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_other_state_rejected rejected 2660ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_parameter_rejected rejected 2585ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sixteen_variant_enum_payload_bound_through_target_body_rejected rejected 2683ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 4543ms expected @cb13fcfebe32+wt
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 5318ms expected @cb13fcfebe32+wt
@@ -17836,6 +17878,15 @@ pass/facts/signed_8bit_wrapping_multiplication_bound_through_other_machine_exit 
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_other_state_exit checked 11282ms check-target:macos_arm64 @644a492d2c3b+wt
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_parameter_exit checked 7979ms check-target:macos_arm64 @644a492d2c3b+wt
 pass/facts/signed_8bit_wrapping_multiplication_bound_through_target_body_exit checked 8641ms check-target:macos_arm64 @644a492d2c3b+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_call_result_exit checked 17579ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_const_name_exit checked 18019ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_field_exit checked 17553ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_local_exit checked 17892ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_match_join_exit checked 18213ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_other_machine_exit checked 17097ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_other_state_exit checked 19064ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_parameter_exit checked 18832ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_wrapping_subtraction_bound_through_target_body_exit checked 19056ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_arithmetic_shift_right_through_call_result_exit checked 3866ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_arithmetic_shift_right_through_const_name_exit checked 3240ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_arithmetic_shift_right_through_field_exit checked 3607ms check-target:macos_arm64 @9d9ba4fb6251+wt
@@ -17899,6 +17950,15 @@ pass/facts/signed_shift_left_bound_through_other_machine_exit checked 1848ms che
 pass/facts/signed_shift_left_bound_through_other_state_exit checked 1669ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/signed_shift_left_bound_through_parameter_exit checked 2080ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/signed_shift_left_bound_through_target_body_exit checked 1666ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_call_result_exit checked 14556ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_const_name_exit checked 13207ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_field_exit checked 13374ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_local_exit checked 15826ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_match_join_exit checked 16654ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_other_machine_exit checked 16024ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_other_state_exit checked 20209ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_parameter_exit checked 21536ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/sixteen_variant_enum_payload_bound_through_target_body_exit checked 21233ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/size_align_layout_geometry_through_call_result_exit checked 5176ms check-target:macos_arm64 @cb13fcfebe32+wt
 pass/facts/size_align_layout_geometry_through_const_name_exit checked 5077ms check-target:macos_arm64 @cb13fcfebe32+wt
 pass/facts/size_align_layout_geometry_through_field_exit checked 7020ms check-target:macos_arm64 @cb13fcfebe32+wt
