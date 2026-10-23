@@ -64,6 +64,20 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`underflow`).
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/live_across_fourteen_calls_preservation_bound_through_*_exit`
+and
+`tests/omega/fail/facts/live_across_fourteen_calls_preservation_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and
+pins the `exact arithmetic ... may overflow `u64`` diagnostic fragment
+(`underflow`).
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
