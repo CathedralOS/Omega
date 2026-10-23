@@ -3004,41 +3004,41 @@ fail/facts/crash_entry_boolean_view_target_body_false_rejected rejected 1321ms e
 	call from `read_flag` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_boolean_view_target_body_rejected rejected 1304ms expected @ce4681e434c7+wt
 	call from `read_flag` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_call_result_rejected rejected 5214ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_call_result_rejected rejected 10826ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_call_result_zero_rejected rejected 5094ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_const_name_rejected rejected 5440ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_const_name_rejected rejected 10586ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_const_name_zero_rejected rejected 3410ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_field_rejected rejected 3821ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_field_rejected rejected 10358ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_field_zero_rejected rejected 4014ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_local_rejected rejected 4473ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_local_rejected rejected 7562ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_local_written_rejected rejected 19922ms expected @1bd52dbc0ce5+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_local_zero_rejected rejected 4350ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_match_join_rejected rejected 4209ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_match_join_rejected rejected 7554ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_match_join_zero_rejected rejected 4122ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_other_machine_rejected rejected 4000ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_other_machine_rejected rejected 7287ms expected @8d202634513c+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_other_machine_zero_rejected rejected 4047ms expected @e21fad3d9676+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_other_state_rejected rejected 4168ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_other_state_rejected rejected 6308ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_other_state_zero_rejected rejected 4463ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_parameter_rejected rejected 4199ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_parameter_rejected rejected 6524ms expected @8d202634513c+wt
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_parameter_zero_rejected rejected 4246ms expected @e21fad3d9676+wt
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_target_body_rejected rejected 3712ms expected @e21fad3d9676+wt
+fail/facts/crash_entry_ieee_view_through_target_body_rejected rejected 6437ms expected @8d202634513c+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_target_body_zero_rejected rejected 3960ms expected @e21fad3d9676+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -11719,16 +11719,16 @@ pass/facts/crash_entry_boolean_view_other_machine_exit checked 2001ms check-targ
 pass/facts/crash_entry_boolean_view_other_state_exit checked 2032ms check-target:macos_arm64 @ce4681e434c7+wt
 pass/facts/crash_entry_boolean_view_parameter_exit checked 2006ms check-target:macos_arm64 @ce4681e434c7+wt
 pass/facts/crash_entry_boolean_view_target_body_exit checked 2005ms check-target:macos_arm64 @ce4681e434c7+wt
-pass/facts/crash_entry_ieee_view_call_result_exit checked 6431ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_const_name_exit checked 6372ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_field_exit checked 6462ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_local_exit checked 6413ms check-target:macos_arm64 @e21fad3d9676+wt
+pass/facts/crash_entry_ieee_view_through_call_result_exit checked 9280ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_const_name_exit checked 9484ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_field_exit checked 9297ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_local_exit checked 9333ms check-target:macos_arm64 @8d202634513c+wt
 pass/facts/crash_entry_ieee_view_local_writable_exit checked 23800ms check-target:macos_arm64 @1bd52dbc0ce5+wt
-pass/facts/crash_entry_ieee_view_match_join_exit checked 6451ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_other_machine_exit checked 6187ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_other_state_exit checked 6225ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_parameter_exit checked 6462ms check-target:macos_arm64 @e21fad3d9676+wt
-pass/facts/crash_entry_ieee_view_target_body_exit checked 6418ms check-target:macos_arm64 @e21fad3d9676+wt
+pass/facts/crash_entry_ieee_view_through_match_join_exit checked 12649ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_other_machine_exit checked 12694ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_other_state_exit checked 12842ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_parameter_exit checked 12402ms check-target:macos_arm64 @8d202634513c+wt
+pass/facts/crash_entry_ieee_view_through_target_body_exit checked 13089ms check-target:macos_arm64 @8d202634513c+wt
 pass/facts/crash_entry_integer_view_call_result_exit checked 21454ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_field_exit checked 21278ms check-target:macos_arm64 @457174b6ca03
 pass/facts/crash_entry_integer_view_high_bit_exit checked 21303ms check-target:macos_arm64 @457174b6ca03
