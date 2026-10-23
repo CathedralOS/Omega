@@ -2,7 +2,7 @@
 
 Fact: 8-bit signed bitwise OR base | 32i8 with bounded interval 40i8 <= combined <= 63i8 establishes 40i8 <= combined <= 63i8 across all nine places so exact subtractions 63i8 - combined and combined - 40i8 are safe.
 
-Owning Task: `SIGNED-8BIT-BITWISE-OR`
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`), the settled proposition-based scalar range contract ("machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls"); the row's fact family is `SIGNED-8BIT-BITWISE-OR`.
 Specification Reference: [Numeric values](wiki/spec/language/numeric_values.md), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Instruction selection](wiki/spec/resources/storage.md)
 
 This fact row demonstrates that 8-bit signed bitwise OR (`base | 32i8`) combined with an explicit bounded interval guard (`40i8 <= combined <= 63i8`) establishes the exact interval (`40i8 <= combined <= 63i8`) across all nine standard places. The compiler statically derives that the dominating guard constrains `combined` to `[40, 63]`, which directly discharges exact downstream 8-bit signed subtractions `headroom = 63i8 - combined` and `margin = combined - 40i8` and downstream contract `requires value >= 40i8 && value <= 63i8` of `verify_combined` without underflow, overflow, or runtime crash traps across both Terminal Psi and native targets.
@@ -57,12 +57,48 @@ omega --check samples/cli/facts/signed_8bit_bitwise_or_bound/other_machine/inval
 omega --check samples/cli/facts/signed_8bit_bitwise_or_bound/target_body/invalid/main.omg
 ```
 
-Every reject twin fails closed with:
-`error: cannot prove requires contract for call verify_combined`
+Every reject twin fails closed with the fact's own obligation, authored in each
+`<place>/invalid/expected.txt` as:
+`cannot prove requires contract for call verify_combined`
+
+(The CLI prints the diagnostic with its `error: ` prefix; the corpus fragment is
+the unprefixed spelling so the recorded diagnostic matches it.)
+
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_8bit_bitwise_or_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_8bit_bitwise_or_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical
+copy of its place twin's `main.omg`/`build.omg`/`expected.txt` (the row's own `cannot prove requires
+contract for call verify_combined` fragment; the nine stale `error: `-prefixed sample fragments were
+normalized to the unprefixed spelling the corpus diagnostic matcher compares). Positive versus twin
+`git diff` changes only the guard bound (`combined <= 63i8` to `<= 64i8`, with the matching
+`requires`/`ensures` bounds in the `parameter`, `call_result`, `other_state` and `other_machine`
+places and the `const_name` constants), which is the fact's own domain. Each place and each
+`<place>/invalid/` carries the `.gitignore` set the reference row `samples/cli/facts/length/` uses.
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af`
+(revision `9b001b8f6afa`, omega sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`,
+corpus_runner sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse (exit 1) with their authored
+  `cannot prove requires contract for call verify_combined` fragment.
+- The three corpus legs were recorded with the fixture and golden changes staged at the published
+  base `9b001b8f6afa`, so every row stamps `@9b001b8f6afa+wt`: the two pinned rows gained 36 outcome
+  rows in `tests/omega/corpus_outcomes.txt` (18 per row: `checked` carrying
+  `check-target:macos_arm64` and `rejected` with diagnostic continuation lines), 18 rows in
+  `tests/omega/corpus_native_macos_arm64.txt` (`built ... exit:0`) and 18 rows in
+  `tests/omega/corpus_both_macos_arm64.txt` (`built ... exit:0 interpreter-exit:0
+  interpreter:agrees`). Each golden diff is a pure addition (0 deletions); all three legs exited 0
+  with 0 unimplemented rows and 0 rows recording a lost success beyond the pre-existing
+  memory-canary pins (2 `regressed-from` rows in the native leg).
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `SIGNED-8BIT-BITWISE-OR` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`), the settled proposition-based scalar range contract: "machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls". This row is one customer group's nine-place transport and execution of that contract for 8-bit signed bitwise OR; the row's fact family is `SIGNED-8BIT-BITWISE-OR`.
 - **Requirement established:** End-to-end nine-place fact preservation for 8-bit signed bitwise OR (`i8`, `base | 32i8`) constrained by a bounded interval guard (`40i8 <= combined <= 63i8`), discharging exact 8-bit signed subtractions `63i8 - combined` and `combined - 40i8` and downstream contract `requires value >= 40i8 && value <= 63i8` across all nine language transport places with differential agreement between Terminal Psi and native execution across hosted targets.
 - **Authority:** [Numeric values](wiki/spec/language/numeric_values.md), [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md), and [Control flow](wiki/spec/terminal-psi/control_flow.md).
 

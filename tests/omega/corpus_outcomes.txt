@@ -8018,6 +8018,48 @@ fail/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_rejected 
 	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 100 (needs fact `val >= 40 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 100 (needs fact `val >= 40 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call exercise from main: diff >= 40 && diff <= 100 (needs fact `val >= 40 && val <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_or_bound_through_call_result_rejected rejected 19266ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: combined >= 40 && combined <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_or_bound_through_const_name_rejected rejected 17904ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_or_bound_through_field_rejected rejected 27602ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: carrier.val >= 40 && carrier.val <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_or_bound_through_local_rejected rejected 28435ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: loc >= 40 && loc <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_or_bound_through_match_join_rejected rejected 40253ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: joined >= 40 && joined <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_or_bound_through_other_machine_rejected rejected 28857ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: relayed >= 40 && relayed <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_or_bound_through_other_state_rejected rejected 20326ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `next_step`
+fail/facts/signed_8bit_bitwise_or_bound_through_parameter_rejected rejected 20885ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from helper: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_or_bound_through_target_body_rejected rejected 18114ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+	cannot prove requires contract for call verify_combined from exercise: c >= 40 && c <= 63 (needs fact `value >= 40 && value <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_xor_bound_through_call_result_rejected rejected 16780ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_call_result: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_const_name_rejected rejected 16253ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_const: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_field_rejected rejected 15683ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_field: c.xored >= 40 && c.xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_local_rejected rejected 18244ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_local: transported >= 40 && transported <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_match_join_rejected rejected 17033ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_match_join: joined >= 40 && joined <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_other_machine_rejected rejected 25002ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_other_machine: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_other_state_rejected rejected 17518ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_other_state: s >= 40 && s <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_8bit_bitwise_xor_bound_through_parameter_rejected rejected 18533ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_parameter: transported >= 40 && transported <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_8bit_bitwise_xor_bound_through_target_body_rejected rejected 19333ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_xored from compute_target_body: xored >= 40 && xored <= 63 (needs fact `res >= 40 && res <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_8bit_exact_arithmetic_bound_through_call_result_rejected rejected 355ms expected @b9f31a0e74de+wt
 	exact arithmetic in machine `add_helper` state `entry` terminal expression may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i8 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/signed_8bit_exact_arithmetic_bound_through_const_name_rejected rejected 347ms expected @b9f31a0e74de+wt
@@ -16024,6 +16066,24 @@ pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_machine_exit ch
 pass/facts/signed_64bit_wrapping_subtraction_bound_through_other_state_exit checked 38764ms check-target:macos_arm64 @7b770f2baf0d+wt
 pass/facts/signed_64bit_wrapping_subtraction_bound_through_parameter_exit checked 39489ms check-target:macos_arm64 @7b770f2baf0d+wt
 pass/facts/signed_64bit_wrapping_subtraction_bound_through_target_body_exit checked 38725ms check-target:macos_arm64 @7b770f2baf0d+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_call_result_exit checked 23785ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_const_name_exit checked 27591ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_field_exit checked 24014ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_local_exit checked 24572ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_match_join_exit checked 28315ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_other_machine_exit checked 27225ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_other_state_exit checked 28069ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_parameter_exit checked 28002ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_or_bound_through_target_body_exit checked 27106ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_call_result_exit checked 27274ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_const_name_exit checked 28258ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_field_exit checked 26798ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_local_exit checked 25274ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_match_join_exit checked 34622ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_other_machine_exit checked 24742ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_other_state_exit checked 24478ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_parameter_exit checked 21810ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_8bit_bitwise_xor_bound_through_target_body_exit checked 22213ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_call_result_exit checked 1834ms check-target:macos_arm64 @b9f31a0e74de+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_const_name_exit checked 1829ms check-target:macos_arm64 @b9f31a0e74de+wt
 pass/facts/signed_8bit_exact_arithmetic_bound_through_field_exit checked 1565ms check-target:macos_arm64 @b9f31a0e74de+wt

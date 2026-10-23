@@ -1,0 +1,39 @@
+// Fact: 8-bit signed bitwise XOR raw ^ 15i8 with bounded interval 40i8 <= xored <= 63i8 establishes 40i8 <= xored <= 63i8 across all nine places so exact subtractions 63i8 - xored and xored - 40i8 are safe.
+// Place: call_result. The bitwise XOR result is returned from a callee invocation.
+// Expected exit: 0
+machine verify_xored(res: i8) -> i32
+    requires res >= 40 && res <= 63
+{
+    let head: i8 = 63 - res;
+    let tail: i8 = res - 40;
+    let sum: i32 = (head as i32) + (tail as i32);
+    sum - 23
+}
+
+machine xor_helper(v: i8) -> i8
+    requires v >= 59 && v <= 59
+    ensures result >= 40 && result <= 63
+{
+    v ^ 15
+}
+
+machine compute_call_result(raw: i8) -> i32
+    requires raw >= 59 && raw <= 59
+{
+    let xored: i8 = xor_helper(raw);
+    verify_xored(xored)
+}
+
+machine evaluate() -> i32 {
+    compute_call_result(59)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

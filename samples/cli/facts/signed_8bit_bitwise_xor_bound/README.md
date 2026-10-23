@@ -49,23 +49,55 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/signed_8bit_bitwise_xor_bound/<place>/invalid/main.omg
 ```
 
-The same nine twins are also mirrored under `invalid/<place>/` with an authored
-`expected.txt`, so the invalid controls are discoverable by both the per-place
-route and the batch route. Each mirror is byte-identical to its per-place twin.
+Each twin lives once under `<place>/invalid/` — the layout the reference row
+`samples/cli/facts/length/` and the other fact rows use. The nine duplicate
+`invalid/<place>/` mirror directories (36 files: nine copies each of `main.omg`,
+`build.omg`, `expected.txt` and `sample.json`, byte-identical to their per-place
+twins) were folded into the per-place layout so each invalid control is
+discovered once.
 
 ### Acceptance Gate
 
-```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_8bit_bitwise_xor_bound --jobs 4
-```
+The row's canonical measurement is the shared factsr1 generation producer on macOS
+arm64 (`gen-9b001b8f6af`, revision `9b001b8f6afa`): the root and nine places run
+`omega run --both` with `native exit 0` and `interp exit: 0` (10/10), and the nine
+per-place twins refuse at `omega --check` (exit 1) with their authored
+`cannot prove requires contract for call verify_xored` fragment (9/9). The
+duplicate `invalid/<place>/` controls that made the sample gate count every twin
+twice are folded, so each invalid control is discovered once.
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 18/18 intended-invalid controls match their authored rejection (`cannot prove requires contract for call verify_xored`).
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_8bit_bitwise_xor_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_8bit_bitwise_xor_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample place's
+`main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a byte-identical
+copy of its place twin's `main.omg`/`build.omg`/`expected.txt` (the row's own `cannot prove requires
+contract for call verify_xored` fragment). Positive versus twin `git diff` changes only the input
+bound (`raw >= 59 && raw <= 59` to `raw >= 64 && raw <= 64`, `const RAW` `59` to `64`, the call
+argument, and the call_result helper's `ensures` bound), which is the fact's own domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af`
+(revision `9b001b8f6afa`, omega sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`,
+corpus_runner sha256 `cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse (exit 1) with their authored
+  `cannot prove requires contract for call verify_xored` fragment.
+- The three corpus legs were recorded with the fixture and golden changes staged at the published
+  base `9b001b8f6afa`, so every row stamps `@9b001b8f6afa+wt`: the two pinned rows gained 36 outcome
+  rows in `tests/omega/corpus_outcomes.txt` (18 per row: `checked` carrying
+  `check-target:macos_arm64` and `rejected` with diagnostic continuation lines), 18 rows in
+  `tests/omega/corpus_native_macos_arm64.txt` (`built ... exit:0`) and 18 rows in
+  `tests/omega/corpus_both_macos_arm64.txt` (`built ... exit:0 interpreter-exit:0
+  interpreter:agrees`). Each golden diff is a pure addition (0 deletions); all three legs exited 0
+  with 0 unimplemented rows and 0 rows recording a lost success beyond the pre-existing
+  memory-canary pins (2 `regressed-from` rows in the native leg).
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` / `SIGNED-8BIT-BITWISE-XOR-BOUND` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`), the settled proposition-based scalar range contract ("machine/state parameters `requires`, results `ensures`, locals the facts from initializers, guards and calls"); the row's fact family is `SIGNED-8BIT-BITWISE-XOR-BOUND`.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for 8-bit signed (`i8`) bitwise XOR bounds (`[numeric values](wiki/spec/language/numeric_values.md)`). Specifically, exact 8-bit signed bitwise XOR of bounded inputs (`raw >= 59i8 && raw <= 59i8`) with `15i8` statically establishes `xored >= 40i8 && xored <= 63i8`, discharging downstream contract requirement `res >= 40 && res <= 63` and exact subtractions `63i8 - res` and `res - 40i8` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**

@@ -1,0 +1,45 @@
+// Fact: 8-bit signed bitwise OR base | 32i8 with bounded interval 40i8 <= combined <= 63i8 establishes 40i8 <= combined <= 63i8 across all nine places so exact subtractions 63i8 - combined and combined - 40i8 are safe.
+// Expected exit: 1
+
+machine verify_combined(value: i8) -> i8
+requires value >= 40i8 && value <= 63i8
+{
+    let headroom: i8 = 63i8 - value;
+    let margin: i8 = value - 40i8;
+    transition headroom == 11i8 && margin == 12i8 {
+        true -> 0i8
+        _ -> 1i8
+    }
+}
+
+data Relay {}
+
+machine Relay::forward(m: i8) -> i8
+requires m >= 40i8 && m <= 64i8
+ensures result >= 40i8 && result <= 64i8
+{
+    m
+}
+
+machine exercise(base: i8) -> i8 crashes Trap {
+    let combined: i8 = base | 32i8;
+    transition combined >= 40i8 && combined <= 64i8 {
+        true -> step(combined)
+        _ -> bad()
+    }
+    state step(c: i8) -> i8 {
+        let relayed: i8 = Relay::forward(c);
+        verify_combined(relayed)
+    }
+    state bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    let rc: i8 = exercise(20i8);
+    transition rc == 0i8 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
