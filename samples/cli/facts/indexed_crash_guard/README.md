@@ -38,6 +38,19 @@ omega run --both samples/cli/facts/indexed_crash_guard/target_body/main.omg
 
 Every positive passes with native and Terminal Psi agreement (`exit 0`).
 
+Measured on macOS arm64 with the shared opt-level 1 producer (`9ff26a87021`):
+the root, `controls/fixed_index`, `private_omission` and the nine places report
+`native exit 0` and `interp exit: 0` under `omega run --both` (12/12 for this
+row); the nine twins exit 1 from checking with their authored fragments (`call
+from `read_seven` to `maybe_zero` / `forward`, `uncovered Trap crash route`).
+`sample_native_gate.py` reports 21/21 samples at their documented oracle with
+18/18 intended-invalid controls matching across this row and
+`integer_multiple_remainder`. The pinned corpus rows were recorded with an
+opt-level 1 corpus runner built from this tree at `595562a958b4+wt`, jobs=2: 9
+`checked` with `check-target:macos_arm64`, 9 `rejected` carrying their own
+diagnostic, 9 native `built ... exit:0` and 9 both-leg rows at
+`interpreter-exit:0 interpreter:agrees`.
+
 ## Reject twins
 
 Each place has an `invalid/` twin whose `main.omg` omits only the `requires items[index] == 7` precondition (or equivalent carrier constraint). Because `read_seven` is `pub` and declares no `crashes Trap` clause, public crash omission is forbidden. Each twin fails closed with:
@@ -54,7 +67,8 @@ the public omitted-cause prohibition does not apply and it compiles and runs
 with exit 0. It stands as the recorded exposure of that private coverage gap,
 not as a ninth-tenth control.
 
-The corpus pairs are pinned by `tests/omega/{pass,fail}/facts/indexed_crash_guard_through_<place>`.
+The corpus pairs are pinned by
+`tests/omega/{pass,fail}/facts/indexed_crash_guard_through_<place>_{exit,rejected}`.
 
 ## Requirements and Evidence
 

@@ -6,10 +6,32 @@ Each place returns 14 at count 7 and binds all four hosted ProgramEntry targets.
 Run `omega run --both samples/cli/facts/integer_multiple_remainder/<place>/main.omg`.
 The places are `local`, `field`, `parameter`, `call_result`, `match_join`,
 `const_name`, `other_state`, `other_machine`, and `target_body`. Each `invalid/`
-twin changes only `OFFSET` from 0 to 1. The input bound, carrier, modulo
-obligation, and authored observation remain unchanged; the byte count stays
-representable but is no longer even. The same programs and twins are pinned
-under `tests/omega/{pass,fail}/facts/integer_multiple_remainder_<place>/`.
+twin changes only `OFFSET` from 0 to 1 and declares its authored rejection
+identity in `sample.json`: seven construction twins fail with the `default
+domain` refusal on the `EvenLength` literal, and `parameter` and `other_state`
+fail the call with `cannot prove requires contract for call receive` /
+`completed from probe: (count * 2 + 1 as u16) % 2 == 0`. The input bound,
+carrier, modulo obligation, and authored observation remain unchanged; the byte
+count stays representable but is no longer even. The same programs and twins
+are pinned under
+`tests/omega/pass/facts/integer_multiple_remainder_through_<place>_exit` and
+`tests/omega/fail/facts/integer_multiple_remainder_through_<place>_rejected`,
+with the corpus rows 9 `checked`, 9 `rejected`, 9 native `built exit:0` and 9
+`both` rows on `interpreter:agrees`.
+
+Measured on macOS arm64 with the shared opt-level 1 producer (`9ff26a87021`):
+the nine places report `native exit 0` and `interp exit: 0` under `omega run
+--both`; the nine twins exit 1 from checking with the fragments above;
+`sample_gate.py` reports 39/39 checked with 18 of these matched intended
+rejection controls across this row and `indexed_crash_guard` (after `omega
+update --project samples/cli/facts/indexed_crash_guard --target macos_arm64`
+refreshed the root's ignored accepted-review state, which the earlier gate run
+order had invalidated as `source identity changed`), and `sample_native_gate.py`
+reports 21/21 samples at their documented oracle with 18/18 intended-invalid
+controls matching. The corpus rows were recorded with an opt-level 1 corpus
+runner built from this tree at `595562a958b4+wt`, jobs=2: 9 `checked` with
+`check-target:macos_arm64`, 9 `rejected` carrying their own diagnostic, 9 native
+`built ... exit:0` and 9 both-leg rows at `interpreter-exit:0 interpreter:agrees`.
 
 The native consumer is Windows relative-name acquisition: a bounded UTF-16
 component supplies an exact even UNICODE_STRING byte length. This row isolates

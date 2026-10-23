@@ -4430,23 +4430,23 @@ fail/facts/index_every_width_through_target_body_rejected rejected 13159ms expec
 	cannot prove index `index_i64` is within length 4 in read_all::entry
 	cannot prove index `index_i64` is within length 4 in read_all::entry
 	cannot prove index `index_i64` is within length 4 in read_all::entry
-fail/facts/indexed_crash_guard_through_call_result rejected 4035ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_call_result_rejected rejected 2456ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_const_name rejected 4128ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_const_name_rejected rejected 2553ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_field rejected 4249ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_field_rejected rejected 2449ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_local rejected 4176ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_local_rejected rejected 2484ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_match_join rejected 4229ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_match_join_rejected rejected 2438ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_other_machine rejected 4094ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_other_machine_rejected rejected 2199ms expected @595562a958b4+wt
 	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_other_state rejected 4135ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_other_state_rejected rejected 2505ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_parameter rejected 3576ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_parameter_rejected rejected 2735ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_target_body rejected 3443ms expected @97fca7a18f74+wt
+fail/facts/indexed_crash_guard_through_target_body_rejected rejected 2666ms expected @595562a958b4+wt
 	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_element_mut_loan_through_call_result_rejected rejected 1261ms expected @dee77250b5b9
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -4523,23 +4523,23 @@ fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 3113
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 2890ms expected @cd657b07c6e2+wt
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/integer_multiple_remainder_call_result rejected 311ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_call_result_rejected rejected 982ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_multiple_remainder_const_name rejected 311ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_const_name_rejected rejected 780ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_multiple_remainder_field rejected 310ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_field_rejected rejected 770ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_multiple_remainder_local rejected 310ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_local_rejected rejected 914ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_multiple_remainder_match_join rejected 390ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_match_join_rejected rejected 866ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_multiple_remainder_other_machine rejected 390ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_other_machine_rejected rejected 998ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/integer_multiple_remainder_other_state rejected 547ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_other_state_rejected rejected 2668ms expected @595562a958b4+wt
 	cannot prove requires contract for call completed from probe: (count * 2 + 1 as u16) % 2 == 0 (needs fact `length % 2 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_multiple_remainder_parameter rejected 548ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_parameter_rejected rejected 2330ms expected @595562a958b4+wt
 	cannot prove requires contract for call receive from probe: (count * 2 + 1 as u16) % 2 == 0 (needs fact `length % 2 == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/integer_multiple_remainder_target_body rejected 273ms expected @dbebd59811f6+wt
+fail/facts/integer_multiple_remainder_through_target_body_rejected rejected 464ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -12693,15 +12693,15 @@ pass/facts/index_every_width_through_other_machine_exit checked 8491ms check-tar
 pass/facts/index_every_width_through_other_state_exit checked 7887ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_parameter_exit checked 8276ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_target_body_exit checked 29484ms check-target:macos_arm64 @465f5043822d+wt
-pass/facts/indexed_crash_guard_through_call_result checked 7702ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_const_name checked 7676ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_field checked 7974ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_local checked 7951ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_match_join checked 7797ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_other_machine checked 7670ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_other_state checked 7829ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_parameter checked 7814ms check-target:macos_arm64 @97fca7a18f74+wt
-pass/facts/indexed_crash_guard_through_target_body checked 8235ms check-target:macos_arm64 @97fca7a18f74+wt
+pass/facts/indexed_crash_guard_through_call_result_exit checked 3446ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_const_name_exit checked 3393ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_field_exit checked 3395ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_local_exit checked 3448ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_match_join_exit checked 3055ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_other_machine_exit checked 3047ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_other_state_exit checked 3138ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_parameter_exit checked 3164ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/indexed_crash_guard_through_target_body_exit checked 3236ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/indexed_element_mut_loan_through_call_result_exit checked 7416ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_const_name_exit checked 7499ms check-target:macos_arm64 @dee77250b5b9
 pass/facts/indexed_element_mut_loan_through_field_exit checked 7549ms check-target:macos_arm64 @dee77250b5b9
@@ -12729,15 +12729,15 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit checked 10468
 pass/facts/inferred_array_equation_call_through_other_state_exit checked 10003ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_parameter_exit checked 10223ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_target_body_exit checked 12212ms check-target:macos_arm64 @cd657b07c6e2+wt
-pass/facts/integer_multiple_remainder_call_result checked 748ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_const_name checked 711ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_field checked 711ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_local checked 709ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_match_join checked 713ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_other_machine checked 704ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_other_state checked 700ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_parameter checked 808ms check-target:macos_arm64 @dbebd59811f6+wt
-pass/facts/integer_multiple_remainder_target_body checked 808ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/facts/integer_multiple_remainder_through_call_result_exit checked 3385ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_const_name_exit checked 2806ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_field_exit checked 2838ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_local_exit checked 2616ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_match_join_exit checked 2573ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_other_machine_exit checked 2610ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_other_state_exit checked 2740ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_parameter_exit checked 2556ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/integer_multiple_remainder_through_target_body_exit checked 2617ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/integer_range_delivery_through_call_result_exit checked 8927ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_const_name_exit checked 7937ms check-target:macos_arm64 @ff8be1e0d475
 pass/facts/integer_range_delivery_through_field_exit checked 8077ms check-target:macos_arm64 @ff8be1e0d475
