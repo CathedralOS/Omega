@@ -155,10 +155,16 @@ pub(super) fn assign_statement_symbols(
                     machine.symbol,
                     state_symbol,
                     members.get(..1).unwrap_or_default(),
+                    None,
                 );
                 call.receiver_root_symbol = root;
-                let (_, symbol) =
-                    resolve_state_scoped_members(symbols, machine.symbol, state_symbol, members);
+                let (_, symbol) = resolve_state_scoped_members(
+                    symbols,
+                    machine.symbol,
+                    state_symbol,
+                    members,
+                    None,
+                );
                 if symbol.is_valid() {
                     call.receiver_symbol = symbol;
                 }

@@ -17,15 +17,26 @@ const SCOPED_PATH_MEMBER_KINDS: &[SymbolKind] = &[
     SymbolKind::Const,
 ];
 
+/// Resolve a state-scoped table path to its lexical head and selected leaf.
+/// `indexed_last_member` carries the path's possible indexed tail
+/// (`items[index]`): one walk serves both, and only the final member's lookup
+/// consults the indexed declaration form.
 pub(super) fn resolve_state_scoped_table_path(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     expression_table: &symbol_resolved_trees::expression::ExpressionTable,
     path: &symbol_resolved_trees::expression::TableNamePath,
+    indexed_last_member: Option<i64>,
 ) -> (SymbolHandle, SymbolHandle) {
     let members = expression_table.name_path_members(path.members);
-    resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, None)
+    resolve_state_scoped_members(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        members,
+        indexed_last_member,
+    )
 }
 
 /// Retain each authored segment's declaration where it has one. Package-alias
@@ -87,50 +98,11 @@ pub(super) fn resolve_path_members_from_head(
     resolved
 }
 
-pub(super) fn resolve_state_scoped_table_path_with_indexed_last_member(
-    symbols: &SymbolTable,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    expression_table: &symbol_resolved_trees::expression::ExpressionTable,
-    path: &symbol_resolved_trees::expression::TableNamePath,
-    index: i64,
-) -> (SymbolHandle, SymbolHandle) {
-    let members = expression_table.name_path_members(path.members);
-    resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, Some(index))
-}
-
+/// Resolve a run of authored path members to the lexical head and the selected
+/// leaf. `indexed_last_member` is the walk's only variation: when present, the
+/// final member's declaration is looked up in its indexed form (`name[index]`)
+/// instead of its plain form, and only at that final member.
 pub(super) fn resolve_state_scoped_members(
-    symbols: &SymbolTable,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    members: &[symbol_resolved_trees::name::DiagnosticName],
-) -> (SymbolHandle, SymbolHandle) {
-    if members.is_empty() {
-        return invalid_symbol_pair();
-    }
-
-    let (head, prefix_length) = resolve_path_head(symbols, machine_symbol, state_symbol, members);
-    if !head.is_valid() {
-        return invalid_symbol_pair();
-    }
-    let mut current = head;
-
-    for member in &members[prefix_length..] {
-        current = child_or_attached_data_child_symbol_by_kinds(
-            symbols,
-            current,
-            SCOPED_PATH_MEMBER_KINDS,
-            member.as_str(),
-        );
-        if !current.is_valid() {
-            return (head, SymbolHandle::invalid());
-        }
-    }
-
-    (head, current)
-}
-
-fn resolve_state_scoped_table_members(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,

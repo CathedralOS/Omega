@@ -436,6 +436,7 @@ pub(in crate::symbols) fn assign_name_symbol(
         lookup_state,
         expression_table,
         path,
+        None,
     );
     // Fields, named states, and conformance binders are scoped machine children,
     // not entries in the local/type-parameter frontier above. Select their heads

@@ -974,6 +974,7 @@ fn assign_proof_expression_symbols(
                     SymbolHandle::invalid(),
                     expression_table,
                     &path,
+                    None,
                 );
                 let members = super::scoped_paths::resolve_state_scoped_table_path_member_symbols(
                     symbols,

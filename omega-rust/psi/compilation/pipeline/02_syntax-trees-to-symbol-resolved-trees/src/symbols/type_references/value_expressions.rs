@@ -354,6 +354,7 @@ fn resolve_index_subject(
         machine.symbol,
         SymbolHandle::invalid(),
         std::slice::from_ref(head_name),
+        None,
     );
     let payload_subject = symbols.get(machine.symbol).kind == SymbolKind::Variant
         && declared.is_valid()

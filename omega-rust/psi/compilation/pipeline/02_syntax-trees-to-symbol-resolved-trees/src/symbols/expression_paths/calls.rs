@@ -2,7 +2,7 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::scope::MachineScope;
 use super::super::targets::resolve_call_target_symbol;
-use super::receivers::resolve_expression_table_receiver_symbol;
+use super::receivers::resolve_expression_table_receiver_path_symbols;
 
 pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
     machine: &MachineScope<'_>,
@@ -31,7 +31,7 @@ pub(in crate::symbols) fn resolve_expression_table_call_target_symbol(
                 symbols,
             );
         }
-        let receiver_symbol = resolve_expression_table_receiver_symbol(
+        let (_, receiver_symbol) = resolve_expression_table_receiver_path_symbols(
             symbols,
             machine.symbol,
             state_symbol,

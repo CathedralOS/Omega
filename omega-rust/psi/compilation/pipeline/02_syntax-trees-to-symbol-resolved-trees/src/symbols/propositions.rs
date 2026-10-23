@@ -229,6 +229,7 @@ pub(super) fn assign_expression_symbols(
                     SymbolHandle::invalid(),
                     expressions,
                     &path,
+                    None,
                 )
             };
             // A bare declaration binder was selected in this exact lexical
