@@ -34,16 +34,16 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/twenty-twoone_variant_enum_payload_bound/target_body/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/local/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/field/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/parameter/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/call_result/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/match_join/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/const_name/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/other_state/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/other_machine/main.omg
+omega run --both samples/cli/facts/twentytwo_variant_enum_payload_bound/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
@@ -67,7 +67,7 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 43: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
@@ -84,4 +84,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 22-variant tagged enum `TwentyTwoChoice` with a 1-byte discriminant tag (`u8` range 0..21) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 22-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row. Every positive program (root plus nine places; 10/10) ran with the shared generation producer for this base (`gen-9b001b8f6af`, revision `9b001b8f6af`, omega sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`): `omega run --both` reports native exit 0 and interp exit: 0 for each; the nine `<place>/invalid` reject twins each reject under `omega --check` with the diagnostic recorded above; the eighteen pass and fail fixtures are pinned under `tests/omega/{pass,fail}/facts` with their check (18 checked / 18 rejected), native (18 built, `exit:0`) and interpreter (18 `exit:0`, `interpreter:agrees`) golden rows recorded, and no compiler build was consumed.

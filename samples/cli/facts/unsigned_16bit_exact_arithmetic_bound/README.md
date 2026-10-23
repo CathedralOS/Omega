@@ -64,10 +64,27 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omegauild\o
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u16\``).
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/unsigned_16bit_exact_arithmetic_bound_through_<place>_exit` and
+`tests/omega/fail/facts/unsigned_16bit_exact_arithmetic_bound_through_<place>_rejected` fixtures across all nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`,
+`target_body`). Every positive fixture binds `ProgramEntry` for all four hosted targets (`windows_x86_64`,
+`linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares `Expected exit: 0`; every reject fixture carries its
+authored `may overflow \`u16\`` fragment.
+
+Measured on macOS arm64 with the shared generation producer for this base (`gen-9b001b8f6af`, revision
+`9b001b8f6af`, omega sha256 `6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`):
+- 10/10 programs (root plus nine places) report `native exit 0` and `interp exit: 0` under `omega run --both`.
+- 9/9 `<place>/invalid` twins reject under `omega --check` with `may overflow \`u16\``.
+- The fixtures record 18 checked / 18 rejected in `tests/omega/corpus_outcomes.txt`, 18 built `exit:0` in
+  `tests/omega/corpus_native_macos_arm64.txt`, and 18 `exit:0` + `interpreter-exit:0` + `interpreter:agrees` in
+  `tests/omega/corpus_both_macos_arm64.txt`; no compiler build was consumed.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
-- **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Ticket:** `c748de1b32944b76a08992df45b6ec83` (row authoring); `ef51431018d34e0ea74581ac447767a6` (factsr1-pins-ei closure).
 - **Requirement established:** Target-neutral compile-time 16-bit unsigned integer interval synthesis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, adding two bounded 16-bit unsigned `u16` values (`lhs >= 100u16 && lhs <= 200u16` and `rhs >= 150u16 && rhs <= 300u16`) establishes the exact post-addition interval (`sum >= 250u16 && sum <= 500u16`), discharging both exact headroom subtraction `500u16 - sum` and margin subtraction `sum - 250u16` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
