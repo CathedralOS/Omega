@@ -494,6 +494,25 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Complete conservative backing reads for invalidation. Unlike exact
+    /// origins, these may name a whole collection for a window. Callers may
+    /// compare overlap only, never derive predicate or storage identity.
+    pub fn reference_expression_read_paths_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<String>> {
+        super::reference_subjects::expression_read_paths_before_statement(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            expression,
+            &self.caches.state_write_shared_collections,
+        )
+    }
+
     /// Persistent field/element declarations of the original lender and every
     /// retained view, without observing write-only contents or granting access.
     pub(crate) fn reference_lender_declarations_before_statement(

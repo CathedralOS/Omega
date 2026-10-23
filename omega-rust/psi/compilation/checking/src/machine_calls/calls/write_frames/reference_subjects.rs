@@ -282,6 +282,48 @@ pub(super) fn expression_origins_before_statement(
         .collect()
 }
 
+/// Complete backing footprints for invalidation, independent of exact identity.
+/// A window may conservatively observe its whole collection. Reuse the backing
+/// origin judgment: it authenticates frozen descriptor boundaries and builtin
+/// selectors without asking a coarse range to establish exact value identity.
+/// Unresolved loans stay opaque; static image backing cannot be written.
+pub(super) fn expression_read_paths_before_statement(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+) -> Option<Vec<String>> {
+    let (state, _, index) = caller_aliases::caller_statement_owner(
+        program,
+        machine,
+        caller_aliases::CallerWriteSite::Statement(before),
+    )?;
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
+    let origins = backing_origins(
+        program,
+        machine,
+        expression,
+        symbols,
+        &mut FrameInference::default(),
+        &prefix.aliases,
+        &prefix.stored,
+    )?;
+    let mut reads = Vec::new();
+    for origin in origins {
+        if origin.source.is_static() {
+            continue;
+        }
+        if !reads.contains(&origin.path) {
+            reads.push(origin.path);
+        }
+    }
+    Some(reads)
+}
+
 /// Declared storage obligations at every exact original lender. Root input
 /// qualifications are preconditions, while a selected field/element's declared
 /// qualification is a persistent obligation. Retained recast coordinates name

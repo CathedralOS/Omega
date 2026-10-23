@@ -1,6 +1,6 @@
 //! Compare guard observations in the caller's current namespace. A captured
 //! local expands only through its exact selected producer and a complete frame
-//! preserving both the destination and every observed storage root. A reference
+//! preserving both the destination and every observed backing place. A reference
 //! actual — a local loan or a returned loan — denotes that loan's storage, so
 //! a field fact on the storage proves the formal's field requirement. Several
 //! exact storages do not: the callee may receive any of them. Expansion
@@ -388,60 +388,33 @@ impl Denotations<'_> {
                 return None;
             }
         }
-        let mut roots = vec![local.symbol];
-        self.read_roots(local.initial_value, &mut roots, remaining, 0)?;
-        let mut names = Vec::new();
-        for root in roots {
-            let name = self.program.symbols.name(root);
-            let declarations = self
-                .program
-                .state_parameters(state)
-                .iter()
-                .filter(|p| p.name.as_str() == name)
-                .map(|p| p.symbol)
-                .chain(statements.iter().filter_map(|node| match node {
-                    StatementNode::LocalData(l) if l.name.as_str() == name => Some(l.symbol),
-                    _ => None,
-                }))
-                .collect::<Vec<_>>();
-            if declarations.as_slice() != [root] {
-                return None;
-            }
-            names.push(name);
-        }
+        // Selected computation establishes what was captured; only the shared
+        // saved-guard owner establishes whether it still denotes current
+        // storage. Frame paths name backing origins, not local loan names.
+        // Keep argument evaluation in that same epoch judgment: an arm operand
+        // can overwrite the observed bytes before its consumer begins.
         let frames = self.call_frames?;
-        let preserves = |frame: facts::NormalizedWriteFrame| {
-            frame.into_complete_paths().is_some_and(|paths| {
-                paths.iter().all(|written| {
-                    names
-                        .iter()
-                        .all(|name| !validation::frame_paths_overlap(written, name))
-                })
-            })
-        };
-        for node in statements.get(definition + 1..self.statement_index)? {
-            *remaining = remaining.checked_sub(1)?;
-            if !preserves(frames.statement_value_write_frame(machine, node)) {
-                return None;
-            }
-            match node {
-                StatementNode::Assignment(_)
-                    if !preserves(frames.assignment_write_frame(machine, node)) =>
-                {
-                    return None;
-                }
-                StatementNode::Call(call) if !preserves(frames.may_write_frame(machine, call)) => {
-                    return None;
-                }
-                StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => return None,
-                _ => {}
-            }
-        }
-        // Arrival arguments can write before the receiving call begins.
+        let mut later_writes = Vec::new();
         for argument in self.arguments {
-            if !preserves(frames.expression_write_frame(machine, *argument)) {
-                return None;
-            }
+            later_writes.extend(
+                frames
+                    .expression_write_frame(machine, *argument)
+                    .into_complete_paths()?,
+            );
+        }
+        if !crate::flow::saved_guard_observations(
+            self.program,
+            machine,
+            state,
+            self.statement_index,
+            expression,
+            true,
+            &later_writes,
+            Some(frames),
+        )
+        .contains(&(local.initial_value, true))
+        {
+            return None;
         }
         Some(local.initial_value)
     }
@@ -523,78 +496,5 @@ impl Denotations<'_> {
             }
             _ => false,
         }
-    }
-
-    fn read_roots(
-        &self,
-        expression: ExpressionHandle,
-        roots: &mut Vec<SymbolHandle>,
-        remaining: &mut usize,
-        depth: usize,
-    ) -> Option<()> {
-        if depth >= 64 || *remaining == 0 {
-            return None;
-        }
-        *remaining -= 1;
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let names = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members);
-                let symbols = self
-                    .program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols);
-                if !path.head_symbol.is_valid()
-                    || !path.symbol.is_valid()
-                    || (names.len() == 1 && path.symbol != path.head_symbol)
-                    || (names.len() > 1
-                        && (names.len() != symbols.len()
-                            || symbols.first() != Some(&path.head_symbol)
-                            || symbols.last() != Some(&path.symbol)
-                            || !symbols.iter().zip(names).all(|(symbol, name)| {
-                                symbol.is_valid()
-                                    && self.program.symbols.name(*symbol) == name.as_str()
-                            })))
-                {
-                    return None;
-                }
-                crate::flow::projected_leaf_place(self.program, expression)?;
-                if !roots.contains(&path.head_symbol) {
-                    roots.push(path.head_symbol);
-                }
-            }
-            ExpressionNode::Member(member) => {
-                self.read_roots(member.receiver, roots, remaining, depth + 1)?
-            }
-            ExpressionNode::Indexed(indexed) => {
-                self.read_roots(indexed.collection, roots, remaining, depth + 1)?;
-                self.read_roots(indexed.index, roots, remaining, depth + 1)?;
-            }
-            ExpressionNode::Borrow(borrow) => {
-                self.read_roots(borrow.target, roots, remaining, depth + 1)?
-            }
-            ExpressionNode::Unary(unary) if self.builtin(expression) => {
-                self.read_roots(unary.operand, roots, remaining, depth + 1)?
-            }
-            ExpressionNode::Binary(binary)
-                if self.same_binary_meaning(expression, expression, false) =>
-            {
-                self.read_roots(binary.left, roots, remaining, depth + 1)?;
-                self.read_roots(binary.right, roots, remaining, depth + 1)?;
-            }
-            ExpressionNode::Call(_) => {
-                let (_, operand) =
-                    typed_trees::byte_predicates::byte_predicate_call(self.program, expression)?;
-                self.read_roots(operand, roots, remaining, depth + 1)?;
-            }
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_) => {}
-            _ => return None,
-        }
-        Some(())
     }
 }

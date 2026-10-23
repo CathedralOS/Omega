@@ -84,6 +84,7 @@ pub(super) fn append_guard_context(
                 statement_index,
                 expression,
                 value,
+                &[],
                 build.call_frames,
             )
         },

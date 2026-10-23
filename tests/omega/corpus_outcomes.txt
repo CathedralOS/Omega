@@ -8079,6 +8079,27 @@ fail/facts/saturating_integer_arithmetic_through_target_body_rejected rejected 4
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `compute` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/saved_byte_predicate_through_call_result rejected 3387ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_const_name rejected 2549ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_field rejected 1979ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(holder.bytes[0..1]) && holder.bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_local rejected 2099ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_match_join rejected 2195ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_other_machine rejected 2471ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from observe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_other_state rejected 2938ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
+fail/facts/saved_byte_predicate_through_parameter rejected 2266ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/saved_byte_predicate_through_target_body rejected 2297ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/scalar_boundary_parameter_through_call_result_rejected rejected 3222ms expected @abda3e427bc9+wt
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
 	machine `main` state `entry` value call to `issue` violates required fact `value >= 100`: the instantiated fact is structurally false (`99 >= 100`)
@@ -14062,6 +14083,8 @@ fail/slices/inline_shared_window_mutable_call rejected 249ms expected @e6088bf99
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 1661ms expected @a9ae30e1c334+wt
 fail/slices/invalid_subslice_bounded_order_unchecked rejected 1566ms expected @a9ae30e1c334+wt
 fail/slices/invalid_subslice_end_bounds_unchecked rejected 1563ms expected @a9ae30e1c334+wt
+fail/slices/lane38_saved_predicate_reachable rejected 2355ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from replace: ascii_only(bytes[0..1]) (authored requirement `ascii_only(view)`; needs fact `ascii_only(bytes)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/match_index_guard_does_not_escape rejected 1510ms expected @a9ae30e1c334+wt
 fail/slices/matched_open_window_end rejected 317ms expected @a4e565996e72+wt
 fail/slices/matched_window_end_join_disagrees rejected 1112ms expected @fd94a7b8095c+wt
@@ -14123,7 +14146,12 @@ fail/slices/same_carrier_cast_reassigned_index rejected 819ms expected @2ab55254
 fail/slices/same_carrier_cast_wrong_collection_index rejected 755ms expected @2ab552549670+wt
 fail/slices/same_carrier_inline_cast_after_index_write rejected 765ms expected @2ab552549670+wt
 fail/slices/same_carrier_inline_cast_wrong_collection rejected 765ms expected @2ab552549670+wt
-fail/slices/saved_view_predicate_after_write rejected 583ms expected @007d2ab5180c+wt
+fail/slices/saved_byte_predicate_alias_overlap rejected 2011ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/slices/saved_byte_predicate_operand_overlap rejected 2129ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect_after from probe: ascii_only(bytes[0..1]) && bytes[0..1].len >= 1 (authored requirement `ascii_only(view) && view.len >= 1`; needs fact `ascii_only(bytes) && bytes.len >= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/slices/saved_view_predicate_after_write rejected 2310ms expected @0dce4dc599e2+wt
+	cannot prove requires contract for call inspect from replace: ascii_only(bytes[0..1]) (authored requirement `ascii_only(view)`; needs fact `ascii_only(bytes)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/slices/scalar_copy_invalidated_domain rejected 888ms expected @a9ae30e1c334+wt
 fail/slices/scalar_copy_missing_bounds rejected 1723ms expected @a9ae30e1c334+wt
 fail/slices/scalar_copy_missing_domain rejected 1617ms expected @a9ae30e1c334+wt
@@ -18855,6 +18883,15 @@ pass/facts/saturating_integer_arithmetic_through_other_machine_exit checked 6452
 pass/facts/saturating_integer_arithmetic_through_other_state_exit checked 7162ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/saturating_integer_arithmetic_through_parameter_exit checked 7107ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/saturating_integer_arithmetic_through_target_body_exit checked 9496ms check-target:macos_arm64 @abda3e427bc9+wt
+pass/facts/saved_byte_predicate_through_call_result checked 2661ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_const_name checked 3008ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_field checked 2654ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_local checked 2756ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_match_join checked 2838ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_other_machine checked 2610ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_other_state checked 2626ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_parameter checked 3206ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/facts/saved_byte_predicate_through_target_body checked 2712ms check-target:macos_arm64 @0dce4dc599e2+wt
 pass/facts/scalar_boundary_parameter_through_call_result_exit checked 8677ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/scalar_boundary_parameter_through_const_name_exit checked 12384ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/scalar_boundary_parameter_through_field_exit checked 8828ms check-target:macos_arm64 @abda3e427bc9+wt
@@ -22091,6 +22128,10 @@ pass/slices/runtime_subslice_range_pointer_exit checked 12322ms check-target:mac
 pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit checked 11987ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_view_index_copied_argument_exit checked 11410ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/same_carrier_index_cast_alias_compile checked 2355ms @2ab552549670+wt
+pass/slices/saved_byte_predicate_alias_disjoint_exit checked 2406ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/slices/saved_byte_predicate_boolean_snapshot_exit checked 2483ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/slices/saved_byte_predicate_fields_disjoint_exit checked 2294ms check-target:macos_arm64 @0dce4dc599e2+wt
+pass/slices/saved_byte_predicate_operand_disjoint_exit checked 2365ms check-target:macos_arm64 @0dce4dc599e2+wt
 pass/slices/signed_index_and_range_lower_bounds checked 1589ms @a9ae30e1c334+wt
 pass/slices/slice_core_surface checked 10417ms @5041ef1af684+wt
 pass/slices/state_projected_selector_bounds checked 1811ms @f329f97f57f7+wt

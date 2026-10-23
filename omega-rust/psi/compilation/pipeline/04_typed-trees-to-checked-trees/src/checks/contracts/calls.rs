@@ -274,7 +274,16 @@ pub(super) fn check_call_requires(
                         )
                     }
                     FactPayload::ContractBooleanExpression { expression, .. } => {
-                        explain_missing_boolean_fact(program, expression)
+                        let mut details = Vec::new();
+                        if let Some(authored) =
+                            authored_requirement_label(program, state_flow, call_flow, expression)
+                            && authored
+                                != semantic_fact_requirement_label(program, &facts.semantic, fact)
+                        {
+                            details.push(format!("authored requirement `{authored}`"));
+                        }
+                        details.extend(explain_missing_boolean_fact(program, expression));
+                        (!details.is_empty()).then(|| details.join("; "))
                     }
                     _ => None,
                 };
@@ -545,6 +554,47 @@ fn call_site_target_parameters<'p>(
     )?;
     let target_parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
     Some((call_site, target_parameters))
+}
+
+/// Diagnostics retain the caller's operand spelling beside the canonical
+/// backing label. Normalizing a loan to its backing is useful to the prover,
+/// but must not hide which authored view owes the current-content obligation.
+/// This rendering supplies no evidence and never participates in proof.
+fn authored_requirement_label(
+    program: &dyn ::validation::CheckingInput,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<String> {
+    use typed_trees::proposition::ProofSubstitutions;
+    let (site, parameters) = call_site_target_parameters(program, state, call)?;
+    let arguments = validation::call_site_argument_expressions(program, &site);
+    if arguments.len() != parameters.len() {
+        return None;
+    }
+    let substitutions: Vec<_> = parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, &argument)| {
+            let argument = match program.expression_table.expression(argument) {
+                typed_trees::expression::ExpressionNode::Borrow(borrow)
+                    if validation::reference_shell(program, parameter.type_reference).is_some() =>
+                {
+                    borrow.target
+                }
+                _ => argument,
+            };
+            (
+                parameter.symbol,
+                parameter.name.to_string(),
+                program.render_proof_expression(argument, ProofSubstitutions::None),
+            )
+        })
+        .collect();
+    Some(
+        program
+            .render_proof_expression(expression, ProofSubstitutions::ByParameter(&substitutions)),
+    )
 }
 
 fn proven_predicates_grant_domain(

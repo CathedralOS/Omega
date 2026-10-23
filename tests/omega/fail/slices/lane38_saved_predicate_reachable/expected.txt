@@ -1,0 +1,2 @@
+cannot prove requires contract for call inspect from replace
+ascii_only(view)

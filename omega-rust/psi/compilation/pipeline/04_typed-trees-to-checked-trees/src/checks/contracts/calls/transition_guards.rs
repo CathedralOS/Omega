@@ -75,6 +75,7 @@ fn selected_transition_premise<'program>(
         call_flow.statement_index,
         guard,
         true,
+        &[],
         call_frames,
     );
     let premises = std::iter::once(guard)

@@ -12,7 +12,9 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode}
 
 /// Current observations of a saved predicate. The root is included when all
 /// its reads survive; independently preserved conjuncts remain useful when a
-/// disjoint effect prevents repeating the complete original computation.
+/// disjoint effect prevents repeating the complete original computation. Extra
+/// writes belong to operands evaluated after dispatch and before the consumer.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn saved_guard_observations<'program>(
     program: &dyn validation::CheckingInput,
     machine: &'program Machine,
@@ -20,6 +22,7 @@ pub(crate) fn saved_guard_observations<'program>(
     statement_index: usize,
     guard: ExpressionHandle,
     value: bool,
+    later_writes: &[String],
     frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> Vec<(ExpressionHandle, bool)> {
     let Some(frames) = frames else {
@@ -31,6 +34,7 @@ pub(crate) fn saved_guard_observations<'program>(
     else {
         return Vec::new();
     };
+    dispatch_writes.extend_from_slice(later_writes);
     let mut dispatch = Vec::new();
     guard_observations(program, machine, state, guard, value, &mut dispatch);
     let mut prepared = Vec::new();
@@ -282,7 +286,9 @@ fn reads_survive(
         }
         // Alias-normalized writes and local diagnostic labels are different
         // vocabularies. Resolve every reference-valued read through the frame
-        // owner's complete prefix origins, including shared and field loans.
+        // owner's complete prefix read footprints, including shared and field loans.
+        // A coarse window footprint can invalidate an observation, but cannot
+        // establish exact referent identity or predicate equality.
         let reference = validation::expression_type_reference_in_state(
             program,
             state.symbol,
@@ -297,15 +303,16 @@ fn reads_survive(
         let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
             return false;
         };
-        let Some(origins) =
-            frames.reference_expression_origins_before_statement(machine, statement, node)
+        let Some(reads) =
+            frames.reference_expression_read_paths_before_statement(machine, statement, node)
         else {
             return false;
         };
-        !origins.is_empty()
-            && origins
-                .into_iter()
-                .all(|(root, segments)| preserved(root, &segments))
+        reads.iter().all(|read| {
+            writes
+                .iter()
+                .all(|written| !validation::frame_paths_overlap(written, read))
+        })
     })
 }
 
