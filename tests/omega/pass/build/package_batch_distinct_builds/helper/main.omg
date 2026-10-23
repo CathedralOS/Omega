@@ -1,0 +1,6 @@
+public boundary trait Reading {
+    machine read() -> u32;
+}
+public Reader satisfies Reading {
+    machine read() -> u32 { 42 }
+}

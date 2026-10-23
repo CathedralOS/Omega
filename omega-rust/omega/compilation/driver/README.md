@@ -63,11 +63,40 @@ each retains its own Build receipts, charges, timings and target settlement.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
-`cargo run -p package-manager --example package_batch` measures two native
-products, one source completion and one shared Terminal allocation through the
-package route. Each occurrence still admits its own Build effects and charges;
-only exact matching Pure Builds reuse computation. Components demanded in
-different dependency rounds do not share completion through this batch.
+`mbx run -p package-manager --example package_batch` asserts whole-invocation
+work through the public package route. Counters start before local-project
+preparation and remain checked when production rejects. Its default two-target
+fixture requires one Build execution, two settled checks (Build and Product),
+one source completion and one shared Terminal allocation. `--check` preserves
+the execution/check counts and produces no Terminal program. Each occurrence
+still admits its own Build effects and charges; only exact matching Pure Builds
+reuse computation. Components demanded in different dependency rounds do not
+share completion through this batch.
+
+The ordinary dependency control retains two different Builds and one Product
+check rather than merging their work:
+
+```sh
+mbx run -p package-manager --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
+mbx run -p package-manager --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
+```
+
+The latter must reject `foreign_launch` because `ProgramEntry` has no result,
+even though its Windows row is unrequested. Expected counts are source-derived
+acceptance inputs, never filled from the observed counters. Supplying two
+expected Builds to the default equal-source fixture must fail its assertion.
+Counts are process-wide: run each measurement alone.
+
+`mbx run -p compiler --example package_batch_sources` submits three products
+from two real source roots to the compiler's public package facade. Equal
+consumers share one checked/Terminal cohort; the different root retains another.
+The batch requires two Builds, four checks, two source completions and two
+Terminal productions, with shared storage only for the equal-source pair.
+This control uses the documented repository fixture acceptance, not a production
+package audit. Its fixture preparation legitimately performs another two Builds
+and four checks in its own sessions, so the whole measurement asserts four
+Builds/eight checks rather than hiding setup cost. These workflow measurements
+advance `BUILD-EVALUATES-ONCE`; they do not close its remaining target-row work.
 The package operation owns one compiler-stack worker; preparing Builds and
 checking source cohorts do not spawn additional workers.
 

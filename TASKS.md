@@ -3201,7 +3201,8 @@ crash and native exit behavior.
   demands.
   - `BuildConfig` is still largely global. Finish authored rows and retain/check
     unrequested rows. Direct `CompileRequest` Product checking and source-custody
-    sealing run once; package batches still need the same shared checked product.
+    sealing run once; package batches share a checked product only for equal
+    complete source continuations, retaining distinct judgments otherwise.
     Separate target-invariant opaque-receipt derivation and pending evaluation
     from genuinely target-keyed inputs. Reuse requires exact semantic inputs
     and preserves each occurrence's authority and custody; equal result values

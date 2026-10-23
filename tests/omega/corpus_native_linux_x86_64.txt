@@ -497,6 +497,7 @@ pass/build/freestanding_unselected_completion checked 11766ms @6c49683ce714
 pass/build/generated_source_selects_authored checked 15168ms published:files/generated.omg @5171c625dc6a+wt
 pass/build/named_map_target_family_rows_exit built 15672ms exit:70 @326ed531359e+wt
 pass/build/nested_generated_dependency_dual_purpose built 26168ms exit:0 @6c49683ce714
+pass/build/package_batch_distinct_builds built 2195ms exit:0 @50abcdce8fe6+wt
 pass/build/policy_array_entry_context_exit built 17692ms exit:0 @6c49683ce714
 pass/build/product_description_paths_exit built 18043ms exit:0 @6c49683ce714
 pass/build/product_entry_named_user_machine_exit built 17445ms exit:0 @6c49683ce714

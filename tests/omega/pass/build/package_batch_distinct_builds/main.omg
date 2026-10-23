@@ -1,0 +1,12 @@
+// Expected exit: 0
+// The dependency and root execute different Builds; target consumers share each exact continuation.
+use helper::main;
+machine main() reaches Reading crashes Trap {
+    let value: u32 = Reading::read();
+    transition value == 42 {
+        true -> done()
+        _ -> failed()
+    }
+    state done() {}
+    state failed() { crash Trap; }
+}

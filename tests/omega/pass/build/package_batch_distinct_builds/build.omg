@@ -1,0 +1,9 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "package_batch_distinct_builds");
+    Build::depend_as(builder, "helper", Source::Path { location: "helper" });
+    Build::select_provider<helper::Reading, helper::Reader>(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}
