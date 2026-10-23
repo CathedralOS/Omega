@@ -1,0 +1,568 @@
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/control_flow/statement.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/control_flow/statement.rs
+index b7df23bae62..35cc7c70fe6 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/control_flow/statement.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/control_flow/statement.rs
+@@ -460,6 +460,31 @@ impl StatementTable {
+         source_expression_table: &crate::expression::ExpressionTable,
+         source_statement_path_members: &Arena<DiagnosticName>,
+         copy_expression_handles: bool,
++    ) -> StatementHandle {
++        self.insert_tree_from_source(
++            statement,
++            crate::expression::ExpressionSource::Table(source_expressions),
++            expressions,
++            type_references,
++            source_child_type_references,
++            source_constraints,
++            crate::expression::ExpressionSource::Table(source_expression_table),
++            source_statement_path_members,
++            copy_expression_handles,
++        )
++    }
++
++    pub(crate) fn insert_tree_from_source(
++        &mut self,
++        statement: &Statement,
++        source_expressions: crate::expression::ExpressionSource<'_>,
++        expressions: &mut crate::expression::ExpressionTable,
++        type_references: &mut crate::types::TypeReferenceTable,
++        source_child_type_references: &Arena<crate::types::TypeReference>,
++        source_constraints: &Arena<crate::types::TypeConstraint>,
++        source_expression_table: crate::expression::ExpressionSource<'_>,
++        source_statement_path_members: &Arena<DiagnosticName>,
++        copy_expression_handles: bool,
+     ) -> StatementHandle {
+         match statement {
+             Statement::Assembly(handle) => self.insert(StatementNode::Assembly(*handle)),
+@@ -564,7 +589,7 @@ impl StatementTable {
+                 self.insert(StatementNode::Expression(expression))
+             }
+             Statement::LocalData(local_data) => {
+-                let type_reference = type_references.insert_tree(
++                let type_reference = type_references.insert_tree_from_source(
+                     &local_data.type_reference,
+                     expressions,
+                     source_child_type_references,
+@@ -649,24 +674,29 @@ impl StatementTable {
+ 
+     fn insert_expression_handle_span_from_trees(
+         &mut self,
+-        source_expressions: &crate::expression::ExpressionTable,
++        source_expressions: crate::expression::ExpressionSource<'_>,
+         arguments: HandleSpan<crate::expression::ExpressionHandle>,
+         expressions: &mut crate::expression::ExpressionTable,
+         copy_expression_handles: bool,
+     ) -> HandleSpan<crate::expression::ExpressionHandle> {
+-        let source = source_expressions.expression_handles(arguments);
++        let count = source_expressions
++            .table(expressions)
++            .expression_handles(arguments)
++            .len();
+         let span = self.reserve_expression_handles(
+-            source
+-                .len()
++            count
+                 .try_into()
+                 .expect("expression handle span count overflow"),
+         );
+ 
+-        for (offset, argument) in source.iter().enumerate() {
++        for offset in 0..count {
++            let argument = source_expressions
++                .table(expressions)
++                .expression_handles(arguments)[offset];
+             let argument = expression_handle_from_tree(
+                 source_expressions,
+                 expressions,
+-                *argument,
++                argument,
+                 copy_expression_handles,
+             );
+             self.set_expression_handle_at_offset(
+@@ -693,7 +723,7 @@ impl StatementTable {
+     fn insert_transition_target_tree(
+         &mut self,
+         target: &TransitionTarget,
+-        source_expressions: &crate::expression::ExpressionTable,
++        source_expressions: crate::expression::ExpressionSource<'_>,
+         expressions: &mut crate::expression::ExpressionTable,
+         source_statement_path_members: &Arena<DiagnosticName>,
+         copy_expression_handles: bool,
+@@ -734,13 +764,13 @@ impl StatementTable {
+ }
+ 
+ fn expression_handle_from_tree(
+-    source_expressions: &crate::expression::ExpressionTable,
++    source_expressions: crate::expression::ExpressionSource<'_>,
+     expressions: &mut crate::expression::ExpressionTable,
+     expression: crate::expression::ExpressionHandle,
+     copy_expression_handles: bool,
+ ) -> crate::expression::ExpressionHandle {
+     if copy_expression_handles {
+-        expressions.copy_from(source_expressions, expression)
++        source_expressions.copy_into(expressions, expression)
+     } else {
+         expression
+     }
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/storage/tables.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/storage/tables.rs
+index e6638a25bd8..052dfc1dd68 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/storage/tables.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/storage/tables.rs
+@@ -1,5 +1,5 @@
+ use crate::data::DataMember;
+-use crate::expression::ExpressionTable;
++use crate::expression::{ExpressionSource, ExpressionTable};
+ use crate::machine::{Machine, OwnedData};
+ use crate::signature::{StateParameter, StateSignature};
+ use crate::state::State;
+@@ -82,8 +82,11 @@ impl SymbolResolvedTreeTables {
+             ..
+         } = symbol_resolved_trees;
+         let type_constraints = &source_tables.types.constraints;
+-        let source_expressions = &source_tables.bodies.expressions;
+-        tables.bodies.expressions = source_expressions.clone();
++        // The expressions already have their final identities. Transfer the arena
++        // and append normalized type-expression copies beside their originals;
++        // a whole-table snapshot would only be discarded after normalization.
++        tables.bodies.expressions = std::mem::take(&mut source_tables.bodies.expressions);
++        let source_expressions = ExpressionSource::Own;
+         let SymbolResolvedDeclarationStorage {
+             data_members,
+             data_payload_fields,
+@@ -112,7 +115,7 @@ impl SymbolResolvedTreeTables {
+         for (handle, instructions) in blocks {
+             let mut nodes = HandleSpan::empty();
+             for statement in state_statements.span_or_empty(instructions) {
+-                let node = tables.bodies.statements.insert_tree(
++                let node = tables.bodies.statements.insert_tree_from_source(
+                     statement,
+                     source_expressions,
+                     &mut tables.bodies.expressions,
+@@ -263,7 +266,7 @@ impl SymbolResolvedTreeTables {
+         return_type: &Option<TypeReference>,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         for parameter in parameters {
+             self.insert_type_reference(
+@@ -289,7 +292,7 @@ impl SymbolResolvedTreeTables {
+         state_parameters: &Arena<StateParameter>,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         self.insert_parameter_and_return_types(
+             state_parameters.span_or_empty(operator.parameters).iter(),
+@@ -306,7 +309,7 @@ impl SymbolResolvedTreeTables {
+         data_payload_fields: &Arena<crate::data::DataField>,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         for member in members {
+             match member {
+@@ -338,7 +341,7 @@ impl SymbolResolvedTreeTables {
+         state_parameters: &Arena<StateParameter>,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         for state in states {
+             self.insert_state_signature(
+@@ -362,7 +365,7 @@ impl SymbolResolvedTreeTables {
+         state_statements: &Arena<Statement>,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
+             self.insert_owned_data(
+@@ -396,7 +399,7 @@ impl SymbolResolvedTreeTables {
+         owned_data: &OwnedData,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         self.insert_type_reference(
+             &owned_data.type_reference,
+@@ -414,7 +417,7 @@ impl SymbolResolvedTreeTables {
+         state_statements: &Arena<Statement>,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         for parameter in state_parameters.span_or_empty(state.parameters) {
+             self.insert_type_reference(
+@@ -436,7 +439,7 @@ impl SymbolResolvedTreeTables {
+ 
+         let mut statement_nodes = HandleSpan::empty();
+         for statement in state_statements.span_or_empty(state.statements) {
+-            let statement = self.bodies.statements.insert_tree(
++            let statement = self.bodies.statements.insert_tree_from_source(
+                 statement,
+                 source_expressions,
+                 &mut self.bodies.expressions,
+@@ -459,7 +462,7 @@ impl SymbolResolvedTreeTables {
+         signature: &StateSignature,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+         self.insert_parameter_and_return_types(
+             parameters.iter(),
+@@ -475,9 +478,9 @@ impl SymbolResolvedTreeTables {
+         type_reference: &TypeReference,
+         child_type_references: &Arena<TypeReference>,
+         type_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &ExpressionTable,
++        source_expressions: ExpressionSource<'_>,
+     ) {
+-        self.types.references.insert_tree(
++        self.types.references.insert_tree_from_source(
+             type_reference,
+             &mut self.bodies.expressions,
+             child_type_references,
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types.rs
+index 1ae8ab3c81f..71afc2377db 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types.rs
+@@ -291,7 +291,7 @@ impl TypeReferenceTable {
+         expressions: &mut crate::expression::ExpressionTable,
+         source_generic_arguments: &Arena<TypeReference>,
+         source_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &crate::expression::ExpressionTable,
++        source_expressions: crate::expression::ExpressionSource<'_>,
+     ) -> HandleSpan<TypeReferenceHandle> {
+         let span = self.reserve_type_reference_handles(
+             type_references
+@@ -301,7 +301,7 @@ impl TypeReferenceTable {
+         );
+ 
+         for (offset, type_reference) in type_references.iter().enumerate() {
+-            let type_reference = self.insert_tree(
++            let type_reference = self.insert_tree_from_source(
+                 type_reference,
+                 expressions,
+                 source_generic_arguments,
+@@ -326,7 +326,7 @@ impl TypeReferenceTable {
+         expressions: &mut crate::expression::ExpressionTable,
+         source_type_references: &Arena<TypeReference>,
+         source_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &crate::expression::ExpressionTable,
++        source_expressions: crate::expression::ExpressionSource<'_>,
+     ) -> HandleSpan<TypeConstraintNode> {
+         let source = source_constraints.span_or_empty(constraints);
+         let span = self.reserve_constraints(
+@@ -383,10 +383,27 @@ impl TypeReferenceTable {
+         source_generic_arguments: &Arena<TypeReference>,
+         source_constraints: &Arena<TypeConstraint>,
+         source_expressions: &crate::expression::ExpressionTable,
++    ) -> TypeReferenceHandle {
++        self.insert_tree_from_source(
++            type_reference,
++            expressions,
++            source_generic_arguments,
++            source_constraints,
++            crate::expression::ExpressionSource::Table(source_expressions),
++        )
++    }
++
++    pub(crate) fn insert_tree_from_source(
++        &mut self,
++        type_reference: &TypeReference,
++        expressions: &mut crate::expression::ExpressionTable,
++        source_generic_arguments: &Arena<TypeReference>,
++        source_constraints: &Arena<TypeConstraint>,
++        source_expressions: crate::expression::ExpressionSource<'_>,
+     ) -> TypeReferenceHandle {
+         let reference = match type_reference {
+             TypeReference::Reference(reference) => {
+-                let referee = self.insert_tree(
++                let referee = self.insert_tree_from_source(
+                     source_generic_arguments.get(reference.referee),
+                     expressions,
+                     source_generic_arguments,
+@@ -400,7 +417,7 @@ impl TypeReferenceTable {
+                 })
+             }
+             TypeReference::Constrained(constrained) => {
+-                let base_type = self.insert_tree(
++                let base_type = self.insert_tree_from_source(
+                     source_generic_arguments.get(constrained.base_type),
+                     expressions,
+                     source_generic_arguments,
+@@ -420,7 +437,7 @@ impl TypeReferenceTable {
+                 })
+             }
+             TypeReference::FixedArray(fixed_array) => {
+-                let element_type = self.insert_tree(
++                let element_type = self.insert_tree_from_source(
+                     source_generic_arguments.get(fixed_array.element_type),
+                     expressions,
+                     source_generic_arguments,
+@@ -433,7 +450,7 @@ impl TypeReferenceTable {
+                 })
+             }
+             TypeReference::Slice(slice) => {
+-                let element_type = self.insert_tree(
++                let element_type = self.insert_tree_from_source(
+                     source_generic_arguments.get(slice.element_type),
+                     expressions,
+                     source_generic_arguments,
+@@ -458,7 +475,7 @@ impl TypeReferenceTable {
+                 })
+             }
+             TypeReference::ConstExpression(expression) => {
+-                let expression = expressions.copy_from(source_expressions, *expression);
++                let expression = source_expressions.copy_into(expressions, *expression);
+                 self.insert(TypeReferenceNode::ConstExpression(expression))
+             }
+             TypeReference::DynamicTrait {
+@@ -627,7 +644,7 @@ impl TypeConstraintNode {
+         expressions: &mut crate::expression::ExpressionTable,
+         source_type_references: &Arena<TypeReference>,
+         source_constraints: &Arena<TypeConstraint>,
+-        source_expressions: &crate::expression::ExpressionTable,
++        source_expressions: crate::expression::ExpressionSource<'_>,
+     ) -> Self {
+         match constraint {
+             TypeConstraint::Named(name) => Self::Named(name.clone()),
+@@ -636,8 +653,8 @@ impl TypeConstraintNode {
+                 maximum,
+                 end_inclusive,
+             } => Self::Range {
+-                minimum: expressions.copy_from(source_expressions, *minimum),
+-                maximum: expressions.copy_from(source_expressions, *maximum),
++                minimum: source_expressions.copy_into(expressions, *minimum),
++                maximum: source_expressions.copy_into(expressions, *maximum),
+                 end_inclusive: *end_inclusive,
+             },
+             TypeConstraint::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types/tests.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types/tests.rs
+index de118c2b38d..f4f5639cd29 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types/tests.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system/types/tests.rs
+@@ -136,3 +136,71 @@ fn check_range_tree_to_table(end_inclusive: bool) {
+     assert!(maximum.is_valid());
+     assert_eq!(*copied_end_inclusive, end_inclusive);
+ }
++
++/// Normalization appends constrained and constant-expression type copies to
++/// the existing expression arena. Compare every row with the former snapshot
++/// route, including the exact original and appended handles.
++#[test]
++fn normalization_with_owned_expressions_matches_snapshot_copies() {
++    use crate::expression::{ExpressionNode, ExpressionSource};
++    let mut source = ExpressionTable::new();
++    let minimum = source.insert(ExpressionNode::Integer(
++        numerics::literals::IntegerLiteral::from_value(0),
++    ));
++    let maximum = source.insert(ExpressionNode::Integer(
++        numerics::literals::IntegerLiteral::from_value(42),
++    ));
++    source.set_source_span(
++        maximum,
++        source::SourceSpan::new(source::SourceId(3), source::Span::new(7, 9)),
++    );
++    let mut children = Arena::new();
++    let base_type = children.insert(TypeReference::Unit);
++    let mut constraints = Arena::new();
++    let range = constraints.insert_many([TypeConstraint::Range {
++        minimum,
++        maximum,
++        end_inclusive: true,
++    }]);
++    let arguments = children.insert_many([
++        TypeReference::Constrained(ConstrainedTypeReference {
++            storage: ConstrainedTypeReferenceStorage {
++                supplied_operand_owner: Default::default(),
++                base_type,
++                constraints: range,
++            },
++        }),
++        TypeReference::ConstExpression(maximum),
++    ]);
++    let reference = TypeReference::Generic(GenericTypeReference {
++        storage: GenericTypeReferenceStorage {
++            supplied_operand_owner: Default::default(),
++            base_symbol: SymbolHandle::invalid(),
++            base_name: DiagnosticName::generated("Window"),
++            lifetime_arguments: Vec::new(),
++            arguments,
++        },
++    });
++    let mut copied_expressions = source.clone();
++    let mut copied_types = TypeReferenceTable::new();
++    let copied = copied_types.insert_tree(
++        &reference,
++        &mut copied_expressions,
++        &children,
++        &constraints,
++        &source,
++    );
++    let mut moved_expressions = source;
++    let mut moved_types = TypeReferenceTable::new();
++    let moved = moved_types.insert_tree_from_source(
++        &reference,
++        &mut moved_expressions,
++        &children,
++        &constraints,
++        ExpressionSource::Own,
++    );
++    assert_eq!(copied, moved);
++    assert_eq!(copied_types, moved_types);
++    assert_eq!(copied_expressions, moved_expressions);
++    assert_eq!(moved_expressions.expression_count(), 5);
++}
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs
+index fe347b7cbf6..9607aa484b2 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression.rs
+@@ -6,6 +6,7 @@
+ mod display;
+ mod symbol_copies;
+ mod table_copies;
++pub(crate) use table_copies::ExpressionSource;
+ #[cfg(test)]
+ mod tests;
+ 
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression/table_copies.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression/table_copies.rs
+index 5ff07632374..649713bdd99 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression/table_copies.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees/values/expression/table_copies.rs
+@@ -2,7 +2,7 @@
+ //! tables.
+ //!
+ //! Every subtree copy runs through [`ExpressionTable::copy_subtree`]; the
+-//! public entry points differ only in the [`CopySource`] they read. The walk
++//! public entry points differ only in the [`ExpressionSource`] they read. The walk
+ //! appends children before their parent and reserves or inserts each span in
+ //! walk order, so a copy appends the same rows whichever table it reads.
+ 
+@@ -19,17 +19,20 @@ use symbols::SymbolHandle;
+ 
+ /// Where a subtree copy reads the rows it appends.
+ #[derive(Clone, Copy)]
+-enum CopySource<'source> {
++pub(crate) enum ExpressionSource<'source> {
+     /// The destination table itself: the copy lands beside its original.
+     Own,
+     /// A separate table, which the copy leaves untouched.
+     Table(&'source ExpressionTable),
+ }
+ 
+-impl<'source> CopySource<'source> {
++impl<'source> ExpressionSource<'source> {
+     /// The table to read. The result borrows `destination` even for a
+     /// separate table, so every read ends before the walk appends again.
+-    fn table<'table>(self, destination: &'table ExpressionTable) -> &'table ExpressionTable
++    pub(crate) fn table<'table>(
++        self,
++        destination: &'table ExpressionTable,
++    ) -> &'table ExpressionTable
+     where
+         'source: 'table,
+     {
+@@ -38,6 +41,14 @@ impl<'source> CopySource<'source> {
+             Self::Table(source) => source,
+         }
+     }
++
++    pub(crate) fn copy_into(
++        self,
++        destination: &mut ExpressionTable,
++        expression: ExpressionHandle,
++    ) -> ExpressionHandle {
++        destination.copy_subtree(self, expression)
++    }
+ }
+ 
+ impl ExpressionTable {
+@@ -46,13 +57,13 @@ impl ExpressionTable {
+         source: &ExpressionTable,
+         expression: ExpressionHandle,
+     ) -> ExpressionHandle {
+-        self.copy_subtree(CopySource::Table(source), expression)
++        self.copy_subtree(ExpressionSource::Table(source), expression)
+     }
+ 
+     /// Copy one expression graph within this table. The copy's rows follow
+     /// every existing row and share no span with the original.
+     pub fn copy_from_self(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
+-        self.copy_subtree(CopySource::Own, expression)
++        self.copy_subtree(ExpressionSource::Own, expression)
+     }
+ 
+     /// The one subtree copy behind `copy_from` and `copy_from_self`. Each node
+@@ -62,7 +73,7 @@ impl ExpressionTable {
+     /// authored-selection occurrences.
+     fn copy_subtree(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         expression: ExpressionHandle,
+     ) -> ExpressionHandle {
+         let origin = source.table(self);
+@@ -250,7 +261,7 @@ impl ExpressionTable {
+     /// stays invalid.
+     fn copy_optional_subtree(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         expression: ExpressionHandle,
+     ) -> ExpressionHandle {
+         if expression.is_valid() {
+@@ -262,7 +273,7 @@ impl ExpressionTable {
+ 
+     fn copy_expression_span(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         expressions: HandleSpan<ExpressionHandle>,
+     ) -> HandleSpan<ExpressionHandle> {
+         let expressions = source.table(self).expression_handles(expressions).to_vec();
+@@ -273,7 +284,7 @@ impl ExpressionTable {
+     /// rows precede every row its elements append.
+     fn copy_expression_list(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         expressions: &[ExpressionHandle],
+     ) -> HandleSpan<ExpressionHandle> {
+         let span = self.reserve_expression_handles(
+@@ -299,7 +310,7 @@ impl ExpressionTable {
+ 
+     fn copy_name_path_members(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         members: HandleSpan<DiagnosticName>,
+     ) -> HandleSpan<DiagnosticName> {
+         let members = source.table(self).name_path_members(members).to_vec();
+@@ -308,7 +319,7 @@ impl ExpressionTable {
+ 
+     fn copy_name_path_member_symbols(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         member_symbols: HandleSpan<SymbolHandle>,
+     ) -> HandleSpan<SymbolHandle> {
+         let member_symbols = source
+@@ -323,7 +334,7 @@ impl ExpressionTable {
+     /// Reserves the fields' span ahead of their values' rows.
+     fn copy_struct_literal_fields(
+         &mut self,
+-        source: CopySource<'_>,
++        source: ExpressionSource<'_>,
+         fields: HandleSpan<TableStructLiteralField>,
+     ) -> HandleSpan<TableStructLiteralField> {
+         let fields = source.table(self).struct_fields(fields).to_vec();

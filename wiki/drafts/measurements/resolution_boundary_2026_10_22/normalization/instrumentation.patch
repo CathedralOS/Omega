@@ -1,0 +1,66 @@
+diff --git a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs
+index e1774e8e14e..0c3d3f8fc48 100644
+--- a/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs
++++ b/omega-rust/psi/compilation/representations/symbol-resolved-trees/src/symbol_resolved_trees.rs
+@@ -23,6 +23,7 @@ macro_rules! deref_to_storage {
+     };
+ }
+ 
++mod normalization_oracle;
+ pub mod calls;
+ pub mod control_flow;
+ pub mod declarations;
+@@ -898,11 +899,25 @@ impl SymbolResolvedTrees {
+     }
+ 
+     pub fn rebuild_tables(&mut self) {
++        let measure = std::env::var_os("OMEGA_NORMALIZATION_VERIFY").is_some();
++        let expected = if measure {
++            let mut expected = self.clone();
++            let tables = normalization_oracle::SymbolResolvedTreeTables::from_symbol_resolved_trees_with_state_spans(&mut expected);
++            expected.tables.bodies.expressions = tables.bodies.expressions;
++            expected.tables.bodies.statements = tables.bodies.statements;
++            expected.tables.types.references = tables.types.references;
++            Some(expected)
++        } else { None };
++        let removed_rows = self.tables.bodies.expressions.expression_count();
+         let tables =
+             tables::SymbolResolvedTreeTables::from_symbol_resolved_trees_with_state_spans(self);
+         self.tables.bodies.expressions = tables.bodies.expressions;
+         self.tables.bodies.statements = tables.bodies.statements;
+         self.tables.types.references = tables.types.references;
++        if let Some(expected) = expected {
++            assert!(self == &expected, "rebuild_tables: complete normalized carrier differs from baseline");
++            eprintln!("NORMALIZATION\trebuild_tables\t{removed_rows}\tequal");
++        }
+     }
+ 
+     /// Normalize newly completed implementations without moving any retained
+@@ -912,6 +927,16 @@ impl SymbolResolvedTrees {
+         predecessor: &Self,
+         completed_machines: &[symbols::SymbolHandle],
+     ) {
++        let measure = std::env::var_os("OMEGA_NORMALIZATION_VERIFY").is_some();
++        let expected = if measure {
++            let mut expected = self.clone();
++            let tables = normalization_oracle::SymbolResolvedTreeTables::from_body_completion(&mut expected, predecessor, completed_machines);
++            expected.tables.bodies.expressions = tables.bodies.expressions;
++            expected.tables.bodies.statements = tables.bodies.statements;
++            expected.tables.types.references = tables.types.references;
++            Some(expected)
++        } else { None };
++        let removed_rows = self.tables.bodies.expressions.expression_count();
+         let tables = tables::SymbolResolvedTreeTables::from_body_completion(
+             self,
+             predecessor,
+@@ -920,6 +945,10 @@ impl SymbolResolvedTrees {
+         self.tables.bodies.expressions = tables.bodies.expressions;
+         self.tables.bodies.statements = tables.bodies.statements;
+         self.tables.types.references = tables.types.references;
++        if let Some(expected) = expected {
++            assert!(self == &expected, "append_completed_body_tables: complete normalized carrier differs from baseline");
++            eprintln!("NORMALIZATION\tappend_completed_body_tables\t{removed_rows}\tequal");
++        }
+     }
+ 
+     pub fn snapshot(&self) -> snapshot::SymbolResolvedTreesSnapshot {

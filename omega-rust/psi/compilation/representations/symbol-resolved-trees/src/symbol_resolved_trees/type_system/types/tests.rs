@@ -136,3 +136,71 @@ fn check_range_tree_to_table(end_inclusive: bool) {
     assert!(maximum.is_valid());
     assert_eq!(*copied_end_inclusive, end_inclusive);
 }
+
+/// Normalization appends constrained and constant-expression type copies to
+/// the existing expression arena. Compare every row with the former snapshot
+/// route, including the exact original and appended handles.
+#[test]
+fn normalization_with_owned_expressions_matches_snapshot_copies() {
+    use crate::expression::{ExpressionNode, ExpressionSource};
+    let mut source = ExpressionTable::new();
+    let minimum = source.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(0),
+    ));
+    let maximum = source.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(42),
+    ));
+    source.set_source_span(
+        maximum,
+        source::SourceSpan::new(source::SourceId(3), source::Span::new(7, 9)),
+    );
+    let mut children = Arena::new();
+    let base_type = children.insert(TypeReference::Unit);
+    let mut constraints = Arena::new();
+    let range = constraints.insert_many([TypeConstraint::Range {
+        minimum,
+        maximum,
+        end_inclusive: true,
+    }]);
+    let arguments = children.insert_many([
+        TypeReference::Constrained(ConstrainedTypeReference {
+            storage: ConstrainedTypeReferenceStorage {
+                supplied_operand_owner: Default::default(),
+                base_type,
+                constraints: range,
+            },
+        }),
+        TypeReference::ConstExpression(maximum),
+    ]);
+    let reference = TypeReference::Generic(GenericTypeReference {
+        storage: GenericTypeReferenceStorage {
+            supplied_operand_owner: Default::default(),
+            base_symbol: SymbolHandle::invalid(),
+            base_name: DiagnosticName::generated("Window"),
+            lifetime_arguments: Vec::new(),
+            arguments,
+        },
+    });
+    let mut copied_expressions = source.clone();
+    let mut copied_types = TypeReferenceTable::new();
+    let copied = copied_types.insert_tree(
+        &reference,
+        &mut copied_expressions,
+        &children,
+        &constraints,
+        &source,
+    );
+    let mut moved_expressions = source;
+    let mut moved_types = TypeReferenceTable::new();
+    let moved = moved_types.insert_tree_from_source(
+        &reference,
+        &mut moved_expressions,
+        &children,
+        &constraints,
+        ExpressionSource::Own,
+    );
+    assert_eq!(copied, moved);
+    assert_eq!(copied_types, moved_types);
+    assert_eq!(copied_expressions, moved_expressions);
+    assert_eq!(moved_expressions.expression_count(), 5);
+}

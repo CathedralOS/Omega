@@ -1,5 +1,5 @@
 use crate::data::DataMember;
-use crate::expression::ExpressionTable;
+use crate::expression::{ExpressionSource, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
@@ -82,8 +82,11 @@ impl SymbolResolvedTreeTables {
             ..
         } = symbol_resolved_trees;
         let type_constraints = &source_tables.types.constraints;
-        let source_expressions = &source_tables.bodies.expressions;
-        tables.bodies.expressions = source_expressions.clone();
+        // The expressions already have their final identities. Transfer the arena
+        // and append normalized type-expression copies beside their originals;
+        // a whole-table snapshot would only be discarded after normalization.
+        tables.bodies.expressions = std::mem::take(&mut source_tables.bodies.expressions);
+        let source_expressions = ExpressionSource::Own;
         let SymbolResolvedDeclarationStorage {
             data_members,
             data_payload_fields,
@@ -112,7 +115,7 @@ impl SymbolResolvedTreeTables {
         for (handle, instructions) in blocks {
             let mut nodes = HandleSpan::empty();
             for statement in state_statements.span_or_empty(instructions) {
-                let node = tables.bodies.statements.insert_tree(
+                let node = tables.bodies.statements.insert_tree_from_source(
                     statement,
                     source_expressions,
                     &mut tables.bodies.expressions,
@@ -263,7 +266,7 @@ impl SymbolResolvedTreeTables {
         return_type: &Option<TypeReference>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
@@ -289,7 +292,7 @@ impl SymbolResolvedTreeTables {
         state_parameters: &Arena<StateParameter>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         self.insert_parameter_and_return_types(
             state_parameters.span_or_empty(operator.parameters).iter(),
@@ -306,7 +309,7 @@ impl SymbolResolvedTreeTables {
         data_payload_fields: &Arena<crate::data::DataField>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         for member in members {
             match member {
@@ -338,7 +341,7 @@ impl SymbolResolvedTreeTables {
         state_parameters: &Arena<StateParameter>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         for state in states {
             self.insert_state_signature(
@@ -362,7 +365,7 @@ impl SymbolResolvedTreeTables {
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
             self.insert_owned_data(
@@ -396,7 +399,7 @@ impl SymbolResolvedTreeTables {
         owned_data: &OwnedData,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         self.insert_type_reference(
             &owned_data.type_reference,
@@ -414,7 +417,7 @@ impl SymbolResolvedTreeTables {
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         for parameter in state_parameters.span_or_empty(state.parameters) {
             self.insert_type_reference(
@@ -436,7 +439,7 @@ impl SymbolResolvedTreeTables {
 
         let mut statement_nodes = HandleSpan::empty();
         for statement in state_statements.span_or_empty(state.statements) {
-            let statement = self.bodies.statements.insert_tree(
+            let statement = self.bodies.statements.insert_tree_from_source(
                 statement,
                 source_expressions,
                 &mut self.bodies.expressions,
@@ -459,7 +462,7 @@ impl SymbolResolvedTreeTables {
         signature: &StateSignature,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
         self.insert_parameter_and_return_types(
             parameters.iter(),
@@ -475,9 +478,9 @@ impl SymbolResolvedTreeTables {
         type_reference: &TypeReference,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
+        source_expressions: ExpressionSource<'_>,
     ) {
-        self.types.references.insert_tree(
+        self.types.references.insert_tree_from_source(
             type_reference,
             &mut self.bodies.expressions,
             child_type_references,

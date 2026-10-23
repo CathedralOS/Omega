@@ -2,7 +2,7 @@
 //! tables.
 //!
 //! Every subtree copy runs through [`ExpressionTable::copy_subtree`]; the
-//! public entry points differ only in the [`CopySource`] they read. The walk
+//! public entry points differ only in the [`ExpressionSource`] they read. The walk
 //! appends children before their parent and reserves or inserts each span in
 //! walk order, so a copy appends the same rows whichever table it reads.
 
@@ -19,17 +19,20 @@ use symbols::SymbolHandle;
 
 /// Where a subtree copy reads the rows it appends.
 #[derive(Clone, Copy)]
-enum CopySource<'source> {
+pub(crate) enum ExpressionSource<'source> {
     /// The destination table itself: the copy lands beside its original.
     Own,
     /// A separate table, which the copy leaves untouched.
     Table(&'source ExpressionTable),
 }
 
-impl<'source> CopySource<'source> {
+impl<'source> ExpressionSource<'source> {
     /// The table to read. The result borrows `destination` even for a
     /// separate table, so every read ends before the walk appends again.
-    fn table<'table>(self, destination: &'table ExpressionTable) -> &'table ExpressionTable
+    pub(crate) fn table<'table>(
+        self,
+        destination: &'table ExpressionTable,
+    ) -> &'table ExpressionTable
     where
         'source: 'table,
     {
@@ -37,6 +40,14 @@ impl<'source> CopySource<'source> {
             Self::Own => destination,
             Self::Table(source) => source,
         }
+    }
+
+    pub(crate) fn copy_into(
+        self,
+        destination: &mut ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> ExpressionHandle {
+        destination.copy_subtree(self, expression)
     }
 }
 
@@ -46,13 +57,13 @@ impl ExpressionTable {
         source: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> ExpressionHandle {
-        self.copy_subtree(CopySource::Table(source), expression)
+        self.copy_subtree(ExpressionSource::Table(source), expression)
     }
 
     /// Copy one expression graph within this table. The copy's rows follow
     /// every existing row and share no span with the original.
     pub fn copy_from_self(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
-        self.copy_subtree(CopySource::Own, expression)
+        self.copy_subtree(ExpressionSource::Own, expression)
     }
 
     /// The one subtree copy behind `copy_from` and `copy_from_self`. Each node
@@ -62,7 +73,7 @@ impl ExpressionTable {
     /// authored-selection occurrences.
     fn copy_subtree(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         expression: ExpressionHandle,
     ) -> ExpressionHandle {
         let origin = source.table(self);
@@ -250,7 +261,7 @@ impl ExpressionTable {
     /// stays invalid.
     fn copy_optional_subtree(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         expression: ExpressionHandle,
     ) -> ExpressionHandle {
         if expression.is_valid() {
@@ -262,7 +273,7 @@ impl ExpressionTable {
 
     fn copy_expression_span(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         expressions: HandleSpan<ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
         let expressions = source.table(self).expression_handles(expressions).to_vec();
@@ -273,7 +284,7 @@ impl ExpressionTable {
     /// rows precede every row its elements append.
     fn copy_expression_list(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         expressions: &[ExpressionHandle],
     ) -> HandleSpan<ExpressionHandle> {
         let span = self.reserve_expression_handles(
@@ -299,7 +310,7 @@ impl ExpressionTable {
 
     fn copy_name_path_members(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         members: HandleSpan<DiagnosticName>,
     ) -> HandleSpan<DiagnosticName> {
         let members = source.table(self).name_path_members(members).to_vec();
@@ -308,7 +319,7 @@ impl ExpressionTable {
 
     fn copy_name_path_member_symbols(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         member_symbols: HandleSpan<SymbolHandle>,
     ) -> HandleSpan<SymbolHandle> {
         let member_symbols = source
@@ -323,7 +334,7 @@ impl ExpressionTable {
     /// Reserves the fields' span ahead of their values' rows.
     fn copy_struct_literal_fields(
         &mut self,
-        source: CopySource<'_>,
+        source: ExpressionSource<'_>,
         fields: HandleSpan<TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
         let fields = source.table(self).struct_fields(fields).to_vec();

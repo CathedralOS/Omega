@@ -174,3 +174,13 @@ execution helpers, and compiler-profile verification. They do not use a separate
 semantic implementation. `run --both` controls omit `--target`: on this base an
 explicit target takes the publication path, so successful compilation alone
 would not establish engine execution.
+
+
+## Retained follow-up: move resolved normalization storage
+
+[The normalization experiment](normalization/README.md) removes four whole
+expression-arena copies per original workload without bypassing resolution.
+All 57 full-carrier differential comparisons passed, five native/Terminal
+positives agree, and five invalid controls preserve exact diagnostics. Copied
+expression rows fall by about half; contended timings do not establish an
+end-to-end speedup. The narrower placed-result selection remains unresolved.

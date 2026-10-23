@@ -6,6 +6,7 @@
 mod display;
 mod symbol_copies;
 mod table_copies;
+pub(crate) use table_copies::ExpressionSource;
 #[cfg(test)]
 mod tests;
 

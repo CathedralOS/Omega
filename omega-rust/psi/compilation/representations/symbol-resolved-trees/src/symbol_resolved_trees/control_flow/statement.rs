@@ -461,6 +461,31 @@ impl StatementTable {
         source_statement_path_members: &Arena<DiagnosticName>,
         copy_expression_handles: bool,
     ) -> StatementHandle {
+        self.insert_tree_from_source(
+            statement,
+            crate::expression::ExpressionSource::Table(source_expressions),
+            expressions,
+            type_references,
+            source_child_type_references,
+            source_constraints,
+            crate::expression::ExpressionSource::Table(source_expression_table),
+            source_statement_path_members,
+            copy_expression_handles,
+        )
+    }
+
+    pub(crate) fn insert_tree_from_source(
+        &mut self,
+        statement: &Statement,
+        source_expressions: crate::expression::ExpressionSource<'_>,
+        expressions: &mut crate::expression::ExpressionTable,
+        type_references: &mut crate::types::TypeReferenceTable,
+        source_child_type_references: &Arena<crate::types::TypeReference>,
+        source_constraints: &Arena<crate::types::TypeConstraint>,
+        source_expression_table: crate::expression::ExpressionSource<'_>,
+        source_statement_path_members: &Arena<DiagnosticName>,
+        copy_expression_handles: bool,
+    ) -> StatementHandle {
         match statement {
             Statement::Assembly(handle) => self.insert(StatementNode::Assembly(*handle)),
             Statement::RootBinding(binding) => {
@@ -564,7 +589,7 @@ impl StatementTable {
                 self.insert(StatementNode::Expression(expression))
             }
             Statement::LocalData(local_data) => {
-                let type_reference = type_references.insert_tree(
+                let type_reference = type_references.insert_tree_from_source(
                     &local_data.type_reference,
                     expressions,
                     source_child_type_references,
@@ -649,24 +674,29 @@ impl StatementTable {
 
     fn insert_expression_handle_span_from_trees(
         &mut self,
-        source_expressions: &crate::expression::ExpressionTable,
+        source_expressions: crate::expression::ExpressionSource<'_>,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
         expressions: &mut crate::expression::ExpressionTable,
         copy_expression_handles: bool,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        let source = source_expressions.expression_handles(arguments);
+        let count = source_expressions
+            .table(expressions)
+            .expression_handles(arguments)
+            .len();
         let span = self.reserve_expression_handles(
-            source
-                .len()
+            count
                 .try_into()
                 .expect("expression handle span count overflow"),
         );
 
-        for (offset, argument) in source.iter().enumerate() {
+        for offset in 0..count {
+            let argument = source_expressions
+                .table(expressions)
+                .expression_handles(arguments)[offset];
             let argument = expression_handle_from_tree(
                 source_expressions,
                 expressions,
-                *argument,
+                argument,
                 copy_expression_handles,
             );
             self.set_expression_handle_at_offset(
@@ -693,7 +723,7 @@ impl StatementTable {
     fn insert_transition_target_tree(
         &mut self,
         target: &TransitionTarget,
-        source_expressions: &crate::expression::ExpressionTable,
+        source_expressions: crate::expression::ExpressionSource<'_>,
         expressions: &mut crate::expression::ExpressionTable,
         source_statement_path_members: &Arena<DiagnosticName>,
         copy_expression_handles: bool,
@@ -734,13 +764,13 @@ impl StatementTable {
 }
 
 fn expression_handle_from_tree(
-    source_expressions: &crate::expression::ExpressionTable,
+    source_expressions: crate::expression::ExpressionSource<'_>,
     expressions: &mut crate::expression::ExpressionTable,
     expression: crate::expression::ExpressionHandle,
     copy_expression_handles: bool,
 ) -> crate::expression::ExpressionHandle {
     if copy_expression_handles {
-        expressions.copy_from(source_expressions, expression)
+        source_expressions.copy_into(expressions, expression)
     } else {
         expression
     }

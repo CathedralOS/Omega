@@ -1,0 +1,57 @@
+   Compiling libc v0.2.189
+   Compiling serde v1.0.229
+   Compiling cpufeatures v0.2.17
+   Compiling sha2 v0.10.9
+   Compiling optimization v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/optimization-selections)
+   Compiling semantic-vocabulary v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/semantic-vocabulary)
+   Compiling numerics v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/numerics)
+   Compiling language-core v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/language-core)
+warning: unreachable pattern
+    --> omega-rust/psi/foundation/language-core/src/inline_assembly/mod.rs:1406:26
+     |
+1165 |         "jnz" => Contract(AsmInstructionContract {
+     |         ----- matches all the relevant values
+...
+1406 |         | "jne" | "jz" | "jnz" | "ja" | "jae" | "jb" | "jbe" | "jna" | "jnae" | "jnb" | "jnbe"
+     |                          ^^^^^ no value can reach this
+     |
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `language-core` (lib) generated 1 warning
+   Compiling source v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/source)
+   Compiling symbols v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/symbols)
+   Compiling diagnostics v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/diagnostics)
+   Compiling language-semantics v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/foundation/language-semantics)
+   Compiling symbol-resolved-trees v0.1.0 (/Users/jarod/.codex/worktrees/resolution-measurement/Omega/omega-rust/psi/compilation/representations/symbol-resolved-trees)
+    Finished `test` profile [optimized] target(s) in 14.32s
+────────────
+ Nextest run ID f4e99986-2591-420a-a225-b504e929e4d2 with nextest profile: default
+    Starting 24 tests across 2 binaries
+        PASS [   0.016s] ( 1/24) symbol-resolved-trees symbol_resolved_trees::control_flow::statement::tests::authored_selection_rebase_covers_folded_calls_and_named_transition_targets
+        PASS [   0.018s] ( 2/24) symbol-resolved-trees symbol_resolved_trees::control_flow::statement::tests::statement_table_stores_transition_payloads_as_handles
+        PASS [   0.013s] ( 3/24) symbol-resolved-trees symbol_resolved_trees::inspection::snapshot::termination_vocabulary_tests::termination_guarantee_uses_settled_snapshot_vocabulary
+        PASS [   0.018s] ( 4/24) symbol-resolved-trees symbol_resolved_trees::inspection::snapshot::tests::snapshots_materialize_resolved_roots_and_table_counts
+        PASS [   0.018s] ( 5/24) symbol-resolved-trees symbol_resolved_trees::inspection::snapshot::tests::variant_snapshot_retains_payload_only_erased_field
+        PASS [   0.017s] ( 6/24) symbol-resolved-trees symbol_resolved_trees::names::name::tests::copied_names_own_spelling_and_preserve_provenance
+        PASS [   0.011s] ( 7/24) symbol-resolved-trees symbol_resolved_trees::tests::extension_rebase_failure_returns_the_original_trees_intact
+        PASS [   0.017s] ( 8/24) symbol-resolved-trees symbol_resolved_trees::storage::tables::tests::rebuild_tables_collects_typed_program_payloads
+        PASS [   0.012s] ( 9/24) symbol-resolved-trees symbol_resolved_trees::tests::extension_rebase_preserves_appended_clones_of_base_occurrences
+        PASS [   0.016s] (10/24) symbol-resolved-trees symbol_resolved_trees::tests::extension_rebase_shifts_every_extension_owned_occurrence_store
+        PASS [   0.017s] (11/24) symbol-resolved-trees symbol_resolved_trees::tests::intrinsic_finalization_preserves_occurrence_state_checks
+        PASS [   0.013s] (12/24) symbol-resolved-trees symbol_resolved_trees::tests::ranking_views_and_signature_invokes_use_independent_arenas
+        PASS [   0.012s] (13/24) symbol-resolved-trees symbol_resolved_trees::type_system::types::tests::normalization_with_owned_expressions_matches_snapshot_copies
+        PASS [   0.013s] (14/24) symbol-resolved-trees symbol_resolved_trees::tests::symbol_resolved_trees_owns_authored_declaration_selections
+        PASS [   0.016s] (15/24) symbol-resolved-trees symbol_resolved_trees::type_system::types::tests::type_reference_table_stores_nested_typed_references_as_handles
+        PASS [   0.016s] (16/24) symbol-resolved-trees symbol_resolved_trees::type_system::types::tests::type_reference_table_stores_typed_constraints_as_expression_handles
+        PASS [   0.012s] (17/24) symbol-resolved-trees symbol_resolved_trees::values::expression::symbol_copies::tests::proof_membership_copies_domain_arguments_and_preserves_provenance
+        PASS [   0.015s] (18/24) symbol-resolved-trees symbol_resolved_trees::values::expression::symbol_copies::tests::copies_span_origins_and_expression_payloads_without_mutating_originals
+        PASS [   0.012s] (19/24) symbol-resolved-trees symbol_resolved_trees::values::expression::tests::expression_occurrences_support_multiple_ids_and_survive_resolved_copies
+        PASS [   0.014s] (20/24) symbol-resolved-trees symbol_resolved_trees::values::expression::symbol_copies::tests::rebases_nested_static_arguments_simultaneously_and_preserves_absence
+        PASS [   0.013s] (21/24) symbol-resolved-trees symbol_resolved_trees::values::expression::tests::match_arms_preserve_order_source_and_nonnumeric_values
+        PASS [   0.015s] (22/24) symbol-resolved-trees symbol_resolved_trees::values::expression::tests::expression_table_copies_table_payloads_without_tree_roundtrip
+        PASS [   0.016s] (23/24) symbol-resolved-trees symbol_resolved_trees::values::expression::tests::table_and_own_copies_append_identical_rows_in_child_first_order
+        PASS [   0.015s] (24/24) symbol-resolved-trees::authored_declaration_selection_ledger authored_declaration_selection_ledger_runtime_canary
+────────────
+     Summary [   0.182s] 24 tests run: 24 passed, 0 skipped
+mbx[cache]: 7 hits, 9 misses; 0 B downloaded, 0 B uploaded, 15.9 MiB stored locally
+mbx[savings]: across 3023 builds, rustc has been excused from 2d 11h of its duties.

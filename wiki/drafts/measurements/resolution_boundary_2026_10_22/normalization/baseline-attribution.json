@@ -1,0 +1,23 @@
+[
+  {
+    "subject": "samples/cli/facts/length/local/main.omg",
+    "baseline_clones": 8,
+    "baseline_rows": 34630,
+    "normalization_clones": 4,
+    "normalization_rows": 17330
+  },
+  {
+    "subject": "samples/cli/facts/dyn_dispatch_selector_payload_bound/local/main.omg",
+    "baseline_clones": 8,
+    "baseline_rows": 34572,
+    "normalization_clones": 4,
+    "normalization_rows": 17294
+  },
+  {
+    "subject": "samples/cli/facts/nested_nine_level_record_field_bound/local/main.omg",
+    "baseline_clones": 8,
+    "baseline_rows": 34793,
+    "normalization_clones": 4,
+    "normalization_rows": 17416
+  }
+]
