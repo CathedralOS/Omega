@@ -3,11 +3,11 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedOperand, VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
+    VirtualRegisterId, VirtualRegisterOrigin, terminator_successors,
 };
 use semantic_vocabulary::IntegerValue;
 
-use crate::{LiteralFoldAction, PairLiteralPosition, PairOperandShape, PairResultDisposition};
+use crate::{LiteralFoldAction, PairUnitDefRelation};
 
 use super::constraints::AdmittedPairs;
 use super::function_rewrite::rewritten_consumer;
@@ -311,338 +311,76 @@ fn admit_candidate(
     }
 
     let row = pair.row;
-    let result = match (
-        pair.rule.operand_shape(),
-        pair.rule.result(),
-        consumer.operands.as_slice(),
-    ) {
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL,
-            PairResultDisposition::ScalarRegister,
-            [left, right, result],
-        ) => {
-            if left.access != RegisterOperandAccess::Use
-                || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != victim_register
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 2
-                || left.class != row.operands[0].class
-                || result.class != row.operands[1].class
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary right-literal consumer whose operand list continues past
-        // its `Def` result with scratch outputs: `[left, victim, result,
-        // scratch...]` folds the operand-1 `Use`, binds the operand-0
-        // survivor into the rewritten row, and drops every `Def` operand
-        // past the result — the bound scratch a clamped saturating
-        // realization computes its saturation bound through — admitted
-        // only when each dropped register occurs nowhere else in the
-        // function. A dropped `Def` another instruction read or defined
-        // would silently leave a use of a register the rewrite stopped
-        // defining.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS,
-            PairResultDisposition::ScalarRegister,
-            [left, right, result, scratch @ ..],
-        ) => {
-            if left.access != RegisterOperandAccess::Use
-                || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != victim_register
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 2
-                || left.class != row.operands[0].class
-                || result.class != row.operands[1].class
-                || !dead_scratch(function, scratch)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary right-literal consumer whose operand list continues past
-        // its `Def` result: `[left, victim, result, aux...]` folds the
-        // operand-1 `Use` and drops every trailing `Use` operand, which the
-        // declared grammar admits only when each dropped register is defined
-        // in this function solely by zero materializations — the zeroed
-        // high-half input an x86-64 `div` realization reads, left dead by a
-        // divide by one. A dropped operand defined any other way would
-        // silently discard a value the consumer observed.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES,
-            PairResultDisposition::ScalarRegister,
-            [left, right, result, auxiliary @ ..],
-        ) => {
-            if left.access != RegisterOperandAccess::Use
-                || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != victim_register
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 2
-                || left.class != row.operands[0].class
-                || result.class != row.operands[1].class
-                || !auxiliary_uses(function, auxiliary)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary right-literal consumer whose operand list continues past
-        // its `Def` result with a mixed drop tail: `[left, victim, result,
-        // tail...]` folds the operand-1 `Use`, binds the operand-0 survivor
-        // into the rewritten row, and drops every operand past the result
-        // under the custody its own access declares — a `Use` drops only
-        // when its register is defined in this function solely by zero
-        // materializations, the zeroed high-half dividend an x86-64
-        // `div`/`idiv` realization reads, and a `Def` drops only when its
-        // register occurs nowhere else in the function, the bound scratch
-        // an aarch64 clamped signed-divide realization writes. A `UseDef`
-        // tail operand names neither custody — dropping it would silently
-        // discard a read — and rejects.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS,
-            PairResultDisposition::ScalarRegister,
-            [left, right, result, tail @ ..],
-        ) => {
-            if left.access != RegisterOperandAccess::Use
-                || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != victim_register
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 2
-                || left.class != row.operands[0].class
-                || result.class != row.operands[1].class
-                || !droppable_tail(function, tail)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary right-literal consumer whose folded result is a constant
-        // of the literal alone: `[left, victim, result, scratch...]` folds
-        // the operand-1 `Use`, drops the operand-0 `Use` — the constant
-        // result never reads it — and drops every `Def` operand past the
-        // result, which the declared grammar admits only when each dropped
-        // register occurs nowhere else in the function — the dead quotient
-        // scratch an x86-64 `idiv` realization writes. A dropped `Def`
-        // another instruction read or defined would silently leave a use
-        // of a register the rewrite stopped defining.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT,
-            PairResultDisposition::ScalarRegister,
-            [left, right, result, scratch @ ..],
-        ) => {
-            if left.access != RegisterOperandAccess::Use
-                || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != victim_register
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 1
-                || row.operands[0].access != RegisterOperandAccess::Def
-                || result.class != row.operands[0].class
-                || !dead_scratch(function, scratch)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary left-literal consumer whose folded result is a constant
-        // of the literal alone: `[victim, right, result, scratch...]`
-        // folds the operand-0 `Use`, drops the operand-1 `Use` — the
-        // constant result never reads it — and drops every `Def` operand
-        // past the result under the same occurrence-free custody the
-        // right grammar requires. Declaring this shape attests the
-        // operand-0 literal alone fixes the result — `0 & x` is zero for
-        // every `x` — so no commutation of the surviving `Use` is
-        // implied.
-        (
-            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT,
-            PairResultDisposition::ScalarRegister,
-            [victim, right, result, scratch @ ..],
-        ) => {
-            if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != victim_register
-                || right.access != RegisterOperandAccess::Use
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 1
-                || row.operands[0].access != RegisterOperandAccess::Def
-                || result.class != row.operands[0].class
-                || !dead_scratch(function, scratch)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary left-literal consumer whose folded result is a constant
-        // of the literal alone and whose operand list continues past its
-        // `Def` result with auxiliary `Use` operands:
-        // `[victim, right, result, aux...]` folds the operand-0 `Use`,
-        // drops the operand-1 `Use`, and drops every trailing `Use` under
-        // the same provenance custody the right auxiliary grammar
-        // requires — each dropped register defined in this function only
-        // by `MaterializeI64` instructions producing `Unsigned(0)`. A
-        // literal of zero at operand 0 is only the low dividend half an
-        // x86-64 `div` reads; a dropped auxiliary `Use` carrying anything
-        // but a proven zero would silently discard the dividend's upper
-        // half the folded form stopped observing.
-        (
-            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES,
-            PairResultDisposition::ScalarRegister,
-            [victim, right, result, auxiliary @ ..],
-        ) => {
-            if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != victim_register
-                || right.access != RegisterOperandAccess::Use
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 1
-                || row.operands[0].access != RegisterOperandAccess::Def
-                || result.class != row.operands[0].class
-                || !auxiliary_uses(function, auxiliary)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary left-literal consumer whose folded result is a constant
-        // of the literal alone and whose operand list continues past its
-        // `Def` result with a mixed drop tail: `[victim, right, result,
-        // tail...]` folds the operand-0 `Use`, drops the operand-1 `Use`
-        // — the constant result never reads it — and drops every operand
-        // past the result under the custody its own access declares — a
-        // `Use` drops only when its register is defined in this function
-        // solely by zero materializations, the zeroed high-half dividend
-        // an x86-64 `div`/`idiv` realization reads, and a `Def` drops only
-        // when its register occurs nowhere else in the function, the
-        // bound scratch an aarch64 clamped signed-divide realization
-        // writes. A `UseDef` tail operand names neither custody —
-        // dropping it would silently discard a read — and rejects.
-        (
-            PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS,
-            PairResultDisposition::ScalarRegister,
-            [victim, right, result, tail @ ..],
-        ) => {
-            if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != victim_register
-                || right.access != RegisterOperandAccess::Use
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 1
-                || row.operands[0].access != RegisterOperandAccess::Def
-                || result.class != row.operands[0].class
-                || !droppable_tail(function, tail)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // Commutative binary consumers also admit the literal as the left
-        // operand: `[victim, right, result]` folds the operand-0 `Use` and
-        // binds the operand-1 survivor into the rewritten row.
-        (
-            PairOperandShape::BINARY_LEFT_LITERAL,
-            PairResultDisposition::ScalarRegister,
-            [victim, right, result],
-        ) => {
-            if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != victim_register
-                || right.access != RegisterOperandAccess::Use
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 2
-                || right.class != row.operands[0].class
-                || result.class != row.operands[1].class
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // A binary left-literal consumer whose operand list continues past
-        // its `Def` result with scratch outputs: `[victim, right, result,
-        // scratch...]` folds the operand-0 `Use`, binds the operand-1
-        // survivor into the rewritten row, and drops every `Def` operand
-        // past the result under the same occurrence-free custody the right
-        // scratch-defs grammar requires.
-        (
-            PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS,
-            PairResultDisposition::ScalarRegister,
-            [victim, right, result, scratch @ ..],
-        ) => {
-            if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != victim_register
-                || right.access != RegisterOperandAccess::Use
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 2
-                || right.class != row.operands[0].class
-                || result.class != row.operands[1].class
-                || !dead_scratch(function, scratch)
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        // Flag-defining consumers carry `[left, right]` uses and no `Def`;
-        // their result is the rewritten row's implicit unit definitions.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL,
-            PairResultDisposition::ImplicitUnits,
-            [left, right],
-        ) => {
-            if left.access != RegisterOperandAccess::Use
-                || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != victim_register
-                || row.operands.len() != 1
-                || left.class != row.operands[0].class
-            {
-                return None;
-            }
-            None
-        }
-        // The operand-swapped flag-defining grammar:
-        // `[victim, subtrahend]` folds the operand-0 `Use` — the
-        // compare's literal minuend — and binds the operand-1 subtrahend
-        // `Use` into the rewritten row's sole `Use` position, computing
-        // `subtrahend - literal` for `literal - subtrahend`. The record
-        // must publish exactly the implicit unit surface the rewritten
-        // row carries: the reader audit covers the record's definitions,
-        // so those are the units the rewrite must publish, and an
-        // implicit use or clobber the row does not carry would silently
-        // stop being observed.
-        (
-            PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
-            PairResultDisposition::ImplicitUnits,
-            [victim, subtrahend],
-        ) => {
-            if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != victim_register
-                || subtrahend.access != RegisterOperandAccess::Use
-                || row.operands.len() != 1
-                || row.operands[0].access != RegisterOperandAccess::Use
-                || subtrahend.class != row.operands[0].class
-                || consumer.implicit_uses != row.implicit_uses
-                || consumer.implicit_defs != row.implicit_defs
-                || consumer.clobbers != row.clobbers
-            {
-                return None;
-            }
-            None
-        }
-        // Unary consumers carry `[input, result]`; the folded literal is the
-        // sole `Use` operand and the rewritten row carries only its `Def`.
-        (
-            PairOperandShape::UNARY_LITERAL,
-            PairResultDisposition::ScalarRegister,
-            [input, result],
-        ) => {
-            if input.access != RegisterOperandAccess::Use
-                || input.virtual_register != victim_register
-                || result.access != RegisterOperandAccess::Def
-                || row.operands.len() != 1
-                || row.operands[0].access != RegisterOperandAccess::Def
-                || result.class != row.operands[0].class
-            {
-                return None;
-            }
-            Some(result.virtual_register)
-        }
-        _ => {
+    // The declared grammar fixes the consumer's operand roles — where the
+    // folded literal sits, which register input survives, and where the
+    // scalar result is — so the producer reads the axes instead of
+    // recognising each named shape. Every operand past those roles is the
+    // declared tail custody's to discharge.
+    let shape = pair.rule.operand_shape();
+    let victim_operand = usize::from(shape.victim_operand());
+    let survivor_operand = shape.survivor_operand().map(usize::from);
+    let result_operand = shape.result_operand(pair.rule.result()).map(usize::from);
+    let mut operand_roles = victim_operand + 1;
+    for index in survivor_operand.into_iter().chain(result_operand) {
+        operand_roles = operand_roles.max(index + 1);
+    }
+    let Some((grammar, tail)) = consumer.operands.split_at_checked(operand_roles) else {
+        return None;
+    };
+    if !shape.tail.admits(function, tail) {
+        return None;
+    }
+    if grammar[victim_operand].access != RegisterOperandAccess::Use
+        || grammar[victim_operand].virtual_register != victim_register
+    {
+        return None;
+    }
+    if survivor_operand.is_some_and(|index| grammar[index].access != RegisterOperandAccess::Use) {
+        return None;
+    }
+    let scalar_result = result_operand.map(|index| &grammar[index]);
+    if scalar_result.is_some_and(|result| result.access != RegisterOperandAccess::Def) {
+        return None;
+    }
+    // The rewritten row carries exactly the roles the declared axes fix:
+    // the surviving `Use` the rewrite binds and the scalar `Def` it writes,
+    // each at its own canonical index.
+    let (binds_surviving, binds_result) = pair.rule.rewritten_row_roles()?;
+    let row_operands = pair.row.operands.as_slice();
+    let expected_row_operands = usize::from(binds_surviving) + usize::from(binds_result);
+    if row_operands.len() != expected_row_operands
+        || row_operands
+            .iter()
+            .enumerate()
+            .any(|(index, operand)| usize::from(operand.operand) != index)
+    {
+        return None;
+    }
+    if binds_surviving
+        && row_operands[0].class != survivor_operand.map(|index| &grammar[index])?.class
+    {
+        return None;
+    }
+    // The operand-swapped grammar rebuilds the row from the consumer
+    // record's own unit surface — the reader audit covers the record's
+    // definitions — so an implicit use or clobber the row does not carry
+    // would silently stop being observed.
+    if pair.rule.machine_effects().unit_defs == PairUnitDefRelation::OperandSwapped
+        && (consumer.implicit_uses != pair.row.implicit_uses
+            || consumer.implicit_defs != pair.row.implicit_defs
+            || consumer.clobbers != pair.row.clobbers)
+    {
+        return None;
+    }
+    let result = if !binds_result {
+        None
+    } else {
+        let row_def = &row_operands[expected_row_operands - 1];
+        let result = scalar_result?;
+        if row_def.access != RegisterOperandAccess::Def || row_def.class != result.class {
             return None;
         }
+        Some(result.virtual_register)
     };
     // The rewrite rebuilds the consumer's operands from the rewritten
     // constraint row; an operand carrying a unit binding would silently
@@ -710,20 +448,13 @@ fn admit_candidate(
         return None;
     }
     // The action records the register every `Use` position of the rewritten
-    // row binds — the source operand that survives the fold. A right-literal
-    // grammar — including the auxiliary-`Use` divide grammar and the
-    // scratch-defs tail — leaves operand 0, a left-literal grammar leaves
-    // operand 1, and the `Use`-free unary fold records its folded input. The
-    // constant-result grammars bind no `Use` position; they record the
-    // dropped non-victim `Use` for custody — the operand-0 dividend under
-    // the right grammar, the operand-1 `Use` under the left annihilator and
-    // auxiliary-`Use` grammars.
-    let surviving = match pair.rule.operand_shape().position {
-        PairLiteralPosition::LeftOperand => consumer.operands[1].virtual_register,
-        PairLiteralPosition::RightOperand | PairLiteralPosition::SoleOperand => {
-            consumer.operands[0].virtual_register
-        }
-    };
+    // row binds — the source operand that survives the fold: the non-victim
+    // input under the binary grammars, the folded input itself under the
+    // `Use`-free unary grammar. The constant-result grammars bind no `Use`
+    // position; they record the dropped non-victim input for custody.
+    let surviving = grammar
+        [usize::from(shape.survivor_operand().unwrap_or(shape.victim_operand()))]
+    .virtual_register;
 
     Some(LiteralFoldAction {
         block,
@@ -735,76 +466,4 @@ fn admit_candidate(
         immediate,
         immediate_constraint: row.key,
     })
-}
-
-/// Whether `register` is defined in `function` only by `MaterializeI64`
-/// instructions producing `Unsigned(0)` — the provenance the
-/// auxiliary-`Use` operand grammar requires of every operand it drops. A
-/// register with no definition, or any definition that is not a zero
-/// Every scratch operand past the folded result is a `Def` whose register
-/// dies with this rewrite — the occurrence-free custody the grammars
-/// require of every dropped definition.
-fn dead_scratch(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
-    operands.iter().all(|operand| {
-        operand.access == RegisterOperandAccess::Def
-            && dropped_def_is_dead(function, operand.virtual_register)
-    })
-}
-
-/// Every auxiliary operand past the folded result is a `Use` whose register
-/// is defined in this function solely by zero materializations.
-fn auxiliary_uses(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
-    operands.iter().all(|operand| {
-        operand.access == RegisterOperandAccess::Use
-            && auxiliary_zero_defined(function, operand.virtual_register)
-    })
-}
-
-/// A mixed drop tail: each operand's own access declares the custody it
-/// drops under — a `Use` must be auxiliary-zero defined, a `Def` must die
-/// with the rewrite, any other access rejects.
-fn droppable_tail(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
-    operands.iter().all(|operand| match operand.access {
-        RegisterOperandAccess::Use => auxiliary_zero_defined(function, operand.virtual_register),
-        RegisterOperandAccess::Def => dropped_def_is_dead(function, operand.virtual_register),
-        _ => false,
-    })
-}
-
-/// materialization, fails: the dropped operand would carry a value the
-/// folded form silently stopped observing.
-fn auxiliary_zero_defined(
-    function: &SelectedFunction,
-    register: selected_instructions::VirtualRegisterId,
-) -> bool {
-    let mut definitions = function.instructions().filter(|instruction| {
-        instruction.operands.iter().any(|operand| {
-            operand.access == RegisterOperandAccess::Def && operand.virtual_register == register
-        })
-    });
-    let mut saw_definition = false;
-    definitions.all(|instruction| {
-        saw_definition = true;
-        matches!(
-            instruction.kind,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(0)
-            }
-        )
-    }) && saw_definition
-}
-
-/// Whether `register`'s only occurrence in `function` is one `Def` operand —
-/// the custody the constant-result grammar requires of every scratch `Def`
-/// it drops. The operand itself is that one occurrence: any other operand
-/// position, terminator operand, or successor transport naming the register
-/// would leave the fold removing a definition that a surviving read or a
-/// second definition still observes. Uses are counted across instruction
-/// and terminator operand lists and every successor binding transport, the
-/// same sites the rewrite's densification walks.
-fn dropped_def_is_dead(
-    function: &SelectedFunction,
-    register: selected_instructions::VirtualRegisterId,
-) -> bool {
-    crate::rewrites::register_occurs_once(function, register)
 }

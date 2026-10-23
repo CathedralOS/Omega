@@ -165,3 +165,69 @@ pub(super) fn swapped_unit_readers_equality_only(
     }
     true
 }
+
+/// Whether every scratch operand past the folded result is a `Def` whose
+/// register dies with this rewrite — the occurrence-free custody the
+/// scratch-defs grammar requires of every dropped definition: a scratch
+/// output another instruction read or defined would leave a use of a
+/// register the rewrite stopped defining.
+pub(super) fn dead_scratch(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+    operands.iter().all(|operand| {
+        operand.access == RegisterOperandAccess::Def
+            && dropped_def_is_dead(function, operand.virtual_register)
+    })
+}
+
+/// Every auxiliary operand past the folded result is a `Use` whose register
+/// is defined in this function solely by zero materializations.
+pub(super) fn auxiliary_uses(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+    operands.iter().all(|operand| {
+        operand.access == RegisterOperandAccess::Use
+            && auxiliary_zero_defined(function, operand.virtual_register)
+    })
+}
+
+/// A mixed drop tail: each operand's own access declares the custody it
+/// drops under — a `Use` must be auxiliary-zero defined, a `Def` must die
+/// with the rewrite, any other access rejects.
+pub(super) fn droppable_tail(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+    operands.iter().all(|operand| match operand.access {
+        RegisterOperandAccess::Use => auxiliary_zero_defined(function, operand.virtual_register),
+        RegisterOperandAccess::Def => dropped_def_is_dead(function, operand.virtual_register),
+        _ => false,
+    })
+}
+
+/// Whether `register` is defined in `function` only by `MaterializeI64`
+/// instructions producing `Unsigned(0)` — the provenance the auxiliary-`Use`
+/// operand grammar requires of every operand it drops. A register with no
+/// definition, or any definition that is not a zero materialization, fails:
+/// the dropped operand would carry a value the folded form silently stopped
+/// observing.
+fn auxiliary_zero_defined(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    let mut definitions = function.instructions().filter(|instruction| {
+        instruction.operands.iter().any(|operand| {
+            operand.access == RegisterOperandAccess::Def && operand.virtual_register == register
+        })
+    });
+    let mut saw_definition = false;
+    definitions.all(|instruction| {
+        saw_definition = true;
+        matches!(
+            instruction.kind,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0)
+            }
+        )
+    }) && saw_definition
+}
+
+/// Whether `register`'s only occurrence in `function` is one `Def` operand —
+/// the custody the scratch-defs grammar requires of every scratch `Def` it
+/// drops. The operand itself is that one occurrence: any other operand
+/// position, terminator operand, or successor transport naming the register
+/// would leave the fold removing a definition that a surviving read or a
+/// second definition still observes.
+fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId) -> bool {
+    crate::rewrites::register_occurs_once(function, register)
+}

@@ -85,14 +85,14 @@
 //! matches in compute.
 
 use register_model::{
-    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandConstraint,
-    RegisterUnitId, TargetRegisterEnvironmentConstraintKeys,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, RegisterUnitId, TargetRegisterEnvironmentConstraintKeys,
 };
 use selected_instructions::{
     MachineAlternative, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineMemoryEffect, MachineSemanticKind, SaturatingCarrier, SelectedFunction,
-    SelectedInstruction, SelectedInstructionKind,
+    SelectedInstruction, SelectedInstructionKind, SelectedOperand, VirtualRegisterId,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
@@ -104,8 +104,9 @@ mod predicates;
 mod rules;
 
 use predicates::{
-    fault_discharged_alternative, implicit_defs_covered, implicit_unit_used,
-    indexed_pointer_read_matches, isolated_alternative, swapped_unit_readers_equality_only,
+    auxiliary_uses, dead_scratch, droppable_tail, fault_discharged_alternative,
+    implicit_defs_covered, implicit_unit_used, indexed_pointer_read_matches, isolated_alternative,
+    swapped_unit_readers_equality_only,
 };
 
 /// How a pair rule's rewritten instruction delivers its output.
@@ -805,6 +806,27 @@ pub(crate) enum PairLiteralPosition {
     SoleOperand,
 }
 
+impl PairLiteralPosition {
+    /// The consumer operand index the folded literal occupies.
+    pub(crate) const fn victim_operand(self) -> u16 {
+        match self {
+            Self::RightOperand => 1,
+            Self::LeftOperand | Self::SoleOperand => 0,
+        }
+    }
+
+    /// The consumer operand index of the non-victim register input, when
+    /// the grammar has one: a binary consumer's other `Use`. The unary
+    /// grammar consumes only the folded input.
+    pub(crate) const fn survivor_operand(self) -> Option<u16> {
+        match self {
+            Self::RightOperand => Some(0),
+            Self::LeftOperand => Some(1),
+            Self::SoleOperand => None,
+        }
+    }
+}
+
 /// What the rewritten form's result channel computes relative to the
 /// non-victim operands — the axis that decides which inputs the fold
 /// still observes.
@@ -878,6 +900,20 @@ pub(crate) enum PairTailCustody {
     /// coexist in the same tail. A `UseDef` operand names neither
     /// custody and rejects.
     AuxiliaryUsesOrScratchDefs,
+}
+
+impl PairTailCustody {
+    /// Whether every operand past the grammar's fixed roles satisfies this
+    /// custody contract: a bare tail carries none, and each drop custody
+    /// admits only the accesses whose death the fold proved.
+    pub(crate) fn admits(self, function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+        match self {
+            Self::Bare => operands.is_empty(),
+            Self::AuxiliaryUses => auxiliary_uses(function, operands),
+            Self::ScratchDefs => dead_scratch(function, operands),
+            Self::AuxiliaryUsesOrScratchDefs => droppable_tail(function, operands),
+        }
+    }
 }
 
 impl PairOperandShape {
@@ -1109,6 +1145,33 @@ impl PairOperandShape {
             result_kind: PairOperandResult::ConstantOfLiteral,
             tail: PairTailCustody::AuxiliaryUsesOrScratchDefs,
         };
+
+    /// The consumer operand index the folded literal occupies.
+    pub(crate) const fn victim_operand(self) -> u16 {
+        self.position.victim_operand()
+    }
+
+    /// The consumer operand index of the non-victim register input — the
+    /// operand a surviving-`Use` grammar binds into the rewritten row —
+    /// when the consumer has one.
+    pub(crate) const fn survivor_operand(self) -> Option<u16> {
+        self.position.survivor_operand()
+    }
+
+    /// The consumer operand index of the scalar `Def` result under a
+    /// scalar result channel; the implicit-unit channel carries no `Def`
+    /// operand at all. A sole-`Use` grammar carries its result right after
+    /// the folded input, a binary grammar after both inputs.
+    pub(crate) const fn result_operand(self, result: PairResultDisposition) -> Option<u16> {
+        match (self.position, result) {
+            (_, PairResultDisposition::ImplicitUnits) => None,
+            (PairLiteralPosition::SoleOperand, PairResultDisposition::ScalarRegister) => Some(1),
+            (
+                PairLiteralPosition::RightOperand | PairLiteralPosition::LeftOperand,
+                PairResultDisposition::ScalarRegister,
+            ) => Some(2),
+        }
+    }
 }
 
 /// The literal values a pair's fold admits.
@@ -1187,9 +1250,32 @@ impl SelectedInstructionPairRule {
     /// The consumer operand index the literal victim must occupy — the
     /// position axis alone decides it.
     pub const fn victim_operand(self) -> u16 {
-        match self.operand_shape.position {
-            PairLiteralPosition::RightOperand => 1,
-            PairLiteralPosition::LeftOperand | PairLiteralPosition::SoleOperand => 0,
+        self.operand_shape.victim_operand()
+    }
+
+    /// The rewritten row's declared operand roles: whether the row opens
+    /// with the surviving `Use` operand, and whether it closes with the
+    /// scalar `Def` result. `None` when the declared axes name no row of
+    /// their own — a swapped result channel with a scalar output would
+    /// publish the inverted difference to every register reader with no
+    /// reader audit to refuse it, and the constant-result channels always
+    /// materialize their scalar constant, so neither declares a form.
+    pub(crate) const fn rewritten_row_roles(self) -> Option<(bool, bool)> {
+        match (self.operand_shape.result_kind, self.result) {
+            (PairOperandResult::SurvivingOperand, PairResultDisposition::ScalarRegister) => {
+                Some((true, true))
+            }
+            (PairOperandResult::SurvivingOperand, PairResultDisposition::ImplicitUnits) => {
+                Some((true, false))
+            }
+            (PairOperandResult::SwappedOperand, PairResultDisposition::ImplicitUnits) => {
+                Some((true, false))
+            }
+            (
+                PairOperandResult::ConstantOfLiteral | PairOperandResult::LiteralRecompute,
+                PairResultDisposition::ScalarRegister,
+            ) => Some((false, true)),
+            _ => None,
         }
     }
     pub const fn admits_immediate(self, value: u64) -> bool {

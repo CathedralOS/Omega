@@ -20,8 +20,7 @@ use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 pub(crate) use pair_rule::{
-    PairLiteralPosition, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
-    SelectedInstructionPairRule,
+    PairOperandShape, PairResultDisposition, PairUnitDefRelation, SelectedInstructionPairRule,
 };
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
@@ -575,98 +574,6 @@ impl LiteralFoldPolicy {
         Self {
             enabled_rules: self.enabled_rules | other.enabled_rules,
         }
-    }
-
-    pub const fn enables_exact_add(self) -> bool {
-        self.enabled_rules & Self::EXACT_ADD_BIT != 0
-    }
-
-    pub const fn enables_exact_subtract(self) -> bool {
-        self.enabled_rules & Self::EXACT_SUBTRACT_BIT != 0
-    }
-
-    pub const fn enables_compare(self) -> bool {
-        self.enabled_rules & Self::COMPARE_BIT != 0
-    }
-
-    pub const fn enables_extension(self) -> bool {
-        self.enabled_rules & Self::EXTENSION_BIT != 0
-    }
-
-    pub const fn enables_load8_indexed(self) -> bool {
-        self.enabled_rules & Self::LOAD8_INDEXED_BIT != 0
-    }
-
-    pub const fn enables_copy(self) -> bool {
-        self.enabled_rules & Self::COPY_BIT != 0
-    }
-
-    pub const fn enables_byte_view_address(self) -> bool {
-        self.enabled_rules & Self::BYTE_VIEW_ADDRESS_BIT != 0
-    }
-
-    pub const fn enables_exact_divide(self) -> bool {
-        self.enabled_rules & Self::EXACT_DIVIDE_BIT != 0
-    }
-
-    pub const fn enables_wrapping_remainder(self) -> bool {
-        self.enabled_rules & Self::WRAPPING_REMAINDER_BIT != 0
-    }
-
-    pub const fn enables_bitwise_and_zero(self) -> bool {
-        self.enabled_rules & Self::BITWISE_AND_ZERO_BIT != 0
-    }
-
-    pub const fn enables_bitwise_xor_zero(self) -> bool {
-        self.enabled_rules & Self::BITWISE_XOR_ZERO_BIT != 0
-    }
-
-    pub const fn enables_wrapping_add_zero(self) -> bool {
-        self.enabled_rules & Self::WRAPPING_ADD_ZERO_BIT != 0
-    }
-
-    pub const fn enables_bitwise_and_ones(self) -> bool {
-        self.enabled_rules & Self::BITWISE_AND_ONES_BIT != 0
-    }
-
-    pub const fn enables_wrapping_remainder_zero(self) -> bool {
-        self.enabled_rules & Self::WRAPPING_REMAINDER_ZERO_BIT != 0
-    }
-
-    pub const fn enables_exact_divide_zero(self) -> bool {
-        self.enabled_rules & Self::EXACT_DIVIDE_ZERO_BIT != 0
-    }
-
-    pub const fn enables_saturating_add_zero(self) -> bool {
-        self.enabled_rules & Self::SATURATING_ADD_ZERO_BIT != 0
-    }
-
-    pub const fn enables_saturating_subtract_zero(self) -> bool {
-        self.enabled_rules & Self::SATURATING_SUBTRACT_ZERO_BIT != 0
-    }
-
-    pub const fn enables_saturating_divide_one(self) -> bool {
-        self.enabled_rules & Self::SATURATING_DIVIDE_ONE_BIT != 0
-    }
-
-    pub const fn enables_saturating_divide_zero(self) -> bool {
-        self.enabled_rules & Self::SATURATING_DIVIDE_ZERO_BIT != 0
-    }
-
-    pub const fn enables_saturating_subtract_zero_minuend(self) -> bool {
-        self.enabled_rules & Self::SATURATING_SUBTRACT_ZERO_MINUEND_BIT != 0
-    }
-
-    pub const fn enables_saturating_add_upper_bound(self) -> bool {
-        self.enabled_rules & Self::SATURATING_ADD_UPPER_BOUND_BIT != 0
-    }
-
-    pub const fn enables_wrapping_remainder_minus_one(self) -> bool {
-        self.enabled_rules & Self::WRAPPING_REMAINDER_MINUS_ONE_BIT != 0
-    }
-
-    pub const fn enables_saturating_subtract_upper_bound(self) -> bool {
-        self.enabled_rules & Self::SATURATING_SUBTRACT_UPPER_BOUND_BIT != 0
     }
 
     pub const fn canonical_bits(self) -> u32 {

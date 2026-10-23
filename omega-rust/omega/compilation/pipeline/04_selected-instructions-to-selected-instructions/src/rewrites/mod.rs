@@ -225,10 +225,9 @@ pub(crate) use selected_lowering::literal_fold_identity;
 // test corpus.
 pub(crate) use selected_lowering::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
-    LiteralFoldValidationReceipt, PairLiteralPosition, PairOperandShape, PairResultDisposition,
-    PairUnitDefRelation, SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule,
-    SelectedLoweringRuleCatalogEntry, SelectedLoweringRuleCatalogError,
-    resolve_selected_lowering_rules,
+    LiteralFoldValidationReceipt, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    SELECTED_LOWERING_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
+    SelectedLoweringRuleCatalogError, resolve_selected_lowering_rules,
 };
 pub use selected_lowering::{LiteralFoldIdentity, ValidatedLiteralFold};
 

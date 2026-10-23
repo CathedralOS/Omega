@@ -18,8 +18,8 @@ pub(crate) use catalog::{
 };
 pub(crate) use literal_fold::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy,
-    LiteralFoldValidationReceipt, PairLiteralPosition, PairOperandShape, PairResultDisposition,
-    PairUnitDefRelation, SelectedInstructionPairRule,
+    LiteralFoldValidationReceipt, PairOperandShape, PairResultDisposition, PairUnitDefRelation,
+    SelectedInstructionPairRule,
 };
 pub use literal_fold::{LiteralFoldIdentity, ValidatedLiteralFold};
 pub(crate) use literal_fold::{fold_selected_incoming_literal, literal_fold_identity};

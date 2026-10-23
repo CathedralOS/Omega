@@ -11,8 +11,7 @@ use selected_instructions::{
 use crate::rewrites::enabled_pair_rules;
 use crate::rewrites::operand_probes::effect_declaration;
 use crate::{
-    LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
-    SelectedInstructionPairRule,
+    LiteralFoldError, LiteralFoldPolicy, PairResultDisposition, SelectedInstructionPairRule,
 };
 
 /// One policy-enabled catalog row bound to its constraint-catalog row and to
@@ -130,91 +129,46 @@ pub(super) fn select_admitted_pairs<'a>(
     Ok(AdmittedPairs { pairs, catalog })
 }
 
-/// Admit the rewritten row whose operand shape matches the rule's declared
-/// operand grammar and result channel — a surviving `Use` operand plus scalar
-/// `Def`, a lone `Def` for the constant folds, or implicit physical-unit
-/// defs — and whose unit traffic satisfies the rule's declared unit-effect
-/// surface: no implicit uses, clobbers, or operand unit bindings beyond it.
+/// Admit the rewritten row the pair's declared axes describe: the row
+/// binds the surviving `Use` operand under a surviving-`Use` grammar and
+/// writes the scalar `Def` result under a scalar result channel, each at
+/// its own canonical index in one register class, and its unit traffic
+/// satisfies the rule's declared unit-effect surface — no implicit uses,
+/// clobbers, or operand unit bindings beyond the declared channel.
 fn validate_immediate_row(
     rule: SelectedInstructionPairRule,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), LiteralFoldError> {
     let unit_effects = rule.unit_effects();
-    let clean = |operands: &[&register_model::RegisterOperandConstraint]| {
-        operands
-            .iter()
-            .all(|operand| unit_effects.admits_operand(operand))
-            && unit_effects.admits_row_units(row)
-    };
-    match (rule.operand_shape(), rule.result(), row.operands.as_slice()) {
-        // Scalar-result form: `result = surviving <op> immediate`, or the
-        // auxiliary-`Use` and scratch-defs grammars' copy rewrite — the
-        // surviving `Use` binds operand 0 and the `Def` result binds
-        // operand 1 whichever consumer grammar the literal occupied.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL
-            | PairOperandShape::BINARY_LEFT_LITERAL
-            | PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES
-            | PairOperandShape::BINARY_RIGHT_LITERAL_AUXILIARY_USES_OR_SCRATCH_DEFS
-            | PairOperandShape::BINARY_RIGHT_LITERAL_SCRATCH_DEFS
-            | PairOperandShape::BINARY_LEFT_LITERAL_SCRATCH_DEFS,
-            PairResultDisposition::ScalarRegister,
-            [left, result],
-        ) => {
-            if left.operand != 0
-                || left.access != RegisterOperandAccess::Use
-                || result.operand != 1
-                || result.access != RegisterOperandAccess::Def
-                || left.class != result.class
-                || !clean(&[left, result])
-                || !row.implicit_defs.is_empty()
-            {
-                return Err(LiteralFoldError::ImmediateConstraintMismatch);
-            }
-        }
-        // Flag-defining form: `compare left, immediate` carries no `Def`
-        // operand; its only implicit output is the target condition state.
-        // The operand-swapped grammar binds the same row — the surviving
-        // subtrahend takes the `Use` position and the comparison keeps
-        // publishing the condition state, so the row shape does not
-        // distinguish the operand order.
-        (
-            PairOperandShape::BINARY_RIGHT_LITERAL
-            | PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
-            PairResultDisposition::ImplicitUnits,
-            [left],
-        ) => {
-            if left.operand != 0
-                || left.access != RegisterOperandAccess::Use
-                || !clean(&[left])
-                || row.implicit_defs.is_empty()
-            {
-                return Err(LiteralFoldError::ImmediateConstraintMismatch);
-            }
-        }
-        // Constant-materialization form: `result = materialize folded` carries
-        // no register input; its single `Def` operand is the only output. The
-        // constant-result grammars rewrite into the same row: its folded
-        // result is a `MaterializeI64` constant binding no `Use` operand,
-        // whichever `Use` position the folded literal occupied.
-        (
-            PairOperandShape::UNARY_LITERAL
-            | PairOperandShape::BINARY_RIGHT_LITERAL_CONSTANT_RESULT
-            | PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT
-            | PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES
-            | PairOperandShape::BINARY_LEFT_LITERAL_CONSTANT_RESULT_AUXILIARY_USES_OR_SCRATCH_DEFS,
-            PairResultDisposition::ScalarRegister,
-            [result],
-        ) => {
-            if result.operand != 0
-                || result.access != RegisterOperandAccess::Def
-                || !clean(&[result])
-                || !row.implicit_defs.is_empty()
-            {
-                return Err(LiteralFoldError::ImmediateConstraintMismatch);
-            }
-        }
-        _ => return Err(LiteralFoldError::ImmediateConstraintMismatch),
+    let scalar_result = rule.result() == PairResultDisposition::ScalarRegister;
+    let (binds_surviving, binds_result) = rule
+        .rewritten_row_roles()
+        .ok_or(LiteralFoldError::ImmediateConstraintMismatch)?;
+    let survives = usize::from(binds_surviving);
+    let operands = row.operands.as_slice();
+    let well_formed = operands.len() == survives + usize::from(binds_result)
+        // Each operand sits at its own canonical index; the leading operand
+        // is the surviving `Use` channel and the trailing one the `Def`
+        // result.
+        && operands.iter().enumerate().all(|(index, operand)| {
+            usize::from(operand.operand) == index
+                && operand.access
+                    == if index < survives {
+                        RegisterOperandAccess::Use
+                    } else {
+                        RegisterOperandAccess::Def
+                    }
+                && unit_effects.admits_operand(operand)
+        })
+        // A scalar result channel declares no implicit definitions; the
+        // unit result channel publishes them in place of a `Def` — the
+        // target condition state a compare writes.
+        && row.implicit_defs.is_empty() == scalar_result
+        // A surviving `Use` and its `Def` result share one register class.
+        && operands.windows(2).all(|pair| pair[0].class == pair[1].class)
+        && unit_effects.admits_row_units(row);
+    if !well_formed {
+        return Err(LiteralFoldError::ImmediateConstraintMismatch);
     }
     Ok(())
 }
