@@ -24,9 +24,20 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/fixed_array_fivetwelve_elem_index_bound_through_<place>_exit/`
+and `tests/omega/fail/facts/fixed_array_fivetwelve_elem_index_bound_through_<place>_rejected/` for the nine places.
+Each pass fixture is a byte copy of its place program and carries the four hosted `ProgramEntry` binds and
+`expected_native_exit.txt` 0; each reject twin is a byte copy of its `<place>/invalid/main.omg`, which differs
+from the positive only in the bound contract and its comment, and carries the `cannot prove index` fragment.
+The three corpus legs recorded at `9d9ba4fb625+wt`: `corpus_outcomes.txt` 9 checked + 9 rejected
+(`check-target:macos_arm64`), `corpus_native_macos_arm64.txt` 9 built with `exit:0`, and
+`corpus_both_macos_arm64.txt` 9 built with `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `LAYOUT-PLANS` / `COUNTS-AND-ADDRESSES` / `STRUCTURAL-ACCESS` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `CONSERVATION-CONTRACT` ([TASKS.md](../../../../TASKS.md)).
 - **Requirement established:** Fixed-size 512-element array `[u64; 512]` value carrier and in-bounds indexing bounds proof and realization (`Psi 05–07` / `Omega 00–09`), verifying that a static index bound `idx < 512u64` proves safe fixed-size array indexing `arr[idx]` on `[u64; 512]` across all nine standard places.
 
 Full 8-layer specification and lowering evidence:
@@ -50,4 +61,4 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects scaled-index addressing modes (e.g. `[base + idx * 8]` on `x86_64` and `[base, idx, lsl #3]` on `arm64`). Activation frames allocate disjoint stack storage for the 4096-byte array honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open under LAYOUT-PLANS: dynamically sized slice views `&[u64]`, multidimensional array indexing layout plans, and non-power-of-two element counts exceeding register spills.
+Remaining open: dynamically sized slice views `&[u64]`, multidimensional array indexing layout plans, and non-power-of-two element counts exceeding register spills.
