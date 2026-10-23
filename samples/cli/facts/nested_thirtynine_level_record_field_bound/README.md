@@ -27,6 +27,8 @@
 | `other_machine` | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | `target_body` | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
+Match the fact sentence beside every place: each positive place is pinned as `tests/omega/pass/facts/nested_thirtynine_level_record_field_bound_through_<place>_exit` and each reject twin as `tests/omega/fail/facts/nested_thirtynine_level_record_field_bound_through_<place>_rejected`, byte-equal to the place and `invalid/` programs beside them (main.omg, build.omg, and the exit or rejection oracle).
+
 ## The Oracle
 
 Execute all positive places with:
@@ -58,6 +60,8 @@ Check all nine invalid twins with:
 omega --check samples/cli/facts/nested_thirtynine_level_record_field_bound/<place>/invalid/main.omg
 ```
 
+- The nine positive places and nine reject twins are pinned as `tests/omega/{pass,fail}/facts/nested_thirtynine_level_record_field_bound_through_<place>_{exit,rejected}`, each byte-equal to the sample program it pins, with recorded corpus rows: nine `checked ... check-target:macos_arm64` and nine `rejected ... expected` rows carrying their own `may overflow \`u64\`` diagnostic in `tests/omega/corpus_outcomes.txt`, nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, and nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `tests/omega/corpus_both_macos_arm64.txt`.
+
 ### Acceptance Gate
 
 ```sh
@@ -84,4 +88,5 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA 64-bit displacement loads and subtractions (`sub r64, r64` on `x86_64`, `sub x, x, x` on `arm64`), register allocators assign homes and activation spill slots, and entry prologues and epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Target ISA instructions and transition displacements encode into machine bytes, basic blocks relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
+- **Pinned and recorded:** 18 fixture families (`..._through_<place>_{exit,rejected}` for the nine places), 54 files byte-identical to the sample program each pins. Measured on macOS arm64 with the `factsr1` shared producer generation `gen-9b001b8f6af` at base `9b001b8f6af` (`@9b001b8f6afa+wt` stamp): nine `checked ... check-target:macos_arm64` and nine `rejected ... expected` rows in `tests/omega/corpus_outcomes.txt`, nine `built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`, nine `exit:0 interpreter-exit:0 interpreter:agrees` rows in `tests/omega/corpus_both_macos_arm64.txt`; this lane's 36 row blocks are the whole golden diff against the base, 0 keys lost, 0 timeout rows. No compiler repair was needed.
 - **What remains open:** Dynamic nested array-within-record projections, variant tagged payloads across nested structures, and mutable field updates across nested paths.
