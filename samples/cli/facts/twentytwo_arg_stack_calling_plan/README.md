@@ -24,9 +24,51 @@ Only the transport mechanism of the 22-argument calling plan and its bounded sta
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives arguments and invokes the 22-argument calling plan |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies invoke the 22-argument calling plan and consume the bounded result on each hosted target |
 
+Match the fact sentence beside every place: each positive place is pinned as
+`tests/omega/pass/facts/twentytwo_arg_stack_calling_plan_through_<place>_exit`
+and each reject twin as
+`tests/omega/fail/facts/twentytwo_arg_stack_calling_plan_through_<place>_rejected`,
+byte-equal to the place and `invalid/` programs beside them.
+
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twentytwo_arg_stack_calling_plan_through_<place>_exit`
+and
+`tests/omega/fail/facts/twentytwo_arg_stack_calling_plan_through_<place>_rejected`
+fixtures for the nine places, byte-equal to the place and `invalid/` programs
+beside them. The positive fixtures bind `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and
+the nine places carry `expected_native_exit.txt` (`0`) matching the root
+witness; each twin carries its authored ``may overflow `u64` `` fragment in
+`expected.txt`. Recorded with the shared factsr1 generation producer at
+`@d2bee86bd473+wt`: nine `_exit` positions carry `checked`
+(`check-target:macos_arm64`), `built ... exit:0` and
+`interpreter-exit:0 interpreter:agrees` rows; nine `_rejected` twins carry
+their ``exact arithmetic ... may overflow `u64` `` decision-17 diagnostics. 0
+keys lost, 0 timeout rows, 0 rejected without their expected fragment, 0 fail
+fixtures that did not reject.
+
+### Acceptance Gate
+
+```sh
+python3 tools/sample_native_gate.py --filter cli/facts/twentytwo_arg_stack_calling_plan --jobs 1
+```
+
+Re-measured on macOS arm64 with the shared generation producer (revision
+`9b001b8f6afa`): `omega run --both` exits 0 with `native exit 0` and
+`interp exit: 0` for the root witness and all nine places (10/10). Each
+place's `invalid/` twin exits 1 at checking carrying the exact diagnostic its
+`expected.txt` names (9/9), byte-identical to the diagnostics the twin produced
+at the earlier drafting revision. The same verdicts re-measure under the
+corpus record leg this row's golden rows came from: nine `checked`
+(`check-target:macos_arm64`) and nine `rejected ... expected` rows, 0 rejected
+without their expected fragment, 0 fail fixtures that did not reject, 0 lost
+rows and no timeout row.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `NORMALIZED-ABI-LOWERING` ([TASKS.md](../../../../TASKS.md)) — register/stack argument placement under the [calling-plan contract](../../../../wiki/spec/build/calling_plans.md).
 - **Requirement established:** A 22-argument calling plan across register and stack ABI slots on all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) preserves the 22nd stack-passed argument's static interval bound `40u64 <= a22 <= 80u64`, proving exact unsigned subtractions `80u64 - res` and `res - 40u64` overflow- and underflow-free without runtime checks across all nine language places.
 
 ### Full 8-Layer Specification and Lowering Evidence
@@ -42,5 +84,19 @@ Only the transport mechanism of the 22-argument calling plan and its bounded sta
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/twentytwo_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
-- Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
+- Re-measured on macOS arm64 with the shared factsr1 generation producer (revision
+  `9b001b8f6afa`): `omega run --both` exits 0 with `native exit 0` and
+  `interp exit: 0` for the root witness and all nine places (10/10); each
+  `<place>/invalid` twin exits 1 at checking carrying its authored
+  ``may overflow `u64` `` fragment (9/9).
+- The corpus golden legs this row is pinned by re-measure the same verdicts:
+  nine `checked` (`check-target:macos_arm64`) and nine `rejected ... expected`
+  rows, nine `built ... exit:0` native rows, and nine
+  `built ... exit:0 interpreter-exit:0 interpreter:agrees` agreement rows; 0
+  lost rows, 0 rejected without their expected fragment, 0 fail fixtures that
+  did not reject, no timeout row.
+- Discrimination: the positive places' guard
+  (`diff == 0u64 && headroom == 20u64 && margin == 20u64`) branches to
+  `state bad() { crash Trap; }` (exit 255), and the reject twins widen the 22nd
+  argument bound (`a22 <= 80u64` to `a22 <= 81u64`), which fails closed at
+  checking before native emission.

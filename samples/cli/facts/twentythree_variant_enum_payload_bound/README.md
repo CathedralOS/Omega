@@ -34,16 +34,16 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/twenty-threeone_variant_enum_payload_bound/target_body/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/local/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/field/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/parameter/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/call_result/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/match_join/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/const_name/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/other_state/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/other_machine/main.omg
+omega run --both samples/cli/facts/twentythree_variant_enum_payload_bound/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
@@ -74,6 +74,45 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+The same nine twins are also mirrored under `invalid/<place>/` with an authored
+`expected.txt`, so the invalid controls are discoverable by both the per-place
+route and the batch route. Each mirror is byte-identical to its per-place twin.
+
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/twentythree_variant_enum_payload_bound_through_<place>_exit`
+and
+`tests/omega/fail/facts/twentythree_variant_enum_payload_bound_through_<place>_rejected`
+fixtures for the nine places, byte-equal to the place and `invalid/` programs
+beside them. The positive fixtures bind `ProgramEntry` for all four hosted
+targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
+carry `expected_native_exit.txt` (`0`); each twin carries its place's verbatim
+diagnostic in `expected.txt`. Recorded with the shared factsr1 generation
+producer at `@d2bee86bd473+wt`: nine `_exit` positions carry `checked`
+(`check-target:macos_arm64`), `built ... exit:0` and
+`interpreter-exit:0 interpreter:agrees` rows; nine `_rejected` twins carry
+their `cannot prove requires contract` / `cannot prove ensures contract`
+diagnostics. 0 keys lost, 0 timeout rows, 0 rejected without their expected
+fragment, 0 fail fixtures that did not reject.
+
+### Acceptance Gate
+
+```sh
+python3 tools/sample_native_gate.py --filter cli/facts/twentythree_variant_enum_payload_bound --jobs 1
+```
+
+Re-measured on macOS arm64 with the shared generation producer (revision
+`9b001b8f6afa`): `omega run --both` exits 0 with `native exit 0` and
+`interp exit: 0` for the root witness and all nine places (10/10). Each
+place's `invalid/` twin exits 1 at checking carrying the exact diagnostic its
+`expected.txt` names (9/9), byte-identical to the diagnostics the twin produced
+at the earlier drafting revision. The same verdicts re-measure under the
+corpus record leg this row's golden rows came from: nine `checked`
+(`check-target:macos_arm64`) and nine `rejected ... expected` rows, 0 rejected
+without their expected fragment, 0 fail fixtures that did not reject, 0 lost
+rows and no timeout row.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)` through `V23(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all twenty-three tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
@@ -84,4 +123,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 23-variant tagged enum `TwentyThreeChoice` with a 1-byte discriminant tag (`u8` range 0..22) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 23-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins (nine per-place twins plus their nine `invalid/<place>/` mirrors) pass both native and interpreter gates with documented exit 0 and verified negative control rejection, and both fixture families are pinned under [`tests/omega/pass/facts`](../../../../tests/omega/pass/facts) and [`tests/omega/fail/facts`](../../../../tests/omega/fail/facts).
