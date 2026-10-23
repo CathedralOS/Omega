@@ -1,0 +1,24 @@
+// Fact: zero-extending narrow unsigned 100u8 through u16 and u32 to u64 preserves the exact interval 100u64, discharging exact subtraction widened - 100u64 with exit code 0.
+// Place: call result. The zero-extended value arrives from a call return result.
+// Expected exit: 0
+
+machine produce() -> u64 {
+    let narrow: u8 = 100u8;
+    ((narrow as u16) as u32) as u64
+}
+
+machine evaluate() -> i32 {
+    let extended: u64 = produce();
+    let sub: u64 = extended - 100u64;
+    sub as i32
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
