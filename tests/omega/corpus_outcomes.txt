@@ -3802,6 +3802,27 @@ fail/facts/fixed_array_thirtytwo_elem_index_bound_through_target_body_rejected r
 	cannot prove index `idx` is within length 32 in read_element::entry
 	cannot prove index `idx` is within length 32 in read_element::entry
 	cannot prove index `idx` is within length 32 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_call_result_rejected rejected 2402ms expected @9d9ba4fb6251+wt
+	cannot prove index `picked_idx` is within length 256 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_const_name_rejected rejected 2172ms expected @9d9ba4fb6251+wt
+	cannot prove index `idx` is within length 256 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_field_rejected rejected 2334ms expected @9d9ba4fb6251+wt
+	cannot prove index `container.idx` is within length 256 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_local_rejected rejected 1846ms expected @9d9ba4fb6251+wt
+	cannot prove index `local_idx` is within length 256 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_match_join_rejected rejected 1847ms expected @9d9ba4fb6251+wt
+	cannot prove index `joined_idx` is within length 256 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_other_machine_rejected rejected 1802ms expected @9d9ba4fb6251+wt
+	cannot prove index `idx` is within length 256 in fetch_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_other_state_rejected rejected 2018ms expected @9d9ba4fb6251+wt
+	cannot prove index `passed_idx` is within length 256 in read_element::element
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_parameter_rejected rejected 1945ms expected @9d9ba4fb6251+wt
+	cannot prove index `idx` is within length 256 in read_element::entry
+fail/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_rejected rejected 1830ms expected @9d9ba4fb6251+wt
+	cannot prove index `idx` is within length 256 in read_element::entry
+	cannot prove index `idx` is within length 256 in read_element::entry
+	cannot prove index `idx` is within length 256 in read_element::entry
+	cannot prove index `idx` is within length 256 in read_element::entry
 fail/facts/fixed_array_value_through_call_result_rejected rejected 3591ms expected @45cbafd80d9c
 	cannot prove index `picked_index` is within length 2 in read_element::entry
 fail/facts/fixed_array_value_through_const_name_rejected rejected 3569ms expected @45cbafd80d9c
@@ -3907,6 +3928,27 @@ fail/facts/float_result_equality_through_parameter_rejected rejected 27555ms exp
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/float_result_equality_through_target_body_rejected rejected 27667ms expected @438f700a3012+wt
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
+fail/facts/forty_variant_enum_payload_bound_through_call_result_rejected rejected 2577ms expected @9d9ba4fb6251+wt
+	cannot prove ensures contract for exit from extract_payload at statement 79: result >= 40 && result <= 80
+fail/facts/forty_variant_enum_payload_bound_through_const_name_rejected rejected 1856ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_field_rejected rejected 2024ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_local_rejected rejected 2007ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_match_join_rejected rejected 2005ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80 (needs fact `first >= 40 && first <= 80 && second >= 40 && second <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_other_machine_rejected rejected 2020ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80 (needs fact `mid >= 40 && mid <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_other_state_rejected rejected 1948ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_parameter_rejected rejected 1929ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from probe: res >= 40 && res <= 80 (needs fact `forwarded >= 40 && forwarded <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/forty_variant_enum_payload_bound_through_target_body_rejected rejected 1812ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/fortyfour_variant_enum_payload_bound_through_call_result_rejected rejected 6177ms expected @abda3e427bc9+wt
 	cannot prove ensures contract for exit from extract_payload at statement 87: result >= 40 && result <= 80
 fail/facts/fortyfour_variant_enum_payload_bound_through_const_name_rejected rejected 5983ms expected @abda3e427bc9+wt
@@ -12411,6 +12453,15 @@ pass/facts/fixed_array_thirtytwo_elem_index_bound_through_other_machine_exit che
 pass/facts/fixed_array_thirtytwo_elem_index_bound_through_other_state_exit checked 2614ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_thirtytwo_elem_index_bound_through_parameter_exit checked 2588ms check-target:macos_arm64 @9ed829f6e62d+wt
 pass/facts/fixed_array_thirtytwo_elem_index_bound_through_target_body_exit checked 2627ms check-target:macos_arm64 @9ed829f6e62d+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_call_result_exit checked 12265ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_const_name_exit checked 12274ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_field_exit checked 12823ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_local_exit checked 10950ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_match_join_exit checked 14299ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_machine_exit checked 11187ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_other_state_exit checked 11322ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_parameter_exit checked 11236ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/fixed_array_twofiftysix_elem_index_bound_through_target_body_exit checked 11858ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/fixed_array_value_through_call_result_exit checked 7852ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/fixed_array_value_through_const_name_exit checked 7913ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/fixed_array_value_through_field_exit checked 7902ms check-target:macos_arm64 @45cbafd80d9c
@@ -12456,6 +12507,15 @@ pass/facts/float_result_equality_through_other_machine_exit checked 38910ms chec
 pass/facts/float_result_equality_through_other_state_exit checked 38287ms check-target:macos_arm64 @438f700a3012+wt
 pass/facts/float_result_equality_through_parameter_exit checked 38499ms check-target:macos_arm64 @438f700a3012+wt
 pass/facts/float_result_equality_through_target_body_exit checked 38385ms check-target:macos_arm64 @438f700a3012+wt
+pass/facts/forty_variant_enum_payload_bound_through_call_result_exit checked 2261ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_const_name_exit checked 2452ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_field_exit checked 2354ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_local_exit checked 2482ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_match_join_exit checked 2330ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_other_machine_exit checked 2304ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_other_state_exit checked 2252ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_parameter_exit checked 2454ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/forty_variant_enum_payload_bound_through_target_body_exit checked 2610ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/fortyfour_variant_enum_payload_bound_through_call_result_exit checked 2540ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/fortyfour_variant_enum_payload_bound_through_const_name_exit checked 2431ms check-target:macos_arm64 @abda3e427bc9+wt
 pass/facts/fortyfour_variant_enum_payload_bound_through_field_exit checked 2356ms check-target:macos_arm64 @abda3e427bc9+wt

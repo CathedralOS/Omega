@@ -24,6 +24,21 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Pinned fixtures
+
+Each place is pinned under [`tests/omega`](../../../../tests/omega): the positive program as
+`pass/facts/fixed_array_twofiftysix_elem_index_bound_through_<place>_exit` (byte-identical
+`main.omg` and `build.omg`, `expected_native_exit.txt` = 0) and its twin as
+`fail/facts/fixed_array_twofiftysix_elem_index_bound_through_<place>_rejected`
+(byte-identical `main.omg`, `expected.txt` = `cannot prove index`).
+
+Evidence with the shared generation producer (`gen-9d9ba4fb625`, revision `9d9ba4fb625`):
+
+- root plus all nine positive places: `omega run --both` — native exit 0 and interp exit: 0;
+- all nine twins: `omega --check` — rejected with `cannot prove index ... is within length 256`;
+- golden rows for the 18 fixtures recorded in the outcome, `--native` and `--both` legs
+  (`python3 tools/corpus_gate.py --runner <gen>/corpus_runner --filter facts/fixed_array_twofiftysix_elem_index_bound --record`).
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `LAYOUT-PLANS` / `COUNTS-AND-ADDRESSES` / `STRUCTURAL-ACCESS` ([TASKS.md](../../../../TASKS.md)).
