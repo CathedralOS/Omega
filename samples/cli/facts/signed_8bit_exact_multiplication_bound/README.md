@@ -56,23 +56,53 @@ omega --check samples/cli/facts/signed_8bit_exact_multiplication_bound/<place>/i
 
 The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
-route and the batch route. Each mirror is byte-identical to its per-place twin.
+route and the batch route. Each mirror's `main.omg` and `expected.txt` are byte-identical to its
+per-place twin, and its `build.omg` differs only in its `Build::application` name.
 
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_8bit_exact_multiplication_bound --jobs 4
+omega run --both samples/cli/facts/signed_8bit_exact_multiplication_bound/main.omg
+omega --check samples/cli/facts/signed_8bit_exact_multiplication_bound/local/invalid/main.omg
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 18/18 intended-invalid controls match their authored rejection (`cannot prove requires contract for call verify_prod`).
+Each positive place and the root exits 0 in both Terminal Psi and native execution; each
+invalid twin refuses at checked compilation with `cannot prove requires contract for call
+verify_prod`. The same 10 samples plus their 18 mirrored controls can run as one batch:
+
+```sh
+python tools/sample_native_gate.py --cli <omega> --filter cli/facts/signed_8bit_exact_multiplication_bound --jobs 4
+```
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_*` and
-`tests/omega/fail/facts/signed_8bit_exact_multiplication_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under `tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_8bit_exact_multiplication_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture's `main.omg` is byte-identical to its sample place and
+carries `expected_native_exit.txt` = 0; each fail fixture's `main.omg`/`expected.txt` are byte-identical
+to its place twin; every fixture `build.omg` binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and differs from its sample `build.omg`
+only in a fixture-unique `Build::application` name. Positive versus twin `git diff` changes only the
+`rhs` bound (`rhs <= 10` to `rhs <= 11`, or `const RHS: i8 = 9` to `11`), which is the fact's own domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (revision
+`9b001b8f6afa2cdac67fd580033c3560d906a5d5`, omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with `cannot prove requires contract for call
+  verify_prod` naming its call site (`compute_local`, `compute_field`, `compute_parameter`,
+  `compute_call_result`, `compute_match_join`, `compute_const`, `compute_other_state`,
+  `compute_other_machine`, `compute_target_body`).
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `9b001b8f6afa`, so every row is stamped `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained
+  60 lines (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with
+  24 diagnostic continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18
+  `built ... exit:0` rows and `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0
+  interpreter-exit:0 interpreter:agrees` rows. Every golden diff is an addition (0 deletions); all three
+  legs exited 0 with 0 timeout rows and 0 fail rows that lost their expected fragment.
 
 ## Requirements and Evidence
 

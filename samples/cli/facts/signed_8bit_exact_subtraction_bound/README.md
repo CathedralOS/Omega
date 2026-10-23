@@ -24,6 +24,65 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Execution
+
+Each positive place and the root `main.omg` is an application that exits 0 in both Terminal Psi and
+native execution:
+
+```sh
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/local/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/field/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/parameter/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/call_result/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/match_join/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/const_name/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/other_state/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/other_machine/main.omg
+omega run --both samples/cli/facts/signed_8bit_exact_subtraction_bound/target_body/main.omg
+```
+
+### Acceptance Gate
+
+```sh
+omega --check samples/cli/facts/signed_8bit_exact_subtraction_bound/local/invalid/main.omg
+python tools/sample_native_gate.py --cli <omega> --filter cli/facts/signed_8bit_exact_subtraction_bound --jobs 4
+```
+
+`sample_native_gate.py` runs the 10 samples plus the 18 mirrored invalid controls as one batch.
+
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_8bit_exact_subtraction_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_8bit_exact_subtraction_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture's `main.omg` is byte-identical to its sample place and
+carries `expected_native_exit.txt` = 0; each fail fixture's `main.omg`/`expected.txt` are byte-identical
+to its place twin; every fixture `build.omg` binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and differs from its sample `build.omg`
+only in a fixture-unique `Build::application` name. Positive versus twin `git diff` widens only the `rhs`
+bound (`rhs <= 20` to `rhs <= 25`) and evaluates at the widened extreme (inputs 80,15 to 60,25), which is
+the fact's own domain.
+
+Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8f6af` (revision
+`9b001b8f6afa2cdac67fd580033c3560d906a5d5`, omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`, corpus_runner sha256
+`cee00bbdce17fc300b548aca249c2e9e2a44e59c17e97186055da76c3947444e`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse; eight report `cannot prove requires contract` naming
+  their consumer (`verify_diff` in five places, `check_param`, `runner`, `exercise`), and the
+  `call_result` twin reports `cannot prove ensures contract for exit from produce_diff at statement 0:
+  result >= 40 && result <= 90`, the callee's own postcondition that the widened bound can no longer
+  establish.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `9b001b8f6afa`, so every row is stamped `@9b001b8f6afa+wt`: `tests/omega/corpus_outcomes.txt` gained
+  60 lines (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with
+  24 diagnostic continuation lines), `tests/omega/corpus_native_macos_arm64.txt` gained 18
+  `built ... exit:0` rows and `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0
+  interpreter-exit:0 interpreter:agrees` rows. Every golden diff is an addition (0 deletions); all three
+  legs exited 0 with 0 timeout rows and 0 fail rows that lost their expected fragment.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` ([TASKS.md](../../../../TASKS.md)).
@@ -43,8 +102,8 @@ Full 8-layer specification and lowering evidence:
   - `other_state`: subtraction result is passed across a transition edge into successor state `step(forwarded: i8)`.
   - `other_machine`: subtraction result is forwarded through intermediate machine `runner()`.
   - `target_body`: subtraction result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
-  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the `rhs` upper bound to `rhs >= 10 && rhs <= 25` (where `diff` reaches `60 - 25 = 35i8 < 40i8`), proving that downstream contract verification `requires diff >= 40 && diff <= 90` strictly fails closed when the post-subtraction bound drops below 40.
-- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: cannot prove ... contract ...: ... >= 40`, confirming that the proof engine soundly detects that when `diff` can be 35, contract satisfaction cannot be established.
+  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the `rhs` upper bound to `rhs <= 25` and evaluating the subtraction at the widened extreme (inputs `80,15` to `60,25`, where `diff` reaches `60 - 25 = 35i8 < 40i8`), proving that downstream contract verification `requires diff >= 40 && diff <= 90` strictly fails closed when the post-subtraction bound drops below 40.
+- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`). Eight refuse with `cannot prove requires contract` naming their consumer (`verify_diff` in five places, `check_param`, `runner`, `exercise`); the `call_result` twin refuses with `cannot prove ensures contract for exit from produce_diff at statement 0: result >= 40 && result <= 90`. The proof engine soundly detects that when `diff` can be 35, contract satisfaction cannot be established.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. 8-bit signed exact subtractions are lowered with verified overflow certificates (`[-128, 127]`), preserving interval bounds and erasing proof tags. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate 1-byte `i8` scalar storage and alignment, while calling plans assign 8-bit register homes (`al`/`dil`/`sil` on x86_64, `w0`/`w1` on arm64) for passing values across calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA subtraction instructions: 8-bit `sub r8, r8` on `x86_64` and sign-extended 8-bit subtraction `sub w, w, w` on `arm64`. Register allocation assigns register homes and activation frames honoring the `StatePlan` ceiling.
