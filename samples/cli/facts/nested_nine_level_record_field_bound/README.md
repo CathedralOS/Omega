@@ -64,6 +64,16 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/nested_nine_level_record_field_bound_through_*` fixtures (9 `_exit` positives, 9 `_rejected` twins); every positive records `built ... exit:0` on the native leg and `interpreter-exit:0 interpreter:agrees` on the both leg, and the check leg records all 9 positives `checked` with `check-target:macos_arm64`. The nine pass fixtures are byte-identical copies of their place programs, `build.omg` included, so the sample and the fixture cannot drift apart.
+
+Recorded with the shared opt-level 1 producer `gen-4c23cc3391c` (omega sha256 `83c7ae2a4544...`, corpus_runner sha256 `a1de848f1baca...`, macos_arm64): check leg 36 fixtures — 18 `checked` with `check-target:macos_arm64`, 18 `rejected` each carrying its own `may overflow \`u64\`` fragment, no fail fixture recorded `checked`, 0 rows recording a lost success; native leg 18 `built ... exit:0`; both leg 18 `built ... exit:0 interpreter-exit:0 interpreter:agrees`. The rows are pure additions: 60/0 lines in `corpus_outcomes.txt`, 18/0 in `corpus_native_macos_arm64.txt`, 18/0 in `corpus_both_macos_arm64.txt`, all stamped `@80e7797d0e1e+wt`.
+
+All nine twins widen only the declared leaf bound (`val <= 80u64` to `val <= 81u64`); the const_name twin also raises `VAL_LEAF` from `60u64` to `81u64` so the constant reaches the widened bound. `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in that bound and the twin's own header comment.
+
+The row's ten sample `expected_native_exit.txt` files held a bare newline, which the oracle reader parses as an invalid exit expectation (`int('')`); they now hold `0\n`, matching every sibling nested row and the `Expected exit: 0` header, so each fixture copy is byte-for-byte and every positive carries a real authored exit promise.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
