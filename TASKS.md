@@ -5563,25 +5563,25 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   - Default builds and anonymous owners
     ([spec](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)):
-    `omega-rust/omega/packages/compilation-inputs/src/source_imports/frontier.rs`
-    leaves loose roots without package identity. Derive the versioned anonymous
-    content record after the one Build activation's dependency requests join and
-    before product source compilation. Use an invocation-private activation
-    identity only for Build state/continuations; never publish it as a declaration
-    owner. Keep supplied package/core owners;
-    deduplicate dependency nodes while keeping separate host/target build
-    instances. A missing build uses default configuration, with no catalog,
-    host-path identity, ambient authority or special `main` discovery. Carry
-    owner/declaration provenance through specialization and artifact
-    encode/reload. Named-only OCREQ v1 cannot encode anonymous owners; local
-    repair need not wait for the
-    [standalone-request extension](wiki/spec/build/compiler_request.md).
+    Authored anonymous Build activations still need a versioned content owner
+    after dependency requests join and before product declaration identities
+    are interned. Keep activation state/continuations invocation-private;
+    never publish that activation identity as a declaration owner. Preserve
+    supplied package/core owners and deduplicate dependency nodes while keeping
+    host/target checked instances separate. The missing-Build empty join and
+    owner transport are covered by `samples/cli/facts/nominal_declaration_owner`
+    plus the loose-source compiler integration test; extend the same contract
+    to nonempty authored joins without rebasing already interned keys. Keep
+    specialization and artifact reload provenance exact. Named-only OCREQ V1
+    still cannot encode anonymous owners; local source admission must not infer
+    lineage, authority or an entry from host paths or a special `main` spelling.
     Corpus inputs already supply package identities, so
     `pass/control_flow/guarded_leaf_branch_expansion`,
     `pass/text/runtime_alias_string_write` and
     `fail/build/package_local_calling_copy` do not exercise the loose route.
-    Open: what the negative should pin once loose roots carry owners (for
-    example, a policy built from copied types must not select as `std::calling`).
+    Beyond the row's namespace and copied-owner controls, pin an authored
+    anonymous calling policy built from copied types refusing selection as
+    `std::calling` when nonempty anonymous Build joins are implemented.
   - Direct-import runtime acceptance: the supplemental no-Console
     `pass/modules/direct_file_import_process_exit` constructs the directly
     imported `A`, observes its value, and exits 7 in native and Terminal

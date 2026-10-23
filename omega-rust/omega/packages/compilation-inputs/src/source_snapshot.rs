@@ -290,7 +290,7 @@ fn retained_entries_input(
     )
 }
 
-fn capture_relative_path_bytes(path: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn capture_relative_path_bytes(path: &Path) -> Result<Vec<u8>, String> {
     let mut relative = Vec::new();
     for component in path.components() {
         let std::path::Component::Normal(name) = component else {

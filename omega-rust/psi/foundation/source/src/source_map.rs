@@ -28,6 +28,33 @@ impl SourceMap {
         }
     }
 
+    /// Install the completed default-build owner's metadata before resolution.
+    /// Supplied package identities and toolchain declarations remain exact.
+    /// Source IDs, bytes and checked-context instances are never coalesced.
+    pub fn bind_default_anonymous_owner(
+        &mut self,
+        root: &std::path::Path,
+        identity: PackageKeyIdentity,
+    ) -> Result<(), String> {
+        for file in &self.files {
+            if file.origin == SourceOrigin::User
+                && file.package_identity.is_none()
+                && file.package_root != root
+            {
+                return Err(format!(
+                    "source {} has no supplied owner outside the anonymous capture",
+                    file.path.display()
+                ));
+            }
+        }
+        for file in &mut self.files {
+            if file.origin == SourceOrigin::User && file.package_identity.is_none() {
+                file.package_identity = Some(identity);
+            }
+        }
+        Ok(())
+    }
+
     /// Record product-scope dependency edges keyed by requesting package.
     /// Aliases are already exact and per-package unique upstream.
     pub fn retain_product_dependency_scope<'a>(

@@ -19,6 +19,8 @@ pub(crate) struct SourceStorage {
     pub resolved_imports: Vec<super::ResolvedSourceImport>,
     default_package_root: PathBuf,
     default_package_identity: Option<PackageKeyIdentity>,
+    anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>,
+    anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>,
     package_roots: Vec<RegisteredPackageRoot>,
     toolchain_root: Option<PathBuf>,
     // Import reconciliation borrows custody independently of its mutable results.
@@ -65,16 +67,136 @@ impl SourceStorage {
                 Ok(storage)
             }
             None => {
-                let root_package = root_path
-                    .parent()
-                    .map(Path::to_path_buf)
-                    .unwrap_or_else(|| PathBuf::from("."));
-                Ok(SourceStorage::for_compilation(
-                    root_package,
-                    super::bundled_omega_root()?,
-                ))
+                let root_package = if root_path.is_dir() {
+                    root_path.to_path_buf()
+                } else {
+                    root_path
+                        .parent()
+                        .filter(|path| !path.as_os_str().is_empty())
+                        .unwrap_or_else(|| Path::new("."))
+                        .to_path_buf()
+                };
+                // The content owner and every compiler source read must see
+                // the same complete snapshot, including negative observations.
+                let captured = package_source::local::operations::capture_local_source_input(
+                    &root_package,
+                    package_source::LocalSourceLimits::default(),
+                )
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "cannot capture anonymous source: {error}"
+                    ))]
+                })?;
+                let root = captured.canonical_live_root().to_path_buf();
+                let mut storage =
+                    SourceStorage::for_compilation(root.clone(), super::bundled_omega_root()?);
+                storage
+                    .filesystem
+                    .add_capture(root, captured.tree().clone())
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "cannot mount anonymous source capture: {error}"
+                        ))]
+                    })?;
+                storage.anonymous_capture = Some(captured.tree().clone());
+                // Core is a closed toolchain dependency, not the subset of
+                // declarations demanded by one exported machine.
+                let core = package_source::local::operations::capture_local_source_input(
+                    super::bundled_core_root()?,
+                    package_source::LocalSourceLimits::default(),
+                )
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "cannot capture anonymous core dependency: {error}"
+                    ))]
+                })?;
+                let core_root = core.canonical_live_root().to_path_buf();
+                let core_tree = if core_root == storage.default_package_root {
+                    captured.tree().clone()
+                } else {
+                    storage
+                        .filesystem
+                        .add_capture(core_root.clone(), core.tree().clone())
+                        .map_err(|error| {
+                            vec![Diagnostic::error(format!(
+                                "cannot mount captured core dependency: {error}"
+                            ))]
+                        })?;
+                    core.tree().clone()
+                };
+                storage.anonymous_core_capture = Some((core_root, core_tree));
+                Ok(storage)
             }
         }
+    }
+
+    /// A missing Build has no activation or dependency requests: its default
+    /// configuration's empty join is already complete. Seal before Product
+    /// resolution, so derived domain/callable keys are minted with final owners
+    /// rather than rewriting interned semantic identities after typing.
+    pub(crate) fn seal_default_anonymous_owner(
+        &mut self,
+        generated: &[(source::SourceId, build_output::PackageGeneratedSource)],
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.default_package_identity.is_some() {
+            return Ok(());
+        }
+        let Some(capture) = &self.anonymous_capture else {
+            return Ok(());
+        };
+        // SourceFile preserves the caller's diagnostic spelling, including
+        // relative paths. Resolve containment through this invocation's captured
+        // namespace, never by hashing or trusting that display spelling.
+        for file in self
+            .sources
+            .files()
+            .filter(|file| file.origin == SourceOrigin::User && file.package_identity.is_none())
+        {
+            if generated
+                .iter()
+                .any(|(source, _)| *source == file.source_id)
+            {
+                continue; // exact compiler-generated unit custody keeps its generating owner
+            }
+            let path = self.filesystem.canonicalize(&file.path).map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot resolve anonymous source {}: {error}",
+                    file.path.display()
+                ))]
+            })?;
+            if !path.starts_with(&self.default_package_root) {
+                return Err(vec![Diagnostic::error(format!(
+                    "source {} has no supplied owner outside the anonymous capture",
+                    file.path.display()
+                ))]);
+            }
+        }
+        let (core_root, core_snapshot) = self.anonymous_core_capture.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "anonymous source capture lost its core dependency",
+            )]
+        })?;
+        let core_identity = crate::anonymous_owner::core_snapshot_identity(core_snapshot)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        // Virtual and closed toolchain-contract inputs outside core remain
+        // exact; checked-context duplication and core demand order do not
+        // rename this complete captured source owner.
+        let contracts = crate::toolchain_source_identities(
+            self.sources
+                .files()
+                .filter(|file| file.package_root != *core_root),
+        )?;
+        let identity = crate::anonymous_owner::derive(
+            capture,
+            std::iter::once(core_identity)
+                .chain(contracts.into_iter().map(|(_, identity)| identity)),
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+        self.sources
+            .bind_default_anonymous_owner(&self.default_package_root, identity)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        self.default_package_identity = Some(identity);
+        Ok(())
     }
 
     pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
@@ -231,13 +353,6 @@ impl SourceStorage {
         if let Some(contract_root) = self.toolchain_contract_custody.root_for(path) {
             return (contract_root.to_path_buf(), None, SourceOrigin::Toolchain);
         }
-        if origin_override == Some(SourceOrigin::Toolchain) {
-            return (
-                self.toolchain_root.clone().unwrap_or_default(),
-                None,
-                SourceOrigin::Toolchain,
-            );
-        }
         if let Some(toolchain_root) = &self.toolchain_root
             && path.starts_with(toolchain_root)
         {
@@ -258,6 +373,16 @@ impl SourceStorage {
             {
                 return (core_root, None, SourceOrigin::Toolchain);
             }
+        }
+
+        // Explicit parser-origin tags must not rebase core onto the broader
+        // library root. Implicit and explicit imports keep one core owner.
+        if origin_override == Some(SourceOrigin::Toolchain) {
+            return (
+                self.toolchain_root.clone().unwrap_or_default(),
+                None,
+                SourceOrigin::Toolchain,
+            );
         }
 
         let package = self
@@ -437,5 +562,32 @@ mod tests {
         assert_eq!(storage.sources.text_at(product_span), "Shared");
         drop(storage);
         assert!(retained.upgrade().is_none());
+    }
+    #[test]
+    fn implicit_explicit_and_package_core_imports_keep_the_same_owner() {
+        let base = std::env::temp_dir().join("omega-core-source-metadata");
+        let library = base.join("library");
+        let core = library.join("core");
+        let path = core.join("storage.omg");
+        let loose = SourceStorage::for_compilation(base.join("application"), library);
+        let implicit = loose.source_metadata(&path, None);
+        let explicit = loose.source_metadata(&path, Some(SourceOrigin::Toolchain));
+        assert_eq!(
+            implicit, explicit,
+            "a parser origin tag must not rename core"
+        );
+        assert_eq!(implicit.0, core);
+        assert_eq!(implicit.1, None);
+        assert_eq!(implicit.2, SourceOrigin::Toolchain);
+        let supplied = SourceStorage::for_package_compilation(
+            base.join("application"),
+            semantic_vocabulary::PackageKeyIdentity::from_digest([29; 32]).unwrap(),
+            core,
+            source::SourceFileSystem::new(),
+        );
+        assert_eq!(
+            implicit,
+            supplied.source_metadata(&path, Some(SourceOrigin::Toolchain))
+        );
     }
 }

@@ -467,6 +467,15 @@ pass/facts/no_wrap_domain_through_other_machine_exit built 9467ms exit:0 interpr
 pass/facts/no_wrap_domain_through_other_state_exit built 9048ms exit:0 interpreter-exit:0 interpreter:agrees @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_parameter_exit built 7679ms exit:0 interpreter-exit:0 interpreter:agrees @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_target_body_exit built 7511ms exit:0 interpreter-exit:0 interpreter:agrees @d2f0e31ca0d4+wt
+pass/facts/nominal_declaration_owner_through_call_result built 4430ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_const_name built 4303ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_field built 5553ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_local built 5186ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_match_join built 7092ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_other_machine built 5359ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_other_state built 7193ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_parameter built 7057ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_target_body built 4474ms exit:0 interpreter-exit:0 interpreter:agrees @f67ca304996f+wt
 pass/facts/nominal_loan_backing_cleanup_through_call_result_exit built 10796ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_const_name_exit built 15946ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @753e7ce7a36e+wt
 pass/facts/nominal_loan_backing_cleanup_through_field_exit built 15765ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @753e7ce7a36e+wt

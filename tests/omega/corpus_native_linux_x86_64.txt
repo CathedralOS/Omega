@@ -1707,6 +1707,15 @@ pass/facts/no_wrap_domain_through_other_machine_exit built 8095ms exit:0 @d2f0e3
 pass/facts/no_wrap_domain_through_other_state_exit built 8896ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_parameter_exit built 8691ms exit:0 @d2f0e31ca0d4+wt
 pass/facts/no_wrap_domain_through_target_body_exit built 8261ms exit:0 @d2f0e31ca0d4+wt
+pass/facts/nominal_declaration_owner_through_call_result built 4163ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_const_name built 4113ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_field built 4229ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_local built 4131ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_match_join built 3544ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_other_machine built 3415ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_other_state built 3647ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_parameter built 3555ms exit:0 @f67ca304996f+wt
+pass/facts/nominal_declaration_owner_through_target_body built 2496ms exit:0 @f67ca304996f+wt
 pass/facts/opaque_closed_carrier_exchange_exit built 105588ms exit:70 terminal-runtime.observe:unrequested terminal-inspections:match @4bae60101579
 pass/facts/opaque_closed_carrier_through_call_result_exit built 1389ms exit:0 @30a3df3bc2fe
 pass/facts/opaque_closed_carrier_through_const_name_exit built 1399ms exit:0 @30a3df3bc2fe

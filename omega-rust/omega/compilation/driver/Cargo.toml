@@ -101,3 +101,9 @@ path = "tests/terminal_decode_once.rs"
 name = "placed_view_calls"
 path = "tests/placed_view_calls.rs"
 
+# Loose roots intentionally have no fixture-supplied package owner. This
+# boundary test derives that owner, reloads its artifact and runs consumers
+# against the exact supplied identity; ordinary corpus setup masks this path.
+[[test]]
+name = "anonymous_module_owner"
+path = "tests/anonymous_module_owner.rs"

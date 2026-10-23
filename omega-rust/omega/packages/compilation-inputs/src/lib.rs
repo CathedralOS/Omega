@@ -22,6 +22,7 @@
 //! This package is the shared input contract below compilation and package
 //! commands, not a dependency on either application's orchestration.
 
+mod anonymous_owner;
 pub mod build_execution;
 mod canonical_fs;
 mod checked_source_cache;

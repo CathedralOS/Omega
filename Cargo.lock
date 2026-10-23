@@ -1371,6 +1371,7 @@ dependencies = [
  "filesystem-authority",
  "flow-effects",
  "optimization-core",
+ "package-source",
  "platform-custody",
  "psi-compiler",
  "semantic-vocabulary",

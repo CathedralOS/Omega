@@ -301,6 +301,12 @@ impl ImmutableSourceParseCheckpoint {
         source_scoped_top_level_bindings.extend(
             crate::source_imports::retain_module_import_bindings(&source_storage)?,
         );
+        // Default Build has completed its empty dependency join. No authored
+        // activation is run or replayed here, and supplied graph owners remain
+        // authoritative. Product declaration identities have not been minted.
+        if self.build_source_id.is_none() {
+            source_storage.seal_default_anonymous_owner(&generated_source_custody)?;
+        }
         let source_file_count = source_storage.file_count();
         let build_scope_sources = source_storage
             .sources

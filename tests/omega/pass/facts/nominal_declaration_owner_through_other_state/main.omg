@@ -1,0 +1,10 @@
+// A library Token retains its declaring owner when it reaches library::read.
+// Expected exit: 0
+use shared::library::Token;
+use shared::library::read;
+machine transported() -> u8 { transition { _ -> receive(Token { value: 7 }) } state receive(token: Token) -> u8 { read(token) } }
+machine main() crashes Trap {
+    transition transported() == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

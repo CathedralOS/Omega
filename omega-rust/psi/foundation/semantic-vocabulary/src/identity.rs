@@ -89,7 +89,8 @@ pub enum BoundaryCompletion {
     External(ExternalCompletionKind),
 }
 
-/// Opaque commitment to a canonical package name and source lineage.
+/// Opaque commitment to a named package lineage or a versioned anonymous
+/// content-owner record. Their canonical record domains are distinct.
 ///
 /// Construction of the commitment belongs to the package layer. Psi carries
 /// the resulting identity without depending on source-location policy.
