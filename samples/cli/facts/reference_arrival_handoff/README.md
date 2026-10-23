@@ -29,6 +29,17 @@ moved reference is the place:
 Each twin keeps the source binding or backing writable while the receiving
 loan is live; it must reject at the pinned borrow-active obligation.
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/reference_arrival_handoff_through_*`.
+Each of the nine positive places has a
+`tests/omega/pass/facts/reference_arrival_handoff_through_<place>_exit` pin — the
+place program with its `build.omg` and authored native exit 0 — and each reject
+twin is pinned at
+`tests/omega/fail/facts/reference_arrival_handoff_through_<place>_rejected` with
+that twin's borrow-active fragment in `expected.txt`. The `cleanup_receiver`
+variations keep their own pinned rows beside them.
+
 This row covers **MATCH-SELECTIVE-LOWERING** in [TASKS.md](../../../../TASKS.md):
 transport the exact exclusive loan through an arrival, then write through that
 arrival to its original backing. The contracts are

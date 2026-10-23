@@ -2019,6 +2019,15 @@ pass/facts/result_cleanup_guarantees_through_other_machine_exit built 47284ms ex
 pass/facts/result_cleanup_guarantees_through_other_state_exit built 47652ms exit:0 @a89cb4914b5c
 pass/facts/result_cleanup_guarantees_through_parameter_exit built 47284ms exit:0 @a89cb4914b5c
 pass/facts/result_cleanup_guarantees_through_target_body_exit built 47280ms exit:0 @a89cb4914b5c
+pass/facts/returned_linear_residual_through_call_result_exit built 8348ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_const_name_exit built 8385ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_field_exit built 6682ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_local_exit built 6444ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_match_join_exit built 5054ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_other_machine_exit built 5252ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_other_state_exit built 4830ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_parameter_exit built 4873ms exit:0 @114906953e11+wt
+pass/facts/returned_linear_residual_through_target_body_exit built 4271ms exit:0 @114906953e11+wt
 pass/facts/runtime_count_index_through_call_result_exit built 15058ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_const_name_exit built 15315ms exit:0 @ce5f8c9f2f5f
 pass/facts/runtime_count_index_through_field_exit built 15148ms exit:0 @ce5f8c9f2f5f
