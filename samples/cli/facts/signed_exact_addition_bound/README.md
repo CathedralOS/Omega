@@ -2,8 +2,12 @@
 
 Fact: Adding two bounded signed i64 values (base >= 20i64 && base <= 40i64 and delta >= 10i64 && delta <= 30i64) establishes the exact post-addition interval (sum >= 30i64 && sum <= 70i64), discharging exact subtraction 70i64 - sum across all nine places.
 
-Owning Task: `NUMERIC-SCALARS` / `CONSERVATION-CONTRACT` (`TASKS.md`)
-Claim Ticket: `f8a12049b6d3416291d3fc678f1a3b11`
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state parameters
+`requires`, results `ensures`, locals the facts from initializers, guards and calls" — this row
+is one customer group's nine-place transport and execution of that settled proposition-based
+scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying numeric-policy
+realization.
+Claim Ticket: `734f3cb98864422f909a5528490239a2`
 
 ## Places
 
@@ -67,6 +71,30 @@ The compiler strictly fails closed at compile time with:
 | `other_state` | native 0 / interp 0 | `cannot prove requires contract for call consume from probe: sum >= 30 && sum <= 70` |
 | `other_machine` | native 0 / interp 0 | `cannot prove requires contract for call forward_sum from probe: sum >= 30 && sum <= 70` |
 | `target_body` | native 0 / interp 0 | `cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40` |
+
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_exact_addition_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_exact_addition_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample
+place's `main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a
+byte-identical copy of its place twin's `main.omg`/`build.omg`/`expected.txt`.
+
+Measured on macOS arm64 with the factsr1 shared producer built from base `9d9ba4fb625`
+(omega sha256 `5a2fde4a3a914444db08f00e9849e06557fe0d6c8cf5fd5591c9b413bdd0e9ab`,
+corpus_runner sha256 `98a455599b4d5e13da5f950255736147d1e7fb4508acc76fc6ea5acba18da00a`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+  `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with their authored
+  `cannot prove requires contract ...` fragment.
+- `python3 tools/corpus_gate.py --runner <gen>/corpus_runner --record --filter
+  facts/signed_exact_addition_bound,facts/signed_exact_subtraction_bound` recorded three legs
+  stamped `@9d9ba4fb625+wt`: 36 outcome rows (18 `checked check-target:macos_arm64` plus 18
+  `rejected expected`), 18 native rows (`built ... exit:0`) and 18 both rows (`exit:0
+  interpreter-exit:0 interpreter:agrees`). Every golden diff was a pure addition (0 deletions),
+  with 0 unimplemented rows and 0 rows recording a lost success.
 
 ## Requirements and Evidence (AGENTS.md)
 

@@ -1,0 +1,38 @@
+// Fact: subtracting two bounded signed i64 values establishes the exact post-subtraction interval, discharging a downstream contract requiring diff >= 50i64 && diff <= 80i64 across all nine places.
+// Place: parameter. The difference of the signed subtraction is forwarded as a machine parameter.
+// Expected exit: 0
+machine consume(diff: i64) -> i32
+    requires diff >= 50 && diff <= 80
+{
+    let u: u64 = diff as u64;
+    let sub: u64 = u - 50u64;
+    sub as i32
+}
+
+machine forward_param(d: i64) -> i64
+    ensures result == d
+{
+    d
+}
+
+machine subtract_signed(minuend: i64, subtrahend: i64) -> i32
+    requires minuend >= 80 && minuend <= 100 && subtrahend >= 20 && subtrahend <= 30
+{
+    let diff: i64 = minuend - subtrahend;
+    let transported: i64 = forward_param(diff);
+    consume(transported)
+}
+
+machine evaluate() -> i32 {
+    subtract_signed(90, 25)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 15 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

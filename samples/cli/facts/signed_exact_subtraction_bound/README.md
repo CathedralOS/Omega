@@ -61,22 +61,46 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 ### Acceptance Gate
 
 ```sh
-python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\omega-latest.exe --filter cli/facts/signed_exact_subtraction_bound --jobs 4
+python3 tools/sample_native_gate.py --cli <gen>/omega --filter cli/facts/signed_exact --jobs 2
 ```
 
-`sample_native_gate.py` reports:
-- 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 18/18 intended-invalid controls match their authored rejection (`cannot prove requires contract for call consume`).
+Measured on macOS arm64 with the factsr1 shared producer built from base `9d9ba4fb625`:
+- 30/30 filtered samples meet their documented oracle on `macos_arm64` — the ten places and
+  root of this row, of `signed_exact_addition_bound`, and of `signed_exact_multiplication_bound`.
+- 36/36 filtered intended-invalid controls match their authored rejection; this row's nine
+  twins all match `cannot prove requires contract for call consume`.
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/signed_exact_subtraction_bound_through_*` and
-`tests/omega/fail/facts/signed_exact_subtraction_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under `tests/omega/pass/facts/signed_exact_subtraction_bound_through_<place>_exit`
+and `tests/omega/fail/facts/signed_exact_subtraction_bound_through_<place>_rejected` for the nine
+places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`,
+`other_machine`, `target_body`). Each pass fixture is a byte-identical copy of its sample
+place's `main.omg`/`build.omg` plus `expected_native_exit.txt` = 0; each fail fixture is a
+byte-identical copy of its place twin's `main.omg`/`build.omg`/`expected.txt`.
+
+Measured on macOS arm64 with the factsr1 shared producer built from base `9d9ba4fb625`
+(omega sha256 `5a2fde4a3a914444db08f00e9849e06557fe0d6c8cf5fd5591c9b413bdd0e9ab`,
+corpus_runner sha256 `98a455599b4d5e13da5f950255736147d1e7fb4508acc76fc6ea5acba18da00a`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+  `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 refuse with their authored
+  `cannot prove requires contract for call consume` fragment.
+- `python3 tools/corpus_gate.py --runner <gen>/corpus_runner --record --filter
+  facts/signed_exact_addition_bound,facts/signed_exact_subtraction_bound` recorded three legs
+  stamped `@9d9ba4fb625+wt`: 36 outcome rows (18 `checked check-target:macos_arm64` plus 18
+  `rejected expected`), 18 native rows (`built ... exit:0`) and 18 both rows (`exit:0
+  interpreter-exit:0 interpreter:agrees`). Every golden diff was a pure addition (0 deletions),
+  with 0 unimplemented rows and 0 rows recording a lost success.
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): "machine/state
+  parameters `requires`, results `ensures`, locals the facts from initializers, guards and
+  calls". This row is one customer group's nine-place transport and execution of that settled
+  proposition-based scalar range contract; `ARITHMETIC-POLICY-REALIZATION` owns the underlying
+  numeric-policy realization.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for signed `i64` exact subtraction interval synthesis and downstream contract discharge. Specifically, subtracting two bounded signed integers (`80i64 <= minuend <= 100i64` and `20i64 <= subtrahend <= 30i64`) statically establishes the difference interval `50i64 <= diff <= 80i64`, discharging a downstream callee requiring `50i64 <= diff <= 80i64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**

@@ -6529,6 +6529,48 @@ fail/facts/signed_division_quotient_unproved_target_body rejected 2471ms expecte
 	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `verify_target` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_exact_addition_bound_through_call_result_rejected rejected 3821ms expected @9d9ba4fb6251+wt
+	cannot prove ensures contract for exit from compute_sum at statement 0: result >= 30 && result <= 70
+fail/facts/signed_exact_addition_bound_through_const_name_rejected rejected 3675ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume_margin from probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_field_rejected rejected 3585ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume_margin from probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_local_rejected rejected 4025ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume_margin from probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_match_join_rejected rejected 4271ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call choose from probe: sum >= 30 && sum <= 70 && 50 >= 30 && 50 <= 70 (needs fact `first >= 30 && first <= 70 && second >= 30 && second <= 70` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_other_machine_rejected rejected 4213ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call forward_sum from probe: sum >= 30 && sum <= 70 (needs fact `mid >= 30 && mid <= 70` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_other_state_rejected rejected 6956ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from probe: sum >= 30 && sum <= 70 (needs fact `forwarded_sum >= 30 && forwarded_sum <= 70` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_parameter_rejected rejected 6940ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call subtract_and_consume from probe: sum >= 30 && sum <= 70 (needs fact `forwarded_sum >= 30 && forwarded_sum <= 70` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_addition_bound_through_target_body_rejected rejected 9391ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_call_result_rejected rejected 10152ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_const_name_rejected rejected 9985ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_field_rejected rejected 9321ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: holder.value >= 50 && holder.value <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_local_rejected rejected 8703ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: transported >= 50 && transported <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_match_join_rejected rejected 9296ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: joined >= 50 && joined <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_other_machine_rejected rejected 10899ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_other_state_rejected rejected 22055ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: d >= 50 && d <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_exact_subtraction_bound_through_parameter_rejected rejected 14761ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: transported >= 50 && transported <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_subtraction_bound_through_target_body_rejected rejected 15346ms expected @9d9ba4fb6251+wt
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 19381ms expected @e44ed43aefa9
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_const_name_rejected rejected 20515ms expected @e44ed43aefa9
@@ -13334,6 +13376,24 @@ pass/facts/signed_division_quotient_through_other_machine_exit checked 7732ms ch
 pass/facts/signed_division_quotient_through_other_state_exit checked 7768ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_parameter_exit checked 7682ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/signed_division_quotient_through_target_body_exit checked 7726ms check-target:macos_arm64 @45cbafd80d9c
+pass/facts/signed_exact_addition_bound_through_call_result_exit checked 4383ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_const_name_exit checked 4492ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_field_exit checked 4380ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_local_exit checked 4512ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_match_join_exit checked 3702ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_other_machine_exit checked 3580ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_other_state_exit checked 3573ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_parameter_exit checked 3382ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_addition_bound_through_target_body_exit checked 3602ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_call_result_exit checked 3428ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_const_name_exit checked 5273ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_field_exit checked 3714ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_local_exit checked 4843ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_match_join_exit checked 4730ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_other_machine_exit checked 4628ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_other_state_exit checked 4833ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_parameter_exit checked 4230ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_subtraction_bound_through_target_body_exit checked 4434ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/slice_view_layout_geometry_through_call_result_exit checked 39506ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_const_name_exit checked 42742ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_field_exit checked 41786ms check-target:macos_arm64 @e44ed43aefa9
