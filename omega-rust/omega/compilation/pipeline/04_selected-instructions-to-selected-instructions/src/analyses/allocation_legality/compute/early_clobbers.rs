@@ -30,14 +30,14 @@ pub(super) fn compute(
             });
         }
         let fixed = fixed_views::for_early_clobber(function_index, register, early)?;
-        let mut candidates = views.unconstrained(class, available, early.block, early.early_point);
-        views.restrict_to_fixed(
+        let candidates = views.candidates_at(
             function_index,
             register,
+            class,
+            available,
             early.block,
             early.early_point,
             fixed,
-            &mut candidates,
         )?;
         if candidates.is_empty() {
             return Err(AllocationLegalityError::NoCandidateViews {
@@ -53,7 +53,7 @@ pub(super) fn compute(
             instruction: early.instruction,
             operand: early.def_operand,
             point: early.early_point,
-            candidates,
+            candidates: candidates.to_vec(),
         });
     }
     Ok(early_clobber_points)

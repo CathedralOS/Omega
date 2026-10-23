@@ -65,17 +65,24 @@ impl<'a> CandidateViews<'a> {
 
     // The function caller validates one immutable availability input before
     // visiting its registers; `available` is that input's exact class row.
-    pub(super) fn unconstrained(
+    // Lend prepared candidates until a consumer publishes a new span. Adjacent
+    // cells with equal candidates merge; cloning at every point allocates a
+    // vector only to discard it when it equals the preceding span.
+    pub(super) fn candidates_at(
         &mut self,
+        function_index: usize,
+        register: &VirtualLiveRange,
         class: &RegisterClass,
         available: &[RegisterViewId],
         block: SelectedBlockId,
         point: LiveRangePoint,
-    ) -> Vec<RegisterViewId> {
+        fixed: Option<RegisterViewId>,
+    ) -> Result<&[RegisterViewId], AllocationLegalityError> {
         let cell = self
             .boundaries
             .partition_point(|boundary| *boundary <= point);
-        self.candidates
+        let candidates = self
+            .candidates
             .entry((class.id, block, cell))
             .or_insert_with(|| {
                 unconstrained(
@@ -87,20 +94,14 @@ impl<'a> CandidateViews<'a> {
                     self.physical,
                     self.reservations,
                 )
-            })
-            .clone()
-    }
-
-    pub(super) fn restrict_to_fixed(
-        &self,
-        function_index: usize,
-        register: &VirtualLiveRange,
-        block: SelectedBlockId,
-        point: LiveRangePoint,
-        fixed: Option<RegisterViewId>,
-        candidates: &mut Vec<RegisterViewId>,
-    ) -> Result<(), AllocationLegalityError> {
-        restrict_to_fixed(
+            });
+        let Some(fixed) = fixed else {
+            return Ok(candidates);
+        };
+        // A fixed view has always replaced (not intersected) the general
+        // roster after its own class and conflict checks. Borrow its exact
+        // model identity rather than clearing and rebuilding a one-item Vec.
+        fixed_candidate(
             function_index,
             register,
             block,
@@ -109,7 +110,6 @@ impl<'a> CandidateViews<'a> {
             self.function,
             self.physical,
             self.reservations,
-            candidates,
         )
     }
 }
@@ -144,20 +144,16 @@ fn unconstrained(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn restrict_to_fixed(
+fn fixed_candidate<'physical>(
     function_index: usize,
     register: &VirtualLiveRange,
     block: SelectedBlockId,
     point: LiveRangePoint,
-    fixed: Option<RegisterViewId>,
+    fixed: RegisterViewId,
     function: &FunctionLiveRanges,
-    physical: &ValidatedPhysicalRegisterModel,
+    physical: &'physical ValidatedPhysicalRegisterModel,
     reservations: &ValidatedRegisterReservationProfile,
-    candidates: &mut Vec<RegisterViewId>,
-) -> Result<(), AllocationLegalityError> {
-    let Some(fixed) = fixed else {
-        return Ok(());
-    };
+) -> Result<&'physical [RegisterViewId], AllocationLegalityError> {
     let Some(view) = physical.model().views.get(usize::from(fixed.0)) else {
         return Err(AllocationLegalityError::UnknownFixedView {
             function: function_index,
@@ -179,9 +175,7 @@ fn restrict_to_fixed(
             view: fixed.0,
         });
     }
-    candidates.clear();
-    candidates.push(fixed);
-    Ok(())
+    Ok(std::slice::from_ref(&view.id))
 }
 
 fn conflicts(

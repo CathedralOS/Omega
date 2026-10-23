@@ -74,14 +74,14 @@ pub(super) fn compute(
                 point,
                 entry_point,
             )?;
-            let mut candidates = views.unconstrained(class, available, fragment.block, point);
-            views.restrict_to_fixed(
+            let candidates = views.candidates_at(
                 function_index,
                 register,
+                class,
+                available,
                 fragment.block,
                 point,
                 fixed,
-                &mut candidates,
             )?;
             if candidates.is_empty() {
                 return Err(AllocationLegalityError::NoCandidateViews {
@@ -94,7 +94,7 @@ pub(super) fn compute(
             if spans.len() > fragment_offset
                 && spans
                     .last()
-                    .is_some_and(|span| span.candidates == candidates)
+                    .is_some_and(|span| span.candidates.as_slice() == candidates)
             {
                 spans.last_mut().expect("current fragment has a span").end = end;
             } else {
@@ -102,7 +102,7 @@ pub(super) fn compute(
                     block: fragment.block,
                     start: point,
                     end,
-                    candidates,
+                    candidates: candidates.to_vec(),
                 });
             }
             point = end;
