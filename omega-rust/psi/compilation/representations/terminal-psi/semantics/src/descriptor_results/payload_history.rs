@@ -516,11 +516,12 @@ fn current_payload_contract_reusing(
                 } else {
                     std::mem::take(&mut after)
                 };
-                if let Some(Some(predicate)) = machine
+                let edge_predicate = machine
                     .payload_edge_predicates
                     .get(&current)
                     .and_then(|rows| rows.get(ordinal))
-                {
+                    .and_then(Option::as_ref);
+                if let Some(predicate) = edge_predicate {
                     arrival
                         .scalar_requirements
                         .extend(super::scalar_contracts::scalar_conjuncts(
@@ -619,11 +620,16 @@ fn current_payload_contract_reusing(
                     }
                 }
                 for contract in arrival.values.values_mut() {
-                    // Edge predicates append before their intermediate closure
-                    // checks. Rebinding can retain that temporary order, so
-                    // arrivals still normalize here before snapshot publication.
-                    contract.scalar_requirements.sort();
-                    contract.scalar_requirements.dedup();
+                    // Only the edge predicate can append to a payload roster
+                    // since the canonical post-step publication. Selection,
+                    // presentation, intersection and retirement preserve its
+                    // order. Keep predicate normalization after the existing
+                    // intermediate closure checks, but do not rescan unchanged
+                    // rosters on ordinary edges.
+                    if edge_predicate.is_some() {
+                        contract.scalar_requirements.sort();
+                        contract.scalar_requirements.dedup();
+                    }
                     extend_canonical_premises(
                         &mut contract.scalar_requirements,
                         &arrival.scalar_requirements,
