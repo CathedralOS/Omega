@@ -13,6 +13,16 @@ missing real decision. A prompt cannot select a model; inherited or unavailable
 effort controls must be reported honestly. Inspect live claims and retained
 agent handles before resuming or dispatching. Do not hijack another outcome.
 
+Use the user's requested worker width as the launch target. Before treating a
+thread-limit rejection as unavailable capacity, inspect the runtime's agent
+configuration and apply the authorized width through its supported settings.
+For Codex, `agents.max_concurrent_threads_per_session` in `~/.codex/config.toml`
+sets spawned-agent width, excluding the coordinator (`agents.max_threads` is its
+legacy alias). Verify effective admission after changing it; a loaded session
+may retain its earlier setting. Keep configured agent width, observed host
+pressure and expensive-build concurrency separate in prompts and reports.
+See the [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
+
 Inventory the actual host before invoking tools that may auto-install runtimes:
 
 | Record | Why it matters |
