@@ -1,0 +1,36 @@
+// Fact: 16-bit unsigned wrapping subtraction lhs -% rhs with bounded interval 200u16 <= diff <= 450u16 establishes 200u16 <= diff <= 450u16 across all nine places so exact subtractions 450u16 - diff and diff - 200u16 are safe.
+// Place: const_name. A named constant rhs is subtracted via wrapping subtraction from the bounded lhs.
+// Expected exit: 0
+machine verify_diff(value: u16) -> u16
+    requires value >= 200 && value <= 450
+{
+    let head: u16 = 450 - value;
+    let tail: u16 = value - 200;
+    head + tail
+}
+
+const RHS: u16 = 80;
+
+machine compute_const(lhs: u16) -> u16
+    requires lhs >= 300 && lhs <= 500
+{
+    let a: u16 in Wrapping = lhs as u16 in Wrapping;
+    let b: u16 in Wrapping = RHS as u16 in Wrapping;
+    let wrapped: u16 in Wrapping = a - b;
+    let diff: u16 = wrapped as u16;
+    verify_diff(diff)
+}
+
+machine evaluate() -> u16 {
+    compute_const(400)
+}
+
+machine main() crashes Trap {
+    let res: u16 = evaluate();
+    transition res == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -22,8 +22,9 @@ machine evaluate(lhs: u32, rhs: u32, choose: bool) -> i32
 }
 
 machine main() crashes Trap {
-    let res: i32 = evaluate(30u32, 40u32, true);
-    transition res == 0 {
+    let res1: i32 = evaluate(30u32, 40u32, true);
+    let res2: i32 = evaluate(30u32, 40u32, false);
+    transition res1 == 0 && res2 == 0 {
         true -> done()
         _ -> bad()
     }

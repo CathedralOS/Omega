@@ -70,9 +70,18 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_*` and
-`tests/omega/fail/facts/unsigned_16bit_wrapping_subtraction_bound_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned under
+`tests/omega/pass/facts/unsigned_16bit_wrapping_subtraction_bound_through_*_exit`
+and
+`tests/omega/fail/facts/unsigned_16bit_wrapping_subtraction_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg` plus
+the place's `build.omg`; it binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and records
+native exit 0 with Terminal Psi agreement. Each reject twin is a byte-identical
+copy of its `<place>/invalid/main.omg` and pins the
+`cannot prove requires contract for call verify_diff` diagnostic fragment (the
+`lhs` bound widened from 500 to 520, or the `RHS` constant changed from 80 to
+30, and nothing else).
 
 ## Requirements and Evidence
 
