@@ -115,9 +115,7 @@ pub(super) fn preserves_rank(
         };
         protect_rank_premise(&mut protected, carrier);
     }
-    let preserves = |frame: NormalizedWriteFrame, element_store: bool| {
-        frame_preserves_rank_premises(frame, element_store, &protected)
-    };
+    let preserves = |frame: NormalizedWriteFrame| frame_preserves_rank_premises(frame, &protected);
     match statement {
         StatementNode::Assignment(assignment) => {
             if !operand_has_admitted_meaning(program, machine, state, assignment.target)
@@ -125,12 +123,8 @@ pub(super) fn preserves_rank(
             {
                 return false;
             }
-            frames.is_some_and(|frames| {
-                preserves(
-                    frames.assignment_write_frame(machine, statement),
-                    frames.assignment_stores_element(statement),
-                )
-            })
+            frames
+                .is_some_and(|frames| preserves(frames.assignment_write_frame(machine, statement)))
         }
         StatementNode::Call(call) => {
             // Selected call operands retain their own meaning; the complete
@@ -141,11 +135,8 @@ pub(super) fn preserves_rank(
                 .iter()
                 .all(|argument| operand_has_admitted_meaning(program, machine, state, *argument))
                 && frames.is_some_and(|frames| {
-                    preserves(frames.may_write_frame(machine, call), false)
-                        && preserves(
-                            frames.statement_value_write_frame(machine, statement),
-                            false,
-                        )
+                    preserves(frames.may_write_frame(machine, call))
+                        && preserves(frames.statement_value_write_frame(machine, statement))
                 })
         }
         StatementNode::LocalData(local) => {
@@ -163,25 +154,16 @@ pub(super) fn preserves_rank(
             // disjoint from every protected carrier.
             operand_has_admitted_meaning(program, machine, state, local.initial_value)
                 && frames.is_some_and(|frames| {
-                    preserves(
-                        frames.expression_write_frame(machine, local.initial_value),
-                        false,
-                    )
+                    preserves(frames.expression_write_frame(machine, local.initial_value))
                 })
         }
         StatementNode::Transition(_) => frames.is_some_and(|frames| {
-            preserves(
-                frames.statement_value_write_frame(machine, statement),
-                false,
-            )
+            preserves(frames.statement_value_write_frame(machine, statement))
         }),
         StatementNode::Expression(expression) => {
             operand_has_admitted_meaning(program, machine, state, *expression)
                 && frames.is_some_and(|frames| {
-                    preserves(
-                        frames.statement_value_write_frame(machine, statement),
-                        false,
-                    )
+                    preserves(frames.statement_value_write_frame(machine, statement))
                 })
         }
         _ => false,

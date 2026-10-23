@@ -8231,6 +8231,15 @@ fail/generics/contextual_static_machine_unused_evidence rejected 728ms expected 
 fail/generics/contextual_static_machine_unused_lifetime rejected 2809ms expected @a9ae30e1c334+wt
 fail/generics/contextual_static_machine_wrong_evidence_authority rejected 3431ms expected @a9ae30e1c334+wt
 fail/generics/contextual_static_machine_wrong_lifetime_result_source rejected 3405ms expected @a9ae30e1c334+wt
+fail/generics/core_slice_for_each_callback_mutability rejected 222ms expected @114906953e11+wt
+	argument `items` for state `entry` is declared `&mut` (`&mut [Item]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/generics/core_slice_for_each_callback_reach rejected 495ms expected @114906953e11+wt
+	machine argument `effectful` for `for_each` does not refine `Step`: service reach `Output` exceeds its authored ceiling
+	machine argument `effectful` for `for_each` does not refine `Step`: synchronous invocation `Output` exceeds its authored `invokes` ceiling
+	machine `effectful` does not refine `ElementStep::apply`: its body may synchronously invoke binding `Output`, but the requirement omits `invokes Output;` (requirement invokes: [])
+	machine `effectful` state `entry` does not satisfy trait `ElementStep` machine `apply`: service `Output` is not allowed by the trait requirement
+fail/generics/core_slice_for_each_callback_termination rejected 590ms expected @114906953e11+wt
+	terminating machine does_not_finish contains a recursive cycle but carries no ranking witness -- spell one with `terminates by <subjects> [-> View];` (decision 23)
 fail/generics/data_equation_constructor_binder_carrier_domain rejected 30ms expected @a9ae30e1c334+wt
 fail/generics/dependent_const_array_extent rejected 1015ms expected @37afc401493b+wt
 fail/generics/dependent_const_array_named_carrier rejected 935ms expected @37afc401493b+wt
@@ -14614,6 +14623,7 @@ pass/generics/contextual_static_machine_lifetime_result_sources_exit checked 117
 pass/generics/contextual_static_machine_open_const_exit checked 12711ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_returned_view_local_exit checked 12160ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/contextual_static_machine_universal_lifetime_application_exit checked 13923ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/core_slice_for_each checked 889ms check-target:macos_arm64 @114906953e11+wt
 pass/generics/declared_range_endpoint_inference checked 9805ms check-target:macos_arm64 @1727c70d2f7e+wt
 pass/generics/dependent_const_array_carrier checked 2575ms @37afc401493b+wt
 pass/generics/dependent_const_carrier_arguments checked 2495ms @37afc401493b+wt

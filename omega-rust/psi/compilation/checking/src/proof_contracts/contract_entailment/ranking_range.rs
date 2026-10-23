@@ -579,21 +579,17 @@ pub fn protect_rank_premise(protected: &mut Vec<RankProtectedPath>, carrier: Ran
 }
 
 /// A complete frame preserves a premise carrier when nothing it may write
-/// overlaps the carrier. The frame algebra coarsens a store into a
-/// collection's elements to the whole collection, which overlaps the
-/// collection's extent by spelling alone; `element_store` says the frame is
-/// such a store, and an element store never writes an extent.
+/// overlaps the carrier. Collection-content coordinates stay distinct from
+/// descriptor fields through the shared write-frame projection.
 pub fn frame_preserves_rank_premises(
     frame: facts::NormalizedWriteFrame,
-    element_store: bool,
     protected: &[RankProtectedPath],
 ) -> bool {
     frame.into_complete_paths().is_some_and(|paths| {
         protected.iter().all(|carrier| {
-            (element_store && carrier.observation == RankPremiseObservation::Length)
-                || paths
-                    .iter()
-                    .all(|path| !crate::frame_paths_overlap(path, &carrier.path))
+            paths
+                .iter()
+                .all(|path| !crate::frame_paths_overlap(path, &carrier.path))
         })
     })
 }

@@ -1,0 +1,16 @@
+use omega::language::core::iteration;
+
+data Item { value: u32; }
+
+machine does_not_finish(item: &mut Item)
+satisfies ElementStep<Item>::apply {
+    transition { _ -> again(item) }
+    state again(item: &mut Item) {
+        transition { _ -> again(item) }
+    }
+}
+
+machine main() {
+    let mut items: [Item; 1];
+    for_each<Item, does_not_finish>(&mut items[..]);
+}

@@ -507,7 +507,7 @@ fn equality_edges<'program>(
     let writes = prefix_frames(program, source, arrival.statement, frames)?;
     let empty_prefix = writes
         .iter()
-        .all(|(frame, _)| frame.complete_paths().is_some_and(|paths| paths.is_empty()));
+        .all(|frame| frame.complete_paths().is_some_and(|paths| paths.is_empty()));
     if empty_prefix {
         for &(guard, holds) in &arrival.guards {
             meanings::admitted_carrier(program, source.machine, source.state, guard, 0)?;
@@ -542,10 +542,9 @@ fn equality_edges<'program>(
                 &value.location.path,
                 observation,
             )?;
-            if !writes.iter().all(|(frame, element_store)| {
+            if !writes.iter().all(|frame| {
                 super::super::frame_preserves_rank_premises(
                     frame.clone(),
-                    *element_store,
                     std::slice::from_ref(&protected),
                 )
             }) {
@@ -706,7 +705,7 @@ fn prefix_frames<'program>(
     source: &StateFrame<'program>,
     through: usize,
     frames: Option<&crate::CallFrameResolver<'program>>,
-) -> Option<Vec<(NormalizedWriteFrame, bool)>> {
+) -> Option<Vec<NormalizedWriteFrame>> {
     let frames = frames?;
     let mut writes = Vec::new();
     for statement in program
@@ -715,24 +714,20 @@ fn prefix_frames<'program>(
         .iter()
         .take(through + 1)
     {
-        // Preserve operand effects separately: only the direct element store
-        // leaves extents unchanged, not arbitrary calls evaluating its value.
+        // Operand effects retain their own complete storage coordinates.
         let values = frames.statement_value_write_frame(source.machine, statement);
         values.complete_paths()?;
-        writes.push((values, false));
+        writes.push(values);
         let own = match statement {
-            StatementNode::Assignment(_) => Some((
-                frames.assignment_write_frame(source.machine, statement),
-                frames.assignment_stores_element(statement),
-            )),
-            StatementNode::Call(call) => {
-                Some((frames.may_write_frame(source.machine, call), false))
+            StatementNode::Assignment(_) => {
+                Some(frames.assignment_write_frame(source.machine, statement))
             }
+            StatementNode::Call(call) => Some(frames.may_write_frame(source.machine, call)),
             _ => None,
         };
-        if let Some((frame, element_store)) = own {
+        if let Some(frame) = own {
             frame.complete_paths()?;
-            writes.push((frame, element_store));
+            writes.push(frame);
         }
     }
     Some(writes)

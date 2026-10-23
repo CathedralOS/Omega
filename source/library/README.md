@@ -30,6 +30,36 @@ Do not leave competing permanent implementations or call an unchanged consumer
 validated against a new library without affected checks. A proposal to extract
 a kernel is not authorization for a broad migration or new package acceptance.
 
+## Core slice iteration
+
+`use omega::language::core::iteration;` exposes ordinary checked traversal:
+
+```omega
+machine clear_one(command: &mut Command)
+satisfies ElementStep<Command>::apply {
+	command.direction = -1;
+	command.attack = false;
+}
+
+machine clear_commands(commands: &mut [Command]) terminates; {
+	for_each<Command, clear_one>(commands);
+}
+```
+
+`for_each<Element, Step>` visits a mutable slice from front to back, calling
+the exact statically selected machine once per element. Empty slices call
+nothing. `Element` needs no `copy` property; the callback receives a temporary
+exclusive element loan. The callback must explicitly satisfy
+`ElementStep<Element>::apply`, terminate, and have empty service reach with no
+blocking, suspension or crash behavior. This initial API has no captured
+context, result propagation, early stop or runtime dispatch. It is library
+code, not loop syntax or a compiler intrinsic.
+
+Hollow's [input routing](../../samples/gui/dungeon_crawler/engine/control/routing.omg)
+uses the helper. The [executable fixture](../../tests/omega/pass/generics/core_slice_for_each/main.omg)
+covers mutable records, non-copy elements, a forwarded view and empty input;
+separate reject controls enforce callback and access obligations.
+
 ## Hosted service reach
 
 GUI provider interfaces select operations, not their service effects. Shared

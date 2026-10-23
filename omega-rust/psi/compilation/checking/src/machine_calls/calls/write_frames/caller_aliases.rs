@@ -141,6 +141,29 @@ pub struct ReferenceResultLeafOrigin {
 }
 
 impl LocalWriteSource {
+    fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
+        super::place_paths::project_write_path(
+            program,
+            &FramePlaceOrigin {
+                path: self.path.clone(),
+                precision: if self.collection_coarse {
+                    FramePathPrecision::CollectionCoarse
+                } else {
+                    FramePathPrecision::Exact
+                },
+                source: super::place_paths::FrameSourcePlace {
+                    recasts: self.recasts.clone(),
+                    root: self.root,
+                    segments: self.segments.clone(),
+                    representation: self.representation.clone(),
+                    builtin_coordinates: self.root.is_valid(),
+                    ..Default::default()
+                },
+            },
+            "",
+        )
+    }
+
     /// Substitute relative storage using the frame owner's coordinate algebra.
     /// Text paths are only display/footprint payload; they never select fields.
     pub fn substitute_storage(
@@ -228,19 +251,30 @@ pub(super) fn assignment_write_paths(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
+    machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
 ) -> Option<Vec<String>> {
     let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments)?;
     match evidence.target {
         AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
-        AssignmentWriteTarget::Storage { paths } => close_over_origins(
-            program,
-            paths,
-            &evidence.aliases,
-            &evidence.divergent,
-            &evidence.stored,
-        ),
+        AssignmentWriteTarget::Storage { .. } => {
+            let destinations = assignment_storage_origins(
+                program,
+                machine,
+                symbols,
+                machine_symbols,
+                statement,
+                state_assignments,
+            )?
+            .destinations;
+            Some(
+                destinations
+                    .iter()
+                    .map(|destination| destination.write_path(program))
+                    .collect(),
+            )
+        }
     }
 }
 

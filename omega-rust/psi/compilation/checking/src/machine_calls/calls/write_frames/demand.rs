@@ -787,21 +787,6 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    /// Whether this assignment stores into a collection's elements rather
-    /// than replacing a whole place. The frame algebra coarsens such a store
-    /// to its collection, a spelling that overlaps the collection's extent
-    /// although the store leaves that extent as it was.
-    pub fn assignment_stores_element(&self, statement: &StatementNode) -> bool {
-        statement
-            .as_assignment()
-            .and_then(|assignment| {
-                super::place_paths::frame_place_path(self.program, assignment.target)
-            })
-            .is_some_and(|origin| {
-                origin.precision == super::place_paths::FramePathPrecision::CollectionCoarse
-            })
-    }
-
     /// Direct store only; operand calls have their own value-expression frame.
     pub fn assignment_write_frame(
         &self,
@@ -812,14 +797,18 @@ impl<'program> CallFrameResolver<'program> {
             &self.caches.assignment_frames,
             (current_machine.symbol, std::ptr::from_ref(statement).addr()),
             || {
-                super::caller_aliases::assignment_write_paths(
-                    self.program,
-                    current_machine,
-                    &self.tables.symbols,
-                    statement,
-                    &|state| self.state_assignments(current_machine, state),
-                )
-                .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
+                self.machine_symbols(current_machine)
+                    .and_then(|machine_symbols| {
+                        super::caller_aliases::assignment_write_paths(
+                            self.program,
+                            current_machine,
+                            &self.tables.symbols,
+                            &machine_symbols,
+                            statement,
+                            &|state| self.state_assignments(current_machine, state),
+                        )
+                    })
+                    .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
             },
         )
     }
@@ -1366,10 +1355,19 @@ impl<'program> CallFrameResolver<'program> {
     }
 }
 
-/// Parent/child places overlap in both directions: writing `self.item` kills a
-/// fact about `self.item.len`, and writing the child kills a whole-value fact.
+/// Parent/child places overlap in both directions. A collection-content scope
+/// overlaps all its elements, but not the collection descriptor's `.len`.
 pub fn frame_paths_overlap(left: &str, right: &str) -> bool {
     left == right
+        || left.strip_suffix("[*]").is_some_and(|collection| {
+            right
+                .strip_prefix(collection)
+                .is_some_and(|suffix| suffix.starts_with('['))
+        })
+        || right.strip_suffix("[*]").is_some_and(|collection| {
+            left.strip_prefix(collection)
+                .is_some_and(|suffix| suffix.starts_with('['))
+        })
         || left
             .strip_prefix(right)
             .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('['))

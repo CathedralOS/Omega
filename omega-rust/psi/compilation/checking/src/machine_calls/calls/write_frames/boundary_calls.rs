@@ -708,8 +708,9 @@ fn boundary_written_argument_paths(
             *argument,
             inference,
         )? {
-            if !written.contains(&origin.path) {
-                written.push(origin.path);
+            let path = super::place_paths::project_write_path(program, &origin, "");
+            if !written.contains(&path) {
+                written.push(path);
             }
         }
     }

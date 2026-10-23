@@ -1,5 +1,7 @@
 module control::routing;
 
+use omega::language::core::iteration;
+
 use control::state::Command;
 use control::state::ControlSource;
 use control::state::ControllerSet;
@@ -13,19 +15,13 @@ use simulation::clock::FrameClock;
 public machine clear_intents<const Actors: u64>(intents: &mut IntentSet<Actors>)
 terminates;
 requires Actors >= 1 {
-    clear_commands(&mut intents.items[..]);
+    for_each<Command, clear_command>(&mut intents.items[..]);
 }
 
-machine clear_commands(commands: &mut [Command])
-terminates;
-terminates by commands -> Slice::Length;
-{
-    transition commands.len > 0 { true -> head(commands) _ -> done() }
-    state head(commands: &mut [Command]) requires commands.len > 0 {
-        commands[0] = Command { direction: -1, attack: false };
-        transition { _ -> clear_commands(&mut commands[1..]) }
-    }
-    state done() {}
+machine clear_command(command: &mut Command)
+satisfies ElementStep<Command>::apply {
+    command.direction = -1;
+    command.attack = false;
 }
 
 public machine route_autonomy<const Bindings: u64, const Actors: u64, const Rooms: u64>(controls: &ControllerSet<Bindings, Actors>, actors: &ActorSet<Actors, Rooms>, intents: &mut IntentSet<Actors>, clock: FrameClock)

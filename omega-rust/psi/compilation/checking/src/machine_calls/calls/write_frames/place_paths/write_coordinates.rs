@@ -16,6 +16,24 @@ pub(in crate::machine_calls::calls::write_frames) fn project_write_path(
     if origin.source.recasts.is_empty() {
         return match origin.precision {
             FramePathPrecision::Exact => append_place_suffix(&origin.path, suffix),
+            FramePathPrecision::CollectionCoarse
+                if origin.source.builtin_coordinates
+                    && origin.source.segments.iter().any(|segment| {
+                        matches!(
+                            segment,
+                            facts::PlaceSegment::FixedIndex { .. }
+                                | facts::PlaceSegment::Index { .. }
+                                | facts::PlaceSegment::FixedRange { .. }
+                                | facts::PlaceSegment::OpaqueRange
+                        )
+                    }) =>
+            {
+                if origin.path.ends_with("[*]") {
+                    origin.path.clone()
+                } else {
+                    format!("{}[*]", origin.path)
+                }
+            }
             FramePathPrecision::CollectionCoarse => origin.path.clone(),
         };
     }

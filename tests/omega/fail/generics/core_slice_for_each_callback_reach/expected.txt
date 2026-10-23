@@ -1,0 +1,2 @@
+Output
+not allowed by the trait requirement

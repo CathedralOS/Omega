@@ -10,10 +10,9 @@ use validation::CallFrameResolver;
 /// write leaves the carrier as it was.
 fn frame_preserves_premise(
     frame: NormalizedWriteFrame,
-    element_store: bool,
     carrier: &validation::RankProtectedPath,
 ) -> bool {
-    validation::frame_preserves_rank_premises(frame, element_store, std::slice::from_ref(carrier))
+    validation::frame_preserves_rank_premises(frame, std::slice::from_ref(carrier))
 }
 
 pub(super) fn prefix_preserves_premise<'program>(
@@ -24,20 +23,17 @@ pub(super) fn prefix_preserves_premise<'program>(
 ) -> bool {
     statements.iter().all(|statement| {
         let direct_writes_preserve = match statement {
-            StatementNode::Assignment(_) => frame_preserves_premise(
-                frames.assignment_write_frame(machine, statement),
-                frames.assignment_stores_element(statement),
-                carrier,
-            ),
+            StatementNode::Assignment(_) => {
+                frame_preserves_premise(frames.assignment_write_frame(machine, statement), carrier)
+            }
             StatementNode::Call(call) => {
-                frame_preserves_premise(frames.may_write_frame(machine, call), false, carrier)
+                frame_preserves_premise(frames.may_write_frame(machine, call), carrier)
             }
             _ => true,
         };
         direct_writes_preserve
             && frame_preserves_premise(
                 frames.statement_value_write_frame(machine, statement),
-                false,
                 carrier,
             )
     })

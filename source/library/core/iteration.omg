@@ -1,0 +1,20 @@
+public trait ElementStep<Element> {
+    machine apply(element: &mut Element)
+    terminates;
+}
+
+public machine for_each<Element, machine Step>(items: &mut [Element])
+where machine Step satisfies ElementStep<Element>::apply;
+terminates;
+terminates by items -> Slice::Length;
+{
+    transition items.len > 0 {
+        true -> head(items)
+        _ -> done()
+    }
+    state head(items: &mut [Element]) requires items.len > 0 {
+        Step(&mut items[0]);
+        for_each<Element, Step>(&mut items[1..])
+    }
+    state done() {}
+}
