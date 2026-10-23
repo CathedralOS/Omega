@@ -265,10 +265,25 @@ impl<'program> Engine<'program> {
         }
     }
 
+    /// The closed lower bound of `from - to`. Atoms in different components
+    /// relate only through the zero atom, so their bound is the two-hop sum
+    /// `(from - 0) + (0 - to)`; the component closures below already hold
+    /// every other path.
     pub(super) fn matrix_bound(&self, from: &str, to: &str) -> Option<BigInt> {
         if from == to {
             return Some(BigInt::zero());
         }
+        if let Some(bound) = self.recorded_bound(from, to) {
+            return Some(bound);
+        }
+        if from == ZERO_ATOM || to == ZERO_ATOM {
+            return None;
+        }
+        let through_zero = self.recorded_bound(from, ZERO_ATOM)?;
+        Some(through_zero.add(&self.recorded_bound(ZERO_ATOM, to)?))
+    }
+
+    fn recorded_bound(&self, from: &str, to: &str) -> Option<BigInt> {
         self.matrix.get(from).and_then(|row| row.get(to)).cloned()
     }
 
@@ -319,15 +334,79 @@ impl<'program> Engine<'program> {
         self.matrix.entry(to.to_owned()).or_default();
     }
 
+    /// Transitive closure of the recorded differences, one connected
+    /// component at a time. Atoms are joined by their recorded edges; the
+    /// zero atom joins every component and is excluded from connectivity. A
+    /// path between two atoms that leaves their component passes through
+    /// zero twice, and the excursion is a cycle at zero whose weight cannot
+    /// be positive in a satisfiable system, so it never improves the path;
+    /// a positive cycle through zero spanning two components decomposes into
+    /// a positive cycle within one of them. The closure of each component
+    /// with zero therefore restricts the whole closure exactly, and
+    /// `matrix_bound` supplies the cross-component two-hop through zero.
+    /// The roster can hold thousands of atoms related only to zero (every
+    /// integer leaf of a large record), where the whole-roster cubic
+    /// closure did not finish; component closures stay cubic in each
+    /// component's size.
     pub(super) fn close_matrix(&mut self) {
-        let atoms: Vec<String> = self.matrix.keys().cloned().collect();
-        for via in &atoms {
-            for from in &atoms {
-                let Some(first) = self.matrix_bound(from, via) else {
+        let atoms: Vec<String> = self
+            .matrix
+            .keys()
+            .filter(|atom| atom.as_str() != ZERO_ATOM)
+            .cloned()
+            .collect();
+        let position: std::collections::BTreeMap<&str, usize> = atoms
+            .iter()
+            .enumerate()
+            .map(|(index, atom)| (atom.as_str(), index))
+            .collect();
+        let mut parent: Vec<usize> = (0..atoms.len()).collect();
+        fn root(parent: &mut [usize], mut index: usize) -> usize {
+            while parent[index] != index {
+                parent[index] = parent[parent[index]];
+                index = parent[index];
+            }
+            index
+        }
+        for (from, row) in &self.matrix {
+            let Some(&from_index) = position.get(from.as_str()) else {
+                continue;
+            };
+            for to in row.keys() {
+                let Some(&to_index) = position.get(to.as_str()) else {
                     continue;
                 };
-                for to in &atoms {
-                    let Some(second) = self.matrix_bound(via, to) else {
+                let (left, right) = (root(&mut parent, from_index), root(&mut parent, to_index));
+                if left != right {
+                    parent[left] = right;
+                }
+            }
+        }
+        let mut components: std::collections::BTreeMap<usize, Vec<String>> =
+            std::collections::BTreeMap::new();
+        for (index, atom) in atoms.iter().enumerate() {
+            components
+                .entry(root(&mut parent, index))
+                .or_default()
+                .push(atom.clone());
+        }
+        let has_zero = self.matrix.contains_key(ZERO_ATOM);
+        for mut members in components.into_values() {
+            if has_zero {
+                members.push(ZERO_ATOM.to_owned());
+            }
+            self.close_members(&members);
+        }
+    }
+
+    fn close_members(&mut self, members: &[String]) {
+        for via in members {
+            for from in members {
+                let Some(first) = self.recorded_bound(from, via) else {
+                    continue;
+                };
+                for to in members {
+                    let Some(second) = self.recorded_bound(via, to) else {
                         continue;
                     };
                     let combined = first.add(&second);
@@ -337,7 +416,7 @@ impl<'program> Engine<'program> {
                         }
                         continue;
                     }
-                    let current = self.matrix_bound(from, to);
+                    let current = self.recorded_bound(from, to);
                     if current.is_none() || combined > current.unwrap() {
                         self.record_difference(from, to, combined);
                     }
