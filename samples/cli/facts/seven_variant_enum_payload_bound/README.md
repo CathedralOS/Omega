@@ -71,6 +71,34 @@ The compiler strictly fails closed at compile time:
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
 
+## Pinned Corpus Fixtures
+
+All 18 corpus fixtures are pinned under `tests/omega/`:
+
+### Pass Fixtures (`tests/omega/pass/facts/`)
+- `seven_variant_enum_payload_bound_through_local_exit`
+- `seven_variant_enum_payload_bound_through_field_exit`
+- `seven_variant_enum_payload_bound_through_parameter_exit`
+- `seven_variant_enum_payload_bound_through_call_result_exit`
+- `seven_variant_enum_payload_bound_through_match_join_exit`
+- `seven_variant_enum_payload_bound_through_const_name_exit`
+- `seven_variant_enum_payload_bound_through_other_state_exit`
+- `seven_variant_enum_payload_bound_through_other_machine_exit`
+- `seven_variant_enum_payload_bound_through_target_body_exit`
+
+### Fail Fixtures (`tests/omega/fail/facts/`)
+- `seven_variant_enum_payload_bound_through_local_rejected`
+- `seven_variant_enum_payload_bound_through_field_rejected`
+- `seven_variant_enum_payload_bound_through_parameter_rejected`
+- `seven_variant_enum_payload_bound_through_call_result_rejected`
+- `seven_variant_enum_payload_bound_through_match_join_rejected`
+- `seven_variant_enum_payload_bound_through_const_name_rejected`
+- `seven_variant_enum_payload_bound_through_other_state_rejected`
+- `seven_variant_enum_payload_bound_through_other_machine_rejected`
+- `seven_variant_enum_payload_bound_through_target_body_rejected`
+
+Each pass fixture is a byte-identical copy of its place program and records native exit 0; each fail fixture is a byte-identical copy of its reject twin, and its `expected.txt` holds the exact measured diagnostic message.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)`, `V2(v: u64)`, `V3(v: u64)`, `V4(v: u64)`, `V5(v: u64)`, `V6(v: u64)`, and `V7(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all seven tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
