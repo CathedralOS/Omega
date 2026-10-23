@@ -6702,6 +6702,27 @@ fail/facts/signed_exact_addition_bound_through_target_body_rejected rejected 939
 	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call consume_margin from target_probe: margin >= 0 && margin <= 40 (needs fact `margin >= 0 && margin <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_call_result_rejected rejected 1425ms expected @595562a958b4+wt
+	cannot prove ensures contract for exit from multiply at statement 0: result >= 40 && result <= 90
+fail/facts/signed_exact_multiplication_bound_through_const_name_rejected rejected 1435ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_product from probe: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_field_rejected rejected 1444ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_field from compute_field: holder.product >= 40 && holder.product <= 90 (needs fact `h.product >= 40 && h.product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_local_rejected rejected 1470ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_product from compute_local: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_match_join_rejected rejected 1428ms expected @595562a958b4+wt
+	cannot prove ensures contract for exit from choose_product at statement 0: result >= 40 && result <= 90
+fail/facts/signed_exact_multiplication_bound_through_other_machine_rejected rejected 1451ms expected @595562a958b4+wt
+	cannot prove requires contract for call forward from compute_forward: factor * scale >= 40 && factor * scale <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_other_state_rejected rejected 1429ms expected @595562a958b4+wt
+	cannot prove requires contract for call step from verify_state: factor * scale >= 40 && factor * scale <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_parameter_rejected rejected 2478ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_parameter from compute_param: factor * scale >= 40 && factor * scale <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_exact_multiplication_bound_through_target_body_rejected rejected 1514ms expected @595562a958b4+wt
+	cannot prove requires contract for call verify_product from verify_target: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_product from verify_target: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_product from verify_target: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_product from verify_target: product >= 40 && product <= 90 (needs fact `product >= 40 && product <= 90` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_exact_subtraction_bound_through_call_result_rejected rejected 10152ms expected @9d9ba4fb6251+wt
 	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_exact_subtraction_bound_through_const_name_rejected rejected 9985ms expected @9d9ba4fb6251+wt
@@ -6723,6 +6744,27 @@ fail/facts/signed_exact_subtraction_bound_through_target_body_rejected rejected 
 	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call consume from subtract_signed: diff >= 50 && diff <= 80 (needs fact `diff >= 50 && diff <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_shift_left_bound_through_call_result_rejected rejected 590ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_const_name_rejected rejected 511ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_field_rejected rejected 478ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_local_rejected rejected 524ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_match_join_rejected rejected 527ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_other_machine_rejected rejected 473ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_other_state_rejected rejected 512ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_parameter_rejected rejected 506ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/signed_shift_left_bound_through_target_body_rejected rejected 504ms expected @595562a958b4+wt
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 19381ms expected @e44ed43aefa9
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_const_name_rejected rejected 20515ms expected @e44ed43aefa9
@@ -13621,6 +13663,15 @@ pass/facts/signed_exact_addition_bound_through_other_machine_exit checked 3580ms
 pass/facts/signed_exact_addition_bound_through_other_state_exit checked 3573ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_exact_addition_bound_through_parameter_exit checked 3382ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_exact_addition_bound_through_target_body_exit checked 3602ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_exact_multiplication_bound_through_call_result_exit checked 2553ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_const_name_exit checked 2554ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_field_exit checked 2553ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_local_exit checked 2550ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_match_join_exit checked 2599ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_other_machine_exit checked 2576ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_other_state_exit checked 1855ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_parameter_exit checked 1869ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_exact_multiplication_bound_through_target_body_exit checked 1851ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/signed_exact_subtraction_bound_through_call_result_exit checked 3428ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_exact_subtraction_bound_through_const_name_exit checked 5273ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_exact_subtraction_bound_through_field_exit checked 3714ms check-target:macos_arm64 @9d9ba4fb6251+wt
@@ -13630,6 +13681,15 @@ pass/facts/signed_exact_subtraction_bound_through_other_machine_exit checked 462
 pass/facts/signed_exact_subtraction_bound_through_other_state_exit checked 4833ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_exact_subtraction_bound_through_parameter_exit checked 4230ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_exact_subtraction_bound_through_target_body_exit checked 4434ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/signed_shift_left_bound_through_call_result_exit checked 1907ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_const_name_exit checked 1863ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_field_exit checked 1846ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_local_exit checked 1756ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_match_join_exit checked 1785ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_other_machine_exit checked 1848ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_other_state_exit checked 1669ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_parameter_exit checked 2080ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/signed_shift_left_bound_through_target_body_exit checked 1666ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/slice_view_layout_geometry_through_call_result_exit checked 39506ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_const_name_exit checked 42742ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_field_exit checked 41786ms check-target:macos_arm64 @e44ed43aefa9
