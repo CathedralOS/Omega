@@ -7826,6 +7826,48 @@ fail/facts/signed_16bit_division_remainder_bound_through_target_body_rejected re
 	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_rem from verify_target: rem >= 0 && rem <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_call_result_rejected rejected 31910ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_const_name_rejected rejected 37601ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_field_rejected rejected 41137ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_local_rejected rejected 38443ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_match_join_rejected rejected 30497ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_other_machine_rejected rejected 26596ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_other_state_rejected rejected 33456ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_parameter_rejected rejected 33652ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from verify_sum: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_arithmetic_bound_through_target_body_rejected rejected 26733ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call verify_i16_margin from exercise: margin >= 0 && margin <= 200 (needs fact `v >= 0 && v <= 200` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_call_result_rejected rejected 24644ms expected @9b001b8f6afa+wt
+	cannot prove ensures contract for exit from produce_prod at statement 0: result >= 150 && result <= 500
+fail/facts/signed_16bit_exact_multiplication_bound_through_const_name_rejected rejected 26624ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from main: prod >= 150 && prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_field_rejected rejected 26415ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from main: carrier.prod >= 150 && carrier.prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_local_rejected rejected 28135ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from main: local_prod >= 150 && local_prod <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_match_join_rejected rejected 26910ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from main: joined >= 150 && joined <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_other_machine_rejected rejected 27810ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call runner from main: prod >= 150 && prod <= 500 (needs fact `val >= 150 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_other_state_rejected rejected 27180ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call verify_prod from main: forwarded >= 150 && forwarded <= 500 (needs fact `prod >= 150 && prod <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `step`
+fail/facts/signed_16bit_exact_multiplication_bound_through_parameter_rejected rejected 28531ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call check_param from main: prod >= 150 && prod <= 500 (needs fact `val >= 150 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/signed_16bit_exact_multiplication_bound_through_target_body_rejected rejected 32386ms expected @9b001b8f6afa+wt
+	cannot prove requires contract for call exercise from main: prod >= 150 && prod <= 500 (needs fact `val >= 150 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: prod >= 150 && prod <= 500 (needs fact `val >= 150 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: prod >= 150 && prod <= 500 (needs fact `val >= 150 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call exercise from main: prod >= 150 && prod <= 500 (needs fact `val >= 150 && val <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/signed_16bit_saturating_multiplication_bound_through_call_result_rejected rejected 47522ms expected @4c23cc3391c2+wt
 	cannot prove ensures contract for exit from mul_saturating at statement 3: result >= 50 && result <= 200
 fail/facts/signed_16bit_saturating_multiplication_bound_through_const_name_rejected rejected 43660ms expected @4c23cc3391c2+wt
@@ -16547,6 +16589,24 @@ pass/facts/signed_16bit_division_remainder_bound_through_other_machine_exit chec
 pass/facts/signed_16bit_division_remainder_bound_through_other_state_exit checked 13437ms check-target:macos_arm64 @69f7d279546e+wt
 pass/facts/signed_16bit_division_remainder_bound_through_parameter_exit checked 14131ms check-target:macos_arm64 @69f7d279546e+wt
 pass/facts/signed_16bit_division_remainder_bound_through_target_body_exit checked 14896ms check-target:macos_arm64 @69f7d279546e+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_call_result_exit checked 31055ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_const_name_exit checked 28375ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_field_exit checked 18222ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_local_exit checked 19313ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_match_join_exit checked 19460ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_other_machine_exit checked 19151ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_other_state_exit checked 18629ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_parameter_exit checked 19098ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_arithmetic_bound_through_target_body_exit checked 18776ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_call_result_exit checked 19045ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_const_name_exit checked 22980ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_field_exit checked 25351ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_local_exit checked 34020ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_match_join_exit checked 33672ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_other_machine_exit checked 31778ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_other_state_exit checked 29273ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_parameter_exit checked 27201ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/signed_16bit_exact_multiplication_bound_through_target_body_exit checked 27289ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/signed_16bit_saturating_multiplication_bound_through_call_result_exit checked 61253ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_saturating_multiplication_bound_through_const_name_exit checked 61289ms check-target:macos_arm64 @4c23cc3391c2+wt
 pass/facts/signed_16bit_saturating_multiplication_bound_through_field_exit checked 61121ms check-target:macos_arm64 @4c23cc3391c2+wt
