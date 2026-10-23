@@ -106,42 +106,6 @@ impl PartialEq for ArithmeticRowIndex {
 impl Eq for ArithmeticRowIndex {}
 
 impl TypeReferenceTable {
-    pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
-        let Self {
-            type_references,
-            type_reference_handles,
-            constraints,
-            constant_origin_spans,
-            constant_origins,
-            operand_lifetime_owners,
-            operand_origins,
-            named_rows: _,
-            arithmetic_rows: _,
-        } = base;
-        crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            type_references,
-            &self.type_references,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            type_reference_handles,
-            &self.type_reference_handles,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            constraints,
-            &self.constraints,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            constant_origin_spans,
-            &self.constant_origin_spans,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            constant_origins,
-            &self.constant_origins,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            operand_lifetime_owners,
-            &self.operand_lifetime_owners,
-        ) && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
-            operand_origins,
-            &self.operand_origins,
-        )
-    }
-
     pub fn new() -> Self {
         Self {
             type_references: Arena::new(),
@@ -1603,7 +1567,10 @@ mod tests {
         );
         assert_ne!(table, before);
         assert_ne!(table.revision(), revision);
-        assert!(!table.retains_exact_prefix(&before));
+        assert_ne!(
+            table.operand_origin(reference),
+            before.operand_origin(reference)
+        );
         assert_eq!(
             table.type_reference(reference),
             before.type_reference(reference)
@@ -1643,7 +1610,6 @@ mod tests {
         );
         assert_eq!(table, before_lookup);
         assert_eq!(format!("{table:?}"), before_rendering);
-        assert!(table.retains_exact_prefix(&before_lookup));
 
         table.substitute_node(first, TypeReferenceNode::Unit);
         assert_eq!(

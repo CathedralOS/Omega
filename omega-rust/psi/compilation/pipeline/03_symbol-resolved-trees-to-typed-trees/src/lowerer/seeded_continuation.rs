@@ -18,7 +18,6 @@ mod seeded_type_application;
 pub enum SeededContinuationError {
     UnsupportedExtensionShape,
     CrossPairedResolvedBase,
-    RetainedTypedBaseChanged,
     ResolvedSemanticTablesChanged,
     AuthoredSelectionPrefixChanged,
     AuthoredSelectionPrefixChangedDuringLowering,
@@ -405,11 +404,13 @@ fn lower_body_completion(
             ));
     }
     close_typed_cohort(&mut lowerer, &cohort)?;
-    if !completed_typed_base_is_retained(&retained.typed, &lowerer.typed_trees, &selected) {
-        return Err(Diagnostic::error(
-            "authored-body completion changed retained typed declaration or implementation storage",
-        ));
-    }
+    // Retained-storage preservation is carried by these append-only operations,
+    // not by a second comparison of their output: the supplied completion data
+    // was admitted against the exact resolved predecessor above, and
+    // omega-rust/pipeline.md's verification placement forbids a stage replaying
+    // what the same compile just produced. A producer that replaces retained
+    // storage instead of appending to it is a bug for the corpus and the
+    // fixtures to find.
     let typed = lowerer.typed_trees;
     Ok((
         SeededTypingBase {
@@ -466,108 +467,6 @@ fn domain_table_retains(
             let identity = language_semantics::SemanticDomainId(ordinal as u32);
             candidate.name(identity) == base.name(identity)
         })
-}
-
-/// Compare the old typed storage after admitting only the selected bodies'
-/// owned slots. This uses the same exhaustive arena-prefix comparison as
-/// generated extension, not a second incomplete inventory of typed storage.
-fn completed_typed_base_is_retained(
-    base: &TypedTrees,
-    candidate: &TypedTrees,
-    selected: &[symbols::SymbolHandle],
-) -> bool {
-    if !candidate
-        .service_reaches
-        .definitions()
-        .starts_with(base.service_reaches.definitions())
-        || !domain_table_retains(&base.semantic_domains, &candidate.semantic_domains)
-        || !candidate
-            .external_bindings
-            .identities()
-            .take(base.external_bindings.identities().len())
-            .eq(base.external_bindings.identities())
-    {
-        return false;
-    }
-    let mut comparison = candidate.clone();
-    for &symbol in selected {
-        let Some(ordinal) = base.machine_position_by_symbol(symbol) else {
-            return false;
-        };
-        let old = &base.machines()[ordinal];
-        let Some(new) = candidate.machines().get(ordinal) else {
-            return false;
-        };
-        if old.body_status != typed_trees::machine::MachineBodyStatus::Deferred
-            || new.body_status != typed_trees::machine::MachineBodyStatus::Complete
-        {
-            return false;
-        }
-        let mut header = new.clone();
-        header.body_status = old.body_status;
-        header.termination_plan.implementation_witness =
-            old.termination_plan.implementation_witness.clone();
-        header.states = old.states;
-        if header != *old {
-            return false;
-        }
-        let old_states = base.machine_states(old);
-        let new_states = candidate.machine_states(new);
-        if new_states.len() < old_states.len() {
-            return false;
-        }
-        for (old_state, new_state) in old_states.iter().zip(new_states) {
-            let mut header = new_state.clone();
-            header.statement_nodes = old_state.statement_nodes;
-            if !old_state.statement_nodes.is_empty() || header != *old_state {
-                return false;
-            }
-        }
-        comparison
-            .machine_states
-            .span_mut_or_empty(old.states)
-            .clone_from_slice(old_states);
-        for (old_owned, new_owned) in base
-            .machine_owned_data(old)
-            .iter()
-            .zip(candidate.machine_owned_data(new))
-        {
-            let mut header = new_owned.clone();
-            header.initial_value = old_owned.initial_value;
-            if old_owned.initial_value.is_valid() || header != *old_owned {
-                return false;
-            }
-        }
-        comparison
-            .machine_owned_data
-            .span_mut_or_empty(old.owned_data)
-            .clone_from_slice(base.machine_owned_data(old));
-        for (old_conformance, new_conformance) in base
-            .machine_trait_conformances(old)
-            .iter()
-            .zip(candidate.machine_trait_conformances(new))
-        {
-            let mut header = new_conformance.clone();
-            header.via_expression = old_conformance.via_expression;
-            if old_conformance.via_expression.is_valid() || header != *old_conformance {
-                return false;
-            }
-        }
-        comparison
-            .machine_trait_conformances
-            .span_mut_or_empty(old.satisfies)
-            .clone_from_slice(base.machine_trait_conformances(old));
-        comparison.machines_mut()[ordinal] = old.clone();
-    }
-    // Symbol growth belongs to the resolver's private completion carrier, which
-    // is cross-paired above to our exact resolved predecessor. Typing uses that
-    // successor verbatim; body-local child batches legitimately change parent
-    // child spans without changing any declaration identity.
-    comparison.symbols = base.symbols.clone();
-    comparison.service_reaches = base.service_reaches.clone();
-    comparison.semantic_domains = base.semantic_domains.clone();
-    comparison.external_bindings = base.external_bindings.clone();
-    retained_typed_base_is_exact_prefix(base, &comparison)
 }
 
 fn resolved_completion_retains_declarations(
@@ -689,89 +588,6 @@ fn resolved_completion_retains_declarations(
         && retained_declaration_families_are_exact(base, candidate)
 }
 
-/// Verify the semantic and custody-bearing base prefix after every extension
-/// phase, including the Psi build-time evaluator's pre-check continuation.
-pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedTrees) -> bool {
-    let roots_are_prefixes = candidate.retains_exact_root_storage(base);
-    let symbol_prefix_is_exact = candidate.symbols.symbols().nodes().len()
-        >= base.symbols.symbols().nodes().len()
-        && candidate
-            .symbols
-            .symbols()
-            .nodes()
-            .iter()
-            .take(base.symbols.symbols().nodes().len())
-            .eq(base.symbols.symbols().nodes().iter())
-        && candidate.symbols.names().len() >= base.symbols.names().len()
-        && candidate
-            .symbols
-            .names()
-            .iter()
-            .take(base.symbols.names().len())
-            .map(|(_, name)| name)
-            .eq(base.symbols.names().iter().map(|(_, name)| name))
-        && candidate.symbols.path_member_arena().len() >= base.symbols.path_member_arena().len()
-        && candidate
-            .symbols
-            .path_member_arena()
-            .iter()
-            .take(base.symbols.path_member_arena().len())
-            .map(|(_, member)| member)
-            .eq(base
-                .symbols
-                .path_member_arena()
-                .iter()
-                .map(|(_, member)| member));
-    roots_are_prefixes
-        && symbol_prefix_is_exact
-        && candidate.service_reaches == base.service_reaches
-        && candidate
-            .service_reach_rows
-            .starts_with(&base.service_reach_rows)
-        && candidate
-            .authored_service_reach_rows
-            .starts_with(&base.authored_service_reach_rows)
-        && candidate.semantic_domains == base.semantic_domains
-        && candidate.external_bindings == base.external_bindings
-        && candidate
-            .plan_laid_layouts
-            .starts_with(&base.plan_laid_layouts)
-        && arena_is_exact_prefix(
-            &base.plan_laid_target_layouts,
-            &candidate.plan_laid_target_layouts,
-        )
-        && arena_is_exact_prefix(
-            &base.plan_laid_schema_fields,
-            &candidate.plan_laid_schema_fields,
-        )
-        && candidate
-            .placed_view_plans
-            .starts_with(&base.placed_view_plans)
-        && arena_is_exact_prefix(&base.wire_placements, &candidate.wire_placements)
-        && arena_is_exact_prefix(
-            &base.wire_encode_obligations,
-            &candidate.wire_encode_obligations,
-        )
-        && candidate
-            .wire_schema_plans
-            .starts_with(&base.wire_schema_plans)
-        && candidate
-            .machine_specializations
-            .starts_with(&base.machine_specializations)
-        && candidate
-            .target_machine_families
-            .starts_with(&base.target_machine_families)
-        && candidate
-            .evidence_forwardings
-            .starts_with(&base.evidence_forwardings)
-        && candidate
-            .proof_output_calls
-            .starts_with(&base.proof_output_calls)
-        && candidate
-            .ranking_expression_custody
-            .starts_with(&base.ranking_expression_custody)
-}
-
 fn retained_authored_service_reaches_are_exact(
     source: &SymbolResolvedTrees,
     base: &SymbolResolvedTrees,
@@ -800,18 +616,6 @@ fn retained_authored_service_reaches_are_exact(
                     .skip(base.machines.len())
                     .any(|machine| machine.symbol == row.owner)
             })
-}
-
-fn arena_is_exact_prefix<T: Default + PartialEq>(
-    base: &arena::Arena<T>,
-    candidate: &arena::Arena<T>,
-) -> bool {
-    candidate.len() >= base.len()
-        && candidate
-            .iter()
-            .take(base.len())
-            .map(|(_, value)| value)
-            .eq(base.iter().map(|(_, value)| value))
 }
 
 pub(super) fn resolved_root_shape_is_supported(
