@@ -1850,6 +1850,24 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit built 4504ms exi
 pass/facts/nominal_reference_cleanup_through_other_state_exit built 4564ms exit:0 @fa5d68d80e9a
 pass/facts/nominal_reference_cleanup_through_parameter_exit built 4541ms exit:0 @fa5d68d80e9a
 pass/facts/nominal_reference_cleanup_through_target_body_exit built 4341ms exit:0 @fa5d68d80e9a
+pass/facts/opaque_closed_carrier_through_call_result_exit built 5970ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_const_name_exit built 5982ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_field_exit built 5295ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_local_exit built 4992ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_match_join_exit built 5283ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_other_machine_exit built 4882ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_other_state_exit built 5449ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_parameter_exit built 5424ms exit:0 @98309d77b143
+pass/facts/opaque_closed_carrier_through_target_body_exit built 5103ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_call_result_exit built 10998ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_const_name_exit built 11572ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_field_exit built 10002ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_local_exit built 8611ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_match_join_exit built 9499ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_other_machine_exit built 10919ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_other_state_exit built 11691ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_parameter_exit built 9499ms exit:0 @98309d77b143
+pass/facts/opaque_independent_closed_carrier_through_target_body_exit built 8506ms exit:0 @98309d77b143
 pass/facts/outcome_structural_evidence_through_call_result_exit built 31232ms exit:0 stdout:match @3d4cd69c2bc1
 pass/facts/outcome_structural_evidence_through_const_name_exit built 31159ms exit:0 stdout:match @3d4cd69c2bc1
 pass/facts/outcome_structural_evidence_through_field_exit built 31305ms exit:0 stdout:match @3d4cd69c2bc1

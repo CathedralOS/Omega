@@ -4548,12 +4548,13 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   checks actual libc values through public Terminal/native agreement on Linux
   x86-64 across transport places, with cleanup-only rejects. Its named constants
   are construction inputs, not compile-time opaque occurrences. Matching-host
-  qualification on macOS/Linux ARM64 and a verified Windows provider remain;
-  entry declarations do not establish those results. Independent two-package
+  qualification on Linux ARM64 and a verified Windows provider remain; entry
+  declarations do not establish those results. Independent two-package
   closed Affine Inert inputs and results now preserve the same exchange across
   all nine places with Linux native/Terminal agreement and cleanup twins;
-  canonical macOS checking realizes separate dylib products, without macOS
-  execution evidence. Selected satisfied exports are retained independently
+  canonical macOS checking realizes separate dylib products, and the nine
+  independent places now run on macOS ARM64 at native 0 with Terminal
+  agreement. Selected satisfied exports are retained independently
   of outgoing calls. Real child suspension preserves the captured owned input
   and disjoint sibling without replaying effects or ownership tokens.
   Same-layout carrier drift rejects at the exact composition join. Copy,

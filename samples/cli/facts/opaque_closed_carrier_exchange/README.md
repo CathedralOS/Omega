@@ -121,15 +121,26 @@ content):
 ```sh
 omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
 omega --check samples/cli/facts/opaque_closed_carrier_exchange/local/invalid/main.omg
+python3 tools/corpus_gate.py --native --record --filter pass/facts/opaque_closed_carrier_through,pass/facts/opaque_independent_closed_carrier_through
+python3 tools/corpus_gate.py --both --record --filter pass/facts/opaque_closed_carrier_through,pass/facts/opaque_independent_closed_carrier_through
 ```
+
+The gate runs used a `corpus_runner` built in this worktree at `98309d77b143`
+(`mbx test --no-run -p compiler --test corpus_runner`): the native leg recorded
+18 `built ... exit:0` rows and the combined leg 18
+`built ... exit:0 interpreter-exit:0 interpreter:agrees` rows, each splice
+insertion-only (+18 lines, 0 deletions in its golden).
 
 All nine places and all nine independent places report `native exit 0` and
 `interp exit: 0`; the eighteen cleanup twins reject at checking with
 `contains independently invoked nominal cleanup` and `v1 carriers must be inert
 storage`. Each positive differs from its twin only by the added
-`AddressWord::drop` obligation. The corpus native and `both` golden rows for
-macOS ARM64 remain to be recorded; the check-leg rows already carry
-`check-target:macos_arm64` facts. The root `main.omg` retains its Console/std
+`AddressWord::drop` obligation. All eighteen fixtures carry macOS ARM64 native
+rows (`built ... exit:0`) in `tests/omega/corpus_native_macos_arm64.txt` and
+interpreter-agreement rows (`built ... exit:0 interpreter-exit:0
+interpreter:agrees`) in `tests/omega/corpus_both_macos_arm64.txt`, recorded at
+`98309d77b143`; the check-leg rows already carry `check-target:macos_arm64`
+facts. The root `main.omg` retains its Console/std
 route and needs an accepted macOS program-entry binding (`omega update` review)
 before it checks on a fresh host.
 
