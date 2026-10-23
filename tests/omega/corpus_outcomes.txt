@@ -6440,23 +6440,23 @@ fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_qualification_erasure_call_result rejected 4782ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_call_result_rejected rejected 507ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_const_name rejected 200ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_const_name_rejected rejected 103ms expected @9d9ba4fb6251+wt
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_field rejected 4612ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_field_rejected rejected 570ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_local rejected 4794ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_local_rejected rejected 568ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_match_join rejected 4705ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_match_join_rejected rejected 538ms expected @9d9ba4fb6251+wt
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_other_machine rejected 4676ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_other_machine_rejected rejected 602ms expected @9d9ba4fb6251+wt
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_other_state rejected 4665ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_other_state_rejected rejected 644ms expected @9d9ba4fb6251+wt
 	machine `inspect` state `carried`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_parameter rejected 4788ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_parameter_rejected rejected 769ms expected @9d9ba4fb6251+wt
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
-fail/facts/shared_qualification_erasure_target_body rejected 4666ms expected @8137d4f697de+wt
+fail/facts/shared_qualification_erasure_through_target_body_rejected rejected 649ms expected @9d9ba4fb6251+wt
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
 	machine `inspect` state `entry`: a qualification reference view must retain existing source qualifications; `as` cannot mint routed provenance
@@ -7182,27 +7182,27 @@ fail/facts/subslice_state_extent_wrong_view_rejected rejected 1857ms expected @8
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
 	cannot prove index `position` is within unknown slice length of `buffer` in trial::extended
-fail/facts/target_recursive_bound_through_call_result rejected 604ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_call_result_rejected rejected 884ms expected @9d9ba4fb6251+wt
 	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `deliver` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_const_name rejected 595ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_const_name_rejected rejected 627ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_field rejected 601ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_field_rejected rejected 581ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_local rejected 600ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_local_rejected rejected 610ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_match_join rejected 600ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_match_join_rejected rejected 622ms expected @9d9ba4fb6251+wt
 	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
@@ -7211,19 +7211,19 @@ fail/facts/target_recursive_bound_through_match_join rejected 600ms expected @e2
 	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `choose` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_other_machine rejected 596ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_other_machine_rejected rejected 600ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry` value call to `Worker::deliver` violates required fact `value <= 60`: the instantiated fact is structurally false (`61 <= 60`)
-fail/facts/target_recursive_bound_through_other_state rejected 599ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_other_state_rejected rejected 642ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_parameter rejected 595ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_parameter_rejected rejected 701ms expected @9d9ba4fb6251+wt
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `main` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
-fail/facts/target_recursive_bound_through_target_body rejected 588ms expected @e2a6d051c734+wt
+fail/facts/target_recursive_bound_through_target_body_rejected rejected 574ms expected @9d9ba4fb6251+wt
 	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
 	machine `evaluate` state `entry` value call to `countdown` violates required fact `remaining <= 4 && value <= 60`: the instantiated fact is structurally false (`4 <= 4 && 61 <= 60`)
@@ -13811,15 +13811,15 @@ pass/facts/shared_borrow_field_projection_through_other_machine_exit checked 605
 pass/facts/shared_borrow_field_projection_through_other_state_exit checked 45019ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_parameter_exit checked 36892ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/shared_borrow_field_projection_through_target_body_exit checked 56132ms check-target:macos_arm64 @8f970335dca4+wt
-pass/facts/shared_qualification_erasure_call_result checked 14370ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_const_name checked 26932ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_field checked 14387ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_local checked 14423ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_match_join checked 14418ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_other_machine checked 14377ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_other_state checked 14359ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_parameter checked 14427ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/shared_qualification_erasure_target_body checked 14468ms check-target:macos_arm64 @8137d4f697de+wt
+pass/facts/shared_qualification_erasure_through_call_result_exit checked 1766ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_const_name_exit checked 7909ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_field_exit checked 1809ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_local_exit checked 1662ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_match_join_exit checked 1780ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_other_machine_exit checked 1897ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_other_state_exit checked 1836ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_parameter_exit checked 2073ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/shared_qualification_erasure_through_target_body_exit checked 1737ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_call_result_exit checked 44450ms check-target:macos_arm64 @a54647670a7e+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_const_name_exit checked 46721ms check-target:macos_arm64 @a54647670a7e+wt
 pass/facts/signed_32bit_bitwise_and_mask_bound_through_field_exit checked 52938ms check-target:macos_arm64 @a54647670a7e+wt
