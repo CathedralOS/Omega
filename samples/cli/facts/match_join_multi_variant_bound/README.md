@@ -90,7 +90,7 @@ drift apart.
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CONTROL-FLOW` / `INTEGER-CERTIFICATES` / `CASE-SUM-TYPES` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` ([TASKS.md](../../../../TASKS.md)), whose settled proposition-based scalar range contract carries a **case payload `where`** gate through construction, matching, joins and exact arithmetic, and `MATCH-SELECTIVE-LOWERING`, which owns case-pattern dispatch and selected-arm execution. The exact requirement this row establishes: an exhaustive match join over a three-variant `case` whose every arm's `where` gate is `val >= 20 && val <= 60` preserves the joined interval `[20u64, 60u64]` and discharges the exact subtractions `60u64 - joined` and `joined - 20u64` across all nine transport places to native execution.
 - **Requirement established:** Exhaustive multi-variant `case` sum match join interval intersection and bounded arithmetic discharge across all nine standard places (`Psi 05–07` / `Omega 00–09`), verifying that exhaustively matching a three-variant sum type (`case Mode { Low(u64), Mid(u64), High(u64) }`) where every variant arm establishes `joined >= 20u64 && joined <= 60u64` statically preserves the joined interval `[20u64, 60u64]`, discharging exact subtractions `60u64 - joined` and `joined - 20u64`.
 
 Full 8-layer specification and lowering evidence:
@@ -114,4 +114,4 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for discriminant comparison, branch jumps, and 64-bit subtractions (`sub`). Disjoint activation stack frames and register homes are allocated with entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open under CONTROL-FLOW / CASE-SUM-TYPES: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple variant destructuring joins, and arbitrary disjoint interval set unions.
+Remaining open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `MATCH-SELECTIVE-LOWERING`: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple-variant destructuring joins, and arbitrary disjoint interval-set unions. This row closes only the exhaustive three-variant case join whose arms share one interval gate.
