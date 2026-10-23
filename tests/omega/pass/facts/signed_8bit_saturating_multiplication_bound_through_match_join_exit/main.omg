@@ -1,0 +1,42 @@
+// Fact: 8-bit signed saturating multiplication lhs *| rhs with bounded interval 40i8 <= prod <= 96i8 establishes 40i8 <= prod <= 96i8 across all nine places so exact subtractions 96i8 - prod and prod - 40i8 are safe.
+// Place: match join. Both match arms yield bounded 8-bit operands and join before saturating multiplication and interval discharge.
+// Expected exit: 0
+
+machine verify_prod(value: i8) -> i8 requires value >= 40i8 && value <= 96i8 {
+    let headroom: i8 = 96i8 - value;
+    let margin: i8 = value - 40i8;
+    headroom + margin
+}
+
+machine choose_lhs(flag: bool) -> i8
+ensures result >= 8 && result <= 12
+{
+    match flag {
+        true -> 10i8,
+        false -> 9i8,
+    }
+}
+
+machine sat_match_join(rhs: i8) -> i8
+requires rhs >= 5 && rhs <= 8
+{
+    let lhs: i8 = choose_lhs(true);
+    let a: i8 in Saturating = lhs as i8 in Saturating;
+    let b: i8 in Saturating = rhs as i8 in Saturating;
+    let sat_prod: i8 in Saturating = a * b;
+    let prod: i8 = sat_prod as i8;
+    verify_prod(prod)
+}
+
+machine probe() -> i8 {
+    sat_match_join(7i8)
+}
+
+machine main() crashes Trap {
+    transition probe() == 56 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
