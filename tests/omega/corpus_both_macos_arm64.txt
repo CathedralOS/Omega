@@ -792,6 +792,15 @@ pass/facts/dynamic_trait_dispatch_through_other_machine_exit built 9012ms exit:0
 pass/facts/dynamic_trait_dispatch_through_other_state_exit built 8859ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/dynamic_trait_dispatch_through_parameter_exit built 8134ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/dynamic_trait_dispatch_through_target_body_exit built 11845ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/double_indexed_rmw_through_call_result_exit built 3735ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_const_name_exit built 3912ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_field_exit built 6382ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_local_exit built 6334ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_match_join_exit built 6593ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_other_machine_exit built 3291ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_other_state_exit built 6209ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_parameter_exit built 6195ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
+pass/facts/double_indexed_rmw_through_target_body_exit built 4138ms exit:0 interpreter-exit:0 interpreter:agrees @595562a958b4+wt
 pass/facts/entry_domain_return_snapshot_exit built 3711ms exit:0 interpreter-exit:0 interpreter:agrees @ab16f19fe1b1+wt
 pass/facts/erased_reference_contract_through_call_result_exit built 5102ms exit:0 interpreter-exit:0 interpreter:agrees @327a3ccb7744+wt
 pass/facts/erased_reference_contract_through_const_name_exit built 5114ms exit:0 interpreter-exit:0 interpreter:agrees @327a3ccb7744+wt
@@ -2013,6 +2022,15 @@ run/facts/float_comparison_route_through_other_machine_traps built 18979ms exit:
 run/facts/float_comparison_route_through_other_state_traps built 17213ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
 run/facts/float_comparison_route_through_parameter_traps built 16704ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
 run/facts/float_comparison_route_through_target_body_traps built 17034ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/double_indexed_rmw_through_call_result_traps built 4140ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_const_name_traps built 4661ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_field_traps built 4619ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_local_traps built 4370ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_match_join_traps built 4457ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_other_machine_traps built 4240ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_other_state_traps built 2655ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_parameter_traps built 2568ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
+run/facts/double_indexed_rmw_through_target_body_traps built 2690ms exit:signal signal:5 interpreter:trapped @595562a958b4+wt
 run/facts/signed_division_quotient_truncation_not_floor_traps built 3882ms exit:signal signal:5 interpreter:trapped @fca093f90f6d
 run/layouts/placed_stable_array built 1666ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @6242664f2106
 run/layouts/placed_stable_distinct_fields built 1575ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @6242664f2106

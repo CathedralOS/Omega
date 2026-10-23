@@ -47,14 +47,16 @@ omega run --both samples/cli/facts/double_indexed_rmw/main.omg
 omega run --both samples/cli/facts/double_indexed_rmw/<place>/main.omg
 ```
 
-Measured on this Intel macOS x86_64 host with an opt-level 1 producer built
-from `ce4681e434c` (the four authored hosted targets cannot execute here, so
-each scratch copy adds `macos_x86_64::ProgramEntry`, and `target_body` also
-gets an identical `macos_x86_64` body; no fact source was changed): all ten
-positives report native exit 0 and interpreter exit 0, and all ten twins report
-a native trap signal with interpreter `crash: Trap` and host presentation
-agreement. A Windows x86-64 host previously reported the same agreement for the
-root and its twin at `ff5d57b7c845`.
+Measured on this macOS arm64 host with the wave's shared generation omega
+(595562a958b, opt_level 1, sha256
+`5c805564eb160e5714885a302f42b97dc34c85e59d877a96dbe685ec98c20fbd`):
+`omega run --both` reports native exit 0 and interpreter exit 0 for the root
+and all nine places (10/10), and a native signal 5 with interpreter
+`crash: Trap` and host presentation agreement for the root and all nine twins
+(10/10). An earlier Intel macOS x86_64 host measured scratch copies that added
+`macos_x86_64::ProgramEntry`, because none of the four authored targets
+executes there; a Windows x86-64 host previously reported the same agreement
+for the root and its twin at `ff5d57b7c845`.
 
 ## Pinned fixtures
 
@@ -63,6 +65,15 @@ copy the place program and record the native exit 0 oracle. Trap fixtures
 `tests/omega/run/facts/double_indexed_rmw_through_<place>_traps` copy the twin
 and record the `trap` oracle, following
 `tests/omega/run/facts/signed_division_quotient_truncation_not_floor_traps`.
+
+The pinned fixtures carry this host's recorded rows, measured with the wave's
+opt-level 1 corpus runner at `595562a958b` (sha256
+`fa7c9b282deaefd7f38eafd3b4ea07d960ad1eb7e679d23253fef05ed8ff30dd`): the check
+leg records all eighteen as `checked check-target:macos_arm64`,
+`corpus_native_macos_arm64.txt` records the nine `built ... exit:0` positives
+and the nine `built ... exit:signal signal:5` traps, and
+`corpus_both_macos_arm64.txt` records the same runs with
+`interpreter-exit:0 interpreter:agrees` and `interpreter:trapped`.
 
 ## Requirements and evidence
 
@@ -96,17 +107,19 @@ and record the `trap` oracle, following
    `ProgramEntry` values. `Row` is a tagged-field record over a two-element
    `i32` array, and both arrays are locals whose addresses travel only as
    loans to the writing machine or state.
-7. **Instruction selection and frames:** the Windows x86-64 and macOS x86-64
-   images execute the nested-index arithmetic, the field store between two
-   runtime indices, and the exit selection. The other authored targets are
-   checked through their entry bindings and, for `target_body`, through their
-   checked bodies; this host did not execute those images.
+7. **Instruction selection and frames:** the `macos_arm64` images execute the
+   nested-index arithmetic, the field store between two runtime indices, and
+   the exit selection, including the twins' `crash Trap` route. The other
+   three authored targets are checked through their entry bindings and, for
+   `target_body`, through their checked bodies; this host did not execute those
+   images.
 8. **Encoding and emission:** the executed images agree with Terminal Psi,
    including the trap presentation on the twins.
 
 ### What remains open
 
-Native execution on the four authored hosted targets (this host pins
-`macos_x86_64`; `omega run --target` is compile-publication only, so it
-supplies no runtime claim). The rest of PLACED-ACCESS-NATIVE-OPS — placed MMIO
-access and the wider address-composition frontier — is not established here.
+Native execution on `windows_x86_64`, `linux_x86_64`, and `linux_arm64` (this
+host pins `macos_arm64`; `omega run --target` is compile-publication only, so
+it supplies no runtime claim). The rest of PLACED-ACCESS-NATIVE-OPS — placed
+MMIO access and the wider address-composition frontier — is not established
+here.
