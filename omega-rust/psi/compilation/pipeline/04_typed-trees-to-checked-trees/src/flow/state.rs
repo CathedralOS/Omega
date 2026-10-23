@@ -176,7 +176,7 @@ pub(super) fn build_state_flow_fact<'plans>(
                 machine.symbol,
                 state.symbol,
                 0,
-                *expression,
+                &[*expression],
                 ProgramPoint::State {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,

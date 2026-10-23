@@ -18,6 +18,27 @@ pub(crate) use parameters::{contract_parameter_position, projected_argument_plac
 pub(crate) use places::contract_fact_place;
 
 use payload::semantic_contract_payload;
+
+/// `extension` names storage strictly inside `prefix`.
+fn fact_place_strictly_extends(
+    facts: &FactPlan,
+    extension: FactPlace,
+    prefix: facts::PlaceHandle,
+) -> bool {
+    let FactPlace::Place(extension) = extension else {
+        return false;
+    };
+    let extension = facts.places.get(extension);
+    let prefix = facts.places.get(prefix);
+    if extension.root != prefix.root {
+        return false;
+    }
+    let extension_segments = facts.place_segments.span_or_empty(extension.segments);
+    let prefix_segments = facts.place_segments.span_or_empty(prefix.segments);
+    extension_segments.len() > prefix_segments.len()
+        && extension_segments.starts_with(prefix_segments)
+}
+
 use points::{contract_fact_origin, contract_fact_point};
 
 pub(super) fn append_contract_semantic_facts(
@@ -59,8 +80,14 @@ pub(super) fn append_contract_semantic_facts(
                 // position retires membership but does not establish that
                 // position itself is nonzero. Keep one proposition and its
                 // storage dependencies atomic under the shared flow filter.
+                // An ancestor of the subject is not a separate dependency:
+                // replacing that ancestor already overlaps the subject, while
+                // recording the ancestor makes a sibling field write retire
+                // the subject too.
                 for place in dependency_places {
-                    if facts.fact_place_equals(declaration_fact.place, place) {
+                    if facts.fact_place_equals(declaration_fact.place, place)
+                        || fact_place_strictly_extends(facts, declaration_fact.place, place)
+                    {
                         continue;
                     }
                     let dependency = facts.append_fact(Fact {

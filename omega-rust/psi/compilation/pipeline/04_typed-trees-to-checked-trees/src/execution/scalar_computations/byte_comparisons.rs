@@ -116,7 +116,7 @@ impl Builder<'_, '_> {
         observe_referent: bool,
     ) -> Option<CheckedUnitStructuralArgumentPlan> {
         let (machine, state) = validation::find_state(self.program, self.state)?;
-        crate::execution::terminal_unit::byte_operands::plan(
+        if let Some(plan) = crate::execution::terminal_unit::byte_operands::plan(
             self.program,
             self.operators,
             self.pure,
@@ -130,6 +130,41 @@ impl Builder<'_, '_> {
             observe_referent,
             &|position| self.dense_structural_parameter_index(position),
             &|selector| self.local_selector(selector),
-        )
+        ) {
+            return Some(plan);
+        }
+        if observe_referent {
+            return None;
+        }
+        self.call_result_byte_subject(operand, target)
+    }
+
+    /// A call's byte result is not a place and not an erased view. Root the
+    /// call so it executes, then observe the completed descriptor.
+    fn call_result_byte_subject(
+        &mut self,
+        operand: ExpressionHandle,
+        target: typed_trees::types::TypeReferenceHandle,
+    ) -> Option<CheckedUnitStructuralArgumentPlan> {
+        let call = self.program.expression_table.call_node(operand)?;
+        let call_target = validation::call_target_symbol(self.program, call);
+        self.call_ordinal(operand, call_target)?;
+        let value = self.structural_value(operand, target)?;
+        let ordinal = u32::try_from(self.statement_index).ok()?;
+        if self
+            .structural_values
+            .root_for_expression(self.state, ordinal, operand)
+            .is_none()
+        {
+            self.push_structural_root(ordinal, operand, target, value);
+        }
+        Some(CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression: operand,
+            },
+            path: Vec::new(),
+            type_identity: validation::structural_type_identity(self.program, target, &[], &[]),
+            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+        })
     }
 }

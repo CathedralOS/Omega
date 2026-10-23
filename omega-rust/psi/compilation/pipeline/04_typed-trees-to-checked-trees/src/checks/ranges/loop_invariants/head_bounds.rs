@@ -196,7 +196,9 @@ pub(super) fn parse_counter_relational_upper(
     counter: SymbolHandle,
 ) -> Option<RelationalUpper> {
     let Some(binary) = program.expression_table.binary_node(guard) else {
-        return None;
+        // A subject spelled by name stands for its capture's initializer.
+        let subject = boolean_subject_definition(program, source, guard)?;
+        return parse_counter_relational_upper(program, machine, source, subject, counter);
     };
     if binary.operator == BinaryOperator::Equal {
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;

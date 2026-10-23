@@ -89,6 +89,14 @@ pub(super) fn append_guard_context(
             )
         },
     );
+    // Bound minting must see every true observation together: a recovered
+    // dispatch decision reports `i >= 2` and `i < 50` as separate
+    // observations, and rows minted per observation intersect the live
+    // interval independently -- the lower-only row then re-asserts the live
+    // upper at the same arm point, where readers union it over the tight
+    // upper the sibling conjunct established. One call groups every
+    // conjunct on the place into a single intersected row.
+    let mut bound_expressions: Vec<ExpressionHandle> = Vec::new();
     for (expression, value) in std::iter::once((expression, value)).chain(captured) {
         append_predicate_context(
             program,
@@ -116,20 +124,23 @@ pub(super) fn append_guard_context(
                 active_contexts,
                 active_constraints,
             );
-            append_comparison_bounds_context(
-                program,
-                semantic,
-                build,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                expression,
-                point,
-                FactOrigin::TransitionGuard,
-                active_contexts,
-                active_constraints,
-            );
+            bound_expressions.push(expression);
         }
+    }
+    if !bound_expressions.is_empty() {
+        append_comparison_bounds_context(
+            program,
+            semantic,
+            build,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            &bound_expressions,
+            point,
+            FactOrigin::TransitionGuard,
+            active_contexts,
+            active_constraints,
+        );
     }
 }
 
@@ -150,7 +161,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    expression: ExpressionHandle,
+    expressions: &[ExpressionHandle],
     point: ProgramPoint,
     origin: FactOrigin,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
@@ -168,41 +179,52 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     else {
         return;
     };
-    let mut float_predicates = Vec::new();
-    crate::values::float_predicates::collect_true(
-        program,
-        machine,
-        state,
-        statement_index,
-        expression,
-        &mut float_predicates,
-    );
-    for (subject, predicate) in float_predicates {
-        append_observation_context(
+    for &expression in expressions {
+        let mut float_predicates = Vec::new();
+        crate::values::float_predicates::collect_true(
             program,
-            semantic,
-            build,
-            state_symbol,
+            machine,
+            state,
             statement_index,
-            &[subject],
-            FactPayload::FloatPredicate { predicate },
-            point,
-            origin,
-            active_contexts,
-            active_constraints,
+            expression,
+            &mut float_predicates,
         );
-    }
-    // IEEE predicates above use their selected float meaning. Integer bound
-    // decomposition has its own authority; it must not gate IEEE entry facts
-    // or interpret an overloaded equality as builtin integer order.
-    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
-    {
-        return;
+        for (subject, predicate) in float_predicates {
+            append_observation_context(
+                program,
+                semantic,
+                build,
+                state_symbol,
+                statement_index,
+                &[subject],
+                FactPayload::FloatPredicate { predicate },
+                point,
+                origin,
+                active_contexts,
+                active_constraints,
+            );
+        }
     }
     let mut conjuncts = Vec::new();
     // Arm tests arrive as `<guard> == true`; peel that wrapper off before
-    // reading conjuncts, then split `&&` as the arm's own test would.
-    append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    // reading conjuncts, then split `&&` as the arm's own test would. Every
+    // expression in the arm's observation set contributes conjuncts to the
+    // same rows: a conjunct pair minted separately would let the
+    // half-bound of one observation union back over the meet of the other.
+    for &expression in expressions {
+        if !validation::has_builtin_bound_expression_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+        ) {
+            continue;
+        }
+        append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    }
+    if conjuncts.is_empty() {
+        return;
+    }
     struct GuardBound {
         place: facts::PlaceHandle,
         carrier: facts::IntegerRange,

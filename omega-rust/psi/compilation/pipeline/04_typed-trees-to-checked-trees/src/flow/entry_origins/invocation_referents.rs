@@ -244,16 +244,30 @@ pub(in crate::flow) fn extend_invocation_observations(
                 }
             }
             None => {
+                // Projection failed, so the write may still reach an entry
+                // referent. A resolved field path reaches that field, not every
+                // sibling: replacing the whole referent is the unresolved case.
+                let field_path = !place.segments.is_empty()
+                    && place.segments.iter().all(|segment| match segment {
+                        facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
+                        facts::PlaceSegment::Case { variant } => variant.is_valid(),
+                        facts::PlaceSegment::FixedIndex { .. } => true,
+                        _ => false,
+                    });
                 if let Some(entry) = program.machine_states(machine).first() {
                     for parameter in program.state_parameters(entry) {
                         if let Some(root) = invocation_referent(program, machine, parameter.symbol)
                         {
-                            let place = CanonicalPlace {
+                            let projected_place = CanonicalPlace {
                                 root,
-                                segments: Vec::new(),
+                                segments: if field_path {
+                                    place.segments.clone()
+                                } else {
+                                    Vec::new()
+                                },
                             };
-                            if !projected.contains(&place) {
-                                projected.push(place);
+                            if !projected.contains(&projected_place) {
+                                projected.push(projected_place);
                             }
                         }
                     }

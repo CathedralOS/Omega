@@ -189,7 +189,19 @@ fn guard_bounds(
         return Interval::UNBOUNDED;
     }
     let Some(binary) = program.expression_table.binary_node(guard) else {
-        return Interval::UNBOUNDED;
+        // A subject spelled by name stands for its capture's initializer.
+        let Some(subject) = super::boolean_subject_definition(program, state, guard) else {
+            return Interval::UNBOUNDED;
+        };
+        return guard_bounds(
+            program,
+            machine,
+            state,
+            subject,
+            counter,
+            positive,
+            depth + 1,
+        );
     };
     if matches!(
         binary.operator,

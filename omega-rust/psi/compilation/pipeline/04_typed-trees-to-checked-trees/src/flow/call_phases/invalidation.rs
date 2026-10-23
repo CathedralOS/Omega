@@ -96,11 +96,17 @@ fn call_storage_mutations(
     )?;
     let mut result = Vec::new();
     for mut write in writes {
-        if matches!(
-            write.region,
-            crate::flow::mutation::StorageRegion::UnresolvedContent { .. }
-        ) {
-            return None;
+        // Unresolved content names the carrier the capability is attached to.
+        // Facts that overlap that carrier are stale. A sibling field of the
+        // same owner is a different place, so this footprint stays partial
+        // instead of withdrawing every caller fact.
+        if let crate::flow::mutation::StorageRegion::UnresolvedContent { .. } = &write.region {
+            let carrier = write.region.anchor().clone();
+            result.push(ObservedCallMutation {
+                write,
+                observations: vec![carrier],
+            });
+            continue;
         }
         // When the resolver cannot enumerate this state's local origins (a
         // reference local of finite candidate origins is such a state),
@@ -156,7 +162,7 @@ fn call_storage_mutations(
 
 pub(in crate::flow) fn apply_call_invalidations(
     program: &dyn ::validation::CheckingInput,
-    semantic: &FactPlan,
+    semantic: &mut FactPlan,
     domains: &DomainFacts,
     build: &mut FlowBuildContext,
     active_contexts: HandleSpan<FlowSemanticContextRef>,
@@ -189,18 +195,18 @@ pub(in crate::flow) fn apply_call_invalidations(
                 call_ordinal: borrow_call.call_ordinal,
                 target_symbol: borrow_call.target_symbol,
             },
-            |fact, place| {
+            |plan, fact, place| {
                 writes.contributions.iter().find_map(|contribution| {
                     if contribution
                         .write
                         .region
-                        .preserves_owner_qualification(program, semantic, fact, place)
+                        .preserves_owner_qualification(program, plan, fact, place)
                     {
                         return None;
                     }
                     crate::flow::domain::matching_mutation_for_fact_place(
                         program,
-                        semantic,
+                        plan,
                         domains,
                         fact,
                         place,

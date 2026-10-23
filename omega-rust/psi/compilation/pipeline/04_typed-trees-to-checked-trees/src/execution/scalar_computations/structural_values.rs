@@ -604,6 +604,9 @@ impl Builder<'_, '_> {
                 // The reference lends its selected path, not a detached copy
                 // of that child; the normal value schedule owns its cleanup.
                 if let facts::PlaceRoot::Expression(root) = place.root {
+                    // A value leaf (literal, arithmetic) keeps no member
+                    // position by design; its result type is still the
+                    // referent's exact type at this occurrence.
                     let root_reference = validation::canonical_place_type_reference(
                         self.program,
                         self.state,
@@ -612,7 +615,30 @@ impl Builder<'_, '_> {
                             root: place.root,
                             segments: Vec::new(),
                         },
-                    )?;
+                    )
+                    .or_else(|| {
+                        validation::expression_result_type_reference(
+                            self.program,
+                            self.program.machine_by_symbol(self.machine)?,
+                            self.program.state_by_symbol(self.state)?,
+                            root,
+                        )
+                    })
+                    .or_else(|| {
+                        // An anonymous literal referent carries no declared
+                        // or computed result type of its own; the borrow's
+                        // admitted referee is its exact type at this
+                        // occurrence. Projected referents keep their member
+                        // positions, so only a segment-free root may ask the
+                        // shell.
+                        place
+                            .segments
+                            .is_empty()
+                            .then(|| validation::reference_shell(self.program, expected))
+                            .flatten()
+                            .map(|shell| shell.referee)
+                    });
+                    let root_reference = root_reference?;
                     source_value = self.structural_value(root, root_reference)?;
                     // The anonymous backing is an independently admitted owner,
                     // not a contained descriptor field. Publish the exact root

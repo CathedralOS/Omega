@@ -28,6 +28,7 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 pub(crate) mod arrays;
 mod byte_comparisons;
+pub(crate) mod call_views;
 mod call_signature;
 mod calls;
 pub(crate) mod cases;
@@ -101,6 +102,7 @@ pub(crate) struct Expansion<'a> {
     claim_edges: Vec<PreparedClaimEdge>,
     calls: Vec<SourceCallCoordinate>,
     produced_values: Vec<produced_values::Slot>,
+    call_views: Vec<call_views::Slot>,
     subslices: Vec<subslices::Slot>,
     observations: Vec<observations::Slot>,
     source_carriers: Vec<(
@@ -137,6 +139,7 @@ impl<'a> Expansion<'a> {
             claim_edges: Vec::new(),
             calls: Vec::new(),
             produced_values: Vec::new(),
+            call_views: Vec::new(),
             subslices: Vec::new(),
             observations: Vec::new(),
             source_carriers: Vec::new(),
@@ -206,6 +209,11 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_observations(mut self, observations: &[observations::Slot]) -> Self {
         self.observations = observations.to_vec();
+        self
+    }
+
+    pub(crate) fn with_call_views(mut self, call_views: &[call_views::Slot]) -> Self {
+        self.call_views = call_views.to_vec();
         self
     }
 

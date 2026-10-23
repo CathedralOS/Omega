@@ -487,6 +487,28 @@ fn boolean_equality_inner(
     }
 }
 
+/// The expression a bare-name guard stands for: the immutable local's
+/// initializer in the same state. Generated transition-subject captures
+/// (`let __transition_subject#N = i < 4`) spell the arm's tested condition by
+/// name, and an authored `let has_next = i < n` binds the same way. A mutable
+/// binding's initializer does not describe the guard-time value, so only an
+/// immutable local may substitute.
+pub(super) fn boolean_subject_definition(
+    program: &dyn ::validation::CheckingInput,
+    state: &State,
+    guard: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let path = program.expression_table.name_path_node(guard)?;
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| statement.as_local_data())
+        .find(|local| local.symbol == path.symbol && !local.is_mutable)
+        .map(|local| local.initial_value)
+        .filter(|initial| *initial != guard)
+}
+
 fn integer_literal(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,

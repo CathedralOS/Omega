@@ -216,7 +216,10 @@ fn subslice_domain_at_place(
         return false;
     };
     let is_window = match selection {
-        facts::PlaceSegment::FixedRange { .. } => true,
+        // A runtime-endpoint slice arrives as `OpaqueRange` once its
+        // callee-local range expression is erased: still a window of the
+        // carrier, so a subslice-preserving class survives it identically.
+        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => true,
         facts::PlaceSegment::Index { expression } => matches!(
             program.expression_table.expression(*expression),
             typed_trees::expression::ExpressionNode::Range(_)

@@ -21,6 +21,7 @@ use checked_trees::{BorrowCallFact, DomainFacts, FlowSemanticContextRef};
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
+use symbols::SymbolHandle;
 
 /// Re-seed the declared field facts of every exclusive borrowed referent the
 /// call hands back, on the referent's exact storage place.
@@ -223,9 +224,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // selector denotes. Preserve only an already-live row, and only if every
     // overlapping contribution is restored by its own captured formal. Domain
     // dependency overlap uses the very same judgment as invalidation.
-    if let Some(writes) = writes
-        && !guarantees.is_empty()
-    {
+    if let Some(writes) = writes {
         let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
         // Confinement depends only on this immutable write path and its
         // selected formal, not on a live fact or a candidate guarantee. A
@@ -298,18 +297,16 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 {
                     return true;
                 }
-                if crate::flow::domain::matching_mutation_for_fact_place(
+                let Some((mutated, _)) = crate::flow::domain::matching_mutation_for_fact_place(
                     program,
                     semantic,
                     domains,
                     fact,
                     handle,
                     &contribution.observations,
-                )
-                .is_none()
-                {
+                ) else {
                     return true;
-                }
+                };
                 affected = true;
                 let write = &contribution.write;
                 let Some(crate::flow::mutation::StorageRegion::Declared(source)) = &write.source
@@ -321,6 +318,21 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     // descriptor fact merely because the loan is anchored
                     // there. Its own observation frontier must be proved.
                     return false;
+                }
+                // A per-byte class is a property of every element. An indexed
+                // store does not retire it when the callee's normal exits
+                // still prove that class on the formal that was written.
+                if element_store_keeps_byte_class(
+                    program,
+                    semantic,
+                    build,
+                    borrow_call.target_symbol,
+                    source.root.as_symbol(),
+                    &place,
+                    mutated,
+                    domain_symbol,
+                ) {
+                    return true;
                 }
                 guarantees.restores(
                     program,
@@ -413,4 +425,311 @@ fn write_stays_in_captured_storage(
     // not only replacement of the descriptor slot. Without that distinction
     // in the summary, it cannot establish confinement to the inline owner.
     validation::reference_shell(program, reference).is_none()
+}
+
+/// An indexed store keeps a per-byte class when every state that writes an
+/// element of the same formal still proves that class after the store.
+/// The writing state names its own parameter; transitions carry that storage
+/// into later states under a new symbol. Whole-carrier replacement, and a
+/// store whose following frontier does not prove the class, stay retired.
+fn element_store_keeps_byte_class(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &FlowBuildContext<'_>,
+    target_symbol: SymbolHandle,
+    parameter: Option<SymbolHandle>,
+    fact_place: &validation::CanonicalPlace,
+    mutated: &validation::CanonicalPlace,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(parameter) = parameter else {
+        return false;
+    };
+    let Some(required) = validation::field_domains::domain_byte_predicate(program, domain_symbol)
+    else {
+        return false;
+    };
+    if !required.is_subslice_preserving()
+        || mutated.root != fact_place.root
+        || mutated.segments.len() <= fact_place.segments.len()
+        || !mutated.segments.starts_with(&fact_place.segments)
+        || !mutated.segments[fact_place.segments.len()..]
+            .iter()
+            .all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Index { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+    {
+        return false;
+    }
+    let Some((machine, _)) = validation::find_state(program, target_symbol) else {
+        return false;
+    };
+    let aliases = parameter_symbols_for_storage(program, machine, parameter);
+    let mut saw_store = false;
+    for state_symbol in program
+        .machine_states(machine)
+        .iter()
+        .map(|state| state.symbol)
+    {
+        let Some(state) = program.state_by_symbol(state_symbol) else {
+            return false;
+        };
+        let Some(stored) = program
+            .state_parameters(state)
+            .iter()
+            .find(|candidate| aliases.contains(&candidate.symbol))
+        else {
+            continue;
+        };
+        match state_keeps_byte_class_after_element_stores(
+            program,
+            semantic,
+            build,
+            state,
+            stored.symbol,
+            required,
+        ) {
+            ElementStoreClass::NoStore => {}
+            ElementStoreClass::Proved => saw_store = true,
+            ElementStoreClass::Retired => return false,
+        }
+    }
+    saw_store
+}
+
+enum ElementStoreClass {
+    NoStore,
+    Proved,
+    Retired,
+}
+
+/// Parameters that name the same storage as `parameter` after ordinary
+/// transitions pass that parameter through as a whole argument.
+fn parameter_symbols_for_storage(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    parameter: SymbolHandle,
+) -> Vec<SymbolHandle> {
+    let mut aliases = vec![parameter];
+    loop {
+        let mut grew = false;
+        let state_symbols: Vec<SymbolHandle> = program
+            .machine_states(machine)
+            .iter()
+            .map(|state| state.symbol)
+            .collect();
+        for state_symbol in state_symbols {
+            let Some(state) = program.state_by_symbol(state_symbol) else {
+                continue;
+            };
+            for (_, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                let Some(transition) = statement.as_transition() else {
+                    continue;
+                };
+                if transition.exit != typed_trees::statement::TransitionExit::Ordinary {
+                    continue;
+                }
+                for target in transition.targets() {
+                    let Some((path, arguments)) =
+                        program.statement_table.named_transition_target(target)
+                    else {
+                        continue;
+                    };
+                    let Some(target_index) =
+                        validation::internal_state_index(program, machine, path.symbol)
+                    else {
+                        continue;
+                    };
+                    let Some(destination_symbol) = program
+                        .machine_states(machine)
+                        .get(target_index)
+                        .map(|state| state.symbol)
+                    else {
+                        continue;
+                    };
+                    let Some(destination) = program.state_by_symbol(destination_symbol) else {
+                        continue;
+                    };
+                    let arguments = program.statement_table.expression_handles(arguments);
+                    for (destination_parameter, argument) in program
+                        .state_parameters(destination)
+                        .iter()
+                        .zip(arguments.iter().copied())
+                    {
+                        let Some(source) = whole_parameter_symbol(program, argument) else {
+                            continue;
+                        };
+                        if aliases.contains(&source)
+                            && !aliases.contains(&destination_parameter.symbol)
+                        {
+                            aliases.push(destination_parameter.symbol);
+                            grew = true;
+                        }
+                    }
+                }
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+    aliases
+}
+
+fn whole_parameter_symbol(
+    program: &dyn ::validation::CheckingInput,
+    mut expression: typed_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    loop {
+        match program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+                expression = borrow.target;
+            }
+            typed_trees::expression::ExpressionNode::Name(path) => return Some(path.symbol),
+            _ => return None,
+        }
+    }
+}
+
+fn state_keeps_byte_class_after_element_stores(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    build: &FlowBuildContext<'_>,
+    state: &typed_trees::state::State,
+    parameter: SymbolHandle,
+    required: validation::field_domains::ByteSequencePredicate,
+) -> ElementStoreClass {
+    let mut last_store = None;
+    for (statement_index, statement) in program
+        .statement_table
+        .indexed_statements(state.statement_nodes)
+    {
+        let Some(assignment) = statement.as_assignment() else {
+            continue;
+        };
+        match carrier_assignment(program, assignment.target, parameter) {
+            CarrierAssignment::Element => last_store = Some(statement_index),
+            CarrierAssignment::Whole => return ElementStoreClass::Retired,
+            CarrierAssignment::Other => {}
+        }
+    }
+    let Some(last_store) = last_store else {
+        return ElementStoreClass::NoStore;
+    };
+    let Some(flow) = build
+        .control
+        .states
+        .iter()
+        .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))
+    else {
+        return ElementStoreClass::Retired;
+    };
+    let statement_span = flow.statements;
+    let exit_span = flow.exits;
+    let frontiers: Vec<HandleSpan<FlowSemanticContextRef>> = build
+        .control
+        .statements
+        .span_or_empty(statement_span)
+        .iter()
+        .filter(|statement| statement.statement_index > last_store)
+        .map(|statement| statement.entry_semantic_contexts)
+        .collect();
+    let exit_frontiers: Vec<HandleSpan<FlowSemanticContextRef>> = build
+        .control
+        .exits
+        .span_or_empty(exit_span)
+        .iter()
+        .map(|exit| exit.entry_semantic_contexts)
+        .collect();
+    if frontiers.is_empty() && exit_frontiers.is_empty() {
+        return ElementStoreClass::Retired;
+    }
+    let proves = |contexts: HandleSpan<FlowSemanticContextRef>| {
+        build
+            .contexts
+            .semantic_context_refs
+            .span_or_empty(contexts)
+            .iter()
+            .any(|reference| {
+                semantic
+                    .context_view(semantic.contexts.get(reference.context))
+                    .facts()
+                    .any(|fact| byte_class_fact_covers(semantic, fact, parameter, required))
+            })
+    };
+    if frontiers.into_iter().chain(exit_frontiers).all(proves) {
+        ElementStoreClass::Proved
+    } else {
+        ElementStoreClass::Retired
+    }
+}
+
+fn byte_class_fact_covers(
+    semantic: &FactPlan,
+    fact: &Fact,
+    parameter: SymbolHandle,
+    required: validation::field_domains::ByteSequencePredicate,
+) -> bool {
+    let FactPayload::BytePredicate { predicate } = fact.payload else {
+        return false;
+    };
+    if !predicate.implies(required) {
+        return false;
+    }
+    let Some(place) = fact.place.as_place() else {
+        return false;
+    };
+    let place = semantic.places.get(place);
+    place.root.as_symbol() == Some(parameter)
+        && semantic
+            .place_segments
+            .span_or_empty(place.segments)
+            .iter()
+            .all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. }
+                        | facts::PlaceSegment::Case { .. }
+                        | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+}
+
+enum CarrierAssignment {
+    Element,
+    Whole,
+    Other,
+}
+
+fn carrier_assignment(
+    program: &dyn ::validation::CheckingInput,
+    mut expression: typed_trees::expression::ExpressionHandle,
+    parameter: SymbolHandle,
+) -> CarrierAssignment {
+    let mut indexed = false;
+    loop {
+        match program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Indexed(indexed_expression) => {
+                indexed = true;
+                expression = indexed_expression.collection;
+            }
+            typed_trees::expression::ExpressionNode::Borrow(borrow) => {
+                expression = borrow.target;
+            }
+            typed_trees::expression::ExpressionNode::Name(path) if path.symbol == parameter => {
+                return if indexed {
+                    CarrierAssignment::Element
+                } else {
+                    CarrierAssignment::Whole
+                };
+            }
+            _ => return CarrierAssignment::Other,
+        }
+    }
 }

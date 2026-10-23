@@ -353,6 +353,26 @@ pub(in crate::machine_calls) fn infer_call_type_arguments(
             actual = *referee;
         }
     }
+    // A fixed array lends to an open slice: `&[T; N]` for `&[T]` binds the
+    // element and forgets the extent, exactly as the shared-referee
+    // correspondence does (`owned_array_projects_to_slice`). The argument's
+    // place type arrives without its borrow, so this shape occurs whether or
+    // not the source spelled `&`.
+    if let (
+        TypeReferenceNode::FixedArray {
+            element_type: actual_element,
+            ..
+        },
+        TypeReferenceNode::Slice {
+            element_type: required_element,
+        },
+    ) = (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(required),
+    ) {
+        actual = *actual_element;
+        required = *required_element;
+    }
     let generic_types = parameters
         .iter()
         .filter(|parameter| {

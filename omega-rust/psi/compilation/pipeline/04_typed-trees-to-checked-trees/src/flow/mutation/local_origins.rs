@@ -79,7 +79,14 @@ pub(crate) fn close_storage_places_over_origins(
             // local footprint rather than dropping all alias expansion and
             // losing even the current writer's known access route. This is
             // may-write invalidation, never evidence of a particular referent.
-            if seen.insert(alias.clone()) {
+            // A write already placed further along this same root is that
+            // access route; the bare leaf would also retire sibling fields.
+            let written_within = storage.iter().any(|written| {
+                written.root == alias.root
+                    && written.segments.len() > alias.segments.len()
+                    && written.segments.starts_with(&alias.segments)
+            });
+            if !written_within && seen.insert(alias.clone()) {
                 places.push(alias);
             }
             continue;

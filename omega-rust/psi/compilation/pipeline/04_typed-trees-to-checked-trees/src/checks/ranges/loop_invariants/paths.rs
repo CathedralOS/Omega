@@ -106,7 +106,9 @@ pub(super) fn parse_counter_upper_bound(
     counter: SymbolHandle,
 ) -> Option<i64> {
     let Some(binary) = program.expression_table.binary_node(guard) else {
-        return None;
+        // A subject spelled by name stands for its capture's initializer.
+        let subject = boolean_subject_definition(program, source, guard)?;
+        return parse_counter_upper_bound(program, machine, source, subject, counter);
     };
     if binary.operator == BinaryOperator::Equal {
         // `subject == true` -> parse the subject; `== false` is a negation (no upper bound).

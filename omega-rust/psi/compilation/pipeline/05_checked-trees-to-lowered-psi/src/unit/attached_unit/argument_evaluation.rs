@@ -86,6 +86,7 @@ pub(crate) struct Evaluation {
     /// element operations.
     pub(crate) element_views:
         std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
+    pub(crate) call_views: Vec<crate::scalar_lowering::computations::call_views::Slot>,
     pub(crate) subslices: Vec<crate::scalar_lowering::computations::subslices::Slot>,
     pub(crate) observations: Vec<crate::scalar_lowering::computations::observations::Slot>,
     pub(crate) produced_values: Vec<crate::scalar_lowering::computations::produced_values::Slot>,
@@ -223,6 +224,7 @@ impl Evaluation {
         .with_produced_values(&self.produced_values)
         .with_literals(&self.literals)
         .with_copies(&self.copies)
+        .with_call_views(&self.call_views)
         .with_subslices(&self.subslices)
         .with_observations(&self.observations)
         .with_source_carriers(self.completed_carrier_inventory(operations)?)
@@ -431,6 +433,7 @@ impl Evaluation {
             produced_values: self.produced_values.clone(),
             literals: self.literals.clone(),
             copies: self.copies.clone(),
+            call_views: self.call_views.clone(),
             subslices: self.subslices.clone(),
             observations: self.observations.clone(),
             cases: self.cases.clone(),
@@ -740,6 +743,7 @@ impl Evaluation {
             produced_values: Vec::new(),
             literals: Vec::new(),
             copies: Vec::new(),
+            call_views: Vec::new(),
             subslices: Vec::new(),
             observations: Vec::new(),
             cases: Vec::new(),

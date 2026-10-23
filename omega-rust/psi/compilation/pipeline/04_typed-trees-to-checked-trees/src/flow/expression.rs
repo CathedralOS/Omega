@@ -668,9 +668,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             // are references. Resolve those descriptors only after projecting
             // their slots; asking for the container's reference origin would
             // lose its address or substitute a child's backing for the owner.
-            if !reference.is_valid() {
-                return HandleSpan::empty();
-            }
             let Some(place) = validation::canonical_place_from_expression_in_state(
                 self.program,
                 self.state.symbol,
@@ -679,6 +676,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             ) else {
                 return HandleSpan::empty();
             };
+            // Anonymous computed storage keeps no member position and no
+            // ordinary result type, yet its address is still its own place:
+            // a formed borrow lends that occurrence exactly as a named home.
+            if !reference.is_valid() && !matches!(place.root, facts::PlaceRoot::Expression(_)) {
+                return HandleSpan::empty();
+            }
             self.append_referent_places(&[place])
         });
         let mut capture =

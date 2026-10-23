@@ -114,14 +114,28 @@ pub(crate) fn capture(
         statement_index,
         target,
     )?;
-    let (backing_type, mut path) = calls::projected_evaluated_path(
+    let (backing_type, mut path) = match calls::projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
         statement_index,
         &place,
         Some(selector),
-    )?;
+    ) {
+        Some(path) => path,
+        None => {
+            // An anonymous literal referent keeps no member position and no
+            // canonical place type; the borrow's admitted referee is its
+            // exact type at this occurrence. Projected referents keep their
+            // positions, so only a segment-free expression root may ask the
+            // shell.
+            if !matches!(place.root, facts::PlaceRoot::Expression(_)) || !place.segments.is_empty()
+            {
+                return None;
+            }
+            (referent, Vec::new())
+        }
+    };
     // An exclusive reference cannot erase a field's receiving restriction,
     // and an atomic cell cannot become ordinary scalar storage. Shared scalar
     // loans can attenuate to the declared carrier while retaining their exact
