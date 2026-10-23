@@ -1,0 +1,36 @@
+// A match on one evaluation of a copyable flag returns the exclusive loan of the selected case payload, writes 41 through that loan, and leaves the unselected payload unchanged.
+// Place: match_join.
+// The source is used while the result loan is live.
+data Slot { case Absent; case Present(value: i64); }
+
+machine choose(counter: &mut u64) -> bool
+requires counter == 0
+{
+    counter = 1;
+    true
+}
+
+machine main() crashes Trap {
+    let mut chosen: Slot = match true {
+        true -> Slot::Present { value: 17 }
+        false -> Slot::Present { value: 17 }
+    };
+    let mut other: Slot = match true {
+        true -> Slot::Present { value: 0 }
+        false -> Slot::Present { value: 0 }
+    };
+    let mut visits: u64 = 0;
+    let selected: &mut i64 = match choose(&mut visits) {
+        true -> &mut chosen.value
+        false -> &mut other.value
+    };
+    chosen = Slot::Present { value: 7 };
+    selected = 41;
+    let observed: i64 = selected;
+    transition observed == 41 && visits == 1 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
