@@ -7,8 +7,8 @@
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
 
+use super::OperationFrame;
 use super::calls::CallInputs;
-use super::{OperationFrame, StructuralResults};
 use crate::emission::operation_emission::boundary_calls::result_policy::{
     self, BoundaryResultPolicy,
 };
@@ -150,26 +150,13 @@ impl OperationFrame<'_, '_> {
         let target = unique_unit_boundary(self.callees.plans, call.target.machine)?;
         let shape = target.result.clone();
         let operands = self.boundary_operands(identities, call, inputs)?;
-        let id = self.operations.allocate();
-        let (returned, result_declaration) =
-            self.prepare_structural_call_result(identities, call, &shape, id)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(returned.clone()),
-            kind: operands.into_kind(),
-        });
-        // The dense route registers the completed value here; a composed
-        // state registers it, with its local, when publishing.
-        if matches!(self.results, StructuralResults::Dense(_)) {
-            self.operations
-                .bind_structural_value(result.binding_ordinal, returned.into());
-        }
-        self.publish_result(
+        self.emit_structural_call_result(
+            identities,
             operation,
+            call,
+            &shape,
+            operands.into_kind(),
             result,
-            result_declaration,
             discard_result_on_return,
         )
     }

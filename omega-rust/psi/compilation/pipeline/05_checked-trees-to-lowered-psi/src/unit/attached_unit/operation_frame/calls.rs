@@ -8,7 +8,10 @@
 //! a scalar result through `bind_scalar_result` (the dense value namespace
 //! plus a composed state's binding namespace), and a structural result
 //! through `publish_result` (the dense roster with its local binding, or the
-//! composed catalog and operation-buffer registry).
+//! composed catalog and operation-buffer registry). A shape that prepares its
+//! public result contract itself — a boundary call and every activation
+//! storage action — emits and publishes through the one
+//! `emit_structural_call_result` route instead.
 //!
 //! Suspension retention joins checked source positions to those same emitted
 //! bindings. A scalar whose address was taken, or which permits replacement,
@@ -22,11 +25,14 @@ use crate::direct_calls::DirectCallResult;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
-    CheckedUnitEffectOperationPlan, LoweringError, OperationResult, PlaceId,
-    StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
+    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
+    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
     lookup_machine_id, terminal_scalar_type, unsupported, value_id,
 };
-use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
+use checked_trees::{
+    CheckedBoundaryMachineResultPlan, CheckedUnitCallPlan, CheckedUnitCallResult,
+    CheckedUnitCallRoute,
+};
 
 /// The completed operands one call hands the frame. Each route evaluates
 /// them on its own schedule before the call.
@@ -300,6 +306,48 @@ impl OperationFrame<'_, '_> {
             )?;
         }
         Ok(())
+    }
+
+    /// Emit one structural call shape's operation and publish its completed
+    /// result. A boundary call and each activation storage action prepare the
+    /// public result contract (`prepare_structural_call_result`) and then
+    /// follow this one route: the operation buffer takes the operation, the
+    /// dense route registers the value beside it, and publication consumes
+    /// the result the producer just emitted rather than re-finding it by
+    /// producer identity.
+    pub(super) fn emit_structural_call_result(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        operation: &CheckedUnitEffectOperationPlan,
+        call: &CheckedUnitCallPlan,
+        shape: &CheckedBoundaryMachineResultPlan,
+        kind: OperationKind,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        discard_result_on_return: bool,
+    ) -> Result<(), LoweringError> {
+        let id = self.operations.allocate();
+        let (returned, declaration) =
+            self.prepare_structural_call_result(identities, call, shape, id)?;
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Structural(returned.clone()),
+            kind,
+        });
+        // The dense route registers the completed value here; a composed
+        // state registers it, with its local, when publishing.
+        if matches!(self.results, StructuralResults::Dense(_)) {
+            self.operations
+                .bind_structural_value(result.binding_ordinal, returned.clone().into());
+        }
+        self.publish_completed_result(
+            operation,
+            result,
+            declaration,
+            returned,
+            discard_result_on_return,
+        )
     }
 
     /// The source-call coordinate and suspension frontier every call records

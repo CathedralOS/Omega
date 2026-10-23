@@ -1,8 +1,16 @@
 //! Activation primitives share invocation operand evaluation and receiving
 //! custody with calls. They never enter the declaration's nonexistent frame.
+//!
+//! One route lowers every action: the action selects the Terminal operation,
+//! and each action that binds a result publishes through the same structural
+//! call-result route a boundary call uses (`calls::emit_structural_call_result`).
+//! A division is an action of this dispatch rather than a second entry point
+//! with its own copy of the outcome resolution and result publication, so
+//! there is one place where an activation outcome carrier is resolved and one
+//! place where its operation and result are emitted.
 
+use super::OperationFrame;
 use super::calls::CallInputs;
-use super::{OperationFrame, StructuralResults};
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{allocate_dense, lookup_claim_id, obligation_id, value_id};
 use checked_trees::{
@@ -37,17 +45,41 @@ impl OperationFrame<'_, '_> {
             IntegerType::new(IntegerSign::Unsigned, 64)
                 .map_err(|_| LoweringError::Unsupported("activation extent has no u64 carrier"))?,
         );
-        let mut extent = None;
-        let mut source = None;
-        if matches!(
-            action,
-            ActivationStorageOperation::Split | ActivationStorageOperation::Merge
-        ) {
-            return self.lower_activation_division(
-                identities, operation, call, action, bound, inputs, &arguments, integer,
-            );
-        }
-        match action {
+        let kind = match action {
+            // A release retires one claim and binds no result, so it emits its
+            // own Unit operation and never enters the outcome route below.
+            ActivationStorageOperation::Release => {
+                let source = self.activation_claim_source(call, bound, &arguments)?;
+                let [transfer] = call.claim_transfers() else {
+                    return unsupported("activation release requires exactly one continuing claim");
+                };
+                if source.access != StructuralAccess::Owned
+                    || transfer.argument_index != 0
+                    || !transfer.path.is_empty()
+                {
+                    return unsupported(
+                        "activation release does not consume its exact whole claim",
+                    );
+                }
+                let claim = lookup_claim_id(self.calls.claims.bindings(), transfer.claim_identity)?;
+                let id = self.operations.allocate();
+                self.record_source_call(
+                    call.coordinate,
+                    call.source_site().flatten(),
+                    id,
+                    call.target.machine,
+                )?;
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Unit,
+                    kind: OperationKind::ReleaseActivationClaim { source, claim },
+                });
+                return Ok(());
+            }
+            // An establishment consumes its evaluated extent and reports the
+            // attempt's established and rejected cases.
             ActivationStorageOperation::Establish => {
                 let [committed] = inputs.evaluated_scalar_arguments.unwrap_or(&[]) else {
                     return unsupported("activation establishment lost its evaluated extent");
@@ -55,191 +87,74 @@ impl OperationFrame<'_, '_> {
                 if committed.scalar_type != integer || !arguments.is_empty() {
                     return unsupported("activation establishment has unexpected operands");
                 }
-                extent = Some(committed.id);
-            }
-            ActivationStorageOperation::Split | ActivationStorageOperation::Merge => {
-                return unsupported("activation division is lowered before this match");
-            }
-            ActivationStorageOperation::BorrowBytes | ActivationStorageOperation::Release => {
-                let [argument] = arguments.as_slice() else {
-                    return unsupported("activation access requires exactly one claim");
-                };
-                if !call.scalar_arguments.is_empty() || bound.is_some() {
-                    return unsupported("activation access carries unexpected scalar operands");
-                }
-                source = Some(argument.clone());
-            }
-        }
-        if action == ActivationStorageOperation::Release {
-            let source = source.ok_or(LoweringError::Unsupported(
-                "activation release has no claim",
-            ))?;
-            let [transfer] = call.claim_transfers() else {
-                return unsupported("activation release requires exactly one continuing claim");
-            };
-            if source.access != StructuralAccess::Owned
-                || transfer.argument_index != 0
-                || !transfer.path.is_empty()
-            {
-                return unsupported("activation release does not consume its exact whole claim");
-            }
-            let claim = lookup_claim_id(self.calls.claims.bindings(), transfer.claim_identity)?;
-            let id = self.operations.allocate();
-            self.record_source_call(
-                call.coordinate,
-                call.source_site().flatten(),
-                id,
-                call.target.machine,
-            )?;
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind: OperationKind::ReleaseActivationClaim { source, claim },
-            });
-            return Ok(());
-        }
-        let binding = call.structural_result().ok_or(LoweringError::Unsupported(
-            "activation operation lost its structural result",
-        ))?;
-        let shape = CheckedBoundaryMachineResultPlan::Structural {
-            type_identity: binding.type_identity,
-            multiplicity: binding.multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        };
-        let kind = if action == ActivationStorageOperation::Establish {
-            let bound = bound.ok_or(LoweringError::Unsupported(
-                "activation establishment has no closed bound",
-            ))?;
-            let result_type =
-                crate::terminal_identities::lookup_type_id(self.type_ids, &binding.type_identity)?;
-            let row = self
-                .structural_types
-                .declarations()
-                .iter()
-                .find(|row| row.id == result_type)
-                .ok_or(LoweringError::Unsupported(
-                    "activation attempt type is absent",
+                let bound = bound.ok_or(LoweringError::Unsupported(
+                    "activation establishment has no closed bound",
                 ))?;
-            let terminal_psi::StructuralTypeShape::Sum { cases } = &row.shape else {
-                return unsupported("activation attempt has no sum carrier");
-            };
-            let [established, rejected] = cases.as_slice() else {
-                return unsupported("activation attempt has no exact outcome roster");
-            };
-            OperationKind::EstablishActivationClaim {
-                bound,
-                committed: extent
-                    .ok_or(LoweringError::Unsupported("activation extent is absent"))?,
-                backing_type: crate::activation_storage::backing_type(
-                    identities,
-                    self.structural_types.declarations(),
+                let (established, rejected) = self.activation_outcome_cases(call)?;
+                OperationKind::EstablishActivationClaim {
                     bound,
-                )?,
-                established_case: established.id,
-                rejected_case: rejected.id,
+                    committed: committed.id,
+                    backing_type: crate::activation_storage::backing_type(
+                        identities,
+                        self.structural_types.declarations(),
+                        bound,
+                    )?,
+                    established_case: established,
+                    rejected_case: rejected,
+                }
             }
-        } else {
-            let source = source.ok_or(LoweringError::Unsupported(
-                "activation byte loan has no claim",
-            ))?;
-            if source.access != StructuralAccess::MutableBorrow {
-                return unsupported("activation bytes requires an exclusive claim loan");
+            // A byte loan reads the established claim's own length and slices
+            // its backing from zero under the same exclusive descriptor.
+            ActivationStorageOperation::BorrowBytes => {
+                let source = self.activation_claim_source(call, bound, &arguments)?;
+                if source.access != StructuralAccess::MutableBorrow {
+                    return unsupported("activation bytes requires an exclusive claim loan");
+                }
+                let length = ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(allocate_dense(self.next_value)?),
+                    scalar_type: integer,
+                };
+                // Extent correspondence includes requested access. Read under
+                // the same exclusive descriptor used by the following subslice.
+                let read = source.clone();
+                let id = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Scalar(length),
+                    kind: OperationKind::ByteSequenceLength { source: read },
+                });
+                let start = ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(allocate_dense(self.next_value)?),
+                    scalar_type: integer,
+                };
+                let id = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Scalar(start),
+                    kind: OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(0),
+                    },
+                });
+                OperationKind::ByteSequenceSubslice {
+                    source,
+                    start: start.id,
+                    end: length.id,
+                    length: length.id,
+                    obligation: obligation_id(allocate_dense(
+                        &mut self.calls.next_obligation_identity,
+                    )?),
+                }
             }
-            let length = ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(allocate_dense(self.next_value)?),
-                scalar_type: integer,
-            };
-            // Extent correspondence includes requested access. Read under
-            // the same exclusive descriptor used by the following subslice.
-            let read = source.clone();
-            let id = self.operations.allocate();
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Scalar(length),
-                kind: OperationKind::ByteSequenceLength { source: read },
-            });
-            let start = ValueDeclaration {
-                qualifications: Default::default(),
-                id: value_id(allocate_dense(self.next_value)?),
-                scalar_type: integer,
-            };
-            let id = self.operations.allocate();
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Scalar(start),
-                kind: OperationKind::IntegerConstant {
-                    value: IntegerValue::Unsigned(0),
-                },
-            });
-            OperationKind::ByteSequenceSubslice {
-                source,
-                start: start.id,
-                end: length.id,
-                length: length.id,
-                obligation: obligation_id(allocate_dense(
-                    &mut self.calls.next_obligation_identity,
-                )?),
-            }
-        };
-        let id = self.operations.allocate();
-        let (returned, declaration) =
-            self.prepare_structural_call_result(identities, call, &shape, id)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(returned.clone()),
-            kind,
-        });
-        if matches!(self.results, StructuralResults::Dense(_)) {
-            self.operations
-                .bind_structural_value(binding.binding_ordinal, returned.into());
-        }
-        self.publish_result(operation, binding, declaration, false)
-    }
-
-    fn lower_activation_division(
-        &mut self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        operation: &CheckedUnitEffectOperationPlan,
-        call: &CheckedUnitCallPlan,
-        action: ActivationStorageOperation,
-        bound: Option<u64>,
-        inputs: &CallInputs<'_>,
-        arguments: &[terminal_psi::StructuralArgument],
-        integer: ScalarType,
-    ) -> Result<(), LoweringError> {
-        let binding = call.structural_result().ok_or(LoweringError::Unsupported(
-            "activation division lost its structural result",
-        ))?;
-        let result_type =
-            crate::terminal_identities::lookup_type_id(self.type_ids, &binding.type_identity)?;
-        let row = self
-            .structural_types
-            .declarations()
-            .iter()
-            .find(|row| row.id == result_type)
-            .ok_or(LoweringError::Unsupported(
-                "activation division type is absent",
-            ))?;
-        let terminal_psi::StructuralTypeShape::Sum { cases } = &row.shape else {
-            return unsupported("activation division has no sum carrier");
-        };
-        let [covered, rejected] = cases.as_slice() else {
-            return unsupported("activation division has no exact outcome roster");
-        };
-        let transfers = call.claim_transfers();
-        let kind = match action {
+            // A division consumes the same claim pair its action reports: a
+            // split takes the parent's evaluated cut, a merge the two children.
             ActivationStorageOperation::Split => {
-                let [source] = arguments else {
+                let [source] = arguments.as_slice() else {
                     return unsupported("activation split requires exactly one claim");
                 };
                 let [committed] = inputs.evaluated_scalar_arguments.unwrap_or(&[]) else {
@@ -248,10 +163,11 @@ impl OperationFrame<'_, '_> {
                 if committed.scalar_type != integer || source.access != StructuralAccess::Owned {
                     return unsupported("activation split has unexpected operands");
                 }
-                let [transfer] = transfers else {
+                let [transfer] = call.claim_transfers() else {
                     return unsupported("activation split requires exactly one continuing claim");
                 };
                 let claim = lookup_claim_id(self.calls.claims.bindings(), transfer.claim_identity)?;
+                let (covered, rejected) = self.activation_outcome_cases(call)?;
                 OperationKind::SplitActivationClaim {
                     source: source.clone(),
                     claim,
@@ -259,12 +175,12 @@ impl OperationFrame<'_, '_> {
                         "activation split has no closed bound",
                     ))?,
                     committed_at: committed.id,
-                    covered_case: covered.id,
-                    rejected_case: rejected.id,
+                    covered_case: covered,
+                    rejected_case: rejected,
                 }
             }
             ActivationStorageOperation::Merge => {
-                let [lower, upper] = arguments else {
+                let [lower, upper] = arguments.as_slice() else {
                     return unsupported("activation merge requires exactly two claims");
                 };
                 if !call.scalar_arguments.is_empty()
@@ -274,9 +190,10 @@ impl OperationFrame<'_, '_> {
                 {
                     return unsupported("activation merge has unexpected operands");
                 }
-                let [lower_transfer, upper_transfer] = transfers else {
+                let [lower_transfer, upper_transfer] = call.claim_transfers() else {
                     return unsupported("activation merge requires exactly two continuing claims");
                 };
+                let (covered, rejected) = self.activation_outcome_cases(call)?;
                 OperationKind::MergeActivationClaim {
                     lower: lower.clone(),
                     upper: upper.clone(),
@@ -288,32 +205,73 @@ impl OperationFrame<'_, '_> {
                         self.calls.claims.bindings(),
                         upper_transfer.claim_identity,
                     )?,
-                    covered_case: covered.id,
-                    rejected_case: rejected.id,
+                    covered_case: covered,
+                    rejected_case: rejected,
                 }
             }
-            _ => return unsupported("activation division is not a split or merge"),
         };
+        let binding = call.structural_result().ok_or(LoweringError::Unsupported(
+            "activation operation lost its structural result",
+        ))?;
         let shape = CheckedBoundaryMachineResultPlan::Structural {
             type_identity: binding.type_identity,
             multiplicity: binding.multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         };
-        let id = self.operations.allocate();
-        let (returned, declaration) =
-            self.prepare_structural_call_result(identities, call, &shape, id)?;
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(returned.clone()),
-            kind,
-        });
-        if matches!(self.results, StructuralResults::Dense(_)) {
-            self.operations
-                .bind_structural_value(binding.binding_ordinal, returned.into());
+        self.emit_structural_call_result(identities, operation, call, &shape, kind, binding, false)
+    }
+
+    /// The invocation's one claim, which a byte loan and a release each take.
+    /// Either action consumes exactly one structural claim operand and carries
+    /// no scalar operand of its own.
+    fn activation_claim_source(
+        &self,
+        call: &CheckedUnitCallPlan,
+        bound: Option<u64>,
+        arguments: &[terminal_psi::StructuralArgument],
+    ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
+        let [argument] = arguments else {
+            return unsupported("activation access requires exactly one claim");
+        };
+        if !call.scalar_arguments.is_empty() || bound.is_some() {
+            return unsupported("activation access carries unexpected scalar operands");
         }
-        self.publish_result(operation, binding, declaration, false)
+        Ok(argument.clone())
+    }
+
+    /// The established (or covered) and rejected cases of one activation
+    /// action's declared sum outcome. Every action that binds a result reports
+    /// that same pair, so the carrier is resolved once here.
+    fn activation_outcome_cases(
+        &self,
+        call: &CheckedUnitCallPlan,
+    ) -> Result<
+        (
+            semantic_vocabulary::StructuralCaseId,
+            semantic_vocabulary::StructuralCaseId,
+        ),
+        LoweringError,
+    > {
+        let binding = call.structural_result().ok_or(LoweringError::Unsupported(
+            "activation outcome carrier is absent",
+        ))?;
+        let result_type =
+            crate::terminal_identities::lookup_type_id(self.type_ids, &binding.type_identity)?;
+        let row = self
+            .structural_types
+            .declarations()
+            .iter()
+            .find(|row| row.id == result_type)
+            .ok_or(LoweringError::Unsupported(
+                "activation outcome has no declared carrier",
+            ))?;
+        let terminal_psi::StructuralTypeShape::Sum { cases } = &row.shape else {
+            return unsupported("activation outcome has no sum carrier");
+        };
+        let [established, rejected] = cases.as_slice() else {
+            return unsupported("activation outcome has no exact case roster");
+        };
+        Ok((established.id, rejected.id))
     }
 }
