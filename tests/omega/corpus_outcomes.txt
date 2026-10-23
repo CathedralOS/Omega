@@ -4863,6 +4863,32 @@ fail/facts/may_write_nested_helper_through_target_body_overlapping rejected 2137
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_stored_rebind_through_call_result_overlapping rejected 1784ms expected @47676d7c9bb2+wt
+	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_stored_rebind_through_const_name_overlapping rejected 2025ms expected @47676d7c9bb2+wt
+	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_stored_rebind_through_field_overlapping rejected 2002ms expected @47676d7c9bb2+wt
+	cannot prove index `bounds.other` is within length 4 in main::entry
+fail/facts/may_write_stored_rebind_through_local_overlapping rejected 1869ms expected @47676d7c9bb2+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_stored_rebind_through_match_join_overlapping rejected 1715ms expected @47676d7c9bb2+wt
+	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_stored_rebind_through_other_machine_overlapping rejected 1768ms expected @47676d7c9bb2+wt
+	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_stored_rebind_through_other_state_overlapping rejected 1725ms expected @47676d7c9bb2+wt
+	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_stored_rebind_through_parameter_overlapping rejected 1810ms expected @47676d7c9bb2+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_stored_rebind_through_target_body_overlapping rejected 1966ms expected @47676d7c9bb2+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
 fail/facts/mixed_width_record_padding_geometry_unproved_call_result rejected 35090ms expected @e29d1dd099de
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/mixed_width_record_padding_geometry_unproved_const_name rejected 38250ms expected @e29d1dd099de
@@ -12602,6 +12628,15 @@ pass/facts/may_write_nested_helper_through_other_machine_exit checked 3049ms che
 pass/facts/may_write_nested_helper_through_other_state_exit checked 3061ms check-target:macos_arm64 @d3f12beefc63+wt
 pass/facts/may_write_nested_helper_through_parameter_exit checked 2917ms check-target:macos_arm64 @d3f12beefc63+wt
 pass/facts/may_write_nested_helper_through_target_body_exit checked 2977ms check-target:macos_arm64 @d3f12beefc63+wt
+pass/facts/may_write_stored_rebind_through_call_result_exit checked 2504ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_const_name_exit checked 2504ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_field_exit checked 2541ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_local_exit checked 2652ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_match_join_exit checked 3207ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_other_machine_exit checked 3076ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_other_state_exit checked 2411ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_parameter_exit checked 2455ms check-target:macos_arm64 @47676d7c9bb2+wt
+pass/facts/may_write_stored_rebind_through_target_body_exit checked 2327ms check-target:macos_arm64 @47676d7c9bb2+wt
 pass/facts/mixed_width_record_padding_geometry_through_call_result_exit checked 75864ms check-target:macos_arm64 @e29d1dd099de
 pass/facts/mixed_width_record_padding_geometry_through_const_name_exit checked 76959ms check-target:macos_arm64 @e29d1dd099de
 pass/facts/mixed_width_record_padding_geometry_through_field_exit checked 74773ms check-target:macos_arm64 @e29d1dd099de

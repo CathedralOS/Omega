@@ -35,7 +35,7 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 
 ## Pinned fixtures
 
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`.
+Positive places are byte-identical to `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`. Recorded rows: nine `checked` rows (with `check-target:macos_arm64`) and nine `rejected` rows carrying their own `cannot prove` fragment in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`.
 
 ## Requirements and evidence
 
