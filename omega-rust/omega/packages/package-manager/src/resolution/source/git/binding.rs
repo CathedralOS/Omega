@@ -4,6 +4,7 @@ use super::super::projection::project_package_build;
 use super::super::{
     GitWorkspaceSelectionEvidence, PackageSourceMaterialization, PackageSourceNavigation,
     PackageSourceSelectionEvidence, ResolvePackageSourceError, ResolvedPackageSource,
+    SourceRootRole,
 };
 use super::workspace::GitWorkspaceSelectionError;
 use crate::declarations::PackageKey;
@@ -18,7 +19,7 @@ pub(super) fn bind_git_workspace_member_source(
         GitWorkspaceProjectionResult<GitWorkspaceSelectionEvidence>,
         GitWorkspaceProjectionError<GitWorkspaceSelectionError>,
     >,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let (source, evidence) = projected
         .map_err(|error| match error {
@@ -28,13 +29,13 @@ pub(super) fn bind_git_workspace_member_source(
             }
         })?
         .into_parts();
-    bind_projected_git_package_source(source, evidence, application_root_allowed)
+    bind_projected_git_package_source(source, evidence, role)
 }
 
 pub(super) fn bind_projected_git_package_source(
     source: ResolvedGitSource,
     selection_evidence: GitWorkspaceSelectionEvidence,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let lineage = source.lineage().clone();
     let limits = source.source_limits();
@@ -55,7 +56,7 @@ pub(super) fn bind_projected_git_package_source(
         });
     }
     let snapshot_root = source.snapshot_root().to_path_buf();
-    let declaration = project_package_build(&snapshot_root, application_root_allowed)?;
+    let declaration = project_package_build(&snapshot_root, role)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,
@@ -84,12 +85,12 @@ pub(super) fn bind_projected_git_package_source(
 
 pub(super) fn bind_git_root_package_source(
     source: ResolvedGitSource,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let lineage = source.lineage().clone();
     let limits = source.source_limits();
     let snapshot_root = source.snapshot_root().to_path_buf();
-    let declaration = project_package_build(&snapshot_root, application_root_allowed)?;
+    let declaration = project_package_build(&snapshot_root, role)?;
     let resolution = ImmutableSourceResolution::git(
         GitCommitId::parse_hex(source.commit())?,
         GitTreeId::parse_hex(source.tree())?,

@@ -1,5 +1,5 @@
 use super::projection::project_package_build;
-use super::{ResolvePackageSourceError, ResolvedPackageSource};
+use super::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
@@ -9,47 +9,16 @@ use package_source::{
 use package_source::{LocalSourceLimits, ResolvedLocalSnapshot};
 use std::path::{Path, PathBuf};
 
-pub(crate) fn resolve_workspace_member_package_source_in_lane(
+/// Resolve one declared workspace member in a retained lane for the given root
+/// role: a member selected as a compilation root may declare an application,
+/// a dependency member may not.
+pub(crate) fn resolve_workspace_member_source_in_lane(
     workspace_root_source: &SourceLineage,
     member_path: SourceRelativePath,
     live_workspace_root: impl AsRef<Path>,
     lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    resolve_workspace_member_declared_source_in_lane(
-        workspace_root_source,
-        member_path,
-        live_workspace_root,
-        lane,
-        limits,
-        false,
-    )
-}
-
-pub(crate) fn resolve_workspace_member_project_source_in_lane(
-    workspace_root_source: &SourceLineage,
-    member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
-    resolve_workspace_member_declared_source_in_lane(
-        workspace_root_source,
-        member_path,
-        live_workspace_root,
-        lane,
-        limits,
-        true,
-    )
-}
-
-fn resolve_workspace_member_declared_source_in_lane(
-    workspace_root_source: &SourceLineage,
-    member_path: SourceRelativePath,
-    live_workspace_root: impl AsRef<Path>,
-    lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
     let workspace_identity = WorkspaceLineageIdentity::from_root_source(workspace_root_source)?;
@@ -57,13 +26,7 @@ fn resolve_workspace_member_declared_source_in_lane(
         validate_workspace_member_root(live_workspace_root.as_ref(), &member_path)?;
     let source =
         resolve_local_source_snapshot_in_lane(&canonical_declared_member_root, lane, limits)?;
-    bind_workspace_member_package_source(
-        workspace_identity,
-        member_path,
-        source,
-        limits,
-        application_root_allowed,
-    )
+    bind_workspace_member_source(workspace_identity, member_path, source, limits, role)
 }
 
 fn validate_workspace_member_root(
@@ -89,16 +52,16 @@ fn validate_workspace_member_root(
     Ok(canonical_declared_member_root)
 }
 
-fn bind_workspace_member_package_source(
+fn bind_workspace_member_source(
     workspace_identity: WorkspaceLineageIdentity,
     member_path: SourceRelativePath,
     source: ResolvedLocalSnapshot,
     limits: LocalSourceLimits,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     let lineage =
         SourceLineage::Workspace(WorkspaceMemberLineage::new(workspace_identity, member_path));
-    let declaration = project_package_build(source.snapshot_root(), application_root_allowed)?;
+    let declaration = project_package_build(source.snapshot_root(), role)?;
     let resolution = ImmutableSourceResolution::workspace(SourceContentDigest::derive(
         source.normalized().content_identity.as_bytes(),
     ));

@@ -4,7 +4,7 @@ use super::super::projection::project_package_build;
 use super::super::{
     CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE, PackageSourceCustody,
     PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
-    ResolvePackageSourceError,
+    ResolvePackageSourceError, SourceRootRole,
 };
 use crate::declarations::PackageKey;
 use package_source::local::operations::{
@@ -34,7 +34,7 @@ pub(crate) fn recover_cached_external_local_source(
     else {
         return Ok(None);
     };
-    let declaration = project_package_build(&source.root, true)?;
+    let declaration = project_package_build(&source.root, SourceRootRole::Project)?;
     verify_package_source_snapshot(&source.root, expected, current.source_limits())?;
     storage.verify_path_identity()?;
     let cache_dir = storage

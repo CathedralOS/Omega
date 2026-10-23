@@ -3,9 +3,7 @@
 use super::super::reconcile::{
     PackageRootSourceRequest, PackageSourceClosureLimits, ResolvedPackageSourceClosure,
 };
-use super::cache::{
-    GitAcquisitionCache, SourceCacheLane, resolve_external_local_package_from_cache,
-};
+use super::cache::{GitAcquisitionCache, SourceCacheLane};
 use super::dependencies::resolve_registered_package_closure;
 use super::errors::ResolveExternalLocalPackageClosureError;
 use super::git_pins::GitResolutionOptions;
@@ -34,15 +32,23 @@ pub(crate) fn resolve_external_local_project_closure(
     options: GitResolutionOptions<'_>,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     verify_pin_root(live_root.as_ref(), &source_context, options)?;
-    resolve_external_local_declared_closure(
+    storage.verify_path_identity().map_err(|error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    let result = resolve_external_local_project_closure_from_lanes(
         live_root.as_ref(),
         source_context,
-        storage,
+        SourceCacheLane::Retained(storage.external_local_sources()),
+        SourceCacheLane::Retained(storage.workspace_members()),
+        SourceCacheLane::Retained(storage.git_sources()),
         source_limits,
         closure_limits,
-        true,
-        options,
-    )
+        &mut GitAcquisitionCache::with_options(storage, options),
+    );
+    storage.verify_path_identity().map_err(|error| {
+        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
+    })?;
+    result
 }
 
 /// Resolve a proposed local project using its original live directory for Path
@@ -128,37 +134,8 @@ fn resolve_staged_external_local_project(
     result
 }
 
-fn resolve_external_local_declared_closure(
-    live_root: &Path,
-    source_context: ExternalSourceContext,
-    storage: &SourceResolver,
-    source_limits: LocalSourceLimits,
-    closure_limits: PackageSourceClosureLimits,
-    application_root_allowed: bool,
-    options: GitResolutionOptions<'_>,
-) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
-    storage.verify_path_identity().map_err(|error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    let result = resolve_external_local_declared_closure_from_lanes(
-        live_root,
-        source_context,
-        SourceCacheLane::Retained(storage.external_local_sources()),
-        SourceCacheLane::Retained(storage.workspace_members()),
-        SourceCacheLane::Retained(storage.git_sources()),
-        source_limits,
-        closure_limits,
-        application_root_allowed,
-        &mut GitAcquisitionCache::with_options(storage, options),
-    );
-    storage.verify_path_identity().map_err(|error| {
-        ResolveExternalLocalPackageClosureError::Root(ResolvePackageSourceError::Source(error))
-    })?;
-    result
-}
-
 #[allow(clippy::too_many_arguments)]
-fn resolve_external_local_declared_closure_from_lanes(
+fn resolve_external_local_project_closure_from_lanes(
     live_root: &Path,
     source_context: ExternalSourceContext,
     local_cache: SourceCacheLane<'_>,
@@ -166,33 +143,20 @@ fn resolve_external_local_declared_closure_from_lanes(
     git_cache: SourceCacheLane<'_>,
     source_limits: LocalSourceLimits,
     closure_limits: PackageSourceClosureLimits,
-    application_root_allowed: bool,
     git_acquisitions: &mut GitAcquisitionCache<'_>,
 ) -> Result<ResolvedPackageSourceClosure, ResolveExternalLocalPackageClosureError> {
     let requested_root = live_root.to_path_buf();
-    let (root, canonical_live_root) = if application_root_allowed {
-        let root = capture_external_local_project_source(
-            &requested_root,
-            source_limits,
-            source_context.clone(),
-        )
-        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-        let canonical = root.snapshot_root().to_path_buf();
-        (root, canonical)
-    } else {
-        let root = resolve_external_local_package_from_cache(
-            &requested_root,
-            local_cache,
-            source_limits,
-            source_context.clone(),
-        )
-        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
-        if root.source().requested_root() != requested_root {
-            return Err(ResolveExternalLocalPackageClosureError::RootRequestMismatch);
-        }
-        let canonical = root.source().canonical_live_root().to_path_buf();
-        (root.into_custody(), canonical)
-    };
+    // A compilation root is captured fresh: this invocation reads the live
+    // tree once here, and the captured snapshot owns those bytes afterwards.
+    // A dependency source would resolve from the retained lane instead; that
+    // mode belongs to `resolve_external_local_package_from_cache` alone.
+    let root = capture_external_local_project_source(
+        &requested_root,
+        source_limits,
+        source_context.clone(),
+    )
+    .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+    let canonical_live_root = root.snapshot_root().to_path_buf();
     if !matches!(
         root.key().source_lineage(),
         SourceLineage::ExternalLocal(lineage)

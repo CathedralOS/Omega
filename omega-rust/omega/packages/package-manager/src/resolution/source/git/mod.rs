@@ -11,10 +11,6 @@ mod request;
 mod resolution;
 pub(crate) mod workspace;
 
-pub(crate) use recorded::{
-    resolve_selected_git_package_source_at_revision_in_lanes,
-    resolve_selected_git_project_source_at_revision_in_lanes,
-};
+pub(crate) use recorded::resolve_selected_git_source_at_revision_in_lanes;
 pub(crate) use request::GitPackageSourceRequest;
-pub(crate) use resolution::resolve_selected_git_package_source_from_pin_in_lanes;
-pub(crate) use resolution::resolve_selected_git_project_source_from_pin_in_lanes;
+pub(crate) use resolution::resolve_selected_git_source_from_pin_in_lanes;

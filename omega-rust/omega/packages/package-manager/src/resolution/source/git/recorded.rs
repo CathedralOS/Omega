@@ -4,7 +4,7 @@ use super::binding::{bind_git_root_package_source, bind_git_workspace_member_sou
 use super::request::GitPackageSourceRequest;
 use super::workspace::{ManagerGitWorkspacePlanner, git_workspace_declaration_limits};
 use crate::declarations::dependencies::read::PackageSelection;
-use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource};
+use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
 use package_source::git::resolution::{
     GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane,
     resolve_git_workspace_member_at_revision_in_lanes,
@@ -14,7 +14,7 @@ use package_source::{
     GitCommitId, GitTreeId, LocalSourceLimits, ResolvedGitSource, SourceResolver,
 };
 
-pub(crate) fn resolve_selected_git_package_source_at_revision_in_lanes(
+pub(crate) fn resolve_selected_git_source_at_revision_in_lanes(
     resolver: &SourceResolver,
     request: &GitPackageSourceRequest,
     commit: &GitCommitId,
@@ -23,53 +23,7 @@ pub(crate) fn resolve_selected_git_package_source_at_revision_in_lanes(
     git_lane: &RetainedStorageLane,
     member_lane: &RetainedStorageLane,
     limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    resolve_selected_git_declared_source_at_revision_in_lanes(
-        resolver,
-        request,
-        commit,
-        tree,
-        acquisition,
-        git_lane,
-        member_lane,
-        limits,
-        false,
-    )
-}
-
-pub(crate) fn resolve_selected_git_project_source_at_revision_in_lanes(
-    resolver: &SourceResolver,
-    request: &GitPackageSourceRequest,
-    commit: &GitCommitId,
-    tree: &GitTreeId,
-    acquisition: GitExactRevisionAcquisition,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    resolve_selected_git_declared_source_at_revision_in_lanes(
-        resolver,
-        request,
-        commit,
-        tree,
-        acquisition,
-        git_lane,
-        member_lane,
-        limits,
-        true,
-    )
-}
-
-fn resolve_selected_git_declared_source_at_revision_in_lanes(
-    resolver: &SourceResolver,
-    request: &GitPackageSourceRequest,
-    commit: &GitCommitId,
-    tree: &GitTreeId,
-    acquisition: GitExactRevisionAcquisition,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
     let limits = limits.compiler_bounded();
     match request.selection() {
@@ -83,7 +37,7 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
                 git_lane,
                 limits,
             )?;
-            bind_git_root_package_source(source, application_root_allowed)
+            bind_git_root_package_source(source, role)
         }
         PackageSelection::Named(package) => {
             let mut planner = ManagerGitWorkspacePlanner::new(package);
@@ -100,7 +54,7 @@ fn resolve_selected_git_declared_source_at_revision_in_lanes(
                     git_workspace_declaration_limits(),
                     &mut planner,
                 ),
-                application_root_allowed,
+                role,
             )
         }
     }

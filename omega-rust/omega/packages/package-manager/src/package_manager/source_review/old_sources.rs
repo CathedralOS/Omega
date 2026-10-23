@@ -6,9 +6,9 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure, ResolvedSourceIdentity,
 };
 use crate::resolution::source::{
-    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
+    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation, SourceRootRole,
     recover_cached_external_local_source, resolve_external_local_project_source,
-    resolve_selected_git_package_source_at_revision_in_lanes,
+    resolve_selected_git_source_at_revision_in_lanes,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
@@ -78,7 +78,7 @@ pub(super) fn recover(
                 storage
                     .verify_path_identity()
                     .map_err(|_| "resolver storage is unavailable")?;
-                let resolved = resolve_selected_git_package_source_at_revision_in_lanes(
+                let resolved = resolve_selected_git_source_at_revision_in_lanes(
                     storage,
                     &GitPackageSourceRequest::new(request, selection),
                     commit,
@@ -87,6 +87,7 @@ pub(super) fn recover(
                     storage.git_sources(),
                     storage.workspace_members(),
                     LocalSourceLimits::default(),
+                    SourceRootRole::Package,
                 )
                 .map_err(|_| "recorded Git commit/tree could not be recovered or verified")?;
                 storage

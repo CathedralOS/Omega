@@ -4,11 +4,9 @@ use super::super::cache::SourceCacheLane;
 use super::{ResolveLockedPackageClosureError as Error, Resolver, RootPolicy};
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedSourceIdentity};
 use crate::resolution::source::{
-    GitPackageSourceRequest, PackageSourceCustody, ResolvePackageSourceError,
-    capture_external_local_project_source, resolve_external_local_project_source_in_lane,
-    resolve_selected_git_package_source_at_revision_in_lanes,
-    resolve_selected_git_project_source_at_revision_in_lanes,
-    resolve_workspace_member_project_source_in_lane,
+    GitPackageSourceRequest, PackageSourceCustody, ResolvePackageSourceError, SourceRootRole,
+    capture_external_local_project_source, resolve_external_local_source_in_lane,
+    resolve_selected_git_source_at_revision_in_lanes, resolve_workspace_member_source_in_lane,
 };
 use package_source::ImmutableSourceResolution;
 
@@ -16,7 +14,11 @@ impl Resolver<'_> {
     pub(super) fn root(&mut self) -> Result<PackageSourceCustody, Error> {
         match self.root_request {
             PackageRootSourceRequest::Git(request) => {
-                let custody = self.git(request, self.subject.root().selected(), true)?;
+                let custody = self.git(
+                    request,
+                    self.subject.root().selected(),
+                    SourceRootRole::Project,
+                )?;
                 let cache_dir = SourceCacheLane::Retained(self.storage.git_sources())
                     .checked_source_cache_dir()?;
                 let review_cache_dir = SourceCacheLane::Retained(self.storage.git_sources())
@@ -39,11 +41,12 @@ impl Resolver<'_> {
                         let root = custody.snapshot_root().to_path_buf();
                         (custody, root)
                     } else {
-                        let resolved = resolve_external_local_project_source_in_lane(
+                        let resolved = resolve_external_local_source_in_lane(
                             requested_root,
                             self.storage.external_local_sources(),
                             self.source_limits,
                             source_context.clone(),
+                            SourceRootRole::Project,
                         )?;
                         let root = resolved.source().canonical_live_root().to_path_buf();
                         (resolved.into_custody(), root)
@@ -69,12 +72,13 @@ impl Resolver<'_> {
                         message: error.to_string(),
                     }
                 })?;
-                let resolved = resolve_workspace_member_project_source_in_lane(
+                let resolved = resolve_workspace_member_source_in_lane(
                     workspace_root_source,
                     member_path.clone(),
                     &canonical_root,
                     self.storage.workspace_members(),
                     self.source_limits,
+                    SourceRootRole::Project,
                 )?;
                 self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
                 self.local_workspace_root = Some(canonical_root);
@@ -112,7 +116,7 @@ impl Resolver<'_> {
         &mut self,
         request: &GitPackageSourceRequest,
         expected: &ResolvedSourceIdentity,
-        project: bool,
+        role: SourceRootRole,
     ) -> Result<PackageSourceCustody, Error> {
         if request.acquisition().lineage() != expected.key().source_lineage() {
             return Err(Error::mismatch(
@@ -126,29 +130,17 @@ impl Resolver<'_> {
                 "Git request has a non-Git recorded resolution",
             ));
         };
-        let resolved = if project {
-            resolve_selected_git_project_source_at_revision_in_lanes(
-                self.storage,
-                request,
-                commit,
-                tree,
-                self.acquisition,
-                self.storage.git_sources(),
-                self.storage.workspace_members(),
-                self.source_limits,
-            )
-        } else {
-            resolve_selected_git_package_source_at_revision_in_lanes(
-                self.storage,
-                request,
-                commit,
-                tree,
-                self.acquisition,
-                self.storage.git_sources(),
-                self.storage.workspace_members(),
-                self.source_limits,
-            )
-        }?;
+        let resolved = resolve_selected_git_source_at_revision_in_lanes(
+            self.storage,
+            request,
+            commit,
+            tree,
+            self.acquisition,
+            self.storage.git_sources(),
+            self.storage.workspace_members(),
+            self.source_limits,
+            role,
+        )?;
         super::super::dependencies::register_git_repository(
             &mut self.workspaces,
             request.acquisition(),

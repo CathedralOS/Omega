@@ -1,12 +1,8 @@
 use super::git_pins::{GitResolutionOptions, pin_error};
 use crate::resolution::source::{
-    GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource,
-    resolve_external_local_package_source_in_lane,
-    resolve_selected_git_package_source_at_revision_in_lanes,
-    resolve_selected_git_package_source_from_pin_in_lanes,
-    resolve_selected_git_project_source_at_revision_in_lanes,
-    resolve_selected_git_project_source_from_pin_in_lanes,
-    resolve_workspace_member_package_source_in_lane,
+    GitPackageSourceRequest, ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole,
+    resolve_external_local_source_in_lane, resolve_selected_git_source_at_revision_in_lanes,
+    resolve_selected_git_source_from_pin_in_lanes, resolve_workspace_member_source_in_lane,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::storage::RetainedStorageLane;
@@ -71,6 +67,9 @@ impl<'a> GitAcquisitionCache<'a> {
         }
     }
 
+    /// Resolve one dependency Git request through the shared acquisition cache.
+    /// The cache serves dependency sources only, so a prior entry is reusable
+    /// only when its declared role is a package.
     pub(super) fn resolve_selected(
         &mut self,
         request: &GitPackageSourceRequest,
@@ -78,24 +77,12 @@ impl<'a> GitAcquisitionCache<'a> {
         member_cache: SourceCacheLane<'_>,
         limits: LocalSourceLimits,
     ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-        self.resolve_selected_declared(request, git_cache, member_cache, limits, false)
-    }
-
-    fn resolve_selected_declared(
-        &mut self,
-        request: &GitPackageSourceRequest,
-        git_cache: SourceCacheLane<'_>,
-        member_cache: SourceCacheLane<'_>,
-        limits: LocalSourceLimits,
-        application_root_allowed: bool,
-    ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
         let limits = limits.compiler_bounded();
         if let Some((_, resolved)) = self
             .selected
             .iter()
             .find(|(selected, _)| selected == request)
-            && (application_root_allowed
-                || resolved.role() == crate::declarations::BuildDeclarationKind::Package)
+            && resolved.role() == crate::declarations::BuildDeclarationKind::Package
         {
             return Ok(resolved.clone());
         }
@@ -130,29 +117,17 @@ impl<'a> GitAcquisitionCache<'a> {
                     .expect("recorded pin has a policy")
                     .acquisition()
             };
-            let resolved = if application_root_allowed {
-                resolve_selected_git_project_source_at_revision_in_lanes(
-                    self.resolver,
-                    request,
-                    commit,
-                    tree,
-                    acquisition,
-                    git_lane,
-                    member_lane,
-                    limits,
-                )
-            } else {
-                resolve_selected_git_package_source_at_revision_in_lanes(
-                    self.resolver,
-                    request,
-                    commit,
-                    tree,
-                    acquisition,
-                    git_lane,
-                    member_lane,
-                    limits,
-                )
-            }?;
+            let resolved = resolve_selected_git_source_at_revision_in_lanes(
+                self.resolver,
+                request,
+                commit,
+                tree,
+                acquisition,
+                git_lane,
+                member_lane,
+                limits,
+                SourceRootRole::Package,
+            )?;
             if resolved.resolution() != expected {
                 return Err(pin_error(
                     request.acquisition(),
@@ -165,23 +140,15 @@ impl<'a> GitAcquisitionCache<'a> {
                 request.acquisition(),
                 "offline resolution forbids new or refreshed Git selection; an unchanged recorded pin is required",
             ));
-        } else if application_root_allowed {
-            resolve_selected_git_project_source_from_pin_in_lanes(
-                self.resolver,
-                request,
-                pin,
-                git_lane,
-                member_lane,
-                limits,
-            )
         } else {
-            resolve_selected_git_package_source_from_pin_in_lanes(
+            resolve_selected_git_source_from_pin_in_lanes(
                 self.resolver,
                 request,
                 pin,
                 git_lane,
                 member_lane,
                 limits,
+                SourceRootRole::Package,
             )
         }?;
         if pin.is_none() {
@@ -202,9 +169,13 @@ pub(super) fn resolve_external_local_package_from_cache(
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     match cache {
-        SourceCacheLane::Retained(lane) => {
-            resolve_external_local_package_source_in_lane(source_root, lane, limits, source_context)
-        }
+        SourceCacheLane::Retained(lane) => resolve_external_local_source_in_lane(
+            source_root,
+            lane,
+            limits,
+            source_context,
+            SourceRootRole::Package,
+        ),
     }
 }
 
@@ -216,12 +187,13 @@ pub(super) fn resolve_workspace_member_from_cache(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedLocalSnapshot>, ResolvePackageSourceError> {
     match cache {
-        SourceCacheLane::Retained(lane) => resolve_workspace_member_package_source_in_lane(
+        SourceCacheLane::Retained(lane) => resolve_workspace_member_source_in_lane(
             workspace_root_source,
             member_path,
             live_workspace_root,
             lane,
             limits,
+            SourceRootRole::Package,
         ),
     }
 }

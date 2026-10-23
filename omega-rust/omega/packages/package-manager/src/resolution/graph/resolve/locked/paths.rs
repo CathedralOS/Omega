@@ -7,8 +7,8 @@ use crate::declarations::{PackageName, PackageSelection};
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedSourceIdentity};
 use crate::resolution::source::workspace_path::source_relative_path;
 use crate::resolution::source::{
-    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation,
-    resolve_external_local_package_source_in_lane, resolve_workspace_member_package_source_in_lane,
+    GitPackageSourceRequest, PackageSourceCustody, PackageSourceNavigation, SourceRootRole,
+    resolve_external_local_source_in_lane, resolve_workspace_member_source_in_lane,
 };
 use package_source::SourceLineage;
 use std::path::Path;
@@ -42,12 +42,13 @@ impl Resolver<'_> {
                                 "local workspace has no stable canonical root",
                             )
                         })?;
-                        let resolved = resolve_workspace_member_package_source_in_lane(
+                        let resolved = resolve_workspace_member_source_in_lane(
                             workspace_root_source,
                             source_relative_path(&member),
                             root,
                             self.storage.workspace_members(),
                             self.source_limits,
+                            SourceRootRole::Package,
                         )?;
                         self.register_local_root(
                             resolved.key(),
@@ -114,11 +115,12 @@ impl Resolver<'_> {
         } else {
             root.join(authored)
         };
-        let resolved = resolve_external_local_package_source_in_lane(
+        let resolved = resolve_external_local_source_in_lane(
             path,
             self.storage.external_local_sources(),
             self.source_limits,
             selected.source_context().clone(),
+            SourceRootRole::Package,
         )?;
         self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
         Ok(resolved.into_custody().with_compiled_review_cache_dir(
@@ -181,6 +183,6 @@ impl Resolver<'_> {
             )
         })?;
         let request = GitPackageSourceRequest::new(acquisition, PackageSelection::Named(name));
-        self.git(&request, expected, false)
+        self.git(&request, expected, SourceRootRole::Package)
     }
 }

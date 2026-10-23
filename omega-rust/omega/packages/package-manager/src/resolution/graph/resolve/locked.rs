@@ -14,7 +14,7 @@ use super::super::{
 };
 use crate::declarations::PackageKey;
 use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourceRequest};
-use crate::resolution::source::{PackageSourceCustody, ResolvePackageSourceError};
+use crate::resolution::source::{PackageSourceCustody, ResolvePackageSourceError, SourceRootRole};
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{
     ExternalSourceContext, GitSourceRequest, LocalSourceLimits, SourceResolver,
@@ -190,7 +190,7 @@ impl Resolver<'_> {
                     acquisition,
                     selection.clone(),
                 );
-                self.git(&request, edge.selected(), false)?
+                self.git(&request, edge.selected(), SourceRootRole::Package)?
             }
             DependencySourceRequest::Path { location, .. } => {
                 self.path(requester, location, edge.selected())?

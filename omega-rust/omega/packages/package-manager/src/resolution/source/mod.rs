@@ -3,6 +3,26 @@
 //! The entry points are grouped by source lineage. Shared declaration
 //! projection, errors, and resolved custody live behind this narrow facade.
 
+/// The declared role of one resolved root: a dependency source is
+/// package-only, while a compilation project root may also declare an
+/// application (`Build::application`). The role selects root acquisition and
+/// declaration binding, so every resolution entry point carries it as one
+/// named input instead of splitting into a package/project entry-point family.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourceRootRole {
+    /// A dependency source: the declaration must be a package.
+    Package,
+    /// A compilation root: the declaration may be a package or application.
+    Project,
+}
+
+impl SourceRootRole {
+    /// Whether an application declaration is accepted at this root.
+    pub(crate) const fn allows_application_root(self) -> bool {
+        matches!(self, Self::Project)
+    }
+}
+
 mod custody;
 mod error;
 pub(crate) mod git;
@@ -19,26 +39,21 @@ pub(crate) use custody::PackageSourceCustody;
 pub(crate) use custody::{CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE};
 pub(crate) use error::ResolvePackageSourceError;
 pub(crate) use git::GitPackageSourceRequest;
-pub(crate) use git::resolve_selected_git_package_source_from_pin_in_lanes;
-pub(crate) use git::resolve_selected_git_project_source_from_pin_in_lanes;
+pub(crate) use git::resolve_selected_git_source_at_revision_in_lanes;
+pub(crate) use git::resolve_selected_git_source_from_pin_in_lanes;
 pub(crate) use git::workspace::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use git::{
-    resolve_selected_git_package_source_at_revision_in_lanes,
-    resolve_selected_git_project_source_at_revision_in_lanes,
-};
 pub(crate) use local::{
     bind_staged_external_local_project_source, resolve_external_local_project_source,
 };
 pub(crate) use local::{
     capture_external_local_project_source, recover_cached_external_local_source,
-    resolve_external_local_package_source_in_lane, resolve_external_local_project_source_in_lane,
+    resolve_external_local_source_in_lane,
 };
 pub(crate) use materialization::PackageSourceMaterialization;
 pub(crate) use navigation::PackageSourceNavigation;
 pub(crate) use resolved::ResolvedPackageSource;
 pub(crate) use selection::{PackageSourceSelectionEvidence, PackageSourceSelectionEvidenceError};
-pub(crate) use workspace::resolve_workspace_member_package_source_in_lane;
-pub(crate) use workspace::resolve_workspace_member_project_source_in_lane;
+pub(crate) use workspace::resolve_workspace_member_source_in_lane;
 
 /// The accessor surface every resolved-package-source record shares:
 /// custody and resolved shapes carry identically-named projection fields and

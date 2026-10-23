@@ -1,4 +1,4 @@
-use super::ResolvePackageSourceError;
+use super::{ResolvePackageSourceError, SourceRootRole};
 use crate::declarations::PackageName;
 use crate::declarations::dependencies::read::{
     DependencyProjectionError, DependencyProjections, extract_build_dependency_projection,
@@ -18,18 +18,15 @@ pub(super) struct ProjectedPackageBuild {
 
 pub(super) fn project_package_build(
     snapshot_root: &Path,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
-    project_build_projection(
-        extract_build_dependency_projection(snapshot_root),
-        application_root_allowed,
-    )
+    project_build_projection(extract_build_dependency_projection(snapshot_root), role)
 }
 
 pub(super) fn project_captured_package_build(
     root: &Path,
     tree: &source::CapturedSourceTree,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
     let path = root.join("build.omg");
     let text = tree
@@ -52,7 +49,7 @@ pub(super) fn project_captured_package_build(
         })?;
     project_build_projection(
         crate::declarations::dependencies::read::extract_build_projection_from_source(&text),
-        application_root_allowed,
+        role,
     )
 }
 
@@ -61,7 +58,7 @@ fn project_build_projection(
         crate::declarations::dependencies::read::BuildDependencyProjection,
         DependencyProjectionError,
     >,
-    application_root_allowed: bool,
+    role: SourceRootRole,
 ) -> Result<ProjectedPackageBuild, ResolvePackageSourceError> {
     let projection = match result {
         Ok(projection) => projection,
@@ -102,7 +99,7 @@ fn project_build_projection(
             role: BuildDeclarationKind::Package,
             dependencies,
         }),
-        BuildDeclaration::Application(application) if application_root_allowed => {
+        BuildDeclaration::Application(application) if role.allows_application_root() => {
             Ok(ProjectedPackageBuild {
                 name: application.name,
                 role: BuildDeclarationKind::Application,
