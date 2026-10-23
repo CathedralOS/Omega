@@ -2217,6 +2217,15 @@ pass/facts/wildcard_structural_return_through_other_machine_exit built 2222ms ex
 pass/facts/wildcard_structural_return_through_other_state_exit built 1734ms exit:0 interpreter-exit:0 interpreter:agrees @ba7501de3288+wt
 pass/facts/wildcard_structural_return_through_parameter_exit built 1816ms exit:0 interpreter-exit:0 interpreter:agrees @ba7501de3288+wt
 pass/facts/wildcard_structural_return_through_target_body_exit built 884ms exit:0 interpreter-exit:0 interpreter:agrees @ba7501de3288+wt
+pass/facts/write_only_recast_through_call_result_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_const_name_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_field_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_local_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_match_join_exit built 1090ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_other_machine_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_other_state_exit built 1087ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_parameter_exit built 1090ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
+pass/facts/write_only_recast_through_target_body_exit built 1169ms exit:0 interpreter-exit:0 interpreter:agrees @6fc7e67fb463
 pass/float/admitted_float_conversion_crash built 5538ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_float_lower_boundary_crash built 5631ms exit:signal signal:5 stdout:match interpreter:trapped interpreter-stdout:match @bbd81a11e6f3+wt
 pass/float/admitted_numeric_imports_preserve_semantics built 8261ms exit:70 interpreter-exit:70 interpreter:agrees @bbd81a11e6f3+wt

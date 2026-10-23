@@ -10023,6 +10023,40 @@ fail/facts/write_only_checked_adapter_opaque_call rejected 328ms expected @2ef2a
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	bodyless boundary symbol `opaque` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/facts/write_only_recast_through_call_result_rejected rejected 810ms expected @6fc7e67fb463
+	machine `alias` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `alias` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
+fail/facts/write_only_recast_through_const_name_rejected rejected 810ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+fail/facts/write_only_recast_through_field_rejected rejected 811ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	construction of `Envelope` field `view` requires mutable source access; shared or immutable storage cannot supply it
+fail/facts/write_only_recast_through_local_rejected rejected 398ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+fail/facts/write_only_recast_through_match_join_rejected rejected 397ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+fail/facts/write_only_recast_through_other_machine_rejected rejected 398ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	mutable argument `storage` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/facts/write_only_recast_through_other_state_rejected rejected 371ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	mutable argument `storage` for state `store` is not writable in this state; the source cannot lend the requested exclusive access
+fail/facts/write_only_recast_through_parameter_rejected rejected 377ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	mutable argument `storage` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+fail/facts/write_only_recast_through_target_body_rejected rejected 332ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/facts/write_only_target_family_nonhost_observation rejected 331ms expected @2ef2ab353498+wt
 	machine `lend` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_target_family_opaque_member rejected 268ms expected @2ef2ab353498+wt
@@ -11678,6 +11712,21 @@ fail/recast/write_footprint/local rejected 2041ms expected @c72b78bbf94a+wt
 	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
 fail/recast/write_footprint/state rejected 2033ms expected @c72b78bbf94a+wt
 	cannot prove requires contract for call require_seventeen from main: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `inspect`
+fail/recast/write_only_local_escape rejected 930ms expected @6fc7e67fb463
+	machine `escape` returns a view borrowing the local `original`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/recast/write_only_overlap rejected 941ms expected @6fc7e67fb463
+	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 1 reads `storage` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
+	statement 2 mutates `first.value` while local borrow `second` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/recast/write_only_read_view rejected 349ms expected @6fc7e67fb463
+	machine `observe` state `entry` reads field `value` from write-only parameter `view`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/recast/write_only_shared_escalation rejected 390ms expected @6fc7e67fb463
+	machine `observe` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `observe` state `entry` local `view` may read, but the source supplies only write-only authority
+fail/recast/write_only_source_validity rejected 351ms expected @6fc7e67fb463
+	machine `overwrite` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Viewed` are not representation-compatible
+fail/recast/write_only_stored_pointer_read rejected 350ms expected @6fc7e67fb463
+	machine `overwrite` state `entry` reads field `value` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/relax/retired_relax_statement rejected 0ms expected @a9ae30e1c334+wt
 fail/relevance/erased_array_missing rejected 328ms expected @763aa6f05710+wt
 fail/relevance/erased_array_runtime_read rejected 350ms expected @763aa6f05710+wt
@@ -17313,6 +17362,15 @@ pass/facts/write_only_borrow_struct_destination_through_other_state_exit checked
 pass/facts/write_only_borrow_struct_destination_through_parameter_exit checked 36185ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/write_only_borrow_struct_destination_through_target_body_exit checked 35799ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/write_only_checked_adapter_exit checked 5187ms check-target:macos_arm64 @2ef2ab353498+wt
+pass/facts/write_only_recast_through_call_result_exit checked 1330ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_const_name_exit checked 1361ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_field_exit checked 1771ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_local_exit checked 1771ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_match_join_exit checked 1327ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_other_machine_exit checked 1673ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_other_state_exit checked 1693ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_parameter_exit checked 1767ms check-target:macos_arm64 @6fc7e67fb463
+pass/facts/write_only_recast_through_target_body_exit checked 1720ms check-target:macos_arm64 @6fc7e67fb463
 pass/facts/zero_byte_erased_carrier_through_call_result_exit checked 35883ms check-target:macos_arm64 @7bfdc8af4bb2
 pass/facts/zero_byte_erased_carrier_through_const_name_exit checked 36430ms check-target:macos_arm64 @7bfdc8af4bb2
 pass/facts/zero_byte_erased_carrier_through_field_exit checked 36045ms check-target:macos_arm64 @7bfdc8af4bb2
