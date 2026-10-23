@@ -9,9 +9,7 @@
 use checked_trees::CheckedTrees;
 use language_semantics::Multiplicity;
 use lowered_psi::LoweredSourceCallOccurrence;
-use semantic_vocabulary::{
-    BoundaryMachineId, ContentPlaceVersion, DomainSemanticId, OperationId, ValueId,
-};
+use semantic_vocabulary::{BoundaryMachineId, ContentPlaceVersion, DomainSemanticId, ValueId};
 use terminal_psi::{
     BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult, OperationKind,
     StructuralAccess, StructuralMultiplicity, TerminalModule, ValueDeclaration,

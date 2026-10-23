@@ -1,60 +1,16 @@
-//! Placed-view input custody retained on the selected Terminal machine.
+//! Lower the checked placed-view inputs one closed machine carries.
 //!
-//! Every checked placed-view input of the selected source machine is rejoined
-//! to its hermetic declaration identities; disagreeing custody for one
-//! coordinate fails closed rather than being overwritten.
+//! `unit::attached_unit::lower_unit_closure` assembles the one module every
+//! plan family publishes and lowers every checked placed-view input of a
+//! machine it closes over, joining each row to its hermetic declaration
+//! identities. This module owns that join; there is no second publication of
+//! the same rows to reconcile.
 
 use checked_trees::{CheckedPlacedViewInput, CheckedTrees};
 use semantic_vocabulary::MachineId;
-use terminal_psi::{StructuralAccess, TerminalModule, TerminalPlacedViewInput};
+use terminal_psi::{StructuralAccess, TerminalPlacedViewInput};
 
-use crate::lowering_error::{LoweringError, unsupported};
-
-pub(crate) fn retain_selected_placed_view_inputs(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    source_machine: symbols::SymbolHandle,
-    terminal_machine: MachineId,
-    module: &mut TerminalModule,
-) -> Result<(), LoweringError> {
-    for input in checked.facts.placed_view_inputs.iter().filter(|input| {
-        input.machine == source_machine
-            && checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .callable_entry_for_machine(source_machine)
-                .is_some_and(|entry| input.state == entry.state)
-    }) {
-        let lowered = lower_placed_view_input(
-            identities,
-            checked,
-            exact_toolchain_sources,
-            input,
-            terminal_machine,
-        )?;
-        if let Some(existing) = module.placed_view_inputs.iter().find(|existing| {
-            (
-                existing.machine,
-                &existing.source_state_identity,
-                existing.position,
-            ) == (
-                lowered.machine,
-                &lowered.source_state_identity,
-                lowered.position,
-            )
-        }) {
-            if existing != &lowered {
-                return unsupported("placed-view input custody disagrees across Terminal lowering");
-            }
-        } else {
-            module.placed_view_inputs.push(lowered);
-        }
-    }
-    module.placed_view_inputs.sort();
-    Ok(())
-}
+use crate::lowering_error::LoweringError;
 
 pub(crate) fn lower_placed_view_input(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,

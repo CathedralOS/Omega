@@ -34,7 +34,6 @@ use crate::machine_lowering::machine_dispatch::{
 };
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
-use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
 use crate::retention::{
     closed_reach_applications, operation_crash_contracts, reborrow_restored_call_use,
     retained_borrow_custody, suspension_call_plan,
@@ -292,14 +291,6 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
     )?;
     for (source_machine, terminal_machine) in &source_machine_ids {
-        retain_selected_placed_view_inputs(
-            identities,
-            checked,
-            exact_toolchain_sources,
-            *source_machine,
-            *terminal_machine,
-            &mut lowered.semantic_module,
-        )?;
         reborrow_restored_call_use::retain_selected_reborrow_restored_call_uses(
             identities,
             checked,

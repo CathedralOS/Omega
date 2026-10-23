@@ -8,8 +8,8 @@
 //! Runtime backing and parking remain selected-provider responsibilities.
 
 use super::{
-    CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationId, OperationKind,
-    TerminalModule, ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
+    CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationKind, TerminalModule,
+    ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
 };
 use crate::direct_calls::direct_call_parts;
 use crate::terminal_identities::lookup_claim_id;
@@ -109,7 +109,12 @@ pub(crate) fn retain_suspension_call_plans(
                 }
             };
             if let TerminalSuspensionPlace::Scalar(value) = place {
-                if !scalar_value_available_before(module, terminal_operation, value) {
+                if !scalar_value_available_before(
+                    &module.machines[machine_index],
+                    block_index,
+                    operation_index,
+                    value,
+                ) {
                     return unsupported("suspension frontier value is unavailable at its call");
                 }
                 let source_type = checked
@@ -696,29 +701,24 @@ fn scalar_declaration(module: &TerminalModule, value: ValueId) -> Option<ValueDe
 /// The checked binding supplies source provenance; SSA visibility supplies the
 /// emitted scope. A local can alias an ingress value or travel through a private
 /// join parameter without manufacturing a new operation result at every call.
+/// The crossing's own located call supplies the scope: the scan that found the
+/// operation already names the block whose earlier declarations may hold it, so
+/// the check must not search the module for the same operation again.
 fn scalar_value_available_before(
-    module: &TerminalModule,
-    operation: OperationId,
+    machine: &terminal_psi::TerminalMachine,
+    block_index: usize,
+    operation_index: usize,
     value: ValueId,
 ) -> bool {
-    module.machines.iter().any(|machine| {
-        machine.blocks.iter().any(|block| {
-            block
-                .operations
+    let block = &machine.blocks[block_index];
+    machine
+        .parameters
+        .iter()
+        .chain(block.parameters.iter())
+        .chain(
+            block.operations[..operation_index]
                 .iter()
-                .position(|candidate| candidate.id == operation)
-                .is_some_and(|operation_index| {
-                    machine
-                        .parameters
-                        .iter()
-                        .chain(block.parameters.iter())
-                        .chain(
-                            block.operations[..operation_index]
-                                .iter()
-                                .filter_map(|candidate| candidate.result.scalar_ref()),
-                        )
-                        .any(|declaration| declaration.id == value)
-                })
-        })
-    })
+                .filter_map(|candidate| candidate.result.scalar_ref()),
+        )
+        .any(|declaration| declaration.id == value)
 }
