@@ -1,12 +1,10 @@
 //! Exact Linux x86-64 replay owned beside the physical entry-plan carrier.
 
 use calling_conventions::{
-    BoundaryEntryPlan, CallPlan, CallSignature, EntryControl, MachineRegime, MachineRegister,
-    RegisterSet, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
+    BoundaryEntryPlan, CallPlan, CallSignature, CallingPolicy, EntryControl, MachineRegime,
+    MachineRegister, ValidatedBoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape,
     validate_boundary_entry_plan,
 };
-
-use super::ProgramEntryPhysicalContractPlan;
 
 const LINUX_X86_64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -25,37 +23,6 @@ pub const LINUX_X86_64_ADDRESS_TYPE_IDENTITY: &str = "named(name(addr))";
 /// Canonical normalized type identity of the process-completion status.
 pub const LINUX_X86_64_I32_TYPE_IDENTITY: &str = "named(name(i32))";
 
-/// System V AMD64 caller-saved bank: the nine integer argument/return
-/// registers plus all sixteen vector registers. The bridge may also observe
-/// the incoming stack pointer before switching to its private stack.
-const LINUX_X86_64_ORDINARY_CLOBBERS: [MachineRegister; 25] = [
-    MachineRegister::X86Rax,
-    MachineRegister::X86Rcx,
-    MachineRegister::X86Rdx,
-    MachineRegister::X86Rsi,
-    MachineRegister::X86Rdi,
-    MachineRegister::X86R8,
-    MachineRegister::X86R9,
-    MachineRegister::X86R10,
-    MachineRegister::X86R11,
-    MachineRegister::X86Xmm(0),
-    MachineRegister::X86Xmm(1),
-    MachineRegister::X86Xmm(2),
-    MachineRegister::X86Xmm(3),
-    MachineRegister::X86Xmm(4),
-    MachineRegister::X86Xmm(5),
-    MachineRegister::X86Xmm(6),
-    MachineRegister::X86Xmm(7),
-    MachineRegister::X86Xmm(8),
-    MachineRegister::X86Xmm(9),
-    MachineRegister::X86Xmm(10),
-    MachineRegister::X86Xmm(11),
-    MachineRegister::X86Xmm(12),
-    MachineRegister::X86Xmm(13),
-    MachineRegister::X86Xmm(14),
-    MachineRegister::X86Xmm(15),
-];
-
 /// Strong commitment to the exact closed Linux x86-64 target-package source
 /// compiled into this plan owner.
 pub fn exact_linux_x86_64_physical_contract_package_source_digest()
@@ -72,7 +39,11 @@ pub fn exact_linux_x86_64_physical_contract_package_source_digest()
 /// no return continuation, so the authored `LinuxX86_64` policy is a
 /// dedicated physical surface rather than the ordinary System V evaluator:
 /// the lone `addr` input is the arriving stack pointer itself, and the `i32`
-/// result completes through `exit_group` (rax = 231) with status in edi.
+/// result completes through `exit_group` (rax = 231) with status in edi. Only
+/// that arrival is repeated here: the volatile bank belongs to the policy
+/// (`CallingPolicy::SystemVAMD64::ordinary_clobbers`), and the bridge may
+/// also observe the incoming stack pointer before it switches to its private
+/// stack.
 pub fn exact_linux_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryEntryPlan {
     let signature = CallSignature {
         parameters: vec![ValueShape::integer(8, 8)],
@@ -98,7 +69,7 @@ pub fn exact_linux_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryEnt
                 }],
             }),
             callback_materializations: Vec::new(),
-            ordinary_clobbers: RegisterSet::new(LINUX_X86_64_ORDINARY_CLOBBERS),
+            ordinary_clobbers: CallingPolicy::SystemVAMD64.ordinary_clobbers(),
             stack_alignment: 16,
             shadow_bytes: 0,
             entry_control: EntryControl::SupervisorCall {
@@ -111,5 +82,3 @@ pub fn exact_linux_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryEnt
     validate_boundary_entry_plan(plan, &signature)
         .expect("the closed target-authored Linux x86-64 physical entry plan must remain valid")
 }
-
-impl ProgramEntryPhysicalContractPlan {}

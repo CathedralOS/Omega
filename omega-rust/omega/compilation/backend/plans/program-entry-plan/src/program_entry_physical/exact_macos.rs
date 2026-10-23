@@ -4,8 +4,6 @@ use calling_conventions::{
     CallSignature, ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 
-use super::ProgramEntryPhysicalContractPlan;
-
 const MACOS_ARM64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../../source/library/std/targets/macos_arm64/entry.omg"
@@ -58,5 +56,3 @@ pub fn exact_macos_arm64_physical_boundary_entry_plan() -> ValidatedBoundaryEntr
     evaluate_ordinary_boundary_entry_plan(calling_conventions::CallingPolicy::Aapcs64, &signature)
         .expect("the closed target-authored macOS ARM64 physical entry plan must remain valid")
 }
-
-impl ProgramEntryPhysicalContractPlan {}

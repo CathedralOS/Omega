@@ -540,19 +540,7 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             })?
         },
         callback_materializations: Vec::new(),
-        ordinary_clobbers: RegisterSet::new(
-            [
-                MachineRegister::X86Rax,
-                MachineRegister::X86Rcx,
-                MachineRegister::X86Rdx,
-                MachineRegister::X86R8,
-                MachineRegister::X86R9,
-                MachineRegister::X86R10,
-                MachineRegister::X86R11,
-            ]
-            .into_iter()
-            .chain((0..=5).map(MachineRegister::X86Xmm)),
-        ),
+        ordinary_clobbers: CallingPolicy::MicrosoftX64.ordinary_clobbers(),
         stack_alignment: 16,
         shadow_bytes: 32,
         entry_control: EntryControl::CallReturn,
@@ -576,21 +564,7 @@ fn evaluate_system_v_amd64(signature: &CallSignature) -> Result<CallPlan, PlanDi
         MachineRegister::X86Xmm,
         &[MachineRegister::X86Rax, MachineRegister::X86Rdx],
         16,
-        RegisterSet::new(
-            [
-                MachineRegister::X86Rax,
-                MachineRegister::X86Rcx,
-                MachineRegister::X86Rdx,
-                MachineRegister::X86Rsi,
-                MachineRegister::X86Rdi,
-                MachineRegister::X86R8,
-                MachineRegister::X86R9,
-                MachineRegister::X86R10,
-                MachineRegister::X86R11,
-            ]
-            .into_iter()
-            .chain((0..=15).map(MachineRegister::X86Xmm)),
-        ),
+        CallingPolicy::SystemVAMD64.ordinary_clobbers(),
     )?;
     if let Some(result) = plan.result.as_mut()
         && matches!(result.shape.class, ValueClass::Integer)
@@ -632,12 +606,7 @@ fn evaluate_aapcs64(signature: &CallSignature) -> Result<CallPlan, PlanDiagnosti
         MachineRegister::Aarch64V,
         &integer[..2],
         16,
-        RegisterSet::new(
-            (0..=17)
-                .map(MachineRegister::Aarch64X)
-                .chain((0..=7).map(MachineRegister::Aarch64V))
-                .chain((16..=31).map(MachineRegister::Aarch64V)),
-        ),
+        CallingPolicy::Aapcs64.ordinary_clobbers(),
     )?;
     if let Some(result) = plan.result.as_mut()
         && matches!(result.shape.class, ValueClass::Integer)
@@ -955,11 +924,7 @@ fn evaluate_linux_syscall_x86_64(signature: &CallSignature) -> Result<CallPlan, 
         &registers,
         MachineRegister::X86Rax,
         MachineRegister::X86Rax,
-        RegisterSet::new([
-            MachineRegister::X86Rax,
-            MachineRegister::X86Rcx,
-            MachineRegister::X86R11,
-        ]),
+        CallingPolicy::LinuxSyscallX86_64.ordinary_clobbers(),
     )
 }
 
@@ -971,11 +936,7 @@ fn evaluate_linux_syscall_aarch64(signature: &CallSignature) -> Result<CallPlan,
         &registers,
         MachineRegister::Aarch64X(8),
         MachineRegister::Aarch64X(0),
-        RegisterSet::new(
-            (0..=5)
-                .map(MachineRegister::Aarch64X)
-                .chain([MachineRegister::Aarch64X(8)]),
-        ),
+        CallingPolicy::LinuxSyscallAarch64.ordinary_clobbers(),
     )
 }
 

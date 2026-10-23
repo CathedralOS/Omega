@@ -5,10 +5,9 @@
 //! used only after a target-authored bootstrap has established storage roots.
 
 use calling_conventions::{
-    BoundaryEntryPlan, EntryStack, MachineRegime, MachineState, MachineStateSet,
-    Preemption, StatePlan,
+    BoundaryEntryPlan, EntryStack, MachineRegime, MachineState, MachineStateSet, Preemption,
+    StatePlan,
 };
-
 
 /// The shared state plan for closed target-authored entry replays: the
 /// provider selects the entry stack, nothing is interrupted, saved, or

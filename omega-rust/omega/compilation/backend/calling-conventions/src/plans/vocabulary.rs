@@ -551,6 +551,70 @@ impl CallingPolicy {
             }
         }
     }
+
+    /// The registers this policy's ordinary call or syscall abandons: the
+    /// caller-saved bank every evaluated plan names, every entry replay
+    /// retains, and every entry plan's machine-state ceiling derives from.
+    /// One table serves them all, so a policy change lands here rather than
+    /// in each replay's private copy. `RegisterSet` canonicalizes order.
+    pub fn ordinary_clobbers(self) -> RegisterSet {
+        match self {
+            // Microsoft x64: the seven volatile integer registers plus the
+            // six volatile vector registers.
+            Self::MicrosoftX64 => RegisterSet::new(
+                [
+                    MachineRegister::X86Rax,
+                    MachineRegister::X86Rcx,
+                    MachineRegister::X86Rdx,
+                    MachineRegister::X86R8,
+                    MachineRegister::X86R9,
+                    MachineRegister::X86R10,
+                    MachineRegister::X86R11,
+                ]
+                .into_iter()
+                .chain((0..=5).map(MachineRegister::X86Xmm)),
+            ),
+            // System V AMD64: the nine integer argument/return registers plus
+            // all sixteen vector registers.
+            Self::SystemVAMD64 => RegisterSet::new(
+                [
+                    MachineRegister::X86Rax,
+                    MachineRegister::X86Rcx,
+                    MachineRegister::X86Rdx,
+                    MachineRegister::X86Rsi,
+                    MachineRegister::X86Rdi,
+                    MachineRegister::X86R8,
+                    MachineRegister::X86R9,
+                    MachineRegister::X86R10,
+                    MachineRegister::X86R11,
+                ]
+                .into_iter()
+                .chain((0..=15).map(MachineRegister::X86Xmm)),
+            ),
+            // AAPCS64: the eighteen integer argument/scratch registers (x18
+            // is platform-reserved) plus every volatile vector register.
+            Self::Aapcs64 => RegisterSet::new(
+                (0..=17)
+                    .map(MachineRegister::Aarch64X)
+                    .chain((0..=7).map(MachineRegister::Aarch64V))
+                    .chain((16..=31).map(MachineRegister::Aarch64V)),
+            ),
+            // Linux x86-64 syscall: rcx and r11 hold the return address and
+            // flags the `syscall` instruction itself clobbers.
+            Self::LinuxSyscallX86_64 => RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86R11,
+            ]),
+            // Linux AArch64 syscall: the six argument registers plus x8, the
+            // supervisor-call number register.
+            Self::LinuxSyscallAarch64 => RegisterSet::new(
+                (0..=5)
+                    .map(MachineRegister::Aarch64X)
+                    .chain([MachineRegister::Aarch64X(8)]),
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -4,14 +4,10 @@ use calling_conventions::{
     CallSignature, ValidatedBoundaryEntryPlan, ValueShape, evaluate_ordinary_boundary_entry_plan,
 };
 
-use super::ProgramEntryPhysicalContractPlan;
-
 const MACOS_X86_64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../../../source/library/std/targets/macos_x86_64/entry.omg"
 ));
-
-/// Canonical checked-tree overload identity for `MacosX64PhysicalEntry::enter`.
 
 /// Canonical normalized type identity of the `argc` and result integers.
 pub const MACOS_X86_64_I32_TYPE_IDENTITY: &str = "named(name(i32))";
@@ -50,5 +46,3 @@ pub fn exact_macos_x86_64_physical_boundary_entry_plan() -> ValidatedBoundaryEnt
     )
     .expect("the closed target-authored macOS x86-64 physical entry plan must remain valid")
 }
-
-impl ProgramEntryPhysicalContractPlan {}
