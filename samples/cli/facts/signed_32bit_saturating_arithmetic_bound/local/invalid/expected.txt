@@ -1,1 +1,1 @@
-cannot prove requires contract for call
+cannot prove requires contract for call verify_sum from sat_local: loc >= 50 && loc <= 100

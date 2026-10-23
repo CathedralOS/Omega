@@ -1,0 +1,34 @@
+// Fact: 32-bit signed exact subtraction lhs - rhs with 80i32 <= lhs <= 120i32 and 20i32 <= rhs <= 40i32 establishes 40i32 <= diff <= 100i32 so 100i32 - diff and diff - 40i32 are safe.
+// Place: const_name. A named constant rhs is subtracted from the bounded lhs.
+// Expected exit: 0
+machine verify_diff(diff: i32) -> i32
+    requires diff >= 40 && diff <= 100
+{
+    let head: i32 = 100 - diff;
+    let tail: i32 = diff - 40;
+    let sum: i32 = head + tail;
+    sum - 60
+}
+
+const RHS: i32 = 30;
+
+machine compute_const(lhs: i32) -> i32
+    requires lhs >= 80 && lhs <= 120
+{
+    let diff: i32 = lhs - RHS;
+    verify_diff(diff)
+}
+
+machine evaluate() -> i32 {
+    compute_const(100)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

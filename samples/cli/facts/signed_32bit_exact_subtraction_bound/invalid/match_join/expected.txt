@@ -1,1 +1,1 @@
-cannot prove requires contract for call verify_diff
+cannot prove requires contract for call verify_diff from compute_match_join: joined >= 40 && joined <= 100

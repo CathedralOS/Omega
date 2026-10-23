@@ -1,0 +1,1 @@
+cannot prove requires contract for call forward_sat from sat_machine: lhs >= 40 && lhs <= 80 && rhs >= 10 && rhs <= 20

@@ -1,1 +1,1 @@
-cannot prove requires contract for call
+cannot prove requires contract for call verify_sum from sat_field: box.val >= 50 && box.val <= 100

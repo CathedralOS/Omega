@@ -1,1 +1,1 @@
-cannot prove requires contract for call
+cannot prove requires contract for call verify_sum from sat_const: sum >= 50 && sum <= 100

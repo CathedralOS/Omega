@@ -62,7 +62,18 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
-- 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call`).
+- 9/9 intended-invalid controls match their authored rejection (each place's own exact `cannot prove requires contract for call <site>: sum >= 50 && sum <= 100` fragment).
+
+## Pinned Fixtures
+
+The row is pinned by 18 fixtures under `tests/omega/pass/facts/signed_32bit_saturating_arithmetic_bound_through_<place>_exit` and
+`tests/omega/fail/facts/signed_32bit_saturating_arithmetic_bound_through_<place>_rejected` — nine positives and their nine reject
+twins, one per transport place. Each positive fixture is a byte-identical copy of its place program, binds `ProgramEntry` for all
+four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and records native exit 0. Each reject
+twin is a byte-identical copy of its place's `invalid/main.omg` and pins that place's own exact diagnostic
+(`cannot prove requires contract for call <call site>: <sum bound>`). Golden rows live in
+`tests/omega/corpus_outcomes.txt` (all 18), `tests/omega/corpus_native_macos_arm64.txt` and `tests/omega/corpus_both_macos_arm64.txt`
+(the nine positives each).
 
 ## Requirements and Evidence
 
