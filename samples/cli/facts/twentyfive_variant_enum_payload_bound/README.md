@@ -2,7 +2,7 @@
 
 Fact: matching a 25-variant tagged enum payload TwentyFiveChoice { V1(u64), V2(u64), V3(u64), V4(u64), V5(u64), V6(u64), V7(u64), V8(u64), V9(u64), V10(u64), V11(u64), V12(u64), V13(u64), V14(u64), V15(u64), V16(u64), V17(u64), V18(u64), V19(u64), V20(u64), V21(u64), V22(u64), V23(u64), V24(u64), V25(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Owning Task: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`) — payload case `where` clauses and their requires/ensures transport under the [proposition-based scalar range contract](../../../../wiki/spec/language/domains.md#declaration-and-membership).
 Governing Specifications:
 - `wiki/spec/layouts/plans.md` (Tagged variant layout plans and alignment)
 - `wiki/spec/terminal-psi/control_flow.md` (Pattern matching, variant dispatch, and join obligations)
@@ -34,16 +34,16 @@ Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hos
 `omega run --both` verifies Terminal Psi interpreter and native execution agreement:
 
 ```sh
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/local/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/field/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/parameter/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/call_result/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/match_join/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/const_name/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/other_state/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/other_machine/main.omg
-omega run --both samples/cli/facts/twenty-fiveone_variant_enum_payload_bound/target_body/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/local/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/field/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/parameter/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/call_result/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/match_join/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/const_name/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/other_state/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/other_machine/main.omg
+omega run --both samples/cli/facts/twentyfive_variant_enum_payload_bound/target_body/main.omg
 ```
 
 Every positive place and the root witness observe `native exit 0` and `interp exit: 0`.
@@ -67,12 +67,25 @@ The compiler strictly fails closed at compile time:
 | `local` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80` |
 | `field` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: holder.res >= 40 && holder.res <= 80` |
 | `parameter` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
-| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload: result >= 40 && result <= 80` |
+| `call_result` | native 0 / interp 0 | `error: cannot prove ensures contract for exit from extract_payload at statement 49: result >= 40 && result <= 80` |
 | `match_join` | native 0 / interp 0 | `error: cannot prove requires contract for call choose from probe: res >= 40 && res <= 80 && 60 >= 40 && 60 <= 80` |
 | `const_name` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from probe: res >= 40 && res <= 80` |
 | `other_state` | native 0 / interp 0 | `error: cannot prove requires contract for call consume from probe: res >= 40 && res <= 80` |
 | `other_machine` | native 0 / interp 0 | `error: cannot prove requires contract for call forward_payload from probe: res >= 40 && res <= 80` |
 | `target_body` | native 0 / interp 0 | `error: cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80` |
+
+Measured with the shared opt-level 1 generation `gen-9b001b8f6af` on macOS arm64: every twin exits 1 under `omega --check`, and the full message text of each place's diagnostic (including its `(needs fact ...) in state ...` continuation) is pinned in that place's fixture `expected.txt`.
+
+## Pinned corpus fixtures
+
+The eighteen fixtures are pinned under `tests/omega/`:
+
+- nine positives `tests/omega/pass/facts/twentyfive_variant_enum_payload_bound_through_<place>_exit`, each with `main.omg`, `build.omg` and `expected_native_exit.txt` = `0`;
+- nine reject twins `tests/omega/fail/facts/twentyfive_variant_enum_payload_bound_through_<place>_rejected`, each with `main.omg`, `build.omg` and `expected.txt` carrying that place's measured `cannot prove ...` fragment.
+
+Each fixture's `main.omg` is a byte-identical copy of its place program (`<place>/main.omg`, or `<place>/invalid/main.omg` for the twin), and `build.omg` differs only in the application name its declaration registers (`twentyfive_variant_enum_payload_bound_<place>` or `..._<place>_invalid`), so a sample place and its fixture cannot drift apart.
+
+Recorded from the shared generation `gen-9b001b8f6af` on macOS arm64: `tests/omega/corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows with their own diagnostic lines, `tests/omega/corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows, and `tests/omega/corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
 
 ## Requirements and Evidence (AGENTS.md)
 
@@ -84,4 +97,4 @@ The compiler strictly fails closed at compile time:
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 25-variant tagged enum `TwentyFiveChoice` with a 1-byte discriminant tag (`u8` range 0..24) and an 8-byte payload (`IntegerAt 8-byte` for `u64`). With natural 8-byte alignment, 7 padding bytes separate the 1-byte discriminant tag from the payload at offset 8, yielding a total layout plan size of 16 bytes and alignment of 8 bytes across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA 25-way variant tag comparison/dispatch and payload extraction instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; the root and all nine places report `native exit 0` and `interp exit: 0`, the nine reject twins fail closed under `omega --check` with their pinned fragments, and the eighteen fixtures are pinned under `tests/omega/{pass,fail}/facts/` with the three golden legs recorded. A 26th variant repeats this mechanism at a wider discriminant tag without crossing a new layout, ABI or encoding boundary.

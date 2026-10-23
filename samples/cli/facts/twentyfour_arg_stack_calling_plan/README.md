@@ -78,7 +78,7 @@ omega --check samples/cli/facts/twentyfour_arg_stack_calling_plan/<place>/invali
 
 ## Requirements and Evidence
 
-- **Parent outcome:** `CALLING-PLANS` / `STORAGE` / `ACTIVATION-STORAGE` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `NORMALIZED-ABI-LOWERING` ([TASKS.md](../../../../TASKS.md)) — register/stack argument placement under the [calling-plan contract](../../../../wiki/spec/build/calling_plans.md) and [activation storage](../../../../wiki/spec/resources/activation_storage.md).
 - **Requirement established:** A 24-argument calling plan across register and stack ABI slots on all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) preserves the 24th stack-passed argument's static interval bound `40u64 <= a24 <= 80u64`, proving exact unsigned subtractions `80u64 - res` and `res - 40u64` overflow- and underflow-free without runtime checks across all nine language places.
 
 ### Full 8-Layer Specification and Lowering Evidence
@@ -94,6 +94,8 @@ omega --check samples/cli/facts/twentyfour_arg_stack_calling_plan/<place>/invali
 
 ### Verification Evidence
 
-- `sample_native_gate.py --filter cli/facts/twentyfour_arg_stack_calling_plan`: 10/10 samples meet their documented oracle on `windows_x86_64` (root + 9 places pass with exit 0); 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+- Baseline on the shared opt-level 1 generation `gen-9b001b8f6af` (macOS arm64): the root and all nine positives report `native exit 0` and `interp exit: 0` under `omega run --both` (20/20 including the root); all nine twins exit 1 under `omega --check` carrying `exact arithmetic in machine ... may overflow \`u64\`` (decision 17).
+- All eighteen fixtures are pinned under `tests/omega/`: nine positives `tests/omega/pass/facts/twentyfour_arg_stack_calling_plan_through_<place>_exit` (`main.omg`, `build.omg`, `expected_native_exit.txt` = `0`) and nine reject twins `tests/omega/fail/facts/twentyfour_arg_stack_calling_plan_through_<place>_rejected` (`main.omg`, `build.omg`, `expected.txt` = `may overflow \`u64\``). Every `main.omg` is a byte-identical copy of its place program (`<place>/main.omg`, or `<place>/invalid/main.omg` for the twin) and `build.omg` differs only in the application name its declaration registers (`twentyfour_arg_stack_calling_plan_<place>` or `..._<place>_invalid`).
+- Golden legs recorded with that generation: `tests/omega/corpus_outcomes.txt` gains nine `checked` rows carrying `check-target:macos_arm64` and nine `rejected ... expected` rows with their own diagnostic lines; `tests/omega/corpus_native_macos_arm64.txt` gains nine `built ... exit:0` rows; `tests/omega/corpus_both_macos_arm64.txt` gains nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows.
 - Discrimination: modifying transition conditions causes execution to trap through `crash Trap;` with exit code 255 (`native signal 5` and `interp crash: Trap`), demonstrating strict oracle discrimination.
-- What remains open: multi-argument calls exceeding 25+ arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
+- What remains open: 25 or more arguments, aggregate stack arguments passed by value with indirect `sret` calling plans, and mixed float/vector register and stack calling conventions.
