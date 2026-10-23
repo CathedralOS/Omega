@@ -64,6 +64,19 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`cannot prove requires contract for call`).
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/signed_8bit_saturating_multiplication_bound_through_<place>_exit/`
+and `tests/omega/fail/facts/signed_8bit_saturating_multiplication_bound_through_<place>_rejected/` for the nine places.
+Each pass fixture is a byte copy of its place program and carries the four hosted `ProgramEntry` binds and
+`expected_native_exit.txt` 0; each reject twin is a byte copy of its `<place>/invalid/main.omg`, which differs
+from the positive only in the widened `lhs <= 13i8` bound and its comment, and pins
+`cannot prove requires contract for call verify_prod` together with the `prod <= 96` upper bound the widened
+operand breaks.
+The three corpus legs recorded at `9b001b8f6af+wt`: `corpus_outcomes.txt` 9 checked + 9 rejected
+(`check-target:macos_arm64`), `corpus_native_macos_arm64.txt` 9 built with `exit:0`, and
+`corpus_both_macos_arm64.txt` 9 built with `exit:0`, `interpreter-exit:0` and `interpreter:agrees`.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
