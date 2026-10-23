@@ -24,9 +24,106 @@ accompanied by `<place>/invalid/` reject twins:
 
 Run each place with `omega run <place>/main.omg`.
 
+## Execution
+
+Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
+(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) in its `build.omg` and declares
+`Expected exit: 0`. `omega run --both` verifies Terminal Psi interpretation against native execution:
+
+```sh
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/local/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/field/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/parameter/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/call_result/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/match_join/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/const_name/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/other_state/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/other_machine/main.omg
+omega run --both samples/cli/facts/unsigned_8bit_shift_right_bound/target_body/main.omg
+```
+
+All ten positives (the root and the nine places) report `native exit 0` and `interp exit: 0`.
+
+### The oracle discriminates
+
+Each positive place shifts the singly bounded input `160u8` (`val >= 160u8 && val <= 160u8`) right by
+`2u32` bits, statically establishing `shifted >= 40u8 && shifted <= 40u8`; the consuming exact 8-bit
+subtraction `shifted - 40u8` is proved underflow-free and evaluates to `0u8`, so `transition check == 0`
+reaches `done()` and the program exits 0. Perturbing that single token in the root witness
+(`transition check == 0` to `transition check == 1`) takes `state bad() { crash Trap; }` instead and
+exits 255 reporting `native signal 5` with `interp crash: Trap (host presentation agrees)`, so the
+authored 0 discriminates between correct evaluation and faulty execution.
+
+## Pinned Corpus Fixtures
+
+The row is pinned for all nine places under `tests/omega/pass/facts/` and `tests/omega/fail/facts/`:
+
+| Place | Pinned pass fixture | Pinned reject fixture | Transport |
+| --- | --- | --- | --- |
+| local | `unsigned_8bit_shift_right_bound_through_local_exit` | `unsigned_8bit_shift_right_bound_through_local_rejected` | shifted result bound to local variable |
+| field | `unsigned_8bit_shift_right_bound_through_field_exit` | `unsigned_8bit_shift_right_bound_through_field_rejected` | shifted result stored in and projected from record field |
+| parameter | `unsigned_8bit_shift_right_bound_through_parameter_exit` | `unsigned_8bit_shift_right_bound_through_parameter_rejected` | shifted result passed as explicit machine parameter |
+| call_result | `unsigned_8bit_shift_right_bound_through_call_result_exit` | `unsigned_8bit_shift_right_bound_through_call_result_rejected` | shifted result returned across machine call boundary |
+| match_join | `unsigned_8bit_shift_right_bound_through_match_join_exit` | `unsigned_8bit_shift_right_bound_through_match_join_rejected` | shifted result converged across match join arms |
+| const_name | `unsigned_8bit_shift_right_bound_through_const_name_exit` | `unsigned_8bit_shift_right_bound_through_const_name_rejected` | shifted input provided by named compile-time constant |
+| other_state | `unsigned_8bit_shift_right_bound_through_other_state_exit` | `unsigned_8bit_shift_right_bound_through_other_state_rejected` | shifted result forwarded across state machine transition |
+| other_machine | `unsigned_8bit_shift_right_bound_through_other_machine_exit` | `unsigned_8bit_shift_right_bound_through_other_machine_rejected` | shifted result forwarded through intermediate machine |
+| target_body | `unsigned_8bit_shift_right_bound_through_target_body_exit` | `unsigned_8bit_shift_right_bound_through_target_body_rejected` | shifted result verified across target-scoped machine bodies |
+
+Each pass fixture is a byte-identical copy of its place's `main.omg` and `build.omg` plus
+`expected_native_exit.txt` = `0`; each reject fixture is a byte-identical copy of its place twin's
+`main.omg` and `build.omg` plus `expected.txt` carrying the fragment the corpus runner emits. Positive
+versus twin `git diff` moves only the construct's own bound: `val >= 160u8 && val <= 160u8` becomes
+`val >= 120u8 && val <= 160u8` and the evaluated `val` moves from `160u8` to `120u8`, so
+`shifted == 30u8` and the consuming `shifted - 40u8` has no proof.
+
+### Invalid controls and reject twins
+
+Each twin weakens the input bound so the shifted value can be `30u8`; checking then fails closed
+(`omega --check` exits 1 on all nine twins) with that place's own diagnostic:
+
+| Place | Reject twin diagnostic |
+| --- | --- |
+| local | `cannot prove requires contract for call verify_shifted from main: local_shifted >= 40 && local_shifted <= 40` |
+| field | `cannot prove requires contract for call verify_shifted from main: carrier.shifted >= 40 && carrier.shifted <= 40` |
+| parameter | `cannot prove requires contract for call check_param from main: shifted >= 40 && shifted <= 40` |
+| call_result | `cannot prove ensures contract for exit from produce_shifted at statement 0: result >= 40 && result <= 40` |
+| match_join | `cannot prove requires contract for call verify_shifted from main: joined >= 40 && joined <= 40` |
+| const_name | `cannot prove requires contract for call verify_shifted from main: shifted >= 40 && shifted <= 40` |
+| other_state | `cannot prove requires contract for call verify_shifted from main: forwarded >= 40 && forwarded <= 40` |
+| other_machine | `cannot prove requires contract for call runner from main: shifted >= 40 && shifted <= 40` |
+| target_body | `cannot prove requires contract for call exercise from main: shifted >= 40 && shifted <= 40` (four target bodies) |
+
+## Measured evidence
+
+Measured on macOS arm64 with the factsr1 shared generation producer
+gen-d3b0020bf6a (revision d3b0020bf6a72cac2367f3eae2ff1db55cc332b0, omega sha256
+`c6dff3ba4be3a38c720ee83b522d251743afde9c174ca6881390c5812920e344`, corpus_runner sha256
+`65225cae2bf62dec8f705339afaef606c0bac0e611c005dae984488e67ffa301`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+  `interp exit: 0`.
+- `omega --check` over the nine twins: 9/9 exit 1 with their authored fragment (table above).
+- Perturbing the root oracle (one token) exits 255 with `native signal 5` and
+  `interp crash: Trap (host presentation agrees)`.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `60453171ca5f`, so every row is stamped `@60453171ca5f+wt`: `tests/omega/corpus_outcomes.txt` gained
+  36 rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` with their diagnostics
+  and expected fragments satisfied, 24 diagnostic continuation lines),
+  `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
+  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows. Every golden diff is a pure addition -- +60/-0, +18/-0 and +18/-0 with 0
+  `timeout` rows.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `NUMERIC-VALUES` / `INTEGER-CERTIFICATES` / `INSTRUCTION-SELECTION` ([TASKS.md](../../../../TASKS.md)).
+- **Parent outcome:** `CANONICALIZE-SCALAR-RANGE-CONTRACTS` (`TASKS.md`): the settled
+  [proposition-based scalar range contract](../../../../wiki/spec/language/domains.md#declaration-and-membership),
+  where machine and state parameters carry `requires`, results carry `ensures`, and locals take their
+  facts from initializers, guards and calls. This row is one customer group's nine-place transport and
+  execution of that contract; the underlying numeric-policy realization is
+  `ARITHMETIC-POLICY-REALIZATION`.
 - **Requirement established:** 8-bit unsigned integer logical right shift bounds proof and realization (`Psi 05–07` / `Omega 00–09`), verifying that shifting bounded `u8` value (`val >= 160u8 && val <= 160u8`) right by `2u32` bits establishes the interval `shifted >= 40u8 && shifted <= 40u8`, which proves that exact 8-bit subtraction `shifted - 40u8 == 0u8` is provably underflow-free across all nine standard places.
 
 Full 8-layer specification and lowering evidence:
@@ -50,4 +147,5 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA logical right shift instructions: 8-bit `shr r8, imm8` on `x86_64` and zero-extended `lsr w, w, #imm` on `arm64`. Exact unsigned subtraction lowers to 8-bit `sub`, and register allocation assigns register homes and disjoint stack activation frames honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open under NUMERIC-VALUES: dynamic runtime shift counts requiring masking certificates, 128-bit wide shifts across register pairs, and vector SIMD packed logical right shifts.
+The row itself is closed: its nine places and nine reject twins run, reject and are pinned
+above. Remaining open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `ARITHMETIC-POLICY-REALIZATION`: dynamic runtime shift counts requiring masking certificates, 128-bit wide shifts across register pairs, and vector SIMD packed logical right shifts.

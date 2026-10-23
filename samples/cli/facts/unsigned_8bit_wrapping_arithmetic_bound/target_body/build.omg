@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "unsigned_8bit_wrapping_arithmetic_bound");
+    Build::application(builder, "unsigned_8bit_wrapping_arithmetic_bound_target_body");
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
