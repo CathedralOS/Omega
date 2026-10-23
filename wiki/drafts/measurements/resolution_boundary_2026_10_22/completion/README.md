@@ -102,7 +102,7 @@ unchanged. Production was rebuilt and replayed for those downstream changes.
 Formatting and whitespace checks pass. Existing warnings remain in the logs.
 
 The earlier production capture remains under [integrated](integrated/production-observations.json);
-the final one is under [production](production/production-observations.json),
+the later one is under [production](production/production-observations.json),
 with its [producer receipt](production/candidate-producer.json),
 [native products](production/products.json) and
 [qualification summary](production/qualification-summary.json). The active warm
@@ -114,3 +114,14 @@ build was interrupted before publishing an executable; its record is retained.
 Retain this change for the measured removal of duplicate table copies. The next
 performance decision should use a fresh whole-compile profile after upstream
 work settles; these row counts do not establish the dominant remaining cost.
+
+Publication integration at `18266fffbe74e01a6c8e2d65c464b815b64fe83e` includes main `840c4f8cf03f9b69a72c222f20e1525be8b8344e`,
+including the newer call-result qualification and aggregate-address interpreter
+paths. A fresh optimized compiler repeats all 14 outcomes: seven dual-engine
+programs, one passing constant check, five refusal controls and the unchanged
+computed-constant baseline failure. Seven frozen native images separately exit 0.
+The [publication capture](publication/production-observations.json),
+[producer](publication/candidate-producer.json) and
+[qualification receipt](publication/qualification-summary.json) retain this
+execution separately from the earlier producers. No source/oracle changes were
+needed. Raw Clippy output is compressed to preserve suggestion whitespace.

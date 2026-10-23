@@ -1,0 +1,4 @@
+{
+  "observed_revision": "db1367c3d94414b765562f5f0db97304c1f7682e",
+  "reason": "Incoming changes are in downstream checking/native lowering and application examples. Both tested crates, all representation/foundation/parser dependencies, manifests, toolchain and test sources are unchanged. Unit tests and scoped Clippy retain their original observations; production is rebuilt and replayed."
+}
