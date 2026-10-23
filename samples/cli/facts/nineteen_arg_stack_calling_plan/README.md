@@ -67,9 +67,29 @@ omega --check samples/cli/facts/nineteen_arg_stack_calling_plan/<place>/invalid/
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
 
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/nineteen_arg_stack_calling_plan_through_*_exit` and
+`tests/omega/fail/facts/nineteen_arg_stack_calling_plan_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg`, passes
+`81` as the 19th stack argument instead of `60`, and pins the
+`exact arithmetic ... may overflow `u64`` diagnostic fragment (decision 17 --
+exact arithmetic is a proof obligation).
+
+Measured at `4c23cc3391c2e539d4065563ac95de7b18f2fc67` on macOS arm64 with the
+shared generation producer (`gen-4c23cc3391c`): 10/10 positive places (root and
+nine places) report `native exit 0` and `interp exit: 0` (`omega run --both`),
+and 9/9 reject twins fail closed with the exact-arithmetic overflow
+diagnostic.
+
 ## Requirements and Evidence
 
-- **Parent outcome:** `CALLING-PLANS-STACK-BOUNDS` / `NINETEEN-ARG-STACK-CALLING-PLAN` (`TASKS.md`)
+- **Parent outcome:** `NORMALIZED-ABI-LOWERING` ([TASKS.md](../../../../TASKS.md)) — register/stack argument placement under the [calling-plan contract](../../../../wiki/spec/build/calling_plans.md).
 - **Requirement established:** A 19-argument calling plan across register and stack ABI slots on all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) preserves the 19th stack-passed argument's static interval bound `40u64 <= a19 <= 80u64`, proving exact unsigned subtractions `80u64 - res` and `res - 40u64` overflow- and underflow-free without runtime checks across all nine language places.
 
 ### Full 8-Layer Specification and Lowering Evidence

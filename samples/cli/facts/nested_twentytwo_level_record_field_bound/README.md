@@ -50,7 +50,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The recorded 0 exit is discriminating:
 - At runtime, with `val == 60u64`, `res == 60u64`, `headroom == 20u64`, `margin == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 40 { true -> done() _ -> bad() }` exits 0. If nested field projection or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
-- In each invalid twin, leaf `val` upper bound is widened to `81u64` so `res` can reach `81u64 > 80u64`. Proof obligation checking statically detects that `80u64 - res` can underflow `u64` below zero, failing closed with `may overflow \`u64\``. None reaches native execution.
+- In each invalid twin, leaf `val` upper bound is widened to `81u64` so `res` can reach `81u64 > 80u64` (the `call_result` twin also returns `81u64`, since a nullary call's result is proved from its folded constant body). Proof obligation checking statically detects that `80u64 - res` can underflow `u64` below zero, failing closed with `may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
 
@@ -67,6 +67,28 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 `sample_native_gate.py` reports:
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
+
+## Pinned Fixtures
+
+The row is pinned under
+`tests/omega/pass/facts/nested_twentytwo_level_record_field_bound_through_*_exit`
+and
+`tests/omega/fail/facts/nested_twentytwo_level_record_field_bound_through_*_rejected`.
+Each positive fixture is a byte-identical copy of its `<place>/main.omg`
+(a fixture-unique `Build::application` name aside), binds `ProgramEntry` for
+all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`,
+`linux_arm64`), and records native exit 0 with Terminal Psi agreement. Each
+reject twin is a byte-identical copy of its `<place>/invalid/main.omg` and
+pins the `exact arithmetic ... may overflow `u64`` diagnostic fragment
+(decision 17 -- exact arithmetic is a proof obligation).
+
+Measured at `4c23cc3391c2e539d4065563ac95de7b18f2fc67` on macOS arm64 with the
+shared generation producer (`gen-4c23cc3391c`): 10/10 positive places report
+`native exit 0` and `interp exit: 0` (`omega run --both`), and 9/9 reject
+twins fail closed with the exact-arithmetic overflow diagnostic. The
+`call_result` twin returns `81u64` as well as widening its contract to
+`<= 81u64`, because a nullary call's result is proved from its folded constant
+body, so that a twin differing only in the contract declares no unsafe value.
 
 ## Requirements and Evidence
 
