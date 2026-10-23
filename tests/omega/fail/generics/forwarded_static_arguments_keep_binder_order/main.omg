@@ -1,0 +1,6 @@
+machine marker<Element, const Tag: u8>() -> bool { true }
+trait Checked {
+    machine take<Element, const Tag: u8>()
+    requires marker<Tag, Element>();
+}
+machine main() {}

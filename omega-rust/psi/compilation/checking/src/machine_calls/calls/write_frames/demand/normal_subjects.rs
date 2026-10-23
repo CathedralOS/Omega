@@ -16,7 +16,9 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) struct InvocationReferenceSubject {
     pub parameter: SymbolHandle,
-    pub source: LocalWriteSource,
+    pub argument: ExpressionHandle,
+    pub parameter_type: TypeReferenceHandle,
+    pub sources: Vec<LocalWriteSource>,
     pub type_reference: TypeReferenceHandle,
     pub stable_on_return: bool,
     pub preserved_on_return: bool,
@@ -89,48 +91,57 @@ impl<'program> CallFrameResolver<'program> {
         // Consumers look up each required formal and refuse missing rows.
         let subjects = parameters
             .iter()
+            .zip(arguments.get(leading_operands..)?)
             .zip(origins.arguments.get(leading_operands..)?)
-            .filter_map(|(parameter, origins)| {
+            .filter_map(|((parameter, argument), origins)| {
                 let shell = crate::reference_shell(program, parameter.type_reference)?;
                 if !shell.access.is_readable() {
                     return None;
                 }
                 let origins = origins.as_ref()?;
-                let source = origins.first()?;
-                if !source.root.is_valid()
-                    || source.collection_coarse
-                    || origins.iter().any(|candidate| candidate != source)
-                {
+                if origins.is_empty() {
                     return None;
                 }
-                let root_type =
-                    reference_subjects::source_root_type(program, state, index, source.root)?;
-                let root_type = reference_subjects::carrier_storage_type(program, root_type)?;
-                declaration_preserving_views(program, root_type, source)?;
-                reference_subjects::validate_owned_projection(
-                    program,
-                    root_type,
-                    &source.segments,
-                )?;
-                let type_reference =
-                    stored_origins::projected_type(program, root_type, &source.segments)?;
-                if !crate::declared_carriers_match(program, type_reference, shell.referee)
-                    || program.arithmetic_domain_for_type_reference(type_reference)
-                        != program.arithmetic_domain_for_type_reference(shell.referee)
-                {
-                    return None;
+                // A selected reference can have several possible backings.
+                // Authenticate the entire join; predicate truth belongs to the
+                // actual selected on a normal path, not every possible payload.
+                for source in origins {
+                    if !source.root.is_valid() || source.collection_coarse {
+                        return None;
+                    }
+                    let root_type =
+                        reference_subjects::source_root_type(program, state, index, source.root)?;
+                    let root_type = reference_subjects::carrier_storage_type(program, root_type)?;
+                    declaration_preserving_views(program, root_type, source)?;
+                    reference_subjects::validate_owned_projection(
+                        program,
+                        root_type,
+                        &source.segments,
+                    )?;
+                    let type_reference =
+                        stored_origins::projected_type(program, root_type, &source.segments)?;
+                    if !crate::declared_carriers_match(program, type_reference, shell.referee)
+                        || program.arithmetic_domain_for_type_reference(type_reference)
+                            != program.arithmetic_domain_for_type_reference(shell.referee)
+                    {
+                        return None;
+                    }
                 }
                 Some(InvocationReferenceSubject {
                     parameter: parameter.symbol,
-                    source: source.clone(),
-                    type_reference,
+                    argument: *argument,
+                    parameter_type: parameter.type_reference,
+                    sources: origins.clone(),
+                    type_reference: shell.referee,
                     // Exclusive parameters lend referent storage, not a mutable
                     // descriptor home. Their mutability bit records access.
                     stable_on_return: !parameter.is_mutable || shell.access.is_exclusive(),
                     preserved_on_return: (!parameter.is_mutable || shell.access.is_exclusive())
-                        && !writes
-                            .iter()
-                            .any(|written| super::frame_paths_overlap(written, &source.path)),
+                        && !writes.iter().any(|written| {
+                            origins
+                                .iter()
+                                .any(|source| super::frame_paths_overlap(written, &source.path))
+                        }),
                 })
             })
             .collect();

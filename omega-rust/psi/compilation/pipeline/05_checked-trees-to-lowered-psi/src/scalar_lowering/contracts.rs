@@ -23,8 +23,6 @@ mod indexed_theorems;
 mod namespace;
 pub(crate) use indexed_theorems::indexed_theorems;
 pub(crate) use namespace::validate_indexed_operands;
-mod result_range;
-pub(crate) use result_range::with_result_range;
 
 /// Source checking knows a structural result even when a product's contract
 /// namespace cannot publish its place. Only that explicit absence permits

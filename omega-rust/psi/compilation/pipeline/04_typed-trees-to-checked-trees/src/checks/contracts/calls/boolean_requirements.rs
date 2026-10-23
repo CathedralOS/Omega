@@ -154,6 +154,7 @@ pub(super) fn proves(
             state_flow,
             call_flow,
             expression,
+            None,
             call_frames,
         )
         || explicit_subject_call_requirement_proven(program, state_flow, call_flow, expression)

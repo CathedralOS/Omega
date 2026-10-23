@@ -468,6 +468,14 @@ pub enum CheckedBooleanExpression {
     },
 }
 
+impl Default for CheckedBooleanExpression {
+    /// Arena sentinel only: no retained predicate or evidence is created by
+    /// allocating the zero row.
+    fn default() -> Self {
+        Self::Constant(false)
+    }
+}
+
 impl CheckedBooleanExpression {
     /// Whether evaluating this condition executes a Trapping primitive in
     /// one of its integer operands.

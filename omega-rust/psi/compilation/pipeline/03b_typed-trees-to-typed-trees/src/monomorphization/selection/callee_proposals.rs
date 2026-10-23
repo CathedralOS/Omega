@@ -316,23 +316,25 @@ pub(crate) fn state_by_symbol(
     program.state_by_symbol(symbol)
 }
 
-/// Every expression node reachable from an ordinary machine/state contract.
-/// These nodes share the global expression arena with executable bodies, but
-/// their static-machine selections quantify a proof schema and must never
-/// trigger runtime monomorphization.
+/// Every expression occurrence owned by a retained proof schema, independent
+/// of which declaration or prepared signature carries it. Applied signatures
+/// keep open captured binders just like authored contracts; neither creates a
+/// concrete runtime demand merely by storing calls in the expression arena.
+///
+/// Proof-position lowering and cloning keep these occurrences distinct from
+/// executable guards and initializers. Activating a recipe must copy its graph
+/// into an executable occurrence. This excludes runtime specialization only:
+/// source admission, contract formation and independent const checking remain.
 pub(crate) fn contract_expression_handles(
     program: &dyn ::validation::CheckingInput,
 ) -> Vec<ExpressionHandle> {
     let mut handles = Vec::new();
-    for machine in program.machines() {
-        for contract in program.machine_contracts(machine) {
-            collect_contract_facts(program, contract.facts, &mut handles);
-        }
-        for state in program.machine_states(machine) {
-            for contract in program.state_contracts(state) {
-                collect_contract_facts(program, contract.facts, &mut handles);
-            }
-        }
+    for (fact, _) in program.proof_facts.iter() {
+        collect_contract_facts(
+            program,
+            arena::HandleSpan::from_parts(fact, 1),
+            &mut handles,
+        );
     }
     handles
 }

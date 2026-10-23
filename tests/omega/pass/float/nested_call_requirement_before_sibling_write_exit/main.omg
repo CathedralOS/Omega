@@ -1,0 +1,24 @@
+// Expected exit: 0. The requirement observes the finite value before the sibling write.
+data Cell { value: f64; }
+
+machine overwrite_nan(cell: &mut Cell) -> u64 {
+    cell.value = 0.0f64 / 0.0f64;
+    0u64
+}
+
+machine demand(value: f64) -> u64
+requires value == value
+{
+    0u64
+}
+
+machine consume(first: u64, second: u64) -> u64 { 0u64 }
+
+machine main() {
+    let mut cell: Cell = Cell { value: 7.0f64 };
+    let unused: bool = match true {
+        true -> true
+        false -> false
+    };
+    let result: u64 = consume(demand(cell.value), overwrite_nan(&mut cell));
+}

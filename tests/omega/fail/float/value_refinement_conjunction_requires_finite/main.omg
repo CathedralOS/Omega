@@ -1,0 +1,13 @@
+// Infinity is reflexive but not finite; neither conjunct may erase the other.
+use omega::language::core::float_operations;
+
+domain f64::Reflexive(value)
+requires value == value;
+
+machine retain(value: f64 in Finite & Reflexive) -> f64 in Finite & Reflexive { value }
+machine demand(value: f64 in Finite) -> f64 { value }
+
+machine main() {
+    let local: f64 in Finite & Reflexive = 1.0f64 / 0.0f64;
+    let observed: f64 = demand(retain(local));
+}

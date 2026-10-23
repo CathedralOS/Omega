@@ -86,6 +86,26 @@ pub(crate) fn build_value_facts(
 ) -> CheckedValueFacts {
     let assignment_ranges = proof::checker::AssignmentRangeContext::new(proof_plan);
     let mut facts = CheckedValueFacts::default();
+    // These are value obligations, not structural/storage restrictions. Keep
+    // complete conjunctions while the checked mathematical view is available;
+    // locals, parameters and results subsequently bind the same subject-zero
+    // predicates without reopening authored domain bodies. Unknown projections
+    // remain absent and cannot be mistaken for an unrestricted value.
+    for (reference, _) in program.type_reference_table.type_reference_rows() {
+        let Some(primitive_type) = program.primitive_type_reference(reference) else {
+            continue;
+        };
+        if let Some(predicates) = validation::scalar_type_refinement_predicates(
+            program,
+            reference,
+            checked_trees::CheckedScalarExpression::Parameter {
+                position: 0,
+                primitive_type,
+            },
+        ) {
+            facts.retain_scalar_type_refinement(reference, predicates);
+        }
+    }
     validation::visit_executable_value_occurrences(
         program,
         &typed_trees::references::DeclarationSelection::all(),

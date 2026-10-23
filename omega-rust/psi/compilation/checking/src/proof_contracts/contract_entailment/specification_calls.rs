@@ -735,6 +735,12 @@ pub(super) fn call_parameter_scope<'program>(
                 )
             },
         );
+        // Keep the exact physical carrier when substitution did not change
+        // it. Choosing another equal arena node obscures parameter identity
+        // and needlessly searches the entire type table for every formal.
+        if program.normalized_type_identity(parameter.type_reference) == identity {
+            continue;
+        }
         parameter.type_reference =
             program
                 .type_reference_table

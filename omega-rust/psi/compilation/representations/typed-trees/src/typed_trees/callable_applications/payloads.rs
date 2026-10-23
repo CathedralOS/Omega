@@ -580,48 +580,35 @@ impl CallableApplication {
         arguments: &mut [expression::StaticMachineArgument],
     ) -> Result<(), &'static str> {
         for argument in arguments {
-            if let Some((_, replacement)) = self
+            let selected = self
                 .static_arguments
                 .iter()
                 .rev()
                 .find(|(symbol, _)| *symbol == argument.symbol)
-            {
+                .map(|(_, replacement)| Ok(replacement.clone()))
+                .or_else(|| {
+                    self.types
+                        .iter()
+                        .rev()
+                        .find(|(symbol, _)| *symbol == argument.symbol)
+                        .map(|(_, replacement)| {
+                            program.static_operand_from_type_reference(*replacement)
+                        })
+                });
+            if let Some(selected) = selected {
+                if argument.application.is_some() {
+                    return Err(
+                        "an applied callable binder cannot be replaced as a bare static operand",
+                    );
+                }
                 // A selected operand is already in the caller's scope. Do not
                 // recurse into it under the provider's telescope a second time.
-                *argument = replacement.clone();
+                // Type payload storage does not make a supplied const a type;
+                // the shared operand projection retains its complete category.
+                *argument = selected?;
                 continue;
             }
-            if let Some((_, replacement)) = self
-                .types
-                .iter()
-                .rev()
-                .find(|(symbol, _)| *symbol == argument.symbol)
-            {
-                argument.type_reference = *replacement;
-                match program.type_reference_table.type_reference(*replacement) {
-                    types::TypeReferenceNode::Named { symbol, name } => {
-                        argument.symbol = *symbol;
-                        argument.path = vec![name.clone()].into_boxed_slice();
-                    }
-                    types::TypeReferenceNode::ConstExpression(value) => {
-                        if let expression::ExpressionNode::Integer(value) =
-                            program.expression_table.expression(*value)
-                        {
-                            argument.const_literal = Some(value.clone());
-                        }
-                        argument.symbol = symbols::SymbolHandle::invalid();
-                        argument.path = Box::new([]);
-                    }
-                    _ => {
-                        // The complete compound operand is retained above;
-                        // the old binder path is diagnostic text, not identity.
-                        argument.symbol = symbols::SymbolHandle::invalid();
-                        argument.path = Box::new([]);
-                    }
-                }
-            } else {
-                argument.type_reference = self.type_reference(program, argument.type_reference)?;
-            }
+            argument.type_reference = self.type_reference(program, argument.type_reference)?;
             if let Some(application) = &mut argument.application {
                 for lifetime in &mut application.lifetime_arguments {
                     *lifetime = self.lifetime(lifetime);

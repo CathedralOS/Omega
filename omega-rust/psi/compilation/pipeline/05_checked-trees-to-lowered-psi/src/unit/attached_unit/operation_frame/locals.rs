@@ -144,33 +144,15 @@ impl OperationFrame<'_, '_> {
             self.checked,
             local.declared_type,
         )?;
-        let retained = crate::expression_preparation::qualifications::retained_scalar_restriction(
-            self.checked,
-            local.declared_type,
-        );
-        // A receiving predicate is already checked in its own subject-zero
-        // namespace. Value-only domains (for example Finite) retain their
-        // separate non-storage projection below.
-        let predicates =
-            if let Some(checked_trees::CheckedUnitStructuralFieldType::RefinedScalar {
-                predicate,
-                ..
-            }) = retained
-            {
-                vec![predicate.clone()]
-            } else {
-                validation::scalar_type_refinement_predicates(
-                    &self.checked.typed,
-                    local.declared_type,
-                    checked_trees::CheckedScalarExpression::Parameter {
-                        position: 0,
-                        primitive_type,
-                    },
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "Unit local refinement has no predicate owner",
-                ))?
-            };
+        let predicates = self
+            .checked
+            .facts
+            .values
+            .scalar_type_refinement_predicates(local.declared_type)
+            .ok_or(LoweringError::Unsupported(
+                "scalar local has no complete checked value refinement",
+            ))?
+            .to_vec();
         if predicates.is_empty() {
             return Ok(value);
         }

@@ -316,6 +316,7 @@ pub(super) fn structural_call_requirement(
     state_flow: &checked_trees::FlowStateFact,
     call_flow: &checked_trees::FlowCallFact,
     expression: ExpressionHandle,
+    source_contract: Option<arena::Handle<checked_trees::ContractProofFact>>,
     resolver: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let classification = validation::proof_only_classification(program);
@@ -335,28 +336,13 @@ pub(super) fn structural_call_requirement(
     ) else {
         return false;
     };
-    // Expression calls can follow earlier sibling operands in this statement.
-    // Their exact normal-call traversal owns those effects and capture epochs;
-    // starting a fresh argument-only entry here would skip the siblings.
-    if matches!(call_site, validation::CallSite::Expression { .. }) {
-        return validation::selected_value_call_requirement_entailed(
-            program,
-            machine,
-            state,
-            call_flow.statement_index,
-            call_site,
-            expression,
-        );
-    }
-    let Some(callee) = validation::call_target_state(program, call_flow.target_symbol) else {
-        return false;
-    };
-    let callee_machine = program.machine_holding_state(callee.symbol);
+    let callee = validation::call_target_state(program, call_flow.target_symbol);
+    let callee_machine = callee.and_then(|callee| program.machine_holding_state(callee.symbol));
     let runtime_values = !classification.is_proof_machine(program, machine)
         || callee_machine.is_none_or(|callee| !classification.is_proof_machine(program, callee));
     let case_facts_only = runtime_values
-        && callee_machine.is_some_and(|machine| {
-            case_preservation::is_case_requirement(program, machine, callee, expression)
+        && callee.zip(callee_machine).is_some_and(|(state, machine)| {
+            case_preservation::is_case_requirement(program, machine, state, expression)
         });
     let preserved = if case_facts_only {
         case_preservation::body_preserves_case_tags(program, facts, machine)
@@ -371,6 +357,34 @@ pub(super) fn structural_call_requirement(
     if !preserved {
         return false;
     }
+    // Authority depends on proof/value semantics, never call spelling. Once
+    // preserved, ordinary calls share the exact prefix owner, including nested
+    // operand effects. Named-state arrivals retain their control-flow judgment.
+    if !matches!(call_site, validation::CallSite::TransitionNamed { .. }) {
+        let inherited = source_contract
+            .filter(|handle| {
+                facts
+                    .proof
+                    .contract_facts
+                    .get(*handle)
+                    .inherited_scope
+                    .is_some()
+            })
+            .map(|handle| (&facts.proof, handle));
+        return validation::selected_value_call_requirement_entailed(
+            program,
+            machine,
+            state,
+            call_flow.statement_index,
+            call_site,
+            expression,
+            case_facts_only,
+            inherited,
+        );
+    }
+    let Some(callee) = callee else {
+        return false;
+    };
     let arguments = validation::call_site_argument_expressions(program, &call_site);
     let in_transition_target = validation::transition_call_target(
         program,

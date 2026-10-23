@@ -13,10 +13,11 @@ use typed_trees::machine::Machine;
 use typed_trees::references::{TypedReferences, visit_type_reference};
 use typed_trees::types::TypeReferenceHandle;
 
-pub(super) fn invocation_parameters(
+pub(crate) fn invocation_parameters(
     program: &dyn crate::CheckingInput,
     realization: &Machine,
     family: &Machine,
+    parameters: &[TypeParameter],
     trait_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
 ) -> Vec<TypeParameter> {
@@ -47,8 +48,7 @@ pub(super) fn invocation_parameters(
             .flat_map(|conformance| program.conformance_type_parameters(conformance))
             .map(|parameter| parameter.symbol),
     );
-    program
-        .machine_type_parameters(family)
+    parameters
         .iter()
         .filter(|parameter| !captured.symbols.contains(&parameter.symbol))
         .cloned()

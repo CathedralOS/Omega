@@ -3,6 +3,9 @@
 //! A false Boolean alternative narrows only its detached proof path. IEEE
 //! comparison consumes exact sealed projections and a non-NaN fact; it never
 //! enters the value-identity substitutions used for structural equality.
+//! Primitive scalar predicates and selected semantic applications enter the
+//! same completed-meaning reader. Reading only applications loses false scalar
+//! guards, such as the zero exclusion on an absolute-value fallback path.
 
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use numerics::float_projection::FloatProjectionOperation;
@@ -225,25 +228,64 @@ impl StructuralJudge<'_> {
             return None;
         }
         let (comparison, left, right) = self.selected_float_comparison(value)?;
-        self.float_comparison_truth(comparison, left, right, depth + 1)
+        self.float_comparison_truth(comparison, &left, &right, depth + 1)
             .map(boolean_term)
     }
 
-    fn selected_float_comparison<'term>(
+    /// Read the selected predicate without replacing it by its recorded truth.
+    /// Scalar operands owe their original observation/carrier checks and exact
+    /// format projection; semantic applications already supply meanings.
+    fn selected_float_comparison(
         &self,
-        value: &'term StructuralTerm,
-    ) -> Option<(
-        FloatSemanticComparison,
-        &'term StructuralTerm,
-        &'term StructuralTerm,
-    )> {
+        value: &StructuralTerm,
+    ) -> Option<(FloatSemanticComparison, StructuralTerm, StructuralTerm)> {
+        if let StructuralTerm::ScalarBinary {
+            references,
+            operator,
+            meaning,
+            left,
+            right,
+        } = value.semantic_value()
+        {
+            let primitive = meaning[0].0;
+            if meaning[1].0 != primitive
+                || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+            {
+                return None;
+            }
+            let comparison = match operator {
+                BinaryOperator::Equal => FloatSemanticComparison::Equal,
+                BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
+                BinaryOperator::Less => FloatSemanticComparison::Less,
+                BinaryOperator::LessOrEqual => FloatSemanticComparison::LessOrEqual,
+                BinaryOperator::Greater => FloatSemanticComparison::Greater,
+                BinaryOperator::GreaterOrEqual => FloatSemanticComparison::GreaterOrEqual,
+                _ => return None,
+            };
+            let operands = [left, right];
+            for position in 0..2 {
+                if super::super::structural_terms::scalar_operand_meaning(
+                    self.program,
+                    references[position],
+                    operands[position],
+                ) != Some(meaning[position])
+                {
+                    return None;
+                }
+            }
+            return Some((
+                comparison,
+                projected_meaning(self.program, primitive, left.as_ref().clone())?,
+                projected_meaning(self.program, primitive, right.as_ref().clone())?,
+            ));
+        }
         let StructuralTerm::Application {
             target,
             result_type,
             arguments,
             selections,
             ..
-        } = value
+        } = value.semantic_value()
         else {
             return None;
         };
@@ -268,7 +310,7 @@ impl StructuralJudge<'_> {
         {
             return None;
         }
-        Some((comparison, left, right))
+        Some((comparison, left.clone(), right.clone()))
     }
 
     /// Inspect a retained predicate's selected meaning without resolving the
@@ -284,8 +326,8 @@ impl StructuralJudge<'_> {
             if let Some((comparison, left, right)) = self.selected_float_comparison(&predicate) {
                 return Some((
                     comparison,
-                    self.resolve_at(left.clone(), depth + 1),
-                    self.resolve_at(right.clone(), depth + 1),
+                    self.resolve_at(left, depth + 1),
+                    self.resolve_at(right, depth + 1),
                 ));
             }
             predicate = self.selected_contract_normal_form(&predicate, depth + 1)?;
@@ -457,174 +499,12 @@ impl StructuralJudge<'_> {
         None
     }
 
-    /// A selected float comparison that was already proved stays a Boolean
-    /// fact. Later consumers match that comparison; they do not replace one
-    /// float with the other.
-    fn recorded_float_comparison(
-        &self,
-        comparison: FloatSemanticComparison,
-        left: &StructuralTerm,
-        right: &StructuralTerm,
-        depth: usize,
-    ) -> Option<bool> {
-        if depth >= 32 {
-            return None;
-        }
-        let program = self.program;
-        for (predicate, truth) in self.rewrites.iter() {
-            let Some(truth) = boolean_value(truth) else {
-                continue;
-            };
-            let StructuralTerm::ScalarBinary {
-                operator,
-                meaning,
-                left: recorded_left,
-                right: recorded_right,
-                ..
-            } = predicate.semantic_value()
-            else {
-                continue;
-            };
-            let primitive = meaning[0].0;
-            if meaning[1].0 != primitive
-                || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-            {
-                continue;
-            }
-            let recorded = match operator {
-                BinaryOperator::Equal => FloatSemanticComparison::Equal,
-                BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
-                _ => continue,
-            };
-            let complementary = matches!(
-                (recorded, comparison),
-                (
-                    FloatSemanticComparison::Equal,
-                    FloatSemanticComparison::NotEqual
-                ) | (
-                    FloatSemanticComparison::NotEqual,
-                    FloatSemanticComparison::Equal
-                )
-            );
-            if recorded != comparison && !complementary {
-                continue;
-            }
-            let Some(recorded_left) =
-                projected_meaning(program, primitive, recorded_left.as_ref().clone())
-            else {
-                continue;
-            };
-            let Some(recorded_right) =
-                projected_meaning(program, primitive, recorded_right.as_ref().clone())
-            else {
-                continue;
-            };
-            let recorded_left = self.resolve_at(recorded_left, depth + 1);
-            let recorded_right = self.resolve_at(recorded_right, depth + 1);
-            let same_order = recorded_left == *left && recorded_right == *right;
-            let swapped = recorded_left == *right && recorded_right == *left;
-            if same_order || swapped {
-                // Both truth values belong to this completed predicate.
-                // Equality/inequality are complements even for NaN; no
-                // corresponding ordered-comparison inversion is valid.
-                return Some(if complementary { !truth } else { truth });
-            }
-        }
-        None
-    }
-
-    /// A saved copy and a later read name one float subject. A recorded
-    /// equality to a completed literal classifies that subject: a non-NaN
-    /// value equals itself, and NaN stays unordered. This does not replace
-    /// either occurrence with the literal. A write retires the live read
-    /// before a new occurrence is formed, so the saved copy is not that read.
-    fn recorded_float_nan_classification(
-        &self,
-        subject: &StructuralTerm,
-        depth: usize,
-    ) -> Option<bool> {
-        if depth >= 32 {
-            return None;
-        }
-        let program = self.program;
-        for (predicate, truth) in self.rewrites.iter() {
-            if boolean_value(truth) != Some(true) {
-                continue;
-            }
-            let StructuralTerm::ScalarBinary {
-                operator: BinaryOperator::Equal,
-                meaning,
-                left,
-                right,
-                ..
-            } = predicate.semantic_value()
-            else {
-                continue;
-            };
-            let primitive = meaning[0].0;
-            if meaning[1].0 != primitive
-                || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-            {
-                continue;
-            }
-            let Some(left) = projected_meaning(program, primitive, left.as_ref().clone()) else {
-                continue;
-            };
-            let Some(right) = projected_meaning(program, primitive, right.as_ref().clone()) else {
-                continue;
-            };
-            let left = self.resolve_at(left, depth + 1);
-            let right = self.resolve_at(right, depth + 1);
-            let literal = if left == *subject {
-                &right
-            } else if right == *subject {
-                &left
-            } else {
-                continue;
-            };
-            let Some((_, exact)) = self.float_literal_endpoint(literal) else {
-                continue;
-            };
-            use numerics::float_semantics::{FloatMeaning, FloatSemantics};
-            let meaning = FloatMeaning::from_f64(exact.to_f64());
-            return Some(!FloatSemantics::equal(&meaning, &meaning));
-        }
-        None
-    }
-
     pub(in crate::proof_contracts::contract_entailment) fn observed_float_predicate_judgment(
         &self,
         predicate: &StructuralTerm,
         depth: usize,
     ) -> Option<StructuralJudgment> {
-        let StructuralTerm::ScalarBinary {
-            operator,
-            meaning,
-            left,
-            right,
-            ..
-        } = predicate.semantic_value()
-        else {
-            return None;
-        };
-        let primitive = meaning[0].0;
-        if meaning[1].0 != primitive
-            || !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-        {
-            return None;
-        }
-        let comparison = match operator {
-            BinaryOperator::Equal => FloatSemanticComparison::Equal,
-            BinaryOperator::NotEqual => FloatSemanticComparison::NotEqual,
-            _ => return None,
-        };
-        let project = |operand: &StructuralTerm| {
-            projected_meaning(self.program, primitive, operand.clone())
-                .map(|term| self.resolve_at(term, depth + 1))
-                .unwrap_or_else(|| self.resolve_at(operand.clone(), depth + 1))
-        };
-        let left = project(left);
-        let right = project(right);
+        let (comparison, left, right) = self.completed_float_comparison(predicate, depth)?;
         match self.float_comparison_truth(comparison, &left, &right, depth + 1) {
             Some(true) => Some(StructuralJudgment::Proven),
             Some(false) => Some(StructuralJudgment::Refuted),
@@ -647,12 +527,6 @@ impl StructuralJudge<'_> {
         {
             return Some(truth);
         }
-        // A proved return or requires fact keeps its IEEE predicate. Matching
-        // that predicate proves the same comparison again. It does not
-        // substitute either operand for the other.
-        if let Some(truth) = self.recorded_float_comparison(comparison, left, right, depth + 1) {
-            return Some(truth);
-        }
         // IEEE equality and inequality are exact Boolean complements even
         // for NaNs and signed zeros. Use only a completed predicate over the
         // same meanings and an authenticated core comparison declaration.
@@ -663,26 +537,50 @@ impl StructuralJudge<'_> {
             FloatSemanticComparison::NotEqual => Some(FloatSemanticComparison::Equal),
             _ => None,
         };
-        if let Some(complement) = complement {
-            for (predicate, truth) in self.rewrites.iter() {
-                let Some((observed, observed_left, observed_right)) =
-                    self.selected_float_comparison(predicate)
-                else {
-                    continue;
+        let same_meaning = left == right;
+        let mut observed_non_nan = false;
+        for (predicate, truth) in self.rewrites.iter() {
+            let Some((observed, observed_left, observed_right)) =
+                self.completed_float_comparison(predicate, depth + 1)
+            else {
+                continue;
+            };
+            let same_order = observed_left == *left && observed_right == *right;
+            let swapped = matches!(
+                comparison,
+                FloatSemanticComparison::Equal | FloatSemanticComparison::NotEqual
+            ) && observed_left == *right
+                && observed_right == *left;
+            let shares_subject =
+                same_meaning && (observed_left == *left || observed_right == *left);
+            if !same_order && !swapped && !shares_subject {
+                continue;
+            }
+            let Some(truth) = boolean_value(&self.resolve_at(truth.clone(), depth + 1)) else {
+                continue;
+            };
+            // A true equality or ordered comparison excludes NaN for both
+            // exact operands, as does a false inequality. This also keeps a
+            // saved float reflexive across a sibling write, without replacing
+            // it with a literal or treating IEEE equality as operand identity.
+            // False ordered predicates and true inequality classify neither.
+            if shares_subject {
+                observed_non_nan |= if observed == FloatSemanticComparison::NotEqual {
+                    !truth
+                } else {
+                    truth
                 };
-                if observed != complement
-                    || self.resolve_at(observed_left.clone(), depth + 1) != *left
-                    || self.resolve_at(observed_right.clone(), depth + 1) != *right
-                {
-                    continue;
-                }
-                let truth = self.resolve_at(truth.clone(), depth + 1);
-                if truth == boolean_term(true) {
-                    return Some(false);
-                }
-                if truth == boolean_term(false) {
-                    return Some(true);
-                }
+            }
+            if !same_order && !swapped {
+                continue;
+            }
+            // A recorded Boolean is a predicate fact, never a substitution
+            // between its operands. Both polarities survive this read.
+            if observed == comparison {
+                return Some(truth);
+            }
+            if Some(observed) == complement {
+                return Some(!truth);
             }
         }
         let nan_truth = |meaning: &StructuralTerm| {
@@ -698,22 +596,15 @@ impl StructuralJudge<'_> {
         };
         let left_nan = nan_truth(left);
         let right_nan = nan_truth(right);
-        // The explicit NaN predicate is one classification. A recorded
-        // equality to a completed literal is the other: it is how a saved
-        // field read and the live field stay the same non-NaN value.
-        let recorded_nan = (left == right)
-            .then(|| self.recorded_float_nan_classification(left, depth + 1))
-            .flatten();
-        let classified = left_nan.or(right_nan).or(recorded_nan);
+        let classified = left_nan.or(right_nan).or(observed_non_nan.then_some(false));
         if super::super::struct_trace() {
             eprintln!(
-                "STRUCT ieee completed comparison={comparison:?} same_meaning={} left_nan={left_nan:?} right_nan={right_nan:?} recorded_nan={recorded_nan:?}",
-                left == right
+                "STRUCT ieee completed comparison={comparison:?} same_meaning={same_meaning} left_nan={left_nan:?} right_nan={right_nan:?} observed_non_nan={observed_non_nan}",
             );
         }
         if left_nan == Some(true) || right_nan == Some(true) {
             Some(comparison.unordered_truth())
-        } else if left == right {
+        } else if same_meaning {
             comparison.same_meaning_truth(classified)
         } else {
             None

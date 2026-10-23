@@ -28,6 +28,47 @@ pub(crate) enum StructuralJudgment {
     Unknown,
 }
 
+/// Shared operational eligibility for an authored value application. This
+/// supplies no truth, precondition, or termination evidence: formation and
+/// the ordinary prefix judgment retain those obligations independently.
+pub(super) fn specification_application_candidate(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    target: SymbolHandle,
+    selections: &[typed_trees::expression::StaticMachineArgument],
+    frames: Option<&crate::CallFrameResolver<'_>>,
+) -> Result<(), &'static str> {
+    if !crate::machine_calls::contract_dependencies::independent_application(
+        program, owner, target, selections,
+    ) {
+        return Err("the selected application depends on the active declaration");
+    }
+    let machine = super::structural_terms::selected_application_machine(program, target)
+        .ok_or("the application has no exact selected entry")?;
+    let state = program
+        .machine_states(machine)
+        .first()
+        .ok_or("the selected machine has no entry state")?;
+    let proof_only = crate::proof_only_classification(program);
+    if crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+        program,
+        &proof_only,
+        state.return_type,
+    ) || program.state_parameters(state).iter().any(|parameter| {
+        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+            program,
+            &proof_only,
+            parameter.type_reference,
+        )
+    }) {
+        return Err("the application carries forbidden denotational content");
+    }
+    let plans = crate::machine_calls::calls::operand_call_plans(program, frames);
+    crate::machine_calls::denotational_calls::checked_value_call_candidate(
+        program, machine, state, &plans.0, &plans.1,
+    )
+}
+
 /// Observation authority is established on resolved terms. Judgment consumes
 /// those exact results; equation intake instead needs the original terms,
 /// because installing a case equation can change subsequent resolution.
@@ -1295,7 +1336,7 @@ impl<'program> StructuralJudge<'program> {
             if machine_parameters.len() != selections.len() {
                 return None;
             }
-            let machine_environment = machine_parameters
+            let static_environment = machine_parameters
                 .iter()
                 .zip(selections)
                 .map(|(parameter, selected)| {
@@ -1339,7 +1380,7 @@ impl<'program> StructuralJudge<'program> {
             self.callee_term(
                 projected.value,
                 &environment,
-                &machine_environment,
+                &static_environment,
                 None,
                 depth + 1,
             )
@@ -1494,26 +1535,29 @@ impl<'program> StructuralJudge<'program> {
             }
         }
         let machine = self.entry_machines.machine(program, target)?;
-        let machine_parameters: Vec<&typed_trees::data::TypeParameter> =
-            program.machine_kind_type_parameters(machine).collect();
-        if machine_parameters.len() != selections.len() {
+        let static_parameters = program.machine_type_parameters(machine);
+        if static_parameters.len() != selections.len() {
             return None;
         }
-        let machine_environment: Vec<(
-            SymbolHandle,
-            String,
-            typed_trees::expression::StaticMachineArgument,
-        )> = machine_parameters
-            .iter()
-            .zip(selections)
-            .map(|(parameter, selected)| {
-                (
-                    parameter.symbol,
-                    parameter.name.as_str().to_owned(),
-                    selected.clone(),
-                )
-            })
-            .collect();
+        // Callable and scalar operands share one declaration-ordered telescope.
+        // Filtering it to callable binders loses const operands before their
+        // body can be interpreted. Admission still owns kinds and carriers;
+        // this substitution supplies neither a call's premises nor totality.
+        let mut static_environment = Vec::new();
+        for (parameter, selected) in static_parameters.iter().zip(selections) {
+            match parameter.kind {
+                typed_trees::data::TypeParameterKind::Machine { .. }
+                | typed_trees::data::TypeParameterKind::Const { .. }
+                | typed_trees::data::TypeParameterKind::Value { .. } => {
+                    static_environment.push((
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        selected.clone(),
+                    ));
+                }
+                _ => return None,
+            }
+        }
         let [state] = program.machine_states(machine) else {
             return None;
         };
@@ -1548,7 +1592,7 @@ impl<'program> StructuralJudge<'program> {
                 let term = self.callee_term(
                     local.initial_value,
                     &environment,
-                    &machine_environment,
+                    &static_environment,
                     Some((machine, state, local.type_reference)),
                     depth + 1,
                 )?;
@@ -1573,7 +1617,7 @@ impl<'program> StructuralJudge<'program> {
                         self.callee_term(
                             *expression,
                             &environment,
-                            &machine_environment,
+                            &static_environment,
                             Some((machine, state, state.return_type)),
                             depth + 1,
                         )
@@ -1646,7 +1690,7 @@ impl<'program> StructuralJudge<'program> {
             return self.callee_term(
                 *value,
                 &environment,
-                &machine_environment,
+                &static_environment,
                 Some((machine, state, state.return_type)),
                 depth + 1,
             );
@@ -1708,56 +1752,22 @@ impl<'program> StructuralJudge<'program> {
         &self,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
-        if !self.specification_terms
-            || !self.application_is_independent(call.target_symbol, &call.machine_arguments)
-        {
-            return false;
-        }
-        let Some(machine) = self
-            .entry_machines
-            .machine(self.program, call.target_symbol)
-        else {
-            return false;
-        };
-        let Some(state) = self.program.machine_states(machine).first() else {
-            return false;
-        };
-        let proof_only = crate::proof_only_classification(self.program);
-        if crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-            self.program,
-            &proof_only,
-            state.return_type,
-        ) || self
-            .program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| {
-                crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-                    self.program,
-                    &proof_only,
-                    parameter.type_reference,
-                )
-            })
-        {
-            return false;
-        }
-        let plans =
-            crate::machine_calls::calls::operand_call_plans(self.program, self.frame_resolver());
-        crate::machine_calls::denotational_calls::checked_value_call_candidate(
-            self.program,
-            machine,
-            state,
-            &plans.0,
-            &plans.1,
-        )
-        .is_ok()
+        self.specification_terms
+            && specification_application_candidate(
+                self.program,
+                self.machine_symbol,
+                call.target_symbol,
+                &call.machine_arguments,
+                self.frame_resolver(),
+            )
+            .is_ok()
     }
 
     fn callee_term(
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
-        machine_environment: &[(
+        static_environment: &[(
             SymbolHandle,
             String,
             typed_trees::expression::StaticMachineArgument,
@@ -1802,7 +1812,7 @@ impl<'program> StructuralJudge<'program> {
                     self.callee_term(
                         member.receiver,
                         environment,
-                        machine_environment,
+                        static_environment,
                         scope,
                         depth + 1,
                     )
@@ -1831,7 +1841,7 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 expression,
                 reference,
-                self.callee_term(argument, environment, machine_environment, scope, depth + 1)?,
+                self.callee_term(argument, environment, static_environment, scope, depth + 1)?,
             );
         }
         if program
@@ -1845,12 +1855,49 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 expression,
                 |capture| {
-                    self.callee_term(capture, environment, machine_environment, scope, depth + 1)
+                    self.callee_term(capture, environment, static_environment, scope, depth + 1)
                 },
             );
         }
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                // Static values use the resolved declaration, not the runtime
+                // environment's spelling. A local may shadow a const binder;
+                // that never substitutes the local for a retained static use.
+                if let Some((_, _, selected)) = static_environment
+                    .iter()
+                    .find(|(symbol, _, _)| *symbol == path.symbol)
+                    && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
+                    && let (typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference }) =
+                        parameter.kind
+                {
+                    return match super::static_applications::constant_value(program, selected) {
+                        Some(super::static_applications::ConstantValue::Integer(value))
+                            if program
+                                .primitive_type_reference(type_reference)
+                                .is_some_and(|primitive| primitive.accepts_integer_literal()) =>
+                        {
+                            Some(StructuralTerm::Integer(value))
+                        }
+                        Some(super::static_applications::ConstantValue::Boolean(value))
+                            if program.primitive_type_reference(type_reference)
+                                == Some(typed_trees::types::PrimitiveType::Bool) =>
+                        {
+                            Some(value_predicates::boolean_term(value))
+                        }
+                        None => {
+                            let forwarded = crate::machine_calls::static_arguments::forwarded_type(
+                                program, selected,
+                            );
+                            (forwarded.is_valid()
+                                && program.normalized_type_identity(forwarded)
+                                    == program.normalized_type_identity(type_reference))
+                            .then_some(StructuralTerm::BoundValue(selected.symbol))
+                        }
+                        _ => None,
+                    };
+                }
                 if path.symbol.is_valid()
                     && (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
                         || program.symbols.builtin_type_member(path.symbol)
@@ -1890,7 +1937,7 @@ impl<'program> StructuralJudge<'program> {
                             self.callee_term(
                                 *argument,
                                 environment,
-                                machine_environment,
+                                static_environment,
                                 scope,
                                 depth + 1,
                             )
@@ -1924,7 +1971,7 @@ impl<'program> StructuralJudge<'program> {
                         machine: structural_call_machine_name(
                             call.target.as_str(),
                             &call.machine_arguments,
-                            machine_environment,
+                            static_environment,
                         ),
                         result_type: state.return_type,
                         field,
@@ -1935,7 +1982,7 @@ impl<'program> StructuralJudge<'program> {
                 let receiver_term = self.callee_term(
                     member.receiver,
                     environment,
-                    machine_environment,
+                    static_environment,
                     scope,
                     depth + 1,
                 )?;
@@ -1947,7 +1994,7 @@ impl<'program> StructuralJudge<'program> {
                     self.callee_term(
                         field.value,
                         environment,
-                        machine_environment,
+                        static_environment,
                         scope,
                         depth + 1,
                     )
@@ -1961,7 +2008,7 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     unary.operand,
                     environment,
-                    machine_environment,
+                    static_environment,
                     scope,
                     depth + 1,
                 )?,
@@ -1976,7 +2023,7 @@ impl<'program> StructuralJudge<'program> {
                         self.callee_term(
                             cast.value,
                             environment,
-                            machine_environment,
+                            static_environment,
                             scope,
                             depth + 1,
                         )
@@ -1999,7 +2046,7 @@ impl<'program> StructuralJudge<'program> {
                 {
                     return None;
                 }
-                let selected_target = machine_environment
+                let selected_target = static_environment
                     .iter()
                     .find(|(symbol, _, _)| *symbol == call.target_symbol)
                     .map(|(_, _, selected)| selected);
@@ -2019,7 +2066,7 @@ impl<'program> StructuralJudge<'program> {
                     arguments.push(self.callee_term(
                         *argument,
                         environment,
-                        machine_environment,
+                        static_environment,
                         scope,
                         depth + 1,
                     )?);
@@ -2061,7 +2108,7 @@ impl<'program> StructuralJudge<'program> {
                         call.machine_arguments
                             .iter()
                             .map(|argument| {
-                                machine_environment
+                                static_environment
                                     .iter()
                                     .find(|(symbol, _, _)| *symbol == argument.symbol)
                                     .map_or_else(
@@ -2074,7 +2121,7 @@ impl<'program> StructuralJudge<'program> {
                     machine: structural_call_machine_name(
                         call.target.as_str(),
                         &call.machine_arguments,
-                        machine_environment,
+                        static_environment,
                     ),
                     arguments,
                 })
@@ -2084,7 +2131,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Borrow(borrow) => self.callee_term(
                 borrow.target,
                 environment,
-                machine_environment,
+                static_environment,
                 scope,
                 depth + 1,
             ),
@@ -2101,14 +2148,14 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     indexed.collection,
                     environment,
-                    machine_environment,
+                    static_environment,
                     scope,
                     depth + 1,
                 )?,
                 self.callee_term(
                     indexed.index,
                     environment,
-                    machine_environment,
+                    static_environment,
                     scope,
                     depth + 1,
                 )?,
@@ -2121,14 +2168,14 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     binary.left,
                     environment,
-                    machine_environment,
+                    static_environment,
                     scope,
                     depth + 1,
                 )?,
                 self.callee_term(
                     binary.right,
                     environment,
-                    machine_environment,
+                    static_environment,
                     scope,
                     depth + 1,
                 )?,

@@ -11,6 +11,8 @@
 //! `build_check_facts` (`src/facts.rs`), starting from `build_value_facts`,
 //! and stores it as `CheckFacts::values`; `checked-trees-to-lowered-psi`
 //! reads it through `checked.facts.values`.
+//! Complete scalar type value predicates also live here, keyed by the exact
+//! source type rather than its weaker structural storage identity.
 //!
 //! This file defines the value rows, the scalar expression plans and their
 //! `CheckedScalarExpressionRole`s, and reexports the shared scalar and Boolean
@@ -138,6 +140,11 @@ pub struct CheckedValueFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedValueFacts {
     pub values: Arena<CheckedValueFact>,
+    /// Complete value refinements in the exact source type's subject-zero
+    /// namespace. Storage schemas deliberately omit value-only obligations
+    /// such as Finite and cannot substitute for these checked projections.
+    scalar_type_refinements: Arena<CheckedScalarTypeRefinement>,
+    scalar_type_predicates: Arena<CheckedBooleanExpression>,
     pub scalar_expressions: CheckedScalarExpressionPlans,
     pub scalar_computations: CheckedScalarComputationPlans,
     pub structural_values: CheckedStructuralValuePlans,
@@ -154,7 +161,42 @@ impl CheckedValueFacts {
             scalar_computations: CheckedScalarComputationPlans::default(),
             structural_values: CheckedStructuralValuePlans::default(),
             proof_terms: CheckedProofTerms::default(),
+            scalar_type_refinements: Arena::new(),
+            scalar_type_predicates: Arena::new(),
         }
+    }
+
+    /// Retain a complete projection while mathematical preparation is live.
+    /// An empty predicate list is represented; an unavailable projection is not.
+    /// The exact generational type handle keeps every qualification, unlike a
+    /// structural storage identity which may erase value-domain membership.
+    pub fn retain_scalar_type_refinement(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        predicates: impl IntoIterator<Item = CheckedBooleanExpression>,
+    ) {
+        let predicates = self.scalar_type_predicates.insert_many(predicates);
+        self.scalar_type_refinements
+            .insert(CheckedScalarTypeRefinement {
+                type_reference,
+                predicates,
+            });
+    }
+
+    /// Read obligations, not evidence that any value satisfies them. Every
+    /// consumer binds formal zero to its own exact completed value.
+    pub fn scalar_type_refinement_predicates(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> Option<&[CheckedBooleanExpression]> {
+        if !type_reference.is_valid() {
+            return None;
+        }
+        let row = self
+            .scalar_type_refinements
+            .iter()
+            .find_map(|(_, row)| (row.type_reference == type_reference).then_some(row))?;
+        self.scalar_type_predicates.span(row.predicates)
     }
 
     pub fn expression_values(
@@ -165,6 +207,12 @@ impl CheckedValueFacts {
             .iter()
             .filter(move |(_, value)| value.expression == expression)
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct CheckedScalarTypeRefinement {
+    type_reference: TypeReferenceHandle,
+    predicates: HandleSpan<CheckedBooleanExpression>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

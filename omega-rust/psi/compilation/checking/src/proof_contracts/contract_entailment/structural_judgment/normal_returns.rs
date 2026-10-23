@@ -1398,11 +1398,57 @@ impl<'program> StructuralJudge<'program> {
     pub(in crate::proof_contracts::contract_entailment) fn reference_subject_term(
         &self,
         subject: &crate::machine_calls::calls::InvocationReferenceSubject,
+        actual: &StructuralTerm,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         let program = self.program;
-        let source = &subject.source;
+        let [source] = subject.sources.as_slice() else {
+            // Origin authority quantifies over the complete join. Its actual
+            // value was selected by this path's ordered operand evaluation.
+            // Later sibling writes retire that observation; a produced
+            // descriptor never supplies referent contents by type alone.
+            if subject.sources.is_empty()
+                || self.storage_observation_invalidated(subject.argument)
+                || subject
+                    .sources
+                    .iter()
+                    .any(|source| self.storage_binding_invalidated(source.root))
+            {
+                return None;
+            }
+            // Resolution may replace the outer carrier. Check authority on
+            // both sides so an equation cannot launder a raw descriptor.
+            if !super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                subject.parameter_type,
+                actual,
+            ) {
+                return None;
+            }
+            let value = self.resolve(actual.clone());
+            if !super::super::structural_terms::scalar_operand_is_observed(
+                program,
+                subject.parameter_type,
+                &value,
+            ) {
+                return None;
+            }
+            return Some(
+                if program
+                    .primitive_type_reference(subject.type_reference)
+                    .is_some()
+                {
+                    StructuralTerm::ObservedValue {
+                        observed_type: subject.type_reference,
+                        descriptor: None,
+                        value: Box::new(value),
+                    }
+                } else {
+                    value
+                },
+            );
+        };
         if let Some(value) = self
             .captured_reference_subject(subject)
             .and_then(|coordinate| self.current_storage_value(&coordinate))
@@ -1637,7 +1683,7 @@ impl<'program> StructuralJudge<'program> {
                                     .find(|subject| subject.parameter == parameter.symbol)
                             })
                             .and_then(|subject| {
-                                self.reference_subject_term(subject, environment, scope)
+                                self.reference_subject_term(subject, value, environment, scope)
                             }),
                     )?
                 } else {

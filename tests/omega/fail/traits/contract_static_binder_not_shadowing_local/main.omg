@@ -1,0 +1,6 @@
+machine below<const Limit: u32>(value: u32) -> bool {
+    let Limit: u32 = 0u32;
+    value <= Limit
+}
+machine demand(value: u32) -> u32 requires below<2u32>(value) { value }
+machine main() { let observed: u32 = demand(1u32); }

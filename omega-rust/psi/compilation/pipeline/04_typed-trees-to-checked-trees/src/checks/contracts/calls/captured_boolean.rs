@@ -55,6 +55,7 @@ pub(super) fn judgment(
                 call,
                 contexts,
                 contract,
+                reference.fact,
                 contract_call.target_state_symbol,
                 expression,
                 expression_intervals,
@@ -156,6 +157,7 @@ fn captured_contract_proven(
     call: &FlowCallFact,
     contexts: &[facts::FactContextHandle],
     contract: &checked_trees::ContractProofFact,
+    contract_handle: arena::Handle<checked_trees::ContractProofFact>,
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     expression_intervals: &[validation::ExpressionInterval],
@@ -176,7 +178,13 @@ fn captured_contract_proven(
             super::super::current_values::proves_call(program, state, call, *required, frames)
         }) || phase_profile::scope("05.d.7.3b.1.cap.2_structural_req", || {
             super::super::entailment::structural_call_requirement(
-                program, facts, state, call, *required, frames,
+                program,
+                facts,
+                state,
+                call,
+                *required,
+                Some(contract_handle),
+                frames,
             )
         }))
     {

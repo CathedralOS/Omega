@@ -356,9 +356,14 @@ impl StructuralJudge<'_> {
         &self,
         subject: &crate::machine_calls::calls::InvocationReferenceSubject,
     ) -> Option<CapturedStorageCoordinate> {
+        // A finite origin join authorizes an entry observation, not one
+        // physical write destination. No selected payload identifies an alias.
+        let [source] = subject.sources.as_slice() else {
+            return None;
+        };
         self.capture_storage_place(crate::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(subject.source.root),
-            segments: subject.source.segments.clone(),
+            root: facts::PlaceRoot::Symbol(source.root),
+            segments: source.segments.clone(),
         })
     }
 

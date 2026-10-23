@@ -15,7 +15,9 @@ use typed_trees::references::StaticArgumentCall;
 use typed_trees::state::State;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod invocation_parameters;
 mod requirement_predicates;
+pub(crate) use invocation_parameters::invocation_parameters;
 
 /// Formation of authored const recipes precedes substitution/canonical erasure.
 /// Incomplete selections remain incomplete; this pass supplies no tuple or
@@ -367,20 +369,20 @@ pub fn forwarded_type(
     if !argument.symbol.is_valid() {
         return TypeReferenceHandle::invalid();
     }
-    program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_type_parameters(machine))
-        .find_map(|parameter| match parameter.kind {
+    // A resolved forwarding operand may belong to a requirement signature
+    // or an enclosing implementation telescope, not only an executable
+    // machine. Read the exact declaration's kind through the shared index;
+    // its carrier supplies neither a closed value nor substitution authority.
+    match program
+        .data_type_parameter_by_symbol(argument.symbol)
+        .map(|parameter| &parameter.kind)
+    {
+        Some(
             TypeParameterKind::Const { type_reference }
-            | TypeParameterKind::Value { type_reference }
-                if parameter.symbol == argument.symbol =>
-            {
-                Some(type_reference)
-            }
-            _ => None,
-        })
-        .unwrap_or_default()
+            | TypeParameterKind::Value { type_reference },
+        ) => *type_reference,
+        _ => TypeReferenceHandle::invalid(),
+    }
 }
 
 /// A call or field already spelled as a const-expression payload. A `Value`
@@ -457,40 +459,49 @@ fn validate_arguments(
     let has_types = parameters
         .iter()
         .any(|parameter| matches!(parameter.kind, TypeParameterKind::Type));
-    let const_parameters = parameters
+    let has_values = parameters
         .iter()
-        .filter(|parameter| parameter.kind.is_const_or_value())
-        .collect::<Vec<_>>();
-    let mut const_index = 0;
+        .any(|parameter| parameter.kind.is_const_or_value());
     for (ordinal, argument) in arguments.iter().enumerate() {
-        // Proposals are grouped by kind after validation. Named types must
-        // retain their authored slot just like structural types; otherwise
-        // `<7, u8>` can silently become `<u8, 7>`. A const-only template keeps
-        // its more specific "requires a const value" diagnostic below.
+        // Specialization may group operands by kind only after admission.
+        // Judge every operand against its authored slot, including forwarded
+        // binders and retained expressions: a kind-specific cursor silently
+        // accepts permutations when their carriers happen to match.
+        let parameter = parameters.get(ordinal);
         let named_type = argument.symbol.is_valid()
-            && matches!(
+            && (matches!(
                 program.symbols.get(argument.symbol).kind,
                 SymbolKind::BuiltinType | SymbolKind::Data
-            );
+            ) || program
+                .data_type_parameter_by_symbol(argument.symbol)
+                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Type)));
         // `power<Degree - 1>` is a const value expression. Its type-reference
         // payload is only the retained tree; it does not select a type binder.
-        if const_parameters.get(const_index).is_some_and(|parameter| {
-            const_expression_argument(program, argument).is_some_and(|expression| {
-                crate::value_custody::const_expressions::has_carrier(
-                    program,
-                    expression,
-                    &parameter.kind,
-                    program
-                        .type_reference_table
-                        .operand_lifetime_owner(argument.type_reference),
-                )
-            })
+        if const_expression_argument(program, argument).is_some()
+            && !parameter.is_some_and(|parameter| parameter.kind.is_const_or_value())
+        {
+            return Err(Diagnostic::error(format!(
+                "machine `{}` static argument {} requires its declared binder kind, not a const value",
+                name,
+                ordinal + 1
+            )));
+        }
+        if parameter.is_some_and(|parameter| {
+            parameter.kind.is_const_or_value()
+                && const_expression_argument(program, argument).is_some_and(|expression| {
+                    crate::value_custody::const_expressions::has_carrier(
+                        program,
+                        expression,
+                        &parameter.kind,
+                        program
+                            .type_reference_table
+                            .operand_lifetime_owner(argument.type_reference),
+                    )
+                })
         }) {
-            const_index += 1;
             continue;
         }
-        let value_parameter = parameters
-            .get(ordinal)
+        let value_parameter = parameter
             .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }));
         let runtime_expression = is_runtime_value_expression(program, argument);
         let runtime_field = state.is_some_and(|state| {
@@ -521,7 +532,6 @@ fn validate_arguments(
             }
         }
         if admitted_runtime {
-            const_index += 1;
             continue;
         }
         if value_parameter && let Some(projection) = &argument.evidence_projection {
@@ -564,7 +574,7 @@ fn validate_arguments(
                         program.symbols.get(argument.symbol).kind,
                         SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::TypeParameter
                     );
-            if !const_parameters.is_empty() && !has_types && type_shaped {
+            if has_values && !has_types && type_shaped {
                 return Err(Diagnostic::error(format!(
                     "machine `{}` requires a const value, not type `{}`",
                     name,
@@ -575,18 +585,16 @@ fn validate_arguments(
             // const specialization path and ordinary runtime subjects through
             // the dynamic realization path. Anything else spelled here is
             // neither.
-            if const_parameters
-                .get(const_index)
-                .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }))
+            if let Some(parameter) = parameter
+                && matches!(parameter.kind, TypeParameterKind::Value { .. })
                 && argument.application.is_none()
                 && argument.evidence_projection.is_none()
                 && !type_shaped
             {
-                let parameter_name = &const_parameters[const_index].name;
                 if is_runtime_value_subject(program, argument) {
-                    const_index += 1;
                     continue;
                 }
+                let parameter_name = parameter.name.as_str();
                 return Err(Diagnostic::error(format!(
                     "value parameter `{parameter_name}` of machine `{}` received `{}`, which \
                      is neither a static const value nor an ordinary runtime value subject",
@@ -596,7 +604,7 @@ fn validate_arguments(
             }
             continue;
         }
-        let Some(parameter) = const_parameters.get(const_index) else {
+        let Some(parameter) = parameter else {
             return Err(Diagnostic::error(format!(
                 "machine `{}` has no const parameter for extra argument `{}`",
                 name,
@@ -607,9 +615,14 @@ fn validate_arguments(
         let required = match &parameter.kind {
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => type_reference,
-            _ => unreachable!("const telescope contains only const/value binders"),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "machine `{}` static argument {} requires its declared binder kind, not a const value",
+                    name,
+                    ordinal + 1
+                )));
+            }
         };
-        const_index += 1;
         if argument.type_reference.is_valid()
             || argument.application.is_some()
             || argument.evidence_projection.is_some()

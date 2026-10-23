@@ -125,6 +125,8 @@ pub fn instantiated_value_call_requires_proven(
         statement_index,
         site,
         expression,
+        false,
+        None,
     ) {
         return true;
     }

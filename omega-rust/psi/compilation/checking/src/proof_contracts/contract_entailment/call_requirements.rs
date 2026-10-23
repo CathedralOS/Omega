@@ -16,11 +16,14 @@
 //! stop at the requested occurrence, before any successor or future citation.
 //! Machine-entry assumptions are not state invariants merely because their
 //! declarations use the same names.
+//! Selected-referent scenarios supply completed actuals to the ordinary
+//! declaration-bound predicate judgment. Operand identity is not a substitute
+//! for the selected comparison, including IEEE and authored equality.
 
 use super::citations::{
     CitationFacts, CitationTarget, instantiate_citation, machine_requires_facts,
 };
-use super::refuted_requires::instantiated_fact_judgment;
+use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
@@ -31,6 +34,9 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+
+mod inherited_predicates;
+use inherited_predicates::{InheritedPredicate, inherited_predicate};
 
 /// Check one exact substituted requirement on every recognized path to a call.
 /// Unsupported paths and unknown judgments do not establish the requirement.
@@ -70,6 +76,7 @@ pub fn structural_call_requirement_entailed(
         arguments,
         expression,
         case_facts_only,
+        None,
     )
 }
 
@@ -83,35 +90,43 @@ pub fn selected_value_call_requirement_entailed(
     statement_index: usize,
     site: crate::machine_calls::calls::CallSite<'_>,
     expression: ExpressionHandle,
+    case_facts_only: bool,
+    inherited: Option<(
+        &checked_trees::ProofFacts,
+        arena::Handle<checked_trees::ContractProofFact>,
+    )>,
 ) -> bool {
-    let (call_expression, argument_handles) = match site {
-        crate::CallSite::Expression { expression, call } => (expression, call.arguments),
-        crate::CallSite::Statement(call) => (ExpressionHandle::invalid(), call.arguments),
+    let call_expression = match site {
+        crate::CallSite::Expression { expression, .. } => expression,
+        crate::CallSite::Statement(_) => ExpressionHandle::invalid(),
         crate::CallSite::TransitionNamed { .. } => return false,
     };
     let Some(owner) = super::specification_calls::selected_call_site_contract(program, site) else {
         return false;
     };
-    if !super::specification_calls::owner_contracts(program, &owner)
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-        .any(|fact| {
-            let typed_trees::domain::ProofFact::Expression(required) = fact else {
-                return false;
-            };
-            let mut pending = vec![*required];
-            while let Some(required) = pending.pop() {
-                if required == expression {
-                    return true;
+    if inherited.is_none()
+        && !super::specification_calls::owner_contracts(program, &owner)
+            .filter(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+            })
+            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+            .any(|fact| {
+                let typed_trees::domain::ProofFact::Expression(required) = fact else {
+                    return false;
+                };
+                let mut pending = vec![*required];
+                while let Some(required) = pending.pop() {
+                    if required == expression {
+                        return true;
+                    }
+                    if let Some(binary) = program.expression_table.binary_node(required)
+                        && binary.operator == BinaryOperator::And
+                    {
+                        pending.extend([binary.left, binary.right]);
+                    }
                 }
-                if let Some(binary) = program.expression_table.binary_node(required)
-                    && binary.operator == BinaryOperator::And
-                {
-                    pending.extend([binary.left, binary.right]);
-                }
-            }
-            false
-        })
+                false
+            })
     {
         return false;
     }
@@ -124,11 +139,41 @@ pub fn selected_value_call_requirement_entailed(
     else {
         return false;
     };
+    // The physical invocation telescope remains with capture/reference
+    // authentication. A migrated clause independently binds its public
+    // declaration through the exact call-owned contract reference.
+    let predicate = match inherited {
+        Some((proof, contract)) => {
+            let predicate = match inherited_predicate(
+                program,
+                machine,
+                state,
+                statement_index,
+                site,
+                &owner,
+                parameter_scope.as_ref(),
+                expression,
+                proof,
+                contract,
+            ) {
+                Ok(predicate) => predicate,
+                Err(reason) => {
+                    if super::struct_trace() {
+                        eprintln!(
+                            "STRUCT inherited-prefix declined caller={} reason={reason}",
+                            machine.name
+                        );
+                    }
+                    return false;
+                }
+            };
+            Some(predicate)
+        }
+        None => None,
+    };
     let leading_operands = super::specification_calls::owner_leading_operands(&owner);
-    let Some(arguments) = program
-        .expression_table
-        .expression_handles(argument_handles)
-        .get(leading_operands..)
+    let Some(arguments) =
+        crate::call_site_argument_expressions(program, &site).get(leading_operands..)
     else {
         return false;
     };
@@ -151,7 +196,8 @@ pub fn selected_value_call_requirement_entailed(
         leading_operands,
         arguments,
         expression,
-        false,
+        case_facts_only,
+        predicate.as_ref(),
     )
 }
 
@@ -171,7 +217,12 @@ fn structural_requirement_at_prefix(
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
     case_facts_only: bool,
+    inherited: Option<&InheritedPredicate>,
 ) -> bool {
+    let callee_owner = inherited.map_or(callee_owner, |predicate| predicate.owner);
+    let expression = inherited.map_or(expression, |predicate| predicate.expression);
+    let predicate_parameters =
+        inherited.map_or(parameters, |predicate| predicate.parameters.as_slice());
     let classification = crate::proof_only_classification(program);
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
@@ -211,7 +262,7 @@ fn structural_requirement_at_prefix(
         return false;
     }
     if runtime_values
-        && (!(runtime_fact_for_parameters(program, callee_owner, parameters, expression)
+        && (!(runtime_fact_for_parameters(program, callee_owner, predicate_parameters, expression)
             || callee_machine.is_some_and(|machine| {
                 program
                     .state_in_machine(machine, callee_owner)
@@ -253,9 +304,14 @@ fn structural_requirement_at_prefix(
             state,
             statement_index,
             in_transition_target,
+            callee_owner,
             parameters,
+            call_site,
+            call_expression,
+            leading_operands,
             arguments,
             expression,
+            inherited,
         );
     }
     if super::struct_trace() {
@@ -277,6 +333,7 @@ fn structural_requirement_at_prefix(
         leading_operands,
         arguments,
         expression,
+        inherited: inherited.cloned(),
         seen: false,
         proven: true,
     };
@@ -358,9 +415,14 @@ fn structural_requirement_at_prefix(
         state,
         statement_index,
         in_transition_target,
+        callee_owner,
         parameters,
+        call_site,
+        call_expression,
+        leading_operands,
         arguments,
         expression,
+        inherited,
     )
 }
 
@@ -369,15 +431,21 @@ fn structural_requirement_at_prefix(
 /// whose caller completed the value. Each direct caller is one scenario.
 /// Target-family bodies share the interface call. A caller the scan cannot
 /// see leaves the obligation unproved.
+#[allow(clippy::too_many_arguments)]
 fn borrowed_match_join_records_selected_place(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state_symbol: SymbolHandle,
     statement_index: usize,
     in_transition_target: bool,
+    callee_owner: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
+    call_site: Option<crate::CallSite<'_>>,
+    call_expression: ExpressionHandle,
+    leading_operands: usize,
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
+    inherited: Option<&InheritedPredicate>,
 ) -> bool {
     if parameters.len() != arguments.len() {
         return false;
@@ -439,15 +507,22 @@ fn borrowed_match_join_records_selected_place(
         let classification = crate::proof_only_classification(program);
         let mut diagnostics = Vec::new();
         let mut goal = SelectedReferentGoal {
-            state: state.symbol,
-            statement_index,
-            in_transition_target,
-            parameters,
-            arguments,
-            expression,
-            operator: binary.operator,
+            requirement: CallRequirement {
+                state: state.symbol,
+                statement_index,
+                in_transition_target,
+                callee_owner,
+                parameters,
+                call_site,
+                call_expression,
+                leading_operands,
+                arguments,
+                expression,
+                inherited: inherited.cloned(),
+                seen: false,
+                proven: true,
+            },
             scenario: scenario.clone(),
-            proven: false,
         };
         let recognized = recognize_structural_state_prefix(
             program,
@@ -465,7 +540,7 @@ fn borrowed_match_join_records_selected_place(
                 program.expression_table.display_name(expression),
                 recognized.is_some(),
                 diagnostics.len(),
-                goal.proven,
+                goal.requirement.proven,
                 scenario
                     .iter()
                     .map(|(name, term)| format!("{name}:{}", term_kind(term)))
@@ -473,7 +548,10 @@ fn borrowed_match_join_records_selected_place(
                     .join(",")
             );
         }
-        recognized.is_some() && diagnostics.is_empty() && goal.proven
+        recognized.is_some()
+            && diagnostics.is_empty()
+            && goal.requirement.seen
+            && goal.requirement.proven
     })
 }
 
@@ -513,24 +591,13 @@ fn machine_contains_match(program: &dyn crate::CheckingInput, machine: &Machine)
 }
 
 struct SelectedReferentGoal<'program> {
-    state: SymbolHandle,
-    statement_index: usize,
-    in_transition_target: bool,
-    parameters: &'program [typed_trees::signature::StateParameter],
-    arguments: &'program [ExpressionHandle],
-    expression: ExpressionHandle,
-    operator: BinaryOperator,
+    requirement: CallRequirement<'program>,
     scenario: Vec<(String, StructuralTerm)>,
-    proven: bool,
 }
 
 impl super::structural_prefix::StructuralPrefixVisitor for SelectedReferentGoal<'_> {
     fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
-        super::structural_prefix::StructuralPrefixSite {
-            state: self.state,
-            statement_index: self.statement_index,
-            in_transition_target: self.in_transition_target,
-        }
+        self.requirement.site()
     }
 
     fn visit<'program>(
@@ -539,103 +606,24 @@ impl super::structural_prefix::StructuralPrefixVisitor for SelectedReferentGoal<
         machine: &Machine,
         judge: &StructuralJudge<'program>,
         environment: &[(String, StructuralTerm)],
-        _hypotheses: &[(String, StructuralTerm)],
-        _equations: &[(StructuralTerm, StructuralTerm)],
-        _guarantees: &CitationFacts,
+        hypotheses: &[(String, StructuralTerm)],
+        equations: &[(StructuralTerm, StructuralTerm)],
+        guarantees: &CitationFacts,
     ) {
-        let Some(state) = program.state_in_machine(machine, self.state) else {
-            return;
-        };
-        let Some(binary) = program.expression_table.binary_node(self.expression) else {
-            return;
-        };
         let environment = overlay_environment(environment, &self.scenario);
-        let scope = (machine, state, state.return_type);
-        let mut paths = Vec::new();
-        for argument in self.arguments {
-            let Some(argument_paths) = judge.normal_return_paths(*argument, &environment, scope)
-            else {
-                return;
-            };
-            if argument_paths.is_empty() {
-                return;
-            }
-            paths.push(argument_paths);
-        }
-        self.proven = argument_bindings_prove(
+        // Scenarios supply entry values, not a second call evaluator. The
+        // ordinary observer retains the exact nested occurrence and preceding
+        // sibling effects before judging its declaration-bound requirement.
+        self.requirement.visit(
+            program,
+            machine,
             judge,
-            scope,
-            self.parameters,
-            &paths,
-            0,
-            &mut Vec::new(),
             &environment,
-            binary.left,
-            binary.right,
-            self.operator,
+            hypotheses,
+            equations,
+            guarantees,
         );
     }
-}
-
-fn argument_bindings_prove<'program>(
-    judge: &StructuralJudge<'program>,
-    scope: (&Machine, &State, typed_trees::types::TypeReferenceHandle),
-    parameters: &[typed_trees::signature::StateParameter],
-    paths: &[Vec<super::structural_judgment::normal_returns::NormalReturnPath<'program>>],
-    index: usize,
-    binding: &mut Vec<(String, StructuralTerm)>,
-    environment: &[(String, StructuralTerm)],
-    left: ExpressionHandle,
-    right: ExpressionHandle,
-    operator: BinaryOperator,
-) -> bool {
-    if index == parameters.len() {
-        let environment = overlay_environment(environment, binding);
-        let Some(left_paths) = judge.normal_return_paths(left, &environment, scope) else {
-            return false;
-        };
-        let Some(right_paths) = judge.normal_return_paths(right, &environment, scope) else {
-            return false;
-        };
-        let [right] = right_paths.as_slice() else {
-            return false;
-        };
-        return !left_paths.is_empty()
-            && left_paths.iter().all(|left| {
-                let verdict = left.judge.judge_equation(
-                    left.judge.resolve(left.value.clone()),
-                    left.judge.resolve(right.value.clone()),
-                    0,
-                );
-                match operator {
-                    BinaryOperator::Equal => matches!(verdict, StructuralJudgment::Proven),
-                    BinaryOperator::NotEqual => matches!(verdict, StructuralJudgment::Refuted),
-                    _ => false,
-                }
-            });
-    }
-    paths.get(index).is_some_and(|argument_paths| {
-        argument_paths.iter().all(|path| {
-            binding.push((
-                parameters[index].name.as_str().to_owned(),
-                path.value.clone(),
-            ));
-            let proven = argument_bindings_prove(
-                &path.judge,
-                scope,
-                parameters,
-                paths,
-                index + 1,
-                binding,
-                environment,
-                left,
-                right,
-                operator,
-            );
-            binding.pop();
-            proven
-        })
-    })
 }
 
 fn expression_contains_match(
@@ -656,6 +644,8 @@ struct SelectedReferentCall {
     caller: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
+    in_transition_target: bool,
+    call_expression: ExpressionHandle,
     arguments: Vec<ExpressionHandle>,
 }
 
@@ -691,14 +681,15 @@ fn state_scenarios(
             return None;
         }
         for overlay in &source_scenarios {
-            let terms = capture_argument_terms(program, machine, arrival, overlay)?;
-            scenarios.push(
-                parameters
-                    .iter()
-                    .zip(terms)
-                    .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
-                    .collect(),
-            );
+            for terms in capture_argument_terms(program, machine, arrival, parameters, overlay)? {
+                scenarios.push(
+                    parameters
+                        .iter()
+                        .zip(terms)
+                        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
+                        .collect(),
+                );
+            }
         }
     }
     stack.pop();
@@ -732,6 +723,8 @@ fn transition_arrivals(
                 caller: machine.symbol,
                 state: source.symbol,
                 statement_index: index,
+                in_transition_target: true,
+                call_expression: ExpressionHandle::invalid(),
                 arguments: program
                     .statement_table
                     .expression_handles(*arguments)
@@ -770,14 +763,15 @@ fn parameter_scenarios(
             return None;
         }
         for overlay in &caller_scenarios {
-            let terms = capture_argument_terms(program, caller, call, overlay)?;
-            scenarios.push(
-                parameters
-                    .iter()
-                    .zip(terms)
-                    .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
-                    .collect(),
-            );
+            for terms in capture_argument_terms(program, caller, call, parameters, overlay)? {
+                scenarios.push(
+                    parameters
+                        .iter()
+                        .zip(terms)
+                        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term))
+                        .collect(),
+                );
+            }
         }
     }
     stack.pop();
@@ -803,10 +797,22 @@ fn selected_referent_calls(
                     {
                         continue;
                     }
+                    let call_expression = match site {
+                        crate::CallSite::Expression { expression, .. } => expression,
+                        _ => ExpressionHandle::invalid(),
+                    };
                     calls.push(SelectedReferentCall {
                         caller: caller.symbol,
                         state: state.symbol,
                         statement_index: index,
+                        in_transition_target:
+                            super::structural_prefix::expression_is_transition_target(
+                                program,
+                                state,
+                                index,
+                                call_expression,
+                            ),
+                        call_expression,
                         arguments: crate::machine_calls::calls::call_site_argument_expressions(
                             program, &site,
                         )
@@ -849,36 +855,43 @@ fn capture_argument_terms(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
     call: &SelectedReferentCall,
+    parameters: &[typed_trees::signature::StateParameter],
     overlay: &[(String, StructuralTerm)],
-) -> Option<Vec<StructuralTerm>> {
+) -> Option<Vec<Vec<StructuralTerm>>> {
     let state = program.state_in_machine(caller, call.state)?;
     let mut captured = CapturedArguments {
         state: call.state,
         statement_index: call.statement_index,
+        in_transition_target: call.in_transition_target,
+        call_expression: call.call_expression,
+        parameters,
         arguments: call.arguments.clone(),
         overlay: overlay.to_vec(),
         terms: Vec::new(),
-        complete: false,
+        complete: true,
     };
     super::structural_prefix::observe_runtime_state_prefix(program, caller, state, &mut captured)?;
-    captured.complete.then_some(captured.terms)
+    (captured.complete && !captured.terms.is_empty()).then_some(captured.terms)
 }
 
-struct CapturedArguments {
+struct CapturedArguments<'program> {
     state: SymbolHandle,
     statement_index: usize,
+    in_transition_target: bool,
+    call_expression: ExpressionHandle,
+    parameters: &'program [typed_trees::signature::StateParameter],
     arguments: Vec<ExpressionHandle>,
     overlay: Vec<(String, StructuralTerm)>,
-    terms: Vec<StructuralTerm>,
+    terms: Vec<Vec<StructuralTerm>>,
     complete: bool,
 }
 
-impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments {
+impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_> {
     fn site(&self) -> super::structural_prefix::StructuralPrefixSite {
         super::structural_prefix::StructuralPrefixSite {
             state: self.state,
             statement_index: self.statement_index,
-            in_transition_target: false,
+            in_transition_target: self.in_transition_target,
         }
     }
 
@@ -893,25 +906,38 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments {
         _guarantees: &super::citations::CitationFacts,
     ) {
         let Some(state) = program.state_in_machine(machine, self.state) else {
+            self.complete = false;
             return;
         };
         let environment = overlay_environment(environment, &self.overlay);
-        let mut terms = Vec::new();
-        for argument in &self.arguments {
-            let Some(paths) = judge.normal_return_paths(
-                *argument,
+        let scope = (machine, state, state.return_type);
+        // Incoming scenarios observe the same exact invocation cut as call
+        // requirements. Independent actual replay loses preceding siblings'
+        // writes and can donate an obsolete value to another machine.
+        let entries = if self.call_expression.is_valid() {
+            judge.normal_operation_entries(
+                self.statement_index,
+                self.call_expression,
                 &environment,
-                (machine, state, state.return_type),
-            ) else {
-                return;
-            };
-            let [path] = paths.as_slice() else {
-                return;
-            };
-            terms.push(path.value.clone());
+                scope,
+            )
+        } else {
+            judge.normal_argument_entries(&self.arguments, self.parameters, &environment, scope)
+        };
+        let Some(entries) = entries else {
+            self.complete = false;
+            return;
+        };
+        if entries.is_empty()
+            || entries
+                .iter()
+                .any(|entry| entry.arguments.len() != self.parameters.len())
+        {
+            self.complete = false;
+            return;
         }
-        self.terms = terms;
-        self.complete = true;
+        self.terms
+            .extend(entries.into_iter().map(|entry| entry.arguments));
     }
 }
 
@@ -944,6 +970,7 @@ pub(super) struct CallRequirement<'program> {
     leading_operands: usize,
     arguments: &'program [ExpressionHandle],
     expression: ExpressionHandle,
+    inherited: Option<InheritedPredicate>,
     seen: bool,
     proven: bool,
 }
@@ -1015,7 +1042,11 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             entries
         };
         self.proven &= !entries.is_empty();
-        let mut requirement_parameters = self.parameters.to_vec();
+        let predicate_parameters = self
+            .inherited
+            .as_ref()
+            .map_or(self.parameters, |predicate| predicate.parameters.as_slice());
+        let mut requirement_parameters = predicate_parameters.to_vec();
         let mut static_substitution = Vec::new();
         if let Some(site) = self.call_site {
             let arguments = match site {
@@ -1038,6 +1069,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             for (parameter, value) in bindings {
                 static_substitution.push((parameter.name.to_string(), value));
                 requirement_parameters.push(parameter);
+            }
+        }
+        if let Some(predicate) = &self.inherited {
+            for (parameter, value) in &predicate.values {
+                static_substitution.push((parameter.name.to_string(), value.clone()));
+                requirement_parameters.push(parameter.clone());
             }
         }
         for entry in entries {
@@ -1068,7 +1105,12 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 self.proven = false;
                 return;
             }
-            for (parameter, value) in self.parameters.iter().zip(arguments) {
+            for ((parameter, predicate_parameter), value) in self
+                .parameters
+                .iter()
+                .zip(predicate_parameters)
+                .zip(arguments)
+            {
                 let value = if self.call_expression.is_valid()
                     && crate::reference_shell(program, parameter.type_reference).is_some()
                 {
@@ -1082,6 +1124,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                             .and_then(|subject| {
                                 entry.judge.reference_subject_term(
                                     subject,
+                                    value,
                                     environment,
                                     (machine, caller_state, caller_state.return_type),
                                 )
@@ -1112,8 +1155,8 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                             .expression_table
                             .name_path_node(*expression)
                             .is_some_and(|path| {
-                                path.symbol == parameter.symbol
-                                    || path.head_symbol == parameter.symbol
+                                path.symbol == predicate_parameter.symbol
+                                    || path.head_symbol == predicate_parameter.symbol
                             })
                     }) {
                         self.proven = false;
@@ -1121,16 +1164,19 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     }
                     continue;
                 };
-                substitution.push((parameter.name.as_str().to_owned(), value));
+                substitution.push((predicate_parameter.name.as_str().to_owned(), value));
             }
             self.proven &= matches!(
-                instantiated_fact_judgment(
+                instantiated_selected_fact_judgment(
                     program,
                     &entry.judge,
                     self.callee_owner,
                     &requirement_parameters,
                     self.expression,
                     &substitution,
+                    self.inherited
+                        .as_ref()
+                        .map_or(&[], |predicate| predicate.selections.as_slice()),
                     Some((machine, caller_state)),
                 ),
                 StructuralJudgment::Proven,
@@ -1231,16 +1277,33 @@ fn runtime_fact_for_parameters(
     }
     match term {
         Some(StructuralTerm::ScalarBinary { .. } | StructuralTerm::Constructor { .. }) => true,
-        // Selected IEEE predicates remain applications, never structural
-        // equalities. Their exact sealed declaration supplies the public
-        // semantic equation; the common judge retains format, completed
-        // operands and NaN classification when normalizing it.
-        Some(StructuralTerm::Application { target, .. }) => {
-            typed_trees::operator::declaration_by_symbol(program, target).is_some_and(|operator| {
-                typed_trees::operator::is_sealed_toolchain_float_operator(program, operator)
-                    && typed_trees::operator::primitive_float_binary_semantics(program, operator)
+        Some(StructuralTerm::Application {
+            target, selections, ..
+        }) => {
+            // Selected operators retain their public meaning; ordinary
+            // predicates instead owe the shared observation-free value-call
+            // closure and independent declaration identity. Eligibility only
+            // opens the existing prefix judgment: it proves neither the
+            // predicate nor its formation and termination obligations.
+            if typed_trees::operator::declaration_by_symbol(program, target).is_some_and(
+                |operator| {
+                    typed_trees::operator::is_sealed_toolchain_float_operator(program, operator)
+                        && typed_trees::operator::primitive_float_binary_semantics(
+                            program, operator,
+                        )
                         .is_some_and(|(operation, _)| operation.is_comparison())
-            })
+                },
+            ) {
+                return true;
+            }
+            super::structural_judgment::specification_application_candidate(
+                program,
+                owner,
+                target,
+                &selections,
+                None,
+            )
+            .is_ok()
         }
         _ => false,
     }

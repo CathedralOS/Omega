@@ -38,29 +38,22 @@ pub(crate) fn lower(
     // General receiving predicates were completed while mathematical
     // preparation was available. Their subject is formal zero; bind that
     // namespace directly to this exact returned value, not to entry formals.
-    let retained_result = result.scalar().and_then(|_| {
-        match crate::expression_preparation::qualifications::retained_scalar_restriction(
-            checked,
-            source_state.return_type,
+    let result_refinements = if result.scalar().is_some()
+        && matches!(
+            checked
+                .type_reference_table
+                .type_reference(source_state.return_type),
+            checked_trees::types::TypeReferenceNode::Constrained { .. }
         ) {
-            Some(checked_trees::CheckedUnitStructuralFieldType::RefinedScalar {
-                predicate,
-                ..
-            }) => Some(predicate),
-            _ => None,
-        }
-    });
-    let refined;
-    let ensures = if result.scalar().is_some() && retained_result.is_none() {
-        refined = contracts::with_result_range(
-            checked,
-            state,
-            parameters.len(),
-            &contract.closed_scalar_values,
-        )?;
-        refined.ensures()
+        checked
+            .facts
+            .values
+            .scalar_type_refinement_predicates(source_state.return_type)
+            .ok_or(LoweringError::Unsupported(
+                "scalar result has no complete checked value refinement",
+            ))?
     } else {
-        contract.closed_scalar_values.ensures()
+        &[]
     };
     // Source-checked clauses without a scalar projection erase here. They are
     // neither asserted true nor exported as opaque atoms; upstream checking
@@ -69,7 +62,7 @@ pub(crate) fn lower(
     // loan: the declaration predicate roster's restored rows follow the
     // authored guarantees as the same kind of obligation, rederived from the
     // entry parameters' declared storage rather than read from a package.
-    let guarantees = contracts::projected_guarantees(ensures)
+    let guarantees = contracts::projected_guarantees(contract.closed_scalar_values.ensures())
         .cloned()
         .collect::<Vec<_>>();
     let restored_guarantees = validation::machine_declaration_predicates(
@@ -111,7 +104,7 @@ pub(crate) fn lower(
         ..*views
     };
     let mut propositions = contracts::clauses(identities, &guarantees, &namespace, erased, &views)?;
-    if let Some(predicate) = retained_result {
+    for predicate in result_refinements {
         let result_predicate = contracts::proposition(
             identities,
             predicate,
