@@ -1,0 +1,34 @@
+// Fact: an 8-bit signed i8 exact multiplication of bounded inputs (lhs >= 5i8 && lhs <= 10i8, rhs >= 6i8 && rhs <= 10i8) establishes prod >= 30i8 && prod <= 100i8 so exact 8-bit signed subtraction 100i8 - prod is proved overflow-free across all nine places.
+// Place: match_join. Both match arms yield the product result so the joined binding preserves the bounds.
+// Expected exit: 0
+machine verify_prod(prod: i8) -> i32
+    requires prod >= 30 && prod <= 100
+{
+    let headroom: i8 = 100 - prod;
+    (headroom - 28) as i32
+}
+
+machine compute_match_join(lhs: i8, rhs: i8, flag: bool) -> i32
+    requires lhs >= 5 && lhs <= 10 && rhs >= 6 && rhs <= 11
+{
+    let prod: i8 = lhs * rhs;
+    let joined: i8 = match flag {
+        true -> prod
+        false -> prod
+    };
+    verify_prod(joined)
+}
+
+machine evaluate() -> i32 {
+    compute_match_join(8, 9, true)
+}
+
+machine main() crashes Trap {
+    let res: i32 = evaluate();
+    transition res == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
