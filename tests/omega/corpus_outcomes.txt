@@ -2027,16 +2027,32 @@ fail/effects/synchronous_callback_block_required rejected 337ms expected @c5a7c1
 fail/effects/synchronous_callback_reach_required rejected 473ms expected @fef885d565a2+wt
 fail/effects/top_level_callback_block_required rejected 342ms expected @c5a7c1ce1957+wt
 fail/effects/top_level_callback_reach_required rejected 337ms expected @c5a7c1ce1957+wt
+fail/effects/windows_canonical_path_requires_metadata rejected 7637ms expected @873d5df486fe
+	machine `inspect` publishes service reach `DirectoryEnumeration` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/windows_copy_move_requires_content rejected 1746ms expected @034b5e35c420
 	machine `move_without_content` publishes service reach `FilesystemNamespaceMutation` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation`
+fail/effects/windows_directory_count_requires_enumeration rejected 7879ms expected @873d5df486fe
+	machine `inspect` publishes service reach `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `DirectoryEnumeration`
 fail/effects/windows_filesystem_read_requires_block rejected 1769ms expected @034b5e35c420
 	call to `read_file` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/windows_filesystem_read_requires_content_read rejected 1746ms expected @034b5e35c420
 	machine `read_without_content_permission` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemContentRead`
+fail/effects/windows_hard_link_requires_namespace rejected 7710ms expected @873d5df486fe
+	machine `inspect` publishes service reach `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation` but its checked body reaches undeclared service `FilesystemNamespaceMutation`
+fail/effects/windows_length_cannot_select_disposition rejected 11109ms expected @873d5df486fe
+	cannot prove requires contract for call end_of_file from change_disposition: 4 == 6 && 8 == 8 (needs fact `information_class == 6 && size == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/effects/windows_length_cannot_widen_record rejected 11516ms expected @873d5df486fe
+	cannot prove requires contract for call end_of_file from widen_record: 6 == 6 && 16 == 8 (needs fact `information_class == 6 && size == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/effects/windows_metadata_requires_block rejected 2417ms expected @8fdb0071edab
 	call to `metadata` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/windows_metadata_requires_query rejected 2399ms expected @8fdb0071edab
 	machine `inspect_without_query` publishes service reach `WindowsFilesystemHost` but its checked body reaches undeclared service `FilesystemMetadataQuery`
+fail/effects/windows_owned_open_cannot_request_impersonation rejected 11264ms expected @873d5df486fe
+	cannot prove requires contract for call open_attributes from checked_metadata_open: 128 == 128 && 7 == 7 && 0 == 0 && 3 == 3 && 34734080 == 34603008 || 34734080 == 36700160 && 0 == 0 (needs fact `desired_access == 128 && sharing == 7 && security == 0 && disposition == 3 && flags == 34603008 || flags == 36700160 && template == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/effects/windows_owned_open_requires_anonymous_sqos rejected 11513ms expected @873d5df486fe
+	cannot prove requires contract for call open_attributes from checked_metadata_open: 128 == 128 && 7 == 7 && 0 == 0 && 3 == 3 && 33554432 == 34603008 || 33554432 == 36700160 && 0 == 0 (needs fact `desired_access == 128 && sharing == 7 && security == 0 && disposition == 3 && flags == 34603008 || flags == 36700160 && template == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/effects/windows_read_reopen_cannot_request_write rejected 727ms expected @873d5df486fe
+	cannot prove requires contract for call reopen_read from gain_write_access: 1048578 == 1048577 && 7 == 7 && 0 == 0 (needs fact `desired_access == 1048577 && sharing == 7 && flags == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/effects/windows_rename_cannot_enable_copy rejected 527ms expected @a6c6d1e26e69
 	cannot prove requires contract for call c_rename_file from copy_through_rename: 2 == 1 (needs fact `flags == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/expressions/anonymous_structural_match_undefined_pattern rejected 80ms expected @5c4c9bc0ebab
@@ -11033,6 +11049,10 @@ fail/facts/zero_byte_erased_carrier_unproved_target_body rejected 14225ms expect
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call probe from main: carrier.value >= 100 && carrier.value <= 100 (needs fact `carrier.value >= 100 && carrier.value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/filesystem/windows_directory_nth_requires_metadata rejected 10309ms expected @873d5df486fe
+	machine `Main::main` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
+fail/filesystem/windows_read_link_requires_metadata rejected 8451ms expected @873d5df486fe
+	machine `missing_metadata` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/float/authored_heterogeneous_float_operator_requires rejected 472ms expected @f7d5743143af
 fail/float/boundary_call_guard_wrong_argument rejected 2266ms expected @f7d5743143af
 fail/float/boundary_call_guard_wrong_format rejected 1735ms expected @f7d5743143af
@@ -15008,6 +15028,7 @@ pass/effects/static_boundary_callback_reach checked 4794ms @3b18b32f7117+wt
 pass/effects/structural_callback_reach checked 1685ms @a9ae30e1c334+wt
 pass/effects/top_level_callback_provider_ceiling checked 1241ms @c5a7c1ce1957+wt
 pass/effects/windows_filesystem_capability_rows checked 2993ms @034b5e35c420
+pass/effects/windows_owned_anonymous_opens checked 12002ms @873d5df486fe
 pass/entry/nested_where_record_binding_field_exit checked 11332ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/entry/service_borrowed_slice_call checked 10859ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/errors/crash_route_boundary checked 9651ms @5041ef1af684+wt
@@ -18767,12 +18788,21 @@ pass/filesystem/runtime_posix_native_storage_bounds_exit checked 9150ms check-ta
 pass/filesystem/runtime_posix_read_runtime_range_view_exit checked 9450ms check-target:macos_arm64 @aebe0714a499+wt
 pass/filesystem/windows_canonicalize_exit checked 24908ms check-target:linux_x86_64 @c9eefa9130a0+wt
 pass/filesystem/windows_external_async_handle_exit checked 5855ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_lock_has_empty_reach checked 12003ms @873d5df486fe
 pass/filesystem/windows_namespace_rename_exit checked 6452ms check-target:windows_x86_64 @a6c6d1e26e69
 pass/filesystem/windows_native_create_write_close_exit checked 4007ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_argument_failures_exit checked 4134ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_bounded_view_exit checked 4305ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_raw_breadth_exit checked 4543ms check-target:windows_x86_64 @034b5e35c420
+pass/filesystem/windows_raw_canonical_path_exit checked 50910ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
+pass/filesystem/windows_raw_directory_count_exit checked 47343ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
+pass/filesystem/windows_raw_directory_nth_exit checked 45626ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
+pass/filesystem/windows_raw_file_control_exit checked 48162ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
+pass/filesystem/windows_raw_hard_link_exit checked 45987ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
+pass/filesystem/windows_raw_lock_exit checked 45733ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
 pass/filesystem/windows_raw_metadata_exit checked 13189ms check-target:windows_x86_64 terminal-inspections:match @37bad412b02a
+pass/filesystem/windows_raw_positioned_io_exit checked 46956ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
+pass/filesystem/windows_raw_read_link_exit checked 62423ms check-target:windows_x86_64 terminal-inspections:match @873d5df486fe
 pass/filesystem/windows_set_file_time_exit checked 4261ms check-target:windows_x86_64 @034b5e35c420
 pass/filesystem/windows_wrapper_results_exit checked 20212ms check-target:macos_arm64 @7c847bad15b6+wt
 pass/filesystem/wrapper_lock_metadata_exit checked 20511ms check-target:macos_arm64 @7c847bad15b6+wt
