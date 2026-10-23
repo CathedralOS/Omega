@@ -1,0 +1,13 @@
+// Fact: `left == right` on `f64` selects the declared operator without importing `omega::language::core::float_operations`. A copy of an `f64` is not this fact. The values are 212.0 and 2.0, so the comparison is false.
+// Place: const_name. The two operands are named constants and the comparison reads those names.
+// Invalid (mixed format): the right operand's format is f32, so `left == right`
+// has no declared operator and no builtin route; checking refuses.
+// Expected diagnostic: builtin `==` cannot combine `f64` and `f32`
+const LEFT: f64 = 212.0;
+const RIGHT: f32 = 2.0;
+machine main() crashes Trap {
+    let equal: bool = LEFT == RIGHT;
+    transition equal { true -> bad() _ -> done() }
+    state done() {}
+    state bad() { crash Trap; }
+}

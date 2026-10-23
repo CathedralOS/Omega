@@ -3823,7 +3823,29 @@ fail/facts/fixed_array_value_through_target_body_rejected rejected 3698ms expect
 	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in read_element::entry
 	cannot prove index `index` is within length 2 in read_element::entry
-fail/facts/float_comparison_route_mixed_format_rejected rejected 10432ms expected @4d917f5ebf6d+wt
+fail/facts/float_comparison_route_mixed_format_rejected rejected 5172ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_call_result_rejected rejected 4989ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_const_name_rejected rejected 3995ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_field_rejected rejected 3940ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_local_rejected rejected 3886ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_match_join_rejected rejected 3645ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_other_machine_rejected rejected 4973ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_other_state_rejected rejected 4797ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_parameter_rejected rejected 5408ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+fail/facts/float_comparison_route_through_target_body_rejected rejected 5330ms expected @114906953e11+wt
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/facts/float_delivery_through_call_result_rejected rejected 1822ms expected @0384b061cba0
 	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -12154,15 +12176,15 @@ pass/facts/fixed_array_value_through_other_machine_exit checked 7949ms check-tar
 pass/facts/fixed_array_value_through_other_state_exit checked 7961ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/fixed_array_value_through_parameter_exit checked 7929ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/fixed_array_value_through_target_body_exit checked 8026ms check-target:macos_arm64 @45cbafd80d9c
-pass/facts/float_comparison_route_through_call_result_exit checked 43117ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_const_name_exit checked 42389ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_field_exit checked 42943ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_local_exit checked 42190ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_match_join_exit checked 40708ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_other_machine_exit checked 40719ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_other_state_exit checked 40920ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_parameter_exit checked 40706ms check-target:macos_arm64 @4d917f5ebf6d+wt
-pass/facts/float_comparison_route_through_target_body_exit checked 40750ms check-target:macos_arm64 @4d917f5ebf6d+wt
+pass/facts/float_comparison_route_through_call_result_exit checked 10514ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_const_name_exit checked 11231ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_field_exit checked 12359ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_local_exit checked 12386ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_match_join_exit checked 12201ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_other_machine_exit checked 12395ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_other_state_exit checked 12292ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_parameter_exit checked 12582ms check-target:macos_arm64 @114906953e11+wt
+pass/facts/float_comparison_route_through_target_body_exit checked 13609ms check-target:macos_arm64 @114906953e11+wt
 pass/facts/float_delivery_through_call_result_exit checked 17013ms check-target:macos_arm64 @0384b061cba0
 pass/facts/float_delivery_through_const_name_exit checked 17124ms check-target:macos_arm64 @0384b061cba0
 pass/facts/float_delivery_through_field_exit checked 17008ms check-target:macos_arm64 @0384b061cba0
@@ -15677,15 +15699,15 @@ run/facts/double_indexed_rmw_through_other_machine_traps checked 15815ms check-t
 run/facts/double_indexed_rmw_through_other_state_traps checked 17289ms check-target:macos_arm64 @ce4681e434c7+wt
 run/facts/double_indexed_rmw_through_parameter_traps checked 17089ms check-target:macos_arm64 @ce4681e434c7+wt
 run/facts/double_indexed_rmw_through_target_body_traps checked 17543ms check-target:macos_arm64 @ce4681e434c7+wt
-run/facts/float_comparison_route_through_call_result_traps checked 42904ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_const_name_traps checked 43083ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_field_traps checked 35928ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_local_traps checked 26500ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_match_join_traps checked 26698ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_other_machine_traps checked 26640ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_other_state_traps checked 26455ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_parameter_traps checked 26332ms check-target:macos_arm64 @4d917f5ebf6d+wt
-run/facts/float_comparison_route_through_target_body_traps checked 25111ms check-target:macos_arm64 @4d917f5ebf6d+wt
+run/facts/float_comparison_route_through_call_result_traps checked 17261ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_const_name_traps checked 16996ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_field_traps checked 16649ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_local_traps checked 16510ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_match_join_traps checked 16513ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_other_machine_traps checked 16783ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_other_state_traps checked 23264ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_parameter_traps checked 22837ms check-target:macos_arm64 @114906953e11+wt
+run/facts/float_comparison_route_through_target_body_traps checked 24525ms check-target:macos_arm64 @114906953e11+wt
 run/facts/signed_division_quotient_truncation_not_floor_traps checked 7721ms check-target:macos_arm64 @4bb0b016c1fe
 run/float/folded_anonymous_operator_custody_exit checked 7084ms check-target:macos_arm64 @9c4d1c444502
 run/generics/runtime_value_index_operands checked 7083ms check-target:macos_arm64 @16802f0d1e96

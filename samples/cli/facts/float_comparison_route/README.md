@@ -36,6 +36,13 @@ Every positive place (and root `main.omg`) declares `Expected exit: 0` and binds
 of 2.0, so the same comparison is true and the program takes its `crash Trap`
 route. Nothing else in the program moves.
 
+The same nine places also carry the route's format boundary as a second valid
+control: `<place>/controls/mixed_format/main.omg` is the place program with one
+change — the right operand is declared `f32` instead of `f64` — so `left ==
+right` has no declared operator and no builtin route. Each control is refused by
+checking with ``builtin `==` cannot combine `f64` and `f32` `` rather than
+silently widening.
+
 ## Execution
 
 ```sh
@@ -85,7 +92,11 @@ target the corpus check leg reads from these bindings).
   compares an `f64` left operand with an `f32` right operand is refused by
   checking with ``builtin `==` cannot combine `f64` and `f32` `` rather than
   silently widening, pinned as
-  [`float_comparison_route_mixed_format_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_mixed_format_rejected/main.omg).
+  [`float_comparison_route_mixed_format_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_mixed_format_rejected/main.omg)
+  for the root and transported across all nine places
+  (`<place>/controls/mixed_format/`, pinned as the nine
+  `tests/omega/fail/facts/float_comparison_route_through_<place>_rejected`
+  fixtures).
 - **The value decides the observable.** The nine twins keep the route and the
   program and move only the right operand to 212.0; the comparison becomes true
   and both engines abort instead of exiting 0.
@@ -97,9 +108,32 @@ are byte-identical copies of the place programs and record the `0` native exit
 oracle. Nine twin fixtures
 `tests/omega/run/facts/float_comparison_route_through_<place>_traps` are
 byte-identical copies of the place twins and record the `trap` oracle, following
-`tests/omega/run/facts/double_indexed_rmw_through_local_traps`. A program whose
-only authored obligation is a runtime comparison result is pinned by its runtime
-oracle; the twin checks clean, so a `fail/` diagnostic row would misstate it.
+`tests/omega/run/facts/double_indexed_rmw_through_local_traps`: a twin whose
+only authored obligation is a runtime comparison result checks clean and rejects
+at runtime, so its pin is the runtime oracle, not a `fail/` diagnostic row.
+
+Nine further fixtures
+`tests/omega/fail/facts/float_comparison_route_through_<place>_rejected` pin the
+place transport of the format boundary: each is a byte-identical copy of
+`<place>/controls/mixed_format/main.omg` (the place program with the right
+operand declared `f32`) and each rejects with ``builtin `==` cannot combine
+`f64` and `f32` ``. The root's form of the same control is pinned as
+[`float_comparison_route_mixed_format_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_mixed_format_rejected/main.omg).
+
+The nine `_rejected` fixtures and the nine `_exit` fixtures were re-recorded
+at `114906953e1` with the corpus runner built at that base (sha256
+`f14e17c7521b980e193ba6929baec279dd843ec8144214f42e19e4e94cacfe5a`): nine
+`rejected ... expected` rows in `tests/omega/corpus_outcomes.txt`, each
+followed by the full refusal ``builtin `==` cannot combine `f64` and `f32`; a
+landed float retains its format, so changing format requires an explicit
+conversion`` (target_body carries it once per bound body); nine
+`built ... exit:0` rows in `tests/omega/corpus_native_macos_arm64.txt`; and
+nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in
+`tests/omega/corpus_both_macos_arm64.txt`. The nine run-tier `_traps` twins
+gained their host rows at the same base: `built ... exit:signal signal:5` in
+the native golden and `built ... exit:signal signal:5 interpreter:trapped` in
+the combined golden. Before recording, the filtered re-measure at the same
+base read 46 fixtures with 0 structural moves.
 
 ## Requirements and evidence
 

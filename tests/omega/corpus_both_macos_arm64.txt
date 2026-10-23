@@ -830,6 +830,15 @@ pass/facts/exclusive_observation_exposure_through_other_machine_exit built 765ms
 pass/facts/exclusive_observation_exposure_through_other_state_exit built 761ms exit:0 interpreter-exit:0 interpreter:agrees @d545ec03095b+wt
 pass/facts/exclusive_observation_exposure_through_parameter_exit built 753ms exit:0 interpreter-exit:0 interpreter:agrees @d545ec03095b+wt
 pass/facts/exclusive_observation_exposure_through_target_body_exit built 774ms exit:0 interpreter-exit:0 interpreter:agrees @d545ec03095b+wt
+pass/facts/float_comparison_route_through_call_result_exit built 28838ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_const_name_exit built 26029ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_field_exit built 21884ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_local_exit built 21023ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_match_join_exit built 18812ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_other_machine_exit built 19121ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_other_state_exit built 20389ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_parameter_exit built 18464ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
+pass/facts/float_comparison_route_through_target_body_exit built 16675ms exit:0 interpreter-exit:0 interpreter:agrees @114906953e11+wt
 pass/facts/generic_calling_policy_through_call_result_exit built 21804ms exit:0 interpreter-exit:0 interpreter:agrees @c1c6bc8cb8ec+wt
 pass/facts/generic_calling_policy_through_const_name_exit built 21816ms exit:0 interpreter-exit:0 interpreter:agrees @c1c6bc8cb8ec+wt
 pass/facts/generic_calling_policy_through_field_exit built 18584ms exit:0 interpreter-exit:0 interpreter:agrees @c1c6bc8cb8ec+wt
@@ -1711,6 +1720,15 @@ run/domains/qualified_fixed_byte_array_runtime_store_exit built 4841ms exit:0 in
 run/domains/qualified_fixed_byte_array_utf8_mutation_exit built 4726ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
 run/domains/qualified_fixed_byte_array_utf8_optimized_exit built 4453ms exit:0 interpreter-exit:0 interpreter:agrees @75cbf5dc1d21
 run/domains/zero_field_call_formation_exit built 3655ms exit:0 interpreter-exit:0 interpreter:agrees @4eedaeefe771+wt
+run/facts/float_comparison_route_through_call_result_traps built 24756ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_const_name_traps built 24624ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_field_traps built 22515ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_local_traps built 22297ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_match_join_traps built 18479ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_other_machine_traps built 18979ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_other_state_traps built 17213ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_parameter_traps built 16704ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
+run/facts/float_comparison_route_through_target_body_traps built 17034ms exit:signal signal:5 interpreter:trapped @114906953e11+wt
 run/facts/signed_division_quotient_truncation_not_floor_traps built 3882ms exit:signal signal:5 interpreter:trapped @fca093f90f6d
 run/layouts/placed_stable_array built 1666ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @6242664f2106
 run/layouts/placed_stable_distinct_fields built 1575ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @6242664f2106
