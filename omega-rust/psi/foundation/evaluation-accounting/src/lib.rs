@@ -8,6 +8,7 @@
 //! lease transfers existing custody and dropping the final owner releases it.
 //! Counters are logical resources, never CPU time, allocator bytes or RSS claims.
 
+mod cached_usage;
 mod invocation;
 mod sponsor;
 mod usage;

@@ -182,7 +182,27 @@ pub fn evaluate_build(
         .transpose()?
         .flatten();
     let configuration = if let Some(configuration) = reusable {
-        configuration
+        if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
+            // Reusing a value avoids execution, not the current occurrence's
+            // logical cost. Admission above is fresh; charge this account before
+            // publishing, and keep its telemetry out of the retained producer.
+            let usage = configuration.evaluation_usage.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "completed Pure Build has no recorded evaluation usage",
+                )]
+            })?;
+            let usage = sponsor.charge_pure_usage(usage).map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "build-time evaluation of `{}` failed: {reason}",
+                    admitted.machine.name
+                ))]
+            })?;
+            let mut current = (*configuration).clone();
+            current.evaluation_usage = Some(usage);
+            Arc::new(current)
+        } else {
+            configuration
+        }
     } else {
         let configuration = Arc::new(admitted.execute()?);
         if let Some((inputs, owner)) = inputs.zip(pure_build_compilation) {

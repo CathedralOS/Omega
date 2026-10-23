@@ -115,6 +115,14 @@ is retained. Each occurrence still performs semantic/authority admission before
 looking for a completed result, and every target row remains in that result.
 Generated-source and required-output activations remain on their existing path.
 
+A sponsored cache hit pays its recorded logical fuel, BuildLog and result-custody
+cost to the current account before publication. Its recorded live demand must
+fit beside current reservations. Refusal changes no counters and does not
+execute Build again. The returned usage keeps the measured invocation counts
+but names current sponsor limits and peaks; the cached producer remains immutable.
+This follows [result caching](../../../../wiki/spec/language/evaluation.md#result-caching-and-published-evidence),
+so a warm result cannot bypass a ceiling a cold evaluation would exceed.
+
 Run `mbx run -p compiler --example build_session` from the repository root.
 This public compiler measurement requires two target products, two preliminary
 admissions and one Build execution. It also requires a later one-unit fuel
@@ -122,6 +130,12 @@ account to reject and a different source input to execute its own Build.
 This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a new
 language fact row or a foreign-host execution claim. The broader capability,
 including generated-source and target-row completion, remains open.
+
+Run `mbx run -p compiler --example build_charge` to challenge current accounting.
+Two target rows execute one pure Build while paying two logical charges; a
+fresh equal-policy account pays its own charge, and an account short by one
+fuel unit rejects the warm occurrence without executing it. This measures the
+Build workflow rather than adding another language transport fact.
 
 ## Root-binding implementation boundary
 

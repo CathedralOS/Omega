@@ -37,3 +37,11 @@ This foundation's unit controls establish accounting atomicity and lifetime
 behavior only; they do not establish interpreter budgeting or enable sponsored
 Terminal Build execution. The ordinary package-aware CLI remains on the checked
 Build evaluator until real engine accounting and host adapters are connected.
+
+`BuildEvaluationSponsor::charge_pure_usage` atomically pays validated recorded
+cost for an already admitted pure result. It checks the exact engine/schedule,
+refuses filesystem-observing usage, spends cumulative fuel/log/result quotas,
+and admits recorded peak demand beside existing reservations as an immediately
+retired logical reservation. It returns current-account telemetry without
+retaining the producing account. The caller still proves result identity,
+current admission and absence of effects; a usage record proves none of those.
