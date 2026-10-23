@@ -1716,6 +1716,31 @@ defines the complete product bar.
     mutation controls). Keep `pass/dependent/runtime_state_dependent_index_forward_exit`
     and `fail/dependent/{dependent_arg_unrelated_rejected,dependent_forward_after_write_rejected}`
     as controls for captured state arguments and invalidated bound observations.
+    Provider-dependent clause endpoints are the one remaining `requires`
+    customer: `requires <param> <= call()` still spells the declared-range
+    suffix because nothing closes the call for the caller. This is a compiler
+    gap, not a language decision — the decision table already calls a
+    runtime-dependent endpoint an ordinary call proposition
+    ([recipe](wiki/drafts/designs/range_suffix_migration.md#decision-table-by-position)).
+    Three live uses remain: `pass/providers/provider_const_endpoint:26`,
+    `pass/comptime/provider_boundary_range_endpoint_exit:33` and
+    `fail/comptime/recipe_endpoint_membership_refused_at_closure:26`, all
+    `u64[0..=limit()]` parameter bounds. Closing it needs a contract-expression
+    work-root class in the constant-recipe machinery — the clause endpoint
+    discovered alongside `ArrayLength`/`RangeEndpoint`/`ConstApplication` — plus a
+    fold-publication site in the contract fact, feeding the existing
+    `evaluate_pending` continuation over `constant_recipe_continuations` and the
+    existing `constant_recipe_obligations.rs` discharge against
+    `closed_constant_recipe_value`. The obligation is already an
+    `AtLeast`/`AtMost` row, so the discharge itself needs no change; do not widen
+    `ConstantPredicateObligation`, which serves layout-query unknowns only.
+    `fail/proofs/mathematical_constrained_scalar_formal:2` stays as the negative
+    pin for a range-constrained mathematical formal: its canonical
+    domain-constraint replacement is accepted, so retargeting would erase the
+    pinned refusal; it becomes a parse-refusal pin when the parser deletion
+    lands. Parser and `TypeConstraintNode::Range` therefore stay until those
+    three migrate: the constraint node carries no position information, so no
+    sub-position can be removed while any live spelling remains.
   Canonical controls to keep: `pass/collections/runtime_argmax_index_exit`,
   `pass/calls/runtime_dispatch_binary_call_argument_exit` and
   `fail/calls/state_arrival_call_result_above_bound` (guarded re-entry satisfies
