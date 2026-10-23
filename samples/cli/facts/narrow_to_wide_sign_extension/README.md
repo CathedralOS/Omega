@@ -70,9 +70,24 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 
 ## Pinned Fixtures
 
-The row is pinned under `tests/omega/pass/facts/narrow_to_wide_sign_extension_through_*` and
-`tests/omega/fail/facts/narrow_to_wide_sign_extension_unproved_*` fixtures.
-The positive fixtures bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and record native exit 0.
+The row is pinned by 18 fixtures: `tests/omega/pass/facts/narrow_to_wide_sign_extension_through_<place>_exit`
+and `tests/omega/fail/facts/narrow_to_wide_sign_extension_through_<place>_rejected` for each of the
+nine places. Each positive fixture is its place program copied byte-identical, binds `ProgramEntry`
+for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and
+carries `expected_native_exit.txt` = 0; each reject twin is the place's invalid program copied
+byte-identical with the build application renamed `_invalid` to `_rejected`, and `expected.txt`
+carrying that place's own diagnostic fragment (`exact arithmetic in machine \`evaluate\` state
+\`entry\` local \`sub\` may overflow \`u64\``; `compute` instead of `entry` in `other_state`).
+
+Every row was recorded with the shared generation producer (gen-317bacd12b0, revision 317bacd12b0,
+macOS arm64 host) on 2026-10-22, anchored at that base with the fixture and golden changes staged,
+so each row is stamped `@317bacd12b0a+wt`:
+
+- `tests/omega/corpus_outcomes.txt`: 18 `checked` rows carrying `check-target:macos_arm64` and 18
+  `rejected` rows carrying each twin's own diagnostic line with its expected fragment satisfied;
+- `tests/omega/corpus_native_macos_arm64.txt`: 9 `built` rows with `exit:0`;
+- `tests/omega/corpus_both_macos_arm64.txt`: 9 `built` rows with `exit:0`, `interpreter-exit:0` and
+  `interpreter:agrees`.
 
 ## Requirements and Evidence
 
