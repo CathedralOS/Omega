@@ -1153,6 +1153,13 @@ fn leaf_storage_access_conflicts(
     ) {
         return true;
     }
+    // An incoming borrowed address uses its captured parent permission. That
+    // exact parent is not a competing loan of the same backing. Descendants
+    // and unrelated occurrences remain in the caller's interference scan;
+    // lifetime debts above remain independent of this access relationship.
+    if borrowed_arrivals::lends_from(custody, place, &reference.identity, requested) {
+        return false;
+    }
     let permission = leaf_type(
         types,
         reference.contract.structural_type(),

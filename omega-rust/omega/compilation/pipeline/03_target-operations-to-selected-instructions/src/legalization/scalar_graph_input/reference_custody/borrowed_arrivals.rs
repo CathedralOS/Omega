@@ -192,6 +192,29 @@ pub(super) fn bind(
     Ok(())
 }
 
+/// A borrowed arrival carries authority from its exact captured occurrences,
+/// not from equal storage geometry. Every possible incoming source must grant
+/// this access through the same parent; missing predecessors stay unknown.
+/// This exempts only that parent from ordinary backing interference, never a
+/// descendant or a separate loan, and does not discharge lifetime debts.
+pub(super) fn lends_from(
+    custody: &Custody,
+    place: PlaceId,
+    parent: &OccurrenceIdentity,
+    requested: StructuralAccess,
+) -> bool {
+    custody
+        .borrowed_sources
+        .get(&place)
+        .and_then(Option::as_ref)
+        .is_some_and(|sources| {
+            !sources.is_empty()
+                && sources.iter().all(|source| {
+                    requested.admits(source.access) && source.parents.contains(parent)
+                })
+        })
+}
+
 pub(super) fn obligations(custody: &Custody) -> impl Iterator<Item = &OccurrenceIdentity> {
     custody
         .borrowed_sources
@@ -256,4 +279,116 @@ pub(super) fn merge(left: &mut Custody, right: &Custody) -> Result<(), Legalizat
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn occurrence(number: u64) -> OccurrenceIdentity {
+        OccurrenceIdentity::parameter(&(PlaceId::new(number).unwrap(), Vec::new()))
+    }
+
+    fn source(parent: OccurrenceIdentity, access: StructuralAccess) -> Source {
+        Source {
+            root: Root::Ingress(PlaceId::new(1).unwrap(), Vec::new()),
+            projection: StructuralStorageProjection::Endpoint(StructuralTypeId::new(1).unwrap()),
+            access,
+            parents: vec![parent],
+        }
+    }
+
+    #[test]
+    fn borrowed_arrival_requires_exact_parent_not_equal_backing() {
+        let place = PlaceId::new(2).unwrap();
+        let parent = occurrence(3);
+        let mut custody = Custody::default();
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(
+            place,
+            Some(vec![source(
+                parent.clone(),
+                StructuralAccess::MutableBorrow,
+            )]),
+        );
+        assert!(lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::MutableBorrow
+        ));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &occurrence(4),
+            StructuralAccess::MutableBorrow
+        ));
+        let replaced_parent = OccurrenceIdentity::operation(
+            &(PlaceId::new(3).unwrap(), Vec::new()),
+            OperationId::new(7).unwrap(),
+        );
+        assert!(!lends_from(
+            &custody,
+            place,
+            &replaced_parent,
+            StructuralAccess::MutableBorrow
+        ));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::Owned
+        ));
+        // Equal backing on a second incoming edge cannot supply the first
+        // edge's captured permission occurrence.
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources)
+            .get_mut(&place)
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .push(source(occurrence(4), StructuralAccess::MutableBorrow));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::MutableBorrow
+        ));
+    }
+
+    #[test]
+    fn borrowed_arrival_preserves_access_and_unknown_predecessors() {
+        let place = PlaceId::new(2).unwrap();
+        let parent = occurrence(3);
+        let mut custody = Custody::default();
+        for sources in [None, Some(Vec::new())] {
+            std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(place, sources);
+            assert!(!lends_from(
+                &custody,
+                place,
+                &parent,
+                StructuralAccess::SharedBorrow
+            ));
+        }
+        std::sync::Arc::make_mut(&mut custody.borrowed_sources).insert(
+            place,
+            Some(vec![source(parent.clone(), StructuralAccess::SharedBorrow)]),
+        );
+        assert!(lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::SharedBorrow
+        ));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::MutableBorrow
+        ));
+        assert!(!lends_from(
+            &custody,
+            place,
+            &parent,
+            StructuralAccess::WriteOnlyBorrow
+        ));
+    }
 }

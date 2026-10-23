@@ -4302,7 +4302,9 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   [the selector regression family](tests/omega/pass/collections/runtime_computed_nested_borrow_call_exit/README.md):
   shared reads, computed and signed indices, exact-once authored argument order,
   later mutation, private joins and dynamic Unit calls retain the selected
-  caller cell and leave neighbors untouched. Keep the selected-extent and
+  caller cell and leave neighbors untouched. Retain the same exact-once
+  selector effects across named-state loans, including contract-fixed indices,
+  in `samples/cli/facts/computed_nested_state_loan`. Keep the selected-extent and
   shared-authority refusal controls. Include the constrained shared-field
   [authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md)
   and padded two-selector variation in that cross-host execution coverage.

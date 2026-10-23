@@ -497,12 +497,36 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     retained_operand_parents: Vec::new(),
                 });
             }
+            // Retained operand evaluation owns reference formation and its
+            // selector effects. Canonical geometry may fold a proved selector
+            // to a fixed coordinate, but cannot replace the evaluation that
+            // captures it. Ordinary calls consume that same retained value.
+            let evaluated_argument = control::structural_operands::evaluated_argument_root(
+                program,
+                facts,
+                machine.symbol,
+                source.symbol,
+                ordinal as usize,
+                expression,
+                target_parameters.get(target.position as usize)?,
+            )
+            .filter(|root| {
+                // Established edge values currently transport a whole home,
+                // not an owner plus a selected loan path. Keep projected
+                // borrows out of that route: copying the child would lose
+                // the complete owner's cleanup obligation.
+                target.access == CheckedStructuralAccess::Owned
+                    || validation::slice_view_shell(program, root.type_reference, &[]).is_some()
+                    || !matches!(
+                        facts.values.structural_values.nodes.get(root.root).kind,
+                        checked_trees::CheckedStructuralValueKind::Projection { .. }
+                    )
+            });
             mark(SuccessorGuard::LoanTransfer);
-            // Resolve existing storage before constructing an argument value.
-            // A freshly materialized descriptor would hide its actual owner's
-            // lifetime from the successor's loan-chain plan. A genuine stored
-            // descriptor keeps its authenticated crossing below; constructors
-            // and descriptor conversions still use fresh establishment.
+            // Without a retained operand evaluation, transfer existing storage
+            // with its authenticated root and descriptor crossings. Evaluated
+            // operands use ordinary establishment below, whose checked loan
+            // provenance retains their backing and parent lifetimes.
             // A reference argument loans its resolved place into the borrowed
             // target parameter. Declared correspondence covers explicit borrows,
             // forwarded references and implicit shared field loans alike; an
@@ -514,7 +538,8 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // A loan transports access, not ownership of its referent. The
             // source checker has admitted this exact edge and its lifetime;
             // requiring copyable contents would discard valid affine backing.
-            if matches!(target.access,
+            if evaluated_argument.is_none()
+                && matches!(target.access,
                     CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
                         | CheckedStructuralAccess::WriteOnlyBorrow)
                 && validation::checked_argument_matches_type_reference(
@@ -741,27 +766,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             // own move roster subtracts it from this edge's cleanup. Nested
             // structural operands remain in the edge's operation sequence;
             // they run after selection through the ordinary call emitter.
-            if let Some(root) = control::structural_operands::evaluated_argument_root(
-                program,
-                facts,
-                machine.symbol,
-                source.symbol,
-                ordinal as usize,
-                expression,
-                target_parameters.get(target.position as usize)?,
-            )
-            .filter(|root| {
-                // Established edge values currently transport a whole home,
-                // not an owner plus a selected loan path. Keep projected
-                // borrows out of that route: copying the child would lose
-                // the complete owner's cleanup obligation.
-                target.access == CheckedStructuralAccess::Owned
-                    || validation::slice_view_shell(program, root.type_reference, &[]).is_some()
-                    || !matches!(
-                        facts.values.structural_values.nodes.get(root.root).kind,
-                        checked_trees::CheckedStructuralValueKind::Projection { .. }
-                    )
-            }) {
+            if let Some(root) = evaluated_argument {
                 let stored_reference = target.access != CheckedStructuralAccess::Owned
                     && validation::reference_result_custody::stored_loan_parts(program, root.type_reference).is_some();
                 let multiplicity = if stored_reference {
