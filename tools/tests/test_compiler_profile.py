@@ -115,6 +115,82 @@ class CompilerProfileTests(unittest.TestCase):
             profile.require_optimized(self.binary)
 
 
+class TopLevelExecutableProfileTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name) / "debug"
+        self.directory.mkdir()
+
+    def artifact(self, layout, *, suffix="", unit="0123456789abcdef", flags=None):
+        binary = self.directory / ("tool-name" + suffix)
+        binary.write_bytes(b"exact executable")
+        if layout == "build":
+            output = self.directory / "build" / "package" / unit / "out" / binary.name
+            fingerprint = output.parent.parent / "fingerprint" / "bin-tool_name.json"
+        else:
+            output = self.directory / "deps" / ("tool_name-" + unit + suffix)
+            fingerprint = self.directory / ".fingerprint" / ("package-" + unit) / "bin-tool_name.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(binary.read_bytes())
+        fingerprint.parent.mkdir(parents=True, exist_ok=True)
+        fingerprint.write_text(json.dumps(dict(rustflags=[] if flags is None else flags)))
+        item = dict(target=dict(name="tool-name", kind=["bin"]), profile=dict(opt_level="1"),
+                    executable=str(binary), filenames=[str(binary)])
+        return item, output, fingerprint
+
+    def test_top_level_binary_binds_exact_output_in_both_cargo_layouts(self):
+        for layout, suffix in [("build", ""), ("deps", ".exe")]:
+            with self.subTest(layout=layout, suffix=suffix):
+                item, output, fingerprint = self.artifact(layout, suffix=suffix)
+                result = profile.artifact_codegen(item)
+                self.assertEqual(result["opt_level"], "1")
+                self.assertEqual(result["fingerprint"]["path"], str(fingerprint))
+                output.unlink()
+
+    def test_same_name_and_profile_do_not_admit_different_output_bytes(self):
+        item, output, _ = self.artifact("build")
+        output.write_bytes(b"different executable")
+        with self.assertRaisesRegex(profile.CompilerProfileError, "exact Cargo compiler fingerprint"):
+            profile.artifact_codegen(item)
+
+    def test_identical_stale_outputs_are_ambiguous_even_with_matching_flags(self):
+        item, _, _ = self.artifact("build")
+        self.artifact("build", unit="fedcba9876543210")
+        with self.assertRaisesRegex(profile.CompilerProfileError, "exact Cargo compiler fingerprint"):
+            profile.artifact_codegen(item)
+
+    def test_missing_or_library_fingerprint_cannot_supply_bin_profile(self):
+        item, _, fingerprint = self.artifact("build")
+        fingerprint.rename(fingerprint.with_name("lib-tool_name.json"))
+        with self.assertRaisesRegex(profile.CompilerProfileError, "exact Cargo compiler fingerprint"):
+            profile.artifact_codegen(item)
+
+    def test_matching_output_with_missing_fingerprint_still_makes_lookup_ambiguous(self):
+        item, _, fingerprint = self.artifact("deps")
+        fingerprint.unlink()
+        self.artifact("deps", unit="fedcba9876543210")
+        with self.assertRaisesRegex(profile.CompilerProfileError, "exact Cargo compiler fingerprint"):
+            profile.artifact_codegen(item)
+
+    def test_different_target_name_cannot_supply_executable_fingerprint(self):
+        item, _, _ = self.artifact("build")
+        item["target"]["name"] = "different-target"
+        with self.assertRaisesRegex(profile.CompilerProfileError, "exact Cargo compiler fingerprint"):
+            profile.artifact_codegen(item)
+
+    def test_executable_target_kind_is_required(self):
+        item, _, _ = self.artifact("build")
+        item["target"]["kind"] = ["lib"]
+        with self.assertRaisesRegex(profile.CompilerProfileError, "exact Cargo compiler fingerprint"):
+            profile.artifact_codegen(item)
+
+    def test_top_level_bin_uses_effective_flags_instead_of_profile_label(self):
+        item, _, _ = self.artifact("build", flags=["-C", "opt-level=0"])
+        with self.assertRaisesRegex(profile.CompilerProfileError, "effective opt-level"):
+            profile.artifact_codegen(item)
+
+
 class GateCompilerAdmissionTests(unittest.TestCase):
     def test_unknown_supplied_cli_never_starts_sample_work(self):
         with tempfile.TemporaryDirectory() as directory:

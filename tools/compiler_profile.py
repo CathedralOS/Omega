@@ -56,6 +56,42 @@ def effective_optimization(level, flags):
     return level
 
 
+def top_level_executable_fingerprints(binary, target):
+    """Identify an unhashed Cargo bin through its exact internal output bytes.
+
+    Cargo reports a top-level executable path rather than its unit output. Both
+    Cargo layouts retain that output beside the unit's fingerprint. Target name
+    and bytes must select one output; stale identical outputs are ambiguous even
+    when their flags agree. A library fingerprint cannot stand in for the bin.
+    """
+    if target.get("kind") != ["bin"]:
+        return set()
+    name = target["name"].replace("-", "_")
+    suffix = ".exe" if binary.suffix == ".exe" else ""
+    digest = hashlib.sha256(binary.read_bytes()).digest()
+    outputs = {}
+    for filename in {binary.name, name + suffix}:
+        for output in (binary.parent / "build").glob("*/*/out/" + filename):
+            if output.is_file() and hashlib.sha256(output.read_bytes()).digest() == digest:
+                fingerprint = output.parent.parent / "fingerprint" / ("bin-" + name + ".json")
+                outputs.setdefault(output, set()).add(fingerprint)
+    for output in (binary.parent / "deps").glob(name + "-*" + suffix):
+        match = re.fullmatch(re.escape(name) + r"-([0-9a-f]+)" + re.escape(suffix), output.name)
+        if (match and output.is_file()
+                and hashlib.sha256(output.read_bytes()).digest() == digest):
+            outputs.setdefault(output, set())
+            fingerprints = (binary.parent / ".fingerprint").glob("*-" + match.group(1))
+            for directory in fingerprints:
+                outputs.setdefault(output, set()).add(directory / ("bin-" + name + ".json"))
+    if len(outputs) != 1:
+        return set()
+    fingerprints = next(iter(outputs.values()))
+    if len(fingerprints) != 1:
+        return set()
+    fingerprint = next(iter(fingerprints))
+    return {fingerprint} if fingerprint.is_file() else set()
+
+
 def artifact_codegen(item):
     """Find the exact artifact's flags in Cargo or mbx's fingerprint layout.
 
@@ -76,6 +112,8 @@ def artifact_codegen(item):
                 fingerprints = artifact.parent.parent / ".fingerprint"
                 for directory in fingerprints.glob("*-" + suffix.group(1)):
                     candidates.update(directory.glob("*-" + name + ".json"))
+        elif item.get("executable") == str(artifact):
+            candidates.update(top_level_executable_fingerprints(artifact, item["target"]))
     if len(candidates) != 1:
         raise CompilerProfileError(f"{name}: cannot identify the exact Cargo compiler fingerprint")
     path = candidates.pop()
