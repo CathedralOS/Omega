@@ -51,7 +51,7 @@ pub(crate) use contract_entry::{
 };
 pub(crate) use expression_facts::{
     occupies_scalar_position, operator_is_builtin, parameter_position, scalar_expression_type,
-    zeroed_scalar_local_initializer,
+    scalar_parameter_roster, scalar_position_count, zeroed_scalar_local_initializer,
 };
 pub(crate) use expression_plans::{
     assignment_target_primitive_type, build_checked_scalar_expression_plans,

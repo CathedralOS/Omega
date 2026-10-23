@@ -207,18 +207,9 @@ pub(crate) fn build_checked_scalar_expression_plans(
         for state in states {
             let mut locals = Vec::new();
             let parameters = program.state_parameters(state);
-            let scalar_parameters = parameters
-                .iter()
-                .filter(|parameter| {
-                    crate::values::scalar::occupies_scalar_position(program, parameter)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            let parameter_types = scalar_parameters
-                .iter()
-                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-                .collect::<Option<Vec<_>>>()
-                .expect("filtered scalar parameters retain primitive carriers");
+            let (scalar_parameters, parameter_types) =
+                crate::values::scalar::scalar_parameter_roster(program, parameters)
+                    .expect("filtered scalar parameters retain primitive carriers");
             let result_type = program.primitive_type_reference(state.return_type);
             for (statement_index, statement) in program
                 .statement_table

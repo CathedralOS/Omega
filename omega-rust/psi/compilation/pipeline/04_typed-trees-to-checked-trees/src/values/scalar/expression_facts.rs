@@ -27,6 +27,38 @@ pub(crate) fn occupies_scalar_position(
             .is_some()
 }
 
+/// The scalar-parameter roster and each retained parameter's primitive
+/// carrier, in authored order. `None` when a retained parameter has no
+/// primitive carrier. Every lowerer that reads the dense scalar namespace
+/// takes its roster from here rather than rebuilding the filter.
+pub(crate) fn scalar_parameter_roster(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+) -> Option<(Vec<StateParameter>, Vec<PrimitiveType>)> {
+    let scalar_parameters = parameters
+        .iter()
+        .filter(|parameter| occupies_scalar_position(program, parameter))
+        .cloned()
+        .collect::<Vec<_>>();
+    let parameter_types = scalar_parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    Some((scalar_parameters, parameter_types))
+}
+
+/// The dense scalar position a parameter at `parameters.len()` would take:
+/// the number of retained scalar parameters in the slice.
+pub(crate) fn scalar_position_count(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+) -> usize {
+    parameters
+        .iter()
+        .filter(|parameter| occupies_scalar_position(program, parameter))
+        .count()
+}
+
 pub(crate) fn parameter_position(
     program: &dyn ::validation::CheckingInput,
     path: &typed_trees::expression::TableNamePath,

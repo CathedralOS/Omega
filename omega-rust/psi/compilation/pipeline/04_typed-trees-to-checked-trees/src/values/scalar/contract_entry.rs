@@ -122,14 +122,10 @@ impl EntryOperands<'_> {
         }
         // Structural entry operands keep their separate authored positions.
         // Scalar Parameter uses the dense primitive namespace at this boundary.
-        Some(
-            self.parameters[..position]
-                .iter()
-                .filter(|parameter| {
-                    crate::values::scalar::occupies_scalar_position(self.program, parameter)
-                })
-                .count(),
-        )
+        Some(crate::values::scalar::scalar_position_count(
+            self.program,
+            &self.parameters[..position],
+        ))
     }
 
     /// Dense erased-scalar index of the parameter carrying `symbol`, or `None`

@@ -73,11 +73,8 @@ pub(crate) fn lower_unit_scalar_argument(
     expression: ExpressionHandle,
     expected_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
-    let (parameters, locals) = unit_scalar_context(program, state, before_statement)?;
-    let parameter_types = parameters
-        .iter()
-        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-        .collect::<Option<Vec<_>>>()?;
+    let (parameters, parameter_types, locals) =
+        unit_scalar_context(program, state, before_statement)?;
 
     lower_return_expression(
         program,
@@ -155,13 +152,9 @@ pub(crate) fn unit_scalar_context(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     before_statement: usize,
-) -> Option<(Vec<StateParameter>, Vec<ScalarLocal>)> {
-    let parameters = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
-        .cloned()
-        .collect::<Vec<_>>();
+) -> Option<(Vec<StateParameter>, Vec<PrimitiveType>, Vec<ScalarLocal>)> {
+    let (parameters, parameter_types) =
+        crate::values::scalar::scalar_parameter_roster(program, program.state_parameters(state))?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix = statements.get(..before_statement)?;
     let mut locals = Vec::new();
@@ -182,7 +175,7 @@ pub(crate) fn unit_scalar_context(
         }
         locals.push(ScalarLocal::from_local_data(program, local, primitive_type));
     }
-    Some((parameters, locals))
+    Some((parameters, parameter_types, locals))
 }
 
 /// The exact binding namespace used by `lower_unit_scalar_argument`. Stored
@@ -192,7 +185,7 @@ pub(crate) fn unit_scalar_binding_symbols(
     state: &typed_trees::state::State,
     before_statement: usize,
 ) -> Option<Vec<symbols::SymbolHandle>> {
-    let (parameters, locals) = unit_scalar_context(program, state, before_statement)?;
+    let (parameters, _, locals) = unit_scalar_context(program, state, before_statement)?;
     Some(
         parameters
             .iter()

@@ -342,12 +342,8 @@ impl ContractPredicates<'_, '_> {
                     .count();
                 return Some((erased_position, parameter.type_reference, true));
             }
-            let scalar_position = self.parameters[..position]
-                .iter()
-                .filter(|parameter| {
-                    crate::values::scalar::occupies_scalar_position(program, parameter)
-                })
-                .count();
+            let scalar_position =
+                crate::values::scalar::scalar_position_count(program, &self.parameters[..position]);
             return Some((scalar_position, parameter.type_reference, false));
         }
         // Equal spelling or carrier does not establish result ownership. This
@@ -357,12 +353,7 @@ impl ContractPredicates<'_, '_> {
                 == Some((self.owner, self.result_type)))
         .then(|| {
             (
-                self.parameters
-                    .iter()
-                    .filter(|parameter| {
-                        crate::values::scalar::occupies_scalar_position(program, parameter)
-                    })
-                    .count(),
+                crate::values::scalar::scalar_position_count(program, self.parameters),
                 self.result_type,
                 false,
             )
@@ -1389,10 +1380,7 @@ pub(crate) fn lower_state_declared_range_predicate(
     if !is_integer(primitive_type) {
         return None;
     }
-    let position = parameters[..index]
-        .iter()
-        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
-        .count();
+    let position = crate::values::scalar::scalar_position_count(program, &parameters[..index]);
     if let (Some(minimum), Some(maximum)) = (
         validation::closed_integer_range_bound(program, minimum),
         validation::closed_integer_range_maximum(program, maximum, end_inclusive),
@@ -1456,10 +1444,7 @@ pub(crate) fn lower_state_domain_predicate(
     if authored.relevance.is_erased() || authored.is_const {
         return None;
     }
-    let position = parameters[..index]
-        .iter()
-        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
-        .count();
+    let position = crate::values::scalar::scalar_position_count(program, &parameters[..index]);
     validation::scalar_domain_value_predicate(
         program,
         constraint,

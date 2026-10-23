@@ -95,12 +95,10 @@ pub(crate) fn lower(
             (program.primitive_type_reference(parameter.type_reference)
                 == Some(PrimitiveType::Bool))
             .then(|| CheckedBooleanExpression::Parameter {
-                position: parameters[..source_position]
-                    .iter()
-                    .filter(|parameter| {
-                        crate::values::scalar::occupies_scalar_position(program, parameter)
-                    })
-                    .count(),
+                position: crate::values::scalar::scalar_position_count(
+                    program,
+                    &parameters[..source_position],
+                ),
             })
         }
         ExpressionNode::Unary(unary)
@@ -123,17 +121,8 @@ pub(crate) fn lower(
                 // and arithmetic policy. Keep the dense scalar roster separate
                 // from authored structural positions; entry admission and
                 // independent source replay still validate the resulting reads.
-                let scalar_parameters: Vec<_> = parameters
-                    .iter()
-                    .filter(|parameter| {
-                        crate::values::scalar::occupies_scalar_position(program, parameter)
-                    })
-                    .cloned()
-                    .collect();
-                let parameter_types = scalar_parameters
-                    .iter()
-                    .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-                    .collect::<Option<Vec<_>>>()?;
+                let (scalar_parameters, parameter_types) =
+                    crate::values::scalar::scalar_parameter_roster(program, parameters)?;
                 let ((left, _), (right, _)) = lower_scalar_operands(
                     program,
                     operators,

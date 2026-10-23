@@ -46,19 +46,11 @@ pub(crate) fn retain_nested_call_arguments(
 ) {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            let parameters = program
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| {
-                    crate::values::scalar::occupies_scalar_position(program, parameter)
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            let parameter_types = parameters
-                .iter()
-                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-                .collect::<Option<Vec<_>>>()
-                .expect("filtered scalar parameters retain primitive carriers");
+            let (parameters, parameter_types) = crate::values::scalar::scalar_parameter_roster(
+                program,
+                program.state_parameters(state),
+            )
+            .expect("filtered scalar parameters retain primitive carriers");
             let mut locals = Vec::new();
             let captured =
                 crate::values::scalar::array_constructions::unique_state_flow(flow, machine, state);

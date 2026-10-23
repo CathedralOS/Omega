@@ -1,5 +1,7 @@
 //! Exact invocation predicates over Boolean fields, total integer
-//! comparisons, and IEEE comparisons with exact literal endpoints.
+//! comparisons, and IEEE comparisons with exact literal endpoints. Each
+//! comparison operand is resolved once: its resolved carrier selects the
+//! integer or IEEE family and the same resolution lowers it.
 use crate::values::operator_is_builtin;
 
 use checked_trees::{
@@ -142,12 +144,10 @@ pub(crate) fn lower_entry_scalar(
             }
             Some(if path.is_empty() {
                 CheckedScalarExpression::Parameter {
-                    position: reader.parameters[..parameter_position]
-                        .iter()
-                        .filter(|parameter| {
-                            crate::values::scalar::occupies_scalar_position(program, parameter)
-                        })
-                        .count(),
+                    position: crate::values::scalar::scalar_position_count(
+                        program,
+                        &reader.parameters[..parameter_position],
+                    ),
                     primitive_type: primitive,
                 }
             } else {
@@ -189,7 +189,24 @@ pub(crate) fn lower_signature_crash_contract_expression(
     {
         return None;
     }
-    let parameters = program.state_signature_parameters(signature);
+    lower_declaration_crash_contract_expression(
+        program,
+        operators,
+        signature.symbol,
+        program.state_signature_parameters(signature),
+        expression,
+    )
+}
+
+/// One closed authored formal telescope lowers a declaration's crash routes;
+/// both bodyless entrypoints supply only their own closedness precondition.
+fn lower_declaration_crash_contract_expression(
+    program: &dyn ::validation::CheckingInput,
+    operators: &CheckedOperatorFacts,
+    owner: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
     for (position, parameter) in parameters.iter().enumerate() {
         if !parameter.symbol.is_valid()
             || parameters[..position]
@@ -204,7 +221,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
         operators,
         machine: None,
         state: None,
-        owner: signature.symbol,
+        owner,
         parameters,
         remaining: 4096,
         subjects: None,
@@ -231,34 +248,66 @@ pub(crate) fn lower_operator_crash_contract_expression(
     {
         return None;
     }
-    let parameters = program.operator_parameters(operator);
-    for (position, parameter) in parameters.iter().enumerate() {
-        if !parameter.symbol.is_valid()
-            || parameters[..position]
-                .iter()
-                .any(|prior| prior.symbol == parameter.symbol)
-        {
-            return None;
-        }
-    }
-    Reader {
+    lower_declaration_crash_contract_expression(
         program,
         operators,
-        machine: None,
-        state: None,
-        owner: operator.symbol,
-        parameters,
-        remaining: 4096,
-        subjects: None,
-        proof_context: true,
-    }
-    .boolean(expression, 0)
+        operator.symbol,
+        program.operator_parameters(operator),
+        expression,
+    )
 }
 
 struct FieldPath {
     parameter_position: usize,
     path: Vec<CheckedStructuralPredicatePathSegment>,
     type_reference: TypeReferenceHandle,
+}
+
+/// One comparison operand, resolved once: its carrier selects the comparison
+/// family and the same resolution lowers it.
+enum ComparisonOperand {
+    FloatLiteral {
+        value: CheckedScalarExpression,
+        reference: TypeReferenceHandle,
+    },
+    /// A subject read; `static_subject` is present when the read needs no
+    /// runtime selector, the only read form IEEE comparisons admit.
+    Subject {
+        static_subject: Option<FieldPath>,
+        value: CheckedScalarExpression,
+        reference: TypeReferenceHandle,
+        integer: bool,
+        ieee: bool,
+    },
+    IntegerLiteral,
+    Unsupported,
+}
+
+impl ComparisonOperand {
+    fn is_ieee(&self) -> bool {
+        matches!(self, ComparisonOperand::FloatLiteral { .. })
+            || matches!(self, ComparisonOperand::Subject { ieee: true, .. })
+    }
+
+    fn is_integer(&self) -> bool {
+        matches!(self, ComparisonOperand::IntegerLiteral)
+            || matches!(self, ComparisonOperand::Subject { integer: true, .. })
+    }
+
+    /// The IEEE operand this resolution supplies.
+    fn ieee_operand(self) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+        match self {
+            ComparisonOperand::FloatLiteral { value, reference } => Some((value, reference)),
+            ComparisonOperand::Subject {
+                static_subject: Some(_),
+                ieee: true,
+                value,
+                reference,
+                ..
+            } => Some((value, reference)),
+            _ => None,
+        }
+    }
 }
 
 impl<'program> Reader<'program> {
@@ -355,32 +404,31 @@ impl<'program> Reader<'program> {
                         )
                     }) =>
             {
-                if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
-                    && self.has_float_operand([binary.left, binary.right], depth + 1)?
-                {
-                    return self.float_comparison(
-                        expression,
-                        [binary.left, binary.right],
-                        binary.operator,
-                        depth + 1,
-                    );
-                }
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                ) || (matches!(
-                    binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
-                ) && self.has_integer_operand([binary.left, binary.right], depth + 1)?)
-                {
-                    return self.integer_comparison(
-                        expression,
-                        [binary.left, binary.right],
-                        depth + 1,
-                    );
+                if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                    // Each comparison operand is resolved once, and its
+                    // carrier selects the family that lowers it.
+                    let operands = [
+                        self.comparison_operand(binary.left, depth + 1)?,
+                        self.comparison_operand(binary.right, depth + 1)?,
+                    ];
+                    let ieee = operands.iter().any(ComparisonOperand::is_ieee);
+                    if ieee
+                        || operands.iter().any(ComparisonOperand::is_integer)
+                        || matches!(
+                            binary.operator,
+                            BinaryOperator::Less
+                                | BinaryOperator::LessOrEqual
+                                | BinaryOperator::Greater
+                                | BinaryOperator::GreaterOrEqual
+                        )
+                    {
+                        self.comparison_telescope(depth + 1)?;
+                        return if ieee {
+                            self.float_comparison(expression, operands)
+                        } else {
+                            self.integer_comparison(expression, operands)
+                        };
+                    }
                 }
                 let left = Box::new(self.boolean(binary.left, depth + 1)?);
                 let right = Box::new(self.boolean(binary.right, depth + 1)?);
@@ -446,44 +494,55 @@ impl<'program> Reader<'program> {
         })
     }
 
-    fn has_integer_operand(
-        &mut self,
-        operands: [ExpressionHandle; 2],
-        depth: usize,
-    ) -> Option<bool> {
-        for operand in operands {
-            self.charge(depth)?;
-            if !self.program.expression_table.expression_is_valid(operand) {
-                return None;
-            }
-            match self.program.expression_table.expression(operand) {
-                ExpressionNode::Integer(_) => return Some(true),
-                ExpressionNode::Name(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Indexed(_) => {
-                    let (_, reference) = self.numeric_subject(operand, depth + 1)?;
-                    if self
-                        .primitive(reference, depth + 1)?
-                        .is_some_and(|(_, atom)| fixed_integer_atom(atom))
-                    {
-                        return Some(true);
-                    }
-                }
-                _ => {}
-            }
-        }
-        Some(false)
-    }
-
-    fn integer_comparison(
+    /// One comparison operand resolved once; the family its carrier selects
+    /// also lowers it.
+    fn comparison_operand(
         &mut self,
         expression: ExpressionHandle,
-        operands: [ExpressionHandle; 2],
         depth: usize,
-    ) -> Option<CheckedBooleanExpression> {
-        // Dense scalar positions depend on the entire entry telescope, including
-        // unread formals. Validate its type chains before counting positions;
-        // dummy/stale types and cycles cannot change the entry namespace.
+    ) -> Option<ComparisonOperand> {
+        self.charge(depth)?;
+        if !self
+            .program
+            .expression_table
+            .expression_is_valid(expression)
+        {
+            return None;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Float(literal) => {
+                let reference = validation::parameter_expression_result_type_reference(
+                    self.program,
+                    self.owner,
+                    self.parameters,
+                    expression,
+                )?;
+                let value = CheckedScalarExpression::IeeeFloatLiteral {
+                    value: typed_trees::expression::ieee_float_value(literal, literal.landing()?),
+                };
+                Some(ComparisonOperand::FloatLiteral { value, reference })
+            }
+            ExpressionNode::Integer(_) => Some(ComparisonOperand::IntegerLiteral),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                // Only a read with no runtime selector has an IEEE form.
+                let static_subject = self.subject(expression, depth + 2);
+                let (value, reference, atom) =
+                    self.resolved_subject(expression, static_subject.as_ref(), depth + 1)?;
+                Some(ComparisonOperand::Subject {
+                    static_subject,
+                    value,
+                    reference,
+                    integer: atom.is_some_and(fixed_integer_atom),
+                    ieee: atom.is_some_and(ieee_float_atom),
+                })
+            }
+            _ => Some(ComparisonOperand::Unsupported),
+        }
+    }
+
+    /// Dense scalar positions depend on the entire entry telescope, including
+    /// unread formals; both families share this validation.
+    fn comparison_telescope(&mut self, depth: usize) -> Option<()> {
         for parameter in self.parameters {
             if parameter.is_const
                 || self.program.symbols.name(parameter.symbol) != parameter.name.as_str()
@@ -492,24 +551,24 @@ impl<'program> Reader<'program> {
             }
             self.primitive(parameter.type_reference, depth + 1)?;
         }
+        Some(())
+    }
+
+    fn integer_comparison(
+        &self,
+        expression: ExpressionHandle,
+        operands: [ComparisonOperand; 2],
+    ) -> Option<CheckedBooleanExpression> {
         let mut subjects = [None, None];
         for (position, operand) in operands.into_iter().enumerate() {
-            self.charge(depth)?;
-            if !self.program.expression_table.expression_is_valid(operand) {
-                return None;
-            }
-            match self.program.expression_table.expression(operand) {
-                ExpressionNode::Name(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Indexed(_) => {
-                    let (value, reference) = self.numeric_subject(operand, depth + 1)?;
-                    let (_, atom) = self.primitive(reference, depth + 1)??;
-                    if !fixed_integer_atom(atom) {
-                        return None;
-                    }
-                    subjects[position] = Some((value, reference));
-                }
-                ExpressionNode::Integer(_) => {}
+            match operand {
+                ComparisonOperand::Subject {
+                    value,
+                    reference,
+                    integer: true,
+                    ..
+                } => subjects[position] = Some((value, reference)),
+                ComparisonOperand::IntegerLiteral => {}
                 // This slice establishes no totality for arithmetic, calls,
                 // casts, result values, or current body storage.
                 _ => return None,
@@ -530,105 +589,42 @@ impl<'program> Reader<'program> {
     /// IEEE relations retain their own meaning, including unordered inputs.
     /// Read exact formal identities and already-landed literal bits; never
     /// reinterpret them as integer order or round them through a host float.
+    /// The shared contract owner checks both carriers and the meaning.
     fn float_comparison(
-        &mut self,
+        &self,
         expression: ExpressionHandle,
-        operands: [ExpressionHandle; 2],
-        _operator: BinaryOperator,
-        depth: usize,
+        operands: [ComparisonOperand; 2],
     ) -> Option<CheckedBooleanExpression> {
-        // Dense scalar positions depend on the entire entry telescope, exactly
-        // as integer comparisons do.
-        for parameter in self.parameters {
-            if parameter.is_const
-                || self.program.symbols.name(parameter.symbol) != parameter.name.as_str()
-            {
-                return None;
-            }
-            self.primitive(parameter.type_reference, depth + 1)?;
-        }
-        let mut subjects = [None, None];
-        for (position, operand) in operands.into_iter().enumerate() {
-            self.charge(depth)?;
-            if !self.program.expression_table.expression_is_valid(operand) {
-                return None;
-            }
-            if let ExpressionNode::Float(literal) =
-                self.program.expression_table.expression(operand)
-            {
-                let value = typed_trees::expression::ieee_float_value(literal, literal.landing()?);
-                let type_reference = validation::parameter_expression_result_type_reference(
-                    self.program,
-                    self.owner,
-                    self.parameters,
-                    operand,
-                )?;
-                subjects[position] = Some((
-                    CheckedScalarExpression::IeeeFloatLiteral { value },
-                    type_reference,
-                ));
-                continue;
-            }
-            let subject = self.subject(operand, depth + 1)?;
-            let (primitive_type, atom) = self.primitive(subject.type_reference, depth + 1)??;
-            if !ieee_float_atom(atom) {
-                return None;
-            }
-            subjects[position] = Some((
-                self.subject_scalar(&subject, primitive_type, depth + 1)?,
-                subject.type_reference,
-            ));
-        }
+        let [left, right] = operands;
         super::super::result_contract::lower_float_contract_comparison(
             self.program,
             self.owner,
             expression,
-            subjects,
+            [left.ieee_operand(), right.ieee_operand()],
         )
-    }
-
-    fn has_float_operand(&mut self, operands: [ExpressionHandle; 2], depth: usize) -> Option<bool> {
-        for operand in operands {
-            self.charge(depth)?;
-            if !self.program.expression_table.expression_is_valid(operand) {
-                return None;
-            }
-            if matches!(
-                self.program.expression_table.expression(operand),
-                ExpressionNode::Float(_)
-            ) {
-                return Some(true);
-            }
-            if matches!(
-                self.program.expression_table.expression(operand),
-                ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
-            ) {
-                let (_, reference) = self.numeric_subject(operand, depth + 1)?;
-                if self
-                    .primitive(reference, depth + 1)?
-                    .is_some_and(|(_, atom)| ieee_float_atom(atom))
-                {
-                    return Some(true);
-                }
-            }
-        }
-        Some(false)
     }
 
     /// Read ordered selections with the ordinary scalar projection owner.
     /// Authenticate the collection and every selector separately: neither a
     /// stable collection nor a saved selector alone authenticates their read.
-    /// This translation supplies meaning, never an indexing bound.
-    fn numeric_subject(
+    /// This translation supplies meaning, never an indexing bound; the
+    /// caller's already-resolved static subject keeps the authored walk to
+    /// one pass per operand.
+    fn resolved_subject(
         &mut self,
         expression: ExpressionHandle,
+        subject: Option<&FieldPath>,
         depth: usize,
-    ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+    ) -> Option<(
+        CheckedScalarExpression,
+        TypeReferenceHandle,
+        Option<BuiltinTypeAtom>,
+    )> {
         self.charge(depth)?;
-        if let Some(subject) = self.subject(expression, depth + 1) {
-            let (primitive, _) = self.primitive(subject.type_reference, depth + 1)??;
-            let value = self.subject_scalar(&subject, primitive, depth + 1)?;
-            return Some((value, subject.type_reference));
+        if let Some(subject) = subject {
+            let (primitive, atom) = self.primitive(subject.type_reference, depth + 1)??;
+            let value = self.subject_scalar(subject, primitive, depth + 1)?;
+            return Some((value, subject.type_reference, Some(atom)));
         }
         let source_parameters = self
             .state
@@ -642,8 +638,9 @@ impl<'program> Reader<'program> {
             expression,
             source_parameters,
             |_, selector, _| {
-                self.numeric_subject(selector, depth + 1)
-                    .map(|(value, _)| value)
+                let selector_subject = self.subject(selector, depth + 2);
+                self.resolved_subject(selector, selector_subject.as_ref(), depth + 1)
+                    .map(|(value, _, _)| value)
                     .or_else(|| {
                         super::super::scalar_lowering::land_anonymous_scalar_expression(
                             program,
@@ -693,8 +690,8 @@ impl<'program> Reader<'program> {
             )?
         };
         let reference = validation::field_domains::readable_type_reference(program, reference)?;
-        let (primitive, _) = self.primitive(reference, depth + 1)??;
-        (primitive == *primitive_type).then_some((value, reference))
+        let (primitive, atom) = self.primitive(reference, depth + 1)??;
+        (primitive == *primitive_type).then_some((value, reference, Some(atom)))
     }
 
     // Scalar positions are dense; structural roots retain the authored formal
@@ -761,7 +758,7 @@ impl<'program> Reader<'program> {
             self.program.expression_table.expression(expression),
             ExpressionNode::Name(_)
         ) {
-            let position = self.parameter(expression, false)?;
+            let position = self.parameter(expression)?;
             Some(FieldPath {
                 parameter_position: position,
                 path: Vec::new(),
@@ -784,7 +781,7 @@ impl<'program> Reader<'program> {
         }
     }
 
-    fn parameter(&self, expression: ExpressionHandle, _allow_self: bool) -> Option<usize> {
+    fn parameter(&self, expression: ExpressionHandle) -> Option<usize> {
         let name = self.program.expression_table.name_path_node(expression)?;
         let [spelling] = self
             .program
