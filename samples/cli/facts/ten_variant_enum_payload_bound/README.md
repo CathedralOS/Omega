@@ -11,18 +11,18 @@ Subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64
 
 ## Places
 
-| Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
-| --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | — | canonical root witness matching 10-variant enum payload and evaluating dual margin subtractions |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | extracted 64-bit variant payload is copied into a local binding before verification |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | extracted 64-bit variant payload is stored into and read from a record field before verification |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | extracted 64-bit variant payload is passed as an explicit machine parameter before verification |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | extracted 64-bit variant payload is returned from a dedicated helper machine |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the extracted 64-bit variant payload |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply upper and lower ceilings for variant payload bounds |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the extracted 64-bit variant payload into a successor state |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the extracted 64-bit variant payload |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing payload extraction and verification |
+| Place | Positive Program | Reject Twin (invalid) | Transport Mechanism | Pinned Pass Fixture | Pinned Reject Fixture |
+| --- | --- | --- | --- | --- | --- |
+| root | [`main.omg`](main.omg) | — | canonical root witness matching 10-variant enum payload and evaluating dual margin subtractions | — | — |
+| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | extracted 64-bit variant payload is copied into a local binding before verification | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_local_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_local_rejected` |
+| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | extracted 64-bit variant payload is stored into and read from a record field before verification | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_field_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_field_rejected` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | extracted 64-bit variant payload is passed as an explicit machine parameter before verification | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_parameter_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_parameter_rejected` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | extracted 64-bit variant payload is returned from a dedicated helper machine | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_call_result_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_call_result_rejected` |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the extracted 64-bit variant payload | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_match_join_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_match_join_rejected` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply upper and lower ceilings for variant payload bounds | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_const_name_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_const_name_rejected` |
+| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the extracted 64-bit variant payload into a successor state | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_other_state_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_other_state_rejected` |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the extracted 64-bit variant payload | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_other_machine_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_other_machine_rejected` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing payload extraction and verification | `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_target_body_exit` | `tests/omega/fail/facts/ten_variant_enum_payload_bound_through_target_body_rejected` |
 
 ## Execution
 
@@ -75,6 +75,50 @@ The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place
 route and the batch route. Each mirror is byte-identical to its per-place twin.
 
+## Pinned Fixtures
+
+The row is pinned under `tests/omega/pass/facts/ten_variant_enum_payload_bound_through_<place>_exit` and
+`tests/omega/fail/facts/ten_variant_enum_payload_bound_through_<place>_rejected` for the nine places (`local`, `field`,
+`parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`).
+The row's nine per-place twins are additionally mirrored under `invalid/<place>/` byte-identically, so the invalid controls are discoverable by both the per-place route and the batch route.
+Each pass fixture is a byte-identical copy of its place's `main.omg`/`build.omg` plus
+`expected_native_exit.txt` = `0`; each fail fixture is a byte-identical copy of its place twin's
+`main.omg`/`build.omg` and carries the runner-emitted rejection message verbatim in `expected.txt`
+(e.g. `cannot prove requires contract for call verify_payload from probe: local_res >= 40 && local_res <= 80
+(needs fact ...) in state `entry``). The twins' `expected.txt` previously carried the CLI's
+`error:`-prefixed wrapper form, which the corpus diagnostic route never emits (measured: all 18 rows
+weighed `unexpected` at the first check leg); correcting it to the runner-emitted message is what weighs
+the rows `expected` while keeping every `sample.json` `rejection_contains` fragment satisfied. Positive
+versus twin `git diff` moves only the fact's own construct: the payload bound `v >= 40u64` -> `v >= 39u64`
+and the dropped `// Expected exit: 0` header.
+
+Measured on macOS arm64 with the factsr1 shared generation producers (gen-9b001b8f6af, omega sha256
+`6d24393125b7847b2f46d2f25e856f18a644f0fa1cedd2ad9b54f316f8b7da74`; gen-317bacd12b0, omega sha256
+`ecbd667e4dbae1b559f1f08f30dc10e3dbc369b8c8630327560227d06058a805`, corpus_runner sha256
+`6065879534a8320403e0dd3918e86f77d1f025ff4e233f6740644b44460daa9c`):
+
+- `omega run --both` over the root and the nine places: 10/10 report `native exit 0` and
+  `interp exit: 0`; all nine twins refuse at checking with the authored fragment and never reach native
+  execution. The 18 twin diagnostics are byte-identical under both producers - 98 `.rs` files and 69
+  commits apart between `317bacd12b0` and `9b001b8f6af` - the differential measurement behind the
+  landing's residual-movement argument.
+- Perturbing the root oracle (one token: `transition combined == 40u64` -> `== 41u64`) exits 255 with
+  `native signal 5` and `interp crash: Trap (host presentation agrees)`, so the authored 0 discriminates.
+- `python3 tools/sample_gate.py --cli <generation omega> --filter
+  six_variant_enum_payload_bound,ten_variant_enum_payload_bound --write-results ...` records 103/103
+  projects checked on Darwin arm64; all 47 projects of these two rows are among them (six: root plus the
+  nine places and nine twins; ten: the same plus nine `invalid/<place>` mirrors) with all 27
+  intended-invalid controls matched.
+- The three corpus legs were recorded with the fixture and golden changes staged at published main
+  `317bacd12b0`, so every row is stamped `@317bacd12b0a+wt`: `tests/omega/corpus_outcomes.txt` gained 36
+  rows (18 `checked` carrying `check-target:macos_arm64` and 18 `rejected` carrying their diagnostics with
+  the expected fragments satisfied, 24 diagnostic continuation lines),
+  `tests/omega/corpus_native_macos_arm64.txt` gained 18 `built ... exit:0` rows and
+  `tests/omega/corpus_both_macos_arm64.txt` gained 18 `built ... exit:0 interpreter-exit:0
+  interpreter:agrees` rows. Every golden diff is a pure addition (0 deletions; the content guard reports
+  0 keys, 0 continuation lines and 0 attachments lost), and the legs exited 0 with 36/36, 18/18 and 18/18
+  fixtures done, 0 unimplemented rows and 0 rows recording a lost success.
+
 ## Requirements and Evidence (AGENTS.md)
 
 - **Establishment**: Variant declarations `V1(v: u64)`, `V2(v: u64)`, `V3(v: u64)`, `V4(v: u64)`, `V5(v: u64)`, `V6(v: u64)`, `V7(v: u64)`, `V8(v: u64)`, `V9(v: u64)`, and `V10(v: u64)` where `v >= 40u64 && v <= 80u64` establish bounded intervals on active variant payloads. Exhaustive pattern matching across all ten tagged enum variants joins the incoming arm obligations, statically proving that the extracted payload satisfies `[40, 80]` without post-hoc caller equality guards.
@@ -85,4 +129,4 @@ route and the batch route. Each mirror is byte-identical to its per-place twin.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 10-variant tagged enum `Packet` with its discriminant tag and 8-byte payload (`IntegerAt 8-byte` for `u64`), respecting layout alignment and calling conventions across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA variant tag comparison and branch instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
-- **Remaining Open**: None for this fact row; all 9 places and 18 reject twins pass both native and interpreter gates with documented exit 0 and verified negative control rejection.
+- **Remaining Open**: None for this fact row; all 9 places pass both native and interpreter gates with exit 0 (`omega run --both`), and all 9 per-place reject twins (with their nine byte-identical `invalid/<place>` mirrors) reject at checking with their authored diagnostics and pinned fragments.
