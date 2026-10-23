@@ -8,6 +8,8 @@ use super::{BuildObservationIdentity, BuildObservationSummary};
 use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use std::path::{Path, PathBuf};
 
+mod verification;
+
 #[derive(Debug)]
 pub struct RetainedBuildOutputs {
     observation: BuildObservationIdentity,
@@ -53,10 +55,10 @@ impl RetainedBuildOutputs {
                 );
                 manifest.extend_from_slice(entry.relative_path());
                 crate::codec_bytes::push_encoded(&mut manifest, (bytes.len() as u64).to_le_bytes());
-                manifest.extend_from_slice(&crate::digest_encoder::content_identity(&bytes));
+                manifest.extend_from_slice(&crate::digest_encoder::content_identity(bytes));
             }
         }
-        let identity = crate::digest_encoder::content_identity(&manifest).into();
+        let identity = crate::digest_encoder::content_identity(&manifest);
         Ok(Some(Self {
             observation,
             tree,
@@ -83,7 +85,8 @@ impl RetainedBuildOutputs {
     }
 
     /// Install the content-addressed file set and its manifest; an existing set
-    /// with the same content name is reused. The manifest is installed last.
+    /// is reused only after its manifest and complete file namespace match
+    /// the retained product. The manifest is installed last for a fresh set.
     /// Failure may leave a partial copy but never records successful publication.
     pub fn publish(&mut self, build_directory: &Path) -> Result<(), String> {
         if self.published_directory.is_some() {
@@ -93,7 +96,7 @@ impl RetainedBuildOutputs {
         let sets = build_directory.join("completed");
         std::fs::create_dir_all(&sets)
             .map_err(|error| format!("cannot create completed-output directory: {error}"))?;
-        let directory = sets.join(name);
+        let directory = sets.join(&name);
         let fresh = match std::fs::create_dir(&directory) {
             Ok(()) => true,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
@@ -109,6 +112,15 @@ impl RetainedBuildOutputs {
                 .map_err(|error| error.to_string())?;
             platform_custody::file_publication::publish_exact_file_bytes(
                 &manifest,
+                self.manifest_bytes(),
+            )?;
+        } else {
+            // A digest in a host pathname is not custody. An earlier export
+            // can have been interrupted or changed since its publication.
+            verification::verify_existing_set(
+                build_directory,
+                &name,
+                self.files(),
                 self.manifest_bytes(),
             )?;
         }

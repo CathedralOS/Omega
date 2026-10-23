@@ -730,6 +730,8 @@ fail/boundary/named_foreign_provider_wrong_table rejected 2581ms expected @14e1e
 fail/boundary/named_target_foreign_provider_missing_member rejected 2907ms expected @14e1e1dd1503+wt
 fail/boundary/opaque_result_requires_representation rejected 732ms expected @f07d2c3e0d94+wt
 	`main` uses opaque boundary data `Token` by value, but the build selects no `OpaqueRepresentation<Token, _>` application; add `Build::select_representation<Token, <conformance>>(builder)`; in state `main::entry`, statement 0
+fail/build/acquired_generator_output_final_check_refused rejected 1355ms expected published:none @ff49b458b5cd+wt
+	scalar constant `GENERATED` is invalid: const value `-1` does not fit `u32`
 fail/build/artifact_only_rollback_overlay_refused rejected 35259ms expected published:none @a9ae30e1c334+wt
 fail/build/artifact_only_unsealed_output_refused rejected 5741ms expected published:none @a9ae30e1c334+wt
 fail/build/authored_resolution_source_location rejected 34ms expected @67191f681c81+wt
@@ -15289,6 +15291,7 @@ pass/boundary/named_target_foreign_provider_exit checked 5482ms check-target:mac
 pass/boundary/nested_projected_structural_crash_formal_exit checked 10388ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 11852ms check-target:macos_arm64 @b1d84da832b5+wt
 pass/boundary/static_opaque_qualifier_exit checked 754ms check-target:macos_arm64 @f07d2c3e0d94+wt
+pass/build/acquired_generator_completed_output_set checked 6019ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ff49b458b5cd+wt
 pass/build/artifact_only_output checked 9755ms @5041ef1af684+wt
 pass/build/artifact_only_required_output_completion checked 20604ms published:files/manifest.txt @a9ae30e1c334+wt
 pass/build/build_domain_context checked 9560ms @5041ef1af684+wt

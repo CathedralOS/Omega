@@ -462,6 +462,7 @@ pass/boundary/interleaved_structural_crash_formal_exit built 17284ms exit:0 @6c4
 pass/boundary/later_state_requirement_scalar_result_exit built 12006ms exit:70 @b1d84da832b5+wt
 pass/boundary/nested_projected_structural_crash_formal_exit built 17430ms exit:0 @6c49683ce714
 pass/boundary/static_foreign_scalar_result_locals_exit built 11994ms exit:70 @b1d84da832b5+wt
+pass/build/acquired_generator_completed_output_set built 5890ms exit:0 published:files/companion.txt,files/generated.omg @ff49b458b5cd+wt
 pass/build/artifact_only_output checked 17526ms @6c49683ce714
 pass/build/artifact_only_required_output_completion checked 35569ms published:files/manifest.txt @6c49683ce714
 pass/build/build_domain_context checked 17488ms @6c49683ce714

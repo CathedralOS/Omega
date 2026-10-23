@@ -1,0 +1,12 @@
+// Expected exit: 0
+use runtime_generator::main;
+
+machine main() crashes Trap {
+    let observed: i32 = generated_value();
+    transition observed == 7 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

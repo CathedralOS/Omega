@@ -1,0 +1,58 @@
+use generator::main;
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "acquired_generator_completed_output_set");
+    Build::build_depend_as(builder, "generator", Source::Path { location: "generator" });
+    Build::depend_as(builder, "runtime_generator", Source::Path { location: "generator" });
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+
+    let companion: RequiredOutput = BuildOutput::require(&mut builder.output, "companion.txt");
+    let source: RequiredOutput = BuildOutput::require(&mut builder.output, "generated.omg");
+    let template_path: BuildPath = BuildSource::resolve(&builder.source, "template.txt");
+    let reader: i32 = BuildSource::open(&builder.source, template_path, 0);
+    let mut template: [u8; 6];
+    let count: i64 = BuildSource::read(&builder.source, reader, &mut template, 6);
+    _ = BuildSource::close(&builder.source, reader);
+    transition count == 6 && generated_value() == 7 {
+        true -> generate(builder, companion, source, &template)
+        _ -> failed(builder, companion, source)
+    }
+    state generate(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput, template: &[u8; 6]) {
+        // The acquired helper receives only these six captured bytes, not the
+        // source capability or the caller's host paths.
+        let bytes: [u8; 6] = generate_companion(template);
+        let companion_path: BuildPath = BuildOutput::resolve(&builder.output, "companion.txt");
+        let companion_writer: i32 = BuildOutput::create(&mut builder.output, companion_path, 0);
+        _ = BuildOutput::write(&mut builder.output, companion_writer, &bytes);
+        _ = BuildOutput::close(&mut builder.output, companion_writer);
+        let companion_completion: OutputCompletion = BuildOutput::complete(&mut builder.output, companion, companion_path);
+        settle(builder, companion_completion);
+
+        let generated: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
+        let source_writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
+        let declaration: [u8; 34] = generate_declaration();
+        _ = BuildOutput::write(&mut builder.output, source_writer, &declaration);
+        _ = BuildOutput::close(&mut builder.output, source_writer);
+        BuildOutput::include_source(&mut builder.output, generated);
+        let source_completion: OutputCompletion = BuildOutput::complete(&mut builder.output, source, generated);
+        settle(builder, source_completion);
+    }
+    state failed(builder: &mut Build, companion: RequiredOutput, source: RequiredOutput) {
+        BuildOutput::fail(&mut builder.output, companion, "captured template or acquired helper failed");
+        BuildOutput::fail(&mut builder.output, source, "generation did not run");
+    }
+}
+
+machine settle(builder: &mut Build, completion: OutputCompletion) {
+    transition completion {
+        OutputCompletion::Sealed { receipt } -> sealed(builder)
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    state sealed(builder: &mut Build) {}
+    state failed(builder: &mut Build, obligation: RequiredOutput) {
+        BuildOutput::fail(&mut builder.output, obligation, "generated output did not seal");
+    }
+}

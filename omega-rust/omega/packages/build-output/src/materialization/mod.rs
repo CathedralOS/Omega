@@ -1,8 +1,8 @@
 //! Materializing a retained tree onto the host filesystem.
 //!
-//! Materialization does not re-read what it writes, and a content-addressed
-//! output set an earlier compilation left in the build directory is trusted
-//! by its name, not re-read.
+//! Fresh materialization does not re-read what it writes. Reusing an earlier
+//! host export is a separate trust boundary: the completed-output product owner
+//! checks its manifest and files against the retained content before reuse.
 
 use crate::portable_paths::{
     canonical_relative_path, canonical_symlink_target, validate_portable_component,
