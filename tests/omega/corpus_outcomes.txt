@@ -6807,6 +6807,45 @@ fail/facts/signed_shift_left_bound_through_target_body_rejected rejected 504ms e
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_left` state `entry` terminal expression may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/size_align_layout_geometry_through_call_result_rejected rejected 4543ms expected @cb13fcfebe32+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_const_name_rejected rejected 5318ms expected @cb13fcfebe32+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_field_rejected rejected 5592ms expected @cb13fcfebe32+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_local_rejected rejected 5133ms expected @cb13fcfebe32+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_match_join_rejected rejected 3902ms expected @cb13fcfebe32+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_other_machine_rejected rejected 3918ms expected @cb13fcfebe32+wt
+	machine `query_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_other_state_rejected rejected 3609ms expected @cb13fcfebe32+wt
+	machine `main` state `compute` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_parameter_rejected rejected 3484ms expected @cb13fcfebe32+wt
+	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/size_align_layout_geometry_through_target_body_rejected rejected 3634ms expected @cb13fcfebe32+wt
+	machine `compute_geometry` state `entry` terminal expression: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
+fail/facts/slice_view_element_read_bound_through_call_result_rejected rejected 3308ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_const_name_rejected rejected 3477ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: __hoist_16 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_field_rejected rejected 3022ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < holder.view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_local_rejected rejected 3909ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_match_join_rejected rejected 3681ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < match flag { true => view, false => view }.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_other_machine_rejected rejected 3787ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from target_reader: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_other_state_rejected rejected 3563ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < v.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `check_view`
+fail/facts/slice_view_element_read_bound_through_parameter_rejected rejected 3240ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/slice_view_element_read_bound_through_target_body_rejected rejected 3284ms expected @cb13fcfebe32+wt
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call index from read_guarded: 3 < view.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_layout_geometry_through_call_result_rejected rejected 19381ms expected @e44ed43aefa9
 	machine `main` state `entry` local `diff`: exact arithmetic may overflow under target `linux_x86_64`: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/slice_view_layout_geometry_through_const_name_rejected rejected 20515ms expected @e44ed43aefa9
@@ -13792,6 +13831,24 @@ pass/facts/signed_shift_left_bound_through_other_machine_exit checked 1848ms che
 pass/facts/signed_shift_left_bound_through_other_state_exit checked 1669ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/signed_shift_left_bound_through_parameter_exit checked 2080ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/signed_shift_left_bound_through_target_body_exit checked 1666ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/size_align_layout_geometry_through_call_result_exit checked 5176ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_const_name_exit checked 5077ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_field_exit checked 7020ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_local_exit checked 6919ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_match_join_exit checked 5172ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_other_machine_exit checked 5034ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_other_state_exit checked 4770ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_parameter_exit checked 4912ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/size_align_layout_geometry_through_target_body_exit checked 6537ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_call_result_exit checked 5735ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_const_name_exit checked 6409ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_field_exit checked 6007ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_local_exit checked 6993ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_match_join_exit checked 6845ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_other_machine_exit checked 4007ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_other_state_exit checked 3903ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_parameter_exit checked 3828ms check-target:macos_arm64 @cb13fcfebe32+wt
+pass/facts/slice_view_element_read_bound_through_target_body_exit checked 3202ms check-target:macos_arm64 @cb13fcfebe32+wt
 pass/facts/slice_view_layout_geometry_through_call_result_exit checked 39506ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_const_name_exit checked 42742ms check-target:macos_arm64 @e44ed43aefa9
 pass/facts/slice_view_layout_geometry_through_field_exit checked 41786ms check-target:macos_arm64 @e44ed43aefa9
