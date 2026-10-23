@@ -1,0 +1,21 @@
+// Expected exit: 0
+// A selected integer `>=` operator: the authored spelling is the operation
+// identity, and the emitted Terminal comparison reads the authored operand
+// pair in reversed position. The body returns true, so the guarded transition
+// takes its first arm whether the run reads the selected provider or the
+// emitted reversed `IntegerLessOrEqual`.
+domain u64::Custom;
+
+machine >= u64::Custom::custom(left: u64 in Custom, right: u64) -> bool {
+    true
+}
+
+machine main() crashes Trap {
+    let left: u64 in Custom = 5;
+    transition left >= 3 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
