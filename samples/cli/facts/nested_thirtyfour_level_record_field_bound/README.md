@@ -68,10 +68,17 @@ python tools/sample_native_gate.py --cli C:\SoftwareDevelopmentKits\Omega\build\
 - 10/10 samples meet their documented oracle on `windows_x86_64` (and `linux_x86_64`).
 - 9/9 intended-invalid controls match their authored rejection (`may overflow \`u64\``).
 
+## Pinned Fixtures
+
+The row is pinned by `tests/omega/{pass,fail}/facts/nested_thirtyfour_level_record_field_bound_through_*` fixtures; every positive records `built ... exit:0` and `interpreter-exit:0 interpreter:agrees`. The nine pass fixtures are byte-identical copies of their place programs, so the sample and the fixture cannot drift apart.
+
+Recorded with the shared opt-level 1 producer `gen-4c23cc3391c` (omega sha256 `83c7ae2a45442b1c…`, corpus_runner sha256 `a1de848f1baca083…`, macos_arm64, jobs 1): check leg 18 fixtures — 9 `checked` with `check-target:macos_arm64`, 9 `rejected` carrying their own `may overflow \`u64\`` fragment, 0 fail fixtures that did not reject and 0 lost successes; native leg 9 `built ... exit:0`; both leg 9 `interpreter-exit:0 interpreter:agrees`. The 34- and 35-level rows land together as pure row additions: 60/0 lines in `corpus_outcomes.txt`, 18/0 in `corpus_native_macos_arm64.txt`, 18/0 in `corpus_both_macos_arm64.txt`, stamped `@4c23cc3391c2+wt`.
+
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` (`TASKS.md`).
 - **Ticket:** `c748de1b32944b76a08992df45b6ec83`.
+- **Fixture pin and landing ticket:** `756da54a5fc443078420649c1f11dde3` (factsr1-pins-cm).
 - **Requirement established:** Target-neutral compile-time multi-level nested record projection bounds analysis (`Psi 05–07`) and native realization (`Omega 00–09`). Specifically, projecting the leaf field of a 34-level nested structural record `RootRec` preserves the static leaf interval bound (`root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.l24.l25.l26.l27.l28.l29.l30.l31.l32.l33.val >= 40u64 && root.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.l16.l17.l18.l19.l20.l21.l22.l23.l24.l25.l26.l27.l28.l29.l30.l31.l32.l33.val <= 80u64`), discharging exact 64-bit unsigned subtractions `80u64 - res` and `res - 40u64` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
