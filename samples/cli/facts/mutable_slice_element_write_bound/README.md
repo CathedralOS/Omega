@@ -72,6 +72,14 @@ fixture family is `mutable_slice_element_write_bound_through_<place>_exit` /
 | another machine | [`..._through_other_machine_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_other_machine_exit/main.omg) | [`..._through_other_machine_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_other_machine_unproved/main.omg) |
 | another target body | [`..._through_target_body_exit`](../../../../tests/omega/pass/facts/mutable_slice_element_write_bound_through_target_body_exit/main.omg) | [`..._through_target_body_unproved`](../../../../tests/omega/fail/facts/mutable_slice_element_write_bound_through_target_body_unproved/main.omg) |
 
+The recorded goldens carry this family on both legs:
+`corpus_native_macos_arm64.txt` holds the nine `built ... exit:0` rows and
+`corpus_outcomes.txt` the check leg's nine `checked` plus nine `rejected` rows,
+the rejects pinning `cannot prove index` for the index-2 write.
+`python3 tools/corpus_gate.py --filter facts/mutable_slice_element_write_bound`
+reports 0 rejected without its expected fragment and 0 fail fixtures that did
+not reject.
+
 ## Requirements and evidence
 
 Parent: **TERMINAL-SLICE-VIEW-VOCABULARY** in [TASKS.md](../../../../TASKS.md).
