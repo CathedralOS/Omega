@@ -25,6 +25,8 @@ Every place performs the same operation: compute the unsigned division remainder
 | Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine forwards the remainder to the verifying machine |
 | Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target bodies computes the remainder and verifies exact subtraction |
 
+Match the fact sentence beside every place: each positive place is pinned as `tests/omega/pass/facts/unsigned_division_remainder_through_<place>_exit` and each reject twin as `tests/omega/fail/facts/unsigned_division_remainder_through_<place>_rejected`, byte-equal to the place and `invalid/` programs beside them.
+
 ### Verification commands
 
 Root `main.omg` and all nine place projects bind `ProgramEntry` for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declare `Expected exit: 0`, and carry `expected_native_exit.txt` (`0`). Run any positive directly:
@@ -64,4 +66,5 @@ This row establishes that unsigned integer division remainder (`500u64 % 200u64`
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic displacements resolve, basic blocks and conditional branches relax with offset reflow around exit transitions, machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across all hosted targets including `windows_x86_64` and `macos_arm64`.
 
 The row is verified by `samples/cli/facts/unsigned_division_remainder` where every positive records native exit 0 and Terminal Psi execution agreement (`omega run --both`), and every invalid twin rejects with `may overflow `u64``.
+Pinned record at `b1493daf54dd+wt` on macOS arm64 (shared opt-level 1 producer): the root and nine places exit 0 under `omega run --both` (native exit 0, interpreter exit 0; 10/10) and `sample_gate.py --cli` reports the row's 10 positive projects and 9 intended-invalid controls checked with all 9 rejections matched. The nine `_exit` fixtures carry `checked` with `check-target:macos_arm64` and the nine `_rejected` twins carry `rejected ... expected` with their own `may overflow `u64`` diagnostic in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`. 0 keys lost, 0 timeout rows.
 What remains open: Non-constant unsigned divisor interval-set theorem propagation and 128-bit wide unsigned remainder lowering across target platforms.
