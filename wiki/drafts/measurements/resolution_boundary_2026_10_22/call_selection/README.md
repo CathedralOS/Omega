@@ -132,5 +132,34 @@ The production implementation removes diagnostic environment switches and the
 full-resolver comparison route. Focused Rust tests compare actual call identities
 for nested/local inputs, target siblings and owned/inherited conformances while
 asserting that unrelated implementation bodies remain deferred. All four resolver tests pass (three new comparison cases and the retained
-namespace case); scoped Clippy exits zero with warnings. Final production build,
-integrated-main replay, qualification and landing receipts will complete this record.
+namespace case); scoped Clippy exits zero with warnings.
+
+The [integrated comparison](integrated/observations.json.gz) repeats all 17 exact
+placement/call-identity comparisons after integrating `ec7f75640e2e`; all 18
+checking outcomes and diagnostics match. Full and projected execution produce
+the same eight native images, each with standalone native exit zero and
+native/Terminal agreement. The clean production binary on that same tree also
+preserves those images and outcomes.
+
+The [final production record](production/summary.json) integrates `ed491c85f11e`,
+including its later write-frame checking changes and separate collection
+iteration library module. Its [integration rationale](production/integration.md)
+distinguishes retained demand-comparison evidence from fresh production runs.
+All four resolver tests pass again on this integrated tree. Pinned qualification
+observes the new optimized executable, eight native images, actual native/Terminal
+execution, and all 18 checking outcomes. Every image hash and diagnostic matches
+the frozen full-resolver baseline. Its complete compiler/library/configuration
+closure and raw observation receipt are retained under `production/`.
+
+`integrated/implementation.patch.gz` and `production/implementation.patch.gz`
+reconstruct their compiler changes from each directory's stable `main-base.txt`,
+including after branch rebases. For the diagnostic, apply the implementation patch
+first, then `instrumentation.patch.gz`. The recorded binary hashes remain the
+identity of the actual observed producers. These are macOS arm64 observations;
+no other-host runtime or whole-compiler timing claim follows from them.
+
+Main subsequently changed `tools/compiler_profile.py` to locate top-level Cargo
+executables by exact internal output bytes. Integration through `e0a69f73d5c2`
+changed no compiler or bundled-library source. Qualification was rerun using the
+same frozen production binary under the updated profile verifier; both captures
+passed with no invalidations. The record preserves both observations.
