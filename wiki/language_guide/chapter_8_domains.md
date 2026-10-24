@@ -221,6 +221,14 @@ broader access. The same applies to atomic-to-atomic casts and intermediate byte
 views. Atomic stores need write authority even through `&`; atomic read-modify-write
 operations need both read and write authority.
 
+If a qualification is introduced only on a temporary borrowed view, its policy
+lasts for that loan and all surviving descendants. After the complete loan ends,
+the original owner recovers its prior access; the temporary view did not install
+a permanent new owner policy. Returning or casting the view to a bare type does
+not end that relationship. Existing restrictions on the owner or its declared
+fields are never removed by ending the temporary borrow. See
+[temporary qualified views](../spec/language/domains.md#temporary-qualified-views).
+
 This does not introduce a data-alias/newtype form or settle a mutex's payload
 protocol. It changes no representation and adds no runtime permission bits.
 Existing declaration visibility stays separate: public fields reveal structure,

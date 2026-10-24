@@ -136,51 +136,7 @@ selection contract; implementing its representation, checking and lowering is
 engineering. It gates that part of `STATIC-MACHINE-MIGRATION` and new nominal
 cleanup examples, not existing residence repairs or structural cleanup.
 
-### Q3. When does a policy introduced only on a temporary view retire?
-
-A library can lend an otherwise bare owned carrier through a short-lived
-domain-qualified reference, then resume use of its original owner. Cathedral's
-reusable mapping custody needs the same distinction between an owner's retained
-policy and a policy attached only to a lent view. The outcome determines whether
-ordinary parent-loan restoration can recover the owner's prior access; it is not
-a new declaration surface or a request to weaken an existing protected field.
-
-[Governed subjects](wiki/spec/language/domains.md#governed-subjects-and-operations)
-attaches policy to an exact qualified value/storage occurrence.
-[Establishment and transport](wiki/spec/language/domains.md#establishment-transport-and-helper-calls)
-installs policy and requires compatible aliases for its governed lifetime, but
-does not define that lifetime for qualification introduced solely on a temporary
-reference. [Additional input domains](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
-need not survive a call as membership facts; its independent access-policy clause
-again refers to the governed lifetime. [Loan restoration](wiki/spec/terminal-psi/loans.md)
-returns original parent access after child loans end, without specifying whether
-such a new policy permanently changes that access. The
-[anti-erasure rule](wiki/spec/language/domains.md#composition-and-erasure) prohibits
-laundering through a bare view, but does not classify complete loan retirement as
-qualification erasure. Expiry of a delegated grant is a separate question.
-
-For a freshly constructed bare `Cell`, consider an ordinary checked call to
-`introduce(cell: &Cell in Controlled)` whose domain has `read by authorized_read`.
-After the call and its entire loan cohort end, may the owner call a bare
-`inspect(&storage)` without entering that read route? The equivalent explicit
-`requires cell in Controlled` must have the same admission meaning. No mutation,
-routed provenance or post-mutation restoration is needed to distinguish the answers.
-
-Does the new restriction permanently govern that backing occurrence, or only the
-qualified view and its surviving descendants? Define its retirement boundary,
-preserving all preexisting owner/field policies and rejecting erasure-based
-laundering. This also determines whether a later whole-value copy inherits a
-restriction that no surviving view retains.
-
-Audit: the private compiler experiment records completed-call admission without
-a retirement relation, so it currently assumes the permanent interpretation.
-Its after-call denial probes are not specification acceptance evidence. Neither
-permanent installation nor view-scoped retirement is established by that code.
-This gates retirement and after-loan owner-access judgments, not active-loan
-enforcement, policy-preserving transport, the unconditional execution/publication
-fences, or the already-published boot handoff.
-
-### Q4. When does an authorized scalar read publish an observation rather than an intact copy?
+### Q3. When does an authorized scalar read publish an observation rather than an intact copy?
 
 An access-controlled counter or driver register needs an authorized getter that
 returns an ordinary scalar to its caller. Cathedral's controlled mapping-state

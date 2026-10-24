@@ -19,7 +19,8 @@ in the permission judgment: exact subject and normalized domain, requested
 read/write axis, authorized machine or requirement invocation, and any delegated
 loan's origin and scope. This is not a predicate fact that can be forgotten at a
 join. Projection, calls, casts, state transport, and restoration preserve those
-restrictions; a bare reference type cannot manufacture an unrestricted grant.
+restrictions within their governing lifetimes; a bare reference type cannot
+manufacture an unrestricted grant.
 Helpers receive only checked delegated access. Nothing here requires replaying
 successful checking between trusted stages or adding runtime permission storage.
 
@@ -80,6 +81,13 @@ its right-hand side; state exit is last. A parent's lexical retirement before,
 with, or after a child is not by itself evidence that authority returned.
 
 ## Restoration and publication
+
+Policy introduced solely on a [temporary qualified view](../language/domains.md#temporary-qualified-views)
+retires with its complete loan cohort and descendants. Restore the lender's
+prior access only after that closure, preserving preexisting owner/field policies
+and every independently surviving restriction. A cast or function return does
+not establish closure while a derived view remains live. Policy retirement does
+not waive custody or invariant-window restoration obligations.
 
 Suspension/freeze containment binds exact child and parent resources, accesses,
 activation, parent-entry formation, weakening boundaries, captured places, and

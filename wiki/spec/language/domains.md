@@ -271,6 +271,35 @@ authorized reader may intentionally publish an observed result under its ordinar
 result contract; that is not a promise of confidentiality. Access permission
 alone does not prove a mutex's exclusion, ordering, or payload-custody protocol.
 
+### Temporary qualified views
+
+A policy introduced solely on a temporary borrowed view governs that loan and
+its surviving descendants; it does not permanently install a new policy on an
+otherwise unqualified lender. Ordinary qualification, provenance, carrier and
+loan-admission obligations still apply. If the domain names establishment routes,
+its introduction needs the exact authorized or existing evidence; neither a
+reference annotation nor a cast mints that evidence.
+
+While the qualified loan or any descendant remains live, the applicable access
+policy must be respected. Copies of the view, aliases, reborrows, returned
+references and same-carrier casts retain the loan relationship and its
+restrictions. Explicit
+erasure of a non-owning qualification may forget its displayed meaning, but does
+not end the loan or authorize broader access to still-governed backing. A bare
+returned view therefore cannot launder the restriction beyond the issuing call.
+
+After the complete qualified loan cohort and its descendants end, ordinary
+[loan restoration](../terminal-psi/loans.md#reborrow-lineage-and-access) restores
+the lender's prior access, subject to its remaining custody and invariant
+obligations. This is retirement of the temporary view, not qualification erasure.
+Returning from a function alone is insufficient if a derived view survives it.
+
+Policies already belonging to the owner, a declared field or another surviving
+governed occurrence remain intact. Ending one temporary view does not clear an
+independently governed value's policy, mint membership or discharge a resource
+claim. Intact-value transport and observed-result contracts retain their separate
+obligations.
+
 ### Composition and erasure
 
 Every applicable atom must authorize the requested access. Alternatives within

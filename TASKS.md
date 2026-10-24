@@ -1965,14 +1965,16 @@ defines the complete product bar.
   `non_owning_reference_erasure` carries that distinction through explicit
   writable views without minting membership or discarding lender obligations.
 
-  Policy introduced solely through a temporary borrowed view needs the governed
-  lifetime/retirement boundary in
-  [Q3](OWNER_QUESTIONS.md#q3-when-does-a-policy-introduced-only-on-a-temporary-view-retire).
-  This gates after-loan owner-access judgments, not enforcement while governed
-  views live or policy transport and erasure checking.
+  Implement [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
+  through the exact complete loan cohort and descendants. Active or returned
+  views, including explicitly erased views, retain their restrictions; after
+  complete closure restore the lender's prior access without clearing any
+  preexisting owner/field policy or independent custody/invariant obligation.
+  Keep introduction/admission and intact-value/result transport separate from
+  retirement; historical call admission must not permanently restrict a bare lender.
 
   Direct scalar-result publication needs the operation boundary in
-  [Q4](OWNER_QUESTIONS.md#q4-when-does-an-authorized-scalar-read-publish-an-observation-rather-than-an-intact-copy).
+  [Q3](OWNER_QUESTIONS.md#q3-when-does-an-authorized-scalar-read-publish-an-observation-rather-than-an-intact-copy).
   An authorized load's bare result contract must be distinguished from intact
   copy/erasure before treating policy on its selected source as an automatic
   denial at the caller. This does not gate exact access-demand or invocation
