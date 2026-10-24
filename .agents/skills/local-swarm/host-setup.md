@@ -191,6 +191,22 @@ and run quick single-crate checks in the separate diag pool
 when you need one before a chain, so diag work never contends with the two
 chain slots.
 
+## Fold the queue-bound tail into one loop
+
+When the queue is the bottleneck — waiters roughly two or more times the
+slots — stop giving every lane its own driver. Prepared lanes (commit ready,
+evidence recorded, no live owner) go through ONE loop calling one canonical
+tool, [lane_land](../../../tools/lane_land.md); each lane then costs one pool
+acquisition with no per-lane script to reinvent the lease, the guard, or the
+ticket plumbing. Agents earn their keep for parallel *thinking* — exploration,
+diagnosis, edits across independent crates — not for parallel *waiting*: a
+parked child produces nothing a waiter line cannot. Measured 2026-10-24:
+agent-carried ready lanes waited 8-16 h each, several unlanded; lanes of the
+same kind through the folded loop landed in ~11 minutes to 1.5 h with zero
+child management, including two lanes whose per-lane chains had failed all
+day. Keep queue depth near the slot count by folding; spend the freed agents
+on work that needs them.
+
 ## Bound the shared disk safely
 
 Read the effective MBX config and distinguish the action-cache cap from the
