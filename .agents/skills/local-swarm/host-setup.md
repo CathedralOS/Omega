@@ -181,6 +181,16 @@ session takes its own machine's pool once for its own chain. Cross-machine
 coordination is the claims registry and the serialized landing queue; the
 build pool is not a cross-machine resource.
 
+The fix loop is not the chain. Repairing a compile error or a red test is a
+minutes-scale check-edit-check loop; running each iteration as its own chain
+attempt pays the multi-hour wait for a one-line fix. Do the loop inside the
+ONE chain hold when you have it (acquire once, iterate until green, then
+continue straight through the gates and the landing lease in the same hold),
+and run quick single-crate checks in the separate diag pool
+([build slots](../../../tools/build_slot.md#diagnostics-dont-queue-with-chains))
+when you need one before a chain, so diag work never contends with the two
+chain slots.
+
 ## Bound the shared disk safely
 
 Read the effective MBX config and distinguish the action-cache cap from the
