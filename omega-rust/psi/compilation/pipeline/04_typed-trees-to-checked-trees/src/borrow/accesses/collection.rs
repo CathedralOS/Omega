@@ -91,7 +91,7 @@ impl<'a> BorrowAccessCollection<'a> {
     ) {
         // A payload the dispatch already copied ended before the call's
         // first access; any other copied read ends after its own row.
-        let end_before_access = self.is_plain_copy(expression).then(|| {
+        let end_before_access = self.is_owned_copy(expression).then(|| {
             if self.reads_extracted_copy(expression) {
                 0
             } else {
@@ -113,7 +113,7 @@ impl<'a> BorrowAccessCollection<'a> {
     pub(super) fn reads_extracted_copy(&self, expression: ExpressionHandle) -> bool {
         self.dispatch_extraction
             .reads_extracted_copy(self.program, expression, |payload| {
-                self.is_plain_copy(payload)
+                self.is_owned_copy(payload)
             })
     }
 
@@ -132,9 +132,10 @@ impl<'a> BorrowAccessCollection<'a> {
     }
 
     pub(super) fn finish_nested_call(&mut self, first_access: usize, expression: ExpressionHandle) {
-        // Only the returned contents can carry operand loans onward. A nominal
-        // hook or linear ownership changes the value's later disposition, not
-        // whether it retains the loans of this completed invocation.
+        // A borrow-free return finishes this invocation's direct access
+        // window. Stored outputs can retain descendants independently: their
+        // completed descriptors and staged-value exclusions keep those loans.
+        // Ending a temporary access is not retirement of the stored frontier.
         if !self
             .expression_type_reference(expression)
             .is_some_and(|reference| {
@@ -162,22 +163,14 @@ impl<'a> BorrowAccessCollection<'a> {
         }
     }
 
-    pub(super) fn is_plain_copy(&self, expression: ExpressionHandle) -> bool {
+    pub(super) fn is_owned_copy(&self, expression: ExpressionHandle) -> bool {
         validation::expression_type_reference_in_state(
             self.program,
             self.state_symbol,
             self.statement_index,
             expression,
         )
-        .is_some_and(|reference| {
-            validation::has_contents(
-                self.program,
-                reference,
-                &[],
-                validation::ContentsRequirement::RepresentedOwned,
-            ) && self.program.type_multiplicity(reference)
-                == language_semantics::Multiplicity::Unrestricted
-        })
+        .is_some_and(|reference| super::is_owned_copy_type(self.program, reference))
     }
 
     fn append_access(

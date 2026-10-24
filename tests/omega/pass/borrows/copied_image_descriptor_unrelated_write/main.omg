@@ -1,0 +1,11 @@
+data Span<'storage> [copy] { bytes: &'storage [u8]; }
+machine tick(counter: &mut u64) -> u64 { counter = 1; 0 }
+machine receive(span: Span, ignored: u64) -> u64 { span.bytes.len }
+machine main() crashes Trap {
+    let span: Span = Span {bytes: "ok"};
+    let mut counter: u64 = 0;
+    let length: u64 = receive(span, tick(&mut counter));
+    transition length == 2 && counter == 1 {true -> done() false -> bad()}
+    state done() {}
+    state bad() { crash Trap; }
+}

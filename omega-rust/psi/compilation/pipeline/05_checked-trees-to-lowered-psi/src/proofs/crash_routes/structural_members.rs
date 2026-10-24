@@ -75,117 +75,47 @@ fn lower_structural_place_path(
     ),
     LoweringError,
 > {
+    let selected =
+        structural_observation_path(identities, root_type, access, path, structural_types)?;
+    let actual = observation_field_type(&selected)?;
+    let canonical = selected.canonical.ok_or(LoweringError::Unsupported(
+        "structural contract observation has no inline canonical path",
+    ))?;
+    Ok((root, canonical, actual))
+}
+
+fn structural_observation_path<'declaration>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    root_type: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    structural_types: &'declaration [StructuralTypeDeclaration],
+) -> Result<crate::emission::structural_observations::ObservationPath<'declaration>, LoweringError>
+{
     if access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
         return unsupported("structural scalar contract requires readable access");
     }
-    if path.is_empty() {
-        let declaration = terminal_psi::find_structural_type(structural_types, root_type).ok_or(
-            LoweringError::Unsupported("structural scalar contract root type is absent"),
-        )?;
-        let leaf = match declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => StructuralFieldType::Scalar(scalar),
-            _ => StructuralFieldType::Structural(root_type),
-        };
-        return Ok((root, Vec::new(), leaf));
+    crate::emission::structural_observations::explicit_path(
+        identities,
+        root_type,
+        path,
+        structural_types,
+    )
+}
+
+fn observation_field_type(
+    selected: &crate::emission::structural_observations::ObservationPath<'_>,
+) -> Result<StructuralFieldType, LoweringError> {
+    if let Some(field) = selected.scalar_field {
+        return Ok(field.field_type.clone());
     }
-    let mut structural_type = root_type;
-    let mut terminal_path = Vec::with_capacity(path.len());
-    let mut selected_case_fields = None;
-    for (index, segment) in path.iter().enumerate() {
-        let declaration = terminal_psi::find_structural_type(structural_types, structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar contract path type is absent",
-            ))?;
-        if let checked_trees::CheckedStructuralPredicatePathSegment::Case(identity) = segment {
-            if selected_case_fields.is_some() || index + 1 == path.len() {
-                return unsupported("structural scalar contract has a malformed case path");
-            }
-            let cases = match &declaration.shape {
-                StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                    cases
-                }
-                _ => {
-                    return unsupported("structural scalar contract case receiver is not a sum");
-                }
-            };
-            let case = terminal_psi::structural_case_by_identity(
-                cases,
-                identities.intern(&identity.spelling()),
-            )
-            .ok_or(LoweringError::Unsupported(
-                "structural scalar contract case is absent",
-            ))?;
-            terminal_path.push(CanonicalStructuralPathSegment::Case(case.id));
-            selected_case_fields = Some(&case.fields);
-            continue;
-        }
-        if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
-            segment
-        {
-            // A literal index selects an element. Below
-            // the root it continues into the element's structure; as the
-            // final segment it names one primitive scalar element, the leaf
-            // a collection invariant's per-element row observes.
-            if selected_case_fields.is_some() {
-                return unsupported("structural scalar contract has a malformed indexed path");
-            }
-            let element = indexed_element_type(&declaration.shape, *element_index)?;
-            terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
-            structural_type = element;
-            if index + 1 == path.len() {
-                let element_shape =
-                    terminal_psi::find_structural_type(structural_types, structural_type)
-                        .map(|declaration| &declaration.shape);
-                let field = match element_shape {
-                    Some(StructuralTypeShape::PrimitiveScalar(scalar)) => {
-                        StructuralFieldType::Scalar(*scalar)
-                    }
-                    Some(_) => StructuralFieldType::Structural(structural_type),
-                    None => return unsupported("structural contract element type is absent"),
-                };
-                // Path resolution can stop at an aggregate before a later
-                // runtime selector. Scalar consumers separately require a
-                // scalar endpoint; geometry itself does not impose that use.
-                return Ok((root, terminal_path, field));
-            }
-            continue;
-        }
-        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            return unsupported(
-                "structural contract runtime index requires occurrence-bound evidence",
-            );
-        };
-        let fields = if let Some(fields) = selected_case_fields.take() {
-            fields
-        } else {
-            match &declaration.shape {
-                terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
-                _ => {
-                    return unsupported(
-                        "structural scalar contract field receiver is not a record",
-                    );
-                }
-            }
-        };
-        let field =
-            terminal_psi::field_by_identity(fields, identities.intern(&identity.spelling()))
-                .filter(|field| !field.relevance.is_erased())
-                .ok_or(LoweringError::Unsupported(
-                    "structural scalar contract path field is absent or erased",
-                ))?;
-        terminal_path.push(CanonicalStructuralPathSegment::Field(field.id));
-        let is_last = index + 1 == path.len();
-        match (&field.field_type, is_last) {
-            (StructuralFieldType::Structural(next), false) => structural_type = *next,
-            (_, true) => return Ok((root, terminal_path, field.field_type.clone())),
-            _ => {
-                return unsupported(
-                    "structural scalar contract path does not end at a retained leaf",
-                );
-            }
-        }
-    }
-    unsupported("structural scalar contract path has no final field")
+    let declaration = selected.declaration.ok_or(LoweringError::Unsupported(
+        "structural contract has no declared leaf",
+    ))?;
+    Ok(match declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => StructuralFieldType::Scalar(scalar),
+        _ => StructuralFieldType::Structural(declaration.id),
+    })
 }
 
 /// A descriptor extent retains the full structural path. Carrier checking
@@ -450,14 +380,21 @@ pub(crate) fn lower_structural_member_term(
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let (root, terminal_path, actual) = lower_structural_member_path(
+    let parameter = parameters
+        .iter()
+        .find(|parameter| parameter.position == parameter_position)
+        .ok_or(LoweringError::Unsupported(
+            "structural contract has no formal",
+        ))?;
+    lower_observation_term(
         identities,
-        parameter_position,
+        parameter.place,
+        parameter.structural_type,
+        parameter.access,
         path,
-        parameters,
+        expected,
         structural_types,
-    )?;
-    structural_member_term(root, terminal_path, actual, expected)
+    )
 }
 
 /// Observe a scalar beneath the actual normal result declaration. It shares
@@ -469,15 +406,39 @@ pub(crate) fn lower_structural_result_member_term(
     expected: ScalarType,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let (root, terminal_path, actual) = lower_structural_place_path(
+    lower_observation_term(
         identities,
         result.place,
         result.structural_type,
         terminal_psi::StructuralAccess::Owned,
         path,
+        expected,
         structural_types,
-    )?;
-    structural_member_term(root, terminal_path, actual, expected)
+    )
+}
+
+fn lower_observation_term(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    expected: ScalarType,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<ScalarTerm, LoweringError> {
+    let selected =
+        structural_observation_path(identities, root_type, access, path, structural_types)?;
+    let actual = observation_field_type(&selected)?;
+    if let Some(canonical) = selected.canonical {
+        return structural_member_term(root, canonical, actual, expected);
+    }
+    if actual.scalar_type() != Some(expected) {
+        return unsupported("structural observation contract has a different scalar carrier");
+    }
+    let path = selected.observation.ok_or(LoweringError::Unsupported(
+        "structural observation contract requires evaluated selector terms",
+    ))?;
+    ScalarTerm::structural_read(root, path, expected).map_err(LoweringError::InvalidCrashPredicate)
 }
 
 fn structural_member_term(

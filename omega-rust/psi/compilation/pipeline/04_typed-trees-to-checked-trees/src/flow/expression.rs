@@ -1725,7 +1725,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // Literal views retain immutable image storage, not a local
                 // activation's holder. Publish complete empty local backing;
                 // absent exact address referents do not mean unknown lifetime.
-                *retention = Some(self.append_retention(&[]));
+                let image = self.append_retention(&[]);
+                self.context
+                    .control
+                    .operand_retentions
+                    .get_mut(image)
+                    .immutable_image = true;
+                *retention = Some(image);
                 *formed_type = destination;
             }
             ExpressionNode::Float(_)

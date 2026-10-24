@@ -167,6 +167,16 @@ pub(super) fn check_statement_borrows<'p>(
             moves,
             &facts.operators,
         );
+        super::staged_values::check(
+            program,
+            facts,
+            state_flow,
+            statement.statement_index,
+            &occurrences,
+            stated_premises,
+            diagnostics,
+            bound_lookup,
+        );
         let final_holds = super::reads::final_holds_in_statement(
             program,
             facts,

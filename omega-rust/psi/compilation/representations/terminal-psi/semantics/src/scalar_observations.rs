@@ -20,7 +20,7 @@ enum Target {
 
 /// Exact scalar carrier selected by a declaration path. Rejects duplicate or
 /// erased members, ill-formed case paths, statically impossible indexes, atomic
-/// cells and reference crossings. A dynamic index still owes its live bound.
+/// cells and unreadable reference crossings. A dynamic index still owes its live bound.
 /// An empty path selects the root itself when its declaration is primitive.
 /// Term-specific path restrictions and readable access belong to the caller;
 /// this shared geometry also resolves whole-primitive contract observations.
@@ -38,6 +38,22 @@ pub fn structural_read_scalar_type<'a>(
     let mut case_fields: Option<&[StructuralFieldDeclaration]> = None;
     for projection in path {
         match projection {
+            ScalarReadProjection::Referent => {
+                if case_fields.is_some() {
+                    return None;
+                }
+                let Target::Declaration(root) = target else {
+                    return None;
+                };
+                let StructuralTypeShape::Reference { referent, access } = declaration(root)?.shape
+                else {
+                    return None;
+                };
+                if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
+                    return None;
+                }
+                target = Target::Declaration(referent);
+            }
             ScalarReadProjection::Static(Static::Case(identity)) => {
                 if case_fields.is_some() {
                     return None;

@@ -47,24 +47,19 @@ impl Execution<'_, '_, '_> {
         let expected = validation::reference_shell(self.program, reference)?;
         let mut roots = self.context.control.retained_roots(retention)?.to_vec();
         let mut places = Vec::new();
-        let mut matched = false;
+        let mut candidates = Vec::new();
+        let mut has_image = false;
+        let mut all_image = true;
         for source in sources {
-            let owner_path =
-                crate::borrow::owner_path_from_place_segments(self.program, &source.result_path);
-            let structural = crate::borrow::structural_owner_path(self.program, &owner_path)?;
-            let selected = validation::reference_result_custody::loan_place_segments(
-                self.program,
-                returned,
-                &structural,
-            )?;
-            if selected != path {
+            if self.returned_slot_path(returned, &source.result_path)? != path {
                 continue;
             }
-            matched = true;
-            // Callee runtime selectors describe regions, not captured caller
-            // coordinates. Their lifetime frontier remains available above.
+            if source.source.is_image_storage {
+                has_image = true;
+                candidates.push((Vec::new(), true, None));
+                continue;
+            }
             if source.source.collection_coarse
-                || source.source.is_image_storage
                 || !source.source.recasts.is_empty()
                 || source.source.representation.is_some()
                 || !source
@@ -103,6 +98,16 @@ impl Execution<'_, '_, '_> {
                     &value,
                     &projection,
                 )?;
+                let image = !profiles.is_empty()
+                    && profiles.iter().all(|profile| {
+                        self.context.control.operand_retentions.is_valid(*profile)
+                            && self
+                                .context
+                                .control
+                                .operand_retentions
+                                .get(*profile)
+                                .immutable_image
+                    });
                 for profile in profiles {
                     for root in self.context.control.retained_roots(profile)? {
                         if !roots.contains(root) {
@@ -111,33 +116,141 @@ impl Execution<'_, '_, '_> {
                     }
                 }
                 let referents = self.captured_referent_places(value.referents);
-                if referents.is_empty() {
-                    return None;
-                }
-                for referent in referents {
-                    let place = validation::completed_storage::project_captured_view_place(
-                        referent,
-                        &projection,
-                    )?;
-                    if !places.contains(&place) {
-                        places.push(place);
+                // Opaque pointers retain the exact supplier association below.
+                // Neither its lifetime roots nor its containing home is geometry.
+                let selected = referents
+                    .into_iter()
+                    .map(|referent| {
+                        validation::completed_storage::project_captured_view_place(
+                            referent,
+                            &projection,
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                for place in &selected {
+                    if !places.contains(place) {
+                        places.push(place.clone());
                     }
                 }
+                has_image |= image;
+                all_image &= image;
+                candidates.push((selected, image, Some((value, projection))));
             }
         }
-        if !matched || places.is_empty() {
+        if candidates.is_empty() {
             return None;
         }
-        let referents = self.append_referent_places(&places);
+        // Candidates are complete mutually exclusive descriptor values, not a
+        // partial address union. Image alternatives have no invented address;
+        // every alternative retains the complete declared lifetime frontier.
+        let mut alternatives = Vec::new();
+        for (places, image, supplier) in candidates {
+            let retention = self.append_retention(&roots);
+            self.context
+                .control
+                .operand_retentions
+                .get_mut(retention)
+                .immutable_image = image;
+            if let Some((value, projection)) = supplier {
+                let operand = self.context.control.operands.insert(value);
+                let projection = self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(projection);
+                let suppliers = self
+                    .context
+                    .control
+                    .operand_retained_suppliers
+                    .insert_many([checked_trees::FlowOperandRetainedSupplier {
+                        operand,
+                        projection,
+                    }]);
+                self.context
+                    .control
+                    .operand_retentions
+                    .get_mut(retention)
+                    .suppliers = suppliers;
+            }
+            let referents = self.append_referent_places(&places);
+            alternatives.push(FlowOperandFact {
+                type_reference: reference,
+                state_symbol: self.state.symbol,
+                statement_index: self.statement_index,
+                storage_snapshot: self.storage_snapshot,
+                referents,
+                retention,
+                ..Default::default()
+            });
+        }
+        if alternatives.len() == 1 {
+            return Some(self.context.control.operands.insert(alternatives.pop()?));
+        }
+        let alternatives = self.context.control.operands.insert_many(alternatives);
+        let referents = if has_image {
+            Default::default()
+        } else {
+            self.append_referent_places(&places)
+        };
         let retention = self.append_retention(&roots);
+        self.context
+            .control
+            .operand_retentions
+            .get_mut(retention)
+            .immutable_image = all_image;
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
             storage_snapshot: self.storage_snapshot,
+            alternatives,
             referents,
             retention,
             ..Default::default()
         }))
+    }
+
+    fn returned_slot_path(
+        &self,
+        returned: TypeReferenceHandle,
+        path: &[PlaceSegment],
+    ) -> Option<Vec<PlaceSegment>> {
+        let owner = crate::borrow::owner_path_from_place_segments(self.program, path);
+        let structural = crate::borrow::structural_owner_path(self.program, &owner)?;
+        validation::reference_result_custody::loan_place_segments(
+            self.program,
+            returned,
+            &structural,
+        )
+    }
+
+    /// Complete body-derived image leaves, independent of the declaration's
+    /// caller-lifetime inputs. A static alternative alone is insufficient.
+    pub(super) fn returned_image_paths(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+        returned: TypeReferenceHandle,
+    ) -> Option<Vec<Vec<PlaceSegment>>> {
+        let target = validation::call_target_symbol(self.program, call);
+        let state = validation::call_target_state(self.program, target)?;
+        let sources = self
+            .context
+            .call_frames?
+            .reference_result_leaf_origins(state.symbol)?;
+        let mut paths = Vec::new();
+        for source in &sources {
+            if !source.source.is_image_storage
+                || sources.iter().any(|other| {
+                    other.result_path == source.result_path && !other.source.is_image_storage
+                })
+            {
+                continue;
+            }
+            let path = self.returned_slot_path(returned, &source.result_path)?;
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+        Some(paths)
     }
 }

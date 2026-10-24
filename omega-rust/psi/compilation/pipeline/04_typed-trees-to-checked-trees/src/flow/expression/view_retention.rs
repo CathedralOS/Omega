@@ -84,7 +84,15 @@ impl Execution<'_, '_, '_> {
         }
         let mut roots = Vec::new();
         let mut alternatives = Vec::new();
+        let mut immutable_image = true;
         for profile in profiles {
+            immutable_image &= self.context.control.operand_retentions.is_valid(*profile)
+                && self
+                    .context
+                    .control
+                    .operand_retentions
+                    .get(*profile)
+                    .immutable_image;
             let Some(retained) = self.context.control.retained_roots(*profile) else {
                 return Handle::invalid();
             };
@@ -109,6 +117,7 @@ impl Execution<'_, '_, '_> {
             .control
             .operand_retentions
             .insert(FlowOperandRetention {
+                immutable_image,
                 roots,
                 alternatives,
                 ..Default::default()
@@ -984,6 +993,16 @@ impl Execution<'_, '_, '_> {
             for root in roots {
                 if !outputs[position].1.contains(&root) {
                     outputs[position].1.push(root);
+                }
+            }
+        }
+        // A literal-only result has no activation-relative input loan. Its
+        // body-derived image relation establishes that specific empty frontier;
+        // no other missing lifetime output is filled from a declaration shape.
+        if let Some(images) = self.returned_image_paths(call, returned) {
+            for path in images {
+                if !outputs.iter().any(|(candidate, _, _)| *candidate == path) {
+                    outputs.push((path, Vec::new(), true));
                 }
             }
         }

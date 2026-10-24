@@ -484,6 +484,22 @@ pub fn borrow_carrying_owner_paths(
         .map(|leaves| leaves.into_iter().map(|leaf| leaf.owner_path).collect())
 }
 
+/// Physical descriptor leaves and their admitted access. Nonspatial lifetime
+/// dependencies remain separate: they cannot stand in for pointer geometry.
+/// `None` withholds the entire frontier, just as the lifetime query does.
+pub fn carried_reference_paths(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<Vec<(Vec<BorrowOwnerSegment>, checked_trees::BorrowAccessKind)>> {
+    carried_lifetimes(program, type_reference).map(|leaves| {
+        leaves
+            .into_iter()
+            .filter(|leaf| !leaf.lifetime_only)
+            .map(|leaf| (leaf.owner_path, leaf.access.into()))
+            .collect()
+    })
+}
+
 /// Borrow classification and projected paths share the complete frontier.
 /// An unresolved structure is not evidence of absent loans. Consumers must
 /// retain the obligation until admission supplies its complete instantiated

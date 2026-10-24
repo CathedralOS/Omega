@@ -11,6 +11,8 @@
 //! type, but its collection element must have no unresolved permission carriers.
 //! These rows retain demands; they authorize no access, restoration or parking.
 
+mod suppliers;
+
 use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, BorrowLoanOwnerSegment, CapturedPlace, CheckFacts,
@@ -143,74 +145,86 @@ fn collect(
         }
         return;
     }
-    let invocation = facts.flow.control.calls.get(call);
-    let accesses = invocation.accesses.handles().filter(|access| {
-        let access = facts.borrow.argument_accesses.get(*access);
-        access.expression == capture.expression && access.end_before_access.is_none()
-    });
-    if validation::reference_shell(program, capture.type_reference).is_some() {
-        // Leaf coverage is all-or-nothing. Publishing only the alternatives
-        // that resolved would make an incomplete backing roster look complete.
-        let mut captured_resources = Vec::new();
-        for access in accesses {
-            let access_row = facts.borrow.argument_accesses.get(access);
-            let source = CapturedPlace {
-                incoming_reference: Handle::invalid(),
-                root: access_row.root,
-                segments: facts.borrow.access_segments(access_row).to_vec(),
-            };
-            let Some(backings) = retained_places(
-                program,
-                facts,
-                state,
-                capture.statement_index,
-                capture.constraints,
-                source,
-                &mut Vec::new(),
-            ) else {
-                return;
-            };
-            for backing in backings {
-                captured_resources.push(ResourceDraft {
-                    resource: CheckedCallBorrowLoanResource {
-                        machine_symbol: state.machine_symbol,
-                        state_symbol: state.state_symbol,
+    if let Some(reference) = validation::reference_shell(program, capture.type_reference) {
+        let access = checked_trees::BorrowAccessKind::from(reference.access);
+        suppliers::collect(
+            program,
+            facts,
+            state,
+            call,
+            owner_operand,
+            operand,
+            operand,
+            &[],
+            path,
+            &access,
+            false,
+            &mut Vec::new(),
+            resources,
+            parents,
+        );
+        return;
+    }
+    let reference_paths =
+        validation::borrow_contracts::carried_reference_paths(program, capture.type_reference);
+    for leaf in paths {
+        let leaf_path = crate::borrow::owner_place_segments(&leaf);
+        if let Some(access) = reference_paths.as_ref().and_then(|paths| {
+            paths
+                .iter()
+                .find_map(|(path, access)| (path == &leaf).then_some(access))
+        }) && let Some(selected) = validation::completed_storage::reference_captures_at_path(
+            program,
+            &facts.flow.control,
+            operand,
+            &leaf_path,
+            capture.storage_snapshot,
+        ) {
+            // A reached descriptor version supersedes the same slot's old
+            // statement loan, even when its supplier cannot be recovered.
+            // Missing coverage is conservative; stale provenance is unsound.
+            if let Some(selected) = selected.captures() {
+                let mut owner_path = path.to_vec();
+                owner_path.extend(leaf.iter().copied());
+                let mut complete = Vec::new();
+                let mut resolved = !selected.is_empty();
+                for selected in selected {
+                    if !suppliers::collect(
+                        program,
+                        facts,
+                        state,
                         call,
                         owner_operand,
                         operand,
-                        owner_path: HandleSpan::empty(),
-                        capture_path: HandleSpan::empty(),
-                        source: CheckedCallBorrowLoanSource::CallAccess {
-                            access,
-                            parents: parents.insert_many(backing.lineage),
-                        },
-                        access: access_row.kind.clone(),
-                        parent_lifetime: CheckedDirectBorrowParentLifetime {
-                            machine_symbol: state.machine_symbol,
-                            state_symbol: state.state_symbol,
-                            root: backing.place.root,
-                        },
-                    },
-                    path: path.to_vec(),
-                });
+                        selected.capture,
+                        &selected.projection,
+                        &owner_path,
+                        access,
+                        false,
+                        &mut Vec::new(),
+                        &mut complete,
+                        parents,
+                    ) {
+                        resolved = false;
+                        break;
+                    }
+                }
+                if resolved {
+                    resources.extend(complete);
+                }
             }
+            continue;
         }
-        resources.extend(captured_resources);
-        // A reference actual must have a retained invocation access. A copied
-        // observation or a nested call's expired access cannot stand in for it.
-        return;
-    }
-    let Some(source) = validation::canonical_place_from_expression_in_state(
-        program,
-        state.state_symbol,
-        capture.statement_index,
-        capture.expression,
-    ) else {
-        return;
-    };
-    let source_prefix = crate::borrow::owner_path_from_place_segments(program, &source.segments);
-    for leaf in paths {
-        let mut source_path = source_prefix.clone();
+        let Some(source) = validation::canonical_place_from_expression_in_state(
+            program,
+            state.state_symbol,
+            capture.statement_index,
+            capture.expression,
+        ) else {
+            continue;
+        };
+        let mut source_path =
+            crate::borrow::owner_path_from_place_segments(program, &source.segments);
         source_path.extend(leaf.iter().copied());
         for loan in facts
             .flow
@@ -253,7 +267,7 @@ fn collect(
 /// referent. The original invocation access remains unchanged; each crossed
 /// stored loan joins the parent roster so suspension also retains its resource
 /// obligations. This does not change the alias checker's access exemptions.
-fn retained_places(
+pub(in crate::checks::borrows) fn retained_places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,

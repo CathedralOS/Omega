@@ -767,6 +767,9 @@ pub(super) fn substitute_scalar_term_values(
             path: path
                 .iter()
                 .map(|projection| match projection {
+                    semantic_vocabulary::ScalarReadProjection::Referent => {
+                        semantic_vocabulary::ScalarReadProjection::Referent
+                    }
                     semantic_vocabulary::ScalarReadProjection::Static(segment) => {
                         semantic_vocabulary::ScalarReadProjection::Static(*segment)
                     }

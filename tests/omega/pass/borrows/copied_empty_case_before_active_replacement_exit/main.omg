@@ -1,0 +1,22 @@
+// Expected exit: 0
+// An empty copied payload is not made active by a later replacement.
+data Cell { value: i32; }
+data Envelope<'storage> [copy] { case Active(cell: &'storage Cell); case Empty; }
+machine install<'storage>(slot: &mut Envelope<'storage>, cell: &'storage Cell) -> bool {
+    slot = Envelope::Active {cell: cell};
+    true
+}
+machine clear<'storage>(slot: &mut Envelope<'storage>) -> bool { slot = Envelope::Empty; true }
+machine consume(value: Envelope, ignored: bool) -> i32 {
+    match value { Envelope::Active {cell} -> cell.value Envelope::Empty -> 17 }
+}
+machine mutate(cell: &mut Cell) -> bool { cell.value = 23; true }
+machine main() crashes Trap {
+    let mut first: Cell = Cell {value: 19};
+    let mut envelope: Envelope = Envelope::Empty;
+    let observed: i32 = consume(envelope, install(&mut envelope, &first));
+    let current: i32 = match envelope { Envelope::Active {cell} -> cell.value Envelope::Empty -> 0 };
+    transition observed == 17 && current == 19 {true -> done() false -> bad()}
+    state done() {}
+    state bad() { crash Trap; }
+}

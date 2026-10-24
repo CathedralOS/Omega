@@ -640,7 +640,9 @@ defines the complete product bar.
     `pass/borrows/runtime_computed_case_copy_order_exit` and
     `pass/operators/runtime_constructed_operand_result_exit` (exit 0 in both
     engines). Computed copies retain selectors and the selected value before
-    later operands mutate their source. Selected payload returns use ordinary
+    later operands mutate their source; retain the scalar and shared-descriptor
+    controls in [copied call argument snapshots](samples/cli/facts/copied_call_argument_snapshot/README.md),
+    including captured backing exclusion after descriptor replacement. Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
     Runtime-dispatched values still need their full construction schedule. Preserve

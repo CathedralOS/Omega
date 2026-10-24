@@ -232,6 +232,45 @@ impl Execution<'_, '_, '_> {
             // pre-call pointee profile is not a post-call contents snapshot or
             // a new scalar equality supplied by a symbolic store summary.
             let retention = self.append_retention(&roots);
+            // The effect owner admits ImageStorage only from a literal. An
+            // existential image alternative or retained input debt cannot
+            // classify the whole descriptor as an empty image-backed loan.
+            self.context
+                .control
+                .operand_retentions
+                .get_mut(retention)
+                .immutable_image = effect.has_static_values
+                && sources.is_empty()
+                && dependencies.is_empty()
+                && !effect.retains_incoming;
+            // Retain the actual supplying evaluations independently of the
+            // sanitized post-call address. Resource consumers must not recover
+            // a permission from the destination slot's older loan generation.
+            let suppliers = sources
+                .iter()
+                .map(|(source, projection)| {
+                    let operand = self.context.control.operands.insert(*source);
+                    let projection = self
+                        .context
+                        .control
+                        .operand_retained_paths
+                        .insert_many(projection.iter().copied());
+                    checked_trees::FlowOperandRetainedSupplier {
+                        operand,
+                        projection,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let suppliers = self
+                .context
+                .control
+                .operand_retained_suppliers
+                .insert_many(suppliers);
+            self.context
+                .control
+                .operand_retentions
+                .get_mut(retention)
+                .suppliers = suppliers;
             let referents = self.append_referent_places(&places);
             let value = self.context.control.operands.insert(FlowOperandFact {
                 type_reference: reference,

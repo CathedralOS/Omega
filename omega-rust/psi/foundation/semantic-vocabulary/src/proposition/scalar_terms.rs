@@ -250,6 +250,9 @@ impl ByteSequenceStructuralField {
 /// claim that the selected storage is readable or in bounds.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarReadProjection {
+    /// An explicit live descriptor crossing, never inline field geometry or
+    /// permission to observe storage without its retained loan custody.
+    Referent,
     Static(CanonicalStructuralPathSegment),
     Index(Box<ScalarTerm>),
 }
@@ -1030,7 +1033,7 @@ impl ScalarTerm {
                 .iter()
                 .filter_map(|segment| match segment {
                     ScalarReadProjection::Index(index) => Some(index.as_ref()),
-                    ScalarReadProjection::Static(_) => None,
+                    ScalarReadProjection::Static(_) | ScalarReadProjection::Referent => None,
                 })
                 .collect();
         }
@@ -1044,7 +1047,7 @@ impl ScalarTerm {
                 .iter_mut()
                 .filter_map(|segment| match segment {
                     ScalarReadProjection::Index(index) => Some(index.as_mut()),
-                    ScalarReadProjection::Static(_) => None,
+                    ScalarReadProjection::Static(_) | ScalarReadProjection::Referent => None,
                 })
                 .collect();
         }

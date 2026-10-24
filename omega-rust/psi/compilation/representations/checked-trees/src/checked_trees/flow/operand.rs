@@ -34,7 +34,14 @@ pub struct FlowOperandRetention {
     /// a post-call observation, not an evaluated child, loan authority, scalar
     /// equality or a snapshot of the referent. Zero withholds exact geometry.
     pub descriptor: Handle<FlowOperandFact>,
+    /// Pointer scope authenticated by an immutable literal producer. Empty
+    /// lifetime roots alone never establish image backing. Copies retain this
+    /// scope; borrowing a holder does not inherit its pointee's scope.
+    pub immutable_image: bool,
     pub roots: HandleSpan<facts::PlaceRoot>,
+    /// Exact completed inputs retaining the permission carried by a call store.
+    /// These are supplier associations, not value equality or pointee snapshots.
+    pub suppliers: HandleSpan<FlowOperandRetainedSupplier>,
     /// Mutually exclusive completed profiles retained by a value join.
     /// Their stored-value links preserve nested descriptor observations;
     /// unioning backing roots alone would lose those completed contents.
@@ -49,6 +56,12 @@ pub struct FlowOperandRetention {
     /// A selected subtree of that captured value. Selection retains lifetime
     /// evidence without inventing an evaluated child or address observation.
     pub stored_projection: HandleSpan<facts::PlaceSegment>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowOperandRetainedSupplier {
+    pub operand: Handle<FlowOperandFact>,
+    pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

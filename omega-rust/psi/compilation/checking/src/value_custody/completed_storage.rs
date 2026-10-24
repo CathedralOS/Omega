@@ -56,9 +56,11 @@ impl StoredOperand {
 }
 
 mod captures;
+mod descriptor_suppliers;
 mod reference_captures;
 pub use captures::{
     captured_operand_child_at_path, captured_retention_profiles_at_path, operand_child_type,
     project_captured_view_place,
 };
+pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::reference_captures_at_path;

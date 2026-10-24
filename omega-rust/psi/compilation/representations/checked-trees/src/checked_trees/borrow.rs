@@ -348,8 +348,10 @@ pub struct CheckedCallBorrowLoanResource {
 pub enum CheckedCallBorrowLoanSource {
     /// Transport preserves the exact stored occurrence observed at completion.
     StoredLoan { loan: Handle<BorrowLoanFact> },
-    /// The call holds this access until completion. The referent and ancestors
-    /// were captured at this operand's evaluation, not at invocation entry.
+    /// This access supplies the retained permission, directly or through a
+    /// completed stored-call supplier. Its temporary home access may finish
+    /// earlier; the derived descriptor retains the exact captured ancestors.
+    /// Referent custody belongs to operand completion, not invocation entry.
     CallAccess {
         access: Handle<BorrowArgumentAccessFact>,
         parents: HandleSpan<Handle<BorrowLoanFact>>,

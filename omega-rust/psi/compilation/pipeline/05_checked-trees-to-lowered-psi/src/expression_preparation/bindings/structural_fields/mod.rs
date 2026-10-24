@@ -28,7 +28,7 @@ use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
 use semantic_vocabulary::StructuralCaseId;
 
 mod case_observation;
-mod observation_paths;
+use crate::emission::structural_observations as observation_paths;
 pub(crate) use case_observation::prepare as prepare_case_observation;
 
 #[derive(Clone)]

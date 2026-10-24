@@ -5,7 +5,7 @@
 //! boundary is a checked post-restoration mutating call carries that call's
 //! exact join. No second construction replays them.
 
-mod call_operands;
+pub(in crate::checks::borrows) mod call_operands;
 mod disposition_events;
 mod lifecycle;
 mod loan_resources;

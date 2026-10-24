@@ -27,6 +27,7 @@ mod retained_outputs;
 pub(crate) use retained_outputs::retained_outputs_are_attributed;
 mod reads;
 mod resources;
+mod staged_values;
 mod statements;
 mod successor_cleanup;
 

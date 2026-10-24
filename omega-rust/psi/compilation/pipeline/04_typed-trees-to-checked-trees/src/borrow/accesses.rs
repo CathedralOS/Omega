@@ -261,3 +261,18 @@ fn collect_argument_accesses(
         _ => collect_read_accesses(collection, expression),
     }
 }
+
+/// A detached owned copy releases its source home, independently of its
+/// contained loan frontier. The staged-value checker retains those leaves.
+pub(crate) fn is_owned_copy_type(
+    program: &dyn validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    validation::has_contents(
+        program,
+        reference,
+        &[],
+        validation::ContentsRequirement::StoredValue,
+    ) && validation::reference_shell(program, reference).is_none()
+        && program.type_multiplicity(reference) == language_semantics::Multiplicity::Unrestricted
+}

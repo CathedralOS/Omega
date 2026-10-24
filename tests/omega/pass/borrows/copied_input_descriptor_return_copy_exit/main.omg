@@ -1,0 +1,16 @@
+// Expected exit: 0
+data Cell { value: i32; }
+data View<'storage> [copy] { target: &'storage Cell; }
+machine tick(counter: &mut u64) -> bool { counter = 1; true }
+machine receive(view: View, ignored: bool) -> i32 { view.target.value }
+machine echo(view: View) -> View { view }
+machine relay(view: View, counter: &mut u64) -> i32 { receive(echo(view), tick(counter)) }
+machine main() crashes Trap {
+    let first: Cell = Cell {value: 17};
+    let view: View = View {target: &first};
+    let mut counter: u64 = 0;
+    let observed: i32 = relay(view, &mut counter);
+    transition observed == 17 && counter == 1 {true -> done() false -> bad()}
+    state done() {}
+    state bad() { crash Trap; }
+}

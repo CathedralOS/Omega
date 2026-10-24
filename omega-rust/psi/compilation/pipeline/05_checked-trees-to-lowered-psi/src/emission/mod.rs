@@ -45,6 +45,7 @@ pub(crate) mod representation_view_store;
 pub(crate) mod runtime_elements;
 pub(crate) mod selected_continuations;
 pub(crate) mod structural_byte_sequence_store;
+pub(crate) mod structural_observations;
 pub(crate) mod structural_scalar_store;
 pub(crate) mod structural_scalar_store_source;
 

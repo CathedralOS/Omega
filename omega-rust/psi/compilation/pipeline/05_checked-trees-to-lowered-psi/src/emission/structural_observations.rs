@@ -4,24 +4,27 @@
 //! supply each stored-pointer crossing; live loan custody remains an independent
 //! receiving check. Stores retain their own explicit, exclusive projection walk.
 
-use super::{
-    CheckedUnitStructuralPathSegment, LoweringError, ScalarType, StructuralFieldType,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, unsupported,
-};
+use crate::lowering_error::{LoweringError, unsupported};
+use checked_trees::CheckedUnitStructuralPathSegment;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
+use semantic_vocabulary::{ScalarReadProjection, ScalarType, StructuralTypeId};
+use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 /// One declared projection supplies physical geometry and its scalar endpoint.
 /// Canonical field identity exists only for inline storage: pointer loads and
 /// descriptor indexing instead require executable reads with their live bounds.
-pub(super) struct ObservationPath<'declaration> {
-    pub(super) segments: Vec<CheckedUnitStructuralPathSegment>,
-    pub(super) declaration: Option<&'declaration StructuralTypeDeclaration>,
-    pub(super) scalar_field: Option<&'declaration terminal_psi::StructuralFieldDeclaration>,
-    pub(super) canonical: Option<Vec<CanonicalStructuralPathSegment>>,
+pub(crate) struct ObservationPath<'declaration> {
+    pub(crate) segments: Vec<CheckedUnitStructuralPathSegment>,
+    pub(crate) declaration: Option<&'declaration StructuralTypeDeclaration>,
+    pub(crate) scalar_field: Option<&'declaration terminal_psi::StructuralFieldDeclaration>,
+    pub(crate) canonical: Option<Vec<CanonicalStructuralPathSegment>>,
+    /// Static selectors plus explicit pointer crossings. Runtime selectors
+    /// need their separately evaluated scalar namespace before forming a term.
+    pub(crate) observation: Option<Vec<ScalarReadProjection>>,
 }
 
 impl ObservationPath<'_> {
-    pub(super) fn scalar_type(&self) -> Option<ScalarType> {
+    pub(crate) fn scalar_type(&self) -> Option<ScalarType> {
         if let Some(field) = self.scalar_field {
             return field.field_type.scalar_type();
         }
@@ -32,7 +35,7 @@ impl ObservationPath<'_> {
     }
 }
 
-pub(super) fn readable_carrier(
+pub(crate) fn readable_carrier(
     mut selected: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(&StructuralTypeDeclaration, usize), LoweringError> {
@@ -55,7 +58,7 @@ pub(super) fn readable_carrier(
     }
 }
 
-pub(super) fn explicit_path<'a>(
+pub(crate) fn explicit_path<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
@@ -66,6 +69,7 @@ pub(super) fn explicit_path<'a>(
     let mut selected_case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
     let mut result = Vec::with_capacity(path.len());
     let mut canonical = Some(Vec::with_capacity(path.len()));
+    let mut observation = Some(Vec::with_capacity(path.len()));
     let mut scalar_field: Option<&terminal_psi::StructuralFieldDeclaration> = None;
     for segment in path {
         let (declaration, crossings) = match selected {
@@ -81,6 +85,12 @@ pub(super) fn explicit_path<'a>(
         ));
         if crossings != 0 {
             canonical = None;
+            if let Some(observation) = &mut observation {
+                observation.extend(std::iter::repeat_n(
+                    ScalarReadProjection::Referent,
+                    crossings,
+                ));
+            }
         }
         // Inline byte fields and declared byte descriptors have the same
         // element geometry. Selecting a byte still owes its own live extent
@@ -103,8 +113,14 @@ pub(super) fn explicit_path<'a>(
                         return unsupported("byte observation index exceeds its storage capacity");
                     }
                     result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
+                    if let Some(observation) = &mut observation {
+                        observation.push(ScalarReadProjection::Static(
+                            CanonicalStructuralPathSegment::FixedIndex(*index),
+                        ));
+                    }
                 }
                 Source::RuntimeIndex(index) => {
+                    observation = None;
                     result.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                         index.clone(),
                     ));
@@ -140,6 +156,11 @@ pub(super) fn explicit_path<'a>(
                 };
                 selected_case_fields = Some(&case.fields);
                 result.push(CheckedUnitStructuralPathSegment::Case(identity.clone()));
+                if let Some(observation) = &mut observation {
+                    observation.push(ScalarReadProjection::Static(
+                        CanonicalStructuralPathSegment::Case(case.id),
+                    ));
+                }
                 if let Some(canonical) = &mut canonical {
                     canonical.push(CanonicalStructuralPathSegment::Case(case.id));
                 }
@@ -162,6 +183,11 @@ pub(super) fn explicit_path<'a>(
                     return unsupported("field observation cannot read an erased field");
                 }
                 result.push(CheckedUnitStructuralPathSegment::Field(identity.clone()));
+                if let Some(observation) = &mut observation {
+                    observation.push(ScalarReadProjection::Static(
+                        CanonicalStructuralPathSegment::Field(field.id),
+                    ));
+                }
                 if let Some(canonical) = &mut canonical {
                     canonical.push(CanonicalStructuralPathSegment::Field(field.id));
                 }
@@ -177,6 +203,11 @@ pub(super) fn explicit_path<'a>(
                 if index < length =>
             {
                 result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
+                if let Some(observation) = &mut observation {
+                    observation.push(ScalarReadProjection::Static(
+                        CanonicalStructuralPathSegment::FixedIndex(*index),
+                    ));
+                }
                 if let Some(canonical) = &mut canonical {
                     canonical.push(CanonicalStructuralPathSegment::FixedIndex(*index));
                 }
@@ -187,6 +218,11 @@ pub(super) fn explicit_path<'a>(
                 // Preparation retains its descriptor count and the read owes
                 // a dominating index obligation at the concrete operation.
                 result.push(CheckedUnitStructuralPathSegment::FixedIndex(*index));
+                if let Some(observation) = &mut observation {
+                    observation.push(ScalarReadProjection::Static(
+                        CanonicalStructuralPathSegment::FixedIndex(*index),
+                    ));
+                }
                 canonical = None;
                 Some(*element)
             }
@@ -195,6 +231,7 @@ pub(super) fn explicit_path<'a>(
                 StructuralTypeShape::FixedArray { element, .. }
                 | StructuralTypeShape::ElementView { element, .. },
             ) => {
+                observation = None;
                 result.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     index.clone(),
                 ));
@@ -213,6 +250,12 @@ pub(super) fn explicit_path<'a>(
             ));
             if crossings != 0 {
                 canonical = None;
+                if let Some(observation) = &mut observation {
+                    observation.extend(std::iter::repeat_n(
+                        ScalarReadProjection::Referent,
+                        crossings,
+                    ));
+                }
             }
             Some(declaration)
         }
@@ -223,5 +266,6 @@ pub(super) fn explicit_path<'a>(
         declaration,
         scalar_field,
         canonical,
+        observation,
     })
 }

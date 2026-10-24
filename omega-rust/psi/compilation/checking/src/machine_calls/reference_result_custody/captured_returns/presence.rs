@@ -162,12 +162,20 @@ impl Captures<'_> {
                 StoredCarrierSource::Image { .. } => false,
                 StoredCarrierSource::Place(source) => match source.source {
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                        let (_, local) = self.program.state_local_declaration(state, symbol)?;
+                        // A stored home can be a formal or a local. Reuse
+                        // the common declaration/visibility query; the source
+                        // variant does not restrict it to a local initializer.
+                        let reference = super::super::storage_owner_type_reference(
+                            self.program,
+                            state,
+                            symbol,
+                            u32::try_from(statement_index).ok()?,
+                        )?;
                         self.place_leaf_present(
                             state,
                             statement_index,
                             facts::PlaceRoot::Symbol(symbol),
-                            &loan_place_segments(self.program, local.type_reference, &source.path)?,
+                            &loan_place_segments(self.program, reference, &source.path)?,
                             capture,
                             active,
                         )?

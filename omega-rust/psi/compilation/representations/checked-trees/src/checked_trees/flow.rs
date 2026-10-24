@@ -108,7 +108,8 @@ pub use control::{
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{
     FlowAtomicExecutionFact, FlowCaseAccessFact, FlowOperandChild, FlowOperandFact,
-    FlowOperandReferent, FlowOperandRetainedLeaf, FlowOperandRetention, FlowValueObservationFact,
+    FlowOperandReferent, FlowOperandRetainedLeaf, FlowOperandRetainedSupplier,
+    FlowOperandRetention, FlowValueObservationFact,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,

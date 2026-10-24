@@ -223,6 +223,15 @@ impl Execution<'_, '_, '_> {
                         .collect(),
                 );
             }
+            // An unchanged input descriptor can have an opaque pointer while
+            // still denoting this exact completed actual and inline path.
+            // Preserve that association without borrowing its containing home
+            // or manufacturing a newly evaluated child.
+            let mut value = *self.context.control.operands.get(actual);
+            if !path.is_empty() {
+                value.referents = Default::default();
+            }
+            return Some(vec![(value, path.to_vec())]);
         }
         if path.is_empty() {
             return Some(vec![(*actual, Vec::new())]);

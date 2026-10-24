@@ -95,6 +95,16 @@ impl Resolver<'_> {
         if !capture.type_reference.is_valid() {
             return Selection::Unavailable;
         }
+        // A view join retains complete pointer alternatives too. Selecting a
+        // descriptor shortcut first could discard its non-image alternatives.
+        if !capture.alternatives.is_empty() {
+            let selected = capture
+                .alternatives
+                .handles()
+                .map(|alternative| self.select(alternative, path))
+                .collect();
+            return join(selected);
+        }
         let view = crate::reference_shell(self.program, capture.type_reference).is_some();
         if view && self.control.operand_retentions.is_valid(capture.retention) {
             let profile = self.control.operand_retentions.get(capture.retention);
@@ -125,14 +135,6 @@ impl Resolver<'_> {
                 path,
             ) {
                 return self.select(child, &path[length..]);
-            }
-            if !capture.alternatives.is_empty() {
-                let values = capture.alternatives.handles().collect::<Vec<_>>();
-                let selected = values
-                    .into_iter()
-                    .map(|value| self.select(value, path))
-                    .collect();
-                return join(selected);
             }
             if capture.value_source.is_valid() {
                 return self.select(capture.value_source, path);
