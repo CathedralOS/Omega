@@ -30,19 +30,14 @@ pub(in crate::legalization) fn row(
     let function = native
         .function(machine)
         .ok_or(LegalizationError::custody())?;
-    let mut rows = function.graph.operations().filter(|row| {
+    super::unique_row(function, |row| {
         matches!(
             row,
             TargetUnitOperation::NearestIeeeFloatArithmetic { psi_operation, .. }
             | TargetUnitOperation::IeeeFloatClassify { psi_operation, .. }
                 if *psi_operation == operation
         )
-    });
-    let row = rows.next();
-    if rows.next().is_some() {
-        return Err(LegalizationError::custody());
-    }
-    Ok(row)
+    })
 }
 
 /// Replay one inline row with only the SSA sources available at its position,

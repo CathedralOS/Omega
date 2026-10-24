@@ -463,53 +463,55 @@ pub(super) fn project(
             )?
             .is_some() =>
             {
-                if let Some(target_operations::TargetUnitOperation::IeeeFloatClassify {
-                    boundary: row_boundary,
-                    realization,
-                    result_home,
-                    ..
-                }) = scalar_graph_input::ieee_float_arithmetic::row(
+                // The guard established the row; one reconstruction feeds either realization.
+                let Some(row) = scalar_graph_input::ieee_float_arithmetic::row(
                     native,
                     optimized.machine,
                     operation,
-                )? {
-                    let abstract_operations::AbstractBoundaryResult::Structural(result) = result
-                    else {
-                        return Err(Error::custody());
-                    };
-                    if *row_boundary != *boundary || arguments.len() != 1 {
-                        return Err(Error::custody());
+                )?
+                else {
+                    return Err(Error::custody());
+                };
+                match row {
+                    target_operations::TargetUnitOperation::IeeeFloatClassify {
+                        boundary: row_boundary,
+                        realization,
+                        result_home,
+                        ..
+                    } => {
+                        let abstract_operations::AbstractBoundaryResult::Structural(result) =
+                            result
+                        else {
+                            return Err(Error::custody());
+                        };
+                        if *row_boundary != *boundary || arguments.len() != 1 {
+                            return Err(Error::custody());
+                        }
+                        LegalizedScalarInstructionKind::IeeeFloatClassify {
+                            boundary: *boundary,
+                            format: realization.format,
+                            argument: arguments[0],
+                            result: result.clone(),
+                            layout: result_home.layout.sum().ok_or(Error::custody())?.clone(),
+                        }
                     }
-                    LegalizedScalarInstructionKind::IeeeFloatClassify {
-                        boundary: *boundary,
-                        format: realization.format,
-                        argument: arguments[0],
-                        result: result.clone(),
-                        layout: result_home.layout.sum().ok_or(Error::custody())?.clone(),
-                    }
-                } else {
-                    let Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                    target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
                         boundary: row_boundary,
                         realization,
                         ..
-                    }) = scalar_graph_input::ieee_float_arithmetic::row(
-                        native,
-                        optimized.machine,
-                        operation,
-                    )?
-                    else {
-                        return Err(Error::custody());
-                    };
-                    if arguments.len() != realization.operation.operand_count()
-                        || row_boundary != boundary
-                    {
-                        return Err(Error::custody());
+                    } => {
+                        if arguments.len() != realization.operation.operand_count()
+                            || row_boundary != boundary
+                        {
+                            return Err(Error::custody());
+                        }
+                        LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
+                            boundary: *boundary,
+                            realization: *realization,
+                            arguments: arguments.clone(),
+                        }
                     }
-                    LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
-                        boundary: *boundary,
-                        realization: *realization,
-                        arguments: arguments.clone(),
-                    }
+                    _ => return Err(Error::custody()),
                 }
             }
             AbstractOperation::BoundaryCall {

@@ -109,18 +109,13 @@ pub(in crate::legalization) fn row(
     let function = native
         .function(machine)
         .ok_or(LegalizationError::custody())?;
-    let mut rows = function.graph.operations().filter(|row| {
+    super::unique_row(function, |row| {
         matches!(
             row,
             TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
                 if *psi_operation == operation
         )
-    });
-    let row = rows.next();
-    if rows.next().is_some() {
-        return Err(LegalizationError::custody());
-    }
-    Ok(row)
+    })
 }
 
 /// Replay the retained native-callback roster against the target rows.
@@ -143,26 +138,24 @@ pub(in crate::legalization) fn validate_native_callback_roster(
         {
             return Err(LegalizationError::custody());
         }
-        let mut rows = native
-            .functions
-            .iter()
-            .flat_map(|function| function.graph.operations())
-            .filter(|row| {
+        let mut row = None;
+        for function in &native.functions {
+            if let Some(found) = super::unique_row(function, |row| {
                 matches!(
                     row,
                     TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
                         if *psi_operation == callback.terminal_operation
                 )
-            });
-        let Some(row) = rows.next() else {
+            })? {
+                if row.replace(found).is_some() {
+                    return Err(LegalizationError::custody());
+                }
+            }
+        }
+        let Some(TargetUnitOperation::NormalizedForeignCall { binding, .. }) = row else {
             return Err(LegalizationError::custody());
         };
-        let TargetUnitOperation::NormalizedForeignCall { binding, .. } = row else {
-            unreachable!("filtered on NormalizedForeignCall")
-        };
-        if rows.next().is_some()
-            || binding.boundary_entry_plan != callback.registrar_boundary_entry_plan
-        {
+        if binding.boundary_entry_plan != callback.registrar_boundary_entry_plan {
             return Err(LegalizationError::custody());
         }
     }

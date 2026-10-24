@@ -174,24 +174,26 @@ pub(in crate::legalization) fn selected_boundary_operation(
     let function = native
         .function(caller.machine)
         .ok_or_else(|| LegalizationError::custody())?;
-    let mut calls = function
-        .graph
-        .operations()
-        .filter_map(|operation| match operation {
+    let Some(
+        target_call @ TargetUnitOperation::Call {
+            origin,
+            target: target_operations::NativeCallTarget::Machine(callee),
+            ..
+        },
+    ) = super::unique_row(function, |row| {
+        matches!(
+            row,
             TargetUnitOperation::Call {
                 psi_operation: identity,
-                origin,
-                target: target_operations::NativeCallTarget::Machine(callee),
+                target: target_operations::NativeCallTarget::Machine(_),
                 ..
-            } if identity == psi_operation => Some((operation, origin, *callee)),
-            _ => None,
-        });
-    let Some((target_call, origin, callee)) = calls.next() else {
+            } if identity == psi_operation
+        )
+    })?
+    else {
         return Ok(None);
     };
-    if calls.next().is_some() {
-        return Err(LegalizationError::custody());
-    }
+    let callee = *callee;
     let family = matches!(origin, NativeCallOrigin::TargetFamily { .. });
     let entry = matches!(origin, NativeCallOrigin::ProgramEntry { .. });
     let provider = match origin {

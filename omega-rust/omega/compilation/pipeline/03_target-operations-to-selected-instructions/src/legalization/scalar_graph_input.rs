@@ -20,7 +20,7 @@ use optimization_unit::{
 use semantic_vocabulary::{
     IntegerSign, IntegerType, MachineId, ObligationId, OperationId, ScalarType, ValueId,
 };
-use target_operations::{TargetFunction, TargetOperationPlan};
+use target_operations::{TargetFunction, TargetOperationPlan, TargetUnitOperation};
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
 pub(super) mod atomic_access;
@@ -208,6 +208,19 @@ pub(super) fn u64_type() -> IntegerType {
 
 pub(super) type BlockEntryCustody =
     std::collections::BTreeMap<semantic_vocabulary::BlockId, reference_custody::Custody>;
+
+/// The unique retained target row `matches` accepted; a second match is a custody failure.
+pub(super) fn unique_row<'function>(
+    function: &'function TargetFunction,
+    mut matches: impl FnMut(&TargetUnitOperation) -> bool,
+) -> Result<Option<&'function TargetUnitOperation>, LegalizationError> {
+    let mut rows = function.graph.operations().filter(|row| matches(row));
+    let row = rows.next();
+    if rows.next().is_some() {
+        return Err(LegalizationError::custody());
+    }
+    Ok(row)
+}
 
 pub(super) fn match_input(
     target: &TargetFunction,
@@ -619,7 +632,9 @@ pub(super) fn callee_plan(
     }
     Ok(call_plan)
 }
-fn scalar_register(placement: &ValuePlacement) -> bool {
+/// The scalar shapes one native carrier transports in a single location: both
+/// float formats and the four integer widths at their natural alignment.
+fn scalar_carrier_shape(shape: ValueShape) -> bool {
     [
         ValueShape::float(4),
         ValueShape::float(8),
@@ -628,22 +643,18 @@ fn scalar_register(placement: &ValuePlacement) -> bool {
         ValueShape::integer(4, 4),
         ValueShape::integer(8, 8),
     ]
-    .contains(&placement.shape)
+    .contains(&shape)
+}
+
+fn scalar_register(placement: &ValuePlacement) -> bool {
+    scalar_carrier_shape(placement.shape)
         && matches!(placement.locations.as_slice(),
             [ValueLocation::Register {value_byte_offset: 0, byte_size, ..}]
             if *byte_size == placement.shape.byte_size)
 }
 
 fn scalar_stack(placement: &ValuePlacement) -> bool {
-    [
-        ValueShape::float(4),
-        ValueShape::float(8),
-        ValueShape::integer(1, 1),
-        ValueShape::integer(2, 2),
-        ValueShape::integer(4, 4),
-        ValueShape::integer(8, 8),
-    ]
-    .contains(&placement.shape)
+    scalar_carrier_shape(placement.shape)
         && matches!(placement.locations.as_slice(),
             [ValueLocation::Stack { stack_byte_offset, value_byte_offset: 0, byte_size, alignment }]
                 if *byte_size == placement.shape.byte_size && *alignment >= placement.shape.alignment

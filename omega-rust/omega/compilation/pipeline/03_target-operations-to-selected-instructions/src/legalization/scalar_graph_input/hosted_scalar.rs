@@ -45,24 +45,18 @@ pub(in crate::legalization) fn hosted_realization(
     if functions.next().is_some() {
         return Err(LegalizationError::custody());
     }
-    let mut result = None;
-    let mut inspect = |row: &TargetUnitOperation| -> Result<(), LegalizationError> {
-        if let TargetUnitOperation::BoundarySettlement {
-            psi_operation,
-            realization,
-            ..
-        } = row
-            && *psi_operation == operation
-            && result.replace(*realization).is_some()
-        {
-            return Err(LegalizationError::custody());
-        }
-        Ok(())
+    // The realization is the boundary settlement's own row; an operation that
+    // emitted no settlement row has no hosted realization at all.
+    let Some(TargetUnitOperation::BoundarySettlement { realization, .. }) =
+        super::unique_row(function, |row| {
+            matches!(
+                row,
+                TargetUnitOperation::BoundarySettlement { psi_operation, .. }
+                    if *psi_operation == operation
+            )
+        })?
+    else {
+        return Err(LegalizationError::custody());
     };
-    for block in &function.graph.blocks {
-        for row in &block.operations {
-            inspect(row)?;
-        }
-    }
-    result.ok_or(LegalizationError::custody())
+    Ok(*realization)
 }
