@@ -27,4 +27,3 @@ machine main() crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
-

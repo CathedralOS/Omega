@@ -20,6 +20,6 @@ machine exercise() -> bool {
     let parked: bool = park(&mut holder, &left);
     let second: i32 = holder.view.value;
     let selected: Token = match parked { true -> left false -> left };
-    
+
     first == 17 && second == 17 && selected.value == 17
 }

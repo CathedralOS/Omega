@@ -18,7 +18,7 @@ machine exercise() -> bool {
     let mut holder: Holder = Holder { view: &right };
     let forwarded: &Token = &left;
     let parked: bool = park(&mut holder, forwarded);
-    
+
     let selected: Token = match parked { true -> left false -> left };
     let second: i32 = holder.view.value;
     first == 17 && second == 17 && selected.value == 17
