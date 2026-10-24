@@ -1,0 +1,18 @@
+// A machine declares a one-field record result but its terminal expression is
+// a numeric cast. Checking rejects the mismatch; lowering has no row that would
+// wrap a scalar into the record, so accepting it would only fail at realization.
+data R { v: u8 }
+
+machine byte_at(s: &[u8], position: u64) -> R
+    requires position < s.len;
+{
+    s[position] as u64
+}
+
+machine Main::main(this: &mut Main) {
+    let bytes: [u8; 4] = [1, 2, 3, 4];
+    let r: R = byte_at(&bytes, 2);
+    transition { _ -> done() }
+    state done() {}
+}
+data Main { }

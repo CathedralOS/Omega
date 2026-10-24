@@ -699,6 +699,15 @@ fn argument_matches_type_reference_using(
                     {
                         return program.symbols.get(path.symbol).parent == *symbol;
                     }
+                    // A numeric cast or an arithmetic/logical operation delivers
+                    // a scalar; a nominal data value never arrives through one,
+                    // and lowering has no row that would wrap it.
+                    ExpressionNode::Cast(cast)
+                        if program.primitive_type_reference(cast.target_type).is_some() =>
+                    {
+                        return false;
+                    }
+                    ExpressionNode::Binary(_) | ExpressionNode::Unary(_) => return false,
                     _ => {}
                 }
             }
