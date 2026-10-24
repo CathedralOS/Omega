@@ -20,10 +20,11 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::proofs::crash_routes::lowered_erased_scalar_terms;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
-use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_state(
@@ -338,27 +339,14 @@ pub(super) fn emit_state(
             else {
                 return unsupported("scalar qualification lost its successor edge");
             };
-            *scalar_actuals = qualify_erased_arguments
-                .iter()
-                .map(|argument| {
-                    crate::proofs::crash_routes::lowered_erased_scalar_term(
-                        argument,
-                        &values,
-                        &erased_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            *proof_actuals = qualify_erased_proof_arguments
-                .iter()
-                .map(|argument| {
-                    crate::scalar_lowering::contracts::lowered_proof_term(
-                        checked,
-                        argument,
-                        &values,
-                        &erased_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            *scalar_actuals =
+                lowered_erased_scalar_terms(qualify_erased_arguments, &values, &erased_formals)?;
+            *proof_actuals = lowered_proof_terms(
+                checked,
+                qualify_erased_proof_arguments,
+                &values,
+                &erased_formals,
+            )?;
             terminator
         }
         LoweredScalarBranchTerminator::Capture {
@@ -400,27 +388,10 @@ pub(super) fn emit_state(
             // dominate the private selection graph; retaining their IDs does
             // not reevaluate expressions after disposal or claim transfer.
             let arguments = arguments(outgoing)?;
-            let erased_arguments = erased_arguments
-                .iter()
-                .map(|argument| {
-                    crate::proofs::crash_routes::lowered_erased_scalar_term(
-                        argument,
-                        &values,
-                        &erased_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let erased_proof_arguments = erased_proof_arguments
-                .iter()
-                .map(|term| {
-                    crate::scalar_lowering::contracts::lowered_proof_term(
-                        checked,
-                        term,
-                        &values,
-                        &erased_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let erased_arguments =
+                lowered_erased_scalar_terms(erased_arguments, &values, &erased_formals)?;
+            let erased_proof_arguments =
+                lowered_proof_terms(checked, erased_proof_arguments, &values, &erased_formals)?;
             let regions =
                 crate::unit::unit_cleanup::emit_prepared_cleanup_regions(cleanup_actions, calls)?;
             let cleanup_actions = if regions
@@ -487,35 +458,6 @@ pub(super) fn emit_state(
         } => {
             let when_true_arguments = arguments(when_true_arguments)?;
             let when_false_arguments = arguments(when_false_arguments)?;
-            let erased_terms = |expressions: &[LoweredDirectExpression]| {
-                expressions
-                    .iter()
-                    .map(|argument| {
-                        crate::proofs::crash_routes::lowered_erased_scalar_term(
-                            argument,
-                            &values,
-                            &erased_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            };
-            let when_true_erased_arguments = erased_terms(when_true_erased_arguments)?;
-            let when_false_erased_arguments = erased_terms(when_false_erased_arguments)?;
-            let proof_terms = |terms: &[crate::scalar_lowering::contracts::LoweredProofTerm]| {
-                terms
-                    .iter()
-                    .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(
-                            checked,
-                            term,
-                            &values,
-                            &erased_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            };
-            let when_true_erased_proof_arguments = proof_terms(when_true_erased_proof_arguments)?;
-            let when_false_erased_proof_arguments = proof_terms(when_false_erased_proof_arguments)?;
             if contains_short_circuit(condition) {
                 if !when_true_erased_arguments.is_empty()
                     || !when_false_erased_arguments.is_empty()
@@ -584,6 +526,22 @@ pub(super) fn emit_state(
                 blocks.extend(children);
                 return Ok(());
             }
+            let when_true_erased_arguments =
+                lowered_erased_scalar_terms(when_true_erased_arguments, &values, &erased_formals)?;
+            let when_false_erased_arguments =
+                lowered_erased_scalar_terms(when_false_erased_arguments, &values, &erased_formals)?;
+            let when_true_erased_proof_arguments = lowered_proof_terms(
+                checked,
+                when_true_erased_proof_arguments,
+                &values,
+                &erased_formals,
+            )?;
+            let when_false_erased_proof_arguments = lowered_proof_terms(
+                checked,
+                when_false_erased_proof_arguments,
+                &values,
+                &erased_formals,
+            )?;
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
@@ -663,50 +621,30 @@ pub(super) fn emit_state(
             } else {
                 Vec::new()
             };
-            let when_true_erased_arguments = when_true_erased_arguments
-                .iter()
-                .map(|argument| {
-                    crate::proofs::crash_routes::lowered_erased_scalar_term(
-                        argument,
-                        &dispatch_namespace,
-                        &erased_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let when_true_erased_proof_arguments = when_true_erased_proof_arguments
-                .iter()
-                .map(|term| {
-                    crate::scalar_lowering::contracts::lowered_proof_term(
-                        checked,
-                        term,
-                        &dispatch_namespace,
-                        &erased_formals,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let when_true_erased_arguments = lowered_erased_scalar_terms(
+                when_true_erased_arguments,
+                &dispatch_namespace,
+                &erased_formals,
+            )?;
+            let when_true_erased_proof_arguments = lowered_proof_terms(
+                checked,
+                when_true_erased_proof_arguments,
+                &dispatch_namespace,
+                &erased_formals,
+            )?;
             let (when_false_erased_arguments, when_false_erased_proof_arguments) = if has_fallback {
                 (
-                    when_false_erased_arguments
-                        .iter()
-                        .map(|argument| {
-                            crate::proofs::crash_routes::lowered_erased_scalar_term(
-                                argument,
-                                &values,
-                                &erased_formals,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                    when_false_erased_proof_arguments
-                        .iter()
-                        .map(|term| {
-                            crate::scalar_lowering::contracts::lowered_proof_term(
-                                checked,
-                                term,
-                                &values,
-                                &erased_formals,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
+                    lowered_erased_scalar_terms(
+                        when_false_erased_arguments,
+                        &values,
+                        &erased_formals,
+                    )?,
+                    lowered_proof_terms(
+                        checked,
+                        when_false_erased_proof_arguments,
+                        &values,
+                        &erased_formals,
+                    )?,
                 )
             } else {
                 (Vec::new(), Vec::new())
@@ -801,29 +739,17 @@ pub(super) fn emit_state(
                         next_value,
                         operations,
                     )?;
-                    let erased_arguments = arm
-                        .erased_arguments
-                        .iter()
-                        .map(|argument| {
-                            crate::proofs::crash_routes::lowered_erased_scalar_term(
-                                argument,
-                                &dispatch_namespace,
-                                &erased_formals,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let erased_proof_arguments = arm
-                        .erased_proof_arguments
-                        .iter()
-                        .map(|term| {
-                            crate::scalar_lowering::contracts::lowered_proof_term(
-                                checked,
-                                term,
-                                &dispatch_namespace,
-                                &erased_formals,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let erased_arguments = lowered_erased_scalar_terms(
+                        &arm.erased_arguments,
+                        &dispatch_namespace,
+                        &erased_formals,
+                    )?;
+                    let erased_proof_arguments = lowered_proof_terms(
+                        checked,
+                        &arm.erased_proof_arguments,
+                        &dispatch_namespace,
+                        &erased_formals,
+                    )?;
                     blocks.push(Block::plain(
                         selected_block,
                         payload_parameters,
@@ -855,27 +781,17 @@ pub(super) fn emit_state(
                             next_value,
                             operations,
                         )?;
-                        let erased_arguments = fallback_erased_arguments
-                            .iter()
-                            .map(|argument| {
-                                crate::proofs::crash_routes::lowered_erased_scalar_term(
-                                    argument,
-                                    &values,
-                                    &erased_formals,
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let erased_proof_arguments = fallback_erased_proof_arguments
-                            .iter()
-                            .map(|term| {
-                                crate::scalar_lowering::contracts::lowered_proof_term(
-                                    checked,
-                                    term,
-                                    &values,
-                                    &erased_formals,
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
+                        let erased_arguments = lowered_erased_scalar_terms(
+                            fallback_erased_arguments,
+                            &values,
+                            &erased_formals,
+                        )?;
+                        let erased_proof_arguments = lowered_proof_terms(
+                            checked,
+                            fallback_erased_proof_arguments,
+                            &values,
+                            &erased_formals,
+                        )?;
                         blocks.push(Block::plain(
                             block,
                             Vec::new(),

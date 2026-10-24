@@ -177,6 +177,20 @@ pub(crate) fn lowered_erased_scalar_term(
     lowered_direct_scalar_term(expression, values, erased)
 }
 
+/// Lower one whole erased-actual roster against a single scalar namespace.
+/// Every predecessor terminator maps its erased formals through this owner;
+/// a term keeps its `ErasedParameter` position only inside that namespace.
+pub(crate) fn lowered_erased_scalar_terms(
+    expressions: &[LoweredDirectExpression],
+    values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+) -> Result<Vec<ScalarTerm>, LoweringError> {
+    expressions
+        .iter()
+        .map(|expression| lowered_erased_scalar_term(expression, values, erased))
+        .collect()
+}
+
 pub(crate) fn lowered_direct_scalar_term(
     expression: &LoweredDirectExpression,
     values: &[ValueDeclaration],

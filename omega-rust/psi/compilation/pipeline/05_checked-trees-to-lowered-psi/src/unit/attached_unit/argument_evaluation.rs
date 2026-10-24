@@ -22,7 +22,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBin
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
-use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
 use crate::unit::attached_unit::OperationEnvironment;
 use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
@@ -1473,18 +1473,12 @@ impl Evaluation {
                 ))?,
                 arguments: values.iter().map(|value| value.id).collect(),
                 erased_arguments: Vec::new(),
-                erased_proof_arguments: self
-                    .proof_formal_forwarding()
-                    .iter()
-                    .map(|term| {
-                        crate::scalar_lowering::contracts::lowered_proof_term(
-                            checked,
-                            term,
-                            values,
-                            &self.erased_scalar_formals,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, LoweringError>>()?,
+                erased_proof_arguments: lowered_proof_terms(
+                    checked,
+                    &self.proof_formal_forwarding(),
+                    values,
+                    &self.erased_scalar_formals,
+                )?,
                 cleanup_actions: Vec::new(),
             },
         });

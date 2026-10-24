@@ -526,6 +526,21 @@ pub(crate) fn lowered_proof_term(
     }
 }
 
+/// Lower one whole proof-actual roster against a single scalar namespace.
+/// A predecessor maps every target-block proof formal through this owner, so
+/// the roster order and the caller's namespace stay the only inputs.
+pub(crate) fn lowered_proof_terms(
+    checked: &CheckedTrees,
+    terms: &[LoweredProofTerm],
+    values: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+) -> Result<Vec<ProofTerm>, LoweringError> {
+    terms
+        .iter()
+        .map(|term| lowered_proof_term(checked, term, values, erased))
+        .collect()
+}
+
 /// Preserve integer contract relations as propositions, not executable Boolean
 /// comparisons equated with true. Call composition can then cite the exact
 /// relation in ordinary fixed-integer proof rules.
