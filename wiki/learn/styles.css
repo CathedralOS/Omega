@@ -28,9 +28,9 @@
 * { box-sizing: border-box; }
 
 html {
-  /* fluid root: 16px through ~1440px wide, growing to 24px at 4K so the
-     page uses a big monitor instead of forcing the reader to zoom */
-  font-size: clamp(16px, 0.36vw + 10.8px, 24px);
+  /* fluid root: 16px through ~1440px, ~18px at 2560px, 20px at 4K —
+     uses a big monitor's space without forcing the reader to zoom */
+  font-size: clamp(16px, 0.2vw + 13.1px, 20px);
   scroll-behavior: smooth;
   scrollbar-color: rgba(107, 97, 84, 0.42) var(--paper);
 }
