@@ -36,9 +36,9 @@ pub(super) fn append_replacement(
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
     cleanup: &mut ContextualCleanupFacts,
-) -> Vec<super::cleanup_dispositions::StorageEstablishment> {
+) -> Result<Vec<super::cleanup_dispositions::StorageEstablishment>, diagnostics::Diagnostic> {
     let Some(assignment) = statement.as_assignment() else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let Some(place) = validation::canonical_place_from_expression_in_state(
         program,
@@ -46,7 +46,7 @@ pub(super) fn append_replacement(
         statement_index,
         assignment.target,
     ) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     // A range selects several owned subtrees, not one array-typed subtree.
     // Publish each selected occurrence through the ordinary custody owner so
@@ -59,7 +59,7 @@ pub(super) fn append_replacement(
             program.machine_by_symbol(machine),
             program.state_by_symbol(state),
         ) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let mut bounds = validation::ImmutableBoundLookup::new(program);
         let Some(shape) = validation::array_window_shape(
@@ -69,7 +69,7 @@ pub(super) fn append_replacement(
             assignment.target,
             &mut bounds,
         ) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let (Some(start), Some(end), Some(collection)) = (
             shape.start,
@@ -81,7 +81,7 @@ pub(super) fn append_replacement(
                 indexed.collection,
             ),
         ) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let Some(collection_type) = validation::canonical_place_type_reference(
             program,
@@ -90,19 +90,19 @@ pub(super) fn append_replacement(
             &collection,
         )
         .and_then(|reference| validation::unwrapped_type_reference(program, reference)) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let TypeReferenceNode::FixedArray {
             length: typed_trees::types::FixedArrayLength::Literal(length),
             ..
         } = program.type_reference_table.type_reference(collection_type)
         else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         // Bounds validation owns the diagnostic. Invalid geometry creates no
         // death events and cannot cause unbounded enumeration outside storage.
         if start > end || end > *length {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         (start..end)
             .map(|index| {
@@ -117,9 +117,9 @@ pub(super) fn append_replacement(
     } else {
         vec![place]
     };
-    destinations
+    Ok(destinations
         .into_iter()
-        .filter_map(|place| {
+        .map(|place| {
             append_place_replacement(
                 program,
                 facts,
@@ -133,7 +133,10 @@ pub(super) fn append_replacement(
                 cleanup,
             )
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -148,20 +151,19 @@ fn append_place_replacement(
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
     cleanup: &mut ContextualCleanupFacts,
-) -> Option<super::cleanup_dispositions::StorageEstablishment> {
-    let symbol = place.root.as_symbol()?;
+) -> Result<Option<super::cleanup_dispositions::StorageEstablishment>, diagnostics::Diagnostic> {
+    let Some(symbol) = place.root.as_symbol() else {
+        return Ok(None);
+    };
     // This occurrence replaces the captured destination, not a statically
     // named claim. Runtime selectors retain that same path in the death and
     // establishment events; cleanup later uses the assignment's captured
     // coordinates rather than evaluating the selectors again. Ownership,
     // reference crossings and residual custody below decide eligibility.
-    if place.segments.is_empty() {
-        return None;
-    }
     let owner = places.iter().find(|owner| {
         owner.root == facts::PlaceRoot::Symbol(symbol)
             && owner.path.is_empty()
-            && (owner.live || remaining.is_reserved(place.root))
+            && (owner.live || remaining.has_storage_frontier(place.root))
             && owner.multiplicity == Multiplicity::Affine
     });
     // Strict prefixes own the selected slot. The endpoint may itself be a
@@ -171,19 +173,28 @@ fn append_place_replacement(
             root: place.root,
             segments: place.segments[..length].to_vec(),
         };
-        let reference =
-            validation::canonical_place_type_reference(program, state, statement_index, &prefix)?;
+        let Some(reference) =
+            validation::canonical_place_type_reference(program, state, statement_index, &prefix)
+        else {
+            return Ok(None);
+        };
         if type_reference_is_reference(program, reference) {
-            return None;
+            return Ok(None);
         }
     }
-    let endpoint =
-        validation::canonical_place_type_reference(program, state, statement_index, &place)?;
+    let Some(endpoint) =
+        validation::canonical_place_type_reference(program, state, statement_index, &place)
+    else {
+        return Ok(None);
+    };
     let descriptor =
         validation::reference_result_custody::stored_loan_parts(program, endpoint).is_some();
     let affine = type_multiplicity(program, endpoint) == Multiplicity::Affine && !descriptor;
+    if descriptor && place.segments.is_empty() {
+        return Ok(None);
+    }
     if descriptor {
-        append_descriptor_death(
+        if append_descriptor_death(
             program,
             facts,
             cleanup,
@@ -193,21 +204,25 @@ fn append_place_replacement(
             &place,
             endpoint,
             remaining,
-        )?;
-    } else if owner.is_none()
+        )
+        .is_none()
+        {
+            return Ok(None);
+        }
+    } else if (owner.is_none() && !remaining.has_storage_frontier(place.root))
         || type_reference_is_reference(program, endpoint)
         || type_multiplicity(program, endpoint) == Multiplicity::Linear
     {
-        return None;
+        return Ok(None);
     }
-    if !affine && !descriptor && !remaining.is_reserved(place.root) {
+    if !affine && !descriptor && !remaining.has_storage_frontier(place.root) {
         // Copy-field stores carry no disposal event in a complete value.
         // They matter here only as establishment of reserved construction
         // storage; ordinary scalar write semantics stay with their owner.
-        return None;
+        return Ok(None);
     }
     let discarded = if affine {
-        remaining.disposal_paths(place.root, &place.segments)
+        remaining.disposal_paths(program, place.root, &place.segments)
     } else {
         Vec::new()
     };
@@ -218,40 +233,49 @@ fn append_place_replacement(
         .segments
         .insert_many(place.segments.iter().copied());
     for path in discarded {
-        // Reserved storage may contain zero-valid copy fields alongside its
-        // established owners. Completion needs both; disposal owes only the
-        // selected value's actual multiplicity, never its parent's.
         let discarded = validation::CanonicalPlace {
             root: place.root,
             segments: path,
         };
-        if validation::canonical_place_type_reference(program, state, statement_index, &discarded)
-            .is_none_or(|reference| type_multiplicity(program, reference) != Multiplicity::Affine)
-        {
-            continue;
+        let Some(reference) =
+            validation::canonical_place_type_reference(program, state, statement_index, &discarded)
+        else {
+            return Err(diagnostics::Diagnostic::error(
+                "replacement cleanup has no exact discarded type",
+            ));
+        };
+        // The ordinary cleanup owner retains exact live claims, nominal hooks,
+        // and excluded subtrees. A receiving overwrite cannot replace that
+        // authority with a claim count or a structural partition guess.
+        if !super::linear_validation::append_owned_region_cleanup_permission_events(
+            program,
+            reference,
+            discarded.root,
+            &discarded.segments,
+            places,
+            remaining,
+            FlowPermissionEventFact {
+                expression: Default::default(),
+                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+                machine_symbol: machine,
+                state_symbol: state,
+                source,
+                kind: PermissionEventKind::AffineDrop,
+                multiplicity: Multiplicity::Affine,
+                access: PermissionAccess::Owned,
+                claim_identity: PermissionClaimIdentity::Unknown,
+                provenance: PermissionProvenance::Unknown,
+                root: place.root,
+                segments: Default::default(),
+                obligation_live: false,
+            },
+            &mut facts.flow.ownership.segments,
+            permissions,
+        ) {
+            return Err(diagnostics::Diagnostic::error(
+                "replacement cannot dispose its remaining owned region",
+            ));
         }
-        let discarded_segments = facts
-            .flow
-            .ownership
-            .segments
-            .insert_many(discarded.segments);
-        permissions.push(FlowPermissionEventFact {
-            expression: Default::default(),
-            evaluation: checked_trees::FlowPermissionEvaluation::Statement,
-            machine_symbol: machine,
-            state_symbol: state,
-            source,
-            kind: PermissionEventKind::AffineDrop,
-            multiplicity: Multiplicity::Affine,
-            access: PermissionAccess::Owned,
-            claim_identity: PermissionClaimIdentity::Unknown,
-            provenance: owner
-                .and_then(|owner| owner.provenance)
-                .unwrap_or(PermissionProvenance::Unknown),
-            root: place.root,
-            segments: discarded_segments,
-            obligation_live: false,
-        });
     }
     // Return the same receiving occurrence to the cleanup owner. Projected
     // affine regions do not have their own tracked linear-claim row.
@@ -282,7 +306,7 @@ fn append_place_replacement(
         segments,
         obligation_live: false,
     });
-    Some(establishment)
+    Ok(Some(establishment))
 }
 
 /// A stored loan's death ends a carrier, not an affine source obligation.
@@ -317,7 +341,7 @@ fn append_descriptor_death(
     } else {
         let (ordinal, local) = program.state_local_declaration(declaration, symbol)?;
         if ordinal >= statement_index
-            || (!local.initial_value.is_valid() && !remaining.is_reserved(place.root))
+            || (!local.initial_value.is_valid() && !remaining.has_storage_frontier(place.root))
         {
             return None;
         }

@@ -184,10 +184,10 @@ impl StateGraphEmission<'_, '_> {
 
         evaluation.blocks.push(Block {
             id: evaluation.current,
-            parameters: evaluation.parameters,
+            parameters: std::mem::take(&mut evaluation.parameters),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
-            structural_parameters: evaluation.block_structural_parameters,
+            structural_parameters: std::mem::take(&mut evaluation.block_structural_parameters),
             operations: operations[evaluation.operation_start
                 ..if dispatches || !edge_blocks.is_empty() {
                     body_end
@@ -254,7 +254,16 @@ impl StateGraphEmission<'_, '_> {
             &mut self.catalogs.temporary_places,
         )?;
         evaluation.blocks.extend(edge_blocks);
-        super::super::cleanup::retire_captured_subjects(state, &operations, &mut evaluation.blocks);
+        let reference_retirements = super::super::cleanup::observed_reference_retirements(
+            state,
+            &operations,
+            |place| evaluation.descriptor_retirement(place, &operations),
+        )?;
+        super::super::cleanup::retire_observed_references(
+            &reference_retirements,
+            &operations,
+            &mut evaluation.blocks,
+        );
         crate::emission::private_borrow_transport::forward_private_state_borrows(
             self.state_ids[position],
             &mut evaluation.blocks,

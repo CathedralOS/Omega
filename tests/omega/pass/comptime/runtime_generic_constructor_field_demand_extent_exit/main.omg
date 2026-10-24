@@ -1,0 +1,26 @@
+// A generic constructor's selected field establishes its standing bound before semantic extent evaluation.
+// Expected exit: 0
+data Bounded<Element> where value <= 20 { value: u64; payload: Element; }
+machine supply() -> u64 { 10 }
+machine build<Element>(payload: Element) -> Bounded<Element> {
+    Bounded { value: 10, payload: payload }
+}
+machine observed() -> u64 {
+    let bounded: Bounded<u8> = build<u8>(7);
+    bounded.value
+}
+data Storage { bytes: [u8; observed()]; }
+data Main {}
+machine Main::main(main: &mut Main) crashes Trap {
+    let mut storage: Storage = Storage {
+        bytes: [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8]
+    };
+    storage.bytes[0] = 4;
+    storage.bytes[9] = 6;
+    transition storage.bytes[0] == 4 && storage.bytes[9] == 6 && observed() == 10 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

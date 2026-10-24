@@ -91,22 +91,24 @@ pub(crate) use construction_predicates::construction_predicate_judgments;
 mod call_projection_identity;
 mod const_ranges;
 mod content_conservation;
-pub use content_conservation::completed_value_preserves_entry_projection;
-pub use content_conservation::completed_value_proves_content_conservation;
+pub use content_conservation::{
+    ContentBackingAddressGoal, completed_value_preserves_entry_projection,
+    completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
+};
 mod contract_refinement;
-mod exact_integer_fit;
 mod exit_coverage;
 mod fact_mentions;
 mod inductive_judgment;
 mod law_conformance;
+mod numeric_observations;
 mod observed_projections;
+mod operand_fits;
 mod proof_edges;
 mod proof_integer;
 mod quotient_congruence;
 mod ranking_range;
 mod refuted_requires;
 mod result_bounds;
-mod scalar_observations;
 pub use call_projection_identity::{captured_call_subject_identity, owned_contract_subject};
 mod scoped_arithmetic;
 mod self_induction;
@@ -118,8 +120,10 @@ mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;
 mod structural_prefix;
-pub(crate) use exact_integer_fit::{
+pub(crate) use operand_fits::{
+    anonymous_comparison_operand_fits_at_occurrence, anonymous_value_fit_at_occurrence,
     exact_binary_fits_at_occurrence, exact_cast_fits_at_occurrence,
+    float_integer_conversion_fits_at_occurrence,
 };
 mod structural_terms;
 mod transparent_applications;
@@ -141,11 +145,16 @@ pub use law_conformance::{
 };
 pub use law_conformance::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use law_conformance::{check_law_conformance, check_operator_contract_conformance};
+pub(crate) use numeric_observations::CapturedScalarAssociation;
+pub use numeric_observations::{
+    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
+    NumericObservationDemand, captured_numeric_observations,
+};
 pub(crate) use proof_edges::proof_edge_strict_decrease_judged;
 pub(crate) use proof_integer::mathematical_integer_operands;
 pub use proof_integer::{anonymous_integer_math_literal, proof_integer_expression};
 pub(crate) use proof_integer::{
-    proof_integer_nonnegative, proof_integer_nonzero, proof_nat_cast,
+    anonymous_integer_value, proof_integer_nonnegative, proof_integer_nonzero, proof_nat_cast,
     validate_proof_fact_integer_formation,
 };
 pub use ranking_range::{
@@ -179,7 +188,6 @@ pub use ranking_range::{
 };
 pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
-pub use scalar_observations::{CapturedScalarObservation, captured_scalar_observations};
 pub(crate) use scoped_arithmetic::scoped_arithmetic_implication_for_declaration;
 pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
@@ -594,9 +602,9 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let projection_plans = if ensures.iter().any(|fact| {
         content_conservation::content_conservation_plan(machine, *fact, &content_plans).is_some()
     }) {
-        crate::value_custody::content_projections::build_content_projection_plans(program)
+        crate::value_custody::content_conservation::content_projection_plans(program)
     } else {
-        Vec::new()
+        std::sync::Arc::new(Vec::new())
     };
     let judge_normal_return = |fact: ExpressionHandle| -> Option<StructuralJudgment> {
         let content_plan =

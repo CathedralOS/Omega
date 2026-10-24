@@ -191,6 +191,7 @@ fn validate<'program>(
     prior_dependency_bodies: &[DependencyBodyJudgment],
     record_dependency_bodies: bool,
 ) -> Result<ProgramValidation, Vec<Diagnostic>> {
+    let mut formation_obligations = Vec::new();
     let pre_machine_guard = phase_profile::guard("05.d.2.a.1.pre_machine_validators");
     let mut diagnostics = Vec::new();
     if let Err(mut errors) =
@@ -235,23 +236,45 @@ fn validate<'program>(
         literals::validate_suffix_magnitudes(program, &mut diagnostics);
         // Abstract calls consume the same scoped content formation that later
         // fact construction uses. Keep its diagnostic-producing owner first.
-        content_projections::validate_content_projection_conformances(program, &mut diagnostics);
+        content_projections::validate_content_projection_conformances(
+            program,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         content_conservation::validate_content_conservation_contracts(program, &mut diagnostics);
-        validate_domain_definitions(program, &symbols, &fact_plan, &mut diagnostics);
-        validate_callable_state_signatures(program, &symbols, &mut diagnostics);
+        validate_domain_definitions(
+            program,
+            &symbols,
+            &fact_plan,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        validate_callable_state_signatures(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         write_only_borrows::validate_checked_write_only_slice(program, &mut diagnostics);
         arithmetic_domains::validate_abstract_total_specification_arithmetic(
             program,
             &mut diagnostics,
+            &mut formation_obligations,
         );
         cleanup::validate_cleanup_machine_declarations(program, &mut diagnostics);
-        validate_trait_requirements(program, &symbols, &mut diagnostics);
+        validate_trait_requirements(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         for trait_definition in program.traits() {
             validate_trait_conformance_bounds(
                 program,
                 trait_definition,
                 &symbols,
                 &mut diagnostics,
+                &mut formation_obligations,
             );
         }
         qualification_evidence::validate_qualification_authorization(program, &mut diagnostics);
@@ -270,6 +293,7 @@ fn validate<'program>(
                 &conformance_service_reaches,
                 &symbols,
                 &mut diagnostics,
+                &mut formation_obligations,
             );
             if let Err(mut dynamic_diagnostics) = collect_dynamic_implementation_selections(program)
             {
@@ -284,7 +308,12 @@ fn validate<'program>(
         fact_call_projections,
         specification_calls,
     ) = phase_profile::scope("05.d.2.a.1a4b.data_and_proof_faces", || {
-        validate_data_field_types(program, &symbols, &mut diagnostics);
+        validate_data_field_types(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         plan_laid::validate_plans(program, &mut diagnostics);
         placed_views::validate_plans(program, &mut diagnostics);
         relevance::validate_relevance(program, &mut diagnostics);
@@ -366,6 +395,7 @@ fn validate<'program>(
             stored_integer_writes.extend(struct_literals::validate_struct_literal_fields(
                 program,
                 &mut diagnostics,
+                &mut formation_obligations,
             ));
         });
         // Record patterns in LET (owner spec 2026-07-18): the exhaustiveness
@@ -386,19 +416,28 @@ fn validate<'program>(
     phase_profile::scope("05.d.2.a.1a5d.recasts_wire_operators", || {
         recasts::validate_recasts(program, call_frames.as_ref(), &mut diagnostics);
         wire::validate_wire_schemas(program, &symbols, &mut diagnostics);
-        operators::validate_operator_declarations(program, &symbols, &mut diagnostics);
+        operators::validate_operator_declarations(
+            program,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
     });
     let mut static_machine_selections =
         machine_parameters::ValidatedStaticMachineSelections::default();
     let mut formed_static_machine_selections = Default::default();
     let formation_diagnostic_start = diagnostics.len();
     phase_profile::scope("05.d.2.a.1a6.static_machine_selections", || {
-        if let Err(mut errors) =
-            crate::static_arguments::validate_authored_static_arguments(program)
-        {
+        if let Err(mut errors) = crate::static_arguments::validate_authored_static_arguments(
+            program,
+            &mut formation_obligations,
+        ) {
             diagnostics.append(&mut errors);
         }
-        if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(program) {
+        if let Err(mut errors) = crate::static_bindings::validate_static_machine_bindings(
+            program,
+            &mut formation_obligations,
+        ) {
             diagnostics.append(&mut errors);
         }
         formed_static_machine_selections =
@@ -459,6 +498,7 @@ fn validate<'program>(
         let mut diagnostics = Vec::new();
         let mut proven_machine_contract = None;
         let mut arithmetic_decisions = arithmetic_domains::ArithmeticDecisions::default();
+        let mut formation_obligations = Vec::new();
         let mut stored_integer_writes = Vec::new();
         let mut boundary_operator_applications = Vec::new();
         let mut self_call_descents = Vec::new();
@@ -485,13 +525,26 @@ fn validate<'program>(
         let machine_diagnostic_mark = diagnostics.len();
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
-        validate_owned_data(program, machine, &symbols, &mut diagnostics);
-        validate_generic_conformance_bounds(program, machine, &symbols, &mut diagnostics);
+        validate_owned_data(
+            program,
+            machine,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
+        validate_generic_conformance_bounds(
+            program,
+            machine,
+            &symbols,
+            &mut diagnostics,
+            &mut formation_obligations,
+        );
         validate_machine_contracts(program, machine, &mut diagnostics);
         arithmetic_domains::validate_machine_total_specification_arithmetic(
             program,
             machine,
             &mut diagnostics,
+            &mut formation_obligations,
         );
         // Pristine templates remain in the frozen roster. Judge their declared
         // abstract envelope here, alongside concrete bodies; preparation cannot
@@ -550,6 +603,7 @@ fn validate<'program>(
                 machine,
                 &symbols,
                 &mut diagnostics,
+                &mut formation_obligations,
             );
         }
 
@@ -711,6 +765,8 @@ fn validate<'program>(
                 }
                 let statement_handle = state.statement_nodes.handle_at(statement_index as u32);
                 let statement = &statements[statement_index];
+                // Observations belong to this exact statement occurrence.
+                value_environment.clear_numeric_observations();
                 let statement_diagnostic_mark = diagnostics.len();
                 let writable_roots = WritableRoots {
                     program,
@@ -727,6 +783,13 @@ fn validate<'program>(
                     statement,
                     &value_environment,
                     call_frames.as_ref(),
+                );
+                value_environment.prepare_numeric_observations(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
                 );
                 // R5 value-call frame: conservatively apply the aggregate
                 // may-write set of every call nested in this statement before
@@ -778,6 +841,7 @@ fn validate<'program>(
                         &transition_values,
                         &mut boundary_operator_applications,
                         &mut diagnostics,
+                        &mut formation_obligations,
                     );
                 }
                 // PROOF MACHINES (free machines over proof-only data) are
@@ -879,6 +943,7 @@ fn validate<'program>(
             proven_machine_contract,
             captured_entailment,
             arithmetic_decisions,
+            formation_obligations,
             stored_integer_writes,
             boundary_operator_applications,
             self_call_descents,
@@ -909,6 +974,7 @@ fn validate<'program>(
             proven_machine_contracts.push((symbol, judged));
         }
         arithmetic_decisions.append(machine.arithmetic_decisions);
+        formation_obligations.extend(machine.formation_obligations);
         stored_integer_writes.extend(machine.stored_integer_writes);
         // A site validated twice keeps its first application and reports an
         // inconsistent second one, exactly as one shared roster did.
@@ -926,12 +992,13 @@ fn validate<'program>(
     let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
 
     let arithmetic_domains::ArithmeticDecisions {
-        integer_range_obligations,
+        mut integer_range_obligations,
         mut exact_integer_casts,
         mut integer_assignments,
         mut decided_formations,
         expression_values: walked_intervals,
     } = arithmetic_decisions;
+    integer_range_obligations.extend(formation_obligations);
     let mut expression_intervals = Vec::<ExpressionInterval>::new();
     let mut walked_intervals = walked_intervals;
     walked_intervals
@@ -1046,6 +1113,7 @@ pub fn admit_prepared_program_effects(
     operational: &flow_effects::OperationalPlan,
     facts: &mut ProgramValidationFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let mut formation_obligations = Vec::new();
     let mut diagnostics = Vec::new();
     crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
         program,
@@ -1053,7 +1121,13 @@ pub fn admit_prepared_program_effects(
     );
     let symbols = TopLevelSymbols::build(program, &mut diagnostics);
     let service_reaches = infer_service_reaches(program, operational);
-    validate_conformances(program, &service_reaches, &symbols, &mut diagnostics);
+    validate_conformances(
+        program,
+        &service_reaches,
+        &symbols,
+        &mut diagnostics,
+        &mut formation_obligations,
+    );
     if let Err(mut errors) = collect_dynamic_implementation_selections(program) {
         diagnostics.append(&mut errors);
     }
@@ -1073,6 +1147,7 @@ pub fn admit_prepared_program_effects(
             machine,
             &symbols,
             &mut diagnostics,
+            &mut formation_obligations,
         );
     }
     facts.integer_embedding_calls =
@@ -1094,6 +1169,9 @@ pub fn admit_prepared_program_effects(
         diagnostics.append(&mut errors);
     }
     validate_cleanup_normal_completion(program, operational, &mut diagnostics);
+    facts
+        .integer_range_obligations
+        .extend(formation_obligations);
     finish_diagnostics(diagnostics)
 }
 
@@ -1174,6 +1252,7 @@ struct MachineValidation {
     proven_machine_contract: Option<(symbols::SymbolHandle, ProvenContractExpressions)>,
     captured_entailment: Option<dependency_bodies::CapturedEntailment>,
     arithmetic_decisions: arithmetic_domains::ArithmeticDecisions,
+    formation_obligations: Vec<checked_trees::IntegerRangeObligation>,
     stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     self_call_descents: Vec<crate::ValidatedSelfCallDescent>,

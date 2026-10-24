@@ -226,7 +226,7 @@ impl PrimitiveStorageWrites {
                     &execution.frame_at_depth(home.depth)?.scalar_array_values
                 };
                 let stored = arrays
-                    .get(&home.place)
+                    .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
                     .and_then(|array| array.elements.get(*index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
@@ -326,7 +326,7 @@ fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTyp
     ) && result.place == place
         && result.structural_type == structural_type
         && result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
     .then_some(structural_type)
@@ -836,6 +836,11 @@ impl TerminalExecution<'_> {
         &self,
         place: PlaceId,
     ) -> Result<PrimitiveStorageHome, TerminalInterpretError> {
+        if self.scalar_array_values.retains_retired(&place) {
+            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                place,
+            ));
+        }
         Ok(PrimitiveStorageHome {
             depth: self.call_stack.len(),
             machine: self.current_machine,
@@ -933,7 +938,9 @@ impl TerminalExecution<'_> {
                     })
             })
             .or_else(|| {
-                if path.is_empty() {
+                // Completed scalar copies own ordinary readable payload at
+                // their root. Writes retain their projected-store contract.
+                if writing && path.is_empty() {
                     return None;
                 }
                 machine
@@ -1205,7 +1212,7 @@ impl TerminalExecution<'_> {
         )
         .ok_or_else(malformed)?;
         let path = path.as_slice();
-        if let Some(array) = scalar_array_values.get(&place) {
+        if let Some(array) = scalar_array_values.backing(&place) {
             if array.structural_type != structural_type || structural_values.contains_key(&place) {
                 return Err(malformed());
             }
@@ -1321,6 +1328,21 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         observation: ScalarStorageObservation,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
+        if path.contains(&semantic_vocabulary::CanonicalStructuralPathSegment::Referent) {
+            let physical = terminal_semantics::canonical_structural_storage_path(
+                self.program.structural_types().values(),
+                view.structural_type,
+                path,
+            )
+            .ok_or_else(malformed)?;
+            let resolved = self
+                .reference_primitive_access(view, false, &physical)?
+                .ok_or_else(malformed)?;
+            if resolved.1 != scalar_type {
+                return Err(malformed());
+            }
+            return Ok(resolved);
+        }
         let shared_view = matches!(
             observation,
             ScalarStorageObservation::OrdinaryReference { shared_view: true }
@@ -1653,7 +1675,9 @@ impl TerminalExecution<'_> {
         let view = TerminalStructuralValue {
             opaque_identity: identity,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
+            // Canonical admission authenticated these memberships against the
+            // exact initializing SSA value; storage retains that same theory.
+            qualifications: result.qualifications.clone(),
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
@@ -1892,7 +1916,7 @@ impl TerminalExecution<'_> {
                     &self.frame_at_depth(home.depth)?.scalar_array_values
                 };
                 arrays
-                    .get(&home.place)
+                    .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
                     .and_then(|array| array.elements.get(index))
                     .copied()
@@ -2138,7 +2162,7 @@ impl TerminalExecution<'_> {
                         .scalar_array_values
                 };
                 let stored = arrays
-                    .get_mut(&home.place)
+                    .backing_mut(&home.place)
                     .and_then(|array| array.elements.get_mut(index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
@@ -2214,6 +2238,7 @@ impl TerminalExecution<'_> {
         let block = machine
             .block(&target)
             .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
+        let mut retired = Vec::new();
         for place in block
             .operations
             .iter()
@@ -2228,16 +2253,23 @@ impl TerminalExecution<'_> {
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            if let Some(previous) = self.structural_values.remove(&place)
-                && local_type(machine, place).is_some()
-            {
-                self.structural_primitive_storage
-                    .remove(&StructuralRuntimePlace::from(&previous));
+            if let Some(previous) = self.structural_values.remove(&place) {
+                let root = StructuralRuntimePlace::from(&previous);
+                if local_type(machine, place).is_some() {
+                    self.structural_primitive_storage.remove(&root);
+                }
+                retired.push(root);
             }
-            self.scalar_array_values.remove(&place);
+            crate::scalar_array::PackedHomeRetirement::retire_packed_home(
+                &mut self.scalar_array_values,
+                &place,
+            );
             self.byte_sequence_values.remove(&place);
             self.primitive_loan_values.remove(&place);
             self.element_view_values.remove(&place);
+        }
+        for root in retired {
+            self.queue_retired_descriptor_home(root);
         }
         Ok(())
     }

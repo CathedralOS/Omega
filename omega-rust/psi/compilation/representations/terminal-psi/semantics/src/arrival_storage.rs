@@ -61,11 +61,49 @@ pub fn view_descriptor_parameter<'types>(
                 .projected_qualifications
                 .iter()
                 .all(|row| row.is_element_membership()))
-        && (declaration.shape.is_borrowed_byte_carrier()
-            || matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::ElementView { .. }
-            ))
+        && declaration.shape.is_canonical_view_descriptor()
+}
+
+/// An outer loan to represented storage, including a pointer or view
+/// descriptor slot. Canonical view occurrences instead transport a descriptor
+/// value. Owned descriptor arrivals remain ordinary value transfers. This role
+/// judgment grants neither stored reference access nor current loan evidence.
+pub fn borrowed_storage_parameter<'types>(
+    parameter: &StructuralParameterDeclaration,
+    declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    if parameter.access == terminal_psi::StructuralAccess::Owned
+        || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+    {
+        return false;
+    }
+    let mut matching = declarations.filter(|row| row.id == parameter.structural_type);
+    let Some(declaration) = matching.next() else {
+        return false;
+    };
+    matching.next().is_none() && !declaration.shape.is_canonical_view_descriptor()
+}
+
+/// The maximum contained-reference access allowed by an outer storage loan.
+/// The receiving operation must still authenticate a live resident descriptor
+/// and its exact backing. Shared storage cannot lend a write-only inner grant.
+pub fn borrowed_storage_reference_ceiling<'types>(
+    parameter: &StructuralParameterDeclaration,
+    mut declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+) -> Option<terminal_psi::StructuralAccess> {
+    use terminal_psi::StructuralAccess;
+    if !borrowed_storage_parameter(parameter, declarations.clone()) {
+        return None;
+    }
+    let declaration = declarations.find(|row| row.id == parameter.structural_type)?;
+    let inner = crate::stored_reference_access(&declaration.shape)?;
+    match parameter.access {
+        StructuralAccess::SharedBorrow if inner != StructuralAccess::WriteOnlyBorrow => {
+            Some(StructuralAccess::SharedBorrow)
+        }
+        StructuralAccess::MutableBorrow => Some(inner),
+        _ => None,
+    }
 }
 
 /// Backing access retained by a live descriptor arrival. Owning the descriptor
@@ -88,8 +126,18 @@ pub fn descriptor_parameter_access<'types>(
             parameter.structural_type,
             parameter.multiplicity,
         )
+    } else if view_descriptor_parameter(parameter, declarations.clone()) {
+        Some(parameter.access)
+    } else if declarations.clone().any(|row| {
+        row.id == parameter.structural_type
+            && crate::reference_views::descriptor_declared_access(&row.shape).is_some()
+    }) {
+        // This is the declared contained-view ceiling, not a direct descriptor
+        // value arrival. The call/block binder must retain its live slot and
+        // authenticate the actual resident backing before using that ceiling.
+        borrowed_storage_reference_ceiling(parameter, declarations)
     } else {
-        view_descriptor_parameter(parameter, declarations).then_some(parameter.access)
+        None
     }
 }
 

@@ -87,7 +87,8 @@ pub(crate) use write_frames::machine_state_by_symbol;
 pub use write_frames::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceViewFormation, ScalarStorageCoordinate,
+    ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
+    ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceEffect,
     assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
     frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
     storage_origin_types_match,
@@ -132,6 +133,7 @@ pub(crate) fn validate_call_node(
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let scope = CallScope {
         program,
@@ -155,7 +157,12 @@ pub(crate) fn validate_call_node(
         Some(value_environment),
         diagnostics,
     );
-    if call_gates::validate_named_conformance_call(&scope, arguments, diagnostics) {
+    if call_gates::validate_named_conformance_call(
+        &scope,
+        arguments,
+        diagnostics,
+        formation_obligations,
+    ) {
         return;
     }
     // `Schema::encode(...)` / `Schema::decode(...)`: the wire module owns the
@@ -198,10 +205,21 @@ pub(crate) fn validate_call_node(
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.is_self_receiver())
     {
-        receiverless_calls::validate_receiverless_call(&scope, arguments, diagnostics);
+        receiverless_calls::validate_receiverless_call(
+            &scope,
+            arguments,
+            diagnostics,
+            formation_obligations,
+        );
         return;
     }
-    receiver_calls::validate_receiver_call(&scope, receiver_members, arguments, diagnostics);
+    receiver_calls::validate_receiver_call(
+        &scope,
+        receiver_members,
+        arguments,
+        diagnostics,
+        formation_obligations,
+    );
 }
 
 /// Reports the "state `X` expects N argument(s), got M" error when `arguments`
@@ -316,6 +334,14 @@ pub(crate) fn resolved_call_result_type(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
+    if call.layout_query.is_some() {
+        // The retained query owns a count result before any target supplies
+        // its numeric answer. This type grants no layout value or premise.
+        return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+            program,
+            symbols::BuiltinTypeAtom::U64,
+        );
+    }
     if let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol) {
         return state.return_type.is_valid().then_some(state.return_type);
     }
@@ -431,6 +457,7 @@ fn validate_literal_argument_destination(
     argument: ExpressionHandle,
     parameter_type: TypeReferenceHandle,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     crate::value_custody::literals::validate_suffix_landing(
         program,
@@ -453,6 +480,7 @@ fn validate_literal_argument_destination(
             argument,
             parameter_type,
             diagnostics,
+            formation_obligations,
         );
     }
 }
@@ -501,6 +529,7 @@ pub(crate) fn validate_call_arguments(
     argument_environments: &[ValueEnvironment],
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
@@ -531,6 +560,7 @@ pub(crate) fn validate_call_arguments(
             *argument,
             parameter.type_reference,
             diagnostics,
+            formation_obligations,
         );
         if report_argument_reference_access(
             program,
@@ -606,6 +636,7 @@ pub(crate) fn validate_call_arguments(
                 target_name,
                 retains_float_result_policy,
                 diagnostics,
+                formation_obligations,
             );
         }
         // Nominal guard: the shape gate blanket-accepts a place/name argument
@@ -707,6 +738,7 @@ fn validate_value_call_arguments(
     diagnostics: &mut Vec<Diagnostic>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // (The void-callee-in-value-position check lives in report_void_value_callee:
     // it consults the resolved state's return type AND the callee machine's
@@ -816,6 +848,7 @@ fn validate_value_call_arguments(
             )
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -837,11 +870,13 @@ pub use receiver_topology::{
     statement_call_receiver_path, trait_machine_signature_symbol,
 };
 mod argument_correspondence;
-pub(crate) use argument_correspondence::executable_parameters;
+pub(crate) use argument_correspondence::{
+    call_binding_correspondence, executable_parameters, immutable_runtime_parameter,
+};
 mod occurrences;
 pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,
-    transition_call_target,
+    invocation_output_parameter, transition_call_target,
 };

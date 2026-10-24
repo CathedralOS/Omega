@@ -14,17 +14,23 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 use std::rc::Rc;
 use symbols::SymbolHandle;
 
-/// A source-bound guard contains typed-tree identities, never sweep-local fact
-/// handles. Its source occurrence and polarity completely determine binding;
-/// the live guard checks and fresh evidence allocation remain at the caller.
+/// Typed callee-relative exit relations contain no caller observations.
+/// An explicit row with no answer is a prepared unknown, not an empty effect.
+struct StoredReferencePreparation {
+    target: SymbolHandle,
+    effects: Option<Rc<Vec<validation::StoredReferenceEffect>>>,
+}
+
+/// Cached guard algebra contains only source identities. Storage binding and
+/// read-epoch agreement consume fresh Flow observations at every evaluation;
+/// no sweep-local address or constraint handle may survive in this cache.
 struct GuardPreparation {
     occurrence: (
         SymbolHandle,
         usize,
         typed_trees::expression::ExpressionHandle,
-        bool,
     ),
-    predicate: Option<crate::facts::boolean_predicates::BoundPredicate>,
+    expression: Option<checked_trees::CheckedBooleanExpression>,
 }
 
 /// Immutable preparation for one authored invocation. Neither result contains
@@ -98,6 +104,10 @@ impl SymbolIndex {
 }
 
 pub(super) struct FlowBuildContext<'plans> {
+    /// Chronological normal-call descriptor values for the state being built.
+    /// Completed by-value payloads of the target currently being evaluated.
+    /// The target owner restores this scope before another arm is considered.
+    pub(super) active_completed_copies: arena::HandleSpan<checked_trees::FlowOperandFact>,
     program: &'plans dyn ::validation::CheckingInput,
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
     pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
@@ -129,6 +139,10 @@ pub(super) struct FlowBuildContext<'plans> {
     /// handles.
     pub(super) call_sites:
         HashMap<(SymbolHandle, SymbolHandle, usize, usize), CallPreparation<'plans>>,
+    /// Body-derived formal descriptor relations contain only typed program
+    /// coordinates. Prepare each target once; caller capture substitution is
+    /// invocation-local and never enters this memo.
+    call_stored_reference_effects: Vec<StoredReferencePreparation>,
     pub(super) call_target_parameters:
         HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
     pub(super) call_target_returns:
@@ -269,6 +283,30 @@ pub(super) struct FlowBuildContext<'plans> {
 }
 
 impl<'plans> FlowBuildContext<'plans> {
+    pub(super) fn stored_reference_effects(
+        &mut self,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+    ) -> Option<Rc<Vec<validation::StoredReferenceEffect>>> {
+        if let Some(prepared) = self
+            .call_stored_reference_effects
+            .iter()
+            .find(|prepared| prepared.target == state.symbol)
+        {
+            return prepared.effects.clone();
+        }
+        let effects = self
+            .call_frames
+            .and_then(|frames| frames.state_stored_reference_effects(machine, state))
+            .map(Rc::new);
+        self.call_stored_reference_effects
+            .push(StoredReferencePreparation {
+                target: state.symbol,
+                effects: effects.clone(),
+            });
+        effects
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         program: &'plans dyn ::validation::CheckingInput,
@@ -296,6 +334,7 @@ impl<'plans> FlowBuildContext<'plans> {
                 .push(row);
         }
         Self {
+            active_completed_copies: arena::HandleSpan::empty(),
             program,
             state_statements_start: Default::default(),
             state_outgoing_start: Default::default(),
@@ -308,6 +347,7 @@ impl<'plans> FlowBuildContext<'plans> {
             new_state_field_input_height: 0,
             element_store_potentials: Vec::new(),
             call_sites: HashMap::default(),
+            call_stored_reference_effects: Vec::new(),
             call_target_parameters: HashMap::default(),
             call_target_returns: HashMap::default(),
             call_result_identities: HashMap::default(),
@@ -412,20 +452,18 @@ impl<'plans> FlowBuildContext<'plans> {
             .copied()
     }
 
-    pub(super) fn guard_predicate_at(
+    pub(super) fn guard_expression_at(
         &mut self,
         program: &dyn validation::CheckingInput,
         state: SymbolHandle,
         statement: usize,
         expression: typed_trees::expression::ExpressionHandle,
-        value: bool,
-    ) -> Option<&crate::facts::boolean_predicates::BoundPredicate> {
-        let occurrence = (state, statement, expression, value);
-        let order_key = |(state, statement, expression, value): (
+    ) -> Option<&checked_trees::CheckedBooleanExpression> {
+        let occurrence = (state, statement, expression);
+        let order_key = |(state, statement, expression): (
             SymbolHandle,
             usize,
             typed_trees::expression::ExpressionHandle,
-            bool,
         )| {
             (
                 state.arena_index(),
@@ -433,7 +471,6 @@ impl<'plans> FlowBuildContext<'plans> {
                 statement,
                 expression.arena_index(),
                 expression.generation(),
-                value,
             )
         };
         let position = match self
@@ -443,25 +480,118 @@ impl<'plans> FlowBuildContext<'plans> {
             }) {
             Ok(position) => position,
             Err(position) => {
-                let predicate = crate::facts::boolean_predicates::bind_current_guard(
+                let expression = crate::facts::boolean_predicates::lower_current_guard(
                     program,
                     self.operators,
                     state,
                     statement,
                     expression,
-                    value,
                 );
                 self.guard_predicates.insert(
                     position,
                     GuardPreparation {
                         occurrence,
-                        predicate,
+                        expression,
                     },
                 );
                 position
             }
         };
-        self.guard_predicates[position].predicate.as_ref()
+        self.guard_predicates[position].expression.as_ref()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn completed_guard_predicate_at(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        value: bool,
+        writes: arena::HandleSpan<checked_trees::FlowOperandReferent>,
+        unknown_write: bool,
+    ) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+        let expression = self
+            .guard_expression_at(program, state, statement, expression)?
+            .clone();
+        crate::facts::boolean_predicates::bind_current_expression(
+            program,
+            state,
+            expression,
+            value,
+            |operand| {
+                super::observations::current_scalar_observation(
+                    program,
+                    self,
+                    state,
+                    statement,
+                    writes,
+                    unknown_write,
+                    operand,
+                )
+            },
+        )
+    }
+
+    pub(super) fn complete_predicate_bindings(
+        &self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        mut predicate: crate::facts::boolean_predicates::BoundPredicate,
+    ) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+        for binding in &mut predicate.bindings {
+            let observed = super::observations::scalar_observation_at(
+                program,
+                self,
+                state,
+                statement,
+                &binding.operand,
+            )?;
+            if program.primitive_type_reference(observed.reference)
+                != binding.operand.primitive_type()
+            {
+                return None;
+            }
+            binding.place = observed.place;
+        }
+        Some(predicate)
+    }
+
+    /// Current value identity differs from address syntax when an arm has
+    /// already copied its payload. Reference descendants keep their saved
+    /// descriptor's actual referent, whose contents remain subject to writes.
+    pub(super) fn completed_read_place_at(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<validation::CanonicalPlace> {
+        let place = self.canonical_place_at(program, state, statement, expression)?;
+        if self.active_completed_copies.is_empty() {
+            return Some(place);
+        }
+        self.completed_read_place(program, state, statement, expression, &place)
+    }
+
+    pub(super) fn completed_read_place(
+        &self,
+        program: &dyn validation::CheckingInput,
+        state: SymbolHandle,
+        statement: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+        place: &validation::CanonicalPlace,
+    ) -> Option<validation::CanonicalPlace> {
+        super::observations::completed_copy_read_place(
+            program,
+            &self.control,
+            self.active_completed_copies,
+            state,
+            statement,
+            expression,
+            place,
+        )
     }
 
     pub(super) fn canonical_place_at(
@@ -708,7 +838,9 @@ impl<'plans> FlowBuildContext<'plans> {
             .flatten()
             .map(|row| &plans.expressions[*row])
             .filter(|expression| expression.role == binding.role);
-        let expression = expressions.next()?;
+        let Some(expression) = expressions.next() else {
+            return Some(None);
+        };
         if expressions.next().is_some() {
             return Some(None);
         }
@@ -757,6 +889,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// reset can only empty unpublished roots. Preserve these constraints when
     /// adding a context field.
     pub(super) fn discard_output(&mut self) {
+        self.active_completed_copies = arena::HandleSpan::empty();
         self.assignment_observations.clear();
         // Every output arena, including ones only a few transfers write:
         // rows a discarded sweep left behind are unreferenced and must not

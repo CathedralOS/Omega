@@ -33,6 +33,9 @@ pub struct PreparedBuild {
 /// Complete authored and generated Product source, consumed once by Psi checking.
 /// Realization never receives a mutable copy of this source continuation.
 pub struct PreparedProductSource {
+    /// Real logical charges for authored completion, retained on both cold and
+    /// reused paths. Generated admission and Build charges remain independent.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
@@ -46,6 +49,7 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 #[derive(Clone)]
 pub struct CheckedProductSource {
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:

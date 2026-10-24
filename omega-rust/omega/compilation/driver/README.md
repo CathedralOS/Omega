@@ -186,8 +186,7 @@ Authored Build policy remains distinct from per-target realized evidence, and
 checked-product equality includes the complete evaluated Build. Clones share program
 storage until mutation; review instantiation borrow-projects table rows rather
 than clone-rebuilding scratch. Any mutation does not reseal evidence, and
-downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
-evidence.
+downstream reconstruction remains mandatory.
 
 Candidate discovery calls `CompilationSession::check(request)` for the verdict
 and independent-component discovery. The session owns source frontiers, Pure

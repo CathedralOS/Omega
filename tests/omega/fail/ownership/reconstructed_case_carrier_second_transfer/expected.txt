@@ -1,1 +1,1 @@
-after `value.slot` was transferred or consumed
+projected owned storage is not established

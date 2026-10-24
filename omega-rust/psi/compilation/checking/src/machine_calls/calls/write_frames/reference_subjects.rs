@@ -1063,6 +1063,13 @@ pub(super) fn validate_owned_projection(
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(reference)
     {
+        // The empty suffix denotes this pointer's referent address. When that
+        // storage itself holds a reference, forwarding the outer pointer does
+        // not load it. Nonempty paths still owe the ordinary frozen descriptor
+        // boundary before selecting a reference-valued field or another hop.
+        if segments.is_empty() {
+            return Some(());
+        }
         reference = *referee;
     }
     // Effect footprints deliberately coarsen even literal array selections.

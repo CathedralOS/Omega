@@ -114,6 +114,7 @@ pub(super) fn admit(
                 if !cleanup_actions.is_empty()
                     && cleanup_actions.iter().all(|action| call_argument_admitted(
                         &checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
                             source: action.source().clone(),
                             path: action.path().to_vec(),
                             type_identity: action.type_identity().to_owned(),

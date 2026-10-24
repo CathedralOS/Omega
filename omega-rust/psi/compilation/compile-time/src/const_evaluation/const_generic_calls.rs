@@ -314,6 +314,7 @@ fn evaluate_application_group(
                         &independent_program,
                         selection_authority.clone(),
                         &independent,
+                        &independent_domain.accounting,
                     )?,
                 ),
             };

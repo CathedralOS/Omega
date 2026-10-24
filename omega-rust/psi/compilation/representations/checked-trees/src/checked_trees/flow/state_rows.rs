@@ -6,6 +6,8 @@
 //! deliberately keep their distinct rules. The table owns the arena and index
 //! together. Mutable arena access clears the index, including replacement by
 //! an unrelated arena with the same revision during product pruning.
+//! That ownership boundary supplies freshness directly; readers need not walk
+//! every arena page to recompute a revision before looking up one state.
 
 use super::{FlowControlFacts, FlowStateFact};
 use arena::{Handle, OwnedIndex};
@@ -23,7 +25,7 @@ struct MachineStateRows {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowStateTable {
     arena: Arena<FlowStateFact>,
-    machine_rows: OwnedIndex<MachineStateRows>,
+    machine_rows: OwnedIndex<MachineStateRows, ()>,
 }
 
 impl From<Arena<FlowStateFact>> for FlowStateTable {
@@ -71,7 +73,7 @@ impl FlowControlFacts {
 
     fn with_state_rows<Result>(&self, read: impl FnOnce(&MachineStateRows) -> Result) -> Result {
         self.states.machine_rows.with(
-            self.states.revision(),
+            (),
             || {
                 let mut rows: Vec<_> = self
                     .states

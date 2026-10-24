@@ -50,16 +50,6 @@ pub(super) fn lower(
     {
         return unsupported("computed enum membership requires unrestricted receiver custody");
     }
-    let identity = expansion
-        .checked
-        .normalized_type_identity(root.type_reference);
-    let declaration = crate::terminal_identities::structural_declaration_by_identity(
-        expansion.structural_types,
-        identities,
-        expansion.checked,
-        identity,
-        "computed enum membership has no carrier namespace",
-    )?;
     let mut arguments = super::parameters(input_types);
     arguments.push(super::parameter(
         input_types.len(),
@@ -81,10 +71,12 @@ pub(super) fn lower(
         return Ok(observe);
     }
     Ok(
-        crate::scalar_lowering::branch_states::structural_values::ValueRequest {
-            value: receiver_value,
-            structural_type: declaration.id,
-        }
+        crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(
+            identities,
+            expansion.checked,
+            receiver_value,
+            expansion.structural_types,
+        )?
         .finish(input_types, observe, expansion),
     )
 }

@@ -128,6 +128,7 @@ pub(super) fn selected_region(
         .1
     };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path,
         type_identity: shapes.add_stored_type(

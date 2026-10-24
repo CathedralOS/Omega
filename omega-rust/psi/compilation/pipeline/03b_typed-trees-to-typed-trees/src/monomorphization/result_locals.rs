@@ -20,8 +20,11 @@ use typed_trees::statement::StatementNode;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
+mod dispatch_subjects;
 mod operand_captures;
 mod reference_observations;
+pub(super) use dispatch_subjects::materialize as materialize_dispatch_subjects;
+pub(crate) use dispatch_subjects::require_complete as require_complete_dispatch_subjects;
 pub(super) use reference_observations::materialize as materialize_reference_observations;
 
 #[derive(Clone, Copy)]
@@ -93,7 +96,7 @@ pub(super) fn refresh_generic_call_results(
                 {
                     continue;
                 }
-                if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
+                if !local.type_is_inferred || !local.role.is_value_binding() {
                     continue;
                 }
                 let Some(selection) = selections.iter().find(|selection| {
@@ -271,7 +274,7 @@ pub(crate) fn refresh(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
-                if !local.type_is_inferred || local.role != language_core::LocalBindingRole::Value {
+                if !local.type_is_inferred || !local.role.is_value_binding() {
                     continue;
                 }
                 let is_call = program
@@ -284,7 +287,11 @@ pub(crate) fn refresh(
                         .type_reference(local.type_reference),
                     typed_trees::types::TypeReferenceNode::Unit
                 );
-                if !is_call && !local.is_operand_capture && !needs_inference {
+                if !is_call
+                    && !local.is_operand_capture
+                    && !needs_inference
+                    && local.role != language_core::LocalBindingRole::DispatchSubject
+                {
                     continue;
                 }
                 let reference = if is_call {
@@ -309,11 +316,15 @@ pub(crate) fn refresh(
                 let Some(type_reference) = reference else {
                     continue;
                 };
-                // A settled scalar selector may carry a stronger checked range.
-                // Calls follow their prepared result; reference operands also
-                // renew their contextual storage adaptation.
+                // Generated operand captures follow their completed value on
+                // every pass. Their former provisional carrier or qualifiers
+                // are not evidence about a newly selected operator result.
+                // The ordinary consumer adaptation in apply_updates rebuilds
+                // legitimate scalar-reference reads from these raw results.
                 if !is_call
+                    && !local.is_operand_capture
                     && !needs_inference
+                    && local.role != language_core::LocalBindingRole::DispatchSubject
                     && validation::reference_shell(program, type_reference).is_none()
                 {
                     continue;

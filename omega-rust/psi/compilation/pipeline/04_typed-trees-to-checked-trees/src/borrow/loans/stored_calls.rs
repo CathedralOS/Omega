@@ -1,8 +1,60 @@
 //! A call can install a reference in caller-owned storage independently of its
 //! result value. Its body-derived slot relation supplies the same exact
 //! owner/backing pairs as an assignment; type shape alone supplies no loan.
+//! The persistent roster follows lexical fallthrough. Departing transition
+//! operands retain their own normal-call custody and outgoing-edge records.
 
 use super::{StatementBorrowLoan, owner_path_from_place_segments};
+
+/// Observe the call-completed slots at one operand's completion. This scratch roster
+/// retains incoming descriptor identities; it publishes no local loan node.
+pub(super) fn roster_at_expression(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    frames: &validation::CallFrameResolver<'_>,
+    incoming: &[super::StateLoanTracker],
+) -> Option<Vec<super::StateLoanTracker>> {
+    let effects = frames.stored_reference_effects_at_expression(
+        machine,
+        state,
+        statement_index,
+        expression,
+    )?;
+    let produced = from_effects(program, effects.clone(), incoming);
+    let mut current = incoming
+        .iter()
+        .filter(|loan| {
+            !effects.iter().any(|effect| {
+                !effect.may_select
+                    && loan.storage_owner
+                        == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                    && super::place_path_covers_owner(
+                        program,
+                        &effect.destination.local_segments,
+                        &loan.owner_path,
+                    )
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    current.extend(produced.into_iter().map(|loan| super::StateLoanTracker {
+        representation_address: loan.representation_address,
+        handle: Default::default(),
+        owner_symbol: loan.owner_symbol,
+        storage_owner: loan.storage_owner,
+        owner_name: loan.owner_name,
+        kind: loan.kind,
+        lineage: loan.lineage,
+        call_result: loan.call_result,
+        owner_path: loan.owner_path,
+        place: loan.place,
+        retained_operand: loan.retained_operand,
+    }));
+    Some(current)
+}
 
 pub(super) fn loans(
     program: &dyn ::validation::CheckingInput,
@@ -15,11 +67,19 @@ pub(super) fn loans(
     let Some(machine) = program.machine(machine_symbol) else {
         return Vec::new();
     };
-    let Some(effects) =
-        call_frames.and_then(|frames| frames.stored_reference_effects(machine, statement))
+    let Some(effects) = call_frames
+        .and_then(|frames| frames.stored_reference_fallthrough_effects(machine, statement))
     else {
         return Vec::new();
     };
+    from_effects(program, effects, loan_trackers)
+}
+
+pub(in crate::borrow) fn from_effects(
+    program: &dyn ::validation::CheckingInput,
+    effects: Vec<validation::StoredReferenceEffect>,
+    loan_trackers: &[super::StateLoanTracker],
+) -> Vec<StatementBorrowLoan> {
     let mut loans = Vec::new();
     for effect in effects {
         let owner = effect.destination.local_symbol;
@@ -42,6 +102,7 @@ pub(super) fn loans(
                 loans.push(StatementBorrowLoan {
                     incoming_origin: None,
                     formation_expression: Default::default(),
+                    representation_address: None,
                     owner_symbol: owner,
                     storage_owner: facts::PlaceRoot::Symbol(owner),
                     owner_name: program.symbols.name(owner).into(),
@@ -62,6 +123,76 @@ pub(super) fn loans(
         }
         for source in effect.sources {
             let backing = source.backing;
+            if let Some(identity) = backing.invocation_output {
+                // This is the output's admitted permission, not any retained
+                // input's address. The complete relation independently keeps
+                // all lifetime debts and all non-provider alternatives below.
+                let supplied = (source.lifetime_access.is_none()
+                    && identity.is_valid()
+                    && !backing.is_image_storage
+                    && backing.recasts.is_empty()
+                    && backing.representation.is_none())
+                .then(|| validation::find_state(program, identity.state_symbol))
+                .flatten()
+                .and_then(|(machine, state)| {
+                    let parameter = validation::invocation_output_parameter(program, identity)?;
+                    let reference = validation::project_type_reference_from_segments(
+                        program,
+                        parameter.type_reference,
+                        &backing.segments,
+                    )?;
+                    let shell = validation::reference_shell(program, reference)?;
+                    (shell.access == effect.access).then_some((
+                        machine,
+                        state,
+                        parameter.type_reference,
+                    ))
+                });
+                if let Some((machine, state, carrier_type)) = supplied {
+                    loans.push(StatementBorrowLoan {
+                        incoming_origin: Some(super::PendingIncomingReference {
+                            identity: checked_trees::IncomingReferenceIdentity {
+                                machine_symbol: machine.symbol,
+                                state_symbol: state.symbol,
+                                origin: checked_trees::IncomingReferenceOrigin::Output { identity },
+                                carrier_type,
+                                owner_path: Default::default(),
+                            },
+                            owner_path: owner_path_from_place_segments(program, &backing.segments),
+                        }),
+                        formation_expression: match validation::find_call_site_in_state(
+                            program,
+                            machine,
+                            state,
+                            identity.statement_index,
+                            identity.call_ordinal,
+                        ) {
+                            Some(validation::CallSite::Expression { expression, .. }) => expression,
+                            _ => Default::default(),
+                        },
+                        representation_address: None,
+                        owner_symbol: owner,
+                        storage_owner: facts::PlaceRoot::Symbol(owner),
+                        owner_name: program.symbols.name(owner).into(),
+                        owner_path: owner_path.clone(),
+                        retained_operand: None,
+                        place: checked_trees::CapturedPlace {
+                            incoming_reference: Default::default(),
+                            root: facts::PlaceRoot::InvocationOutput(identity),
+                            segments: Vec::new(),
+                        },
+                        source_owner_symbol: Default::default(),
+                        supplying_loans: Vec::new(),
+                        lineage: checked_trees::BorrowLoanLineage::SuppliedOutput,
+                        kind: checked_trees::BorrowAccessKind::from(effect.access),
+                        call_result: true,
+                    });
+                    continue;
+                }
+                // The explicit output alternative is malformed/unavailable.
+                // Keep its zero-root unknown alternative below; deleting it
+                // would let a sibling source falsely prove a complete result.
+            }
             let captured = super::call_views::rebase_borrow_places_through_local_loans(
                 program,
                 checked_trees::CapturedPlace {
@@ -102,6 +233,7 @@ pub(super) fn loans(
                 loans.push(StatementBorrowLoan {
                     incoming_origin: None,
                     formation_expression: Default::default(),
+                    representation_address: None,
                     owner_symbol: owner,
                     storage_owner: facts::PlaceRoot::Symbol(owner),
                     owner_name: program.symbols.name(owner).into(),

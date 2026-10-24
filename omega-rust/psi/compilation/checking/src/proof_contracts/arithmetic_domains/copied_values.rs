@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod captured_observations;
+mod delivery;
 use captured_observations::CapturedValue;
 mod source_observations;
 use source_observations::SourceObservations;
@@ -39,6 +40,10 @@ pub(crate) struct CopiedIntegerValue {
     non_nan_paths: Vec<CapturedScalarObservation<()>>,
     float_aliases: Vec<CapturedScalarObservation<String>>,
     ordered_relations: Vec<ordered_values::Relation>,
+    // These associations already survived the complete normal evaluation.
+    // Source-derived observations above still retire in operand order; replaying
+    // that prefix over final-prefix facts would erase valid post-call relations.
+    completed_relations: Vec<ordered_values::Relation>,
 }
 
 struct CapturedScalarObservation<Value> {
@@ -50,6 +55,17 @@ struct CapturedScalarObservation<Value> {
 }
 
 impl CopiedIntegerValue {
+    /// Completed associations are consumed only at a delivered value and
+    /// its supplied record fields, not at every expression evaluated inside it.
+    /// Keep numeric observation requests on the same delivery-child owner.
+    pub(crate) fn visit_delivered_values(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        visitor: &mut impl FnMut(ExpressionHandle),
+    ) {
+        delivery::visit_values(program, expression, visitor);
+    }
+
     pub(crate) fn capture(
         program: &dyn crate::CheckingInput,
         machine: &typed_trees::machine::Machine,
@@ -101,7 +117,12 @@ impl CopiedIntegerValue {
             .is_some_and(|primitive| primitive.is_fixed_integer())
         {
             if let Some(observed) = observed {
-                self.capture_scalar_equality(observed, destination.clone(), &written);
+                Self::capture_scalar_equality(
+                    &mut self.ordered_relations,
+                    observed,
+                    destination.clone(),
+                    &written,
+                );
             }
             if let Some(state) = state
                 && let Some(length) = super::slice_lengths::denoted_collection_length(
@@ -112,7 +133,12 @@ impl CopiedIntegerValue {
                     local.initial_value,
                 )
             {
-                self.capture_scalar_equality(length, destination.clone(), &written);
+                Self::capture_scalar_equality(
+                    &mut self.ordered_relations,
+                    length,
+                    destination.clone(),
+                    &written,
+                );
             }
         }
         if let Some(state) = state {
@@ -187,7 +213,12 @@ impl CopiedIntegerValue {
                 environment,
             )
         {
-            self.capture_scalar_equality(observed, destination.clone(), written);
+            Self::capture_scalar_equality(
+                &mut self.ordered_relations,
+                observed,
+                destination.clone(),
+                written,
+            );
             if let Some(length) = super::slice_lengths::denoted_collection_length(
                 program,
                 machine,
@@ -195,7 +226,12 @@ impl CopiedIntegerValue {
                 environment,
                 assignment.value,
             ) {
-                self.capture_scalar_equality(length, destination.clone(), written);
+                Self::capture_scalar_equality(
+                    &mut self.ordered_relations,
+                    length,
+                    destination.clone(),
+                    written,
+                );
             }
         }
         self.retain_completed_observations(program, machine, state, assignment.value, &destination);
@@ -302,10 +338,8 @@ impl CopiedIntegerValue {
         source: &SourceObservations<'_>,
         later_writes: Option<&[String]>,
     ) {
-        if !matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::StructLiteral(_)
-        ) {
+        let fields = delivery::fields(program, expression);
+        if fields.is_none() {
             // Children are evaluated in authored initializer order. Expire earlier
             // borrowed-content observations before this operand runs, then
             // capture this operand's completed guarantees. Applying the whole
@@ -325,34 +359,23 @@ impl CopiedIntegerValue {
         // whether the observation is the scalar itself, a field, or a view's
         // extent. Nested constructor operands use the same delivery route as
         // a whole local/store; payload equality is never inferred from length.
-        self.ordered_relations
-            .extend(ordered_values::delivered_value_orderings(
-                program,
-                machine,
-                state,
-                expression,
-                destination,
-                written,
-                environment,
-            ));
+        self.capture_completed_associations(state, expression, destination, written, environment);
         if later_writes.is_some_and(|written| source.permits(expression, written))
             && super::declared_place_type_raw(program, machine, Some(state), expression)
                 .is_some_and(|reference| crate::slice_view_shell(program, reference, &[]).is_some())
             && let Some(observed) =
                 ordered_values::operand(program, machine, state, expression, None)
         {
-            self.capture_scalar_equality(
+            Self::capture_scalar_equality(
+                &mut self.ordered_relations,
                 ordered_values::Operand::CollectionLength(Box::new(observed)),
                 ordered_values::Operand::CollectionLength(Box::new(destination.clone())),
                 written,
             );
         }
-        let ExpressionNode::StructLiteral(literal) =
-            program.expression_table.expression(expression)
-        else {
+        let Some(fields) = fields else {
             return;
         };
-        let fields = program.expression_table.struct_fields(literal.fields);
         // Source equalities read the completed environment; payload guarantees
         // belong to their authored occurrence. Carry suffix effects separately
         // so computing the former never reverses retirement of the latter.
@@ -386,7 +409,12 @@ impl CopiedIntegerValue {
                 if let Some(observed) =
                     ordered_values::operand(program, machine, state, field.value, None)
                 {
-                    self.capture_scalar_equality(observed, field_operand.clone(), written);
+                    Self::capture_scalar_equality(
+                        &mut self.ordered_relations,
+                        observed,
+                        field_operand.clone(),
+                        written,
+                    );
                 }
                 if let Some(length) = super::slice_lengths::denoted_collection_length(
                     program,
@@ -395,14 +423,19 @@ impl CopiedIntegerValue {
                     environment,
                     field.value,
                 ) {
-                    self.capture_scalar_equality(length, field_operand, written);
+                    Self::capture_scalar_equality(
+                        &mut self.ordered_relations,
+                        length,
+                        field_operand,
+                        written,
+                    );
                 }
             }
         }
     }
 
     fn capture_scalar_equality(
-        &mut self,
+        relations: &mut Vec<ordered_values::Relation>,
         observed: ordered_values::Operand,
         destination: ordered_values::Operand,
         written: &[String],
@@ -417,11 +450,31 @@ impl CopiedIntegerValue {
                 (destination.clone(), observed.clone()),
                 (observed, destination),
             ] {
-                self.ordered_relations.push(ordered_values::Relation {
+                relations.push(ordered_values::Relation {
                     left,
                     right,
                     constraint: ordered_values::RelationConstraint::MinimumDifference(0),
                 });
+            }
+        }
+    }
+
+    fn capture_completed_associations(
+        &mut self,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        destination: &ordered_values::Operand,
+        written: &[String],
+        environment: &ValueEnvironment,
+    ) {
+        for association in &environment.numeric_observations.scalar_associations {
+            if association.state == state.symbol && association.expression == expression {
+                Self::capture_scalar_equality(
+                    &mut self.completed_relations,
+                    association.current.clone(),
+                    destination.clone(),
+                    written,
+                );
             }
         }
     }
@@ -697,7 +750,11 @@ impl CopiedIntegerValue {
                 });
             }
         }
-        for relation in &self.ordered_relations {
+        for relation in self
+            .ordered_relations
+            .iter()
+            .chain(&self.completed_relations)
+        {
             if !environment.ordered_values.contains(relation) {
                 environment.ordered_values.push(relation.clone());
             }

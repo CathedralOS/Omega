@@ -65,6 +65,16 @@ pub(super) fn delivered_value_type(
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             reference_values::declared_value_type(program, value, &mut substitutions)?
         }
+        ExpressionNode::Atomic(_) => {
+            let load = crate::atomic_load_carrier(program, value)?;
+            let cell =
+                reference_values::declared_value_type(program, load.place, &mut substitutions)?;
+            let cell = reference_values::substituted_reference(program, cell, &substitutions)?;
+            // An observation delivers the resident scalar, not the cell's
+            // declaration or its receiver's generic substitutions.
+            substitutions.clear();
+            crate::atomic_resident_type_reference(program, cell)?
+        }
         _ => return None,
     };
     reference.is_valid().then_some(DeliveredType {

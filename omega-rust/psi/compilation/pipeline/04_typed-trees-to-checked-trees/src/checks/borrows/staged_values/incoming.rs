@@ -13,6 +13,17 @@ pub(super) fn places(
     path: &[facts::PlaceSegment],
 ) -> Option<Vec<CapturedPlace>> {
     let capture = facts.flow.control.operands.get(operand);
+    captured_places(program, facts, state, capture, path, capture.constraints)
+}
+
+pub(super) fn captured_places(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &FlowOperandFact,
+    path: &[facts::PlaceSegment],
+    constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+) -> Option<Vec<CapturedPlace>> {
     let mut source = validation::canonical_place_from_expression_in_state(
         program,
         capture.state_symbol,
@@ -25,7 +36,7 @@ pub(super) fn places(
         facts,
         state,
         capture.statement_index,
-        capture.constraints,
+        constraints,
         CapturedPlace {
             incoming_reference: Handle::invalid(),
             root: source.root,

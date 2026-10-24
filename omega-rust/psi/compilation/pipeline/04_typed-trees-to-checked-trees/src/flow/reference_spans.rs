@@ -160,7 +160,7 @@ pub(crate) fn project_constraint_refs_to_active_contexts(
             FlowConstraintKind::SemanticContext { context } => active
                 .get(context.arena_index() as usize)
                 .is_some_and(|known| *known == context),
-            FlowConstraintKind::Unknown | checked_trees::borrow_set_quint_pattern!(..) => true,
+            FlowConstraintKind::Unknown | checked_trees::borrow_resource_pattern!(..) => true,
         },
     )
 }

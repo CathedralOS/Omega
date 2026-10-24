@@ -467,6 +467,7 @@ pub(super) fn encode_canonical_path(
     bytes.len(path.len());
     for segment in path {
         match segment {
+            CanonicalStructuralPathSegment::Referent => bytes.u8(4),
             CanonicalStructuralPathSegment::Field(value) => {
                 bytes.u8(1);
                 bytes.id(*value);

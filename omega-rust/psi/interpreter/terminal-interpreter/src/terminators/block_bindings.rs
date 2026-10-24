@@ -60,6 +60,25 @@ pub(crate) struct BlockBindings {
 }
 
 impl BlockBindings {
+    pub(crate) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        for value in self.structural.values() {
+            retained.value(value);
+        }
+        for backing in self.aggregate_backings.values() {
+            retained.aggregate_backing(backing);
+        }
+        for view in self.element_views.values() {
+            view.retain_storage(retained);
+        }
+        for loan in self.primitive_loans.values() {
+            retained.primitive_endpoint(&loan.storage.endpoint);
+        }
+        for binding in self.byte_sequences.values() {
+            retained.byte_binding(binding);
+        }
+        self.aggregate_payload.retain_storage(retained);
+    }
+
     pub(crate) fn from_scalars(scalars: Vec<(ValueId, TerminalScalarValue)>) -> Self {
         Self {
             scalars: scalars.into_iter().collect(),
@@ -84,30 +103,45 @@ impl BlockBindings {
         execution: &mut TerminalExecution,
         target: BlockId,
     ) -> Result<(), TerminalInterpretError> {
-        for source in self.owned_sources {
+        for source in &self.owned_sources {
             execution
                 .live_claims
-                .retain(|_, claim| claim.place != Some(source));
-            execution.structural_values.remove(&source);
-            execution.aggregate_argument_backings.remove(&source);
-            execution.byte_sequence_values.remove(&source);
-            execution.scalar_array_values.remove(&source);
-            execution.element_view_values.remove(&source);
-            execution.primitive_loan_values.remove(&source);
+                .retain(|_, claim| claim.place != Some(*source));
+            execution.structural_values.remove(source);
+            execution.aggregate_argument_backings.remove(source);
+            execution.byte_sequence_values.remove(source);
+            execution.scalar_array_values.remove(source);
+            execution.element_view_values.remove(source);
+            execution.primitive_loan_values.remove(source);
             execution
                 .live_affine_frontier
-                .retain(|entry| entry.place != source);
+                .retain(|entry| entry.place != *source);
         }
         // Captured values retain backing after their source homes end. Check
         // remaining old results before publishing any destination: unrelated
         // surviving custody still refuses reentry rather than being erased.
         execution.retire_reentered_results(target)?;
-        self.aggregate_payload.publish(execution)?;
         for destination in self.structural.keys() {
+            if let Some(previous) = execution.structural_values.remove(destination) {
+                execution.queue_retired_descriptor_home((&previous).into());
+            }
             execution.aggregate_argument_backings.remove(destination);
             execution.scalar_array_values.remove(destination);
             execution.primitive_loan_values.remove(destination);
+            execution.element_view_values.remove(destination);
+            execution.byte_sequence_values.remove(destination);
         }
+        execution.collect_retired_successor_storage(&self);
+        // Destination bindings publish now. Operation-result homes publish at
+        // their own operation: an earlier release in that block can end a pin.
+        if self
+            .structural
+            .keys()
+            .any(|place| execution.scalar_array_values.retains_retired(place))
+        {
+            return Err(malformed());
+        }
+        self.aggregate_payload.publish(execution)?;
         execution.live_claims.extend(self.claims);
         execution.values.extend(self.scalars);
         execution.structural_values.extend(self.structural);
@@ -150,6 +184,8 @@ impl BlockBindings {
         }
         let mut discarded = BTreeSet::new();
         let mut values = execution.structural_values.clone();
+        let mut scalar_arrays: BTreeSet<_> =
+            execution.scalar_array_values.keys().copied().collect();
         let mut frontier = execution.live_affine_frontier.clone();
         let mut claims = execution.live_claims.clone();
         for argument in structural_arguments.iter().filter(|argument| {
@@ -227,6 +263,7 @@ impl BlockBindings {
                     )?;
                     crate::custody::complete_nominal_cleanup(
                         &mut values,
+                        &mut scalar_arrays,
                         &mut frontier,
                         &claims,
                         cleanup,
@@ -245,6 +282,7 @@ impl BlockBindings {
                 TerminalAffineCleanupAction::RetireHome(_) => {
                     crate::custody::retire_cleanup_home(
                         &mut values,
+                        &mut scalar_arrays,
                         &mut frontier,
                         &claims,
                         place,
@@ -578,9 +616,10 @@ impl TerminalExecution<'_> {
                     }
                 }
                 terminal_psi::reading_borrow_pair_pattern!()
-                    if matches!(self.program.structural_types().get(&parameter.structural_type),
-                        Some(declaration) if matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-                            || declaration.shape.is_borrowed_byte_view()) =>
+                    if terminal_semantics::view_descriptor_parameter(
+                        parameter,
+                        self.program.structural_types().values(),
+                    ) =>
                 {
                     // A descriptor lends its window, not its affine storage.
                     // The common argument binder below preserves exact backing
@@ -614,18 +653,10 @@ impl TerminalExecution<'_> {
                 StructuralAccess::SharedBorrow
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow
-                    if self
-                        .program
-                        .structural_types()
-                        .get(&parameter.structural_type)
-                        .is_some_and(|declaration| {
-                            declaration.shape.is_composite_shape()
-                                || matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::PrimitiveScalar(_)
-                                        | StructuralTypeShape::BindingCarrier
-                                )
-                        }) =>
+                    if terminal_semantics::borrowed_storage_parameter(
+                        parameter,
+                        self.program.structural_types().values(),
+                    ) =>
                 {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || self.live_affine_discard_at(parameter.place).is_some()

@@ -449,6 +449,10 @@ impl CheckingInput for CheckingProjection<'_> {
 #[derive(Default)]
 pub struct CheckingMemos {
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
+    /// Exact satisfaction associations depend only on this immutable typed
+    /// program, not changing progress summaries, effects or selected layouts.
+    pub(crate) requirement_satisfiers:
+        OnceLock<Arc<crate::machine_calls::denotational_calls::RequirementSatisfierIndex>>,
     pub(crate) erased_initializers: OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
     pub(crate) owned_field_domains:
         OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
@@ -463,6 +467,21 @@ pub struct CheckingMemos {
         flow_effects::ServiceReachInferencePlan,
     )>,
     pub(crate) call_frames: Arc<CallFrameCaches>,
+    /// One normal-value traversal supplies scalar reads and operation-entry
+    /// orderings for this exact immutable state prefix. No runtime occurrence
+    /// is transported into another invocation by these scoped observations.
+    pub(crate) completed_numeric_observations: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                usize,
+                bool,
+                crate::proof_contracts::contract_entailment::NumericObservationDemand,
+            ),
+            crate::proof_contracts::contract_entailment::CapturedNumericObservations,
+        >,
+    >,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
@@ -596,6 +615,7 @@ impl CheckingMemos {
     /// finalized selections, prepared mathematics, or opaque representations.
     fn retain_typed_tree_memos(self) -> Self {
         Self {
+            requirement_satisfiers: self.requirement_satisfiers,
             owned_field_domains: self.owned_field_domains,
             claim_frontiers: self.claim_frontiers,
             establishment: self.establishment,
@@ -616,6 +636,7 @@ impl CheckingMemos {
 
     fn clone_typed_tree_memos(&self) -> Self {
         Self {
+            requirement_satisfiers: self.requirement_satisfiers.clone(),
             proof_only: self.proof_only.clone(),
             license_candidates: self.license_candidates.clone(),
             entry_machines: self.entry_machines.clone(),

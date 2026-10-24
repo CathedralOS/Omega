@@ -259,13 +259,19 @@ impl Captures<'_> {
                         }
                     }
                     if !captured {
+                        let capture = self.completed_return_value(
+                            state,
+                            statement_index,
+                            transition_target,
+                            expression,
+                        )?;
                         let present = self.expression_leaf_present(
                             state,
                             statement_index,
                             expression,
                             state.return_type,
                             &leaf.path,
-                            None,
+                            Some(capture),
                             active,
                         )?;
                         // Missing formation never establishes an inactive
@@ -430,6 +436,21 @@ impl Captures<'_> {
         expression: ExpressionHandle,
         path: &[CheckedUnitStructuralPathSegment],
     ) -> Option<&checked_trees::FlowOperandFact> {
+        let operand =
+            self.completed_return_value(state, statement_index, transition_target, expression)?;
+        self.completed_operand_leaf(operand, path)
+    }
+
+    /// Absence is an observation of this completed value, including writes
+    /// already performed by its subject and earlier operands. Entry stores
+    /// cannot establish absence after those same-statement calls.
+    fn completed_return_value(
+        &self,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        transition_target: typed_trees::statement::TransitionTargetHandle,
+        expression: ExpressionHandle,
+    ) -> Option<&checked_trees::FlowOperandFact> {
         let flow = self.flow(state.symbol)?;
         let control = &self.facts.flow.control;
         let mut exits = control.exits.span(flow.exits)?.iter().filter(|exit| {
@@ -453,7 +474,7 @@ impl Captures<'_> {
         {
             return None;
         }
-        self.completed_operand_leaf(operand, path)
+        Some(operand)
     }
 
     fn return_origin(
@@ -510,6 +531,7 @@ impl Captures<'_> {
                     root: checked_trees::CheckedReferenceOriginRoot::Invocation {
                         carrier_type: self.program.normalized_type_identity(incoming.carrier_type),
                     },
+                    entry_reference_hops: 0,
                     path: std::iter::once(CheckedReferenceOriginProjection::Exact(
                         CheckedUnitStructuralPathSegment::Referent,
                     ))
@@ -529,6 +551,7 @@ impl Captures<'_> {
             .enumerate()
             .find(|(_, parameter)| loan.root == facts::PlaceRoot::Symbol(parameter.symbol))?;
         let mut path = Vec::new();
+        let mut entry_reference_hops = 0;
         let mut incoming_segments = Vec::new();
         let mut selected = parameter.type_reference;
         if loan.incoming_reference.is_valid() {
@@ -539,6 +562,7 @@ impl Captures<'_> {
                 return None;
             }
             if stored_loan_parts(self.program, parameter.type_reference).is_some() {
+                entry_reference_hops = 1;
                 path.push(CheckedReferenceOriginProjection::Exact(
                     CheckedUnitStructuralPathSegment::Referent,
                 ));
@@ -626,6 +650,7 @@ impl Captures<'_> {
                     root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                         index: parameter_index,
                     },
+                    entry_reference_hops,
                     path,
                     extent,
                     type_identity: identity,
@@ -684,6 +709,7 @@ impl Captures<'_> {
                         root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                             index: parameter_index,
                         },
+                        entry_reference_hops,
                         path: complete,
                         extent,
                         type_identity: source_identity,
@@ -730,6 +756,7 @@ impl Captures<'_> {
             root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                 index: parameter_index,
             },
+            entry_reference_hops,
             path,
             extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
             type_identity: self.program.normalized_type_identity(endpoint),
@@ -939,7 +966,7 @@ impl Captures<'_> {
                         // The path names the registered physical declaration.
                         // Qualification stays on the checked result contract;
                         // it is not another storage shape in the Terminal roster.
-                        type_identity: crate::structural_type_identity(
+                        type_identity: crate::stored_structural_type_identity(
                             self.program,
                             recast.target_type,
                             &[],

@@ -10,6 +10,9 @@ use semantic_vocabulary::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {
+    InvalidRuntimeEvidence {
+        reason: &'static str,
+    },
     InvalidActivationStorage {
         machine: MachineId,
         reason: &'static str,

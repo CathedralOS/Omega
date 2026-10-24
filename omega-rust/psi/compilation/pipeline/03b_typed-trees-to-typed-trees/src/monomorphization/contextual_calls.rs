@@ -22,7 +22,7 @@ pub(super) use static_operands::{is_open as operand_is_open, names_any};
 use super::{CallSite, Diagnostic, ExpressionNode, StatementNode, SymbolHandle, TypedTrees};
 
 pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-    let invocations = invocations::collect(program);
+    let invocations = invocations::collect(program)?;
     let mut changed = Vec::new();
     for invocation in invocations {
         let member_demands = demands::members(program, invocation.target, &invocation.types)?;

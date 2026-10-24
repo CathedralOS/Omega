@@ -3,6 +3,13 @@
 //! definition owns a checked dependent telescope and transparent term; it is
 //! never an executable machine, a runtime result occurrence or a purity claim.
 
+mod fixed_core_vocabulary;
+pub use fixed_core_vocabulary::{FixedCore, FixedCoreVocabulary};
+mod static_arguments;
+pub use static_arguments::{
+    MathematicalBinderKind, MathematicalCarrierHead, mathematical_binder_kind,
+    mathematical_carrier_head, source_generic_argument_plan,
+};
 mod expressions;
 pub use expressions::{definition_roots, erased_initializer_nodes, expression_nodes};
 mod logical_bodies;
@@ -98,9 +105,97 @@ pub fn result_type_reference(
     let definition = selected_definition(program, call)?;
     (call.arguments.len() == definition.parameters.len()).then_some(())?;
     match program.mathematical_type(definition.result) {
-        MathematicalType::Ordinary(reference) => Some(*reference),
+        MathematicalType::Ordinary(reference) => {
+            applied_result_reference(program, definition, call, *reference)
+        }
         _ => None,
     }
+}
+
+/// Read the selected source telescope, independently of the caller's value
+/// operands. The mathematical application checker owns argument validity and
+/// universe inference; this projection only finds an existing ordinary result
+/// reference. Inserted actual references keep their supplying scope.
+fn applied_result_reference(
+    program: &dyn crate::CheckingInput,
+    definition: &MathematicalDefinition,
+    call: &TableCallExpression,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    program
+        .type_reference_table
+        .contains_type_reference(reference)
+        .then_some(())?;
+    let binders = program.data_type_parameters.span(definition.binders)?;
+    let vocabulary = FixedCoreVocabulary::resolve(&program.symbols);
+    let plan =
+        source_generic_argument_plan(program, binders, &call.machine_arguments, &vocabulary)?;
+    let dependencies =
+        typed_trees::references::collect_type_symbol_dependencies(program, reference);
+    let mut substitutions = Vec::new();
+    for slot in plan {
+        match slot.kind {
+            MathematicalBinderKind::Level => continue,
+            MathematicalBinderKind::Term => {
+                // Runtime/constant term application remains the kernel's job.
+                // A result depending on it needs a represented dependent type,
+                // not a reinterpretation of that term as a Type operand.
+                if dependencies.contains(&slot.binder.symbol) {
+                    return None;
+                }
+                continue;
+            }
+            MathematicalBinderKind::Type => {}
+        }
+        if !dependencies.contains(&slot.binder.symbol) {
+            continue;
+        }
+        let argument = slot.argument?;
+        if argument.application.is_some()
+            || argument.evidence_projection.is_some()
+            || argument.const_literal.is_some()
+        {
+            return None;
+        }
+        let actual = if program
+            .type_reference_table
+            .contains_type_reference(argument.type_reference)
+        {
+            argument.type_reference
+        } else {
+            argument.symbol.is_valid().then_some(())?;
+            program
+                .type_reference_table
+                .find_named_type_reference(argument.symbol)?
+        };
+        substitutions.push((slot.binder.symbol, actual));
+    }
+    // A direct formal result is already represented by its actual operand;
+    // consuming it once avoids reinterpreting recursive caller binders.
+    let projected =
+        typed_trees::static_applications::project_type_operand(program, reference, &substitutions);
+    if projected != reference || substitutions.is_empty() {
+        return Some(projected);
+    }
+    let identity = program.type_identity_with_simultaneous_substitutions(
+        typed_trees::type_identity::TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..typed_trees::type_identity::TypeIdentityRequest::ordinary(reference)
+        },
+    );
+    identity.is_valid().then_some(())?;
+    if program.normalized_type_identity(reference) == identity {
+        return Some(reference);
+    }
+    // Compound results may already have a source occurrence in this program.
+    // Match its full identity, including nested policy/qualification, instead
+    // of copying the source graph or borrowing a comparison peer's carrier.
+    program
+        .type_reference_table
+        .type_reference_rows()
+        .find_map(|(candidate, _)| {
+            (program.normalized_type_identity(candidate) == identity).then_some(candidate)
+        })
 }
 
 /// Adapt the ordinary portion of a mathematical telescope for shared source

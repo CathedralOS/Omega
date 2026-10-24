@@ -550,8 +550,10 @@ fn ordinary_contract(
 /// Its path-bound claims are custody, not storage. Outcome-specific evidence
 /// is proof-only: unit validation already joined it to the callee's guarded
 /// rows, and it has no runtime representation to lower.
-/// Qualifications do not restrict physical carrier families; the caller may
-/// add only domains this call's own establishment rows mint.
+/// Qualifications do not restrict physical carrier families. Whole domains
+/// come from the declaration and checked establishments. Current-unit validation
+/// independently replays additional projected caller facts through each returned
+/// reference's exact origin relation; those facts change neither ABI nor homes.
 fn structural_result_home(
     call: &Invocation<'_>,
     declaration: AbstractCallSignature<'_>,
@@ -568,7 +570,10 @@ fn structural_result_home(
     if callee_result.structural_type != result.structural_type
         || callee_result.multiplicity != result.multiplicity
         || !result_qualifications_match(callee_result.qualifications, result)
-        || callee_result.projected_qualifications != result.projected_qualifications
+        || !callee_result
+            .projected_qualifications
+            .iter()
+            .all(|row| result.projected_qualifications.contains(row))
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

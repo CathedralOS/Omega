@@ -144,6 +144,7 @@ pub(super) fn validate_dynamic_selector_arguments(
     call: &DynamicSelectorCall<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_family_tuple(program, call, machine_arguments, diagnostics);
     let requirement = crate::declarations::traits::GenericBoundRequirement {
@@ -160,6 +161,7 @@ pub(super) fn validate_dynamic_selector_arguments(
         &requirement,
         writable_roots,
         diagnostics,
+        formation_obligations,
     );
 }
 

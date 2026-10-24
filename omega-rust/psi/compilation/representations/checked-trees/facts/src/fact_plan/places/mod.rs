@@ -10,6 +10,43 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
+/// A reference written by one performed normal invocation. This identifies
+/// the descriptor occurrence, never a new allocation or spatial separation.
+/// The existing typed call-site owner resolves this state/statement/ordinal
+/// coordinate. Target, expression and applied carrier are not duplicated here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InvocationOutputIdentity {
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub parameter_symbol: SymbolHandle,
+}
+
+impl InvocationOutputIdentity {
+    pub fn is_valid(self) -> bool {
+        self.state_symbol.is_valid() && self.parameter_symbol.is_valid()
+    }
+
+    /// Exact compiler identity, independent of physical aliasing.
+    pub fn compare_identity(self, other: Self) -> std::cmp::Ordering {
+        let key = |value: Self| {
+            (
+                (
+                    value.state_symbol.arena_index(),
+                    value.state_symbol.generation(),
+                ),
+                value.statement_index,
+                value.call_ordinal,
+                (
+                    value.parameter_symbol.arena_index(),
+                    value.parameter_symbol.generation(),
+                ),
+            )
+        };
+        key(self).cmp(&key(other))
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum PlaceRoot {
     #[default]
@@ -22,6 +59,9 @@ pub enum PlaceRoot {
         parameter: SymbolHandle,
         type_reference: TypeReferenceHandle,
     },
+    /// Opaque provider-supplied backing of a completed output leaf. Unequal
+    /// identities do not prove non-aliasing with other output or input storage.
+    InvocationOutput(InvocationOutputIdentity),
     Expression(ExpressionHandle),
     TypeReference(TypeReferenceHandle),
 }
@@ -37,6 +77,7 @@ impl PlaceRoot {
                 parameter,
                 type_reference,
             } => parameter.is_valid() && type_reference.is_valid(),
+            Self::InvocationOutput(output) => output.is_valid(),
             Self::Expression(expression) => expression.is_valid(),
             Self::TypeReference(reference) => reference.is_valid(),
         }

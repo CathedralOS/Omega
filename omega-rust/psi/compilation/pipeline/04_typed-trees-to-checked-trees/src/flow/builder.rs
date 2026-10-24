@@ -7,14 +7,15 @@
 //! The common first-pass fixed point already has complete output and returns it.
 //!
 //! Whole-output storage is reused only while unpublished; no sweep-local handle
-//! survives that replacement boundary. Baseline contents still copy per sweep,
-//! including context-point links, while clone_from reuses their allocations.
+//! survives that replacement boundary. Immutable baseline payload pages are
+//! shared across forks and sweeps; a changed baseline page detaches on write.
+//! Derived context-point groups remain owned by each worker.
 //!
 //! Value inputs cross state boundaries along transitions and ordinary call
 //! argument deliveries, including another machine's entry, so machines
 //! joined by such invocations form independent groups. Each group reaches its
-//! own fixed point, or its own unknown-input fallback, on a worker over a copy
-//! of the baseline plan, writing every machine on page
+//! own fixed point, or its own unknown-input fallback, on a worker over a fork
+//! of the shared baseline plan, writing every machine on page
 //! `MACHINE_PAGE_BASE + roster position` of each output arena; the owner
 //! adopts those pages, so handles and order follow the roster. A group's facts
 //! depend only on machines its values reach: a loop in an unrelated machine
@@ -56,6 +57,9 @@ pub(crate) fn build_flow_facts(
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
+    // This is the completed declaration/proof baseline. Fork its payloads
+    // once, before the initial snapshot and all worker/sweep restorations.
+    semantic.share_pages();
     let baseline = semantic.clone();
     // Declaration contexts do not change during flow. Retain their handles
     // once, in typed-machine order, instead of rediscovering Global/Machine
@@ -267,10 +271,10 @@ fn sweep<'plans>(
     }
 }
 
-/// Roster positions grouped by a call into another machine. The callee's entry
-/// reads the caller's selected-case and scalar actuals, so the two machines
-/// share one value-input fixed point. Groups keep roster order, inside and
-/// across groups, so adopted pages publish in that order.
+/// Roster positions connected by machine calls. Callable non-entry states must
+/// meet unknown invocation edges alongside their internal arrivals. Grouping
+/// settles those dependencies without importing caller actuals as body premises.
+/// Roster order is preserved within and across groups for page adoption.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -304,9 +308,9 @@ fn machine_groups(
             else {
                 continue;
             };
-            // Entry calls carry selected-case and scalar actuals. A target
-            // family schedules every authored body with the caller, because
-            // each body is checked against those actuals.
+            // Keep every authored family body in the same dependency group.
+            // Each body is checked under its declared premises; grouping grants
+            // no selected-case or scalar assumption from a caller.
             let mut callees = vec![callee];
             let machine_symbol = machines[callee].symbol;
             if let Some(family) = program.target_machine_families.iter().find(|family| {

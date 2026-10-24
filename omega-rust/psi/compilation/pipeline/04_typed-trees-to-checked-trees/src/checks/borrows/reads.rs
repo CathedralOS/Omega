@@ -14,15 +14,14 @@
 //! not such an observation (an assignment destination, a projected carrier),
 //! the loan stays live through the whole statement.
 //!
-//! An operand a call stages in its access roster is judged against the loans
-//! live at that invocation. Loan formation does not replace a storage read:
-//! copying or reborrowing a stored reference reads its carrier even when the
-//! resulting loan captures a different, disjoint referent.
+//! Every carrier read is checked at its evaluated occurrence, including a
+//! reference operand later staged by a call. The completed operand separately
+//! holds its captured referent through invocation; that hold cannot authorize
+//! the earlier carrier read or erase a loan suspending its descriptor slot.
 
 use arena::Handle;
 use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, CapturedPlace, CheckFacts, FlowStateFact, FlowStatementFact,
-    StateBorrowFact,
 };
 use diagnostics::Diagnostic;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -215,7 +214,6 @@ pub(super) fn loans_ended_before_call(
 /// evaluates it.
 pub(super) struct StatementRead<'a> {
     pub(super) state: &'a FlowStateFact,
-    pub(super) borrow_state: &'a StateBorrowFact,
     pub(super) statement: &'a FlowStatementFact,
     pub(super) place: &'a CanonicalPlace,
     /// Invalid for a statement call's receiver, which has no expression.
@@ -223,53 +221,146 @@ pub(super) struct StatementRead<'a> {
     pub(super) active_loans: &'a [Handle<BorrowLoanFact>],
 }
 
-/// The authored operands the statement's calls stage in their own access
-/// rosters, collected the first time an observation conflicts.
-#[derive(Default)]
-pub(super) struct StagedOperands {
-    expressions: Option<Vec<ExpressionHandle>>,
-}
-
-impl StagedOperands {
-    fn contains(&mut self, facts: &CheckFacts, read: &StatementRead<'_>) -> bool {
-        if !read.expression.is_valid() {
+/// An actual transferred view value names its descriptor binding, not a read
+/// through that descriptor. Projected slots still read their complete receiver
+/// path, and contextual scalar observations still read the referee. Ordinary
+/// ownership/liveness and the eventual invocation's permission judgment remain
+/// independent; this classification creates neither a loan nor early release.
+fn transfers_descriptor_value(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    read: &StatementRead<'_>,
+) -> bool {
+    if !read.expression.is_valid()
+        || !read.place.segments.is_empty()
+        || matches!(
+            program.expression_table.expression(read.expression),
+            ExpressionNode::Borrow(_)
+        )
+    {
+        return false;
+    }
+    let Some(source) = validation::canonical_place_from_expression_in_state(
+        program,
+        read.state.state_symbol,
+        read.statement.statement_index,
+        read.expression,
+    ) else {
+        return false;
+    };
+    if source.root != read.place.root || !source.segments.is_empty() {
+        return false;
+    }
+    let Some(declared) = validation::canonical_place_type_reference(
+        program,
+        read.state.state_symbol,
+        read.statement.statement_index,
+        &source,
+    ) else {
+        return false;
+    };
+    if !crate::flow::operand_binds_live_view(program, declared) {
+        return false;
+    }
+    // These are the producer's actual value consumers, not a roster of source
+    // expressions a call happened to mention. Never descend into a matching
+    // scalar observation's backing: that is precisely its referee read.
+    let control = &facts.flow.control;
+    let mut pending = Vec::new();
+    pending.extend(
+        read.statement
+            .stored_value
+            .is_valid()
+            .then_some(read.statement.stored_value),
+    );
+    for call in control.calls.span_or_empty(read.state.calls) {
+        if call.statement_index == read.statement.statement_index {
+            pending.extend(call.operands.handles());
+        }
+    }
+    for outgoing in control.outgoing.span_or_empty(read.state.outgoing) {
+        if outgoing.statement_index == read.statement.statement_index
+            && outgoing.returned_value.is_valid()
+        {
+            pending.push(outgoing.returned_value);
+        }
+    }
+    for observation in control
+        .value_observations
+        .span_or_empty(read.statement.value_observations)
+    {
+        if observation.result.is_valid() {
+            pending.push(observation.result);
+        }
+    }
+    let mut visited = Vec::new();
+    let mut found = false;
+    while let Some(handle) = pending.pop() {
+        if visited.contains(&handle) {
+            continue;
+        }
+        visited.push(handle);
+        if !control.operands.is_valid(handle) {
             return false;
         }
-        let statement_index = read.statement.statement_index;
-        let expressions = self.expressions.get_or_insert_with(|| {
-            let mut expressions = Vec::new();
-            for call in facts
-                .borrow
-                .calls
-                .span_or_empty(read.borrow_state.calls)
-                .iter()
-                .filter(|call| call.statement_index == statement_index)
+        let value = control.operands.get(handle);
+        if value.state_symbol != read.state.state_symbol
+            || value.statement_index != read.statement.statement_index
+        {
+            continue;
+        }
+        if value.expression == read.expression {
+            // A loaded inner descriptor can still be reference-typed. It is
+            // not this binding's value: retain every declared reference shell,
+            // access and qualification, and require a direct capture without
+            // an evaluated receiver/backing wrapper. Such loads keep the
+            // ordinary storage-read judgment even when their final type is &T.
+            if value.backing.is_valid()
+                || !crate::flow::operand_binds_live_view(program, value.type_reference)
+                || program.normalized_type_identity(value.type_reference)
+                    != program.normalized_type_identity(declared)
             {
-                expressions.extend(
-                    facts
-                        .borrow
-                        .argument_accesses
-                        .span_or_empty(call.accesses)
-                        .iter()
-                        .map(|access| access.expression),
-                );
+                return false;
             }
-            expressions
-        });
-        expressions.contains(&read.expression)
+            found = true;
+            continue;
+        }
+        match value.completion {
+            checked_trees::FlowOperandCompletion::Constructed(children) => {
+                let Some(children) = control.operand_children.span(children) else {
+                    return false;
+                };
+                pending.extend(children.iter().map(|child| child.value));
+            }
+            checked_trees::FlowOperandCompletion::Selected(alternatives) => {
+                let Some(alternatives) = control.operand_alternatives.span(alternatives) else {
+                    return false;
+                };
+                if alternatives.is_empty()
+                    || alternatives
+                        .iter()
+                        .any(|alternative| !alternative.source_arm.is_valid())
+                {
+                    return false;
+                }
+                pending.extend(alternatives.iter().map(|alternative| alternative.value));
+            }
+            checked_trees::FlowOperandCompletion::Observation
+            | checked_trees::FlowOperandCompletion::Copied { .. } => {}
+        }
     }
+    found
 }
 
 pub(super) fn check_storage_read<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     read: StatementRead<'_>,
-    staged_operands: &mut StagedOperands,
     premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
-    if read.active_loans.is_empty() {
+    if read.active_loans.is_empty() || transfers_descriptor_value(program, facts, &read) {
         return;
     }
     // A completed rvalue has no preexisting storage to observe.
@@ -292,7 +383,6 @@ pub(super) fn check_storage_read<'p>(
         facts,
         read.state,
         statement_index,
-        read.statement.entry_constraints,
         read.active_loans.iter().copied(),
         CapturedPlace {
             incoming_reference: Default::default(),
@@ -318,9 +408,6 @@ pub(super) fn check_storage_read<'p>(
             .collect()
     });
     if backings.is_some() && conflicts.is_empty() {
-        return;
-    }
-    if staged_operands.contains(facts, &read) {
         return;
     }
     let label = read.place.label(program);

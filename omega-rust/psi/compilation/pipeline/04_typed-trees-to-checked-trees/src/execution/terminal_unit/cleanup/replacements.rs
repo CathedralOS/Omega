@@ -95,6 +95,7 @@ pub(super) fn actions(
     });
     let mut actions = Vec::new();
     let mut selected_regions = Vec::new();
+    let mut selected_disposition = false;
     let carrier_death = validation::reference_result_custody::replaced_reference_carrier(
         program,
         facts,
@@ -118,32 +119,33 @@ pub(super) fn actions(
         // by treating equal layouts as authority to retire another descriptor.
         // Pointer custody crosses a Referent edge; view custody names the
         // descriptor itself. Neither disposition owns the borrowed backing.
-        let source_matches =
-            match declaration.shape {
-                checked_trees::CheckedUnitStructuralTypeShape::Reference {
-                    referent_identity,
-                    access,
-                } => {
-                    program.normalized_type_identity(shell.referee) == carrier.source.type_identity
-                        && validation::structural_type_identity(program, shell.referee, &[], &[])
-                            == referent_identity
-                        && access == carrier.source.access
-                        && carrier.source.path.strip_suffix(&[
-                            checked_trees::CheckedUnitStructuralPathSegment::Referent,
-                        ]) == Some(destination.path.as_slice())
-                }
-                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                    program.normalized_type_identity(reference) == carrier.source.type_identity
-                        && carrier.source.path == destination.path
-                }
-                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
-                    if bytes.is_borrowed() =>
-                {
-                    program.normalized_type_identity(reference) == carrier.source.type_identity
-                        && carrier.source.path == destination.path
-                }
-                _ => false,
-            };
+        let source_matches = match declaration.shape {
+            checked_trees::CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access,
+            } => {
+                program.normalized_type_identity(shell.referee) == carrier.source.type_identity
+                    && validation::stored_structural_type_identity(program, shell.referee, &[], &[])
+                        == referent_identity
+                    && access == carrier.source.access
+                    && carrier
+                        .source
+                        .path
+                        .strip_suffix(&[checked_trees::CheckedUnitStructuralPathSegment::Referent])
+                        == Some(destination.path.as_slice())
+            }
+            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                program.normalized_type_identity(reference) == carrier.source.type_identity
+                    && carrier.source.path == destination.path
+            }
+            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
+                if bytes.is_borrowed() =>
+            {
+                program.normalized_type_identity(reference) == carrier.source.type_identity
+                    && carrier.source.path == destination.path
+            }
+            _ => false,
+        };
         let carrier_matches = source_matches
             && checked_trees::CheckedStructuralAccess::from(shell.access) == carrier.source.access
             && validation::stored_structural_type_identity(program, reference, &[], &[])
@@ -252,7 +254,7 @@ pub(super) fn actions(
                 selected_regions.push(region);
             }
         }
-        for mut action in super::actions::disposition_actions(
+        let selected_actions = super::actions::disposition_actions(
             program,
             facts,
             targets,
@@ -260,7 +262,11 @@ pub(super) fn actions(
             disposition_handle,
             source.clone(),
             replaced.then_some(destination.path.as_slice()),
-        )? {
+        )?;
+        // A completed empty complement still authenticates this old home.
+        // Missing disposition evidence remains different from zero actions.
+        selected_disposition = true;
+        for mut action in selected_actions {
             let action_path = match &action {
                 CheckedNormalCleanupAction::Discard(action) => &action.path,
                 CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
@@ -329,7 +335,7 @@ pub(super) fn actions(
     }
     // An occupied affine value cannot silently become a raw discard when its
     // source death is absent. The producer must supply that occurrence first.
-    if actions.is_empty() {
+    if actions.is_empty() && !selected_disposition {
         return None;
     }
     if selected_regions

@@ -14,8 +14,18 @@ pub mod receiver_binding;
 pub enum LocalBindingRole {
     #[default]
     Value,
+    /// A dispatch evaluates its subject before arm selection. Typed preparation
+    /// chooses an owned copy or an address-preserving place observation.
+    DispatchSubject,
     RecordPattern,
     ArmPattern,
+}
+
+impl LocalBindingRole {
+    /// Both ordinary values and pending dispatch subjects require result inference.
+    pub const fn is_value_binding(self) -> bool {
+        matches!(self, Self::Value | Self::DispatchSubject)
+    }
 }
 
 /// First-class usage multiplicity. `[copy]` maps to `Unrestricted`, ordinary

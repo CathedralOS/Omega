@@ -184,6 +184,10 @@ impl SelectedProgramEntryCall {
                 bridge
             }
         };
+        // The selected semantic boundary forwards only its actual runtime
+        // roots. The chosen continuation (including a generated bridge) has
+        // no erased witness actuals beyond that calling contract.
+        terminal_semantics::validate_empty_erased_invocation_inputs(module, callee)?;
         Ok(Some(Self {
             boundary: boundary.id,
             entry: entry.checked_entry().clone(),

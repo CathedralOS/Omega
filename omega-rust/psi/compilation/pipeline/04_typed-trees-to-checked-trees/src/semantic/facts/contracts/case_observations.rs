@@ -8,7 +8,6 @@
 //! contexts keep payload promises and whole-value snapshots from extending or
 //! shortening the discriminator lifetime; dynamic selectors remain dependencies.
 
-use arena::HandleSpan;
 use checked_trees::{
     ContractCallFact, ContractProofFact, ContractProofFactKind, ContractProofFactOwner,
 };
@@ -65,7 +64,7 @@ pub(super) fn append_result(
         ) else {
             continue;
         };
-        let dependencies = selector_occurrences(program, subject_expression)
+        let dependencies: Vec<_> = selector_occurrences(program, subject_expression)
             .into_iter()
             .map(|expression| {
                 crate::semantic::places::instantiate_call_contract_expression_place(
@@ -75,16 +74,19 @@ pub(super) fn append_result(
                 .unwrap_or(FactPlace::Unknown)
             })
             .collect();
-        append_context(
+        crate::semantic::facts::append_observation_context(
             facts,
             Fact {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::CallEnsures,
                 evidence,
-                payload: FactPayload::AssignedCase { variant },
+                payload: FactPayload::CaseValue {
+                    variant,
+                    value: true,
+                },
             },
-            dependencies,
+            &dependencies,
         );
     }
 }
@@ -140,7 +142,7 @@ pub(super) fn append_requirement(
         else {
             continue;
         };
-        let dependencies = selector_occurrences(program, expression)
+        let dependencies: Vec<_> = selector_occurrences(program, expression)
             .into_iter()
             .map(|expression| {
                 super::places::contract_expression_place(
@@ -150,14 +152,17 @@ pub(super) fn append_requirement(
                 .unwrap_or(FactPlace::Unknown)
             })
             .collect();
-        append_context(
+        crate::semantic::facts::append_observation_context(
             facts,
             Fact {
                 place: FactPlace::Place(place),
-                payload: FactPayload::AssignedCase { variant },
+                payload: FactPayload::CaseValue {
+                    variant,
+                    value: true,
+                },
                 ..*declaration
             },
-            dependencies,
+            &dependencies,
         );
     }
 }
@@ -222,19 +227,4 @@ fn selector_occurrences(
     );
     occurrences.retain(|occurrence| *occurrence != subject);
     occurrences
-}
-
-fn append_context(facts: &mut FactPlan, observation: Fact, dependencies: Vec<FactPlace>) {
-    let dependent = facts.append_fact(observation);
-    let mut references = HandleSpan::empty();
-    facts.append_ref(&mut references, dependent);
-    for place in dependencies {
-        let dependency = facts.append_fact(Fact {
-            place,
-            payload: FactPayload::StorageDependency { dependent },
-            ..observation
-        });
-        facts.append_ref(&mut references, dependency);
-    }
-    facts.append_context(observation.point, references);
 }

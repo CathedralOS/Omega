@@ -1,18 +1,18 @@
-//! Intrinsic enum equality observes both operands before comparing their tags.
+//! Intrinsic enum equality completes each operand once, left before right.
 //!
-//! Payload-free sums need no new runtime equality opcode: their complete case
-//! roster is a Boolean encoding of the tag. The comparison is a chain, one
-//! Apply per declared case, each folding that case's two memberships into the
-//! running conjunction. A single Apply over every membership kept all of them
-//! live at once; a 50-case enum then forced hundreds of spill steps. Every
-//! observation is still evaluated, so no bounds check is skipped, and each
-//! operand's first membership comes before any later one, so an operand that
-//! traps does so at the same observation as an all-left-then-right order:
-//! memberships are pure reads whose only effect is that check. A payloadless
-//! constructor contributes known tag bits, not a temporary owner per
-//! observation; compared with a place, it reduces the equality to that place's
-//! membership in the one known case. Calls and effectful selectors cannot be
-//! replayed once for every declared case.
+//! Payload-free sums compare their complete case roster with ordinary Boolean
+//! operations. The general path owns one explicit mixed evaluation prefix:
+//! copyable operands complete through the ordinary value producer, while a
+//! non-copy place contributes scalar tag observations without copying its owner.
+//! Readable subjects already contain only places and captured immutable selectors.
+//! The generated comparison then reads those snapshots without replaying calls,
+//! observing a replaced source, or granting case membership to either payload.
+//!
+//! One Apply per case keeps the comparison's running conjunction short-lived.
+//! Copyable enums retain two value homes rather than every tag Boolean at once;
+//! non-copy carriers retain their tag snapshots through the comparison. A known
+//! payload-free constructor remains the existing single-membership optimization.
+//! Only the whole comparison owns its source normal-completion occurrence.
 
 use super::{
     Builder, CheckedBooleanExpression, CheckedScalarComputationHandle,
@@ -39,23 +39,8 @@ impl Builder<'_, '_> {
             return None;
         }
         let unequal = binary.operator == BinaryOperator::NotEqual;
-        if let Some(membership) =
-            self.computed_enum_case_membership(expression, binary.left, binary.right)
-        {
-            if !unequal {
-                return Some(membership);
-            }
-            if let CheckedScalarComputationKind::CaseMembership {
-                completion_expression,
-                ..
-            } = &mut self.plans.nodes.get_mut(membership).kind
-            {
-                *completion_expression = ExpressionHandle::invalid();
-            }
-            return Some(self.boolean_negation(membership, expression));
-        }
-        let (left_type, left) = self.enum_operand(binary.left)?;
-        let (right_type, right) = self.enum_operand(binary.right)?;
+        let (left_type, mut left, mut left_receiver) = self.enum_operand(binary.left)?;
+        let (right_type, mut right, mut right_receiver) = self.enum_operand(binary.right)?;
         let left_owner =
             crate::values::scalar::structural_fields::structural_data(self.program, left_type)?;
         let right_owner =
@@ -90,14 +75,18 @@ impl Builder<'_, '_> {
         // provably closed without a `_` arm.
         let known_case = match (&left, &right) {
             (subject, CheckedScalarComputationStructuralArgument::Case(constructor))
-            | (CheckedScalarComputationStructuralArgument::Case(constructor), subject)
                 if !matches!(subject, CheckedScalarComputationStructuralArgument::Case(_)) =>
             {
-                Some((subject.clone(), constructor.case))
+                Some((subject.clone(), left_receiver, constructor.case))
+            }
+            (CheckedScalarComputationStructuralArgument::Case(constructor), subject)
+                if !matches!(subject, CheckedScalarComputationStructuralArgument::Case(_)) =>
+            {
+                Some((subject.clone(), right_receiver, constructor.case))
             }
             _ => None,
         };
-        if let Some((subject, case)) = known_case {
+        if let Some((subject, receiver_value, case)) = known_case {
             let membership = self.publish_case_membership(
                 expression,
                 if unequal {
@@ -105,7 +94,7 @@ impl Builder<'_, '_> {
                 } else {
                     expression
                 },
-                checked_trees::CheckedStructuralValueHandle::invalid(),
+                receiver_value,
                 subject,
                 case,
             );
@@ -114,10 +103,40 @@ impl Builder<'_, '_> {
             }
             return Some(self.boolean_negation(membership, expression));
         }
+        let mut evaluation = Vec::new();
+        self.capture_enum_operand(binary.left, left_type, &mut left, &mut left_receiver)?;
+        self.capture_enum_operand(binary.right, right_type, &mut right, &mut right_receiver)?;
+        let generated = ExpressionHandle::invalid();
+        let mut memberships = Vec::new();
+        for (subject, receiver) in [(&left, left_receiver), (&right, right_receiver)] {
+            if receiver.is_valid() {
+                evaluation.push(checked_trees::CheckedScalarEvaluationOperand::Structural(
+                    receiver,
+                ));
+            }
+            let snapshot_tags = !receiver.is_valid()
+                && matches!(
+                    subject,
+                    CheckedScalarComputationStructuralArgument::Place(_)
+                );
+            let mut observed = Vec::new();
+            for case in &cases {
+                let membership = self.membership_of(subject, receiver, *case, generated);
+                // A non-copy place still supplies scalar tag observations. No
+                // whole-value copy or ownership of that carrier is introduced.
+                if snapshot_tags {
+                    evaluation.push(checked_trees::CheckedScalarEvaluationOperand::Scalar(
+                        membership,
+                    ));
+                }
+                observed.push(membership);
+            }
+            memberships.push(observed);
+        }
         let mut chain = None;
-        for case in &cases {
-            let left_membership = self.membership_of(&left, *case, expression);
-            let right_membership = self.membership_of(&right, *case, expression);
+        for (ordinal, _) in cases.iter().enumerate() {
+            let left_membership = memberships[0][ordinal];
+            let right_membership = memberships[1][ordinal];
             // The running conjunction leads each link's operands, so the
             // links evaluate in declared case order, left before right.
             let same = |left, right| CheckedBooleanExpression::Equal {
@@ -138,35 +157,65 @@ impl Builder<'_, '_> {
             chain = Some(self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::Apply {
-                    source_expression: ExpressionHandle::invalid(),
+                    source_expression: generated,
                     expression: CheckedScalarExpression::Boolean(Box::new(template)),
                     operands,
                 },
             ));
         }
         let equal = chain?;
-        if !unequal {
-            if let CheckedScalarComputationKind::Apply {
-                source_expression, ..
-            } = &mut self.plans.nodes.get_mut(equal).kind
-            {
-                *source_expression = expression;
-            }
-            return Some(equal);
-        }
-        let operands = self.plans.operands.insert_many([equal]);
+        let operand = if unequal {
+            self.boolean_negation(equal, generated)
+        } else {
+            equal
+        };
+        let operands = self.plans.evaluation_operands.insert_many(evaluation);
         Some(self.insert(
             PrimitiveType::Bool,
-            CheckedScalarComputationKind::Apply {
+            CheckedScalarComputationKind::WithOperands {
                 source_expression: expression,
-                expression: CheckedScalarExpression::Boolean(Box::new(
-                    CheckedBooleanExpression::Not(Box::new(CheckedBooleanExpression::Parameter {
-                        position: 0,
-                    })),
-                )),
                 operands,
+                operand,
             },
         ))
+    }
+
+    /// Ordinary readable copies use the same value producer as constructor
+    /// children and call operands. Retaining the actual leaf once is essential
+    /// even when its root was already resident before this comparison.
+    fn capture_enum_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+        subject: &mut CheckedScalarComputationStructuralArgument,
+        receiver: &mut checked_trees::CheckedStructuralValueHandle,
+    ) -> Option<()> {
+        if receiver.is_valid()
+            || matches!(subject, CheckedScalarComputationStructuralArgument::Case(_))
+        {
+            return Some(());
+        }
+        if self.program.type_multiplicity(reference)
+            != language_semantics::Multiplicity::Unrestricted
+        {
+            // Borrowing a tag does not license copying its affine carrier.
+            return Some(());
+        }
+        let value = self.retain_copied_place_value(expression, reference)?;
+        *receiver = value;
+        *subject = CheckedScalarComputationStructuralArgument::Place(
+            checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
+                source:
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression,
+                    },
+                path: Vec::new(),
+                type_identity: self.program.normalized_type_identity(reference),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            },
+        );
+        Some(())
     }
 
     /// One operand's membership in `case`: a constant for a payloadless
@@ -174,6 +223,7 @@ impl Builder<'_, '_> {
     fn membership_of(
         &mut self,
         subject: &CheckedScalarComputationStructuralArgument,
+        receiver_value: checked_trees::CheckedStructuralValueHandle,
         case: symbols::SymbolHandle,
         expression: ExpressionHandle,
     ) -> CheckedScalarComputationHandle {
@@ -183,80 +233,24 @@ impl Builder<'_, '_> {
             }
             _ => self.publish_case_membership(
                 expression,
-                ExpressionHandle::invalid(),
-                checked_trees::CheckedStructuralValueHandle::invalid(),
+                expression,
+                receiver_value,
                 subject.clone(),
                 case,
             ),
         }
     }
 
-    /// One computed, unrestricted payload-free enum compared with a literal
-    /// case. Builtin equality exists only for payload-free enums; the tag
-    /// observation itself is the shared computed-subject membership.
-    fn computed_enum_case_membership(
-        &mut self,
-        source_expression: ExpressionHandle,
-        left: ExpressionHandle,
-        right: ExpressionHandle,
-    ) -> Option<CheckedScalarComputationHandle> {
-        let (expression, literal) = if self.program.expression_table.call_node(left).is_some() {
-            (left, right)
-        } else if self.program.expression_table.call_node(right).is_some() {
-            (right, left)
-        } else {
-            return None;
-        };
-        let constructor = self.case_construction(literal)?;
-        if !constructor.fields.is_empty() {
-            return None;
-        }
-        let call = self.program.expression_table.call_node(expression)?;
-        let target = validation::call_target_symbol(self.program, call);
-        let returned = validation::call_target_return_type(self.program, target)?;
-        if self.program.normalized_type_identity(returned)
-            != self
-                .program
-                .normalized_type_identity(constructor.type_reference)
-        {
-            return None;
-        }
-        let owner =
-            crate::values::scalar::structural_fields::structural_data(self.program, returned)?;
-        let members = self.program.data_members(owner);
-        if DataDefinition::shape_kind_from_members(members) != DataShapeKind::Enum
-            || members.is_empty()
-            || !members.iter().all(|member| {
-                member
-                    .as_variant()
-                    .is_some_and(|variant| self.program.data_payload_fields(variant).is_empty())
-            })
-        {
-            return None;
-        }
-        self.computed_case_membership(source_expression, expression, constructor.case)
-    }
-
-    /// The tag observation of one computed value: a call's complete ordinary
-    /// result is retained once and its case read, whether the authored test
-    /// is `call(..) == Sum::Case` or `call(..) in Sum::Case`, and whatever the
-    /// selected case's payload. Observing a tag is neither permission to
-    /// replay the call nor to invent a scalar enum lane. The result is
-    /// discarded after the read, so only an unrestricted result qualifies.
+    /// A completed value supplies the tag just as an established place does.
+    /// Selection and evaluation remain on the ordinary structural-value graph;
+    /// observing its tag grants neither payload membership nor ownership.
     pub(super) fn computed_case_membership(
         &mut self,
         source_expression: ExpressionHandle,
         expression: ExpressionHandle,
         case: symbols::SymbolHandle,
     ) -> Option<CheckedScalarComputationHandle> {
-        let call = self.program.expression_table.call_node(expression)?;
-        let target = validation::call_target_symbol(self.program, call);
-        let returned = validation::call_target_return_type(self.program, target)?;
-        if self.program.type_multiplicity(returned)
-            != language_semantics::Multiplicity::Unrestricted
-        {
-            return None;
-        }
+        let (returned, subject, receiver_value) = self.completed_case_subject(expression)?;
         let owner =
             crate::values::scalar::structural_fields::structural_data(self.program, returned)?;
         if !self.program.data_members(owner).iter().any(|member| {
@@ -266,19 +260,44 @@ impl Builder<'_, '_> {
         }) {
             return None;
         }
-        let receiver_value = self.retain_structural_argument(expression, returned)?;
         Some(self.publish_case_membership(
             source_expression,
             source_expression,
             receiver_value,
-            CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
-                path: Vec::new(),
-                type_identity: self.program.normalized_type_identity(returned),
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-            }),
+            subject,
             case,
         ))
+    }
+
+    fn completed_case_subject(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Option<(
+        typed_trees::types::TypeReferenceHandle,
+        CheckedScalarComputationStructuralArgument,
+        checked_trees::CheckedStructuralValueHandle,
+    )> {
+        let reference = validation::expression_type_reference_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )?;
+        if self.program.type_multiplicity(reference)
+            != language_semantics::Multiplicity::Unrestricted
+        {
+            return None;
+        }
+        let receiver = self.retain_structural_argument(expression, reference)?;
+        Some((reference, CheckedScalarComputationStructuralArgument::Place(
+            checked_trees::CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                path: Vec::new(),
+                type_identity: self.program.normalized_type_identity(reference),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            }
+        ), receiver))
     }
 
     fn enum_operand(
@@ -287,6 +306,7 @@ impl Builder<'_, '_> {
     ) -> Option<(
         typed_trees::types::TypeReferenceHandle,
         CheckedScalarComputationStructuralArgument,
+        checked_trees::CheckedStructuralValueHandle,
     )> {
         if let Some((reference, place)) =
             self.readable_case_subject(expression, self.statement_index)
@@ -294,17 +314,18 @@ impl Builder<'_, '_> {
             return Some((
                 reference,
                 CheckedScalarComputationStructuralArgument::Place(place),
+                checked_trees::CheckedStructuralValueHandle::invalid(),
             ));
         }
-        let constructor = self.case_construction(expression)?;
-        // A payloadless constructor supplies a constant tag without evaluating
-        // payloads. Calls and constructor payload evaluations are not tag constants.
-        if !constructor.fields.is_empty() {
-            return None;
+        if let Some(constructor) = self.case_construction(expression)
+            && constructor.fields.is_empty()
+        {
+            return Some((
+                constructor.type_reference,
+                CheckedScalarComputationStructuralArgument::Case(constructor),
+                checked_trees::CheckedStructuralValueHandle::invalid(),
+            ));
         }
-        Some((
-            constructor.type_reference,
-            CheckedScalarComputationStructuralArgument::Case(constructor),
-        ))
+        self.completed_case_subject(expression)
     }
 }

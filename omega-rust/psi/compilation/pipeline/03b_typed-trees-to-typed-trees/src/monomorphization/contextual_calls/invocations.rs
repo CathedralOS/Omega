@@ -52,7 +52,7 @@ pub(super) fn is_machine(program: &TypedTrees, symbol: SymbolHandle) -> bool {
         )
 }
 
-pub(super) fn collect(program: &mut TypedTrees) -> Vec<Invocation> {
+pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Invocation>, Vec<super::Diagnostic>> {
     let mut pending = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -102,6 +102,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Vec<Invocation> {
         }
     }
     let mut invocations = Vec::new();
+    let mut diagnostics = Vec::new();
     for (caller, state, site, target, selected, arguments) in pending {
         if invocations
             .iter()
@@ -110,12 +111,23 @@ pub(super) fn collect(program: &mut TypedTrees) -> Vec<Invocation> {
             continue;
         }
         if let Some(invocation) = proposal(
-            program, &caller, &state, site, target, &selected, &arguments,
+            program,
+            &caller,
+            &state,
+            site,
+            target,
+            &selected,
+            &arguments,
+            &mut diagnostics,
         ) {
             invocations.push(invocation);
         }
     }
-    invocations
+    if diagnostics.is_empty() {
+        Ok(invocations)
+    } else {
+        Err(diagnostics)
+    }
 }
 
 fn proposal(
@@ -126,6 +138,7 @@ fn proposal(
     selected_target: SymbolHandle,
     selected: &[StaticMachineArgument],
     arguments: &[typed_trees::expression::ExpressionHandle],
+    diagnostics: &mut Vec<super::Diagnostic>,
 ) -> Option<Invocation> {
     // Executable retargeting can name a provider's private telescope and erase
     // its static roster. Checking still admits the occurrence's authored
@@ -146,7 +159,7 @@ fn proposal(
                 .authored_machine_application
         }
     };
-    let (target, selected, selected_machines) = if application.is_valid() {
+    let (target, mut selected, selected_machines) = if application.is_valid() {
         (
             program
                 .expression_table
@@ -164,6 +177,20 @@ fn proposal(
     } else {
         (selected_target, selected.to_vec(), Vec::new())
     };
+    let owner = if application.is_valid() {
+        program
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner
+    } else {
+        caller.symbol
+    };
+    if let Err(message) =
+        super::super::body_rewriting::normalize_const_arguments(program, owner, &mut selected)
+    {
+        diagnostics.push(super::Diagnostic::error(message));
+        return None;
+    }
     if !selected
         .iter()
         .any(|argument| is_machine(program, argument.symbol))

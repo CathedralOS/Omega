@@ -33,6 +33,12 @@ enum ByteStorage {
 }
 
 impl RepresentationView {
+    pub(super) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        if let ByteStorage::Array { storage, .. } = &self.storage {
+            retained.array_storage(storage);
+        }
+    }
+
     fn scalar_position<'a>(
         &'a self,
         view: &ElementView,

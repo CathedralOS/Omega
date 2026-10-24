@@ -17,7 +17,6 @@ use crate::effects::{
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
-use crate::scalar_array::TerminalScalarArrayValue;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::structural_inputs::placed_views::{
@@ -99,6 +98,10 @@ pub struct TerminalExecution<'artifact> {
     /// Carrier identities survive structural call/return moves across frames.
     pub(crate) reference_referents:
         BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
+    /// Homes whose bindings have retired may still supply a live descriptor's
+    /// backing. These candidates are global housekeeping, never retention roots
+    /// or ownership evidence; revisit them after later descriptor releases.
+    pub(crate) retired_descriptor_homes: Vec<StructuralRuntimePlace>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
     pub(crate) structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
@@ -139,7 +142,7 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) structural_host_atoms:
         BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     pub(crate) next_host_atom_collection_size: usize,
-    pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayStorage,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
@@ -184,7 +187,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
-    pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayStorage,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
@@ -249,7 +252,11 @@ impl ResultClaimOrigin {
         self,
         result: &terminal_psi::StructuralOperationResult,
         declared: &[terminal_psi::StructuralPathQualification],
+        preserved: &[terminal_psi::StructuralPathQualification],
     ) -> bool {
+        if self != Self::CalleeReturn && !preserved.is_empty() {
+            return false;
+        }
         if matches!(
             self,
             Self::TargetFamilyReturn { .. } | Self::CheckedProvider
@@ -259,7 +266,11 @@ impl ResultClaimOrigin {
                 .iter()
                 .all(|row| declared.contains(row))
         } else {
-            result.projected_qualifications == declared
+            let mut expected = declared.to_vec();
+            expected.extend_from_slice(preserved);
+            expected.sort();
+            expected.dedup();
+            result.projected_qualifications == expected
         }
     }
 }
@@ -277,6 +288,9 @@ pub(crate) enum SuspendedCallResult {
         result: StructuralOperationResult,
         claim_origin: ResultClaimOrigin,
         expected_reference_backings: Vec<Vec<crate::reference::ReferenceBacking>>,
+        /// Caller facts authenticated for this operation's normal completion.
+        /// The callee's weak live carrier need not carry these caller premises.
+        preserved_projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
         profile_completion: Option<crate::provider_storage::profiles::PendingResourceProfile>,
     },
     NominalCleanups {
@@ -368,6 +382,19 @@ impl<'artifact> TerminalExecution<'artifact> {
         installation: Option<&TerminalRuntimeSupplies>,
     ) -> Result<Self, TerminalInterpretError> {
         let current_machine = program.resolve_entry(installation)?;
+        // This host invocation supplies scalar/structural values and storage
+        // custody, but no erased proof actuals. Loading/inspecting the same
+        // retained Requires function is still valid; execution is the boundary.
+        terminal_semantics::validate_empty_erased_invocation_inputs(
+            &program.catalogs,
+            current_machine,
+        )
+        .map_err(
+            |reason| TerminalInterpretError::UnsuppliedErasedEntryInputs {
+                machine: current_machine,
+                reason,
+            },
+        )?;
         // A nonempty placed-view roster declares direct entry inputs whose
         // referent custody must be established beside the ordinary inputs: one
         // exact establishment per entry row lends the qualified backing for
@@ -447,6 +474,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_primitive_entry_places: BTreeMap::new(),
             local_structural_identities,
             next_scalar_collection_identity: 1024,
+            retired_descriptor_homes: Vec::new(),
             structural_scalar_fields: BTreeMap::new(),
             private_entry_ram: Vec::new(),
             provider_storage: Default::default(),
@@ -456,7 +484,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_cases: BTreeMap::new(),
             structural_host_atoms: BTreeMap::new(),
             next_host_atom_collection_size: 1024,
-            scalar_array_values: BTreeMap::new(),
+            scalar_array_values: Default::default(),
             byte_sequence_values: BTreeMap::new(),
             primitive_loan_values: BTreeMap::new(),
             element_view_values: BTreeMap::new(),
@@ -809,6 +837,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .operations
                 .get(self.next_operation)
             {
+                // No constructor payload is transient between operations. Calls
+                // already installed their callee or retained their saved frame.
+                // Revisit dead homes before a later operation consults loans.
+                self.collect_retired_descriptor_storage(None);
                 // A component call already paid its parent operation before
                 // entering the retained child. Only the child's next step is
                 // charged after suspension; neither effects nor call fuel replay.
@@ -1009,6 +1041,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 }
                 self.next_operation += 1;
             }
+            self.collect_retired_descriptor_storage(None);
             let terminator = &program
                 .verified_machine(self.current_machine)?
                 .block(&self.current)

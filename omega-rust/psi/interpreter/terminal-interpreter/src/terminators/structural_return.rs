@@ -48,6 +48,7 @@ impl TerminalExecution<'_> {
                     SuspendedCallResult::Structural {
                         result,
                         claim_origin,
+                        preserved_projected_qualifications,
                         ..
                     },
                 ..
@@ -57,6 +58,7 @@ impl TerminalExecution<'_> {
                 && claim_origin.result_projected_qualifications_match(
                     result,
                     &signature.projected_qualifications,
+                    preserved_projected_qualifications,
                 )
                 && !structural_values.contains_key(&result.place)
                 && !scalar_array_values.contains_key(&result.place)
@@ -122,6 +124,52 @@ impl TerminalExecution<'_> {
                 value.absorb_qualifications(&destination.qualifications);
             }
             self.validate_reference_return(&signature, &value)?;
+            // Actual return backing, access and case activation have now been
+            // authenticated against the performed call's captured inputs. Add
+            // only the caller facts separately proved at this normal-completion
+            // cut; never recover the formation clone's or provider's roster.
+            if let Some(SuspendedCall {
+                result:
+                    SuspendedCallResult::Structural {
+                        preserved_projected_qualifications,
+                        ..
+                    },
+                ..
+            }) = self.call_stack.last()
+            {
+                for row in preserved_projected_qualifications {
+                    if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                        &self.program.structural_types(), &value, &self.structural_cases, &row.path,
+                    )? {
+                        value.projected_qualifications.push(row.clone());
+                    }
+                }
+                value.projected_qualifications.sort();
+                value.projected_qualifications.dedup();
+            }
+            if let Some(SuspendedCall {
+                result:
+                    SuspendedCallResult::Structural {
+                        result,
+                        claim_origin: crate::execution::ResultClaimOrigin::CalleeReturn,
+                        ..
+                    },
+                ..
+            }) = self.call_stack.last()
+            {
+                let mut receiving = Vec::new();
+                for row in &result.projected_qualifications {
+                    if crate::structural_inputs::case_membership::case_projection_in_value_is_active(
+                        &self.program.structural_types(), &value, &self.structural_cases, &row.path,
+                    )? {
+                        if !value.projected_qualifications.contains(row) {
+                            return Err(malformed());
+                        }
+                        receiving.push(row.clone());
+                    }
+                }
+                value.projected_qualifications = receiving;
+            }
             if value.structural_type != signature.structural_type
                 || signature
                     .qualifications
@@ -235,7 +283,18 @@ impl TerminalExecution<'_> {
                 .filter(|entry| entry.place == *source)
                 .ne(carried.iter())
             {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
+                return Err(
+                    TerminalInterpretError::StructuralReturnAffineFrontierMismatch {
+                        source: *source,
+                        expected: carried.into_iter().collect(),
+                        actual: self
+                            .live_affine_frontier
+                            .iter()
+                            .filter(|entry| entry.place == *source)
+                            .cloned()
+                            .collect(),
+                    },
+                );
             }
             let rebound_claims = match self.call_stack.last() {
                 Some(SuspendedCall {

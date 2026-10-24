@@ -7,7 +7,7 @@ impl Retirement<'_> {
         &self,
         value: checked_trees::CheckedStructuralValueHandle,
         path: &[checked_trees::BorrowLoanOwnerSegment],
-        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        active: &mut Vec<RetirementNode>,
     ) -> bool {
         let values = &self.facts.values.structural_values;
         if !values.nodes.is_valid(value) {

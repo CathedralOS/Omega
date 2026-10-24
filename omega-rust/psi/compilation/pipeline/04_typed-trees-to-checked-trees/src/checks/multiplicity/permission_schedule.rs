@@ -10,9 +10,7 @@ pub(super) enum PermissionStep {
         statement: usize,
         evaluation: FlowPermissionEvaluation,
     },
-    MissedGuard {
-        statement: usize,
-    },
+    MissedGuard,
     Exit {
         coordinate: FlowClaimJoinExit,
         crash: bool,
@@ -106,7 +104,7 @@ pub(super) fn walk<S: Clone>(
         {
             return;
         }
-        visit(PermissionStep::MissedGuard { statement }, &mut custody);
+        visit(PermissionStep::MissedGuard, &mut custody);
     }
     if !transitions.is_empty()
         && super::permission_events::case_transition_run_is_exhaustive(
@@ -192,169 +190,126 @@ fn target_ends_domain(
     }
 }
 
-/// Case alternatives narrow custody on the same chosen edge as its moves.
-pub(super) fn select_cases(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    step: PermissionStep,
-    places: &mut [super::linear_obligations::LinearPlace],
-) {
-    for (statement, subject, variant, positive) in case_tests(program, state, step) {
-        if positive {
-            super::permission_events::select_case_alternative_from_guard(
-                program,
-                state.symbol,
-                statement,
-                subject,
-                variant,
-                places,
-            );
-        } else {
-            super::permission_events::exclude_case_alternative(
-                program,
-                state.symbol,
-                statement,
-                subject,
-                variant,
-                places,
-            );
-        }
-    }
+/// Case exclusions at one evaluation cut. Flow already authenticated the saved
+/// guard receiver, selected polarity and intervening writes. Custody consumes
+/// those exact observations instead of resolving the guard's descriptor again.
+pub(super) struct SelectedCases {
+    inactive: Vec<validation::CanonicalPlace>,
 }
 
-/// Cleanup and linear custody observe the same selected case. An absent case
-/// is excluded from the residual cleanup region, never consumed or retired.
-/// Common fields and the selected payload remain owned; later writes clear
-/// exclusions through ordinary storage establishment.
-pub(super) fn select_cleanup_cases<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    machine: &'program typed_trees::machine::Machine,
-    frames: Option<&validation::CallFrameResolver<'program>>,
-    state: &typed_trees::state::State,
-    step: PermissionStep,
-    remaining: &mut super::cleanup_dispositions::RemainingCustody,
-) {
-    for (statement, subject, variant, positive) in case_tests(program, state, step) {
-        let Some(typed_trees::statement::StatementNode::Transition(transition)) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement)
-        else {
-            continue;
-        };
-        let TransitionGuardNode::When(guard) = transition.guard else {
-            continue;
-        };
-        // A later conjunct may overwrite an earlier case observation. Unknown
-        // effects cannot justify absence at the end of the complete guard.
-        if !frames.is_some_and(|frames| {
-            frames
-                .expression_write_frame(machine, guard)
-                .into_complete_paths()
-                .is_some_and(|writes| writes.is_empty())
-        }) {
-            continue;
-        }
-        let Some(place) = validation::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement,
-            subject,
-        ) else {
-            continue;
-        };
-        let Some(reference) =
-            validation::canonical_place_type_reference(program, state.symbol, statement, &place)
-        else {
-            continue;
-        };
-        if !crate::flow::stable_case_subject(&place) {
-            continue;
-        }
-        // Canonical paths may implicitly traverse a reference, but they do
-        // not name an owned referent home. No prefix may supply cleanup
-        // authority by peeling that reference shell.
-        if !(0..=place.segments.len()).all(|length| {
-            validation::canonical_place_type_reference(
-                program,
-                state.symbol,
+impl SelectedCases {
+    pub(super) fn at_step(
+        program: &dyn validation::CheckingInput,
+        facts: &checked_trees::CheckFacts,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        step: PermissionStep,
+    ) -> Option<Self> {
+        let flow = facts
+            .flow
+            .control
+            .unique_state(machine.symbol, state.symbol)?;
+        let (statement, constraints) = match step {
+            PermissionStep::Evaluate {
                 statement,
-                &validation::CanonicalPlace {
-                    root: place.root,
-                    segments: place.segments[..length].to_vec(),
-                },
-            )
-            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
-        }) {
-            continue;
-        }
-        let Some(data) = program.closed_data_definition(reference) else {
-            continue;
+                evaluation:
+                    FlowPermissionEvaluation::Statement | FlowPermissionEvaluation::TransitionGuard,
+            } => {
+                let mut rows = facts
+                    .flow
+                    .control
+                    .statements
+                    .span(flow.statements)?
+                    .iter()
+                    .filter(|row| row.statement_index == statement);
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                (statement, row.entry_constraints)
+            }
+            PermissionStep::Evaluate {
+                statement,
+                evaluation: FlowPermissionEvaluation::TransitionTarget(target),
+            } => {
+                let mut rows = facts
+                    .flow
+                    .control
+                    .outgoing
+                    .span(flow.outgoing)?
+                    .iter()
+                    .filter(|row| {
+                        row.statement_index == statement
+                            && row.transition_target == target
+                            && row.machine_symbol == machine.symbol
+                            && row.state_symbol == state.symbol
+                    });
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                (statement, row.operand_entry_constraints)
+            }
+            PermissionStep::Exit { coordinate, .. }
+                if coordinate.kind == FlowClaimJoinExitKind::FinalExpression =>
+            {
+                let mut rows = facts
+                    .flow
+                    .control
+                    .outgoing
+                    .span(flow.outgoing)?
+                    .iter()
+                    .filter(|row| {
+                        row.statement_index == coordinate.statement_index
+                            && !row.transition_target.is_valid()
+                            && row.machine_symbol == machine.symbol
+                            && row.state_symbol == state.symbol
+                    });
+                let row = rows.next()?;
+                if rows.next().is_some() {
+                    return None;
+                }
+                (coordinate.statement_index, row.constraints)
+            }
+            // Rejected guards live in the next statement's entry cut or the
+            // implicit completion's outgoing cut. A selected target's exit
+            // keeps the exclusions selected before its operands.
+            _ => return None,
         };
-        let variants = program
-            .data_members(data)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Variant(row) => Some(row.symbol),
-                _ => None,
-            })
+        let contexts = facts
+            .flow
+            .semantic_constraint_contexts(constraints)
             .collect::<Vec<_>>();
-        if !variants.contains(&variant) {
-            continue;
-        }
-        for excluded in variants
-            .into_iter()
-            .filter(|candidate| (*candidate == variant) != positive)
-        {
-            let mut path = place.segments.clone();
-            path.push(facts::PlaceSegment::Case { variant: excluded });
-            remaining.exclude_absent_case(place.root, &path);
+        let evidence = crate::flow::CaseEvidence::prepare(
+            program,
+            &facts.semantic,
+            &contexts,
+            machine.symbol,
+            state.symbol,
+            statement,
+        )?;
+        Some(Self {
+            inactive: evidence.inactive_owned_cases(),
+        })
+    }
+
+    pub(super) fn apply_claims(&self, places: &mut [super::linear_obligations::LinearPlace]) {
+        for excluded in &self.inactive {
+            for place in places.iter_mut().filter(|place| {
+                place.root == excluded.root && place.path.starts_with(&excluded.segments)
+            }) {
+                place.live = false;
+                place.case_excluded = true;
+            }
         }
     }
-}
 
-fn case_tests(
-    program: &dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    step: PermissionStep,
-) -> Vec<(
-    usize,
-    typed_trees::expression::ExpressionHandle,
-    symbols::SymbolHandle,
-    bool,
-)> {
-    let (statement, target) = match step {
-        PermissionStep::Evaluate {
-            statement,
-            evaluation: FlowPermissionEvaluation::TransitionTarget(target),
-        } => (statement, Some(target)),
-        PermissionStep::MissedGuard { statement } => (statement, None),
-        _ => return Vec::new(),
-    };
-    let StatementNode::Transition(transition) =
-        &program.statement_table.statements(state.statement_nodes)[statement]
-    else {
-        return Vec::new();
-    };
-    let TransitionGuardNode::When(guard) = transition.guard else {
-        return Vec::new();
-    };
-    if target == Some(transition.target) {
-        let mut positive = Vec::new();
-        super::permission_events::collect_positive_case_tests(
-            program,
-            state.symbol,
-            guard,
-            &mut positive,
-        );
-        positive
-            .into_iter()
-            .map(|(subject, variant)| (statement, subject, variant, true))
-            .collect()
-    } else {
-        super::permission_events::exact_positive_case_test(program, state.symbol, guard)
-            .into_iter()
-            .map(|(subject, variant)| (statement, subject, variant, false))
-            .collect()
+    pub(super) fn apply_cleanup(
+        &self,
+        remaining: &mut super::cleanup_dispositions::RemainingCustody,
+    ) {
+        for excluded in &self.inactive {
+            remaining.exclude_absent_case(excluded);
+        }
     }
 }

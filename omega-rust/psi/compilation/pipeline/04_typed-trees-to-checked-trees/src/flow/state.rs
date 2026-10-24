@@ -38,6 +38,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         return;
     };
 
+
     // Store potentials are this pass's evidence; a rebuilt state accumulates
     // them afresh.
     build
@@ -110,6 +111,13 @@ pub(super) fn build_state_flow_fact<'plans>(
             state: borrow_state_handle,
         },
     );
+    for identity in borrow_state.incoming_references.handles() {
+        append_constraint_ref(
+            &mut build.contexts.constraint_refs,
+            &mut state_constraints,
+            FlowConstraintKind::BorrowIncomingReference { identity },
+        );
+    }
     append_contiguous_borrow_root_constraints(
         &mut build.contexts.constraint_refs,
         &mut state_constraints,

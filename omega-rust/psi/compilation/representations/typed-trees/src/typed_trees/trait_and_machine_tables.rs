@@ -263,12 +263,10 @@ impl TypedTrees {
             .filter(|parameter| matches!(parameter.kind, data::TypeParameterKind::Machine { .. }))
     }
 
-    /// The declaration scope visible to types in a machine, including source
-    /// regions captured in a specialization's actual type operands. Captures
-    /// belong to the retained application's lexical owner, not new binders on
-    /// the private clone. This query admits their spelling during formation;
-    /// applied identity still resolves regions through that retained owner.
-    pub fn machine_type_reference_scope(
+    /// The machine's declared telescope, including its exact nominal and
+    /// enclosing implementation owners. Method binders retain their original
+    /// prefix coordinates. Captured specialization operands are not binders.
+    pub fn machine_declaration_scope(
         &self,
         machine: &machine::Machine,
         same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
@@ -296,8 +294,8 @@ impl TypedTrees {
             }
             enclosing = self.declaration_scope_parent(enclosing);
         }
-        if let Some(attached_data) = &machine.attached_data
-            && let Some(definition) = self.data_definition_by_name(attached_data)
+        if machine.attached_data_symbol.is_valid()
+            && let Some(definition) = self.data_definition_by_symbol(machine.attached_data_symbol)
         {
             for parameter in self.data_type_parameters(definition) {
                 if !type_parameters
@@ -316,6 +314,21 @@ impl TypedTrees {
                 }
             }
         }
+        (type_parameters, lifetime_parameters)
+    }
+
+    /// The declaration scope visible to types in a machine, including source
+    /// regions captured in a specialization's actual type operands. Captures
+    /// belong to the retained application's lexical owner, not new binders on
+    /// the private clone. This query admits their spelling during formation;
+    /// applied identity still resolves regions through that retained owner.
+    pub fn machine_type_reference_scope(
+        &self,
+        machine: &machine::Machine,
+        same_type_parameter: impl Fn(&data::TypeParameter, &data::TypeParameter) -> bool,
+    ) -> (Vec<data::TypeParameter>, Vec<crate::name::Identifier>) {
+        let (type_parameters, mut lifetime_parameters) =
+            self.machine_declaration_scope(machine, same_type_parameter);
         // A type operand can carry regions arbitrarily deep in its arguments.
         // The nominal head's lifetime roster is not the operand's scope. Follow
         // retained source ownership rather than collecting tags from type text

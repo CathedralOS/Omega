@@ -117,6 +117,7 @@ impl CheckedCallScalarArgument {
     }
 }
 
+#[derive(Clone)]
 struct CallTransfers<'facts, 'calls> {
     values: &'facts CheckedValueFacts,
     call_schedules: &'facts dyn Fn(
@@ -125,6 +126,8 @@ struct CallTransfers<'facts, 'calls> {
     result: &'facts CheckedUnitStructuralResultBindingPlan,
     local: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
+    established_values: Vec<CheckedStructuralValueHandle>,
+    completed_computations: Vec<CheckedScalarComputationHandle>,
 }
 
 impl CheckedScalarReturnPlan {
@@ -355,6 +358,8 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             result,
             local,
             expression,
+            established_values: Vec::new(),
+            completed_computations: Vec::new(),
         })
     }
     fn argument(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
@@ -413,6 +418,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
         calls: &[CheckedStructuralValueCall],
         consumes_whole: bool,
     ) -> usize {
+        if self.established_values.contains(&root) {
+            return 0;
+        }
         let plans = &self.values.structural_values;
         match &plans.nodes.get(root).kind {
             CheckedStructuralValueKind::QuotientCall { arguments, .. } => arguments
@@ -444,13 +452,22 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             CheckedStructuralValueKind::Projection {
                 source,
                 path,
+                projection_evaluations,
                 copies_selected_value,
                 ..
-            } => self.constructed(
-                *source,
-                calls,
-                consumes_whole && path.is_empty() && !copies_selected_value,
-            ),
+            } => {
+                self.constructed(
+                    *source,
+                    calls,
+                    consumes_whole && path.is_empty() && !copies_selected_value,
+                ) + CheckedUnitStructuralArgumentPlan::projection_computation_operands(
+                    path,
+                    *projection_evaluations,
+                    &self.values.scalar_computations.operands,
+                )
+                .map(|operand| self.computation(operand))
+                .sum::<usize>()
+            }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
                 let mut prefix = 0;
                 let alternatives = plans.dispatch_arms.span_or_empty(*arms).iter().map(|arm| {
@@ -477,7 +494,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
 
     fn argument_evaluation(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
         argument
-            .computation_operands()
+            .computation_operands(&self.values.scalar_computations.operands)
             .map(|operand| self.computation(operand))
             .sum()
     }
@@ -534,6 +551,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     }
 
     fn computation(&self, root: CheckedScalarComputationHandle) -> usize {
+        if self.completed_computations.contains(&root) {
+            return 0;
+        }
         let plans = &self.values.scalar_computations;
         match &plans.nodes.get(root).kind {
             CheckedScalarComputationKind::Call {
@@ -564,6 +584,26 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                             }
                         })
                         .sum::<usize>()
+            }
+            CheckedScalarComputationKind::WithOperands {
+                operands, operand, ..
+            } => {
+                let mut scope = self.clone();
+                let mut count = 0;
+                for dependency in plans.evaluation_operands.span_or_empty(*operands) {
+                    match dependency {
+                        crate::CheckedScalarEvaluationOperand::Scalar(value) => {
+                            count += scope.computation(*value);
+                            scope.completed_computations.push(*value);
+                        }
+                        crate::CheckedScalarEvaluationOperand::Structural(value) => {
+                            count += scope
+                                .structural(*value, (scope.call_schedules)(*value).unwrap_or(&[]));
+                            scope.established_values.push(*value);
+                        }
+                    }
+                }
+                count + scope.computation(*operand)
             }
             CheckedScalarComputationKind::Apply { operands, .. }
             | CheckedScalarComputationKind::StorageObservation { operands, .. } => plans
@@ -646,6 +686,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
         root: CheckedStructuralValueHandle,
         calls: &[CheckedStructuralValueCall],
     ) -> usize {
+        if self.established_values.contains(&root) {
+            return 0;
+        }
         let plans = &self.values.structural_values;
         match &plans.nodes.get(root).kind {
             CheckedStructuralValueKind::QuotientCall { arguments, .. } => arguments

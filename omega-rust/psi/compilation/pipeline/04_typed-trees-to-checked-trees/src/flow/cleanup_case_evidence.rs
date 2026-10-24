@@ -6,7 +6,7 @@
 //! intersects observations at joins and invalidates them on overlapping writes;
 //! these rows are not inferred from absent claims or constructor spelling.
 //! `RemainingCustody::exclude_absent_case` receives these paths from checked
-//! permission-schedule case tests. That producer authenticates the complete
+//! permission-schedule selected Flow cut. That producer authenticates the complete
 //! owned, typed prefix; this consumer checks occurrence/root correspondence.
 //! Independently supplied or persisted rows need that same authentication.
 

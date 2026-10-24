@@ -360,8 +360,9 @@ pub(super) fn named_operator_call_mutated_places(
 }
 
 /// A named boundary/operator call has no ordinary borrow-call fact. Its mutable
-/// operands still invalidate every fact depending on those places before the
-/// operator's postconditions are introduced.
+/// operands supply the same write footprint to semantic invalidation and the
+/// immutable storage timeline. A missing mutable operand coordinate is unknown;
+/// an ordinary non-operator call contributes no additional named-call writes.
 pub(super) fn operator_statement_call_mutated_places(
     program: &dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext,
@@ -369,22 +370,15 @@ pub(super) fn operator_statement_call_mutated_places(
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &typed_trees::statement::TableCall,
-) -> Vec<CanonicalPlace> {
-    operator_statement_operands(
-        program,
-        build,
-        caller_machine_symbol,
-        caller_state_symbol,
-        statement_index,
-        call,
-    )
-    .map(|(_, operands)| {
-        operands
-            .into_iter()
-            .filter_map(|operand| operand.is_mutable.then_some(operand.place).flatten())
-            .collect()
-    })
-    .unwrap_or_default()
+) -> Option<Vec<CanonicalPlace>> {
+    if resolve_operator_statement_call(program, call).is_none() {
+        return Some(Vec::new());
+    }
+    let (_, operands) = operator_statement_operands(
+        program, build, caller_machine_symbol, caller_state_symbol, statement_index, call,
+    )?;
+    operands.into_iter().filter(|operand| operand.is_mutable)
+        .map(|operand| operand.place).collect()
 }
 
 /// Introduce domain memberships guaranteed by a named boundary/operator call

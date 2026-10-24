@@ -222,18 +222,38 @@ pub(crate) fn borrowed_argument_endpoint(
     let Some(requested) = validation::reference_shell(program, formal) else {
         return Some((selected, path));
     };
-    while let Some(shell) = validation::reference_shell(program, selected)
-        && validation::stores_reference_shape(program, selected, &[])
-    {
-        if shell.access != requested.access
-            && shell.access != language_semantics::ReferenceAccess::Mutable
+    let requested_storage =
+        validation::stored_structural_type_identity(program, requested.referee, &[], &[]);
+    if !requested_storage.is_valid() {
+        return None;
+    }
+    for _ in 0..=program.type_reference_table.type_reference_count() {
+        // The requested referent may itself be a descriptor. Stop before
+        // loading it: lending a pointer slot and lending its backing are
+        // different coordinates and different permission obligations.
+        let selected_storage =
+            validation::stored_structural_type_identity(program, selected, &[], &[]);
+        if !selected_storage.is_valid() {
+            return None;
+        }
+        if selected_storage == requested_storage {
+            return Some((selected, path));
+        }
+        let Some(shell) = validation::reference_shell(program, selected)
+            .filter(|_| validation::stores_reference_shape(program, selected, &[]))
+        else {
+            return Some((selected, path));
+        };
+        if !shell.access.is_readable()
+            || (shell.access != requested.access
+                && shell.access != language_semantics::ReferenceAccess::Mutable)
         {
             return None;
         }
         path.push(CheckedUnitStructuralPathSegment::Referent);
         selected = shell.referee;
     }
-    Some((selected, path))
+    None
 }
 
 /// `projected_borrowed_path` for an observation of a runtime-selected
@@ -1251,6 +1271,7 @@ pub(crate) fn byte_sequence_literal_argument(
         _ => return None,
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
             bytes: bytes.to_vec(),
         },

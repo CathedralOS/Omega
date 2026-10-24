@@ -307,6 +307,38 @@ impl From<ProgramEntrySlotDeclaration> for TargetRequiredRootSlotDeclaration {
 }
 
 impl TargetProfile {
+    /// The selected target's primitive model must fit the Terminal producer's
+    /// current representation capability. An abstract profile with no model
+    /// supplies no model premise; model-dependent formations still require a
+    /// concrete closure before Terminal production.
+    pub fn admit_address_representation(self) -> Result<(), String> {
+        if self.address_model().is_some_and(|model| {
+            model != semantic_vocabulary::IntegerType::supported_address_representation()
+        }) {
+            return Err(format!(
+                "target `{}` address model has no supported Terminal representation",
+                self.target_name()
+            ));
+        }
+        Ok(())
+    }
+
+    /// The default source address space fixed by this concrete deployment
+    /// profile. This is explicit target data, independent of host pointer
+    /// width and the language's count carrier. Abstract profiles do not close
+    /// an address-model subject.
+    pub fn address_model(self) -> Option<semantic_vocabulary::IntegerType> {
+        match self {
+            Self::LinuxArm64
+            | Self::LinuxX64
+            | Self::MacosArm64
+            | Self::MacosX64
+            | Self::WindowsX64
+            | Self::UefiX64 => semantic_vocabulary::IntegerType::address(64).ok(),
+            Self::CrossPlatformCli | Self::LocalUnchecked | Self::AlphaBootstrap => None,
+        }
+    }
+
     /// Complete trusted deployment-profile catalog in canonical identity order.
     ///
     /// Consumers that retain profile-indexed evidence must use this catalog

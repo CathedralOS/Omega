@@ -26,6 +26,7 @@ pub(crate) fn validate_trait_application_obligations(
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let parameters = program.trait_type_parameters(applied_trait);
     if applied_arguments.len() != parameters.len() {
@@ -63,6 +64,7 @@ pub(crate) fn validate_trait_application_obligations(
                     generic_depth: 0,
                 },
                 caller_scope,
+                formation_obligations,
             ),
             TypeParameterKind::Const { type_reference }
             | TypeParameterKind::Value { type_reference } => validate_const_application_argument(
@@ -98,6 +100,7 @@ pub(crate) fn validate_trait_application_obligations(
                 symbols,
                 caller_scope,
                 diagnostics,
+                formation_obligations,
             ),
             TypeParameterKind::Proposition { .. } | TypeParameterKind::Machine { .. } => {}
         }
@@ -422,6 +425,8 @@ fn indexed_carrier_parameter_matches(
 /// A named implementation's type operands remain source formation sites even
 /// when none of its inline machines use them. The map's own telescope supplies
 /// the categories; its caller supplies lexical type and lifetime custody.
+/// Range formation uses the enclosing application's obligation collector too;
+/// validating the type spelling cannot discharge its arithmetic obligations.
 fn validate_implementation_type_arguments(
     program: &dyn crate::CheckingInput,
     argument: TypeReferenceHandle,
@@ -429,6 +434,7 @@ fn validate_implementation_type_arguments(
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     caller_scope: crate::value_custody::type_references::TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     use crate::value_custody::type_references::{
         TypeReferenceOwner, validate_type_reference_handle,
@@ -476,6 +482,7 @@ fn validate_implementation_type_arguments(
                     generic_depth: 0,
                 },
                 caller_scope,
+                formation_obligations,
             );
         }
     }

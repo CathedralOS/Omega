@@ -89,6 +89,7 @@ pub(super) fn validate<'a, 'p>(
             assignment.value,
             bound_lookup,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     // An array-literal RHS into a `[T; N]` target: check each element's
@@ -104,6 +105,7 @@ pub(super) fn validate<'a, 'p>(
             assignment.value,
             target_type,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
@@ -385,7 +387,7 @@ pub(super) fn validate<'a, 'p>(
             }
         }
     }
-    let copied_value = arithmetic_domains::CopiedIntegerValue::capture(
+    let mut copied_value = arithmetic_domains::CopiedIntegerValue::capture(
         program,
         machine,
         current_state,
@@ -407,6 +409,16 @@ pub(super) fn validate<'a, 'p>(
         assignment.value,
     );
     if let Some(written) = direct_written {
+        if let Some(state) = current_state {
+            copied_value.capture_assignment_relations(
+                program,
+                machine,
+                state,
+                assignment,
+                &written,
+                value_environment,
+            );
+        }
         value_environment.invalidate_assignment_paths(
             program,
             machine,

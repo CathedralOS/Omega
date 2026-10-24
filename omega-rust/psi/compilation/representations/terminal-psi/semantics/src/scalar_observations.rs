@@ -38,6 +38,9 @@ pub fn structural_read_scalar_type<'a>(
     let mut case_fields: Option<&[StructuralFieldDeclaration]> = None;
     for projection in path {
         match projection {
+            // Canonical predicate coordinates must cross through the shared
+            // conversion; this duplicate scalar-read spelling is not admitted.
+            ScalarReadProjection::Static(Static::Referent) => return None,
             ScalarReadProjection::Referent => {
                 if case_fields.is_some() {
                     return None;

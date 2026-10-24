@@ -10,6 +10,7 @@ mod disposition_events;
 mod lifecycle;
 mod loan_resources;
 mod reborrow_drafts;
+mod supplied_permissions;
 
 use crate::checks::borrows::resources::disposition_events::{
     bind_restored_call_uses, plan_reborrow_disposition_events,
@@ -26,6 +27,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
+    supplied_permissions::validate_normal_output_completions(&facts.borrow, &facts.flow)?;
     let (direct, reborrows) =
         reconstruct_borrow_resource_rosters(program, &facts.borrow, &facts.flow)?;
     let installation = plan_resource_installation(&direct, &reborrows)?;

@@ -295,12 +295,34 @@ fn build_structural_runtime_requirements(
     let facts = program
         .machine_contracts(machine)
         .iter()
-        .chain(program.state_contracts(entry))
-        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
-        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .map(|contract| (true, contract))
+        .chain(
+            program
+                .state_contracts(entry)
+                .iter()
+                .map(|contract| (false, contract)),
+        )
+        .filter(|(_, contract)| {
+            contract.kind == typed_trees::signature::SignatureContractKind::Requires
+        })
+        .flat_map(|(machine_owned, contract)| {
+            program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .map(move |fact| (machine_owned, contract, fact))
+        })
         .enumerate();
     let mut requirements = Vec::new();
-    for (fact_ordinal, fact) in facts {
+    for (fact_ordinal, (machine_owned, contract, fact)) in facts {
+        if contract.binding.is_some() {
+            // Erased nominal premises have their own exact evidence lane;
+            // neither state hypotheses nor bound runtime expressions are it.
+            if !machine_owned || fact.as_proposition().is_none() {
+                return None;
+            }
+            continue;
+        }
         // Structural qualification restatements retain their separate argument
         // presentation; scalar memberships retain their subject and full theory.
         if validation::restates_structural_parameter_qualification(program, entry, fact) {

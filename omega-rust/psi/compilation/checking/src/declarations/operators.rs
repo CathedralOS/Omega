@@ -7,7 +7,12 @@ mod contracts;
 pub(crate) mod namespaces;
 mod receiver;
 mod requirement_uses;
+mod scoped_applications;
 mod selection;
+pub use scoped_applications::{
+    OperatorApplicationScope, ScopedOperatorApplication, ScopedOperatorResolution,
+    scoped_operator_application,
+};
 mod signatures;
 mod uses;
 
@@ -61,11 +66,18 @@ pub(crate) fn validate_operator_declarations(
     program: &dyn crate::CheckingInput,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_duplicate_operator_signatures(program, "root", program.operators(), diagnostics);
     validate_spelling_overlap(program, program.operators(), diagnostics);
     for operator in program.operators() {
-        validate_operator_types(program, symbols, operator, diagnostics);
+        validate_operator_types(
+            program,
+            symbols,
+            operator,
+            diagnostics,
+            formation_obligations,
+        );
     }
 
     for domain in program.domain_definitions() {
@@ -77,7 +89,13 @@ pub(crate) fn validate_operator_declarations(
         );
         validate_spelling_overlap(program, program.domain_operators(domain), diagnostics);
         for operator in program.domain_operators(domain) {
-            validate_operator_types(program, symbols, operator, diagnostics);
+            validate_operator_types(
+                program,
+                symbols,
+                operator,
+                diagnostics,
+                formation_obligations,
+            );
         }
     }
 }
@@ -87,6 +105,7 @@ fn validate_operator_types(
     symbols: &TopLevelSymbols<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let name = operator_name(program, operator);
     for contract in program.operator_contracts(operator) {
@@ -120,6 +139,7 @@ fn validate_operator_types(
                 type_parameters,
                 lifetime_parameters: &operator.lifetime_parameters,
             },
+            formation_obligations,
         );
     }
     if operator.return_type.is_valid() {
@@ -138,6 +158,7 @@ fn validate_operator_types(
                 type_parameters,
                 lifetime_parameters: &operator.lifetime_parameters,
             },
+            formation_obligations,
         );
     }
 }

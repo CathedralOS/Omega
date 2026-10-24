@@ -429,7 +429,7 @@ pub(crate) fn emit_byte_length(
     if source.path.is_empty()
         && source.access == terminal_psi::StructuralAccess::SharedBorrow
         && let Some(value) = operations
-            .length_observations
+            .storage_observations
             .bytes
             .iter()
             .rev()
@@ -453,7 +453,7 @@ pub(crate) fn emit_byte_length(
         operations,
     );
     if cache {
-        operations.length_observations.bytes.push((place, value));
+        operations.storage_observations.bytes.push((place, value));
     }
     value
 }
@@ -470,7 +470,7 @@ pub(crate) fn emit_element_length(
     // count. Branch emitters scope whole observations to their path.
     if source.path.is_empty()
         && let Some(value) = operations
-            .length_observations
+            .storage_observations
             .elements
             .iter()
             .rev()
@@ -493,7 +493,7 @@ pub(crate) fn emit_element_length(
     );
     if source.path.is_empty() {
         operations
-            .length_observations
+            .storage_observations
             .elements
             .push((source, value));
     }
@@ -841,7 +841,7 @@ pub(crate) fn emit_direct_expression(
                 operations,
             );
             operations
-                .length_observations
+                .storage_observations
                 .field_bytes
                 .push((*source, path.clone(), *field, value));
             value
@@ -863,7 +863,7 @@ pub(crate) fn emit_direct_expression(
             // dominating value; otherwise mint a current observation, whose
             // bound the certificate must then derive from the extent itself.
             let length = operations
-                .length_observations
+                .storage_observations
                 .field_bytes
                 .iter()
                 .rev()
@@ -983,7 +983,7 @@ pub(crate) fn emit_direct_expression(
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let length = operations
-                .length_observations
+                .storage_observations
                 .elements
                 .iter()
                 .rev()

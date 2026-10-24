@@ -52,6 +52,7 @@ pub(crate) struct LinearPlace {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WrittenLinearTarget {
+    pub(crate) value: typed_trees::expression::ExpressionHandle,
     pub(crate) root: facts::PlaceRoot,
     pub(crate) destination_path: Vec<facts::PlaceSegment>,
     pub(crate) place_index: usize,

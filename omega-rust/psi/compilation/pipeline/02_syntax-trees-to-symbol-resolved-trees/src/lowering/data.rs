@@ -235,6 +235,7 @@ fn lower_data_definition_with_argument_origins(
     let type_equations = crate::preparation::generic_data::template_type_equation_offsets(
         syntax_trees,
         data_definition,
+        lowerer.constant_selection.as_ref(),
     )?;
     let where_facts = crate::lowering::domain::lower_proof_facts_excluding(
         lowerer,

@@ -3,7 +3,7 @@
 //! establish whether those selectors can transport the retained leaves.
 
 use super::super::path_instantiation::aggregate_arguments::{
-    AggregateMove, AggregateOrigins, ReferenceLeaf,
+    AggregateMove, AggregateOrigins, ReferenceLeaf, ReferenceSource,
 };
 use super::super::type_instantiation::DeclarationScopes;
 use super::StoredLocalOrigins;
@@ -220,7 +220,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
     let source = super::super::FrameSourcePlace::from_expression(program, expression);
     for leaf in &mut projected.references {
         if let Some(origin) = &mut leaf.origin {
-            origin.source.builtin_coordinates &= source.builtin_coordinates;
+            origin.place_mut().source.builtin_coordinates &= source.builtin_coordinates;
         }
     }
     for moved in &mut projected.moves {
@@ -239,6 +239,69 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
     established: &StoredLocalOrigins,
     segments: &[PlaceSegment],
     symbolic: bool,
+) -> Option<AggregateOrigins> {
+    project_stored_origins_with_sources(program, established, segments, symbolic, |_, _| Some(()))
+}
+
+/// Project a completed aggregate through the ordinary stored-leaf geometry.
+/// The roster index carries each completed descriptor association alongside
+/// the shared selector/case specialization; path equality never reconstructs it.
+pub(in crate::machine_calls::calls::write_frames) fn project_aggregate_origins(
+    program: &dyn crate::CheckingInput,
+    origins: AggregateOrigins,
+    local_symbol: symbols::SymbolHandle,
+    segments: &[PlaceSegment],
+) -> Option<AggregateOrigins> {
+    let sources = origins
+        .references
+        .iter()
+        .map(|leaf| leaf.origin.clone())
+        .collect::<Vec<_>>();
+    let established = StoredLocalOrigins {
+        local_symbol,
+        references: origins
+            .references
+            .into_iter()
+            .map(|leaf| super::StoredWriteOrigin {
+                lifetime_dependencies: leaf.lifetime_dependencies,
+                kind: leaf.kind,
+                local_symbol,
+                local_path: leaf.local_suffix,
+                local_segments: leaf.local_segments,
+                may_select: leaf.may_select,
+                origin: leaf.origin.map(|origin| origin.place().clone()),
+            })
+            .collect(),
+        cases: origins.cases,
+        moves: origins.moves,
+        symbolic: false,
+    };
+    project_stored_origins_with_sources(
+        program,
+        &established,
+        segments,
+        false,
+        |index, projected| {
+            if let Some(ReferenceSource::Captured(source)) = sources.get(index)? {
+                let mut source = source.clone();
+                source.source.origin = projected.origin.take()?.into_symbolic_place()?;
+                source.base = source.source.origin.clone();
+                projected.origin = Some(ReferenceSource::Captured(source));
+            }
+            Some(())
+        },
+    )
+}
+
+/// Rebase the same selected reference roster while its producer retains any
+/// completed source association. The index is into the unchanged input roster,
+/// including excluded/shadowed leaves; it is never inferred from path equality.
+pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins_with_sources(
+    program: &dyn crate::CheckingInput,
+    established: &StoredLocalOrigins,
+    segments: &[PlaceSegment],
+    symbolic: bool,
+    mut retain_source: impl FnMut(usize, &mut ReferenceLeaf) -> Option<()>,
 ) -> Option<AggregateOrigins> {
     let mut leaves = AggregateOrigins::default();
     for (index, selected) in segments.iter().enumerate() {
@@ -259,7 +322,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
             }
         }
     }
-    for prior in &established.references {
+    for (source_index, prior) in established.references.iter().enumerate() {
         if !prefix_matches(segments, &prior.local_segments)
             || reference_is_shadowed(established, prior, segments)
         {
@@ -304,7 +367,7 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
                 }
             }
         }
-        leaves.references.push(ReferenceLeaf {
+        let mut projected = ReferenceLeaf {
             kind: prior.kind,
             local_suffix,
             may_select: prior.may_select
@@ -312,9 +375,11 @@ pub(in crate::machine_calls::calls::write_frames) fn project_stored_origins(
                     .iter()
                     .any(|segment| matches!(segment, PlaceSegment::Index { .. })),
             local_segments,
-            origin,
+            origin: origin.map(ReferenceSource::Symbolic),
             lifetime_dependencies: prior.lifetime_dependencies.clone(),
-        });
+        };
+        retain_source(source_index, &mut projected)?;
+        leaves.references.push(projected);
     }
     for case in &established.cases {
         if prefix_matches(segments, case) {
@@ -447,7 +512,10 @@ fn selected_slot_origins(
 ) -> Option<Vec<super::FramePlaceOrigin>> {
     selected_slot_sources(record, selected, may_select)?
         .into_iter()
-        .map(|source| (!source.lifetime_access.is_some()).then_some(source.origin))
+        .map(|source| {
+            (source.lifetime_access.is_none() && source.origin.source.output_identity().is_none())
+                .then_some(source.origin)
+        })
         .collect()
 }
 

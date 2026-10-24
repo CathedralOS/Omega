@@ -8,6 +8,9 @@ use semantic_vocabulary::StructuralFieldId;
 use std::collections::BTreeMap;
 use std::ops::Bound::{Excluded, Included, Unbounded};
 
+mod retirement;
+pub(crate) use retirement::RetainedStorage;
+
 pub(crate) trait StorageKey: Ord + Clone {
     fn identity_start(identity: u64) -> Self;
     fn parent(&self) -> &StructuralRuntimePlace;

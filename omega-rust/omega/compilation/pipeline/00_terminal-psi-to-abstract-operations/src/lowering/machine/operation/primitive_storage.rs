@@ -83,9 +83,10 @@ pub(super) fn local(
     .then_some(result)
 }
 
-/// A projected read observes the producer's existing owned storage. Rejoin
-/// the declared operation result, not an ABI parameter or a fresh copy. The
-/// Terminal verifier separately checks availability and outstanding loans.
+/// A read observes the producer's existing owned storage, either its whole
+/// primitive result or a projected leaf. Rejoin the declared operation result,
+/// not an ABI parameter or a fresh copy. The Terminal verifier separately
+/// checks availability and outstanding loans.
 fn owned_result(
     machine: &TerminalMachine,
     place: PlaceId,
@@ -155,14 +156,8 @@ pub(super) fn lower(
         OperationKind::PrimitiveScalarRead { source, ref path } => {
             let invalid = || LoweringError::InvalidPrimitiveScalarRead(operation.id);
             let result = operation.result.scalar().ok_or_else(invalid)?;
-            let identity = local(machine, source)
-                .map(|local| local.structural_type)
-                .or_else(|| {
-                    (!path.is_empty())
-                        .then(|| owned_result(machine, source))
-                        .flatten()
-                        .map(|(_, result)| result.structural_type)
-                })
+            let identity = owned_result(machine, source)
+                .map(|(_, result)| result.structural_type)
                 .or_else(|| {
                     parameter(machine, source)
                         .filter(|parameter| {

@@ -118,6 +118,22 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         &unit.dynamic_dispatch,
         &structural_types,
     );
+    let reference_graph = unit
+        .functions
+        .iter()
+        .any(|function| {
+            function.block_nodes().any(|node| {
+                matches!(
+                    &node.operation,
+                    abstract_operations::AbstractOperation::EstablishReference { .. }
+                )
+            })
+        })
+        .then(|| crate::descriptor_results::optimized_graph(unit))
+        .flatten();
+    let mut reference_memberships = reference_graph.as_ref().map(|graph| {
+        function_structure::ReferenceMembershipValidation::new(&unit.structural_types, graph)
+    });
     let mut descriptor_requirements = BTreeMap::new();
     let mut ownership_frontiers = Vec::new();
     for function in &unit.functions {
@@ -133,6 +149,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
             &call_accesses,
             descriptor_requirements.entry(function.machine).or_default(),
             &mut ownership_frontiers,
+            reference_memberships.as_mut(),
         )?;
         super::activation_storage::validate(unit, function)?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;

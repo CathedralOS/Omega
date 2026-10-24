@@ -29,11 +29,11 @@ mod retained_custody;
 
 pub(crate) use body_conservation::observe_body_completion;
 pub(crate) use call_transformations::observe_call_completion;
-pub(crate) use content_paths::projection_observations;
+pub(crate) use content_paths::{content_path, projection_observations};
 pub(crate) use derived_memberships::completed_membership;
 
 use crate::checks::content::content_paths::{
-    applicable_projection_plans, content_path, projection_term, unique_entry_claim_identity,
+    applicable_projection_plans, projection_term, unique_entry_claim_identity,
 };
 use crate::checks::content::partition_wrappers::{
     AvailablePartitionSource, equation_contains_partition, instantiate_partition_wrapper,
@@ -249,7 +249,9 @@ pub(crate) fn compose_partition_wrappers(
         .iter()
         .map(|machine| program.machine_states(machine).len())
         .sum::<usize>();
-    let mut compositions = Vec::new();
+    let mut compositions = Vec::<ContentPartitionCompositionFact>::new();
+    let mut composition_conditions = Vec::new();
+    let mut conditions = crate::flow::SelectionConditions::new();
 
     for _ in 0..state_count.max(1) {
         let sources = available.clone();
@@ -257,12 +259,14 @@ pub(crate) fn compose_partition_wrappers(
 
         for machine in program.machines() {
             for state in program.machine_states(machine) {
-                for invocation in returned_partition_invocations(program, facts, state) {
+                for invocation in
+                    returned_partition_invocations(program, facts, state, &mut conditions)
+                {
                     for source in sources.iter().filter(|source| {
                         source.plan.callable == invocation.target_symbol
                             && equation_contains_partition(&source.plan.equation)
                     }) {
-                        let Some(composition) = instantiate_partition_wrapper(
+                        let Some((composition, condition)) = instantiate_partition_wrapper(
                             program,
                             facts,
                             machine.symbol,
@@ -270,42 +274,34 @@ pub(crate) fn compose_partition_wrappers(
                             &invocation,
                             &source.plan,
                             source.derivation_depth,
+                            &mut conditions,
                         ) else {
                             continue;
                         };
-                        if compositions.iter().chain(round.iter()).any(
-                            |existing: &ContentPartitionCompositionFact| {
-                                existing.returned_at == composition.returned_at
-                                    && existing.machine_symbol == composition.machine_symbol
-                                    && existing.state_symbol == composition.state_symbol
-                                    && existing.statement_index == composition.statement_index
-                                    && existing.call_ordinal == composition.call_ordinal
-                                    && existing.source_plan == composition.source_plan
-                                    && existing.plan == composition.plan
-                            },
-                        ) {
-                            continue;
-                        }
-                        round.push(composition);
+                        round.push((composition, condition));
                     }
                 }
             }
         }
 
-        round.sort_by_key(|fact| {
-            (
-                fact.machine_symbol.arena_index(),
-                fact.state_symbol.arena_index(),
-                fact.source_callable.arena_index(),
-                fact.source_report_fingerprint,
-                content_conservation_plan_bytes(&fact.plan),
-            )
-        });
-        round.dedup();
-        if round.is_empty() {
+        let mut added_composition = false;
+        for (composition, condition) in round {
+            if let Some(index) = compositions
+                .iter()
+                .position(|existing| *existing == composition)
+            {
+                let combined = conditions.any(composition_conditions[index], condition);
+                added_composition |= combined != composition_conditions[index];
+                composition_conditions[index] = combined;
+            } else {
+                compositions.push(composition);
+                composition_conditions.push(condition);
+                added_composition = true;
+            }
+        }
+        if !added_composition {
             break;
         }
-        compositions.extend(round);
         let mut added_source = false;
         for composition in &compositions {
             if available
@@ -318,24 +314,22 @@ pub(crate) fn compose_partition_wrappers(
                 continue;
             };
             let outgoing = partition_wrappers::ordinary_returns(program, facts, state);
-            // A theorem on one arm is not a callable guarantee. Keep each
-            // exact exit proof, and export a source only when every
-            // alternative of every ordinary outgoing completion proves the
-            // same normalized equation: a value join retains one completed
-            // value per reachable arm, so one covered edge is not enough.
+            // A theorem on one arm is not a callable guarantee. Exact exit
+            // proofs must cover every reachable selection. One completed call
+            // can legitimately feed several arms; counting proofs would reject
+            // that shared producer without proving alternative coverage.
             let covered = outgoing.iter().all(|returned_at| {
-                let required =
-                    partition_wrappers::outgoing_completed_value_count(facts, *returned_at);
-                let matching = compositions
-                    .iter()
-                    .filter(|candidate| {
-                        candidate.returned_at == *returned_at
-                            && candidate.machine_symbol == composition.machine_symbol
-                            && candidate.state_symbol == composition.state_symbol
-                            && candidate.plan == composition.plan
-                    })
-                    .count();
-                matching >= required
+                let mut coverage = conditions.never();
+                for (candidate, condition) in compositions.iter().zip(&composition_conditions) {
+                    if candidate.returned_at == *returned_at
+                        && candidate.machine_symbol == composition.machine_symbol
+                        && candidate.state_symbol == composition.state_symbol
+                        && candidate.plan == composition.plan
+                    {
+                        coverage = conditions.any(coverage, *condition);
+                    }
+                }
+                conditions.covers(&facts.flow.control, coverage)
             });
             if outgoing.is_empty() || !covered {
                 continue;
@@ -351,6 +345,32 @@ pub(crate) fn compose_partition_wrappers(
         }
     }
 
+    let mut complete_returns = Vec::new();
+    for composition in &compositions {
+        if complete_returns
+            .iter()
+            .any(|complete: &checked_trees::ContentPartitionReturnFact| {
+                complete.returned_at == composition.returned_at && complete.plan == composition.plan
+            })
+        {
+            continue;
+        }
+        let mut coverage = conditions.never();
+        for (candidate, condition) in compositions.iter().zip(&composition_conditions) {
+            if candidate.returned_at == composition.returned_at
+                && candidate.plan == composition.plan
+            {
+                coverage = conditions.any(coverage, *condition);
+            }
+        }
+        if conditions.covers(&facts.flow.control, coverage) {
+            complete_returns.push(checked_trees::ContentPartitionReturnFact {
+                returned_at: composition.returned_at,
+                plan: composition.plan.clone(),
+            });
+        }
+    }
+    facts.qualifications.content.partition_returns = complete_returns;
     compositions.sort_by_key(|fact| {
         (
             fact.machine_symbol.arena_index(),
@@ -406,7 +426,7 @@ pub(super) fn proves_composed_exit(
             facts
                 .qualifications
                 .content
-                .partition_compositions
+                .partition_returns
                 .iter()
                 .any(|composition| {
                     let outgoing = facts.flow.control.outgoing.get(composition.returned_at);

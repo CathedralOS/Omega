@@ -28,8 +28,10 @@ pub(super) fn append_outgoing_state_fact(
     state_symbol: SymbolHandle,
     statement_index: usize,
     transition_target: typed_trees::statement::TransitionTargetHandle,
+    operand_entry_constraints: HandleSpan<FlowConstraintRef>,
     constraints: HandleSpan<FlowConstraintRef>,
     returned_value: arena::Handle<checked_trees::FlowOperandFact>,
+    copied_payloads: HandleSpan<checked_trees::FlowOperandFact>,
 ) {
     let constraints = retained_constraint_refs(&build.contexts.constraint_refs, constraints);
     build
@@ -41,6 +43,8 @@ pub(super) fn append_outgoing_state_fact(
             statement_index,
             transition_target,
             returned_value,
+            operand_entry_constraints,
+            copied_payloads,
             constraints,
         });
 }
@@ -98,7 +102,9 @@ pub(super) fn append_state_exit_facts(
                 contract_exit.statement_index,
                 transition_target,
                 active_constraints,
+                active_constraints,
                 arena::Handle::invalid(),
+                HandleSpan::empty(),
             );
         }
         let entry_exit_contexts =

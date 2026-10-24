@@ -120,6 +120,7 @@ impl ViewSubslice {
             site,
         } = self;
         CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: match range.kind {
                 ViewKind::Bytes => CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                     root: range.root,

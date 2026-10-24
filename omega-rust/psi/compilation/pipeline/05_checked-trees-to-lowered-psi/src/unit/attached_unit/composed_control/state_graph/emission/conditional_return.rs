@@ -14,7 +14,14 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+
+/// Result preparation cannot emit cleanup: another temporary may have to die
+/// before a selected source region creates its private cleanup blocks.
+enum PreparedArmCompletion {
+    Edge(Terminator),
+    Structural(StructuralBinding),
+}
 
 impl StateGraphEmission<'_, '_> {
     /// Lower the return arm of a `ConditionalReturn` terminator and stage
@@ -53,6 +60,23 @@ impl StateGraphEmission<'_, '_> {
         );
         arm_evaluation.parameters = payload_parameters.to_vec();
         let mut arm_values = arm_namespace;
+        let copied_values = if let Some(statement) = return_arm.statement_ordinal() {
+            self.capture_dispatch_copies(
+                identities,
+                position,
+                statement,
+                state_parameters,
+                &mut arm_evaluation,
+                &mut arm_values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                &mut sequence,
+            )?
+        } else {
+            Vec::new()
+        };
         // The arm's block is dominated by the state's current decision block,
         // not by the private blocks a planned short-circuit guard observes
         // lengths in. Keep only the view lengths the decision block itself
@@ -66,38 +90,37 @@ impl StateGraphEmission<'_, '_> {
             .filter_map(|operation| operation.result.scalar().map(|value| value.id))
             .collect::<std::collections::BTreeSet<_>>();
         operations
-            .length_observations
+            .storage_observations
             .bytes
             .retain(|(_, value)| decided.contains(value));
         operations
-            .length_observations
+            .storage_observations
             .elements
             .retain(|(_, value)| decided.contains(value));
-        operations.length_observations.field_bytes.clear();
-        let mut terminator = match return_arm {
+        operations.storage_observations.field_bytes.clear();
+        operations.storage_observations.cases.clear();
+        let completion = match return_arm {
             checked_trees::CheckedConditionalReturnArm::Crash { statement_ordinal } => {
-                self.crash_completion(identities, position, *statement_ordinal, next_edge)?
+                PreparedArmCompletion::Edge(self.crash_completion(
+                    identities,
+                    position,
+                    *statement_ordinal,
+                    next_edge,
+                )?)
             }
-            checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
-                edge: edge_id(allocate_dense(next_edge)?),
-                cleanup_actions: Vec::new(),
-            },
+            checked_trees::CheckedConditionalReturnArm::Unit { .. } => {
+                PreparedArmCompletion::Edge(Terminator::ReturnUnit {
+                    edge: edge_id(allocate_dense(next_edge)?),
+                    cleanup_actions: Vec::new(),
+                })
+            }
             checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
-                super::super::guarded::emit_return(
+                super::super::super::emission::emit_call_operations(
                     identities,
                     checked,
+                    owner,
                     state,
-                    super::super::cleanup::coordinate(
-                        self.catalogs.cleanup_control,
-                        state,
-                        return_arm
-                            .statement_ordinal()
-                            .ok_or(LoweringError::Unsupported(
-                                "return arm lost its source coordinate",
-                            ))? as usize,
-                        false,
-                    )?,
-                    operation,
+                    std::slice::from_ref(operation),
                     self.catalogs,
                     state_parameters,
                     self.claims.published(),
@@ -108,9 +131,11 @@ impl StateGraphEmission<'_, '_> {
                     next_block,
                     next_edge,
                     operations,
-                    owner,
                     &mut sequence,
-                )?
+                )?;
+                PreparedArmCompletion::Structural(super::super::guarded::return_binding(
+                    operation, operations,
+                )?)
             }
             // The selected arm evaluates its operands and invokes its call
             // once. Ordinary completion then forwards the exact result the
@@ -146,7 +171,7 @@ impl StateGraphEmission<'_, '_> {
                 )?;
 
                 if let Some(terminator) = operations.take_external_completion(next_edge)? {
-                    terminator
+                    PreparedArmCompletion::Edge(terminator)
                 } else {
                     let result = operation
                         .call()
@@ -156,36 +181,16 @@ impl StateGraphEmission<'_, '_> {
                         .result();
                     match result {
                         checked_trees::CheckedUnitCallResult::Structural { .. } => {
-                            super::super::guarded::complete_structural_return(
-                                identities,
-                                self.claims.published(),
-                                self.checked,
-                                state,
-                                super::super::cleanup::coordinate(
-                                    self.catalogs.cleanup_control,
-                                    state,
-                                    return_arm.statement_ordinal().ok_or(
-                                        LoweringError::Unsupported(
-                                            "return arm lost its source coordinate",
-                                        ),
-                                    )? as usize,
-                                    false,
-                                )?,
-                                operation,
-                                self.catalogs,
-                                state_parameters,
-                                &mut arm_evaluation,
-                                &mut arm_values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                operations,
-                            )?
+                            PreparedArmCompletion::Structural(
+                                super::super::guarded::return_binding(operation, operations)?,
+                            )
                         }
-                        checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
-                            edge: edge_id(allocate_dense(next_edge)?),
-                            cleanup_actions: Vec::new(),
-                        },
+                        checked_trees::CheckedUnitCallResult::Unit => {
+                            PreparedArmCompletion::Edge(Terminator::ReturnUnit {
+                                edge: edge_id(allocate_dense(next_edge)?),
+                                cleanup_actions: Vec::new(),
+                            })
+                        }
                         checked_trees::CheckedUnitCallResult::Scalar(binding) => {
                             let value = arm_call_result(
                                 binding,
@@ -193,11 +198,11 @@ impl StateGraphEmission<'_, '_> {
                                 &arm_evaluation,
                                 &arm_values,
                             )?;
-                            Terminator::Return {
+                            PreparedArmCompletion::Edge(Terminator::Return {
                                 edge: edge_id(allocate_dense(next_edge)?),
                                 value: value.id,
                                 cleanup_actions: Vec::new(),
-                            }
+                            })
                         }
                     }
                 }
@@ -270,124 +275,122 @@ impl StateGraphEmission<'_, '_> {
                     )
                 }?;
                 scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                Terminator::Return {
+                PreparedArmCompletion::Edge(Terminator::Return {
                     edge: edge_id(allocate_dense(next_edge)?),
                     value: value.id,
                     cleanup_actions: Vec::new(),
-                }
+                })
             }
         };
-        if !matches!(&terminator, Terminator::Crash { .. }) {
+        if !matches!(
+            &completion,
+            PreparedArmCompletion::Edge(Terminator::Crash { .. })
+        ) {
             sequence.require_closed()?;
         }
-        // Resolve the selected exit only after its producer has materialized
-        // the result and moved any operands. This uses the same checked
-        // disposition schedule as structural returns; neither result type nor
-        // a sibling arm's consumption changes the current edge's remainder.
-        if matches!(
-            terminator,
-            terminal_psi::terminator_return_pair_pattern!(..)
-        ) {
-            let statement_ordinal =
-                return_arm
-                    .statement_ordinal()
-                    .ok_or(LoweringError::Unsupported(
-                        "return arm lost its source coordinate",
-                    ))?;
-            let exit = super::super::cleanup::coordinate(
-                self.catalogs.cleanup_control,
-                state,
-                statement_ordinal as usize,
-                false,
-            )?;
-            if let Terminator::Return { edge, .. } = terminator {
-                operations.source_returns.push(
-                    crate::expression_preparation::qualifications::SourceScalarReturn {
-                        edge,
-                        exits: vec![exit],
-                    },
-                );
-            }
-            let mut regions = super::super::cleanup::for_exit_regions(
-                identities,
-                self.claims.published(),
-                checked,
-                state,
-                exit,
-                self.catalogs,
-                state_parameters,
-                &arm_evaluation,
-                operations,
-            )?;
-            super::super::cleanup::selection(
-                state.state,
-                &state.operations,
-                &arm_evaluation,
-                operations,
-                &mut regions,
-            )?;
-            let temporary_discards = dispatch_discards
-                .iter()
-                .copied()
-                .filter(|place| !regions.iter().any(|region| region.action.place() == *place))
-                .map(|place| {
-                    crate::unit::unit_cleanup::CleanupRegion::unconditional(
-                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
-                    )
-                })
-                .collect::<Vec<_>>();
-            regions.splice(0..0, temporary_discards);
-            let selected_cleanup = arm_evaluation.emit_cleanup_regions(
-                identities,
-                self.checked,
-                regions,
-                &mut arm_values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-            )?;
-            match &mut terminator {
-                terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
-                    *cleanup_actions = selected_cleanup;
+        let terminator = match completion {
+            PreparedArmCompletion::Edge(
+                terminator @ (Terminator::Crash { .. } | Terminator::ExternalCompletion { .. }),
+            ) => terminator,
+            completion => {
+                // Finish every operand before preparing this edge's remainder.
+                // Assemble all regions before emitting any of them: selected
+                // cleanup may create blocks, so a later flat splice is too late
+                // to retire a copied descriptor before its earlier backing.
+                let statement_ordinal =
+                    return_arm
+                        .statement_ordinal()
+                        .ok_or(LoweringError::Unsupported(
+                            "return arm lost its source coordinate",
+                        ))?;
+                let exit = super::super::cleanup::coordinate(
+                    self.catalogs.cleanup_control,
+                    state,
+                    statement_ordinal as usize,
+                    false,
+                )?;
+                if let PreparedArmCompletion::Edge(Terminator::Return { edge, .. }) = &completion {
+                    operations.source_returns.push(
+                        crate::expression_preparation::qualifications::SourceScalarReturn {
+                            edge: *edge,
+                            exits: vec![exit],
+                        },
+                    );
                 }
-                _ => {}
-            }
-        }
-        // Case selection consumes source authority, not the storage its arm
-        // still observes. Named subjects already have their exact disposition
-        // in the selected exit schedule. Anonymous computed subjects have no
-        // source owner row: carry their checked dispatch discard to completion
-        // instead. Never replace an existing root or residual disposition;
-        // operand production may have transferred part of its custody.
-        match &mut terminator {
-            Terminator::ReturnStructural {
-                cleanup_actions, ..
-            }
-            | Terminator::Jump {
-                cleanup_actions, ..
-            } => {
+                let mut regions = super::super::cleanup::for_exit_regions(
+                    identities,
+                    self.claims.published(),
+                    checked,
+                    state,
+                    exit,
+                    self.catalogs,
+                    state_parameters,
+                    &arm_evaluation,
+                    operations,
+                )?;
+                super::super::cleanup::selection(
+                    state.state,
+                    &state.operations,
+                    &arm_evaluation,
+                    operations,
+                    &mut regions,
+                )?;
                 let temporary_discards = dispatch_discards
                     .iter()
                     .copied()
-                    .filter(|place| {
-                        !cleanup_actions
-                            .iter()
-                            .any(|action| action.place() == *place)
+                    .filter(|place| !regions.iter().any(|region| region.action.place() == *place))
+                    .map(|place| {
+                        crate::unit::unit_cleanup::CleanupRegion::unconditional(
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place),
+                        )
                     })
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
                     .collect::<Vec<_>>();
-                // Computed subjects are established after the source-owned
-                // roots, so their disposal precedes that ordered remainder.
-                cleanup_actions.splice(0..0, temporary_discards);
+                regions.splice(0..0, temporary_discards);
+                let copies =
+                    self.complete_dispatch_copies(&copied_values, &arm_evaluation, operations)?;
+                regions.splice(0..0, copies);
+                match completion {
+                    PreparedArmCompletion::Structural(binding) => {
+                        super::super::guarded::emit_return_binding(
+                            identities,
+                            checked,
+                            binding,
+                            regions,
+                            self.catalogs,
+                            &mut arm_evaluation,
+                            &mut arm_values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        )?
+                    }
+                    PreparedArmCompletion::Edge(mut terminator) => {
+                        let completed = arm_evaluation.emit_cleanup_regions(
+                            identities,
+                            checked,
+                            regions,
+                            &mut arm_values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            operations,
+                        )?;
+                        match &mut terminator {
+                            terminal_psi::terminator_return_pair_pattern!(cleanup_actions, ..) => {
+                                *cleanup_actions = completed;
+                            }
+                            _ => {
+                                return unsupported(
+                                    "return arm did not produce a completion terminator",
+                                );
+                            }
+                        }
+                        terminator
+                    }
+                }
             }
-            // A crash or an external completion abandons the activation; it
-            // runs no return cleanup, so the dispatch's temporary dispositions
-            // do not become normal-exit cleanup here.
-            Terminator::Crash { .. } | Terminator::ExternalCompletion { .. } => {}
-            terminal_psi::terminator_return_pair_pattern!(..) => {}
-            _ => return unsupported("return arm did not produce a completion terminator"),
-        }
+        };
 
         arm_evaluation.blocks.push(Block {
             id: arm_evaluation.current,
@@ -400,7 +403,7 @@ impl StateGraphEmission<'_, '_> {
         });
         evaluation.blocks.extend(arm_evaluation.blocks);
         operations.structural_values.truncate(retained_bindings);
-        operations.length_observations.clear();
+        operations.storage_observations.clear();
         Ok(SuccessorEdge {
             edge: edge_id(allocate_dense(next_edge)?),
             target,

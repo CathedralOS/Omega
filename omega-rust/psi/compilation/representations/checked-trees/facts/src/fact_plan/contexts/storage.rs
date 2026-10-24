@@ -92,6 +92,19 @@ impl FactContexts {
         }
     }
 
+    /// Share the completed context and link pages before independent forks.
+    /// Each fork still owns its point groups. Extending an existing group
+    /// detaches its old tail link before changing that fork's chain.
+    pub(in crate::fact_plan) fn share_pages(&mut self) {
+        let Self {
+            contexts,
+            links,
+            groups: _,
+        } = self;
+        contexts.share_pages();
+        links.share_pages();
+    }
+
     /// Append later contexts and their links on page `generation`.
     pub fn begin_page(&mut self, generation: u32) {
         self.contexts.begin_page(generation);

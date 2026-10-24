@@ -265,7 +265,33 @@ pub fn structural_scalar_field(
         expression,
         bindings,
         ScalarObservationAccess::Ordinary,
+        None,
         source,
+    )
+}
+
+/// Observe below an already evaluated structural receiver. The caller owns
+/// the completed receiver/source correspondence and the read's access and
+/// case evidence. This only cuts the ordinary declaration walk at that exact
+/// subtree; it does not replay the receiver or copy its surrounding storage.
+/// A receiver absent from the projection spine cannot supply this geometry.
+pub fn structural_scalar_field_of_evaluated_receiver(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    receiver: ExpressionHandle,
+    source: StructuralSource,
+) -> Option<StructuralScalarField> {
+    structural_field_observation(
+        program,
+        machine,
+        state,
+        expression,
+        &[],
+        ScalarObservationAccess::Ordinary,
+        Some((receiver, source)),
+        |_| None,
     )
 }
 
@@ -278,6 +304,7 @@ pub fn structural_atomic_field(
     state: SymbolHandle,
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
+    evaluated_receiver: Option<(ExpressionHandle, StructuralSource)>,
     source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     structural_field_observation(
@@ -287,6 +314,7 @@ pub fn structural_atomic_field(
         expression,
         bindings,
         ScalarObservationAccess::Atomic,
+        evaluated_receiver,
         source,
     )
 }
@@ -304,15 +332,22 @@ fn structural_field_observation(
     expression: ExpressionHandle,
     bindings: &[(SymbolHandle, ExpressionHandle)],
     access: ScalarObservationAccess,
+    evaluated_receiver: Option<(ExpressionHandle, StructuralSource)>,
     mut source: impl FnMut(ExpressionHandle) -> Option<StructuralSource>,
 ) -> Option<StructuralScalarField> {
     let mut steps = Vec::new();
     let mut receiver = expression;
     let mut visits = 0;
-    loop {
+    let local = loop {
         visits += 1;
         if visits > program.expression_table.expression_count() {
             return None;
+        }
+        if !steps.is_empty()
+            && let Some((evaluated, source)) = evaluated_receiver
+            && receiver == evaluated
+        {
+            break source;
         }
         match program.expression_table.expression(receiver) {
             ExpressionNode::Name(name)
@@ -345,11 +380,10 @@ fn structural_field_observation(
                 });
                 receiver = indexed.collection;
             }
-            _ => break,
+            _ => break source(receiver)?,
         }
-    }
+    };
     let leaf = steps.first().copied()?;
-    let local = source(receiver)?;
     // A literal element selection is a coordinate only when `[]` keeps its
     // builtin meaning along the whole place spine. A fresh receiver's spine
     // starts at a value, which names no place type: each of its selections is
@@ -540,8 +574,9 @@ fn observable_scalar(primitive_type: PrimitiveType) -> Option<PrimitiveType> {
     .then_some(primitive_type)
 }
 
-/// Stored descriptors contribute explicit crossings to the checked path. Root
-/// borrowed storage is already peeled by `structural_source`; retaining only
+/// Stored pointer descriptors contribute explicit crossings to the checked
+/// path. Views retain their implicit descriptor presentation. Root borrowed
+/// storage is already peeled by `structural_source`; retaining only
 /// these declared crossings lets lowering follow the plan without rediscovering
 /// reference access from the authored expression.
 fn readable_projection_carrier(
@@ -564,7 +599,9 @@ fn readable_projection_carrier(
                     | language_semantics::ReferenceAccess::Mutable,
                 ..
             } => {
-                path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                if crate::stores_reference_shape(program, carrier, &[]) {
+                    path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                }
                 carrier = *referee;
             }
             TypeReferenceNode::Reference { .. } => return None,

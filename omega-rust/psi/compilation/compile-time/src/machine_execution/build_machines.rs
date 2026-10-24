@@ -188,6 +188,7 @@ impl PreparedBuildMachineProgram {
         &self,
         entry: &PreparedBuildMachineEntry,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
+        accounting: &crate::evaluation_accounting::EvaluationAccounting,
     ) -> Result<BuildTimeValue, String> {
         if !matches!(self.program, PreparedBuildMachineBody::Checked(_)) {
             return Err("constant invocation requires a checked preparation".into());
@@ -196,14 +197,15 @@ impl PreparedBuildMachineProgram {
             .validate_entry(entry)
             .map_err(|error| error.to_string())?;
         super::selected_operators::validate_selected_operators(self.typed(), operators)?;
-        checked_interpreter::evaluate_prepared_build_time_machine(
-            self.interpreter_program(),
-            checked_interpreter::BuildMachineEvaluationRequest {
-                operators,
-                ..checked_interpreter::BuildMachineEvaluationRequest::symbol(symbol, Vec::new())
-            },
-        )
-        .map(checked_interpreter::BuildTimeOperationEvaluation::into_value)
+        accounting
+            .evaluate(
+                self.interpreter_program(),
+                checked_interpreter::BuildMachineEvaluationRequest {
+                    operators,
+                    ..checked_interpreter::BuildMachineEvaluationRequest::symbol(symbol, Vec::new())
+                },
+            )
+            .map(checked_interpreter::BuildTimeOperationEvaluation::into_value)
     }
 
     fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {

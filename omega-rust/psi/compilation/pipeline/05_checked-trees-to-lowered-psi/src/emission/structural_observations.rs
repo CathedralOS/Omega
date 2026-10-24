@@ -1,8 +1,10 @@
 //! Make implicit source dereferences explicit at the observation boundary.
 //!
 //! The source path identifies fields and selectors. Declared reference carriers
-//! supply each stored-pointer crossing; live loan custody remains an independent
-//! receiving check. Stores retain their own explicit, exclusive projection walk.
+//! supply each stored-pointer crossing. Executable observations require readable
+//! edges; declared predicate coordinates require only the exact typed path and
+//! grant no observation or custody. Both use one geometry walk. Stores retain
+//! their own explicit, exclusive projection walk.
 
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedUnitStructuralPathSegment;
@@ -24,6 +26,34 @@ pub(crate) struct ObservationPath<'declaration> {
 }
 
 impl ObservationPath<'_> {
+    /// Declared predicate identity is not inline address geometry. Pointer
+    /// crossings remain explicit here; dynamic selectors require their own
+    /// occurrence-bound terms and cannot become canonical predicate segments.
+    fn predicate_path(&self) -> Option<Vec<CanonicalStructuralPathSegment>> {
+        self.observation
+            .as_ref()?
+            .iter()
+            .map(|projection| match projection {
+                ScalarReadProjection::Referent => Some(CanonicalStructuralPathSegment::Referent),
+                ScalarReadProjection::Static(segment) => Some(*segment),
+                ScalarReadProjection::Index(_) => None,
+            })
+            .collect()
+    }
+
+    pub(crate) fn field_type(&self) -> Result<StructuralFieldType, LoweringError> {
+        if let Some(field) = self.scalar_field {
+            return Ok(field.field_type.clone());
+        }
+        let declaration = self.declaration.ok_or(LoweringError::Unsupported(
+            "structural observation has no declared endpoint",
+        ))?;
+        Ok(match declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => StructuralFieldType::Scalar(scalar),
+            _ => StructuralFieldType::Structural(declaration.id),
+        })
+    }
+
     pub(crate) fn scalar_type(&self) -> Option<ScalarType> {
         if let Some(field) = self.scalar_field {
             return field.field_type.scalar_type();
@@ -35,16 +65,24 @@ impl ObservationPath<'_> {
     }
 }
 
+fn carrier_declaration(
+    selected: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<&StructuralTypeDeclaration, LoweringError> {
+    let mut matching = declarations.iter().filter(|row| row.id == selected);
+    let (Some(declaration), None) = (matching.next(), matching.next()) else {
+        return unsupported("field observation requires one carrier declaration");
+    };
+    Ok(declaration)
+}
+
 pub(crate) fn readable_carrier(
     mut selected: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(&StructuralTypeDeclaration, usize), LoweringError> {
     let mut references = Vec::new();
     loop {
-        let mut matching = declarations.iter().filter(|row| row.id == selected);
-        let (Some(declaration), None) = (matching.next(), matching.next()) else {
-            return unsupported("field observation requires one carrier declaration");
-        };
+        let declaration = carrier_declaration(selected, declarations)?;
         let StructuralTypeShape::Reference { referent, access } = &declaration.shape else {
             return Ok((declaration, references.len()));
         };
@@ -58,11 +96,65 @@ pub(crate) fn readable_carrier(
     }
 }
 
+/// A declared predicate coordinate is metadata, not a readable projection.
+/// It deliberately exposes no executable segments or observation expression.
+pub(crate) struct DeclaredPredicatePath {
+    pub(crate) path: Vec<CanonicalStructuralPathSegment>,
+    pub(crate) field_type: StructuralFieldType,
+}
+
+#[derive(Clone, Copy)]
+enum PathPurpose {
+    ExecutableObservation,
+    DeclaredPredicate,
+}
+
+/// Actual observation preparation retains strict readable reference edges.
 pub(crate) fn explicit_path<'a>(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     declarations: &'a [StructuralTypeDeclaration],
+) -> Result<ObservationPath<'a>, LoweringError> {
+    resolve_path(
+        identities,
+        structural_type,
+        path,
+        declarations,
+        PathPurpose::ExecutableObservation,
+    )
+}
+
+/// Retain explicit declaration coordinates without observing their contents.
+/// Any scalar/read consumer still owns its separate access and custody checks.
+pub(crate) fn declared_predicate_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    structural_type: StructuralTypeId,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Result<DeclaredPredicatePath, LoweringError> {
+    let selected = resolve_path(
+        identities,
+        structural_type,
+        path,
+        declarations,
+        PathPurpose::DeclaredPredicate,
+    )?;
+    let path = selected.predicate_path().ok_or(LoweringError::Unsupported(
+        "declared predicate path requires occurrence-bound selector evidence",
+    ))?;
+    Ok(DeclaredPredicatePath {
+        path,
+        field_type: selected.field_type()?,
+    })
+}
+
+fn resolve_path<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    structural_type: StructuralTypeId,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    declarations: &'a [StructuralTypeDeclaration],
+    purpose: PathPurpose,
 ) -> Result<ObservationPath<'a>, LoweringError> {
     use checked_trees::CheckedStructuralPredicatePathSegment as Source;
     let mut selected = Some(structural_type);
@@ -72,9 +164,41 @@ pub(crate) fn explicit_path<'a>(
     let mut observation = Some(Vec::with_capacity(path.len()));
     let mut scalar_field: Option<&terminal_psi::StructuralFieldDeclaration> = None;
     for segment in path {
+        // An explicit checked step consumes one edge before any implicit
+        // source-member traversal. Its suffix must not be crossed twice.
+        if matches!(segment, Source::Referent) {
+            if selected_case_fields.is_some() {
+                return unsupported("reference observation has an unfinished case path");
+            }
+            let receiver = selected.ok_or(LoweringError::Unsupported(
+                "reference observation has no structural receiver",
+            ))?;
+            let declaration = carrier_declaration(receiver, declarations)?;
+            let StructuralTypeShape::Reference { referent, access } = declaration.shape else {
+                return unsupported("reference observation requires a reference carrier");
+            };
+            if matches!(purpose, PathPurpose::ExecutableObservation)
+                && !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
+            {
+                return unsupported("reference observation requires readable access");
+            }
+            result.push(CheckedUnitStructuralPathSegment::Referent);
+            canonical = None;
+            if let Some(observation) = &mut observation {
+                observation.push(ScalarReadProjection::Referent);
+            }
+            selected = Some(referent);
+            scalar_field = None;
+            continue;
+        }
         let (declaration, crossings) = match selected {
             Some(selected) => {
-                let (declaration, crossings) = readable_carrier(selected, declarations)?;
+                let (declaration, crossings) = match purpose {
+                    PathPurpose::ExecutableObservation => readable_carrier(selected, declarations)?,
+                    PathPurpose::DeclaredPredicate => {
+                        (carrier_declaration(selected, declarations)?, 0)
+                    }
+                };
                 (Some(declaration), crossings)
             }
             None => (None, 0),
@@ -241,9 +365,18 @@ pub(crate) fn explicit_path<'a>(
             _ => return unsupported("field observation has an incompatible declared projection"),
         };
     }
+    if selected_case_fields.is_some() {
+        return unsupported("field observation case selection has no payload field");
+    }
     let declaration = match selected {
         Some(selected) => {
-            let (declaration, crossings) = readable_carrier(selected, declarations)?;
+            let (declaration, crossings) = if matches!(purpose, PathPurpose::DeclaredPredicate)
+                || matches!(path.last(), Some(Source::Referent))
+            {
+                (carrier_declaration(selected, declarations)?, 0)
+            } else {
+                readable_carrier(selected, declarations)?
+            };
             result.extend(std::iter::repeat_n(
                 CheckedUnitStructuralPathSegment::Referent,
                 crossings,
@@ -268,4 +401,53 @@ pub(crate) fn explicit_path<'a>(
         canonical,
         observation,
     })
+}
+
+#[cfg(test)]
+mod predicate_coordinate_tests {
+    use super::*;
+    use checked_trees::CheckedStructuralPredicatePathSegment;
+
+    fn declaration(id: u32, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: StructuralTypeId::new(u64::from(id)).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(id),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            shape,
+            scalar_restriction: None,
+        }
+    }
+
+    #[test]
+    fn declared_write_only_reference_coordinates_do_not_become_executable_reads() {
+        let scalar = StructuralTypeId::new(1).unwrap();
+        let reference = StructuralTypeId::new(2).unwrap();
+        let declarations = vec![
+            declaration(1, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
+            declaration(
+                2,
+                StructuralTypeShape::Reference {
+                    referent: scalar,
+                    access: terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                },
+            ),
+        ];
+        let path = [CheckedStructuralPredicatePathSegment::Referent];
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let metadata =
+            declared_predicate_path(&mut identities, reference, &path, &declarations).unwrap();
+        assert_eq!(
+            metadata.path,
+            vec![CanonicalStructuralPathSegment::Referent]
+        );
+        assert_eq!(
+            metadata.field_type,
+            StructuralFieldType::Scalar(ScalarType::Boolean)
+        );
+        assert!(explicit_path(&mut identities, reference, &path, &declarations).is_err());
+    }
 }

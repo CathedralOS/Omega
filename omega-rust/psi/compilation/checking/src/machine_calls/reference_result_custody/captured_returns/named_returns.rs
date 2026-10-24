@@ -229,6 +229,7 @@ impl Captures<'_> {
                     return None;
                 }
                 let source = crate::LocalWriteSource {
+                    invocation_output: None,
                     is_image_storage: false,
                     recasts: Vec::new(),
                     representation: None,
@@ -253,6 +254,7 @@ impl Captures<'_> {
         for referent in referents {
             let root = referent.root.as_symbol()?;
             let source = crate::LocalWriteSource {
+                invocation_output: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,
@@ -287,7 +289,7 @@ impl Captures<'_> {
                 .flow
                 .control
                 .operand_children
-                .span(operand.children)?
+                .span(operand.constructed_children())?
             {
                 let (destination, _) = self.structural_path(
                     operand.type_reference,

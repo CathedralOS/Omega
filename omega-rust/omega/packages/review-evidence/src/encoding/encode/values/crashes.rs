@@ -34,6 +34,7 @@ pub(crate) fn encode_structural_path(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.sequence(path, |encoder, segment| {
         match segment {
+            PackageReviewStructuralPredicatePathSegment::Referent => encoder.tag("referent", 4),
             PackageReviewStructuralPredicatePathSegment::Field(field) => {
                 encoder.tag("field", 0);
                 encoder.field("field", |encoder| encoder.string(field))?;

@@ -148,7 +148,12 @@ impl ValueCallSite<'_> {
     /// Every resolved callee owes the same checks, whichever route found it:
     /// a value-producing result, a concrete specialization, its type-parameter
     /// bounds, and argument arity and classes.
-    fn validate_callee(&self, callee: ValueCallee<'_>, diagnostics: &mut Vec<Diagnostic>) {
+    fn validate_callee(
+        &self,
+        callee: ValueCallee<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+        formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+    ) {
         report_void_value_callee(
             self.program,
             callee.machine,
@@ -188,6 +193,7 @@ impl ValueCallSite<'_> {
             diagnostics,
             self.expression,
             self.call,
+            formation_obligations,
         );
     }
 }
@@ -206,6 +212,7 @@ fn validate_expression_call_bounds(
     executes: bool,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // A checked mathematical application in an erased initializer has no
     // machine entry or executable call obligations. Its complete dependent
@@ -274,6 +281,7 @@ fn validate_expression_call_bounds(
                 &requirement,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return;
         }
@@ -314,6 +322,7 @@ fn validate_expression_call_bounds(
                 &dynamic,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return;
         }
@@ -482,12 +491,14 @@ fn validate_expression_call_bounds(
                 )
             },
             diagnostics,
+            formation_obligations,
         );
         validate_named_float_to_integer_call(
             program,
             current_machine,
             current_state,
             value_environment,
+            expression,
             operator,
             arguments,
             diagnostics,
@@ -540,7 +551,11 @@ fn validate_expression_call_bounds(
     {
         match machine_state_by_symbol(program, call.target_symbol) {
             Some((machine, state)) => {
-                site.validate_callee(ValueCallee::named(machine, state, call), diagnostics);
+                site.validate_callee(
+                    ValueCallee::named(machine, state, call),
+                    diagnostics,
+                    formation_obligations,
+                );
             }
             None => diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}`: {}",
@@ -586,6 +601,7 @@ fn validate_expression_call_bounds(
                 )
             },
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -614,6 +630,7 @@ fn validate_expression_call_bounds(
                 &call.machine_arguments,
                 writable_roots,
                 diagnostics,
+                formation_obligations,
             );
             return;
         }
@@ -635,7 +652,7 @@ fn validate_expression_call_bounds(
                     .map(|(machine, state)| ValueCallee::named(machine, state, call))
             });
         if let Some(callee) = callee {
-            site.validate_callee(callee, diagnostics);
+            site.validate_callee(callee, diagnostics, formation_obligations);
             return;
         }
         report_unresolved_value_call(
@@ -720,6 +737,7 @@ fn validate_expression_call_bounds(
         site.validate_callee(
             ValueCallee::declared(callee_machine, callee_state),
             diagnostics,
+            formation_obligations,
         );
         return;
     }
@@ -741,6 +759,7 @@ fn validate_named_float_to_integer_call(
     current_machine: &Machine,
     current_state: &State,
     value_environment: &ValueEnvironment,
+    expression: ExpressionHandle,
     operator: &typed_trees::operator::OperatorDefinition,
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -771,6 +790,11 @@ fn validate_named_float_to_integer_call(
         value_environment,
         *value,
         target,
+    ) || crate::proof_contracts::contract_entailment::float_integer_conversion_fits_at_occurrence(
+        program,
+        current_machine,
+        current_state,
+        expression,
     ) {
         return;
     }

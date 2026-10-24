@@ -817,6 +817,7 @@ impl ExitScalars<'_, '_> {
                     parameter_position,
                     path,
                     primitive_type,
+                    ..
                 } => {
                     let (symbol, segments, _, _) =
                         crate::values::resolve_structural_parameter_path(

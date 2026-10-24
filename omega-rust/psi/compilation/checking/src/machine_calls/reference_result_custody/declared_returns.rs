@@ -78,6 +78,7 @@ pub fn returned_sources(
                             root: checked_trees::CheckedReferenceOriginRoot::Invocation {
                                 carrier_type: program.normalized_type_identity(carrier),
                             },
+                            entry_reference_hops: 0,
                             path: vec![CheckedReferenceOriginProjection::Exact(
                                 CheckedUnitStructuralPathSegment::Referent,
                             )],
@@ -136,10 +137,12 @@ pub fn returned_sources(
             return Err("public input access does not supply returned access");
         }
         let mut path = Vec::new();
+        let mut entry_reference_hops = 0;
         if field.source == ViewReturnInputSource::Stored {
             // Borrowed container access and its stored descriptor are distinct
             // crossings. Slice inputs expose elements without a pointer step.
             if super::stored_loan_parts(program, parameter.type_reference).is_some() {
+                entry_reference_hops = 1;
                 path.push(CheckedReferenceOriginProjection::Exact(
                     CheckedUnitStructuralPathSegment::Referent,
                 ));
@@ -157,6 +160,7 @@ pub fn returned_sources(
                 root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                     index: parameter_index,
                 },
+                entry_reference_hops,
                 path,
                 extent: ReferenceOriginExtent::WithinRegion,
                 type_identity: input.type_identity,

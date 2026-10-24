@@ -61,17 +61,21 @@ pub(super) fn reference_local_borrow_loans(
         && reference_borrow_access_kind(program, contract.return_type_reference(program)).is_some()
     {
         return vec![StatementBorrowLoan {
-            incoming_origin: Some(checked_trees::IncomingReferenceIdentity {
-                machine_symbol,
-                state_symbol: state.symbol,
-                origin: checked_trees::IncomingReferenceOrigin::Invocation {
-                    expression: local_data.initial_value,
-                    target: call.target_symbol,
+            incoming_origin: Some(super::PendingIncomingReference {
+                identity: checked_trees::IncomingReferenceIdentity {
+                    machine_symbol,
+                    state_symbol: state.symbol,
+                    origin: checked_trees::IncomingReferenceOrigin::Invocation {
+                        expression: local_data.initial_value,
+                        target: call.target_symbol,
+                    },
+                    carrier_type: contract.return_type_reference(program),
+                    owner_path: Default::default(),
                 },
-                carrier_type: contract.return_type_reference(program),
-                owner_path: Default::default(),
+                owner_path: Vec::new(),
             }),
             formation_expression: local_data.initial_value,
+            representation_address: None,
             owner_symbol: local_data.symbol,
             storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
             owner_name: local_data.name.clone(),
@@ -149,9 +153,9 @@ pub(super) fn reference_local_borrow_loans(
     // All reference formations share the captured-place operation. It retains
     // the full admitted footprint of indexed views and the original backing
     // of parenthesized borrows; a local/return spelling cannot drop the loan.
-    let formed_place = validation::reference_formation_source(program, local_data.initial_value)
+    let formed_geometry = validation::reference_formation_source(program, local_data.initial_value)
         .and_then(|_| {
-            borrow_access_place(
+            accesses::borrow_access_geometry(
                 program,
                 state.symbol,
                 statement_index,
@@ -163,6 +167,13 @@ pub(super) fn reference_local_borrow_loans(
         .expression_table
         .expression(local_data.initial_value)
     {
+        checked_trees::expression::ExpressionNode::String(_) => borrow_access_place(
+            program,
+            state.symbol,
+            statement_index,
+            local_data.initial_value,
+            machine_symbol,
+        ),
         checked_trees::expression::ExpressionNode::Call(call) => helper_call_borrow_loan_place(
             program,
             state.symbol,
@@ -213,7 +224,9 @@ pub(super) fn reference_local_borrow_loans(
         }
         _ => None,
     };
-    let Some(place) = formed_place.or(inferred_place) else {
+    let Some(geometry) =
+        formed_geometry.or_else(|| inferred_place.map(accesses::BorrowAccessGeometry::declared))
+    else {
         return Vec::new();
     };
 
@@ -224,12 +237,14 @@ pub(super) fn reference_local_borrow_loans(
                 .expression(local_data.initial_value),
             checked_trees::expression::ExpressionNode::Call(_)
         );
-    let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+    let retained_access = geometry.retained_access(program, &local_access);
+    let rebased = rebase_borrow_geometry_through_local_loans(program, geometry, loan_trackers);
     rebased
         .iter()
         .map(|source| StatementBorrowLoan {
             incoming_origin: None,
             formation_expression: local_data.initial_value,
+            representation_address: source.representation_address.clone(),
             owner_symbol: local_data.symbol,
             storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
             owner_name: local_data.name.clone(),
@@ -244,7 +259,7 @@ pub(super) fn reference_local_borrow_loans(
                 source,
                 &rebased,
             ),
-            kind: local_access.clone(),
+            kind: retained_access.clone(),
             call_result: is_call_result,
         })
         .collect()

@@ -7,8 +7,9 @@
 //! proof verdicts and projected query subjects are not. Each observation roster
 //! is prepared lazily, only when its consumer needs that kind of evidence.
 
+use crate::flow::CapturedOperand;
 use arena::HandleSpan;
-use checked_trees::{FlowConstraintRef, FlowFacts, FlowOperandFact};
+use checked_trees::{FlowConstraintRef, FlowFacts};
 use facts::{FactContextHandle, FactPlan};
 use std::cell::OnceCell;
 use std::collections::BTreeMap;
@@ -121,16 +122,19 @@ impl<'checking> OperandContextSelections<'checking> {
 
     pub(crate) fn for_operand(
         &mut self,
-        operand: &FlowOperandFact,
+        operand: CapturedOperand<'checking>,
         type_reference: TypeReferenceHandle,
-    ) -> &OperandContextSelection<'checking> {
+    ) -> Option<&OperandContextSelection<'checking>> {
+        if !operand.belongs_to(&self.flow.control) {
+            return None;
+        }
         let select = || {
             let contexts = super::operand_contexts(
                 self.program,
                 &self.flow.contexts,
                 &self.flow.control,
                 self.semantic,
-                operand,
+                &operand,
                 type_reference,
                 self.invocation,
             );
@@ -147,15 +151,16 @@ impl<'checking> OperandContextSelections<'checking> {
         };
         // Scratch operands have no arena identity and cannot enter the table.
         // They still use the exact same selection law without reuse.
-        let Some(handle) = self.flow.control.operands.handle_of(operand) else {
-            return self.scratch.insert(select());
-        };
+        let handle = operand.handle();
+        if !handle.is_valid() {
+            return Some(self.scratch.insert(select()));
+        }
         let key = (
             handle.arena_index(),
             handle.generation(),
             type_reference.arena_index(),
             type_reference.generation(),
         );
-        self.selected.entry(key).or_insert_with(select)
+        Some(self.selected.entry(key).or_insert_with(select))
     }
 }

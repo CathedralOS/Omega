@@ -173,6 +173,7 @@ impl RangeStorage {
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
         let (_, authored) = crate::declarations::state_declaration(checked, state)?;
         let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                 symbol: self.symbol,
             },
@@ -288,6 +289,7 @@ fn collection_path(
                 Ok(LoweredElementPathSegment::ViewExtent { source, bytes })
             }
             PreparedStructuralPathSegment::ComputedIndex(_)
+            | PreparedStructuralPathSegment::EvaluatedFixedIndex { .. }
             | PreparedStructuralPathSegment::CapturedIndex(_) => {
                 unsupported("computed view selector requires its owning operand evaluation")
             }

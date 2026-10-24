@@ -1257,7 +1257,11 @@ class MainVerdicts(unittest.TestCase):
         deep_path = Path("C:/Users/User/.gemini/antigravity/worktrees/"
                          "7e53c01f-3659-477e-b9b2-87fd0023c27f/"
                          "subagent-fact-builder-scalar-ext/target")
-        with patch.object(corpus_gate.os, "name", "nt"):
+        # Keep the host path implementation when mocking the platform, and
+        # keep this path-selection test from creating a synthetic drive folder.
+        with patch.object(corpus_gate.os, "name", "nt"), \
+             patch.object(corpus_gate, "Path", type(short_path)), \
+             patch.object(type(short_path), "mkdir"):
             self.assertEqual(corpus_gate.windows_safe_target_dir(short_path), short_path)
             shortened = corpus_gate.windows_safe_target_dir(deep_path)
             self.assertLessEqual(len(str(shortened)), 80)

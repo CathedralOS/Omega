@@ -1,4 +1,4 @@
-use checked_trees::{BorrowCallFact, CapturedPlace, CheckFacts, FlowStateFact};
+use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::labels::{borrow_access_label, symbol_name};
@@ -95,26 +95,19 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                         }
                     },
                 };
-                let backings = place_access::place_backings(
+                let backings = place_access::argument_backings(
                     program,
                     facts,
                     state,
-                    statement.statement_index,
+                    call,
                     statement.entry_constraints,
-                    facts
-                        .flow
-                        .borrow_loan_constraints(statement.entry_constraints),
-                    CapturedPlace {
-                        incoming_reference: Default::default(),
-                        root: access.root,
-                        segments: facts.borrow.access_segments(access).to_vec(),
-                    },
+                    access,
                 );
-                let Some(backings) = backings else {
+                let Ok(backings) = backings else {
                     // The call's ordinary loan check reports missing backing.
                     continue;
                 };
-                if backings.iter().all(|backing| {
+                if backings.places.iter().all(|backing| {
                     super::super::overlap::captured_place_compatibility(
                         program,
                         &backing.place,
@@ -170,6 +163,15 @@ pub(super) fn check_call_access_conflicts<'p>(
         .flow
         .borrow_loan_constraints(entry_constraints)
         .filter(|loan| {
+            if super::super::selected_retirement::before_call(
+                program,
+                facts,
+                state_flow,
+                borrow_call,
+                *loan,
+            ) {
+                return false;
+            }
             // The same replayed scope closure applies to forwarded argument
             // authority and to the successor's mutations. Ordinary calls,
             // carried loans and unclosed observations remain active.
@@ -222,28 +224,24 @@ pub(super) fn check_call_access_conflicts<'p>(
     // a read or a write through the same alias is judged.
     let mut operand_backings = Vec::with_capacity(accesses.len());
     for access in &accesses {
-        let place = CapturedPlace {
-            incoming_reference: Default::default(),
-            root: access.root,
-            segments: facts.borrow.access_segments(access).to_vec(),
-        };
-        let Some(backings) = place_access::place_backings(
+        let backings = place_access::argument_backings(
             program,
             facts,
             state_flow,
-            borrow_call.statement_index,
+            borrow_call,
             entry_constraints,
-            active_loans.iter().map(|(handle, _)| *handle),
-            place,
-        ) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "state `{target_name}` receives `{}` without an exact retained backing for its loan",
-                borrow_access_label(program, &facts.borrow, access),
-            )));
-            operand_backings.push(Vec::new());
-            continue;
-        };
-        operand_backings.push(backings);
+            access,
+        );
+        match backings {
+            Ok(backings) => operand_backings.push(backings),
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives `{}` without an exact retained backing for its loan: {reason}",
+                    borrow_access_label(program, &facts.borrow, access),
+                )));
+                operand_backings.push(place_access::ArgumentBackings::default());
+            }
+        }
     }
 
     for (index, access) in accesses.iter().enumerate() {
@@ -294,23 +292,44 @@ pub(super) fn check_call_access_conflicts<'p>(
             {
                 continue;
             }
-            let Some(conflict) = simultaneous_hold_conflict(
-                program,
-                &CapturedPlace {
-                    incoming_reference: Default::default(),
-                    root: access.root,
-                    segments: facts.borrow.access_segments(access).to_vec(),
-                },
-                &access.kind,
-                &CapturedPlace {
-                    incoming_reference: Default::default(),
-                    root: other_access.root,
-                    segments: facts.borrow.access_segments(other_access).to_vec(),
-                },
-                &other_access.kind,
-                stated_premises,
-                bound_lookup,
-            ) else {
+            // A completed call result continues its exact input's declared
+            // referent loan. Both rows remain present against every sibling
+            // operand and live loan; only this authenticated supplier/result
+            // pair is one lineage rather than two simultaneous formations.
+            if (operand_backings[other_index].forwards(&operand_backings[index])
+                && access
+                    .kind
+                    .direct_reborrow_effect(&other_access.kind)
+                    .is_some())
+                || (operand_backings[index].forwards(&operand_backings[other_index])
+                    && other_access
+                        .kind
+                        .direct_reborrow_effect(&access.kind)
+                        .is_some())
+            {
+                continue;
+            }
+            let mut conflict = None;
+            for backing in &operand_backings[index].places {
+                for other_backing in &operand_backings[other_index].places {
+                    if let Some(found) = simultaneous_hold_conflict(
+                        program,
+                        &backing.place,
+                        &access.kind,
+                        &other_backing.place,
+                        &other_access.kind,
+                        stated_premises,
+                        bound_lookup,
+                    ) {
+                        conflict = Some(found);
+                        break;
+                    }
+                }
+                if conflict.is_some() {
+                    break;
+                }
+            }
+            let Some(conflict) = conflict else {
                 continue;
             };
             let label = |hold| {
@@ -323,6 +342,30 @@ pub(super) fn check_call_access_conflicts<'p>(
                     },
                 )
             };
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE simultaneous-hold state={:?} statement={} ordinal={} target={:?} first_index={} second_index={} first={:?} second={:?}",
+                    state_flow.state_symbol,
+                    borrow_call.statement_index,
+                    borrow_call.call_ordinal,
+                    borrow_call.target_symbol,
+                    index,
+                    other_index,
+                    access,
+                    other_access,
+                );
+                for (index, backings) in [
+                    (index, &operand_backings[index]),
+                    (other_index, &operand_backings[other_index]),
+                ] {
+                    for backing in &backings.places {
+                        eprintln!(
+                            "CHECKSITE simultaneous-hold-backing index={} place={:?} lineage={:?}",
+                            index, backing.place, backing.lineage,
+                        );
+                    }
+                }
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives {}",
                 conflict.phrase(label, "another argument in the same call"),
@@ -399,7 +442,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             if !place_access::access_interferes(
                 program,
                 &facts.borrow,
-                &operand_backings[index],
+                &operand_backings[index].places,
                 &access.kind,
                 *loan_handle,
                 stated_premises,

@@ -229,6 +229,7 @@ impl RuntimeRequirementTerms<'_> {
                 parameter_position,
                 path,
                 primitive_type,
+                ..
             } => lower_structural_member_term(
                 identities,
                 *parameter_position,
@@ -320,6 +321,7 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             CheckedBooleanExpression::StructuralParameterField {
                 parameter_position,
                 path,
+                ..
             } => lower_structural_member_term(
                 identities,
                 *parameter_position,

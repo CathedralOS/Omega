@@ -33,11 +33,11 @@ pub(crate) mod call_views;
 mod calls;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
-pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
 pub(crate) mod observations;
+mod operand_scope;
 pub(crate) mod operand_types;
 pub(crate) mod produced_values;
 mod returns;
@@ -87,6 +87,9 @@ pub(crate) struct PreparedClaimEdge {
 }
 
 pub(crate) struct Expansion<'a> {
+    /// Private places are allocated when the actual prepared path is known,
+    /// from the enclosing emission's one place namespace.
+    next_place: &'a mut u64,
     checked: &'a CheckedTrees,
     structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
     qualifications: &'a PreparedScalarQualifications,
@@ -110,7 +113,6 @@ pub(crate) struct Expansion<'a> {
         terminal_psi::StructuralMultiplicity,
     )>,
     literals: Vec<literals::Slot>,
-    copies: Vec<copies::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
     /// Computations already carried in the current ordered input prefix.
@@ -122,13 +124,24 @@ pub(crate) struct Expansion<'a> {
 }
 
 impl<'a> Expansion<'a> {
+    pub(crate) fn has_established_value(
+        &self,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> bool {
+        self.established_values.iter().any(|established| {
+            matches!(established, EstablishedValue::Produced { root } if *root == value)
+        })
+    }
+
     pub(crate) fn new(
         checked: &'a CheckedTrees,
         qualifications: &'a PreparedScalarQualifications,
         machine: symbols::SymbolHandle,
         base: usize,
+        next_place: &'a mut u64,
     ) -> Self {
         Self {
+            next_place,
             checked,
             structural_types: &[],
             qualifications,
@@ -144,7 +157,6 @@ impl<'a> Expansion<'a> {
             observations: Vec::new(),
             source_carriers: Vec::new(),
             literals: Vec::new(),
-            copies: Vec::new(),
             cases: Vec::new(),
             fields: &[],
             completed: Vec::new(),
@@ -239,11 +251,6 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_literals(mut self, literals: &[literals::Slot]) -> Self {
         self.literals = literals.to_vec();
-        self
-    }
-
-    pub(crate) fn with_copies(mut self, copies: &[copies::Slot]) -> Self {
-        self.copies = copies.to_vec();
         self
     }
 
@@ -426,20 +433,11 @@ impl<'a> Expansion<'a> {
             statement: root.statement_ordinal,
             bindings,
         };
-        if self
-            .checked
-            .facts
-            .proof
-            .proof_output_calls
-            .iter()
-            .any(|(_, call)| {
-                call.caller_machine_symbol == self.machine && call.runtime_call.is_some()
-            })
-        {
-            return unsupported(
-                "scalar computation calls need exact named proof-output operation custody",
-            );
-        }
+        // Each retained call node rejoins its exact FlowCall occurrence in
+        // calls::call. The proof invocation subsequently joins that emitted
+        // operation by the same state/statement/ordinal, including nested
+        // scalar calls. A different proof-bearing call in this machine cannot
+        // invalidate this operand's operation custody.
         if let CheckedScalarExpressionRole::LocalInitializer { binding_ordinal } = root.role {
             calls::consume_pure_call_arguments(
                 identities,
@@ -1004,6 +1002,17 @@ impl<'a> Expansion<'a> {
                 collections,
                 input_types,
                 result_type,
+                target,
+                site,
+                active,
+            )?,
+            CheckedScalarComputationKind::WithOperands {
+                operands, operand, ..
+            } => self.operand_scope(
+                identities,
+                operands,
+                operand,
+                input_types,
                 target,
                 site,
                 active,

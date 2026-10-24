@@ -206,21 +206,39 @@ pub(crate) fn selection(
     }
     // Stable ties preserve the checked per-declaration schedule: the current
     // occupant dies before its older retained candidates. Anonymous siblings
-    // at one statement retain reverse actual establishment order. Each owner's
-    // parent/descendant action sequence remains intact, even when another
-    // declaration owns a moved field in the same physical home.
+    // at one statement retain reverse actual establishment order. Distinct
+    // declarations may share a home without sharing their cleanup partition.
     roots.sort_by_key(|root| std::cmp::Reverse(root.order));
     let previous = std::mem::take(actions);
     for root in roots {
-        actions.extend(
-            previous
-                .iter()
-                .filter(|region| {
-                    region.action.place() == root.place
-                        && region.declaration_order == root.declaration
-                })
-                .cloned(),
-        );
+        for region in previous.iter().filter(|region| {
+            region.action.place() == root.place && region.declaration_order == root.declaration
+        }) {
+            let mut region = region.clone();
+            if matches!(
+                region.action,
+                terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
+            ) {
+                if region.selected_region.as_ref().is_some_and(|selected| {
+                    selected.place != root.place
+                        || !selected.path.is_empty()
+                        || selected.access != terminal_psi::StructuralAccess::Owned
+                }) {
+                    return Err(LoweringError::Unsupported(
+                        "home retirement selects a different owned occurrence",
+                    ));
+                }
+                region.selected_region = Some(terminal_psi::StructuralArgument {
+                    place: root.place,
+                    path: Vec::new(),
+                    access: terminal_psi::StructuralAccess::Owned,
+                });
+            }
+            // A retirement ends its complete checked partition before another
+            // aliased declaration can start. Each later partition tests home
+            // residence independently instead of replaying disposed hooks.
+            actions.push(region);
+        }
     }
     Ok(())
 }

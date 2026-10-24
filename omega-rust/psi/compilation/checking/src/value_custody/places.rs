@@ -477,7 +477,8 @@ mod structural_scalar_field;
 pub use structural_scalar_field::{
     StructuralScalarField, StructuralSource, saved_dispatch_call, saved_dispatch_subject,
     structural_atomic_field, structural_scalar_field, structural_scalar_field_at_coordinate,
-    structural_scalar_field_in_parameters, structural_source,
+    structural_scalar_field_in_parameters, structural_scalar_field_of_evaluated_receiver,
+    structural_source,
 };
 mod member_paths;
 mod parameter_scoped;
@@ -507,7 +508,7 @@ use member_paths::{collect_member_path, data_field_or_payload, data_field_or_pay
 pub(crate) use member_paths::{
     data_definition_for_type, declared_member_path_type, first_unknown_nested_field,
 };
-pub(crate) use projected_members::applied_data_member_field;
+pub use projected_members::applied_data_member_field;
 pub use projected_members::declared_case_projection_field;
 pub use projected_members::exact_data_member_field;
 pub(crate) use result_shape::expression_result_is_reference;
@@ -648,13 +649,26 @@ pub fn declared_carriers_match(
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    declared_carriers_match_with_substitutions(program, left, right, &[])
+    declared_carriers_match_under_application(program, left, right, &[])
 }
 
-/// Compare a declaration's carrier in its exact supplying telescope. An
-/// operand belongs to the caller, so replacing a binder consumes that frame;
-/// the replacement is never substituted again through sibling binders.
+/// Compare a declaration in its exact supplying telescope with an actual.
+/// The shared judgment applies substitutions only to its right-hand operand;
+/// reverse this caller's declaration/actual order rather than reimplement it.
 pub(crate) fn declared_carriers_match_with_substitutions(
+    program: &dyn crate::CheckingInput,
+    declaration: TypeReferenceHandle,
+    actual: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    declared_carriers_match_under_application(program, actual, declaration, substitutions)
+}
+
+/// The same storage-carrier judgment under one exact authored application.
+/// Only right-hand declaration leaves see these simultaneous substitutions;
+/// constraint-shell weakening stays separate from arithmetic-policy admission.
+/// No type graph is allocated or inferred from a desired receiving type.
+pub(crate) fn declared_carriers_match_under_application(
     program: &dyn crate::CheckingInput,
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
@@ -663,10 +677,12 @@ pub(crate) fn declared_carriers_match_with_substitutions(
     let left = peel_declared_constraints(program, left);
     let right = peel_declared_constraints(program, right);
     if let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(left)
-        && let Some((_, replacement)) = substitutions.iter().find(|(binder, _)| binder == symbol)
+        program.type_reference_table.type_reference(right)
+        && let Some((_, actual)) = substitutions.iter().find(|(formal, _)| formal == symbol)
     {
-        return declared_carriers_match(program, *replacement, right);
+        // A supplied operand belongs to the caller. Its leaves must never be
+        // rebound by another formal in this same simultaneous application.
+        return declared_carriers_match_under_application(program, left, *actual, &[]);
     }
     match (
         program.type_reference_table.type_reference(left),
@@ -685,7 +701,7 @@ pub(crate) fn declared_carriers_match_with_substitutions(
             },
         ) => {
             left_access == right_access
-                && declared_carriers_match_with_substitutions(
+                && declared_carriers_match_under_application(
                     program,
                     *left_referee,
                     *right_referee,
@@ -699,7 +715,7 @@ pub(crate) fn declared_carriers_match_with_substitutions(
             TypeReferenceNode::Slice {
                 element_type: right_element,
             },
-        ) => declared_carriers_match_with_substitutions(
+        ) => declared_carriers_match_under_application(
             program,
             *left_element,
             *right_element,
@@ -716,11 +732,15 @@ pub(crate) fn declared_carriers_match_with_substitutions(
             },
         ) => {
             program
-                .fixed_array_length_identity(left_length, &[], substitutions)
-                .is_some_and(|left| {
-                    Some(left) == program.fixed_array_length_identity(right_length, &[], &[])
-                })
-                && declared_carriers_match_with_substitutions(
+                .fixed_array_length_identity(left_length, &[], &[])
+                .zip(
+                    program.fixed_array_length_identity_with_simultaneous_substitutions(
+                        right_length,
+                        substitutions,
+                    ),
+                )
+                .is_some_and(|(left, right)| left == right)
+                && declared_carriers_match_under_application(
                     program,
                     *left_element,
                     *right_element,
@@ -749,7 +769,7 @@ pub(crate) fn declared_carriers_match_with_substitutions(
                 && left_handles.len() == right_handles.len()
                 && left_handles.iter().zip(right_handles.iter()).all(
                     |(left_argument, right_argument)| {
-                        declared_carriers_match_with_substitutions(
+                        declared_carriers_match_under_application(
                             program,
                             *left_argument,
                             *right_argument,
@@ -758,13 +778,17 @@ pub(crate) fn declared_carriers_match_with_substitutions(
                     },
                 )
         }
+        _ if substitutions.is_empty() => {
+            program.normalized_type_identity(left) == program.normalized_type_identity(right)
+        }
         _ => {
-            program.type_identity_with_simultaneous_substitutions(
+            let applied = program.type_identity_with_simultaneous_substitutions(
                 typed_trees::type_identity::TypeIdentityRequest {
                     substitutions,
-                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(left)
+                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(right)
                 },
-            ) == program.normalized_type_identity(right)
+            );
+            applied.is_valid() && program.normalized_type_identity(left) == applied
         }
     }
 }
@@ -877,9 +901,11 @@ pub use member_resolution::{
 };
 mod projection_types;
 pub use projection_types::{
-    canonical_place_source_type_application, canonical_place_type_reference,
-    collection_element_type_reference, expression_type_reference_in_state,
-    loan_carrier_has_owned_storage, observed_storage_type_references,
+    StorageObservationTypePath, StorageObservationTypePathError,
+    canonical_owned_place_type_reference, canonical_place_source_type_application,
+    canonical_place_type_reference, collection_element_type_reference,
+    expression_type_reference_in_state, loan_carrier_has_owned_storage,
+    observed_storage_type_references, owned_projection_type_reference,
     project_type_reference_from_segments, unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;

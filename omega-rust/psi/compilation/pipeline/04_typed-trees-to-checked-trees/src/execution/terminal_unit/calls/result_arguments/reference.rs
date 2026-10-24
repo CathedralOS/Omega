@@ -3,9 +3,7 @@
 //! this operation retains the descriptor crossing and selected referent path.
 use crate::execution::terminal_unit::calls::argument_paths::projected_borrowed_path;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{
-    base_type_identity, structural_access_for_type_reference,
-};
+use crate::execution::terminal_unit::types::structural_access_for_type_reference;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
@@ -81,10 +79,11 @@ pub(crate) fn argument(
         parameter.type_reference,
     )?;
     phase("stored reference argument: receiving identity");
-    if base_type_identity(program, selected, &[], &[])? != target_identity {
+    if validation::stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
         return None;
     }
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },

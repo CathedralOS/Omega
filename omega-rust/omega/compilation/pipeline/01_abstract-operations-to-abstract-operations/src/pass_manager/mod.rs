@@ -17,8 +17,8 @@ use optimization_core::TargetCostModelIdentity;
 use crate::ranked_rewrites::LoopInvariantScalarMotionError;
 use crate::validation::ValidatedOptimizerRankingCertificates;
 use crate::validation::{
-    ValidatedOptimizerCycleComponents, validate_transformed_psi_cycle_components,
-    validate_verified_psi_cycle_components,
+    ValidatedOptimizerCycleComponents, validate_transformed_psi_context,
+    validate_verified_psi_context,
 };
 use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
 use crate::{
@@ -32,10 +32,10 @@ pub(crate) use execution::run_registries;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionOutcome,
     BaselineDecisionRecordError, ExternalDecisionLog, ExternalDecisionSchemaError,
-    InvalidOptimizationManifestRecord, OptimizationCandidateIdentity,
-    OptimizationCandidateVerdict, OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationReasonCode, OptimizationRuleIdentity, OptimizationSelections,
-    OptimizationUnitIdentity, OptimizationWorkBudget,
+    InvalidOptimizationManifestRecord, OptimizationCandidateIdentity, OptimizationCandidateVerdict,
+    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationReasonCode,
+    OptimizationRuleIdentity, OptimizationSelections, OptimizationUnitIdentity,
+    OptimizationWorkBudget,
 };
 use optimization_unit::{
     InvalidPsiTransformationLedger, PsiOptimizationUnit, PsiTransformationLedger,
@@ -86,7 +86,7 @@ impl VerifiedPsiOptimizationSession {
     pub fn new(
         verified: VerifiedPsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
-        let cycle_components = validate_verified_psi_cycle_components(&verified)?;
+        let cycle_components = validate_verified_psi_context(&verified)?;
         let admitted_machines = cycle_components
             .components()
             .iter()
@@ -119,7 +119,7 @@ impl VerifiedPsiOptimizationSession {
         input: VerifiedPsiOptimizationInput,
         unit: PsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
-        let cycle_components = validate_transformed_psi_cycle_components(&input, &unit)?;
+        let cycle_components = validate_transformed_psi_context(&input, &unit)?;
         Ok(Self {
             input,
             unit,

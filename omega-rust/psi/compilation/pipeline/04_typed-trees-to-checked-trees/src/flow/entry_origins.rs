@@ -386,6 +386,7 @@ fn solve_parameter_origins<'program>(
 
 fn root_storage(program: &dyn ::validation::CheckingInput, root: SymbolHandle) -> LocalWriteSource {
     LocalWriteSource {
+        invocation_output: None,
         is_image_storage: false,
         recasts: Vec::new(),
         root,

@@ -119,7 +119,10 @@ fn retain_capture(
         later_writes: writes_after_capture(control, capture, invocation),
         referents,
     });
-    for child in control.operand_children.span(capture.children)? {
+    for child in control
+        .operand_children
+        .span(capture.constructed_children())?
+    {
         if !control.operands.is_valid(child.value) || active.contains(&child.value) {
             return None;
         }

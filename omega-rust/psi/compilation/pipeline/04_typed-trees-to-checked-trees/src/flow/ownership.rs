@@ -23,7 +23,7 @@ mod result_storage;
 mod type_references;
 
 use calls::append_call_ownership_events;
-pub(crate) use calls::owned_call_operand_places;
+pub(crate) use calls::{owned_call_operand_places, owned_operand_transfer_place};
 use events::{DirectMoveEventSink, append_move_event_for_place};
 pub(crate) use events::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,

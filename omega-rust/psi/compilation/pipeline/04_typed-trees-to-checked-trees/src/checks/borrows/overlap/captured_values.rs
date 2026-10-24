@@ -8,7 +8,6 @@
 //! today's premises as evidence about an earlier extraction. The same spatial
 //! comparison serves source windows, arm joins and executable window repair.
 
-use checked_trees::FlowOperandFact;
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 
@@ -185,8 +184,8 @@ fn copies_agree(
         && crate::flow::operand_observations_agree(
             program,
             captures.flow,
-            left.operand,
-            right.operand,
+            left.operand.row(),
+            right.operand.row(),
             &left_place,
         )
 }
@@ -197,7 +196,7 @@ fn stored_copy<'facts>(
     symbol: SymbolHandle,
 ) -> Option<(
     &'facts checked_trees::FlowStateFact,
-    &'facts FlowOperandFact,
+    crate::flow::CapturedOperand<'facts>,
 )> {
     let state_symbol = program.symbols.get(symbol).parent;
     let (_, state_flow) = captures
@@ -246,5 +245,9 @@ fn stored_copy<'facts>(
         && destination.segments.is_empty()
         && value.expression == local.initial_value
         && value.type_reference == local.type_reference)
-        .then_some((state_flow, value))
+        .then(|| {
+            crate::flow::CapturedOperand::recorded(&captures.flow.control, statement.stored_value)
+        })
+        .flatten()
+        .map(|value| (state_flow, value))
 }

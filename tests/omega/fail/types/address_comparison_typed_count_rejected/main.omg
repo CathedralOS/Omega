@@ -1,0 +1,2 @@
+machine direct(value: addr, count: u64) -> bool requires value == count; { true }
+machine reversed(count: u64, value: addr) -> bool requires count == value; { true }

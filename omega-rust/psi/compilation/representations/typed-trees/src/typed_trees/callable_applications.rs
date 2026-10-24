@@ -96,8 +96,8 @@ impl TypedTrees {
     /// Project declaration-owned application rows with the declaration roster.
     /// Backing arenas are not checking roots: a private evaluation projection
     /// cannot retain an instance obligation after removing its known source
-    /// trait. Unknown owners remain obligations, and the original input keeps
-    /// its complete rows. Occurrence-owned machine selections are separate.
+    /// declaration. Unknown owners remain obligations, and the original input
+    /// keeps its complete rows. Occurrence-owned machine selections are separate.
     pub fn remove_trait_declaration_applications(
         &mut self,
         removed: impl Fn(SymbolHandle) -> bool,

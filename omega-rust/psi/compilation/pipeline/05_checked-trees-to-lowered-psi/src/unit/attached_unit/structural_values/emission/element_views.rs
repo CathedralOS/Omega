@@ -260,6 +260,7 @@ impl Emission<'_, '_, '_> {
             ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
+        self.evaluation.current_claims.publish(place, Vec::new())?;
         Ok(place)
     }
 }

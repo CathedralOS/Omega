@@ -318,7 +318,7 @@ fn substitute_scalar_term_places(
                     let mut rebased = prefix
                         .iter()
                         .copied()
-                        .map(semantic_vocabulary::ScalarReadProjection::Static)
+                        .map(semantic_vocabulary::ScalarReadProjection::from)
                         .collect::<Vec<_>>();
                     rebased.append(path);
                     *path = rebased;

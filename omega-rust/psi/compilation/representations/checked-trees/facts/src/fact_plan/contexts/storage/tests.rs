@@ -403,3 +403,62 @@ fn adopted_worker_pages_equal_sequential_partition_pages() {
         );
     }
 }
+
+#[test]
+fn shared_context_checkpoint_detaches_tail_links_and_restores_groups() {
+    let point = ProgramPoint::Global;
+    let mut baseline = FactContexts::default();
+    let first = baseline.append(context(point, 1));
+    let group = baseline.group_at_point(point);
+    let tail = baseline.groups[&point].last;
+    baseline.share_pages();
+    let mut worker = baseline.clone();
+    let sibling = baseline.clone();
+    assert!(std::ptr::eq(
+        baseline.contexts.get(first),
+        worker.contexts.get(first)
+    ));
+    assert!(std::ptr::eq(
+        baseline.links.get(tail),
+        worker.links.get(tail)
+    ));
+    worker.begin_page(2);
+    let added = worker.append(context(point, 2));
+    assert!(!std::ptr::eq(
+        baseline.links.get(tail),
+        worker.links.get(tail)
+    ));
+    assert!(std::ptr::eq(
+        baseline.contexts.get(first),
+        worker.contexts.get(first)
+    ));
+    assert_eq!(
+        worker.handles_in_group(group).collect::<Vec<_>>(),
+        [first, added]
+    );
+    assert_eq!(
+        baseline.handles_in_group(group).collect::<Vec<_>>(),
+        [first]
+    );
+    assert_eq!(sibling.handles_in_group(group).collect::<Vec<_>>(), [first]);
+    assert!(worker.free(first));
+    assert_eq!(worker.handles_in_group(group).collect::<Vec<_>>(), [added]);
+    worker.clone_from(&baseline);
+    assert!(std::ptr::eq(
+        baseline.contexts.get(first),
+        worker.contexts.get(first)
+    ));
+    assert!(std::ptr::eq(
+        baseline.links.get(tail),
+        worker.links.get(tail)
+    ));
+    assert_eq!(worker.handles_in_group(group).collect::<Vec<_>>(), [first]);
+    assert_eq!(worker.groups[&point].last, tail);
+    worker.begin_page(3);
+    let replacement = worker.append(context(point, 3));
+    assert_eq!(
+        worker.handles_in_group(group).collect::<Vec<_>>(),
+        [first, replacement]
+    );
+    assert_eq!(sibling.handles_in_group(group).collect::<Vec<_>>(), [first]);
+}

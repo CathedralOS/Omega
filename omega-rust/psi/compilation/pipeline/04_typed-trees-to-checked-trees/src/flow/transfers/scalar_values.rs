@@ -111,7 +111,7 @@ pub(super) fn capture_statement(
                 program,
                 parameters: program.state_parameters(program.state_by_symbol(state)?),
                 symbols,
-                value_at_place: |place: &CanonicalPlace| {
+                value_at_place: |place: &CanonicalPlace, _observation| {
                     crate::values::scalar_value_at_place(
                         program,
                         semantic,
@@ -582,6 +582,7 @@ impl crate::values::ScalarValueSource for CallValues {
 
     fn structural_field(
         &mut self,
+        _observation: typed_trees::expression::ExpressionHandle,
         parameter_position: u32,
         path: &[CheckedStructuralPredicatePathSegment],
     ) -> Option<ScalarValue> {

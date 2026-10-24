@@ -1,0 +1,344 @@
+//! Invocation-owned accounting for pure source-completion evaluations.
+//!
+//! The ordinary admission and interpreter still execute each cold job. Its exact
+//! immutable program, request, result and real evaluator usage stay together so
+//! retaining a completed source never turns warm work into a zero logical charge.
+//! This owner neither grants execution nor debits a Build activation's sponsor.
+
+use std::sync::{Arc, Mutex};
+
+use checked_interpreter::{
+    BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram,
+    BuildTimeOperationEvaluation, EvaluationSemanticsIdentity, EvaluationUsage,
+};
+use typed_trees::TypedTrees;
+
+use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator, SelectedBuildTimeMachineBody};
+
+/// The actual executable input of a successful pure invocation. Checked inputs
+/// retain their facts and separate Product declaration frontier unchanged.
+#[derive(Debug, Clone)]
+pub enum PureEvaluationProgram {
+    Typed(Arc<TypedTrees>),
+    Checked(Arc<checked_trees::CheckedTrees>),
+    CheckedClosure {
+        execution: Arc<checked_trees::CheckedTrees>,
+        product_declarations: Arc<TypedTrees>,
+    },
+}
+
+impl PureEvaluationProgram {
+    fn retain(program: BuildMachineProgram<'_>) -> Self {
+        match program {
+            BuildMachineProgram::Typed(typed) => Self::Typed(Arc::new(typed.clone())),
+            BuildMachineProgram::Checked(checked) => Self::Checked(Arc::new(checked.clone())),
+            BuildMachineProgram::CheckedClosure {
+                execution,
+                product_declarations,
+            } => Self::CheckedClosure {
+                execution: Arc::new(execution.clone()),
+                product_declarations: Arc::new(product_declarations.clone()),
+            },
+        }
+    }
+
+    fn matches(&self, program: BuildMachineProgram<'_>) -> bool {
+        match (self, program) {
+            (Self::Typed(retained), BuildMachineProgram::Typed(current)) => {
+                retained.as_ref() == current
+            }
+            (Self::Checked(retained), BuildMachineProgram::Checked(current)) => {
+                retained.as_ref() == current
+            }
+            (
+                Self::CheckedClosure {
+                    execution,
+                    product_declarations,
+                },
+                BuildMachineProgram::CheckedClosure {
+                    execution: current,
+                    product_declarations: current_product,
+                },
+            ) => execution.as_ref() == current && product_declarations.as_ref() == current_product,
+            _ => false,
+        }
+    }
+
+    fn typed(&self) -> &TypedTrees {
+        match self {
+            Self::Typed(typed) => typed,
+            Self::Checked(checked) => &checked.typed,
+            Self::CheckedClosure { execution, .. } => &execution.typed,
+        }
+    }
+}
+
+/// One root invocation, not one row per interpreted child call. The private
+/// constructor keeps request/result association with the measured execution.
+#[derive(Debug, Clone)]
+pub struct PureEvaluationReceipt {
+    program: Arc<PureEvaluationProgram>,
+    machine: symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+    operators: Vec<SelectedBuildTimeBinaryOperator>,
+    machine_bodies: Vec<SelectedBuildTimeMachineBody>,
+    outcome: PureEvaluationOutcome,
+    semantics: EvaluationSemanticsIdentity,
+}
+
+/// Failed pure evaluation currently returns no measured usage. Retain that
+/// absence explicitly; a tolerated probe failure must not refuse its source,
+/// and an incompletely measured completion must never become a warm hit.
+#[derive(Debug, Clone)]
+pub enum PureEvaluationOutcome {
+    Returned {
+        value: BuildTimeValue,
+        usage: EvaluationUsage,
+    },
+    UnmeasuredFailure {
+        reason: String,
+    },
+}
+
+impl PureEvaluationReceipt {
+    pub fn program(&self) -> &PureEvaluationProgram {
+        &self.program
+    }
+    pub fn machine(&self) -> symbols::SymbolHandle {
+        self.machine
+    }
+    pub fn arguments(&self) -> &[BuildTimeValue] {
+        &self.arguments
+    }
+    pub fn operators(&self) -> &[SelectedBuildTimeBinaryOperator] {
+        &self.operators
+    }
+    pub fn machine_bodies(&self) -> &[SelectedBuildTimeMachineBody] {
+        &self.machine_bodies
+    }
+    pub fn outcome(&self) -> &PureEvaluationOutcome {
+        &self.outcome
+    }
+    pub fn semantics(&self) -> EvaluationSemanticsIdentity {
+        self.semantics
+    }
+
+    pub fn usage(&self) -> Option<EvaluationUsage> {
+        match &self.outcome {
+            PureEvaluationOutcome::Returned { usage, .. } => Some(*usage),
+            PureEvaluationOutcome::UnmeasuredFailure { .. } => None,
+        }
+    }
+
+    /// Reapply the recorded invocation's fixed logical ceiling. Pure jobs have
+    /// no aggregate Build sponsor; its independent charges are never replayed
+    /// or waived here. This is accounting consistency, not renewed admission.
+    pub fn validate_charge(&self) -> Result<(), String> {
+        if self.semantics != checked_interpreter::CURRENT_EVALUATION_SEMANTICS {
+            return Err("source-completion evaluator semantics changed".to_owned());
+        }
+        if let Some(usage) = self.usage() {
+            SelectedBuildTimeMachineBody::validate_all(self.program.typed(), &self.machine_bodies)?;
+            if usage.schema() != checked_interpreter::CURRENT_EVALUATION_USAGE_SCHEMA
+                || usage.schedule() != checked_interpreter::CURRENT_EVALUATION_STEP_SCHEDULE
+                || usage.fuel_ceiling() != checked_interpreter::pure_evaluation_step_ceiling()
+            {
+                return Err(
+                    "source-completion evaluation policy, usage schema or step schedule changed"
+                        .to_owned(),
+                );
+            }
+            checked_interpreter::capture_checked_build_evaluation_usage(usage, None).map_err(
+                |reason| format!("source-completion evaluation usage is invalid: {reason:?}"),
+            )?;
+            if self
+                .program
+                .typed()
+                .machine_by_symbol(self.machine)
+                .is_none()
+            {
+                return Err("source-completion evaluation lost its exact machine".to_owned());
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Immutable charge ledger for one successful completion. Reuse preserves
+/// source order, multiplicity, schema and ceiling rather than adding nested
+/// interpreter counts a second time or reporting a fresh execution.
+#[derive(Debug, Clone, Default)]
+pub struct SourceCompletionAccounting {
+    receipts: Arc<[PureEvaluationReceipt]>,
+    reused: bool,
+}
+
+impl SourceCompletionAccounting {
+    pub fn was_reused(&self) -> bool {
+        self.reused
+    }
+
+    pub fn has_complete_usage(&self) -> bool {
+        self.receipts
+            .iter()
+            .all(|receipt| receipt.usage().is_some())
+    }
+
+    pub fn mark_reused(&mut self) {
+        self.reused = true;
+    }
+
+    pub fn receipts(&self) -> &[PureEvaluationReceipt] {
+        &self.receipts
+    }
+
+    pub fn validate_charges(&self) -> Result<(), String> {
+        for receipt in self.receipts() {
+            receipt.validate_charge()?;
+        }
+        Ok(())
+    }
+}
+
+/// Explicit scratch owner passed by the pending-work domain. Ordinary callers
+/// that do not retain completion use the disabled default, with no snapshots.
+#[derive(Clone, Default)]
+pub(crate) struct EvaluationAccounting {
+    state: Option<Arc<Mutex<EvaluationAccountingState>>>,
+}
+
+#[derive(Default)]
+struct EvaluationAccountingState {
+    /// One immutable custody owner per exact execution-program version. Full
+    /// content comparison precedes sharing, including all checked facts and
+    /// Product frontier custody; mutable addresses and names are not keys.
+    programs: Vec<Arc<PureEvaluationProgram>>,
+    receipts: Vec<Option<PureEvaluationReceipt>>,
+}
+
+impl EvaluationAccounting {
+    pub(crate) fn recording() -> Self {
+        Self {
+            state: Some(Arc::new(Mutex::new(EvaluationAccountingState::default()))),
+        }
+    }
+
+    pub(crate) fn finish(&self) -> Result<SourceCompletionAccounting, String> {
+        let receipts = match &self.state {
+            None => Vec::new(),
+            Some(receipts) => receipts
+                .lock()
+                .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?
+                .receipts
+                .iter()
+                .cloned()
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    "source-completion accounting has an unfinished invocation".to_owned()
+                })?,
+        };
+        let accounting = SourceCompletionAccounting {
+            receipts: receipts.into(),
+            reused: false,
+        };
+        accounting.validate_charges()?;
+        Ok(accounting)
+    }
+
+    pub(crate) fn evaluate(
+        &self,
+        program: BuildMachineProgram<'_>,
+        request: BuildMachineEvaluationRequest<'_>,
+    ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, String> {
+        // Snapshot before execution. Neither the retained result nor a later
+        // mutation of the caller's tree can redefine the measured input.
+        let input = match &self.state {
+            None => None,
+            Some(state) => {
+                let mut state = state
+                    .lock()
+                    .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?;
+                let retained = match state
+                    .programs
+                    .iter()
+                    .find(|retained| retained.matches(program))
+                {
+                    Some(retained) => Arc::clone(retained),
+                    None => {
+                        let retained = Arc::new(PureEvaluationProgram::retain(program));
+                        state.programs.push(Arc::clone(&retained));
+                        retained
+                    }
+                };
+                let ordinal = state.receipts.len();
+                state.receipts.push(None);
+                Some((
+                    ordinal,
+                    retained,
+                    request.entry,
+                    request.arguments.clone(),
+                    request.operators.to_vec(),
+                    request.machine_bodies.to_vec(),
+                ))
+            }
+        };
+        let evaluation =
+            checked_interpreter::evaluate_prepared_build_time_machine(program, request);
+        if let (
+            Some(receipts),
+            Some((ordinal, program, entry, arguments, operators, machine_bodies)),
+        ) = (&self.state, input)
+        {
+            let machine = match entry {
+                BuildMachineEntry::Symbol(symbol) => symbol,
+                BuildMachineEntry::Name(name) => program
+                    .typed()
+                    .realized_machine_named(name)
+                    .map(|machine| machine.symbol)
+                    .unwrap_or_default(),
+            };
+            let receipt = PureEvaluationReceipt {
+                program,
+                machine,
+                arguments,
+                operators,
+                machine_bodies,
+                outcome: match &evaluation {
+                    Ok(evaluation) => PureEvaluationOutcome::Returned {
+                        value: evaluation.value().clone(),
+                        usage: evaluation.usage(),
+                    },
+                    Err(reason) => PureEvaluationOutcome::UnmeasuredFailure {
+                        reason: reason.clone(),
+                    },
+                },
+                semantics: checked_interpreter::CURRENT_EVALUATION_SEMANTICS,
+            };
+            receipt.validate_charge()?;
+            receipts
+                .lock()
+                .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?
+                .receipts[ordinal] = Some(receipt);
+        }
+        evaluation
+    }
+}
+
+/// A complete precheck's pending work and its real pure evaluation charges.
+/// The driver combines cohorts in source order before retaining completion.
+pub struct RecordedPreCheck {
+    pub pending: Option<crate::PreCheckEvaluation>,
+    pub accounting: SourceCompletionAccounting,
+}
+
+impl SourceCompletionAccounting {
+    pub fn append(&mut self, other: Self) {
+        if self.receipts.is_empty() {
+            *self = other;
+        } else if !other.receipts.is_empty() {
+            let mut receipts = self.receipts.to_vec();
+            receipts.extend(other.receipts.iter().cloned());
+            self.receipts = receipts.into();
+        }
+    }
+}

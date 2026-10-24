@@ -168,6 +168,7 @@ pub(super) fn complete_product_frontend(
     (
         typed_trees::TypedTrees,
         Vec<build_time_evaluation::PreCheckEvaluation>,
+        build_time_evaluation::SourceCompletionAccounting,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
     ),
@@ -219,6 +220,7 @@ pub(super) fn complete_product_frontend(
     Ok((
         prepared.typed,
         prepared.pending_pre_checks,
+        prepared.accounting,
         computed_build_config,
         admission,
     ))

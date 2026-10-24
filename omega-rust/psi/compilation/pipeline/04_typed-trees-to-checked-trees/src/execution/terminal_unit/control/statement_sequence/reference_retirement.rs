@@ -206,6 +206,8 @@ use crate::execution::terminal_unit::storage_transfers as transfers;
 use transfers::{Destination, transfers};
 mod backing;
 mod carriers;
+mod owned_backing;
+pub(super) use owned_backing::{OwnerCandidates, prepare_owner_cleanups};
 pub(super) mod selections;
 pub(super) mod stores;
 pub(super) mod transport;
@@ -213,22 +215,32 @@ pub(super) mod transport;
 pub(super) fn transferred_paths(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    prepared_calls: &crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     results: &Results,
     binding_ordinal: u32,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
     Some(
-        transfers(program, facts, results, binding_ordinal, operations)?
-            .possible
-            .into_iter()
-            .map(|transfer| transfer.source)
-            .collect(),
+        transfers(
+            program,
+            facts,
+            prepared_calls,
+            results,
+            binding_ordinal,
+            operations,
+        )?
+        .possible
+        .into_iter()
+        .map(|transfer| transfer.source)
+        .collect(),
     )
 }
 
 pub(super) struct Retirement<'a> {
     pub(super) program: &'a dyn ::validation::CheckingInput,
     pub(super) facts: &'a CheckFacts,
+    pub(super) prepared_calls:
+        &'a crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) machine: SymbolHandle,
     pub(super) state: &'a typed_trees::state::State,
     pub(super) order: &'a typed_trees::statement::StatementExecutionOrder,
@@ -242,10 +254,21 @@ pub(super) struct Retirement<'a> {
     /// Deferred edge releases count only once completion schedules them.
     /// Ordinary statement expiry cannot consume a future edge's custody.
     pub(super) at_exit: bool,
+    /// A pending owner disposition cannot prove its own holders have ended.
+    /// The zero symbol leaves ordinary source-disposition reasoning unchanged.
+    pub(super) uncommitted_owner: facts::PlaceRoot,
     /// The selected completion transfers this exact holder before its deferred
     /// ancestor dispositions. It never settles a loan at statement entry.
     pub(super) returned: Option<&'a checked_trees::CheckedUnitStructuralReturnPlan>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
+}
+
+/// One retirement query follows both logical loan occurrences and physical
+/// result carriers. Neither graph can erase the other's active recursion.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RetirementNode {
+    Loan(arena::Handle<BorrowLoanFact>),
+    Carrier(u32),
 }
 
 impl Retirement<'_> {
@@ -325,6 +348,7 @@ impl Retirement<'_> {
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,
+                    self.prepared_calls,
                     self.results,
                     source.source.source.clone(),
                     u32::try_from(formation).ok()?,
@@ -372,6 +396,7 @@ impl Retirement<'_> {
                         defer_to_exit: self.at_exit,
                         loans,
                         selection_complements: Vec::new(),
+                        owner_cleanups: arena::HandleSpan::empty(),
                         case_conditions: Default::default(),
                     });
                 }
@@ -727,7 +752,7 @@ impl Retirement<'_> {
         supplier: arena::Handle<BorrowLoanFact>,
         statement_index: u32,
         requires_receiver: bool,
-        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        active: &mut Vec<RetirementNode>,
     ) -> bool {
         if !self
             .order
@@ -753,12 +778,12 @@ impl Retirement<'_> {
     fn holder_retired_following(
         &self,
         handle: arena::Handle<BorrowLoanFact>,
-        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        active: &mut Vec<RetirementNode>,
     ) -> bool {
-        if active.contains(&handle) {
+        if active.contains(&RetirementNode::Loan(handle)) {
             return false;
         }
-        active.push(handle);
+        active.push(RetirementNode::Loan(handle));
         let retired = self.holder_retired_inner(handle, active);
         active.pop();
         retired
@@ -767,7 +792,7 @@ impl Retirement<'_> {
     fn holder_retired_inner(
         &self,
         handle: arena::Handle<BorrowLoanFact>,
-        active: &mut Vec<arena::Handle<BorrowLoanFact>>,
+        active: &mut Vec<RetirementNode>,
     ) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
         if !self
@@ -780,7 +805,9 @@ impl Retirement<'_> {
             return true;
         }
         if self.at_exit && self.return_transfers_holder(loan) {
-            return true;
+            // Transfer discharges a descriptor locally, but keeps its backing
+            // alive when selecting that backing's pending owner disposition.
+            return self.uncommitted_owner == facts::PlaceRoot::Symbol(Default::default());
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name
@@ -896,6 +923,7 @@ impl Retirement<'_> {
         let Some(transfers) = transfers::from_storage(
             self.program,
             self.facts,
+            self.prepared_calls,
             self.results,
             source,
             formation,
@@ -1040,6 +1068,15 @@ impl Retirement<'_> {
             }
             path.extend_from_slice(&owner_path[selected.len()..]);
             if self.return_receives_carrier(&destination, &path, loan) {
+                if self.uncommitted_owner != facts::PlaceRoot::Symbol(Default::default()) {
+                    return false;
+                }
+                continue;
+            }
+            // Physical results can relay descriptors without publishing a
+            // source-local loan. Follow their actual receiving operations;
+            // whole-carrier retirement also proves this transported leaf ended.
+            if self.carrier_retired(&destination, active) {
                 continue;
             }
             let mut bindings = self
@@ -1241,7 +1278,8 @@ impl Retirement<'_> {
                 .facts
                 .contextual_cleanup
                 .any_state_disposition(self.machine, self.state.symbol, |_, disposition| {
-                    disposition.root == loan.storage_owner
+                    disposition.root != self.uncommitted_owner
+                        && disposition.root == loan.storage_owner
                         && disposition.path.is_empty()
                         && disposition.exclusions.is_empty()
                         && matches!(disposition.source,

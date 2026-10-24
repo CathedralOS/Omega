@@ -3,6 +3,62 @@
 
 use super::*;
 
+/// Invocation clauses retain their own represented erased lanes. Their
+/// presence is independent of a scalar body's result operation. Internal
+/// state hypotheses are not invocation inputs and remain under the separate
+/// state/arrival owner; this ordinary body cannot promote their bindings.
+pub(in crate::execution::terminal_unit) fn checked_machine_signature_has_plan(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> bool {
+    if program.machine_contracts(machine).len() != machine.contracts.len()
+        || program.state_contracts(state).len() != state.contracts.len()
+    {
+        return false;
+    }
+    let ordinary_kind = |contract: &typed_trees::signature::SignatureContract| {
+        matches!(
+            contract.kind,
+            SignatureContractKind::Crashes { .. }
+                | SignatureContractKind::Requires
+                | SignatureContractKind::Ensures
+        )
+    };
+    program.machine_contracts(machine).iter().all(|contract| {
+        if !ordinary_kind(contract) {
+            return false;
+        }
+        if contract.binding.is_none() {
+            return true;
+        }
+        let declared = program.proof_facts.span_or_empty(contract.facts);
+        if declared.is_empty() || declared.len() != contract.facts.len() {
+            return false;
+        }
+        contract.facts.handles().all(|fact| {
+            let recorded = match contract.kind {
+                SignatureContractKind::Requires => {
+                    facts
+                        .proof
+                        .machine_requires_fact(program.typed_program(), machine.symbol, fact)
+                }
+                SignatureContractKind::Ensures => {
+                    facts
+                        .proof
+                        .machine_ensures_fact(program.typed_program(), machine.symbol, fact)
+                }
+                _ => None,
+            };
+            recorded.is_some_and(|row| row.evidence_term.is_some())
+        })
+    }) && program
+        .state_contracts(state)
+        .iter()
+        .all(|contract| ordinary_kind(contract) && contract.binding.is_none())
+}
+
 pub(in crate::execution::terminal_unit) fn checked_state_contracts_have_plan(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -86,9 +142,10 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_has_plan
         })
 }
 
-/// Progress profiles belong to the checked termination contract, not the
-/// runtime carrier-domain/scalar predicate roster. Preserve exact parameter
-/// and field identities; arbitrary projected memberships still refuse below.
+/// Progress profiles retain exact checked termination subjects and supply no
+/// runtime predicates. Structural signature publication independently retains
+/// an authored formal's existing membership, without introducing an issuer or
+/// deriving a scalar predicate. Arbitrary projected memberships still refuse.
 /// Canonical termination.md 6a14afff75d92a16d3e6a0adfeee18f0fbbe8727:
 /// "Progress evidence follows exact identity-preserving lineage, explicit contract
 /// substitution, or checked qualification-preserving transitions."
@@ -197,17 +254,27 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                     if !domain.semantic_id.is_valid() {
                         return None;
                     }
-                    let carrier = if matches!(
-                        byte_sequence_carrier(program, type_reference, &[]),
-                        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-                    ) {
-                        type_reference
-                    } else {
-                        borrowed_view.unwrap_or(*base_type)
-                    };
-                    // The carrier is already peeled of this constraint, so
-                    // name the declaration typing selected rather than let
-                    // registration fall back to the family's first one.
+                    let carrier =
+                        if matches!(
+                            byte_sequence_carrier(program, type_reference, &[]),
+                            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+                        ) || (program.primitive_type_reference(type_reference).is_some()
+                            && validation::structural_identity_type(program, type_reference, &[])
+                                == type_reference)
+                        {
+                            // Receiving scalar restrictions retain their exact
+                            // identity. The membership theory must name that same
+                            // carrier at parameter and call boundaries; peeling
+                            // it here would register only an unrelated plain
+                            // scalar presentation. This registers no membership.
+                            type_reference
+                        } else {
+                            borrowed_view.unwrap_or(*base_type)
+                        };
+                    // Name the declaration typing selected for this exact
+                    // carrier, whether its receiving restriction remains or
+                    // its membership shell was peeled. Registration must not
+                    // fall back to the family's first declaration.
                     let carrier_identity =
                         shapes.add_domain_application(domain, carrier, binders, false)?;
                     output.push((domain.semantic_id, carrier_identity));
@@ -361,14 +428,16 @@ pub(in crate::execution::terminal_unit) fn register_authored_result_domains(
 /// the proposition its own entry clause states, while the caller's arrival still
 /// owes that domain's establishment route, which its checked call admitted.
 /// Registration describes the selected domain's theory; it establishes no
-/// membership and grants no custody.
+/// membership and grants no custody. Resolve the state through its actual
+/// typed owner: a fused graph's root does not own a callee's entry clauses.
 pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    state: SymbolHandle,
+    binders: &[(SymbolHandle, String)],
     structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
 ) -> Option<()> {
+    let (machine, state) = validation::find_state(program, state)?;
     let parameters = program.state_parameters(state);
     let entry_state = program
         .machine_states(machine)
@@ -430,7 +499,7 @@ pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
                 membership.semantic_domain,
                 domain.symbol,
                 parameters[source_position].type_reference,
-                &[],
+                binders,
                 false,
             )?;
             if !parameter

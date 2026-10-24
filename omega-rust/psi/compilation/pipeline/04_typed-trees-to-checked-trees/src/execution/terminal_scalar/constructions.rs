@@ -78,6 +78,17 @@ pub(crate) fn retain_shapes(
                 ..
             } = &structural_values.nodes.get(value).kind
             {
+                // Formation materializes its own permission carrier before a
+                // consumer crosses Referent. A nested producer's descriptor
+                // need not occur in the outer call's signature; its backing
+                // declaration alone cannot supply that stored pointer type.
+                retain_declarations(
+                    shapes,
+                    super::super::terminal_unit::scalar_operand_shapes(
+                        program,
+                        structural_values.nodes.get(value).type_reference,
+                    )?,
+                )?;
                 retain_declarations(
                     shapes,
                     super::super::terminal_unit::reference_backing_shapes(
@@ -167,7 +178,7 @@ pub(crate) fn retain_shapes(
             CheckedScalarComputationKind::RetainedConstant { .. }
             | CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                pending.extend(subject.scalar_operands());
+                pending.extend(subject.scalar_operands(&plans.operands));
                 if let checked_trees::CheckedDispatchSubject::Structural { value, .. } = subject {
                     retain_declarations(
                         shapes,
@@ -194,7 +205,7 @@ pub(crate) fn retain_shapes(
                 pending.extend(plans.operands.span(*arguments)?);
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
                     if let Some(place) = argument.as_place() {
-                        pending.extend(place.computation_operands());
+                        pending.extend(place.computation_operands(&plans.operands));
                         // A borrowed view does not define its scalar ingress's
                         // storage carrier. Retain the actual authored formal
                         // so lowering can establish that original home.
@@ -280,6 +291,28 @@ pub(crate) fn retain_shapes(
                 when_false,
                 ..
             } => pending.extend([*condition, *when_true, *when_false]),
+            CheckedScalarComputationKind::WithOperands {
+                operands, operand, ..
+            } => {
+                pending.push(*operand);
+                for dependency in plans.evaluation_operands.span(*operands)? {
+                    match dependency {
+                        checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
+                            pending.push(*value)
+                        }
+                        checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
+                            let root = structural_values.root_for_value(*value)?;
+                            retain_declarations(
+                                shapes,
+                                super::super::terminal_unit::scalar_operand_shapes(
+                                    program,
+                                    root.type_reference,
+                                )?,
+                            )?;
+                        }
+                    }
+                }
+            }
             CheckedScalarComputationKind::Apply { operands, .. }
             | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
                 pending.extend(plans.operands.span(*operands)?)

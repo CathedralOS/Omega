@@ -929,13 +929,18 @@ pub(super) fn input_claim(
         })?;
     let (operands, receiver_offset) =
         crate::flow::captured_call_operands(program, &facts.flow, state_flow, call_flow)?;
-    let operand = operands.get(position + receiver_offset)?;
+    operands.get(position + receiver_offset)?;
     let values = crate::flow::captured_operand_values(
         program,
         &facts.flow,
         &facts.semantic,
         state_flow,
-        operand,
+        crate::flow::CapturedOperand::recorded(
+            &facts.flow.control,
+            call_flow
+                .operands
+                .handle_at(u32::try_from(position + receiver_offset).ok()?),
+        )?,
         parameter.type_reference,
         path,
     )?;
@@ -956,7 +961,7 @@ pub(super) fn input_claim(
         &facts.flow.contexts,
         &facts.flow.control,
         &facts.semantic,
-        value.observation,
+        value.observation.row(),
         value.observation_type,
         call_flow.entry_constraints,
     );

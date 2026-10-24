@@ -18,6 +18,13 @@ pub(super) struct InvocationTuple {
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
 
+struct PreparedInvocation {
+    site: super::super::CallSite,
+    owner: SymbolHandle,
+    target: SymbolHandle,
+    tuple: InvocationTuple,
+}
+
 fn occurrence(
     program: &TypedTrees,
     owner: SymbolHandle,
@@ -227,6 +234,82 @@ fn source_expression_roster(
     expressions
 }
 
+/// Close only transient invocation views before borrowing their logical scopes.
+/// The retained application remains the source recipe final checking admits.
+fn prepare_invocations(
+    program: &mut TypedTrees,
+) -> Result<Vec<PreparedInvocation>, Vec<Diagnostic>> {
+    let mut invocations = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for (position, statement) in program
+                .statement_table
+                .indexed_statements(state.statement_nodes)
+            {
+                if let Some(call) = statement.as_call() {
+                    invocations.push(PreparedInvocation {
+                        site: super::super::CallSite::Statement(
+                            state.statement_nodes.handle_at(position as u32),
+                        ),
+                        owner: machine.symbol,
+                        target: call.target_symbol,
+                        tuple: occurrence(
+                            program,
+                            machine.symbol,
+                            StaticArgumentCall::Statement(call),
+                        ),
+                    });
+                }
+                for expression in source_expression_roster(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    position,
+                    statement,
+                ) {
+                    if let Some(call) = program.expression_table.call_node(expression) {
+                        invocations.push(PreparedInvocation {
+                            site: super::super::CallSite::Expression(expression),
+                            owner: machine.symbol,
+                            target: call.target_symbol,
+                            tuple: occurrence(
+                                program,
+                                machine.symbol,
+                                StaticArgumentCall::Expression(expression, call),
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    for invocation in &mut invocations {
+        super::super::body_rewriting::normalize_const_arguments(
+            program,
+            invocation.tuple.owner,
+            &mut invocation.tuple.arguments,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
+    Ok(invocations)
+}
+
+fn prepared_occurrence(
+    invocations: &[PreparedInvocation],
+    site: super::super::CallSite,
+    owner: SymbolHandle,
+) -> Result<&InvocationTuple, Vec<Diagnostic>> {
+    invocations
+        .iter()
+        .find(|invocation| invocation.site == site && invocation.owner == owner)
+        .map(|invocation| &invocation.tuple)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "requirement call lost its prepared invocation",
+            )]
+        })
+}
+
 /// Static calls instantiate their own complete invocation tuples. These rows
 /// are public contract applications, never a finite dynamic-dispatch roster.
 pub(super) fn invocation_tuples(
@@ -370,7 +453,7 @@ fn dispatch_instance(
 }
 
 pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let mut invocations = Vec::new();
+    let invocations = prepare_invocations(program)?;
     let mut expression_updates = Vec::new();
     let mut expression_dispatch_updates = Vec::new();
     let mut diagnostics = Vec::new();
@@ -383,24 +466,16 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                 .indexed_statements(state.statement_nodes)
             {
                 if let Some(call) = statement.as_call() {
-                    invocations.push((
+                    let invocation = prepared_occurrence(
+                        &invocations,
                         super::super::CallSite::Statement(
                             state.statement_nodes.handle_at(position as u32),
                         ),
                         machine.symbol,
-                        call.target_symbol,
-                    ));
+                    )?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
-                        let selected = dispatch_instance(
-                            program,
-                            machine.symbol,
-                            dispatch,
-                            &occurrence(
-                                program,
-                                machine.symbol,
-                                StaticArgumentCall::Statement(call),
-                            ),
-                        );
+                        let selected =
+                            dispatch_instance(program, machine.symbol, dispatch, invocation);
                         if selected.is_valid() {
                             statement_dispatch_updates
                                 .push((state.statement_nodes.handle_at(position as u32), selected));
@@ -420,7 +495,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         call.target_symbol,
                         receiver,
                         TypeReferenceHandle::invalid(),
-                        &occurrence(program, machine.symbol, StaticArgumentCall::Statement(call)),
+                        invocation,
                     )?;
                     if selected.is_valid() {
                         statement_updates
@@ -438,22 +513,14 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                     let Some(call) = program.expression_table.call_node(expression) else {
                         continue;
                     };
-                    invocations.push((
+                    let invocation = prepared_occurrence(
+                        &invocations,
                         super::super::CallSite::Expression(expression),
                         machine.symbol,
-                        call.target_symbol,
-                    ));
+                    )?;
                     if let Some(dispatch) = &call.static_requirement_dispatch {
-                        let selected = dispatch_instance(
-                            program,
-                            machine.symbol,
-                            dispatch,
-                            &occurrence(
-                                program,
-                                machine.symbol,
-                                StaticArgumentCall::Expression(expression, call),
-                            ),
-                        );
+                        let selected =
+                            dispatch_instance(program, machine.symbol, dispatch, invocation);
                         if selected.is_valid() {
                             if let Some((_, prior)) = expression_dispatch_updates
                                 .iter()
@@ -487,11 +554,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                         call.target_symbol,
                         receiver,
                         call.requirement_application,
-                        &occurrence(
-                            program,
-                            machine.symbol,
-                            StaticArgumentCall::Expression(expression, call),
-                        ),
+                        invocation,
                     )?;
                     if !selected.is_valid() {
                         continue;
@@ -513,7 +576,8 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    for &(site, owner, target) in &invocations {
+    for invocation in &invocations {
+        let (site, owner, target) = (invocation.site, invocation.owner, invocation.target);
         let mut template = program
             .closed_requirement_application(target)
             .map_or(target, |closed| closed.template);
@@ -531,7 +595,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             continue;
         }
         let application = super::super::applications::retain_authored_call(program, site, owner);
-        let arguments = program
+        let mut arguments = program
             .expression_table
             .static_machine_application_arguments(application)
             .to_vec();
@@ -539,6 +603,16 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             // Argument admission owns malformed source telescopes.
             continue;
         }
+        let lexical_owner = program
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner;
+        super::super::body_rewriting::normalize_const_arguments(
+            program,
+            lexical_owner,
+            &mut arguments,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
         let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
         program
             .expression_table
@@ -578,7 +652,8 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             dispatch.contract_signature = selected;
         }
     }
-    for (site, owner, _) in invocations {
+    for invocation in invocations {
+        let (site, owner) = (invocation.site, invocation.owner);
         let super::super::CallSite::Expression(expression) = site else {
             continue;
         };

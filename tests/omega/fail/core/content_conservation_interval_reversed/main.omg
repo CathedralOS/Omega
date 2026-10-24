@@ -1,0 +1,62 @@
+use omega::language::core::content;
+use omega::language::core::drop;
+
+public data ByteUnit {}
+
+public data Region [linear] {
+    start: u64;
+    end: u64;
+}
+
+// The type owner authorizes the only cleanup plan; linear custody still
+// has to be transferred or dropped exactly once.
+machine Region::drop(region: &mut Region) {}
+
+public domain Region::Owned;
+
+public machine Owned::content(region: &Region) -> IntervalSet<ByteUnit>
+satisfies Content<Region, IntervalSet<ByteUnit>>::project
+{
+    IntervalSet { start: embed(region.start) as Nat, end: embed(region.end) as Nat }
+}
+
+public data SplitResult {
+    left: Region in Owned;
+    right: Region in Owned;
+}
+
+public boundary trait RegionSplit {
+    machine split(whole: Region in Owned, head: u64) -> SplitResult
+    requires whole.start <= head && head <= whole.end
+    ensures
+        Owned::content(old(&whole))
+        == separate(
+            Owned::content(&result.left),
+            Owned::content(&result.right),
+        );
+}
+
+// The custody exit: a selected boundary accepts a residual outright. It
+// admits acceptance of custody, never the partition arithmetic.
+public boundary trait RegionSink {
+    machine accept(piece: Region in Owned);
+}
+
+// The checked provider must prove the interval partition from its body.
+data RegionSplitProvider { }
+
+machine RegionSplitProvider::split(whole: Region in Owned, head: u64) -> SplitResult
+satisfies RegionSplit::split
+requires whole.start <= head && head <= whole.end
+ensures
+    Owned::content(old(&whole))
+    == separate(
+        Owned::content(&result.left),
+        Owned::content(&result.right),
+    )
+{
+    let left: Region in Owned = Region { start: head, end: whole.start };
+    let right: Region in Owned = Region { start: head, end: whole.end };
+    drop(whole);
+    SplitResult { left: left, right: right }
+}

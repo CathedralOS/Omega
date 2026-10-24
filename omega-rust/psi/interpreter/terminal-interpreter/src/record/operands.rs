@@ -197,6 +197,32 @@ impl TerminalExecution<'_> {
         ) -> Option<semantic_vocabulary::StructuralCaseId>,
     ) -> Result<BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>, TerminalInterpretError> {
         let invalid = || TerminalInterpretError::ClaimTransferMismatch;
+        // Only an admitted nominal data construction can establish a distinct
+        // whole-owner obligation. Arrays transport their element claims; a
+        // result label alone cannot turn their frontier into a fresh root.
+        let nominal_root = match result.claims.as_slice() {
+            [binding]
+                if origin == ResultClaimOrigin::Construction
+                    && result.multiplicity == StructuralMultiplicity::Linear
+                    && binding.path.is_empty()
+                    && !self.live_claims.contains_key(&binding.claim)
+                    && self
+                        .program
+                        .structural_types()
+                        .get(&result.structural_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::Record { .. }
+                                    | terminal_psi::StructuralTypeShape::Sum { .. }
+                                    | terminal_psi::StructuralTypeShape::Mixed { .. }
+                            )
+                        }) =>
+            {
+                Some(binding.claim)
+            }
+            _ => None,
+        };
         let mut remaining = self.live_claims.clone();
         let mut transported = BTreeMap::new();
         for (argument, destination) in operands {
@@ -229,11 +255,7 @@ impl TerminalExecution<'_> {
             }
             match transported.remove(&binding.claim) {
                 Some(path) if path == binding.path => {}
-                None if origin == ResultClaimOrigin::Construction
-                    && result.multiplicity == StructuralMultiplicity::Linear
-                    && result.claims.len() == 1
-                    && binding.path.is_empty()
-                    && !self.live_claims.contains_key(&binding.claim) => {}
+                None if nominal_root == Some(binding.claim) => {}
                 _ => return Err(invalid()),
             }
             if remaining
@@ -254,8 +276,24 @@ impl TerminalExecution<'_> {
                 return Err(invalid());
             }
         }
-        if !transported.is_empty() {
-            return Err(invalid());
+        for path in transported.values() {
+            // Each child was consumed once from an actual owned operand above.
+            // A nominal root encapsulates that exact active subtree and its
+            // retained storage/cleanup; it neither renames the child as the
+            // parent nor publishes overlapping root and descendant claims.
+            // Transparent construction must instead match every child identity
+            // and typed destination path in the result roster.
+            if nominal_root.is_none()
+                || crate::custody::resolve_structural_path_type(
+                    &self.program.structural_types(),
+                    result.structural_type,
+                    path,
+                )
+                .is_err()
+                || !self.constructor_claim_is_active(result, path, case_membership)?
+            {
+                return Err(invalid());
+            }
         }
         self.stage_result_affine_frontier(result, frontier, case_membership)?;
         Ok(remaining)

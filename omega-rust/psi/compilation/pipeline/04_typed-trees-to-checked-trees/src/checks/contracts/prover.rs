@@ -145,7 +145,7 @@ fn live_scalar_value(
         program,
         parameters: program.state_parameters(state),
         symbols: &symbols,
-        value_at_place: |place: &validation::CanonicalPlace| {
+        value_at_place: |place: &validation::CanonicalPlace, _observation| {
             scalar_value_at_place(
                 program,
                 semantic,
@@ -368,7 +368,7 @@ pub(super) fn semantic_contexts_prove_contract_fact(
         // These are evidence or deferred obligations, not propositions this
         // dispatcher can establish. An unfamiliar payload is never success.
         FactPayload::BooleanPredicate { .. }
-        | FactPayload::AssignedCase { .. }
+        | FactPayload::CaseValue { .. }
         | FactPayload::AssignedValue { .. }
         | FactPayload::AssignedIntegerBounds { .. }
         | FactPayload::FloatPredicate { .. }

@@ -124,6 +124,7 @@ pub(crate) fn scalar_storage_read_with_selectors(
         let expression = if primitive_type == PrimitiveType::Bool {
             CheckedScalarExpression::Boolean(Box::new(
                 checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                    observation: expression,
                     parameter_position,
                     path,
                 },
@@ -135,6 +136,7 @@ pub(crate) fn scalar_storage_read_with_selectors(
                 return None;
             }
             CheckedScalarExpression::StructuralParameterField {
+                observation: expression,
                 parameter_position,
                 path,
                 primitive_type,
@@ -170,6 +172,7 @@ pub(crate) fn scalar_storage_read_with_selectors(
     }
     Some((
         CheckedScalarExpression::StructuralParameterIndexedRead {
+            observation: expression,
             root: projection.root,
             path,
             index: Box::new(index),
@@ -228,9 +231,6 @@ pub(crate) fn storage_projection(
                 cursor = indexed.collection;
             }
             ExpressionNode::Member(member) => {
-                if member.case_variant.is_some() {
-                    return None;
-                }
                 projections.push(Projection::Field(cursor));
                 cursor = member.receiver;
             }
@@ -244,20 +244,16 @@ pub(crate) fn storage_projection(
     for projection in projections.into_iter().rev() {
         match projection {
             Projection::Field(occurrence) => {
-                let field = structural_fields::element_member_field(
+                let (path, selected_type) = structural_fields::member_projection(
                     program,
                     element_type,
                     program.expression_table.member_node(occurrence)?,
                 )?;
-                element_path.push(checked_trees::CheckedScalarReadProjection::Static(
-                    CheckedStructuralPredicatePathSegment::Field(
-                        checked_trees::CheckedMemberIdentity::of_member(
-                            field.identity,
-                            field.name.clone(),
-                        ),
-                    ),
-                ));
-                element_type = field.type_reference;
+                element_path.extend(
+                    path.into_iter()
+                        .map(checked_trees::CheckedScalarReadProjection::Static),
+                );
+                element_type = selected_type;
             }
             Projection::Index {
                 occurrence,

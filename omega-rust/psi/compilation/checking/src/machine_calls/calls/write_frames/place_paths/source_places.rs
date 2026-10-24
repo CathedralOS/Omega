@@ -19,6 +19,10 @@ pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
     #[default]
     Declaration,
     ImageStorage,
+    /// An admitted output occurrence, separate from every lifetime-debt input.
+    /// Its absent declaration root prevents legacy geometry readers from
+    /// interpreting the output descriptor's home as its opaque backing.
+    InvocationOutput(facts::InvocationOutputIdentity),
 }
 
 /// The exact operation that introduced a reference interpretation.
@@ -85,6 +89,36 @@ pub(in crate::machine_calls::calls::write_frames) struct FrameSourcePlace {
 }
 
 impl FrameSourcePlace {
+    pub(in crate::machine_calls::calls::write_frames) fn invocation_output(
+        identity: facts::InvocationOutputIdentity,
+        segments: Vec<PlaceSegment>,
+    ) -> Self {
+        Self {
+            kind: FrameSourceKind::InvocationOutput(identity),
+            segments,
+            builtin_coordinates: true,
+            ..Self::default()
+        }
+    }
+
+    pub(in crate::machine_calls::calls::write_frames) fn output_identity(
+        &self,
+    ) -> Option<facts::InvocationOutputIdentity> {
+        match self.kind {
+            FrameSourceKind::InvocationOutput(identity) => Some(identity),
+            _ => None,
+        }
+    }
+
+    /// Source namespaces remain exact even when opaque backing has no
+    /// declaration root. Equal zero handles never identify two outputs.
+    pub(in crate::machine_calls::calls::write_frames) fn same_namespace(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.kind == other.kind && self.root == other.root
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn image_storage() -> Self {
         Self {
             kind: FrameSourceKind::ImageStorage,
@@ -147,7 +181,7 @@ impl FrameSourcePlace {
         &self,
         segments: &[PlaceSegment],
     ) -> Self {
-        if !self.root.is_valid() && !self.is_static() {
+        if !self.root.is_valid() && !self.is_static() && self.output_identity().is_none() {
             return Self::default();
         }
         let mut projected = self.clone();
@@ -176,7 +210,7 @@ impl FrameSourcePlace {
         whole_expression: ExpressionHandle,
         base_expression: ExpressionHandle,
     ) -> Self {
-        if !self.root.is_valid() && !self.is_static() {
+        if !self.root.is_valid() && !self.is_static() && self.output_identity().is_none() {
             return Self::default();
         }
         let Some(whole) = source_coordinates(program, whole_expression) else {
@@ -234,7 +268,9 @@ impl FrameSourcePlace {
         relative: &Self,
         map_selector: impl Fn(PlaceSegment) -> PlaceSegment + Copy,
     ) -> Self {
-        if (!self.root.is_valid() && !self.is_static()) || !relative.root.is_valid() {
+        if (!self.root.is_valid() && !self.is_static() && self.output_identity().is_none())
+            || !relative.root.is_valid()
+        {
             return Self::default();
         }
         let mut result = self.clone();

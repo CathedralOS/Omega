@@ -13,7 +13,9 @@ use terminal_psi::{
 
 /// Capture source memberships below an ordinary reference boundary. Geometry
 /// only bounds the candidate set; access, bounds, live custody and selector
-/// evaluation remain independent consuming judgments.
+/// evaluation remain independent consuming judgments. `AllElements` is a
+/// proof-only candidate family, with the same complete-roster obligation as a
+/// runtime selection; it produces no executable selector or address.
 pub fn reference_source_memberships<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -31,9 +33,15 @@ pub fn reference_source_memberships<'types>(
     // runtime carrier without expanding its storage, then keep it empty.
     if whole.is_empty() && projected.is_empty() {
         for (position, segment) in path.iter().enumerate() {
-            if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
+            if matches!(
+                segment,
+                StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::AllElements
+            ) {
                 let parent =
-                    crate::runtime_structural_path_tip(types.clone(), root, &path[..position])
+                    crate::qualification_path_carrier(types.clone(), root, &path[..position])
+                        .and_then(|carrier| {
+                            types.clone().find(|declaration| declaration.id == carrier)
+                        })
                         .ok_or("reference membership selection has no runtime carrier")?;
                 match parent.shape {
                     StructuralTypeShape::FixedArray { length: 0, .. } => {
@@ -79,8 +87,12 @@ pub fn reference_source_memberships<'types>(
     }
     let mut candidates = vec![initial];
     for (position, segment) in path.iter().enumerate() {
-        if matches!(segment, StructuralPathSegment::RuntimeIndex { .. }) {
-            let parent = crate::runtime_structural_path_tip(types.clone(), root, &path[..position])
+        if matches!(
+            segment,
+            StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::AllElements
+        ) {
+            let parent = crate::qualification_path_carrier(types.clone(), root, &path[..position])
+                .and_then(|carrier| types.clone().find(|declaration| declaration.id == carrier))
                 .ok_or("reference membership selection has no runtime carrier")?;
             let extent = match parent.shape {
                 StructuralTypeShape::FixedArray { length: 0, .. } => {

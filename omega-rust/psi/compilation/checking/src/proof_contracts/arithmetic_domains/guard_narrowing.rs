@@ -24,13 +24,14 @@ mod parameter_bounds;
 mod predicate_facts;
 pub(super) mod projected_facts;
 mod requirements;
+pub use arrivals::{
+    OccurrenceIntegerBounds, arrival_integer_expression_bounds,
+    occurrence_collection_footprint_fits, occurrence_integer_bounds,
+    occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
+};
 pub(crate) use arrivals::{
     OccurrenceValueEnvironments, inferred_normal_return_interval, occurrence_value_environment,
     occurrence_value_environments,
-};
-pub use arrivals::{
-    arrival_integer_expression_bounds, occurrence_collection_footprint_fits,
-    occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
 };
 use projected_facts::ProjectedOperand;
 

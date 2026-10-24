@@ -326,7 +326,9 @@ fn collect_reachable_nodes(
                 pending.push(*operand);
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                pending.extend(subject.scalar_operands());
+                pending.extend(
+                    subject.scalar_operands(&checked.facts.values.scalar_computations.operands),
+                );
                 let value = subject.structural_value();
                 if value.is_valid() {
                     if !structural_roots.contains(&value) {
@@ -350,7 +352,7 @@ fn collect_reachable_nodes(
             CheckedScalarComputationKind::StorageAddress { subject, .. }
             | CheckedScalarComputationKind::ByteSequenceLiteralComparison { subject, .. }
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
-                extend_range(subject, &mut pending);
+                extend_range(checked, subject, &mut pending);
             }
             CheckedScalarComputationKind::RetainedConstant { .. }
             | CheckedScalarComputationKind::Value(_) => {}
@@ -392,7 +394,7 @@ fn collect_reachable_nodes(
                 ))?;
                 for argument in structural_arguments {
                     if let Some(place) = argument.as_place() {
-                        extend_range(place, &mut pending);
+                        extend_range(checked, place, &mut pending);
                         if matches!(place.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
                             let root = produced_value_root(checked, *source_call, place)?.root;
                             if !structural_roots.contains(&root) {
@@ -412,6 +414,31 @@ fn collect_reachable_nodes(
                 pending.extend(plans.operands.span(*arguments).ok_or(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);
+            }
+            CheckedScalarComputationKind::WithOperands {
+                operands, operand, ..
+            } => {
+                pending.push(*operand);
+                for dependency in
+                    plans
+                        .evaluation_operands
+                        .span(*operands)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar computation scope has invalid operands",
+                        ))?
+                {
+                    match dependency {
+                        checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
+                            pending.push(*value)
+                        }
+                        checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
+                            if !structural_roots.contains(value) {
+                                structural_roots.push(*value);
+                            }
+                            pending.extend(structural_dependencies(checked, *value)?.scalars);
+                        }
+                    }
+                }
             }
             CheckedScalarComputationKind::Apply { operands, .. }
             | CheckedScalarComputationKind::StorageObservation { operands, .. } => pending.extend(
@@ -514,7 +541,9 @@ pub(crate) fn structural_dependencies(
                 }
             }
             Value::Dispatch { subject, arms } => {
-                scalars.extend(subject.scalar_operands());
+                scalars.extend(
+                    subject.scalar_operands(&checked.facts.values.scalar_computations.operands),
+                );
                 for arm in plans
                     .dispatch_arms
                     .span(*arms)
@@ -536,7 +565,7 @@ pub(crate) fn structural_dependencies(
             }
             Value::BorrowedSliceView { source, region, .. }
             | Value::MutableSliceView { source, region, .. } => {
-                extend_range(source, &mut scalars);
+                extend_range(checked, source, &mut scalars);
                 if let checked_trees::CheckedElementViewRegion::RepresentationBytes {
                     start, ..
                 } = region
@@ -555,13 +584,22 @@ pub(crate) fn structural_dependencies(
                         "reference has stale selector evaluations",
                     ))?,
             ),
-            Value::Projection { .. }
-            | Value::QuotientAdaptation { .. }
+            Value::Projection {
+                path,
+                projection_evaluations,
+                ..
+            } => {
+                scalars.extend(checked_trees::CheckedUnitStructuralArgumentPlan::projection_computation_operands(
+                    path, *projection_evaluations, &checked.facts.values.scalar_computations.operands,
+                ));
+            }
+            Value::Place(source) | Value::CopiedStructuralPlace { source, .. } => {
+                extend_range(checked, source, &mut scalars);
+            }
+            Value::QuotientAdaptation { .. }
             | Value::FixedArray { .. }
             | Value::Call { .. }
-            | Value::Place(_)
             | Value::ByteLiteralView { .. }
-            | Value::CopiedStructuralPlace { .. }
             | Value::ZeroedStructural { .. } => {}
         }
     }
@@ -669,8 +707,10 @@ pub(crate) fn operand_fields<'a>(
 }
 
 fn extend_range(
+    checked: &CheckedTrees,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     pending: &mut Vec<Computation>,
 ) {
-    pending.extend(argument.computation_operands());
+    pending
+        .extend(argument.computation_operands(&checked.facts.values.scalar_computations.operands));
 }

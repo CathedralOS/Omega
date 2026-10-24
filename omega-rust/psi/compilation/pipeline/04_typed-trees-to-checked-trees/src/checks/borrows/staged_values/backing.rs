@@ -35,6 +35,88 @@ fn resolve(
 ) -> Option<Vec<CapturedPlace>> {
     let control = &facts.flow.control;
     let capture = control.operands.get(operand);
+    use super::super::resources::call_operands::FrozenReferenceSelection;
+    let frozen = super::super::resources::call_operands::frozen_reference_leaf(
+        program, control, operand, path,
+    );
+    if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
+        return None;
+    }
+    if let FrozenReferenceSelection::Endpoint {
+        owner,
+        leaf,
+        path: leaf_path,
+    } = frozen
+    {
+        let referents = control.operand_referents.span(leaf.referents)?;
+        if referents.is_empty() {
+            let profiles = validation::completed_storage::captured_retention_profiles_at_path(
+                program, control, capture, path,
+            )?;
+            return (!profiles.is_empty()
+                && profiles.iter().all(|profile| {
+                    control.operand_retentions.is_valid(*profile)
+                        && control.operand_retentions.get(*profile).immutable_image
+                        && control
+                            .retained_roots(*profile)
+                            .is_some_and(|roots| roots.is_empty())
+                }))
+            .then_some(Vec::new());
+        }
+        // Zero formation is the producer's direct-geometry lane. A nonzero
+        // handle must authenticate a retained formation before classification.
+        if referents.iter().any(|referent| {
+            if !referent.formation.is_valid() {
+                return false;
+            }
+            if !control.referent_formations.is_valid(referent.formation) {
+                return true;
+            }
+            let formation = control.referent_formations.get(referent.formation);
+            formation.owner.is_valid() && !control.operands.is_valid(formation.owner)
+        }) {
+            return None;
+        }
+        let deferred = |referent: &checked_trees::FlowOperandReferent| {
+            control.referent_formations.is_valid(referent.formation)
+                && control
+                    .referent_formations
+                    .get(referent.formation)
+                    .owner
+                    .is_valid()
+        };
+        if referents.iter().any(deferred) {
+            // Producers may mix completed descriptor geometry and deferred
+            // ingress inventory. The aggregate ingress query cannot reconstruct
+            // that mixed roster, so only an entirely deferred frontier rejoins.
+            if !referents.iter().all(deferred) {
+                return None;
+            }
+            return super::incoming::captured_places(
+                program,
+                facts,
+                state,
+                &owner,
+                &leaf_path,
+                leaf.constraints,
+            );
+        }
+        let mut output = Vec::new();
+        for referent in referents {
+            let place = CapturedPlace {
+                incoming_reference: Handle::invalid(),
+                root: referent.root,
+                segments: control
+                    .operand_referent_segments
+                    .span(referent.segments)?
+                    .to_vec(),
+            };
+            if !output.contains(&place) {
+                output.push(place);
+            }
+        }
+        return Some(output);
+    }
     let Some(selected) = validation::completed_storage::reference_captures_at_path(
         program,
         control,

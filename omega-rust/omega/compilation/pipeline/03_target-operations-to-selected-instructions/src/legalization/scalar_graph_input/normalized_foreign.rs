@@ -456,8 +456,8 @@ pub(in crate::legalization) fn structural_argument_at(
                     semantic.access,
                     declarations,
                 );
-            if exported_width != Some(shape.byte_size)
-                && !scalar_backing_width_matches(
+            if exported_width != Some(shape.byte_size) {
+                validate_scalar_backing_width(
                     semantic,
                     shape.byte_size,
                     optimized,
@@ -466,9 +466,13 @@ pub(in crate::legalization) fn structural_argument_at(
                     target_plan,
                     unit,
                 )
-                .unwrap_or(false)
-            {
-                return Err(LegalizationError::custody());
+                .map_err(|reason| {
+                    LegalizationError::InvalidScalarReferenceBacking {
+                        machine: optimized.machine,
+                        operation: call_operation,
+                        reason,
+                    }
+                })?;
             }
         }
         (
@@ -631,7 +635,7 @@ pub(in crate::legalization) fn structural_argument_at(
 
 /// Reconstruct physical backing alternatives from the current optimized graph,
 /// independently of the target argument's claimed pointer footprint.
-fn scalar_backing_width_matches(
+fn validate_scalar_backing_width(
     argument: &terminal_psi::StructuralArgument,
     width: u32,
     function: &PsiOptimizationFunction,
@@ -639,7 +643,7 @@ fn scalar_backing_width_matches(
     operation: OperationId,
     native: &TargetOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Option<bool> {
+) -> Result<(), &'static str> {
     use std::borrow::Cow;
     use terminal_semantics::descriptor_lifetimes::{
         descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
@@ -659,31 +663,49 @@ fn scalar_backing_width_matches(
                     None => Cow::Borrowed(&node.operation),
                 })
         },
-    )?;
-    let current = descriptor_machine(&graph, function.machine)?;
-    let position = function.blocks.iter().find_map(|block| {
-        block
-            .nodes
-            .iter()
-            .position(|node| node.operation.psi_operation() == Some(operation))
-            .and_then(|index| Some((block.id, u32::try_from(index).ok()?)))
-    })?;
-    let root = *current.place_types.get(&argument.place)?;
+    )
+    .ok_or("reference catalog graph could not be reconstructed")?;
+    let current = descriptor_machine(&graph, function.machine)
+        .ok_or("reference catalog has no current machine")?;
+    let position = function
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .nodes
+                .iter()
+                .position(|node| node.operation.psi_operation() == Some(operation))
+                .and_then(|index| Some((block.id, u32::try_from(index).ok()?)))
+        })
+        .ok_or("foreign call has no optimized operation position")?;
+    let root = *current
+        .place_types
+        .get(&argument.place)
+        .ok_or("foreign argument has no retained root type")?;
     let locations = match descriptor_location(types, argument.place, root, &argument.path, None) {
         Some(location) => vec![location],
-        None => fixed_runtime_index_alternatives(types, argument.place, root, &argument.path)?,
+        None => fixed_runtime_index_alternatives(types, argument.place, root, &argument.path)
+            .ok_or("foreign argument has no descriptor coordinates")?,
     };
     let mut analysis = DescriptorAnalysis::with_reference_slots(types, &graph);
     let mut origins = Vec::new();
     for location in locations {
-        origins.extend(analysis.storage_origins(function.machine, position, &location)?);
+        origins.extend(
+            analysis
+                .storage_origins(function.machine, position, &location)
+                .ok_or("foreign argument physical origins could not be reconstructed")?,
+        );
     }
     if origins.is_empty() {
-        return Some(false);
+        return Err("foreign argument has no physical backing origins");
     }
     for origin in origins {
-        let root = *current.place_types.get(&origin.root)?;
-        let path = descriptor_path(types, root, &origin.path)?;
+        let root = *current
+            .place_types
+            .get(&origin.root)
+            .ok_or("physical backing has no retained root type")?;
+        let path = descriptor_path(types, root, &origin.path)
+            .ok_or("physical backing has no structural descriptor path")?;
         if path.contains(&terminal_psi::StructuralPathSegment::Referent)
             || function
                 .structural_parameter(origin.root)
@@ -694,14 +716,15 @@ fn scalar_backing_width_matches(
                     ).is_some()
                 })
         {
-            return Some(false);
+            return Err("physical backing remains an external descriptor");
         }
         let codec = crate::structural_inputs::structural_reference_input::projected_scalar_codec(
             root, &path, types,
-        )?;
+        )
+        .ok_or("physical backing has no scalar storage codec")?;
         if u32::from(codec.byte_size()) != width {
-            return Some(false);
+            return Err("physical backing width differs from the exported referent");
         }
     }
-    Some(true)
+    Ok(())
 }

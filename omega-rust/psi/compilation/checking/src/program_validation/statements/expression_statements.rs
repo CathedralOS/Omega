@@ -134,6 +134,7 @@ pub(super) fn validate(
         *expression,
         state.return_type,
         diagnostics,
+        &mut arithmetic_decisions.integer_range_obligations,
     );
     validate_expression_type_handle(
         program,

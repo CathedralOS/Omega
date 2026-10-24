@@ -20,15 +20,19 @@ fn evaluate_selected_policy(
     machine: &typed_trees::machine::Machine,
     arguments: Vec<BuildTimeValue>,
     policy_kind: &str,
+    accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<BuildTimeValue, String> {
     let policy_machine = machine.name.as_str();
     BuildTimeAdmissionPlan::infer(typed, None).require_common_floor(typed, machine)?;
-    checked_interpreter::evaluate_build_time_machine(
-        typed,
-        super::policy_arguments::policy_request(typed, machine, arguments)?,
-    )
-    .map(BuildTimeOperationEvaluation::into_value)
-    .map_err(|reason| {
-        format!("build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}")
-    })
+    accounting
+        .evaluate(
+            checked_interpreter::BuildMachineProgram::Typed(typed),
+            super::policy_arguments::policy_request(typed, machine, arguments)?,
+        )
+        .map(BuildTimeOperationEvaluation::into_value)
+        .map_err(|reason| {
+            format!(
+                "build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}"
+            )
+        })
 }

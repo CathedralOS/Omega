@@ -64,11 +64,19 @@ impl Substitutions {
     }
 
     pub(super) fn insert(&mut self, source: usize, target: usize, grows: bool) {
-        self.dependencies.push(Dependency {
-            source,
-            target,
-            grows,
-        });
+        if let Some(existing) = self
+            .dependencies
+            .iter_mut()
+            .find(|dependency| dependency.source == source && dependency.target == target)
+        {
+            existing.grows |= grows;
+        } else {
+            self.dependencies.push(Dependency {
+                source,
+                target,
+                grows,
+            });
+        }
     }
 
     pub(super) fn is_finite(&self) -> bool {

@@ -44,12 +44,12 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     // adding relationships recovered from retained constructor value graphs.
     for (receiver, loan) in facts.borrow.loan_group(borrowing.loans)? {
         for supplier in facts.borrow.loan_suppliers.span(loan.supplying_loans)? {
-            if !facts.borrow.state_owns_loan(borrowing, *supplier)
-                || !order.precedes(
-                    facts.borrow.loans.get(*supplier).statement_index,
-                    loan.statement_index,
-                )
-            {
+            // Checking published this historical supplier from the receiver's
+            // exact predecessor roster. Several ordered invocations can share
+            // one authored statement, so statement precedence cannot replay
+            // that formation judgment. Retain the published edge itself;
+            // state membership still authenticates both occurrence handles.
+            if !facts.borrow.state_owns_loan(borrowing, *supplier) {
                 return None;
             }
             if !output.contains(&(receiver, *supplier)) {

@@ -231,6 +231,18 @@ fn validate_program_entry_source_compatibility(
         &checked_trees::typed_trees::data::DataDefinition,
     ) -> bool,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Psi rejoins the exact retained owner and classifies its complete input
+    // header. This compatibility bridge consumes that declaration data; it
+    // neither traverses source contracts nor infers proof inputs from a name.
+    let declaration = checked_interpreter::ProductEntryDeclaration::from_declared_owner(
+        typed,
+        declaration.machine_symbol(),
+    )
+    .ok_or_else(|| {
+        vec![Diagnostic::error(
+            "ProgramEntry source declaration has no exact complete product owner",
+        )]
+    })?;
     let machine_name = declaration.name;
     let Some(entry) = declaration.entry else {
         return Err(vec![Diagnostic::error(format!(
@@ -239,6 +251,15 @@ fn validate_program_entry_source_compatibility(
     };
 
     let mut diagnostics = Vec::new();
+    if declaration.erased_requires_inputs().next().is_some() {
+        // ProgramEntry supplies its declared physical/semantic arrivals. It
+        // has no source invocation or erased witness actual lane; an entry
+        // cannot assume an unsupplied nominal proof input merely because its
+        // body was checked under that declared premise.
+        diagnostics.push(Diagnostic::error(format!(
+            "ProgramEntry cannot supply erased requires evidence to entry machine `{machine_name}`"
+        )));
+    }
     if !declaration.type_parameters.is_empty() {
         diagnostics.push(Diagnostic::error(format!(
             "entry machine `{machine_name}` is generic; a root slot must bind one exact machine"

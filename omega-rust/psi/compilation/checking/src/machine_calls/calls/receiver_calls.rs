@@ -20,6 +20,7 @@ pub(super) fn validate_receiver_call(
     receiver_members: &[typed_trees::name::Identifier],
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // A namespace supplies no runtime receiver. Rejoin its resolved target
     // without a place/name ladder that can see a different local or declaration
@@ -40,9 +41,17 @@ pub(super) fn validate_receiver_call(
             ));
             return;
         }
-        if !validate_resolved_receiver_call(scope, arguments, true, diagnostics)
-            && !call_gates::receiver_is_operator_namespace(scope, receiver_members, arguments.len())
-        {
+        if !validate_resolved_receiver_call(
+            scope,
+            arguments,
+            true,
+            diagnostics,
+            formation_obligations,
+        ) && !call_gates::receiver_is_operator_namespace(
+            scope,
+            receiver_members,
+            arguments.len(),
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "qualified call `{}` has no resolved callable declaration",
                 scope.call.target,
@@ -74,7 +83,8 @@ pub(super) fn validate_receiver_call(
         return;
     }
 
-    if !validate_resolved_receiver_call(scope, arguments, false, diagnostics) {
+    if !validate_resolved_receiver_call(scope, arguments, false, diagnostics, formation_obligations)
+    {
         diagnostics.push(Diagnostic::error(
             "value-qualified machine calls are retired; use a declaration namespace and explicit arguments",
         ));
@@ -95,6 +105,7 @@ fn validate_signature_result_and_arguments(
     arguments: &[ExpressionHandle],
     writable_roots: &crate::value_custody::locals::WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_result_use(
         program,
@@ -125,6 +136,7 @@ fn validate_signature_result_and_arguments(
             )
         },
         diagnostics,
+        formation_obligations,
     );
 }
 
@@ -136,6 +148,7 @@ fn validate_resolved_receiver_call(
     arguments: &[ExpressionHandle],
     namespace: bool,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> bool {
     let CallScope {
         program,
@@ -200,6 +213,7 @@ fn validate_resolved_receiver_call(
             call,
             writable_roots,
             diagnostics,
+            formation_obligations,
         );
         validate_resolved_target_type_parameter_bounds(
             program,
@@ -226,6 +240,7 @@ fn validate_resolved_receiver_call(
             arguments,
             writable_roots,
             diagnostics,
+            formation_obligations,
         );
         validate_native_callback_selections(program, call, signature, diagnostics);
         return true;

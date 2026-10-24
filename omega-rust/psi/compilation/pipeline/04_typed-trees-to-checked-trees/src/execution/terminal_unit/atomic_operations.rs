@@ -465,6 +465,7 @@ fn place(
         return None;
     }
     let receiver = CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         path,
         type_identity: program.normalized_type_identity(reference),

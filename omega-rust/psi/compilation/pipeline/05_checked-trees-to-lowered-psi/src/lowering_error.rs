@@ -12,6 +12,33 @@ use semantic_vocabulary::{
 
 use crate::proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
 
+/// The actual emitted observation which encountered an incomplete owner.
+/// Declaration rows remain diagnostic context, never an availability premise.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectedCustodyObservation {
+    pub operation: semantic_vocabulary::OperationId,
+    pub kind: &'static str,
+    pub root_declarations: Vec<semantic_vocabulary::StructuralTypeId>,
+}
+
+/// A real entry jump encountered while authenticating one selected cleanup
+/// scope. These rows explain a failed join; they grant no transfer authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedCleanupEntrySite {
+    pub block: semantic_vocabulary::BlockId,
+    pub target: semantic_vocabulary::BlockId,
+    pub structural_arguments: Vec<terminal_psi::StructuralArgument>,
+    pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedCleanupEntryMismatch {
+    pub machine: semantic_vocabulary::MachineId,
+    pub edge: semantic_vocabulary::EdgeId,
+    pub region: terminal_psi::StructuralArgument,
+    pub sites: Vec<SelectedCleanupEntrySite>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
     MachineNotFound(String),
@@ -56,7 +83,27 @@ pub enum LoweringError {
         /// source span, when the checked record names one.
         gap: Option<Diagnostic>,
     },
+    /// Every live owner needs an emitted home before a selection can retain it.
+    MissingSelectionOwner {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        local: String,
+    },
+    /// Selection sources and the current ownership frontier must name the
+    /// same physical homes before any arm can transfer their custody.
+    MissingSelectionSources {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        source_places: Vec<PlaceId>,
+        live_places: Vec<PlaceId>,
+    },
+    InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    /// Preserve the actual graph entry rather than merging duplicate edge,
+    /// argument-frame, and ordered-cleanup failures into one static message.
+    InvalidSelectedCleanupEntry(Box<SelectedCleanupEntryMismatch>),
     NonDenseStructuralResult {
         reason: &'static str,
         completed_bindings: usize,
@@ -73,6 +120,17 @@ pub enum LoweringError {
         requested_type: semantic_vocabulary::StructuralTypeId,
         producer_file: &'static str,
         producer_line: u32,
+    },
+    /// A completed nominal construction lacks its exact checked introduction.
+    /// Keep the producer coordinate so a nested operand can be traced without
+    /// replacing the failed correspondence with a receiver's claim.
+    MissingConstructionClaim {
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        expression: typed_trees::expression::ExpressionHandle,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        root_candidates: usize,
     },
     /// A checked operation's failed join, retaining its exact source coordinate
     /// even when the machine has a complete plan and no earlier plan gap.
@@ -106,6 +164,7 @@ pub enum LoweringError {
         place: PlaceId,
         earlier: Vec<terminal_psi::StructuralPathSegment>,
         requested: Vec<terminal_psi::StructuralPathSegment>,
+        observation: Option<Box<ProjectedCustodyObservation>>,
     },
     /// A borrowed-storage restoration window the checked facts do not pin to
     /// one exact place, or whose restoration is missing on a path. `place` is

@@ -19,6 +19,12 @@ use validation::{
     ScopedArithmeticValue,
 };
 
+struct CapturedParameterGoal {
+    goal: ScopedArithmeticExpression,
+    /// Exact actuals aligned with goal bindings; non-parameter rows are absent.
+    arguments_by_binding: Vec<ExpressionHandle>,
+}
+
 impl CurrentScalarValues<'_> {
     pub(crate) fn bind_call_parameters(
         &self,
@@ -30,14 +36,83 @@ impl CurrentScalarValues<'_> {
         site: CallSite<'_>,
     ) -> Option<ScopedArithmeticExpression> {
         let machine_values = self.machine_value_bindings(callee, site)?;
-        self.bind_parameters(
+        let captured = self.capture_parameter_goal(
             callee,
             state,
             expression,
             parameters,
             arguments,
             &machine_values,
-        )
+        )?;
+        Some(self.enrich_parameter_goal(captured))
+    }
+
+    /// Prove a simultaneous substitution from its independently captured actuals.
+    /// Current facts may suffice before discovering extra occurrence bounds;
+    /// every unsuccessful attempt retains the original enriched proof.
+    pub(crate) fn proves_parameter_substitution(
+        &self,
+        callee: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+        site: CallSite<'_>,
+    ) -> bool {
+        let Some(machine_values) = self.machine_value_bindings(callee, site) else {
+            return false;
+        };
+        let Some(captured) = self.capture_parameter_goal(
+            callee,
+            state,
+            expression,
+            parameters,
+            arguments,
+            &machine_values,
+        ) else {
+            return false;
+        };
+        if self.proves(self.program, self.machine, &captured.goal) {
+            return true;
+        }
+        let goal = self.enrich_parameter_goal(captured);
+        self.proves(self.program, self.machine, &goal)
+    }
+
+    fn enrich_parameter_goal(&self, captured: CapturedParameterGoal) -> ScopedArithmeticExpression {
+        let CapturedParameterGoal {
+            mut goal,
+            arguments_by_binding,
+        } = captured;
+        let bounds = validation::occurrence_integer_bounds(
+            self.program,
+            self.machine.symbol,
+            self.state.symbol,
+            self.statement_index,
+            arguments_by_binding
+                .iter()
+                .copied()
+                .filter(|argument| argument.is_valid())
+                .collect(),
+        );
+        goal.bindings = goal
+            .bindings
+            .into_iter()
+            .zip(arguments_by_binding)
+            .map(|(mut binding, argument)| {
+                // Arrival knowledge belongs to this actual's exact observation,
+                // never a destination requirement or a later storage version.
+                if let Some((minimum, maximum)) = bounds.get(argument) {
+                    binding.value = ScopedArithmeticValue::BoundedInteger {
+                        value: Box::new(binding.value),
+                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                    };
+                }
+                binding
+            })
+            .collect();
+        goal
     }
 
     fn machine_value_bindings(
@@ -274,7 +349,7 @@ impl CurrentScalarValues<'_> {
     /// Simultaneous parameter substitution with independently retained actual
     /// snapshots. The caller owns selection and exact formal/actual roster
     /// identity; this owner checks arithmetic meaning before exposing a term.
-    fn bind_parameters(
+    fn capture_parameter_goal(
         &self,
         callee: &Machine,
         state: &State,
@@ -282,7 +357,7 @@ impl CurrentScalarValues<'_> {
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[ExpressionHandle],
         machine_values: &[(SymbolHandle, ScopedArithmeticValue)],
-    ) -> Option<ScopedArithmeticExpression> {
+    ) -> Option<CapturedParameterGoal> {
         if parameters.len() != arguments.len() {
             return None;
         }
@@ -380,7 +455,8 @@ impl CurrentScalarValues<'_> {
             &self.hypotheses,
             self.program,
         )?;
-        for binding in &mut goal.bindings {
+        let mut captured_actuals = Vec::new();
+        for (binding_index, binding) in goal.bindings.iter_mut().enumerate() {
             // A callee field needs an actual-place substitution, including on
             // recursion. Its entry atom is never the caller's current field
             // merely because the declaration and formal symbol are equal.
@@ -408,28 +484,19 @@ impl CurrentScalarValues<'_> {
                     .position(|parameter| parameter.symbol == symbol)?;
                 let captured =
                     self.capture(self.program, self.machine, self.state, arguments[position])?;
-                // The argument's captured identity remains mandatory. Bounds
-                // from its exact caller observation add arrival knowledge
-                // (including acyclic predecessors), never a destination
-                // requirement or permission to revive an invalidated value.
-                binding.value = if let Some((minimum, maximum)) =
-                    validation::occurrence_integer_expression_bounds(
-                        self.program,
-                        self.machine.symbol,
-                        self.state.symbol,
-                        self.statement_index,
-                        arguments[position],
-                    ) {
-                    ScopedArithmeticValue::BoundedInteger {
-                        value: Box::new(captured),
-                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
-                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
-                    }
-                } else {
-                    captured
-                };
+                captured_actuals.push((binding_index, arguments[position], captured));
             }
         }
-        Some(goal)
+        // Every actual identity is established before optional bounds or proof.
+        // Machine coordinates already retain their exact invocation binding.
+        let mut arguments_by_binding = vec![ExpressionHandle::invalid(); goal.bindings.len()];
+        for (binding_index, argument, captured) in captured_actuals {
+            goal.bindings[binding_index].value = captured;
+            arguments_by_binding[binding_index] = argument;
+        }
+        Some(CapturedParameterGoal {
+            goal,
+            arguments_by_binding,
+        })
     }
 }

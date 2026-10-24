@@ -154,8 +154,10 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
             let retained = build.control.statements.get_mut(statement_fact);
             retained.storage_snapshot = writes.storage_snapshot;
-            retained.completed_writes = writes.writes;
-            retained.completed_unknown_write = writes.unknown;
+            retained.completed_writes = writes.binding_writes;
+            retained.completed_unknown_write = writes.binding_unknown;
+            retained.completed_content_writes = writes.writes;
+            retained.completed_content_unknown_write = writes.unknown;
             fallthrough_contexts = *active_contexts;
             fallthrough_constraints = *active_constraints;
         }
@@ -181,42 +183,80 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             retained.storage_snapshot = evaluated.writes.storage_snapshot;
             retained.stored_value = evaluated.stored_value;
             retained.store_target = evaluated.store_target;
-            retained.completed_writes = evaluated.writes.writes;
-            retained.completed_unknown_write = evaluated.writes.unknown;
+            retained.completed_writes = evaluated.writes.binding_writes;
+            retained.completed_unknown_write = evaluated.writes.binding_unknown;
+            retained.completed_content_writes = evaluated.writes.writes;
+            retained.completed_content_unknown_write = evaluated.writes.unknown;
         }
 
         // Assignment evaluates its RHS under the entry loans above, then
         // overwrites the target. Retire loans carried by the old value before
         // activating loans carried by the replacement below; otherwise the
         // replacement spuriously conflicts with the value it is replacing.
-        let has_active_borrow_loans = build
-            .contexts
-            .constraint_refs
-            .span_or_empty(*active_constraints)
-            .iter()
-            .any(|constraint| matches!(constraint.kind, FlowConstraintKind::BorrowLoan { .. }));
-        if has_active_borrow_loans {
-            let reassigned_place = if let Some(assignment) = statement.as_assignment() {
-                build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
-            } else {
-                None
-            };
-            *active_constraints = filter_reassigned_borrow_loans(
-                &mut build.borrow_lifetimes.weakenings,
+        // Local resource retirement follows the statement's complete joined
+        // exit relation. Operand evaluation has its own current descriptor
+        // custody: a call may already have replaced an entry association on
+        // one or every path. That cannot hide the original resource from this
+        // statement-completion ledger or mint extra branch-local claims.
+        let entry_constraints = build
+            .control
+            .statements
+            .get(statement_fact)
+            .entry_constraints;
+        let reassigned_place = if let Some(assignment) = statement.as_assignment() {
+            build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
+        } else {
+            None
+        };
+        let retained_entry = filter_reassigned_borrow_loans(
+            &mut build.borrow_lifetimes.weakenings,
+            &mut build.contexts.constraint_refs,
+            entry_constraints,
+            borrow,
+            program,
+            machine,
+            reassigned_place,
+            statement_index,
+            statement,
+            build.call_frames,
+        );
+        // An unchanged snapshot retires nothing. When the filter did remove
+        // entries, only descriptor resources can retire; comparing every
+        // semantic context with the entire retained list makes each statement
+        // quadratic even when it has no loans.
+        let retired = if retained_entry == entry_constraints {
+            Vec::new()
+        } else {
+            let retained = build.contexts.constraint_refs.span_or_empty(retained_entry);
+            build
+                .contexts
+                .constraint_refs
+                .span_or_empty(entry_constraints)
+                .iter()
+                .filter_map(|reference| match reference.kind {
+                    FlowConstraintKind::BorrowLoan { .. }
+                    | FlowConstraintKind::BorrowIncomingReference { .. }
+                        if !retained.contains(reference) =>
+                    {
+                        Some(reference.kind)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        if !retired.is_empty() {
+            *active_constraints = super::reference_spans::filter_constraint_refs(
                 &mut build.contexts.constraint_refs,
                 *active_constraints,
-                borrow,
-                program,
-                machine,
-                reassigned_place,
-                statement_index,
-                statement,
-                build.call_frames,
+                |reference| !retired.contains(&reference.kind),
             );
         }
-
+        super::call_phases::finish_statement_reference_custody(borrow, build, active_constraints);
         for loan_index in loan_ranges[statement_index].clone() {
             let loan = &borrow_loans[loan_index];
+            if loan.established_by_call.is_valid() {
+                continue;
+            }
             let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
 
             let formation_value = {
@@ -362,6 +402,12 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             // A failed address capture supplies no exact destination and no
             // preservation theorem. Clear live observations conservatively.
             None
+        } else if statement.as_local_data().is_some() {
+            // The chronological initializer evaluator already published every
+            // nested effect, including atomic attempts. A new local's store
+            // cannot replace any earlier binding; do not replay its initializer
+            // footprint here or merge content aliases into physical stores.
+            Some(Vec::new())
         } else {
             build
                 .statement_storage_writes_at(
@@ -398,6 +444,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 build.control.operand_origin_writes.append_to_span(
                     &mut completed,
                     checked_trees::FlowOperandReferent {
+                        formation: arena::Handle::invalid(),
                         root: place.root,
                         segments,
                     },
@@ -469,11 +516,30 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         } else {
             storage_writes.clone()
         };
+        let final_content_writes = content_writes.clone();
         let mut completed_contents = build
             .control
             .statements
             .get(statement_fact)
-            .completed_writes;
+            .completed_content_writes;
+        // The assignment's own physical store joins content invalidation too;
+        // operand content effects already retain their alias-expanded prefix.
+        if let Some(places) = &storage_writes {
+            for place in places {
+                let segments = build
+                    .control
+                    .operand_referent_segments
+                    .insert_many(place.segments.iter().copied());
+                build.control.operand_origin_writes.append_to_span(
+                    &mut completed_contents,
+                    checked_trees::FlowOperandReferent {
+                        formation: arena::Handle::invalid(),
+                        root: place.root,
+                        segments,
+                    },
+                );
+            }
+        }
         if let Some(places) = &content_writes {
             for place in places.iter().filter(|place| {
                 storage_writes
@@ -487,6 +553,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 build.control.operand_origin_writes.append_to_span(
                     &mut completed_contents,
                     checked_trees::FlowOperandReferent {
+                        formation: arena::Handle::invalid(),
                         root: place.root,
                         segments,
                     },
@@ -495,9 +562,9 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         }
         let completed = build.control.statements.get_mut(statement_fact);
         completed.completed_content_writes = completed_contents;
-        completed.completed_content_unknown_write =
-            completed.completed_unknown_write || content_writes.is_none();
-        let final_content_writes = content_writes.clone();
+        completed.completed_content_unknown_write = completed.completed_content_unknown_write
+            || completed.completed_unknown_write
+            || content_writes.is_none();
         let storage_writes = content_writes;
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
@@ -550,14 +617,27 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             }
         }
         if let Some(call) = statement.as_call() {
-            mutated_places.extend(operator_statement_call_mutated_places(
+            if let Some(writes) = operator_statement_call_mutated_places(
                 program,
                 build,
                 machine.symbol,
                 state.symbol,
                 statement_index,
                 call,
-            ));
+            ) {
+                mutated_places.extend(writes);
+            } else {
+                // Unknown mutable operands cannot preserve earlier facts or
+                // borrow a known sibling's footprint. Snapshot recording uses
+                // this same unavailable result at actual call completion.
+                *active_contexts = HandleSpan::empty();
+                *active_constraints = project_constraint_refs_to_active_contexts(
+                    &mut build.contexts.constraint_refs,
+                    *active_constraints,
+                    *active_contexts,
+                    &build.contexts.semantic_context_refs,
+                );
+            }
         }
         if !mutated_places.is_empty() {
             super::entry_origins::extend_invocation_observations(

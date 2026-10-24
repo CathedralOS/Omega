@@ -126,7 +126,7 @@ fn completed_operand(
             .flow
             .control
             .operand_children
-            .span_or_empty(operand.children)
+            .span_or_empty(operand.constructed_children())
         {
             select(facts, child.value, expression, selected)?;
         }

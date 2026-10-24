@@ -828,6 +828,25 @@ pub(crate) fn atomic_once_storage_writes(
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
+    atomic_once_write_effects(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        expression,
+        call_frames,
+    )
+    .map(|(_, observations)| observations)
+}
+
+pub(crate) fn atomic_once_write_effects(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<(Vec<CanonicalPlace>, Vec<CanonicalPlace>)> {
     let machine = program.machine_by_symbol(machine_symbol)?;
     let state = program.state_by_symbol(state_symbol)?;
     let target = validation::atomic_once_write_place(program, machine, state, expression)?;
@@ -840,14 +859,15 @@ pub(crate) fn atomic_once_storage_writes(
         place,
         call_frames,
     )?;
-    local_origins::close_storage_places_over_aliases(
+    let observations = local_origins::close_storage_places_over_aliases(
         program,
         machine_symbol,
         state_symbol,
         statement_index,
-        places,
+        places.clone(),
         call_frames,
-    )
+    )?;
+    Some((places, observations))
 }
 
 /// Storage writes for fact invalidation, including compiler-owned operations

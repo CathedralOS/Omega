@@ -190,6 +190,8 @@ fn captured_contract_proven(
     {
         return true;
     }
+    // The retained contract and its call inputs are invariant across children.
+    // Continue with expression-dependent attempts after this one fails.
     captured_expression_proven(
         program,
         facts,
@@ -204,6 +206,8 @@ fn captured_contract_proven(
     )
 }
 
+/// Compose expression-dependent evidence after the whole-contract attempt.
+/// Children retain the exact same captured context and fallback order.
 #[allow(clippy::too_many_arguments)]
 fn captured_expression_proven(
     program: &dyn ::validation::CheckingInput,
@@ -349,18 +353,28 @@ fn captured_expression_proven(
                             &facts.flow.contexts,
                             &facts.flow.control,
                             &facts.semantic,
-                            value.operand,
+                            value.operand.row(),
                             value.type_reference,
                             call.entry_constraints,
                         );
-                        let mut place = validation::canonical_place_from_expression_in_state(
-                            program,
-                            state.state_symbol,
-                            call.statement_index,
-                            value.projection.expression,
-                        )?;
-                        place.extend_segments(&value.projection.remaining);
-                        if !predicate.proven(program, facts, state, call, &contexts, &place) {
+                        // A view observes the descriptor's completed referent,
+                        // not the storage slot from which its pointer was read.
+                        // Detached values and copied descriptor leaves use the
+                        // same captured-value projection as other memberships.
+                        // Missing view geometry supplies no convenient slot
+                        // fallback, and every possible referent owes the fact.
+                        if crate::flow::operand_binds_live_view(program, value.type_reference)
+                            && value.operand.referents.is_empty()
+                            && !matches!(
+                                value.operand.completion,
+                                checked_trees::FlowOperandCompletion::Copied { .. }
+                            )
+                        {
+                            return None;
+                        }
+                        if !predicate
+                            .proven_for_capture(program, facts, state, call, &contexts, &value)
+                        {
                             return None;
                         }
                     }
@@ -538,7 +552,7 @@ fn source_substitution_preserves_captures(
                 facts,
                 state,
                 call,
-                value.observation,
+                value.observation.row(),
                 value.observation_type,
                 &value.observation_projection.remaining,
                 invocation?,
@@ -563,8 +577,13 @@ fn capture_preserves_source(
     remaining: &[facts::PlaceSegment],
     invocation: &checked_trees::FlowOperandFact,
 ) -> Option<bool> {
-    if remaining.is_empty() && !capture.children.is_empty() {
-        for child in facts.flow.control.operand_children.span(capture.children)? {
+    if remaining.is_empty() && !capture.constructed_children().is_empty() {
+        for child in facts
+            .flow
+            .control
+            .operand_children
+            .span(capture.constructed_children())?
+        {
             if !facts.flow.control.operands.is_valid(child.value) {
                 return None;
             }

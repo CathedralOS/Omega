@@ -47,6 +47,9 @@ pub enum CanonicalStructuralPathSegment {
     Field(StructuralFieldId),
     FixedIndex(u64),
     Case(StructuralCaseId),
+    /// Load the current live reference descriptor and observe its referent.
+    /// This is a pointer crossing, not an inline offset or a new access grant.
+    Referent,
 }
 
 /// Exact IEEE interchange format retained by target-neutral scalar execution
@@ -253,8 +256,22 @@ pub enum ScalarReadProjection {
     /// An explicit live descriptor crossing, never inline field geometry or
     /// permission to observe storage without its retained loan custody.
     Referent,
+    /// Inline predicate coordinates only. A canonical Referent crosses through
+    /// `From`; nesting it here is a noncanonical scalar-read spelling.
     Static(CanonicalStructuralPathSegment),
     Index(Box<ScalarTerm>),
+}
+
+/// Declared predicate coordinates and scalar-read terms use distinct
+/// grammars. Preserve an explicit pointer load when crossing their boundary;
+/// this conversion supplies neither readable custody nor index evidence.
+impl From<CanonicalStructuralPathSegment> for ScalarReadProjection {
+    fn from(segment: CanonicalStructuralPathSegment) -> Self {
+        match segment {
+            CanonicalStructuralPathSegment::Referent => Self::Referent,
+            segment => Self::Static(segment),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

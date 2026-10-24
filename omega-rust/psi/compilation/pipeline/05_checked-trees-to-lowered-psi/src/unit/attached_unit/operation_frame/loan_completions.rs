@@ -30,6 +30,12 @@ impl OperationFrame<'_, '_> {
                 )
             },
         )?;
-        crate::emission::loan_completions::emit(&prepared, coordinate, self.operations, self.calls)
+        crate::emission::loan_completions::emit(
+            &prepared,
+            coordinate,
+            self.operations,
+            self.calls,
+            &mut self.evaluation.current_claims,
+        )
     }
 }

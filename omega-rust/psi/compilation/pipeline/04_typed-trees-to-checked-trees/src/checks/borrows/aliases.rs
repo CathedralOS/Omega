@@ -24,9 +24,10 @@ impl ResolvedAlias {
         borrow: &BorrowFacts,
         handle: Handle<BorrowLoanFact>,
     ) -> bool {
-        self.lineage
-            .iter()
-            .any(|ancestor| same_descriptor(borrow, *ancestor, handle))
+        self.lineage.iter().any(|ancestor| {
+            same_descriptor(borrow, *ancestor, handle)
+                || retains_lifetime_dependency(borrow, *ancestor, handle)
+        })
     }
 }
 
@@ -45,12 +46,55 @@ pub(in crate::checks::borrows) fn same_descriptor(
     }
     let left = borrow.loans.get(left);
     let right = borrow.loans.get(right);
+    // Lifetime debts coexist with the descriptor and with one another; they
+    // are not alternative spatial origins of that descriptor occurrence.
+    if left.lineage == BorrowLoanLineage::LifetimeDependency
+        || right.lineage == BorrowLoanLineage::LifetimeDependency
+    {
+        return false;
+    }
+    same_carrier_occurrence(borrow, left, right)
+}
+
+/// One spatial descriptor retains its own lifetime cohort independently of
+/// where it points. `lineage` contains only suppliers common to every route;
+/// requiring this exact historical occurrence cannot revive a replaced slot or
+/// turn an unselected input's address into a descriptor alternative.
+fn retains_lifetime_dependency(
+    borrow: &BorrowFacts,
+    descriptor: Handle<BorrowLoanFact>,
+    debt: Handle<BorrowLoanFact>,
+) -> bool {
+    if !borrow.loans.is_valid(descriptor) || !borrow.loans.is_valid(debt) {
+        return false;
+    }
+    if borrow.loans.get(descriptor).lineage == BorrowLoanLineage::SuppliedOutput
+        && borrow.supplied_output_call(descriptor).is_none()
+    {
+        return false;
+    }
+    let descriptor = borrow.loans.get(descriptor);
+    let debt = borrow.loans.get(debt);
+    descriptor.lineage != BorrowLoanLineage::LifetimeDependency
+        && descriptor.root.is_valid()
+        && (!matches!(descriptor.root, facts::PlaceRoot::InvocationOutput(_))
+            || descriptor.incoming_reference.is_valid())
+        && debt.lineage == BorrowLoanLineage::LifetimeDependency
+        && same_carrier_occurrence(borrow, descriptor, debt)
+}
+
+fn same_carrier_occurrence(
+    borrow: &BorrowFacts,
+    left: &BorrowLoanFact,
+    right: &BorrowLoanFact,
+) -> bool {
     let path = borrow.loan_owner_path(right);
     right.owner_symbol.is_valid()
         && right.storage_owner.is_valid()
         && left.owner_symbol == right.owner_symbol
         && left.storage_owner == right.storage_owner
         && left.statement_index == right.statement_index
+        && left.established_by_call == right.established_by_call
         && borrow.loan_owner_path(left) == path
         && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
 }
@@ -78,6 +122,24 @@ pub(in crate::checks::borrows) fn resolve_places(
     entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedPlace>> {
+    resolve_places_with_loans(
+        program,
+        facts,
+        state_flow,
+        facts.flow.borrow_loan_constraints(entry_constraints),
+        place,
+    )
+}
+
+/// The caller supplies its exact current occurrence roster, either a retained
+/// flow cut or the shared statement replay cursor. No geometry selects a loan.
+pub(in crate::checks::borrows) fn resolve_places_with_loans(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedPlace>> {
     let state = program.state_by_symbol(state_flow.state_symbol)?;
     let reference_local = program
         .statement_table
@@ -95,7 +157,44 @@ pub(in crate::checks::borrows) fn resolve_places(
             local_loan: Handle::invalid(),
         }]);
     }
+    resolve_descriptor_places_with_loans(
+        program,
+        facts,
+        state_flow,
+        loans,
+        std::iter::empty(),
+        place,
+    )
+}
 
+/// Resolve the completed value of a reference descriptor, as distinct from
+/// access to the owned storage holding it. Projected stored references use the
+/// same captured loan occurrence and lineage as a whole reference binding.
+pub(in crate::checks::borrows) fn resolve_descriptor_places(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    entry_constraints: HandleSpan<checked_trees::FlowConstraintRef>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedPlace>> {
+    resolve_descriptor_places_with_loans(
+        program,
+        facts,
+        state_flow,
+        facts.flow.borrow_loan_constraints(entry_constraints),
+        facts.flow.incoming_reference_constraints(entry_constraints),
+        place,
+    )
+}
+
+fn resolve_descriptor_places_with_loans(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
+    incoming: impl Iterator<Item = Handle<checked_trees::IncomingReferenceIdentity>>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedPlace>> {
     let borrow = &facts.borrow;
     let state_borrow = borrow.with_state_index(|index| {
         index
@@ -103,25 +202,94 @@ pub(in crate::checks::borrows) fn resolve_places(
             .first()
             .map(|handle| borrow.states.get(*handle))
     })?;
-    let candidates = facts
-        .flow
-        .borrow_loan_constraints(entry_constraints)
+    // A stored descriptor can be a whole reference binding or a reference
+    // leaf inside a completed carrier. The live loan's exact owner path names
+    // that descriptor; an access to its enclosing owned record is independent.
+    let mut candidates = loans
         .filter(|handle| {
+            let loan = borrow.loans.get(*handle);
+            let owner = borrow.loan_owner_path(loan);
             borrow.state_owns_loan(state_borrow, *handle)
-                && borrow.loans.get(*handle).storage_owner == place.root
+                // The dependency remains active for lifetime/interference
+                // checking, but supplies no descriptor address or ancestry.
+                && loan.lineage != BorrowLoanLineage::LifetimeDependency
+                && loan.storage_owner == place.root
+                && owner.len() <= place.segments.len()
+                && owner.iter().zip(&place.segments).all(|(owner, selected)| {
+                    crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
+                        == Some(true)
+                })
+        })
+        .collect::<Vec<_>>();
+    let incoming = incoming.collect::<Vec<_>>();
+    // A flow cut can retain only this invocation's actual entry identities.
+    // Invalid or cross-state references are unknown, never a request to fall
+    // back to the current parameter's address.
+    if incoming
+        .iter()
+        .any(|identity| !borrow.state_owns_incoming_reference(state_borrow, *identity))
+    {
+        return None;
+    }
+    let matches_incoming = |identity| {
+        let incoming = borrow.incoming_references.get(identity);
+        let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
+        incoming.place_root() == place.root
+            && owner.len() <= place.segments.len()
+            && owner.iter().zip(&place.segments).all(|(owner, selected)| {
+                crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
+                    == Some(true)
+            })
+    };
+    let incoming = incoming
+        .into_iter()
+        .filter(|identity| matches_incoming(*identity))
+        .collect::<Vec<_>>();
+    let depth =
+        candidates
+            .iter()
+            .map(|handle| borrow.loan_owner_path(borrow.loans.get(*handle)).len())
+            .chain(incoming.iter().map(|identity| {
+                borrow.incoming_references.get(*identity).owner_path.count() as usize
+            }))
+            .max();
+    let Some(depth) = depth else {
+        // A borrowed parameter supplies its root referent directly. Interior
+        // descriptors instead require their exact retained ingress resource;
+        // a retired leaf cannot recover authority from its parameter's type.
+        let state = program.state_by_symbol(state_flow.state_symbol)?;
+        let root_parameter = program.state_parameters(state).iter().any(|parameter| {
+            if place.root != facts::PlaceRoot::Symbol(parameter.symbol)
+                || parameter.is_const
+                || parameter.relevance.is_erased()
+            {
+                return false;
+            }
+            let Some(reference) = validation::reference_shell(program, parameter.type_reference)
+            else {
+                return false;
+            };
+            // The parameter's grant covers owned projections of its root
+            // referent. Every further descriptor crossing requires a retained
+            // resource, including the final reference leaf itself.
+            validation::owned_projection_type_reference(program, reference.referee, &place.segments)
+                .is_some_and(|selected| validation::reference_shell(program, selected).is_none())
         });
-    let places: Vec<_> = candidates
+        return root_parameter.then_some(vec![ResolvedPlace {
+            place,
+            local_loan: Handle::invalid(),
+        }]);
+    };
+    candidates.retain(|handle| borrow.loan_owner_path(borrow.loans.get(*handle)).len() == depth);
+    let mut places: Vec<_> = candidates
+        .into_iter()
         .map(|handle| {
             let loan = borrow.loans.get(handle);
-            if !loan.owner_path.is_empty() || !loan.root.is_valid() {
+            if !loan.root.is_valid() {
                 return None;
             }
             let mut segments = borrow.loan_segments(loan).to_vec();
-            // The selected descriptor retains every possible backing, not its
-            // private storage slot. Formation already captured each exact root.
-            if loan.lineage != BorrowLoanLineage::LifetimeDependency {
-                segments.extend_from_slice(&place.segments);
-            }
+            segments.extend_from_slice(&place.segments[depth..]);
             Some(ResolvedPlace {
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
@@ -132,6 +300,19 @@ pub(in crate::checks::borrows) fn resolve_places(
             })
         })
         .collect::<Option<_>>()?;
+    for identity in incoming {
+        let incoming = borrow.incoming_references.get(identity);
+        if incoming.owner_path.count() as usize == depth {
+            places.push(ResolvedPlace {
+                place: CapturedPlace {
+                    incoming_reference: identity,
+                    root: incoming.place_root(),
+                    segments: place.segments[depth..].to_vec(),
+                },
+                local_loan: Handle::invalid(),
+            });
+        }
+    }
     (!places.is_empty()).then_some(places)
 }
 
@@ -157,6 +338,10 @@ pub(in crate::checks::borrows) fn retained_lineage(
             let loan = borrow.loans.get(handle);
             let parents = match &loan.lineage {
                 BorrowLoanLineage::DirectRoot => &[][..],
+                BorrowLoanLineage::SuppliedOutput => {
+                    borrow.supplied_output_call(handle)?;
+                    &[][..]
+                }
                 BorrowLoanLineage::Reborrow { parent_loan } => std::slice::from_ref(parent_loan),
                 BorrowLoanLineage::UnretainedDerived => {
                     borrow.loan_suppliers.span(loan.supplying_loans)?
@@ -197,6 +382,9 @@ pub(in crate::checks::borrows) fn retained_lineage(
         let loan = borrow.loans.get(handle);
         match loan.lineage {
             BorrowLoanLineage::DirectRoot => {}
+            BorrowLoanLineage::SuppliedOutput => {
+                borrow.supplied_output_call(handle)?;
+            }
             BorrowLoanLineage::Reborrow { parent_loan } => {
                 if !borrow.state_owns_loan(state, parent_loan) {
                     return None;

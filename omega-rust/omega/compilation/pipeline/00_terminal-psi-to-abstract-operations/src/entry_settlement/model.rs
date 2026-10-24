@@ -346,6 +346,10 @@ impl ValidatedNativeProgramEntrySettlement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeProgramEntrySettlementError {
+    UnsuppliedErasedInputs {
+        machine: semantic_vocabulary::MachineId,
+        reason: &'static str,
+    },
     TargetFamily(String),
     TargetDrift,
     CallingPlanPairingDrift,

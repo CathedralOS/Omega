@@ -650,7 +650,15 @@ defines the complete product bar.
     engines). Computed copies retain selectors and the selected value before
     later operands mutate their source; retain the scalar and shared-descriptor
     controls in [copied call argument snapshots](samples/cli/facts/copied_call_argument_snapshot/README.md),
-    including captured backing exclusion after descriptor replacement. Selected payload returns use ordinary
+    including captured backing exclusion after descriptor replacement.
+    Keep
+    `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
+    and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
+    at 0 in both engines: capture the collection before an effectful selector,
+    execute that selector once, and retain the completed argument before later
+    siblings while keeping exact static claim paths. Reject
+    `fail/ownership/fixed_selector_owned_argument_second_consume` for consuming
+    the same selected claim twice. Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
     Runtime-dispatched values still need their full construction schedule. Preserve
@@ -1314,8 +1322,7 @@ defines the complete product bar.
     `omega.lock` blocks the ordinary command
     (`pass/calls/local_records_mixed_record_result_arguments_exit` README).
   - Separate proof/declaration fixtures from executable customers:
-    `pass/terminal_psi/content_custody_exit` invokes `Root::enter` but has no
-    `build.omg` or oracle; `pass/core/content_{conservation_contract,retained_custody_round_trip}`
+    `pass/core/content_{conservation_contract,retained_custody_round_trip}`
     need an invoking customer (routed establishment: **BOUNDARY-ISSUANCE**);
     `pass/proofs/quotient_{define,lift}_managed_compile` stay proof-only; the
     separate executable customer is `samples/cli/proofs/quotient_runtime_carrier`.
@@ -2912,6 +2919,12 @@ crash and native exit behavior.
     and mutable selectors captured at formation. Native and captured Terminal
     agree for the 16 affected runtime controls; bounds, shared-write, backing
     lifetime and constrained exclusive-store refusals remain enforced.
+  - Qualify the nine-place
+    [reference recast backing-footprint row](samples/cli/facts/reference_recast_backing_footprint/README.md)
+    and its pinned positive/reject fixtures on the other three declared hosted
+    targets. Native and Terminal preserve the original first-byte address and
+    full two-byte shared loan on macOS arm64 at `43278ece1f0`; other producer
+    routes remain open.
   - Remaining: qualify the other acceptance routes on Ubuntu and Windows.
     Carry the [tagged scalar-field loan row](samples/cli/facts/scalar_tag_field_loan/README.md)
     through the remaining matching hosts; its macOS ARM64 execution does not
@@ -4233,8 +4246,8 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   Targetless checks select no physical entry; deployment cannot replace the
   physical adapter with a semantic continuation.
 
-- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Complete checked wrapper
-  theorem propagation under
+- **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Complete the retained-custody
+  submit/complete round-trip under
   [content conservation](wiki/spec/resources/content_custody.md), using canonical
   `source/library/core/content.omg` identities.
   - Carry general n-to-m claim transformations through separately checked
@@ -4257,12 +4270,16 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     transparent construction remain to be preserved. Only proved bodies and
     admitted declarations supply theorem roots; unproved guarantees and
     recursive cycles cannot seed their own evidence.
-  - `tests/omega/pass/core/content_retained_custody_round_trip` has an empty
-    entry; its first claim depends on **BOUNDARY-ISSUANCE**. Existing-input
-    conservation proceeds independently.
-  - `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
-    use local lookalike types and no build entries; they do not establish
-    canonical content execution.
+  - Carry `tests/omega/pass/core/content_retained_custody_round_trip` from its
+    selected admitted `InitialSupply::acquire` invocation through submission,
+    completion and restored custody. Its provider obtains a fresh native
+    allocation; selection and constructor shape alone establish no initial claim.
+    Complete Terminal/native agreement and boundary issuance acceptance without
+    substituting fresh capacity for conserved input.
+  - The canonical-content programs
+    `tests/omega/pass/terminal_psi/{content_custody_exit,structural_content_passthrough}`
+    bind hosted entries and use the bundled Content/quantity identities. Finish
+    their canonical execution qualification alongside the complete custody path.
 
   Acceptance: `python3 tools/corpus_gate.py --native --filter core/content_conservation_contract,core/content_retained_custody_round_trip`
   executes both with their authored results, preserving subject/revision,
@@ -5769,6 +5786,17 @@ wait for Cathedral's instruction coverage. The interpreter is
   false-premise, invalid-unused and unproved-index rejections. Runtime qualified
   `Holder<T>` reads and general array execution stay with
   **STATE-LOCAL-VALUE-FRONTIER** / **TR3-TR8**.
+
+- (new-scope) **GENERIC-FIXED-ARRAY-VIEWS.** Form ordinary slice views from
+  `&[T; Count]` inside generic bodies under
+  [indexing and ranges](wiki/spec/language/expressions.md#indexing-and-ranges).
+  `view<T, const Count: u64>(items: &[T; Count]) -> &[T]` returning
+  `&items[..]` currently rejects the selected range argument before proving
+  `result.len == Count`. Preserve the element type, symbolic extent and backing
+  loan through the ordinary range protocol. Acceptance: distinct extents 3 and
+  4 check in all four target bodies and return 0 natively and in Terminal on
+  the bound host; wrong extents, stale descriptors and conflicting backing
+  writes remain rejected.
 
 - **RUNTIME-VALUE-GENERICS.** Support runtime-capable value binders on data
   ([value binders](wiki/spec/language/generics.md#value-binders-and-const-requirements),

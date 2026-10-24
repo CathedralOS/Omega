@@ -104,3 +104,45 @@ pub fn scalar_field_accepts_zero(field_type: &StructuralFieldType) -> bool {
     };
     scalar_field_accepts_literal(field_type, &zero)
 }
+
+/// Check implication between complete receiving predicates at the same scalar.
+/// Only the supplied established restriction enters the premise roster. The
+/// ordinary bounded search emits a kernel-checked certificate or declines.
+pub fn scalar_field_entails(
+    established: &StructuralFieldType,
+    required: &StructuralFieldType,
+) -> bool {
+    if established == required {
+        return true;
+    }
+    let Some(carrier) = established
+        .scalar_type()
+        .filter(|carrier| Some(*carrier) == required.scalar_type())
+    else {
+        return false;
+    };
+    let Some(goal) = scalar_field_requirement(required, ValueId::FIRST) else {
+        return true;
+    };
+    let Ok(context) = PropositionContext::from_value_types([(ValueId::FIRST, carrier)]) else {
+        return false;
+    };
+    let premises = scalar_field_requirement(established, ValueId::FIRST)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let Ok(checked) = proof_admission::check_predicate_denotations_with_value_equalities(
+        &context,
+        &goal,
+        &premises,
+        &[],
+    ) else {
+        return false;
+    };
+    crate::descriptor_results::prove_payload_predicate(
+        &context,
+        checked.goal(),
+        checked.requirements(),
+        0,
+    )
+    .is_some_and(|proof| checked.check_certificate(&context, &proof).is_ok())
+}

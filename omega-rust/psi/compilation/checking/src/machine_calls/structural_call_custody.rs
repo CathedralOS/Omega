@@ -38,11 +38,14 @@ pub use declaration_predicates::{
     state_declaration_predicates,
 };
 
-/// One scalar row a state's `requires` contracts leave for a proof lane.
+/// One declaration-derived arrival obligation, with a runtime projection or an exact source fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StateScalarContractRow {
+pub enum StateContractRow {
     /// An authored `requires` expression; the caller owns its closed lowering.
     Expression(typed_trees::expression::ExpressionHandle),
+    /// An exact nominal source requirement. No runtime predicate is invented;
+    /// checked planning must authenticate its Requires owner and every arrival.
+    SourceFact(arena::Handle<typed_trees::domain::ProofFact>),
     /// A bracketed integer range retains its authored endpoint observations.
     /// The state telescope supplies their exact subjects on every arrival;
     /// dependent endpoints are not closed constants or invocation snapshots.
@@ -70,7 +73,9 @@ pub enum StateScalarContractRow {
 /// qualification: `text in Utf8` for `text: &[u8; 8] in Utf8`. The parameter
 /// declaration carries that membership into every lowering, and the caller's
 /// argument presentation proves it, so it is no runtime entry requirement.
-/// A scalar parameter's membership is an interval requirement and stays out.
+/// An owned scalar parameter's membership stays in the scalar requirement
+/// lane. A scalar referee is structural storage: its complete receiving
+/// restriction and qualification travel with the loan, not a scalar formal.
 pub fn restates_structural_parameter_qualification(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
@@ -87,12 +92,15 @@ pub fn restates_structural_parameter_qualification(
     let Some(parameter) = program.state_parameter_by_symbol(state, symbol) else {
         return false;
     };
+    if program
+        .primitive_type_reference(parameter.type_reference)
+        .is_some()
+    {
+        return false;
+    }
     let reference = program
         .type_reference_table
         .dereferenced_type_reference(parameter.type_reference);
-    if program.primitive_type_reference(reference).is_some() {
-        return false;
-    }
     let Some(domain) = program.domain_definition(membership.domain_symbol) else {
         return false;
     };
@@ -106,10 +114,10 @@ pub fn restates_structural_parameter_qualification(
 /// qualifications. Declared integer ranges retain endpoint observations;
 /// scalar memberships retain their complete declared predicates, including
 /// interval domains. Unsupported predicate theories remain out of scope.
-pub fn structural_state_contract_scalar_predicates(
+pub fn structural_state_contract_predicates(
     program: &dyn crate::CheckingInput,
     state: &typed_trees::state::State,
-) -> Option<Vec<StateScalarContractRow>> {
+) -> Option<Vec<StateContractRow>> {
     let mut expected = Vec::new();
     let mut predicates = Vec::new();
     for parameter in program.state_parameters(state) {
@@ -120,25 +128,35 @@ pub fn structural_state_contract_scalar_predicates(
         // range from a particular body expression or a successful source check.
         retain_declared_integer_ranges(program, parameter, &mut predicates)?;
         if finite_arrival_parameter(program, state, parameter) {
-            predicates.push(StateScalarContractRow::Finite {
+            predicates.push(StateContractRow::Finite {
                 parameter: parameter.symbol,
             });
         }
-        let reference = program
-            .type_reference_table
-            .dereferenced_type_reference(parameter.type_reference);
-        if program.primitive_type_reference(reference).is_some() {
+        // Classify the formal before looking through its loan. An exclusive
+        // scalar referee is mutable storage, not an owned scalar binding whose
+        // entry snapshot can be discarded. Its receiving restriction remains
+        // on the structural type and its exact qualification must still match.
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
             if !parameter.is_mutable {
                 expected.extend(
-                    crate::scalar_predicate_domains(program, reference)
+                    crate::scalar_predicate_domains(program, parameter.type_reference)
                         .into_iter()
-                        .chain(crate::scalar_type_tags(program, reference))
-                        .chain(crate::scalar_type_routed_domains(program, reference))
+                        .chain(crate::scalar_type_tags(program, parameter.type_reference))
+                        .chain(crate::scalar_type_routed_domains(
+                            program,
+                            parameter.type_reference,
+                        ))
                         .map(|(_, domain)| (parameter.symbol, domain.0)),
                 );
             }
             continue;
         }
+        let reference = program
+            .type_reference_table
+            .dereferenced_type_reference(parameter.type_reference);
         let Ok(domains) = structural_result_qualifications(program, reference) else {
             return None;
         };
@@ -165,7 +183,7 @@ pub fn structural_state_contract_scalar_predicates(
         // Keep every row in authored order so each reaches the state's
         // entry obligations; an unsupported later row rejects the whole
         // contract rather than silently retaining just its first conjunct.
-        for fact in facts {
+        for (fact_handle, fact) in contract.facts.handles().zip(facts) {
             match fact {
                 typed_trees::domain::ProofFact::Membership(membership) => {
                     let path = program.expression_table.name_path_node(membership.value)?;
@@ -199,16 +217,18 @@ pub fn structural_state_contract_scalar_predicates(
                     {
                         let constraint =
                             scalar_declared_domain(program, parameter.type_reference, membership)?;
-                        predicates.push(StateScalarContractRow::Domain {
+                        predicates.push(StateContractRow::Domain {
                             parameter: parameter.symbol,
                             constraint,
                         });
                     }
                 }
                 typed_trees::domain::ProofFact::Expression(expression) => {
-                    predicates.push(StateScalarContractRow::Expression(*expression));
+                    predicates.push(StateContractRow::Expression(*expression));
                 }
-                typed_trees::domain::ProofFact::Proposition(_) => return None,
+                typed_trees::domain::ProofFact::Proposition(_) => {
+                    predicates.push(StateContractRow::SourceFact(fact_handle));
+                }
             }
         }
     }
@@ -313,7 +333,7 @@ pub fn state_finite_predicate(
 fn retain_declared_integer_ranges(
     program: &dyn crate::CheckingInput,
     parameter: &typed_trees::signature::StateParameter,
-    predicates: &mut Vec<StateScalarContractRow>,
+    predicates: &mut Vec<StateContractRow>,
 ) -> Option<()> {
     if !program
         .primitive_type_reference(parameter.type_reference)
@@ -329,7 +349,7 @@ fn retain_declared_integer_ranges(
         {
             return None;
         }
-        predicates.push(StateScalarContractRow::DeclaredRange {
+        predicates.push(StateContractRow::DeclaredRange {
             parameter: parameter.symbol,
             minimum,
             maximum,
@@ -374,7 +394,8 @@ pub struct StructuralResultContract {
 /// Read one carrier's declared value qualifications: the domain memberships
 /// on its `Constrained` chain, and the type that chain terminates at. A
 /// `Carry` subject yields no row -- carry permission travels with claim
-/// custody, not value membership -- and a non-domain constraint refuses.
+/// custody, not value membership. Primitive arithmetic policy remains on the
+/// exact carrier; other non-domain constraints refuse.
 ///
 /// `carrier_is_referent` states where the caller's carrier identity sits. A
 /// byte view's lowered spelling names the referent slice as the result's own
@@ -398,6 +419,13 @@ fn declared_carrier_qualifications(
                     return Err("declared qualification span is stale");
                 }
                 for constraint in retained {
+                    // Primitive arithmetic policy belongs to the exact carrier
+                    // and its operations, rather than nominal membership.
+                    if matches!(constraint, TypeConstraintNode::ArithmeticDomain(_))
+                        && program.primitive_type_reference(reference).is_some()
+                    {
+                        continue;
+                    }
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         return Err("declared qualification constraint is not a domain");
                     };
@@ -459,6 +487,10 @@ pub fn structural_result_qualifications(
 /// type, making the inside-borrow domain a result qualification rather than
 /// a referent claim the loan cannot transport. Other reference referents
 /// carry a distinct identity, so their inside-borrow domains stay out.
+/// Completed value bindings also use this query for primitive storage homes.
+/// An arithmetic policy remains in their exact type identity and subsequent
+/// scalar operations; it is not a nominal membership on that home. Other
+/// unsupported constraints still require their own represented contract.
 pub fn view_result_carrier_qualifications(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
@@ -1593,14 +1625,14 @@ pub fn structural_call_result_claims(
         } else {
             let mut matching = received
                 .iter()
-                .filter(|(segments, _)| *segments == claim.path.as_slice());
-            let (_, identity) = matching
+                .filter(|received| received.path == claim.path.as_slice());
+            let received = matching
                 .next()
                 .ok_or("structural result claim has no receiving establishment")?;
             if matching.next().is_some() {
                 return Err("structural result claim is received twice");
             }
-            *identity
+            received.identity
         };
         if possible_paths
             .as_ref()
@@ -1744,7 +1776,6 @@ fn owned_argument_claim_transfers(
                 || !segments
                     .span_or_empty(event.segments)
                     .starts_with(place.segments.as_slice())
-                || event.claim_identity == PermissionClaimIdentity::Unknown
                 || accounted[event_index]
             {
                 continue;
@@ -1766,6 +1797,10 @@ fn owned_argument_claim_transfers(
                 .strip_prefix(argument.path.as_slice())
                 .ok_or("claim is outside the selected owned argument")?
                 .to_vec();
+            // A joined selection may have no invariant source claim name.
+            // Retain its exact checked owned-argument path; lowering resolves
+            // transport naming from the already completed actual binding.
+            // Unknown itself contributes neither a birth nor resource authority.
             accounted[event_index] = true;
             claim_transfers.push(CheckedUnitClaimTransferPlan {
                 claim_identity: event.claim_identity,
@@ -1788,13 +1823,21 @@ fn owned_argument_claim_transfers(
 /// Explicitly inactive establishments remain in the roster without a live
 /// identity. An empty roster means no caller place receives the value (a
 /// terminal call returned at once), not that every payload is absent.
+#[derive(PartialEq, Eq)]
+struct ReceivedResultClaim<'facts> {
+    path: &'facts [facts::PlaceSegment],
+    identity: PermissionClaimIdentity,
+    provenance: language_semantics::PermissionProvenance,
+    obligation_live: bool,
+}
+
 fn received_result_claims<'facts>(
     program: &dyn crate::CheckingInput,
     facts: &'facts CheckFacts,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
     call: &FlowCallFact,
-) -> Result<Vec<(&'facts [facts::PlaceSegment], PermissionClaimIdentity)>, &'static str> {
+) -> Result<Vec<ReceivedResultClaim<'facts>>, &'static str> {
     let mut received = Vec::new();
     for (_, event) in facts.flow.ownership.permissions.iter() {
         if event.machine_symbol != caller_machine
@@ -1828,7 +1871,18 @@ fn received_result_claims<'facts>(
         {
             return Err("inactive structural result claim has no exact conditional absence");
         }
-        received.push((relative, event.claim_identity));
+        let receiving = ReceivedResultClaim {
+            path: relative,
+            identity: event.claim_identity,
+            provenance: event.provenance,
+            obligation_live: event.obligation_live,
+        };
+        // One completed call can cross several physical homes before the
+        // enclosing value completes. Equal correspondence is one receipt;
+        // a different identity or provenance at the same path stays ambiguous.
+        if !received.contains(&receiving) {
+            received.push(receiving);
+        }
     }
     Ok(received)
 }

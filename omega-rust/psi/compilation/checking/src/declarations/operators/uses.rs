@@ -590,48 +590,86 @@ fn binary_operator_use_fact(
     operand_types: &[Option<TypeReferenceHandle>],
     candidate_facts: &mut Arena<CheckedOperatorCandidateFact>,
 ) -> Option<CheckedOperatorUseFact> {
-    let trait_candidates = origin_machine_symbol(origin).map_or_else(Vec::new, |machine_symbol| {
-        selected_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
-    });
-    if !trait_candidates.is_empty() {
-        return Some(trait_operator_use_fact(
-            program,
-            expression,
-            origin,
-            spelling,
-            trait_candidates,
-            candidate_facts,
-        ));
-    }
-    let candidates = resolve_spelling_for_operands(
-        program,
-        spelling,
-        operand_types,
-        program.expression_table.source_span(expression),
-    );
-    if candidates.is_empty() {
+    let requires = super::scoped_applications::occurrence_requires(program, origin);
+    let scope = super::OperatorApplicationScope {
+        owner: origin_machine_symbol(origin).unwrap_or_else(SymbolHandle::invalid),
+        origin: Some(origin),
+        requires: &requires,
+        expression_type: &|operand| expression_type_reference_for_origin(program, operand, origin),
+    };
+    let resolution =
+        super::scoped_operator_application(program, &scope, expression, spelling, operand_types);
+    // Ordinary builtin binaries need no declaration use row. A rejected or
+    // ambiguous declared meaning retains its full considered roster.
+    if resolution.candidates.is_empty() {
         return None;
     }
-
-    let (candidate_count, candidate_span) =
-        checked_candidate_span(program, candidate_facts, &candidates);
-    let (status, selected_operator_symbol) = domain_or_unique_operator_status(&candidates)
-        .unwrap_or((
-            CheckedOperatorResolutionStatus::Ambiguous,
-            SymbolHandle::invalid(),
-        ));
-
+    let candidate_count = resolution.candidates.len();
+    let candidate_span = candidate_facts.insert_many(
+        resolution
+            .candidates
+            .iter()
+            .map(|candidate| scoped_candidate_fact(program, candidate)),
+    );
     Some(CheckedOperatorUseFact {
         expression,
         origin,
         occurrence: Default::default(),
         spelling,
         policy_adapter: arithmetic_policy_adapter(program, spelling, operand_types),
-        selected_operator_symbol,
+        selected_operator_symbol: resolution.selected_symbol,
         candidates: candidate_span,
         candidate_count,
-        status,
+        status: resolution.status,
     })
+}
+
+fn scoped_candidate_fact(
+    program: &dyn crate::CheckingInput,
+    application: &super::ScopedOperatorApplication<'_>,
+) -> CheckedOperatorCandidateFact {
+    use super::ScopedOperatorApplication;
+    let (candidate, definition, requirement) = match application {
+        ScopedOperatorApplication::Declared { declaration, .. } => {
+            return checked_operator_candidate(program, declaration);
+        }
+        ScopedOperatorApplication::SelectedTrait { meaning, .. } => (
+            CheckedOperatorCandidateFact::trait_backed(
+                meaning.requirement.symbol,
+                meaning.application.declaration,
+                meaning.row.realization_machine,
+                meaning.row.realization_state,
+                meaning.application.report_fingerprint,
+                meaning.application.commitment,
+            ),
+            meaning.trait_definition,
+            meaning.requirement,
+        ),
+        ScopedOperatorApplication::BoundTrait(meaning) => (
+            CheckedOperatorCandidateFact::root(meaning.requirement.symbol),
+            meaning.trait_definition,
+            meaning.requirement,
+        ),
+        ScopedOperatorApplication::Trait(meaning) => (
+            CheckedOperatorCandidateFact::root(meaning.requirement.symbol),
+            meaning.trait_definition,
+            meaning.requirement,
+        ),
+    };
+    candidate.with_signature(
+        program
+            .state_signature_parameters(requirement)
+            .first()
+            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                parameter.type_reference
+            }),
+        requirement.return_type,
+        requirement.contracts,
+        program.trait_type_parameters(definition).len()
+            + program.state_signature_type_parameters(requirement).len(),
+        program.state_signature_parameters(requirement).len(),
+        definition.is_boundary,
+    )
 }
 
 fn indexed_operator_spelling(

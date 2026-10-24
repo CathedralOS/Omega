@@ -220,6 +220,12 @@ pub struct FlowStateOutgoingFact {
     /// transfers and valueless completion; reference results retain live
     /// referents captured during evaluation rather than replaying selectors.
     pub returned_value: arena::Handle<super::FlowOperandFact>,
+    /// Selected-arm facts before any target operand executes. Copy payloads
+    /// are values extracted at this boundary, not late storage rereads.
+    pub operand_entry_constraints: HandleSpan<FlowConstraintRef>,
+    /// Exact completed plain-copy payload values of this selected target.
+    /// Their backing is the authenticated saved dispatch receiver.
+    pub copied_payloads: HandleSpan<super::FlowOperandFact>,
     pub constraints: HandleSpan<FlowConstraintRef>,
 }
 

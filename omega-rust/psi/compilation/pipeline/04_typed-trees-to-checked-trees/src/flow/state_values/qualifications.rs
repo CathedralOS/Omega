@@ -325,6 +325,7 @@ pub(in crate::flow) fn capture_argument(
     ordinal: usize,
     argument: ExpressionHandle,
     contexts: HandleSpan<FlowSemanticContextRef>,
+    copied_values: HandleSpan<checked_trees::FlowOperandFact>,
 ) -> Vec<CapturedQualification> {
     let TransitionTargetNode::Named { path, .. } =
         program.statement_table.transition_target(target)
@@ -343,6 +344,17 @@ pub(in crate::flow) fn capture_argument(
     let Some(source) =
         flow_context.canonical_place_at(program, state.symbol, statement_index, argument)
     else {
+        return Vec::new();
+    };
+    let Some(source) = crate::flow::observations::completed_copy_read_place(
+        program,
+        &flow_context.control,
+        copied_values,
+        state.symbol,
+        statement_index,
+        argument,
+        &source,
+    ) else {
         return Vec::new();
     };
     let Some(source_type) =

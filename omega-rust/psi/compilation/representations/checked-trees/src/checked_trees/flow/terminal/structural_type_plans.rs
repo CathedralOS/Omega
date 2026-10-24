@@ -183,6 +183,10 @@ pub struct CheckedUnitStructuralFieldPlan {
 
 impl PartialEq for CheckedUnitStructuralFieldPlan {
     fn eq(&self, other: &Self) -> bool {
+        // The source reference supplies receiving predicates to lowering, but
+        // its arena coordinate is not part of the field's semantic identity.
+        // Compare its complete normalized type instead of either dropping
+        // qualifications or requiring independently cloned references to alias.
         self.receiving_type_identity == other.receiving_type_identity
             && self.identity == other.identity
             && self.relevance == other.relevance

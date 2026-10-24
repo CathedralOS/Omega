@@ -1,0 +1,38 @@
+// The live fact 0 <= b * 20 + a < 200 permits storing 7 at grid[b * 20 + a].
+// Expected exit: 0. The original unknown-parameter machine remains separately checked.
+data Main {
+    hits: i32 in Wrapping;
+    a: i32 in Wrapping;
+    saved: i32 in Wrapping;
+    b: i32 in Wrapping;
+    grid: [i32; 200] in Wrapping;
+}
+machine coordinate(a: i32 in Wrapping) -> i32 in Wrapping
+ensures result == a
+{ a }
+machine Main::main(main: &mut Main) {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    state put(main: &mut Main) {
+        main.saved = coordinate(main.a);
+        main.grid[main.b * 20 + main.saved] = 7;
+        main.hits = 1;
+    }
+    state done(main: &mut Main) { main.hits = -1; }
+}
+
+// This ordinary entry adds execution evidence without specializing Main::main.
+machine main() crashes Trap {
+    let mut value: Main;
+    value.a = 7;
+    value.b = 3;
+    Main::main(&mut value);
+    transition value.hits == 1 && value.grid[67] == 7 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() {}
+    state failed() { crash Trap; }
+}

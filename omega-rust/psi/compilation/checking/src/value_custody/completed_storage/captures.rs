@@ -29,18 +29,109 @@ pub fn captured_retention_profiles_at_path(
         operand: &FlowOperandFact,
         path: &[PlaceSegment],
         active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
+        active_copies: &mut Vec<arena::Handle<checked_trees::FlowCopiedValue>>,
+        active_selections: &mut Vec<arena::HandleSpan<checked_trees::FlowOperandAlternative>>,
     ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
+            if active_selections.contains(&alternatives) { return None; }
+            let rows = control.operand_alternatives.span(alternatives)?;
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid() || !control.operands.is_valid(row.value)) {
+                return None;
+            }
+            active_selections.push(alternatives);
+            let result = (|| {
+                let mut profiles = Vec::new();
+                for row in rows {
+                    for profile in operand_profiles(
+                        program, control, control.operands.get(row.value), path,
+                        active, active_copies, active_selections,
+                    )? {
+                        if !profiles.contains(&profile) { profiles.push(profile); }
+                    }
+                }
+                (!profiles.is_empty()).then_some(profiles)
+            })();
+            active_selections.pop();
+            return result;
+        }
+        if !operand.reference_leaves.is_empty() {
+            let mut matching = control
+                .captured_reference_leaves
+                .span_or_empty(operand.reference_leaves)
+                .iter()
+                .filter(|leaf| {
+                    let selected = control.operand_child_paths.span_or_empty(leaf.path);
+                    selected.len() == path.len()
+                        && selected.iter().zip(path).all(|(left, right)| {
+                            crate::storage_path_relations::canonical_place_segments_equal(program, *left, *right)
+                        })
+                });
+            let leaf = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            return profile_at_path(program, control, leaf.retention, &[], active, active_copies, active_selections);
+        }
+        if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } =
+            operand.completion
+        {
+            if !control.copied_values.is_valid(copy) || active_copies.contains(&copy) {
+                return None;
+            }
+            active_copies.push(copy);
+            let selected = (|| {
+                let copy = control.copied_values.get(copy);
+                let mut selected_path = control.operand_child_paths.span_or_empty(prefix).to_vec();
+                selected_path.extend_from_slice(path);
+                let mut leaves = control
+                    .captured_reference_leaves
+                    .span_or_empty(copy.references)
+                    .iter()
+                    .filter(|leaf| {
+                        control.operand_child_paths.span_or_empty(leaf.path) == selected_path
+                    });
+                if let Some(leaf) = leaves.next() {
+                    if leaves.next().is_some() {
+                        return None;
+                    }
+                    return profile_at_path(
+                        program,
+                        control,
+                        leaf.retention,
+                        &[],
+                        active,
+                        active_copies,
+            active_selections,
+                    );
+                }
+                if !control.operands.is_valid(copy.source) {
+                    return None;
+                }
+                operand_profiles(
+                    program,
+                    control,
+                    control.operands.get(copy.source),
+                    &selected_path,
+                    active,
+                    active_copies,
+            active_selections,
+                )
+            })();
+            active_copies.pop();
+            return selected;
+        }
         let mut selected_child = None;
-        for child in control.operand_children.span_or_empty(operand.children) {
+        for child in control
+            .operand_children
+            .span_or_empty(operand.constructed_children())
+        {
             let destination = control.operand_child_paths.span_or_empty(child.path);
             if destination.is_empty() {
                 return None;
             }
             if destination.len() <= path.len()
                 && destination.iter().zip(path).all(|(left, right)| {
-                    crate::storage_path_relations::canonical_place_segments_equal(
-                        program, *left, *right,
-                    )
+                    crate::storage_path_relations::canonical_place_segments_equal(program, *left, *right)
                 })
             {
                 if selected_child.is_some() || !control.operands.is_valid(child.value) {
@@ -56,9 +147,19 @@ pub fn captured_retention_profiles_at_path(
                 control.operands.get(child),
                 &path[length..],
                 active,
+                active_copies,
+            active_selections,
             );
         }
-        profile_at_path(program, control, operand.retention, path, active)
+        profile_at_path(
+            program,
+            control,
+            operand.retention,
+            path,
+            active,
+            active_copies,
+            active_selections,
+        )
     }
 
     fn profile_at_path(
@@ -67,6 +168,8 @@ pub fn captured_retention_profiles_at_path(
         retention: arena::Handle<checked_trees::FlowOperandRetention>,
         path: &[PlaceSegment],
         active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
+        active_copies: &mut Vec<arena::Handle<checked_trees::FlowCopiedValue>>,
+        active_selections: &mut Vec<arena::HandleSpan<checked_trees::FlowOperandAlternative>>,
     ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
         if !control.operand_retentions.is_valid(retention) || active.contains(&retention) {
             return None;
@@ -86,9 +189,7 @@ pub fn captured_retention_profiles_at_path(
                     !candidate.is_empty()
                         && candidate.len() <= path.len()
                         && candidate.iter().zip(path).all(|(left, right)| {
-                            crate::storage_path_relations::canonical_place_segments_equal(
-                                program, *left, *right,
-                            )
+                            crate::storage_path_relations::canonical_place_segments_equal(program, *left, *right)
                         })
                 });
             if let Some(leaf) = selected.next() {
@@ -96,12 +197,22 @@ pub fn captured_retention_profiles_at_path(
                     return None;
                 }
                 let length = leaf.path.len();
-                return profile_at_path(program, control, leaf.retention, &path[length..], active);
+                return profile_at_path(
+                    program,
+                    control,
+                    leaf.retention,
+                    &path[length..],
+                    active,
+                    active_copies,
+            active_selections,
+                );
             }
             if !profile.alternatives.is_empty() {
                 let mut profiles = Vec::new();
                 for alternative in profile.alternatives.handles() {
-                    for selected in profile_at_path(program, control, alternative, path, active)? {
+                    for selected in
+                        profile_at_path(program, control, alternative, path, active, active_copies, active_selections)?
+                    {
                         if !profiles.contains(&selected) {
                             profiles.push(selected);
                         }
@@ -124,12 +235,22 @@ pub fn captured_retention_profiles_at_path(
                 control.operands.get(stored),
                 &selected,
                 active,
+                active_copies,
+            active_selections,
             )
         })();
         active.pop();
         selected
     }
-    operand_profiles(program, control, operand, path, &mut Vec::new())
+    operand_profiles(
+        program,
+        control,
+        operand,
+        path,
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
 pub fn project_captured_view_place(
@@ -151,7 +272,7 @@ pub fn captured_operand_child_at_path(
     path: &[PlaceSegment],
 ) -> Option<(arena::Handle<FlowOperandFact>, TypeReferenceHandle, usize)> {
     let mut selected = None;
-    for child in control.operand_children.span(operand.children)? {
+    for child in control.operand_children.span(operand.constructed_children())? {
         let destination = control.operand_child_paths.span(child.path)?;
         if destination.is_empty() {
             return None;

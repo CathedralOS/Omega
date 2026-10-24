@@ -162,7 +162,7 @@ fn transition_guard_uses_symbol(
     }
 }
 
-fn transition_target_uses_symbol(
+pub fn transition_target_uses_symbol(
     program: &dyn crate::CheckingInput,
     target: &typed_trees::statement::TransitionTargetNode,
     symbol: SymbolHandle,

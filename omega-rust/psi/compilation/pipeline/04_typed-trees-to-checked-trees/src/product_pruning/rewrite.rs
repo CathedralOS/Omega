@@ -106,6 +106,11 @@ fn apply_fact_pruning(
     retained_transformations.insert_many(transformations);
     facts.qualifications.content.body_transformations = retained_transformations;
     facts
+        .qualifications
+        .content
+        .partition_returns
+        .retain(|row| retained.contains(&row.plan.owner));
+    facts
         .dynamic_conformances
         .selections
         .retain(|row| retained.contains(&row.machine));

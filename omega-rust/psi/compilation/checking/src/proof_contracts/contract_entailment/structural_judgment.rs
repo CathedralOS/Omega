@@ -318,6 +318,20 @@ impl StructuralTerm {
     }
 }
 
+/// Static observations supplied to one expression walk. Selected computation
+/// carries its actual machine bindings; only a body-proof entry supplies the
+/// declaring telescope's symbolic value subjects. Recursive child walks retain
+/// that exact context, while unfolding another application starts a new one.
+#[derive(Clone, Copy)]
+struct StaticObservations<'scope> {
+    machine_bindings: &'scope [(
+        SymbolHandle,
+        String,
+        typed_trees::expression::StaticMachineArgument,
+    )],
+    body_parameters: &'scope [typed_trees::data::TypeParameter],
+}
+
 pub(super) struct StructuralJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     entry_machines: std::sync::Arc<EntryMachines>,
@@ -327,6 +341,9 @@ pub(super) struct StructuralJudge<'program> {
     declaration_state: SymbolHandle,
     // Abstract owners supply their actual telescope, without a synthetic machine.
     declaration_parameters: Arc<Vec<typed_trees::signature::StateParameter>>,
+    // This body's declared telescope supplies symbolic value observations,
+    // never a missing selected callee argument or an assumed constant value.
+    body_type_parameters: &'program [typed_trees::data::TypeParameter],
     premise_facts: Vec<ExpressionHandle>,
     // Term-bearing fact vectors are Arc-shared so the per-leaf judge clone
     // (one per recognized case-arm path) costs refcount bumps instead of
@@ -334,6 +351,8 @@ pub(super) struct StructuralJudge<'program> {
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
+    pub(super) normal_content_guarantees:
+        Arc<Vec<super::content_conservation::ObservedContentEquation>>,
     invalidated_storage: Arc<Vec<SymbolHandle>>,
     // Precise exclusive exposures of reference-free storage. An opaque record
     // retires the whole binding; a field path retires only overlapping reads.
@@ -392,9 +411,11 @@ impl Clone for StructuralJudge<'_> {
             machine_symbol: self.machine_symbol,
             declaration_state: self.declaration_state,
             declaration_parameters: Arc::clone(&self.declaration_parameters),
+            body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
             normal_memberships: Arc::clone(&self.normal_memberships),
+            normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
             storage_exposures: Arc::clone(&self.storage_exposures),
             stored_values: Arc::clone(&self.stored_values),
@@ -446,9 +467,15 @@ impl<'program> StructuralJudge<'program> {
         // case substitution and discard its scalar value consequence.
         let mut judge = Self::from_case_requires(program, judged_machine, &[]);
         judge.runtime_body_values = true;
+        judge.body_type_parameters = program.machine_type_parameters(judged_machine);
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
+        }
+        // Capture entry comparison truth before any prefix effect. A later
+        // write retires current storage observations, while detached input
+        // values and their predicates keep the original invocation identity.
+        for fact in requires {
             judge.intake_preserved_predicate(*fact);
         }
         judge
@@ -468,12 +495,14 @@ impl<'program> StructuralJudge<'program> {
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);
-            // At entry the admitted subjects have suffered no prefix effects.
-            // Retain selected inequalities as well as identity equations;
-            // subsequent writes retire their live observations normally.
-            judge.intake_preserved_predicate(*fact);
         }
         judge.intake_entry_domain_predicates(machine, state);
+        // Capture entry comparison truth before any prefix effect. A later
+        // write retires current storage observations, while detached input
+        // values and their predicates keep the original invocation identity.
+        for fact in requires {
+            judge.intake_preserved_predicate(*fact);
+        }
         judge
     }
 
@@ -550,9 +579,11 @@ impl<'program> StructuralJudge<'program> {
             machine_symbol: owner,
             declaration_state: SymbolHandle::invalid(),
             declaration_parameters: Arc::new(parameters.to_vec()),
+            body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
+            normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
             storage_exposures: Arc::new(storage_effects::StorageExposureRecord::default()),
             stored_values: Arc::new(Vec::new()),
@@ -1385,7 +1416,10 @@ impl<'program> StructuralJudge<'program> {
             self.callee_term(
                 projected.value,
                 &environment,
-                &static_environment,
+                StaticObservations {
+                    machine_bindings: &static_environment,
+                    body_parameters: &[],
+                },
                 None,
                 depth + 1,
             )
@@ -1597,7 +1631,10 @@ impl<'program> StructuralJudge<'program> {
                 let term = self.callee_term(
                     local.initial_value,
                     &environment,
-                    &static_environment,
+                    StaticObservations {
+                        machine_bindings: &static_environment,
+                        body_parameters: &[],
+                    },
                     Some((machine, state, local.type_reference)),
                     depth + 1,
                 )?;
@@ -1622,7 +1659,10 @@ impl<'program> StructuralJudge<'program> {
                         self.callee_term(
                             *expression,
                             &environment,
-                            &static_environment,
+                            StaticObservations {
+                                machine_bindings: &static_environment,
+                                body_parameters: &[],
+                            },
                             Some((machine, state, state.return_type)),
                             depth + 1,
                         )
@@ -1695,7 +1735,10 @@ impl<'program> StructuralJudge<'program> {
             return self.callee_term(
                 *value,
                 &environment,
-                &static_environment,
+                StaticObservations {
+                    machine_bindings: &static_environment,
+                    body_parameters: &[],
+                },
                 Some((machine, state, state.return_type)),
                 depth + 1,
             );
@@ -1757,7 +1800,22 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         depth: usize,
     ) -> Option<StructuralTerm> {
-        self.callee_term(expression, environment, &[], scope, depth)
+        self.callee_term(
+            expression,
+            environment,
+            StaticObservations {
+                machine_bindings: &[],
+                body_parameters: if scope
+                    .is_some_and(|(machine, _, _)| machine.symbol == self.machine_symbol)
+                {
+                    self.body_type_parameters
+                } else {
+                    &[]
+                },
+            },
+            scope,
+            depth,
+        )
     }
 
     /// Source formation separately establishes exact preconditions and checked
@@ -1782,11 +1840,7 @@ impl<'program> StructuralJudge<'program> {
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
-        static_environment: &[(
-            SymbolHandle,
-            String,
-            typed_trees::expression::StaticMachineArgument,
-        )],
+        static_observations: StaticObservations<'_>,
         scope: Option<(&Machine, &typed_trees::state::State, TypeReferenceHandle)>,
         depth: usize,
     ) -> Option<StructuralTerm> {
@@ -1827,7 +1881,7 @@ impl<'program> StructuralJudge<'program> {
                     self.callee_term(
                         member.receiver,
                         environment,
-                        static_environment,
+                        static_observations,
                         scope,
                         depth + 1,
                     )
@@ -1856,7 +1910,7 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 expression,
                 reference,
-                self.callee_term(argument, environment, static_environment, scope, depth + 1)?,
+                self.callee_term(argument, environment, static_observations, scope, depth + 1)?,
             );
         }
         if program
@@ -1870,7 +1924,7 @@ impl<'program> StructuralJudge<'program> {
                 program,
                 expression,
                 |capture| {
-                    self.callee_term(capture, environment, static_environment, scope, depth + 1)
+                    self.callee_term(capture, environment, static_observations, scope, depth + 1)
                 },
             );
         }
@@ -1879,7 +1933,8 @@ impl<'program> StructuralJudge<'program> {
                 // Static values use the resolved declaration, not the runtime
                 // environment's spelling. A local may shadow a const binder;
                 // that never substitutes the local for a retained static use.
-                if let Some((_, _, selected)) = static_environment
+                if let Some((_, _, selected)) = static_observations
+                    .machine_bindings
                     .iter()
                     .find(|(symbol, _, _)| *symbol == path.symbol)
                     && let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol)
@@ -1912,6 +1967,21 @@ impl<'program> StructuralJudge<'program> {
                         }
                         _ => None,
                     };
+                }
+                // Only this body context declares these static const value
+                // subjects. Runtime Value binders keep ordinary observation
+                // custody. Imported contracts still need exact application
+                // bindings; their unbound static symbols cannot enter here.
+                if path.symbol.is_valid()
+                    && static_observations.body_parameters.iter().any(|parameter| {
+                        parameter.symbol == path.symbol
+                            && matches!(
+                                parameter.kind,
+                                typed_trees::data::TypeParameterKind::Const { .. }
+                            )
+                    })
+                {
+                    return Some(StructuralTerm::BoundValue(path.symbol));
                 }
                 if path.symbol.is_valid()
                     && (program.symbols.get(path.symbol).kind == symbols::SymbolKind::Const
@@ -1973,7 +2043,7 @@ impl<'program> StructuralJudge<'program> {
                             self.callee_term(
                                 *argument,
                                 environment,
-                                static_environment,
+                                static_observations,
                                 scope,
                                 depth + 1,
                             )
@@ -2007,7 +2077,7 @@ impl<'program> StructuralJudge<'program> {
                         machine: structural_call_machine_name(
                             call.target.as_str(),
                             &call.machine_arguments,
-                            static_environment,
+                            static_observations.machine_bindings,
                         ),
                         result_type: state.return_type,
                         field,
@@ -2018,7 +2088,7 @@ impl<'program> StructuralJudge<'program> {
                 let receiver_term = self.callee_term(
                     member.receiver,
                     environment,
-                    static_environment,
+                    static_observations,
                     scope,
                     depth + 1,
                 )?;
@@ -2030,7 +2100,7 @@ impl<'program> StructuralJudge<'program> {
                     self.callee_term(
                         field.value,
                         environment,
-                        static_environment,
+                        static_observations,
                         scope,
                         depth + 1,
                     )
@@ -2044,7 +2114,7 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     unary.operand,
                     environment,
-                    static_environment,
+                    static_observations,
                     scope,
                     depth + 1,
                 )?,
@@ -2059,7 +2129,7 @@ impl<'program> StructuralJudge<'program> {
                         self.callee_term(
                             cast.value,
                             environment,
-                            static_environment,
+                            static_observations,
                             scope,
                             depth + 1,
                         )
@@ -2082,7 +2152,8 @@ impl<'program> StructuralJudge<'program> {
                 {
                     return None;
                 }
-                let selected_target = static_environment
+                let selected_target = static_observations
+                    .machine_bindings
                     .iter()
                     .find(|(symbol, _, _)| *symbol == call.target_symbol)
                     .map(|(_, _, selected)| selected);
@@ -2102,7 +2173,7 @@ impl<'program> StructuralJudge<'program> {
                     arguments.push(self.callee_term(
                         *argument,
                         environment,
-                        static_environment,
+                        static_observations,
                         scope,
                         depth + 1,
                     )?);
@@ -2144,7 +2215,8 @@ impl<'program> StructuralJudge<'program> {
                         call.machine_arguments
                             .iter()
                             .map(|argument| {
-                                static_environment
+                                static_observations
+                                    .machine_bindings
                                     .iter()
                                     .find(|(symbol, _, _)| *symbol == argument.symbol)
                                     .map_or_else(
@@ -2157,7 +2229,7 @@ impl<'program> StructuralJudge<'program> {
                     machine: structural_call_machine_name(
                         call.target.as_str(),
                         &call.machine_arguments,
-                        static_environment,
+                        static_observations.machine_bindings,
                     ),
                     arguments,
                 })
@@ -2167,7 +2239,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Borrow(borrow) => self.callee_term(
                 borrow.target,
                 environment,
-                static_environment,
+                static_observations,
                 scope,
                 depth + 1,
             ),
@@ -2184,14 +2256,14 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     indexed.collection,
                     environment,
-                    static_environment,
+                    static_observations,
                     scope,
                     depth + 1,
                 )?,
                 self.callee_term(
                     indexed.index,
                     environment,
-                    static_environment,
+                    static_observations,
                     scope,
                     depth + 1,
                 )?,
@@ -2204,14 +2276,14 @@ impl<'program> StructuralJudge<'program> {
                 self.callee_term(
                     binary.left,
                     environment,
-                    static_environment,
+                    static_observations,
                     scope,
                     depth + 1,
                 )?,
                 self.callee_term(
                     binary.right,
                     environment,
-                    static_environment,
+                    static_observations,
                     scope,
                     depth + 1,
                 )?,

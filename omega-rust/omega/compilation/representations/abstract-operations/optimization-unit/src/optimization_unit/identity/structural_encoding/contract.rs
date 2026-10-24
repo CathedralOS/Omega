@@ -45,7 +45,10 @@ pub(in crate::optimization_unit::identity) fn encode_crash_route_bucket(
     );
 }
 
-fn encode_evidence_interface(bytes: &mut CanonicalBytes, interface: &EvidenceInterfaceIdentity) {
+pub(in crate::optimization_unit::identity) fn encode_evidence_interface(
+    bytes: &mut CanonicalBytes,
+    interface: &EvidenceInterfaceIdentity,
+) {
     bytes.u32(interface.trait_identity.0);
     bytes.slice(&interface.arguments, |bytes, argument| {
         bytes.string(argument)
@@ -96,6 +99,17 @@ pub(in crate::optimization_unit::identity) fn encode_outcome_specific_call_evide
     encode_ids(bytes, &evidence.validity.proposition_dependencies);
     encode_evidence_interface(bytes, &evidence.validity.evidence_interface);
     encode_ids(bytes, &evidence.validity.interface_dependencies);
+    bytes.u32(evidence.expected_use_count);
+    bytes.slice(&evidence.uses, |bytes, usage| {
+        bytes.id(usage.target);
+        bytes.u32(usage.input_position);
+        bytes.id(usage.target_requirement);
+        bytes.id(usage.target_term);
+        bytes.id(usage.source);
+        bytes.id(usage.instantiated_proposition);
+        bytes.id(usage.target_parameter);
+        bytes.id(usage.caller_result);
+    });
 }
 
 pub(in crate::optimization_unit::identity) fn encode_machine_contract(
@@ -142,5 +156,30 @@ pub(in crate::optimization_unit::identity) fn encode_evidence_contract_lane(
     bytes.id(lane.term);
     encode_optional(bytes, lane.output_field.as_ref(), |bytes, output| {
         bytes.string(output)
+    });
+    bytes.slice(&lane.argument_subjects, |bytes, subject| {
+        use terminal_psi::EvidenceArgumentSubject as S;
+        match subject {
+            S::Parameter(parameter) => {
+                bytes.u8(1);
+                bytes.u32(parameter.argument_position);
+                bytes.u32(parameter.parameter_position);
+                encode_optional(bytes, parameter.structural_path.as_ref(), |bytes, path| {
+                    bytes.slice(path, encode_structural_path_segment)
+                });
+            }
+            S::Result { argument_position } => {
+                bytes.u8(2);
+                bytes.u32(*argument_position);
+            }
+            S::Closed { argument_position } => {
+                bytes.u8(3);
+                bytes.u32(*argument_position);
+            }
+            S::Unknown { argument_position } => {
+                bytes.u8(4);
+                bytes.u32(*argument_position);
+            }
+        }
     });
 }

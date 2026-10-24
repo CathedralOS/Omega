@@ -287,6 +287,7 @@ impl ContextualCleanupEntryRequirement {
         let CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
+            ..
         } = subject
         else {
             return None;

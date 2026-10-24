@@ -166,8 +166,26 @@ pub(crate) fn capture(
         endpoint = shell.referee;
     }
     let mut crossings = 0;
-    while let Some(shell) = validation::reference_shell(program, endpoint) {
-        if !access_can_supply(shell.access.into(), access) {
+    let requested_storage =
+        validation::stored_structural_type_identity(program, referent, &[], &[]);
+    if !requested_storage.is_valid() {
+        return None;
+    }
+    let mut remaining = program.type_reference_table.type_reference_count();
+    loop {
+        let selected_storage =
+            validation::stored_structural_type_identity(program, endpoint, &[], &[]);
+        if !selected_storage.is_valid() {
+            return None;
+        }
+        if selected_storage == requested_storage {
+            break;
+        }
+        let Some(shell) = validation::reference_shell(program, endpoint) else {
+            break;
+        };
+        remaining = remaining.checked_sub(1)?;
+        if !shell.access.is_readable() || !access_can_supply(shell.access.into(), access) {
             return None;
         }
         crossings += 1;
@@ -181,8 +199,8 @@ pub(crate) fn capture(
     // restrictions. Keep those restrictions exact here; equal byte geometry
     // does not authorize an unrelated owner or a stronger writable referee.
     if !is_view
-        && validation::structural_type_identity(program, endpoint, &[], &[])
-            != validation::structural_type_identity(program, referent, &[], &[])
+        && validation::stored_structural_type_identity(program, endpoint, &[], &[])
+            != validation::stored_structural_type_identity(program, referent, &[], &[])
     {
         return None;
     }
@@ -288,12 +306,23 @@ pub(crate) fn capture(
                     }
                     CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                         symbol: root,
-                        root_type_identity: validation::structural_type_identity(
-                            program,
-                            shell.referee,
-                            &[],
-                            &[],
-                        ),
+                        root_type_identity: if place.segments.is_empty() {
+                            // The requested address may be a descriptor slot.
+                            // Whole-root presentation stops at that exact slot.
+                            validation::stored_structural_type_identity(program, endpoint, &[], &[])
+                        } else {
+                            validation::logical_structural_type_identity(
+                                program,
+                                shell.referee,
+                                &[],
+                                &[],
+                            )
+                        },
+                        root_reference_hops: if place.segments.is_empty() {
+                            u32::try_from(crossings).ok()?
+                        } else {
+                            0
+                        },
                     }
                 } else {
                     // Owned contents lend their admitted access independently of
@@ -323,7 +352,8 @@ pub(crate) fn capture(
         source: CheckedUnitStructuralArgumentPlan {
             source,
             path,
-            type_identity: validation::structural_type_identity(program, endpoint, &[], &[]),
+            projection_evaluations: Default::default(),
+            type_identity: validation::stored_structural_type_identity(program, endpoint, &[], &[]),
             access,
         },
         storage,

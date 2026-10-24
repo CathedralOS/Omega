@@ -9,6 +9,10 @@ pub use query::at_snapshot;
 
 #[derive(Clone)]
 pub enum StoredOperand {
+    /// One unchanged entry descriptor in a complete predecessor frontier.
+    /// This names a slot, not its pointee address, formation or permission.
+    /// The consumer must authenticate the exact incoming namespace separately.
+    Incoming(crate::CanonicalPlace),
     Unavailable,
     Alternatives(Vec<StoredOperand>),
     Value {
@@ -34,7 +38,7 @@ pub struct StoredCapture {
 impl StoredOperand {
     pub fn captures(self) -> Option<Vec<StoredCapture>> {
         match self {
-            Self::Unavailable => None,
+            Self::Unavailable | Self::Incoming(_) => None,
             Self::Value {
                 capture,
                 reference,

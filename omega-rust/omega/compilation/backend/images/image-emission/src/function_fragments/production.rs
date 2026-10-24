@@ -38,7 +38,8 @@ pub fn build_function_fragment_object_artifact(
             source::fragment_metadata(source, placed.machine)?;
         let (abstracted, targeted) = source::function(source, placed.machine)?;
         requires_graph_storage_replay |=
-            source::requires_graph_storage_replay(&abstracted.operations);
+            source::requires_graph_storage_replay(&abstracted.operations)
+                || super::structural::requires_call_graph_replay(source, placed.machine)?;
         let offset = host(placed.section_offset)?;
         let length = host(placed.byte_count)?;
         let symbol = object.layout.symbols.insert(SymbolPlan {

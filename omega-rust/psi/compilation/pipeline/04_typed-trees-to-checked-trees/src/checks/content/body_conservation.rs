@@ -100,8 +100,15 @@ pub(crate) fn observe_body_completion(
                 ) {
                     continue;
                 }
-                let returned =
-                    completed_owned_claims(program, facts, captured, places, evaluation_events);
+                let mut conditions = crate::flow::SelectionConditions::new();
+                let returned = completed_owned_claims(
+                    program,
+                    facts,
+                    captured,
+                    places,
+                    evaluation_events,
+                    &mut conditions,
+                );
                 let Ok(returned) = returned else {
                     // Missing/ambiguous custody has its owning checker error;
                     // a theorem cannot fill an absent claim occurrence.
@@ -122,14 +129,20 @@ pub(crate) fn observe_body_completion(
                         .extend_term(outputs, |subject| {
                             let path = content_segments_to_fact_path(&subject.segments)?;
                             let mut matching = returned.iter().filter(|claim| claim.path == path);
-                            let claim = matching.next()?;
-                            if matching.next().is_some() {
+                            let first = matching.next()?;
+                            let ReturnedClaimSource::Live(identity) = first.source else {
                                 return None;
+                            };
+                            let mut coverage = first.condition;
+                            for claim in matching {
+                                if claim.source != first.source {
+                                    return None;
+                                }
+                                coverage = conditions.any(coverage, claim.condition);
                             }
-                            match claim.source {
-                                ReturnedClaimSource::Live(identity) => Some(identity),
-                                ReturnedClaimSource::Inactive => None,
-                            }
+                            conditions
+                                .covers(&facts.flow.control, coverage)
+                                .then_some(identity)
                         })
                         .is_none()
                 {

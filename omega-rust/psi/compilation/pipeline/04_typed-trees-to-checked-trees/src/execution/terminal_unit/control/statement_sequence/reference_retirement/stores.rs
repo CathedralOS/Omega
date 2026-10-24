@@ -312,6 +312,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
         let moved = transfers::from_storage(
             retirement.program,
             retirement.facts,
+            retirement.prepared_calls,
             retirement.results,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner },
             formation,
@@ -350,6 +351,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
             defer_to_exit: false,
             loans: group,
             selection_complements: Vec::new(),
+            owner_cleanups: arena::HandleSpan::empty(),
             case_conditions: Default::default(),
         });
     }

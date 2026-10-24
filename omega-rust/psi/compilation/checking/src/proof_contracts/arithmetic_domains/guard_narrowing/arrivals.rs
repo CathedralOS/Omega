@@ -17,6 +17,7 @@ use crate::proof_contracts::arithmetic_domains::expression_analysis::{
 };
 use symbols::SymbolHandle;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 
 use super::requirements::{RequirementSeeds, machine_written_paths, seed_state_requirements};
 
@@ -72,16 +73,81 @@ pub fn occurrence_integer_expression_bounds(
     statement_index: usize,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
-    let interval = expression_observation(
+    occurrence_integer_bounds(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        vec![expression],
+    )
+    .get(expression)
+}
+
+/// Caller-owned bounds at exact expression occurrences in one statement.
+/// Every evaluated visit participates; an unvisited or unbounded expression
+/// has no closed bounds. Handles include their arena generation.
+#[derive(Default)]
+pub struct OccurrenceIntegerBounds {
+    bounds: Vec<(ExpressionHandle, Option<(i64, i64)>)>,
+}
+
+impl OccurrenceIntegerBounds {
+    pub fn get(&self, expression: ExpressionHandle) -> Option<(i64, i64)> {
+        let position = self
+            .bounds
+            .binary_search_by_key(
+                &(expression.arena_index(), expression.generation()),
+                |(expression, _)| (expression.arena_index(), expression.generation()),
+            )
+            .ok()?;
+        self.bounds[position].1
+    }
+}
+
+/// Share the admitted state prefix while preserving each requested actual's
+/// own evaluation snapshot. Observers are installed only at this statement;
+/// unrelated operands still evaluate and contribute their effects in order.
+pub fn occurrence_integer_bounds(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    mut expressions: Vec<ExpressionHandle>,
+) -> OccurrenceIntegerBounds {
+    expressions.retain(|expression| expression.is_valid());
+    expressions
+        .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+    expressions.dedup();
+    if expressions.is_empty() {
+        return OccurrenceIntegerBounds::default();
+    }
+    let observations = expressions
+        .into_iter()
+        .map(ExpressionObservation::bounds)
+        .collect();
+    let Some(observations) = expression_observations(
         program,
         machine_symbol,
         state_symbol,
         Some(statement_index),
-        expression,
-    )?
-    .interval?;
-    let (low, high) = (interval.low?, interval.high?);
-    (low <= high).then_some((low, high))
+        observations,
+    ) else {
+        return OccurrenceIntegerBounds::default();
+    };
+    // This query publishes closed bounds only. Release joined environments
+    // and deferred recipes here rather than retaining discarded snapshots.
+    OccurrenceIntegerBounds {
+        bounds: observations
+            .into_iter()
+            .map(|observation| {
+                let bounds = observation.interval.and_then(|interval| {
+                    let (low, high) = (interval.low?, interval.high?);
+                    (low <= high).then_some((low, high))
+                });
+                (observation.expression, bounds)
+            })
+            .collect(),
+    }
 }
 
 /// Judge a closed bound at one exact value occurrence. Independent operand
@@ -262,6 +328,23 @@ fn expression_observation(
     statement_index: Option<usize>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionObservation> {
+    expression_observations(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        vec![ExpressionObservation::bounds(expression)],
+    )?
+    .pop()
+}
+
+fn expression_observations(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: Option<usize>,
+    observations: Vec<ExpressionObservation>,
+) -> Option<Vec<ExpressionObservation>> {
     let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let order = program
@@ -287,24 +370,20 @@ fn expression_observation(
     };
     if !walk.statements(
         state,
-        prefix.iter().map(|index| &statements[*index]),
+        prefix.iter().map(|index| (*index, &statements[*index])),
         &mut environment,
     ) {
         return None;
     }
-    walk.observations.push(ExpressionObservation {
-        include_bounds: true,
-        recipe: None,
-        expression,
-        interval: None,
-        environment: None,
-    });
+    walk.observations = observations;
     walk.statements(
         state,
-        observed_statements.iter().map(|index| &statements[*index]),
+        observed_statements
+            .iter()
+            .map(|index| (*index, &statements[*index])),
         &mut environment,
     );
-    walk.observations.pop()
+    Some(walk.observations)
 }
 
 /// A captured invocation supplies immutable entry values. This uses the same
@@ -324,6 +403,20 @@ pub(super) fn incoming_environments(
     )>,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let states = program.machine_states(machine);
+    // This fixed point consumes only deliveries to states of this machine.
+    // Inspect every authored alternative conservatively, then avoid evaluating
+    // a body whose complete callee roster cannot produce any such delivery.
+    // Value and normal-return observers still walk their requested bodies.
+    let mut callees = ExplicitStateCallees::default();
+    let can_deliver_arrival = states
+        .iter()
+        .map(|state| {
+            callees
+                .collect(program.typed_program(), state)
+                .iter()
+                .any(|callee| typed_trees::state::state_position(states, *callee).is_some())
+        })
+        .collect::<Vec<_>>();
     let mut current = states
         .iter()
         .map(|state| (state.symbol, ValueEnvironment::new()))
@@ -410,7 +503,7 @@ pub(super) fn incoming_environments(
         for (index, ((state, (_, environment)), state_seeds)) in
             states.iter().zip(&current).zip(&seeds).enumerate()
         {
-            if !stale[index] {
+            if !stale[index] || !can_deliver_arrival[index] {
                 continue;
             }
             let mut walk = ArrivalWalk {
@@ -676,6 +769,16 @@ struct ExpressionObservation {
 }
 
 impl ExpressionObservation {
+    fn bounds(expression: ExpressionHandle) -> Self {
+        Self {
+            include_bounds: true,
+            recipe: None,
+            expression,
+            interval: None,
+            environment: None,
+        }
+    }
+
     fn environment(expression: ExpressionHandle) -> Self {
         Self {
             include_bounds: false,
@@ -941,7 +1044,7 @@ impl ArrivalWalk<'_, '_> {
             .statements(source.statement_nodes);
         self.statements(
             source,
-            order.iter().map(|index| &statements[*index]),
+            order.iter().map(|index| (*index, &statements[*index])),
             environment,
         )
     }
@@ -949,10 +1052,17 @@ impl ArrivalWalk<'_, '_> {
     fn statements<'statement>(
         &mut self,
         source: &State,
-        statements: impl IntoIterator<Item = &'statement StatementNode>,
+        statements: impl IntoIterator<Item = (usize, &'statement StatementNode)>,
         environment: &mut ValueEnvironment,
     ) -> bool {
-        for statement in statements {
+        for (statement_index, statement) in statements {
+            environment.prepare_numeric_observations(
+                self.program,
+                self.machine,
+                source,
+                statement_index,
+                statement,
+            );
             match statement {
                 StatementNode::Transition(transition) => {
                     let mut selected = environment.clone();

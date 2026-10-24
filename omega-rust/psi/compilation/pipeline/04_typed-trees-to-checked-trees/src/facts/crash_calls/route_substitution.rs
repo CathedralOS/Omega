@@ -210,7 +210,7 @@ pub(crate) fn call_argument_substitution<'program>(
                             program,
                             parameters: program.state_parameters(state),
                             symbols: &caller_symbols,
-                            value_at_place: |place: &validation::CanonicalPlace| {
+                            value_at_place: |place: &validation::CanonicalPlace, _observation| {
                                 if containing_statement.is_none_or(|statement| {
                                     crate::facts::crash_entry_values::statement_may_overwrite_place(
                                         program,
@@ -606,7 +606,7 @@ fn boolean_view_observation(
                     program,
                     parameters: program.state_parameters(state),
                     symbols: caller_symbols,
-                    value_at_place: |place: &validation::CanonicalPlace| {
+                    value_at_place: |place: &validation::CanonicalPlace, _observation| {
                         if let Some(statement) = program
                             .statement_table
                             .statement_at(state, before_statement)
@@ -1217,7 +1217,7 @@ fn closed_entry_integer(
             program,
             parameters: program.state_parameters(state),
             symbols: caller_symbols,
-            value_at_place: |place: &validation::CanonicalPlace| {
+            value_at_place: |place: &validation::CanonicalPlace, _observation| {
                 if let Some(statement) = program
                     .statement_table
                     .statement_at(state, before_statement)
@@ -1636,6 +1636,7 @@ pub(crate) fn substitute_checked_boolean_expression(
         CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
             path,
+            ..
         } => {
             let leaf = substitute_structural_parameter_field(
                 &checked_trees::CheckedStructuralParameterField {
@@ -1645,6 +1646,7 @@ pub(crate) fn substitute_checked_boolean_expression(
                 fields,
             )?;
             CheckedBooleanExpression::StructuralParameterField {
+                observation: Default::default(),
                 parameter_position: leaf.parameter_position,
                 path: leaf.path,
             }
@@ -1754,6 +1756,7 @@ fn substitute_checked_scalar_expression(
             parameter_position,
             path,
             primitive_type,
+            ..
         } => {
             let leaf = substitute_structural_parameter_field(
                 &checked_trees::CheckedStructuralParameterField {
@@ -1763,6 +1766,7 @@ fn substitute_checked_scalar_expression(
                 fields,
             )?;
             CheckedScalarExpression::StructuralParameterField {
+                observation: Default::default(),
                 parameter_position: leaf.parameter_position,
                 path: leaf.path,
                 primitive_type: *primitive_type,

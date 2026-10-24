@@ -22,7 +22,12 @@
 pub mod assumed_bindings;
 mod build_time_evaluation;
 mod const_evaluation;
+mod evaluation_accounting;
 mod fnv;
+pub use evaluation_accounting::{
+    PureEvaluationOutcome, PureEvaluationProgram, PureEvaluationReceipt, RecordedPreCheck,
+    SourceCompletionAccounting,
+};
 mod layouts;
 mod machine_execution;
 pub mod provider_declarations;

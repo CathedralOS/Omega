@@ -43,7 +43,9 @@ mod parameters;
 mod provenance;
 mod results;
 mod structural_roots;
-pub(crate) use structural_roots::{operation_place_accesses, operation_place_inputs};
+pub(crate) use structural_roots::{
+    ReferenceMembershipValidation, operation_place_accesses, operation_place_inputs,
+};
 mod structural_transfers;
 
 pub(crate) use control_flow::ControlCyclePolicy;
@@ -63,6 +65,7 @@ pub(crate) fn validate_function(
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,
     ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
+    reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
 ) -> Result<(), OptimizationUnitValidationError> {
     if let Some(subject) = function.nominal_cleanup_subject {
         if function.attachment != Some(subject)
@@ -116,6 +119,7 @@ pub(crate) fn validate_function(
         structural_types,
         structural_domains,
         &control_flow.predecessors,
+        reference_memberships,
     )?;
     crate::unit_validation::references::validate_function_references(
         function,

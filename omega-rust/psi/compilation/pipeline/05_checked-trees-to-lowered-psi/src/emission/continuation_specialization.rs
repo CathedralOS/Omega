@@ -63,6 +63,7 @@ pub(crate) fn complete(
     mut counters: Counters<'_>,
 ) -> Result<Vec<IdentityMap>, LoweringError> {
     let Some(topology) = super::selected_continuations::prepare(
+        machine.id,
         machine.entry,
         &machine.structural_parameters,
         &machine.structural_places,

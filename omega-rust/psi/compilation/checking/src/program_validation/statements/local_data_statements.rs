@@ -60,6 +60,7 @@ pub(super) fn validate(
             type_parameters: &type_parameters,
             lifetime_parameters: &lifetime_parameters,
         },
+        &mut arithmetic_decisions.integer_range_obligations,
     );
     let local_target_primitive = program.primitive_type_reference(local_data.type_reference);
     // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
@@ -72,6 +73,7 @@ pub(super) fn validate(
             local_data.initial_value,
             local_data.type_reference,
             diagnostics,
+            &mut arithmetic_decisions.integer_range_obligations,
         );
     }
     let owner = format!(

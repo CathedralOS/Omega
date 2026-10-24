@@ -15,8 +15,13 @@
 //! ordinary captured-integer judge, retaining selected arithmetic formation
 //! and observation identities. Counted separation sums magnitudes; interval
 //! separation additionally proves natural, ordered bounds and pairwise
-//! disjointness before comparing normalized unions. Equal lengths never
-//! establish interval equality or confer backing authority.
+//! disjointness before comparing signed boundary multiplicities. Equal lengths
+//! never establish interval equality or confer backing authority.
+
+mod interval_sets;
+mod observed_contracts;
+
+pub(super) use observed_contracts::{ObservedContentEquation, call_content_guarantees};
 
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use language_semantics::content::{
@@ -80,12 +85,19 @@ pub(super) fn judge_content_conservation(
     plan: &ContentConservationPlan,
     projections: &[ContentProjectionPlan],
 ) -> StructuralJudgment {
+    let parameter_projection = |root, path: &[ContentPlaceSegment], version| {
+        judge.captured_parameter_projection(root, path, version)
+    };
     let evaluator = ContentValues {
         program,
         judge,
         result,
         projections,
+        parameter_projection: &parameter_projection,
     };
+    if observed_contracts::proves(&evaluator, plan) {
+        return StructuralJudgment::Proven;
+    }
     match plan.algebra {
         ContentAlgebraIdentity::CountedQuantity { .. } => {
             let (Some(left), Some(right)) = (
@@ -96,9 +108,7 @@ pub(super) fn judge_content_conservation(
             };
             evaluator.compare(BinaryOperator::Equal, &left, &right)
         }
-        ContentAlgebraIdentity::IntervalSet { .. } => {
-            evaluator.judge_intervals(plan.equation.left(), plan.equation.right())
-        }
+        ContentAlgebraIdentity::IntervalSet { .. } => interval_sets::judge(&evaluator, plan),
     }
 }
 
@@ -197,11 +207,133 @@ pub fn completed_value_preserves_entry_projection(
     coverage == Some(true) && proven
 }
 
+/// One typed address transport demanded by a boundary implementation's custody
+/// correspondence. Entry and current places are distinct observations: a
+/// constant content projection cannot hide a changed backing address.
+pub struct ContentBackingAddressGoal {
+    pub entry: crate::CanonicalPlace,
+    pub current: crate::CanonicalPlace,
+    pub result: ContentStructuralPlace,
+}
+
+/// Judge all candidate backing transports in the same completed-value frame.
+/// These are ordinary address equalities, not domain membership or fresh
+/// issuance evidence. The custody owner must still authenticate the complete
+/// source/result roster, authorized requirement and current live claims.
+pub fn completed_value_proves_backing_addresses(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    goals: &[ContentBackingAddressGoal],
+) -> Result<Vec<bool>, &'static str> {
+    use typed_trees::types::PrimitiveType;
+
+    if goals.is_empty() {
+        return Err("backing correspondence has no address observations");
+    }
+    let references = goals
+        .iter()
+        .map(|goal| {
+            let entry = crate::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &goal.entry,
+            )
+            .ok_or("backing entry address has no typed observation")?;
+            let current = crate::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &goal.current,
+            )
+            .ok_or("backing current address has no typed observation")?;
+            if [entry, current].into_iter().any(|reference| {
+                program.primitive_type_reference(reference) != Some(PrimitiveType::Addr)
+            }) {
+                return Err("backing correspondence requires exact address carriers");
+            }
+            if goal.result.root != ContentPlaceRoot::Result
+                || goal.result.version != ContentPlaceVersion::Current
+            {
+                return Err("backing correspondence does not name the completed result");
+            }
+            Ok((entry, current))
+        })
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    let mut proven = vec![true; goals.len()];
+    let coverage = super::completed_observations::observe_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        |judge, value| {
+            for ((goal, (entry_reference, current_reference)), proven) in
+                goals.iter().zip(&references).zip(&mut proven)
+            {
+                let (Some(entry), Some(current), Some((result_reference, result))) = (
+                    judge.captured_place_projection(&goal.entry, ContentPlaceVersion::Entry),
+                    judge.captured_place_projection(&goal.current, ContentPlaceVersion::Current),
+                    judge.completed_value_projection(
+                        reference,
+                        value.clone(),
+                        &goal.result.segments,
+                    ),
+                ) else {
+                    *proven = false;
+                    continue;
+                };
+                if program.primitive_type_reference(result_reference) != Some(PrimitiveType::Addr) {
+                    *proven = false;
+                    continue;
+                }
+                let embed = |term, reference| StructuralTerm::IntegerEmbedding {
+                    reference,
+                    value: Box::new(judge.resolve(term)),
+                };
+                let entry = embed(entry, *entry_reference);
+                let current = embed(current, *current_reference);
+                let result = embed(result, result_reference);
+                *proven &=
+                    [(&entry, &current), (&current, &result)]
+                        .into_iter()
+                        .all(|(left, right)| {
+                            matches!(
+                                judge.judge_observed_predicate(
+                                    mathematical(
+                                        BinaryOperator::Equal,
+                                        left.clone(),
+                                        right.clone()
+                                    ),
+                                    0,
+                                ),
+                                StructuralJudgment::Proven
+                            )
+                        });
+            }
+        },
+    );
+    if coverage != Some(true) {
+        return Err("backing correspondence lacks complete value observation coverage");
+    }
+    Ok(proven)
+}
+
 struct ContentValues<'judge, 'program> {
     program: &'judge dyn crate::CheckingInput,
     judge: &'judge StructuralJudge<'program>,
     result: &'judge StructuralTerm,
     projections: &'judge [ContentProjectionPlan],
+    parameter_projection: &'judge dyn Fn(
+        symbols::SymbolHandle,
+        &[ContentPlaceSegment],
+        ContentPlaceVersion,
+    ) -> Option<StructuralTerm>,
 }
 
 impl ContentValues<'_, '_> {
@@ -245,125 +377,6 @@ impl ContentValues<'_, '_> {
             .judge_observed_predicate(mathematical(operator, left.clone(), right.clone()), 0)
     }
 
-    fn proves(
-        &self,
-        operator: BinaryOperator,
-        left: &StructuralTerm,
-        right: &StructuralTerm,
-    ) -> bool {
-        matches!(
-            self.compare(operator, left, right),
-            StructuralJudgment::Proven
-        )
-    }
-
-    fn intervals(
-        &self,
-        term: &ContentConservationTerm,
-        members: &mut Vec<[StructuralTerm; 2]>,
-    ) -> Option<()> {
-        match term {
-            ContentConservationTerm::Projection {
-                projection_machine,
-                subject,
-                ..
-            } => {
-                let projection = self
-                    .projections
-                    .iter()
-                    .find(|projection| projection.machine == *projection_machine)?;
-                let ContentProjectionExpression::IntervalSet {
-                    members: expressions,
-                } = &projection.expression
-                else {
-                    return None;
-                };
-                for member in expressions {
-                    members.push([
-                        self.scalar(subject, member.start())?,
-                        self.scalar(subject, member.end())?,
-                    ]);
-                }
-            }
-            ContentConservationTerm::Separate(terms) => {
-                for term in terms {
-                    self.intervals(term, members)?;
-                }
-            }
-        }
-        Some(())
-    }
-
-    /// Sorting is justified by proved separation, not by symbolic display order.
-    /// Unknown ordering/overlap leaves the theorem unknown. Empty members have
-    /// no position, and adjacent members coalesce independently of input order.
-    fn normalized_intervals(
-        &self,
-        term: &ContentConservationTerm,
-    ) -> Option<Vec<[StructuralTerm; 2]>> {
-        let mut members = Vec::new();
-        self.intervals(term, &mut members)?;
-        let mut ordered: Vec<[StructuralTerm; 2]> = Vec::new();
-        for [start, end] in members {
-            if !self.proves(BinaryOperator::LessOrEqual, &integer(0), &start)
-                || !self.proves(BinaryOperator::LessOrEqual, &start, &end)
-            {
-                return None;
-            }
-            if self.proves(BinaryOperator::Equal, &start, &end) {
-                continue;
-            }
-            let mut position = 0;
-            while position < ordered.len() {
-                if self.proves(BinaryOperator::LessOrEqual, &end, &ordered[position][0]) {
-                    break;
-                }
-                if !self.proves(BinaryOperator::LessOrEqual, &ordered[position][1], &start) {
-                    return None;
-                }
-                position += 1;
-            }
-            ordered.insert(position, [start, end]);
-        }
-        let mut normalized: Vec<[StructuralTerm; 2]> = Vec::new();
-        for [start, end] in ordered {
-            if let Some(previous) = normalized.last_mut()
-                && self.proves(BinaryOperator::Equal, &previous[1], &start)
-            {
-                previous[1] = end;
-            } else {
-                normalized.push([start, end]);
-            }
-        }
-        Some(normalized)
-    }
-
-    fn judge_intervals(
-        &self,
-        left: &ContentConservationTerm,
-        right: &ContentConservationTerm,
-    ) -> StructuralJudgment {
-        let (Some(left), Some(right)) = (
-            self.normalized_intervals(left),
-            self.normalized_intervals(right),
-        ) else {
-            return StructuralJudgment::Unknown;
-        };
-        // A symbolic member might be empty under additional facts. Different
-        // normalized lengths therefore mean unknown, not a refuted theorem.
-        if left.len() != right.len() {
-            return StructuralJudgment::Unknown;
-        }
-        for (left, right) in left.iter().zip(&right) {
-            for (left, right) in left.iter().zip(right) {
-                if !self.proves(BinaryOperator::Equal, left, right) {
-                    return StructuralJudgment::Unknown;
-                }
-            }
-        }
-        StructuralJudgment::Proven
-    }
-
     fn subject_term(&self, place: &ContentStructuralPlace) -> Option<StructuralTerm> {
         let root = match &place.root {
             ContentPlaceRoot::Parameter { name, .. } => StructuralTerm::Variable(name.clone()),
@@ -397,11 +410,7 @@ impl ContentValues<'_, '_> {
                     ContentPlaceRoot::Parameter { symbol, .. } => {
                         let mut segments = subject.segments.clone();
                         segments.extend(path.iter().cloned().map(ContentPlaceSegment::Field));
-                        self.judge.captured_parameter_projection(
-                            *symbol,
-                            &segments,
-                            subject.version,
-                        )?
+                        (self.parameter_projection)(*symbol, &segments, subject.version)?
                     }
                     ContentPlaceRoot::Result => {
                         let value = self.subject_term(subject)?;
@@ -409,21 +418,37 @@ impl ContentValues<'_, '_> {
                             .fold(value, |value, field| self.field(value, field))
                     }
                 };
-                let reference =
-                    crate::declaration_type_reference(self.program, path.last()?.symbol)?;
-                Some(StructuralTerm::IntegerEmbedding {
-                    reference,
-                    value: Box::new(self.judge.resolve(term)),
-                })
+                let value = self.judge.resolve(term);
+                // Proof-natural fields already denote mathematical values. Only
+                // runtime embeddings need an authenticated scalar carrier; using
+                // that carrier path for both would discard natural-value facts.
+                if matches!(
+                    expression,
+                    ContentScalarExpression::RuntimeScalarEmbedding(_)
+                ) {
+                    let field = path.last()?;
+                    let (_, declaration) = self.program.any_field_owner(field.symbol)?;
+                    super::structural_terms::scalar_operand_meaning(
+                        self.program,
+                        declaration.type_reference,
+                        &value,
+                    )?;
+                    Some(StructuralTerm::IntegerEmbedding {
+                        reference: declaration.type_reference,
+                        value: Box::new(value),
+                    })
+                } else {
+                    Some(value)
+                }
             }
             ContentScalarExpression::Natural(text) => {
                 BigInt::from_decimal_str(text).map(StructuralTerm::Integer)
             }
-            ContentScalarExpression::Successor(inner) => Some(mathematical(
-                BinaryOperator::Add,
-                self.scalar(subject, inner)?,
-                integer(1),
-            )),
+            ContentScalarExpression::Successor(inner) => Some(StructuralTerm::MathematicalBinary {
+                operator: BinaryOperator::Add,
+                left: Box::new(self.scalar(subject, inner)?),
+                right: Box::new(StructuralTerm::Integer(BigInt::from_u64(1))),
+            }),
             ContentScalarExpression::Arithmetic {
                 operator,
                 left,
@@ -431,12 +456,15 @@ impl ContentValues<'_, '_> {
             } => {
                 let left = self.scalar(subject, left)?;
                 let right = self.scalar(subject, right)?;
-                let operator = match operator {
-                    ContentArithmeticOperator::Add => BinaryOperator::Add,
-                    ContentArithmeticOperator::Subtract => BinaryOperator::Subtract,
-                    ContentArithmeticOperator::Multiply => BinaryOperator::Multiply,
-                };
-                Some(mathematical(operator, left, right))
+                Some(StructuralTerm::MathematicalBinary {
+                    operator: match operator {
+                        ContentArithmeticOperator::Add => BinaryOperator::Add,
+                        ContentArithmeticOperator::Subtract => BinaryOperator::Subtract,
+                        ContentArithmeticOperator::Multiply => BinaryOperator::Multiply,
+                    },
+                    left: Box::new(left),
+                    right: Box::new(right),
+                })
             }
         }
     }

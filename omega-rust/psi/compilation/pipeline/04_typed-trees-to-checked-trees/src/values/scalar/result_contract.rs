@@ -246,12 +246,14 @@ impl ContractPredicates<'_, '_> {
             let term = if primitive_type == PrimitiveType::Bool {
                 CheckedScalarExpression::Boolean(Box::new(
                     CheckedBooleanExpression::StructuralParameterField {
+                        observation: Default::default(),
                         parameter_position,
                         path,
                     },
                 ))
             } else {
                 CheckedScalarExpression::StructuralParameterField {
+                    observation: Default::default(),
                     parameter_position,
                     path,
                     primitive_type,
@@ -301,6 +303,36 @@ impl ContractPredicates<'_, '_> {
         if !contract_storage_root(self.program, parameter, self.allow_result) {
             return None;
         }
+        // Executable indexing retains its selector and bounds occurrence even
+        // for a literal. The closed contract namespace names that same Boolean
+        // observation by its complete static path, just as numeric bindings do.
+        // No current selector value can turn a dynamic read into this identity.
+        let term = if matches!(
+            &term,
+            CheckedScalarExpression::StructuralParameterIndexedRead {
+                primitive_type: PrimitiveType::Bool,
+                ..
+            }
+        ) {
+            let selected = term.parameter_observation_projection()?;
+            if selected.path.iter().any(|segment| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(_)
+                )
+            }) {
+                return None;
+            }
+            CheckedScalarExpression::Boolean(Box::new(
+                CheckedBooleanExpression::StructuralParameterField {
+                    observation: Default::default(),
+                    parameter_position: selected.parameter_position,
+                    path: selected.path,
+                },
+            ))
+        } else {
+            term
+        };
         Some((term, reference))
     }
 

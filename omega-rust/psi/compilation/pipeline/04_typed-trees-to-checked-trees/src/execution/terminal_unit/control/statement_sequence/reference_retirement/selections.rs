@@ -208,3 +208,35 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn closed_c
     }
     Some(output)
 }
+
+/// A receiving cohort closes at its last contributing descriptor release.
+/// An unrelated later release cannot stand in for this custody dependency.
+pub(in crate::execution::terminal_unit::control::statement_sequence) fn complement_completions(
+    retirement: &Retirement<'_>,
+) -> Option<Vec<(usize, CheckedUnitSelectedReferenceRetirementPlan)>> {
+    closed_complements(retirement)?
+        .into_iter()
+        .map(|complement| {
+            let position =
+                retirement
+                    .pending
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .find_map(|(index, operation)| {
+                        let CheckedUnitEffectOperationPlan::ReleaseReference { loans, .. } =
+                            operation
+                        else {
+                            return None;
+                        };
+                        retirement
+                            .facts
+                            .borrow
+                            .loan_group(complement.loans)?
+                            .any(|(receiver, _)| supplies_group(retirement, receiver, *loans))
+                            .then_some(index)
+                    })?;
+            Some((position, complement))
+        })
+        .collect()
+}

@@ -735,28 +735,19 @@ pub(crate) fn parameter_shape<'declaration>(
     parameter: impl Into<abstract_operations::StructuralCallFormal<'declaration>>,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<ValueShape> {
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    use terminal_psi::StructuralAccess;
     let parameter = parameter.into();
     // Whole-root domain qualifications are signature preconditions the caller
     // or root installation discharges at invocation; they do not change the
     // parameter's storage shape. Projected memberships are the same semantic
     // contract on a selected child, not an extra runtime permission carrier.
-    if parameter.access == StructuralAccess::Owned
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-    {
-        // Owned aggregate parameters use the same recursively retained payload
-        // geometry as their local and result homes. Array element shape does
-        // not change whole-value ownership or permit borrowed-pointer ABI.
-        return owned_storage_shape(parameter.structural_type, declarations);
+    if parameter.access == StructuralAccess::Owned {
+        // Owned arrivals retain the complete stored carrier, including a bare
+        // descriptor. Copy/transfer eligibility and exact claim settlement are
+        // checked on the incoming edge; multiplicity does not alter geometry.
+        return stored_value_shape(parameter.structural_type, declarations);
     }
-    let referent = shape(parameter.structural_type, declarations)?;
     match (parameter.access, parameter.multiplicity) {
-        // Restricted owners retain their exact claim and disposal obligations
-        // in source custody; those obligations do not change payload geometry.
-        (
-            StructuralAccess::Owned,
-            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear,
-        ) => Some(referent),
         (
             StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
@@ -1690,6 +1681,7 @@ pub(crate) fn case_projection(
     while let Some(segment) = segments.next() {
         let declaration = find_structural_type(declarations, current)?;
         let (next, displacement) = match segment {
+            Segment::Referent => return None,
             Segment::Case(identity) => {
                 let cases = declaration.shape.sum_cases()?;
                 let case_position = structural_case_position(cases, *identity)?;

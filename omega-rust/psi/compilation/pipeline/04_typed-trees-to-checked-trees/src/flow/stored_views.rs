@@ -13,40 +13,108 @@ pub(crate) fn before_snapshot(
     snapshot: Handle<FlowStorageSnapshot>,
     source: &CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
+    Some(
+        captured_before_snapshot(program, control, state, snapshot, source)?
+            .into_iter()
+            .map(|reference| reference.place)
+            .collect(),
+    )
+}
+
+pub(crate) fn captured_before_snapshot(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    state: &typed_trees::state::State,
+    snapshot: Handle<FlowStorageSnapshot>,
+    source: &CanonicalPlace,
+) -> Option<Vec<super::CapturedReferencePlace>> {
     let stored = capture_at_snapshot(program, control, state, snapshot, source)?;
     let Some(captures) = stored.captures() else {
         return Some(Vec::new());
     };
     let mut places = Vec::new();
     for selected in captures {
-        let stored = super::operand_values::reference_captures_at_path(
+        let Some(selected) = reference_places_at_snapshot(
             program,
             control,
             selected.capture,
             &selected.projection,
             snapshot,
-        )?;
-        let Some(descriptors) = stored.captures() else {
+            |_| false,
+        ) else {
             return Some(Vec::new());
         };
-        for descriptor in descriptors {
-            if !descriptor.projection.is_empty() {
-                return Some(Vec::new());
+        if selected.is_empty() {
+            return Some(Vec::new());
+        }
+        for place in selected {
+            if !places.contains(&place) {
+                places.push(place);
             }
-            let capture = control.operands.get(descriptor.capture);
-            if capture.referents.is_empty() {
-                return Some(Vec::new());
-            }
-            for referent in control.operand_referents.span_or_empty(capture.referents) {
-                let place = CanonicalPlace {
-                    root: referent.root,
-                    segments: control
-                        .operand_referent_segments
-                        .span_or_empty(referent.segments)
-                        .to_vec(),
-                };
+        }
+    }
+    Some(places)
+}
+
+/// Value association chooses the descriptor at the correct cut. Geometry and
+/// formation still come only from that descriptor's actual captured inventory.
+pub(crate) fn reference_places_at_snapshot(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    capture: Handle<checked_trees::FlowOperandFact>,
+    path: &[facts::PlaceSegment],
+    snapshot: Handle<FlowStorageSnapshot>,
+    mut incoming_is_admitted: impl FnMut(&CanonicalPlace) -> bool,
+) -> Option<Vec<super::CapturedReferencePlace>> {
+    let stored = super::operand_values::reference_captures_at_path(
+        program, control, capture, path, snapshot,
+    )?;
+    let mut pending = vec![stored];
+    let mut places = Vec::new();
+    while let Some(descriptor) = pending.pop() {
+        match descriptor {
+            StoredOperand::Unavailable => return Some(Vec::new()),
+            StoredOperand::Incoming(place) => {
+                if !incoming_is_admitted(&place) {
+                    return Some(Vec::new());
+                }
+                // The existing ingress namespace names its descriptor value;
+                // it supplies no new formation or concrete pointee address.
+                let place = super::CapturedReferencePlace::unformed(place);
                 if !places.contains(&place) {
                     places.push(place);
+                }
+            }
+            StoredOperand::Alternatives(alternatives) => {
+                pending.extend(alternatives.into_iter().rev())
+            }
+            StoredOperand::Value {
+                capture,
+                reference,
+                projection,
+            } => {
+                if !control.operands.is_valid(capture) {
+                    return Some(Vec::new());
+                }
+                let value = control.operands.get(capture);
+                let Some(selected) =
+                    super::operand_values::captured_operand_reference_places_with_formation(
+                        program,
+                        control,
+                        value,
+                        reference,
+                        &projection,
+                    )
+                else {
+                    return Some(Vec::new());
+                };
+                if selected.is_empty() {
+                    return Some(Vec::new());
+                }
+                for place in selected {
+                    if !places.contains(&place) {
+                        places.push(place);
+                    }
                 }
             }
         }

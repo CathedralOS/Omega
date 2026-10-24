@@ -12,6 +12,10 @@ use terminal_psi::CrashCause;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    UnsuppliedErasedEntryInputs {
+        machine: MachineId,
+        reason: &'static str,
+    },
     ZeroInitializedArgumentInvalid {
         argument_index: u32,
     },
@@ -32,6 +36,24 @@ pub enum TerminalInterpretError {
     /// The artifact's exact affine cleanup transaction does not match the
     /// interpreter's live ownership paths.
     AffineFrontierMismatch,
+    /// A cleanup receiver still has captured loans. Retain the descriptor
+    /// carriers so a dead home is distinguishable from a live outgoing loan.
+    NominalCleanupHasLiveLoans {
+        cleanup: terminal_psi::NominalAffineCleanup,
+        backing_identity: u64,
+        backing_path: Vec<terminal_psi::StructuralPathSegment>,
+        loan_carriers: Vec<(u64, Vec<terminal_psi::StructuralPathSegment>)>,
+        loan_carrier_homes: Vec<(PlaceId, crate::values::TerminalStructuralValue)>,
+    },
+    StructuralReturnAffineFrontierMismatch {
+        source: PlaceId,
+        expected: Vec<terminal_psi::StructuralAffineDiscard>,
+        actual: Vec<terminal_psi::StructuralAffineDiscard>,
+    },
+    UnsettledReturnFrontier {
+        affine: Vec<terminal_psi::StructuralAffineDiscard>,
+        claims: Vec<semantic_vocabulary::ClaimId>,
+    },
     /// A structural return must carry exactly its active claims and leave no
     /// other owned claim live. Retain both rosters so missing consumption is
     /// distinguishable from a malformed result binding at the execution site.

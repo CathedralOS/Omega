@@ -292,6 +292,25 @@ impl DetachedConstructorStorage {
 }
 
 impl ConstructorStorage {
+    /// Prepared outgoing storage is not resident yet. Its captured backings
+    /// remain live throughout the cleanup that precedes publication.
+    pub(crate) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        for reference in self.references.values() {
+            retained.reference(reference);
+        }
+        for view in self.views.values() {
+            view.retain_storage(retained);
+        }
+        for binding in self
+            .bytes
+            .values()
+            .chain(self.byte_descriptors.values())
+            .chain(self.activation_descriptors.values())
+        {
+            retained.byte_binding(binding);
+        }
+    }
+
     /// Stage the resident's actual retained provenance beside newly decoded
     /// physical cells. Bytes do not supply these bindings. The lifecycle must
     /// transfer every original claim/affine region and retire the resident in

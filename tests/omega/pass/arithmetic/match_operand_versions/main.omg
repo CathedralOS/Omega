@@ -1,0 +1,12 @@
+data Cell { value: u32; }
+machine stable(cell: &Cell, flag: bool) -> u32 {
+    cell.value - (match flag { true -> cell.value, false -> cell.value })
+}
+
+
+machine change(cell: &mut Cell) -> bool { cell.value = 2; true }
+machine snapshot(cell: &mut Cell) -> u32 {
+    let saved: u32 = cell.value;
+    saved - (match change(cell) { true -> saved, false -> saved })
+}
+machine main() {}

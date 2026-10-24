@@ -160,12 +160,7 @@ impl Execution<'_, '_, '_> {
         // selected-place lookup. A call's result contract is a snapshot, not
         // permission to replay its body or reread its mutated arguments.
         let completed_value = primitive.and_then(|_| {
-            let source = self.context.canonical_place_at(
-                self.program,
-                self.state.symbol,
-                self.statement_index,
-                evaluated.capture.expression,
-            )?;
+            let source = self.completed_value_place(evaluated.capture.expression)?;
             // A selected indexing operation need not read these storage
             // coordinates. Its completed result needs its own expression
             // facts; only builtin place geometry may reuse stored values.
@@ -218,14 +213,21 @@ impl Execution<'_, '_, '_> {
                         program: self.program,
                         parameters: self.program.state_parameters(self.state),
                         symbols: &symbols,
-                        value_at_place: |place: &validation::CanonicalPlace| {
+                        value_at_place: |place: &validation::CanonicalPlace, observation| {
+                            let place = self.context.completed_read_place(
+                                self.program,
+                                self.state.symbol,
+                                self.statement_index,
+                                observation,
+                                place,
+                            )?;
                             crate::values::scalar_value_at_place(
                                 self.program,
                                 self.semantic,
                                 captured_contexts
                                     .iter()
                                     .map(|context| self.semantic.contexts.get(*context)),
-                                place,
+                                &place,
                             )
                         },
                     },
@@ -238,12 +240,7 @@ impl Execution<'_, '_, '_> {
         // aggregate children need the captured context's nested member facts.
         let is_aggregate = primitive.is_none();
         if is_aggregate
-            && let Some(source) = self.context.canonical_place_at(
-                self.program,
-                self.state.symbol,
-                self.statement_index,
-                evaluated.capture.expression,
-            )
+            && let Some(source) = self.completed_value_place(evaluated.capture.expression)
         {
             // Aggregate children can themselves be constructions or moved
             // storage. Rebase their current scalar observations, including
@@ -297,9 +294,10 @@ impl Execution<'_, '_, '_> {
                         continue;
                     }
                     let value = match fact.payload {
-                        FactPayload::AssignedCase { variant } => {
-                            Some(ConstructedValue::Case(variant))
-                        }
+                        FactPayload::CaseValue {
+                            variant,
+                            value: true,
+                        } => Some(ConstructedValue::Case(variant)),
                         FactPayload::AssignedValueCapture { source, point } => {
                             Some(ConstructedValue::Capture { source, point })
                         }
@@ -350,7 +348,10 @@ impl Execution<'_, '_, '_> {
                 ConstructedValue::Scalar(value) => FactPayload::AssignedScalarValue {
                     value: self.semantic.scalar_values.append(value),
                 },
-                ConstructedValue::Case(variant) => FactPayload::AssignedCase { variant },
+                ConstructedValue::Case(variant) => FactPayload::CaseValue {
+                    variant,
+                    value: true,
+                },
                 ConstructedValue::Capture { source, point } => {
                     FactPayload::AssignedValueCapture { source, point }
                 }

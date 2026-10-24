@@ -15,6 +15,19 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
+/// Captured backing retains its actual memberships before a receiving contract
+/// is applied. Resident aggregate storage needs no activation companion.
+struct CapturedArrayLoan {
+    value: TerminalStructuralValue,
+    companion: Option<ElementView>,
+}
+
+impl CapturedArrayLoan {
+    fn into_companion(self) -> Option<(TerminalStructuralValue, ElementView)> {
+        self.companion.map(|companion| (self.value, companion))
+    }
+}
+
 impl TerminalExecution<'_> {
     /// Packed arrays and forwarded collection loans need an activation home.
     /// Ordinary structural arrays already have stable resident identity and
@@ -22,12 +35,12 @@ impl TerminalExecution<'_> {
     /// physical backing owner, not a different source reference operation.
     pub(crate) fn prepare_scalar_array_reference(
         &self,
-        parameter: &StructuralParameterDeclaration,
+        referent_type: StructuralTypeId,
         argument: &StructuralArgument,
         identity_cursor: &mut Option<u64>,
         local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ElementView)>, TerminalInterpretError> {
-        if self.lent_collection_type(parameter, argument).is_none() {
+        if self.lent_collection_type(referent_type, argument).is_none() {
             return Ok(None);
         }
         if !self.scalar_array_values.contains_key(&argument.place)
@@ -39,7 +52,12 @@ impl TerminalExecution<'_> {
         {
             return Ok(None);
         }
-        self.prepare_scalar_array_loan(parameter, argument, identity_cursor, local_roots)
+        // Reference formation owns its authenticated current observations. A
+        // backing capture cannot require those fresh facts as standing source
+        // memberships, nor publish them back onto the owner's storage.
+        Ok(self
+            .capture_scalar_array_loan(referent_type, argument, identity_cursor, local_roots)?
+            .and_then(CapturedArrayLoan::into_companion))
     }
 
     /// A fixed array lent to a fixed-array formal, or lent whole to an
@@ -58,12 +76,61 @@ impl TerminalExecution<'_> {
         if parameter.access == StructuralAccess::Owned {
             return Ok(None);
         }
-        let Some(collection_type) = self.lent_collection_type(parameter, argument) else {
+        if self
+            .lent_collection_type(parameter.structural_type, argument)
+            .is_none()
+        {
+            return Ok(None);
+        }
+        let types = self.program.structural_types();
+        let fixed_array_formal = matches!(
+            types.get(&parameter.structural_type).map(|row| &row.shape),
+            Some(StructuralTypeShape::FixedArray { .. })
+        );
+        // Fixed arrays preserve their carrier. The receiving contract is
+        // checked against captured standing memberships below; a view
+        // conversion cannot acquire the array's qualifications.
+        let supported_memberships = fixed_array_formal
+            || parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty();
+        if argument.access != parameter.access
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !supported_memberships
+        {
+            return Err(malformed());
+        }
+        let Some(captured) = self.capture_scalar_array_loan(
+            parameter.structural_type,
+            argument,
+            identity_cursor,
+            local_roots,
+        )?
+        else {
+            return Ok(None);
+        };
+        // Calls and state arrivals transport standing memberships. Unlike
+        // reference formation, they cannot add a predicate by capturing a home.
+        if fixed_array_formal && !borrowed_array_memberships_match(&captured.value, parameter) {
+            return Err(malformed());
+        }
+        Ok(captured.into_companion())
+    }
+
+    fn capture_scalar_array_loan(
+        &self,
+        structural_type: StructuralTypeId,
+        argument: &StructuralArgument,
+        identity_cursor: &mut Option<u64>,
+        local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    ) -> Result<Option<CapturedArrayLoan>, TerminalInterpretError> {
+        if argument.access == StructuralAccess::Owned {
+            return Ok(None);
+        }
+        let Some(collection_type) = self.lent_collection_type(structural_type, argument) else {
             return Ok(None);
         };
         let types = self.program.structural_types();
         let fixed_array_formal = matches!(
-            types.get(&parameter.structural_type).map(|row| &row.shape),
+            types.get(&structural_type).map(|row| &row.shape),
             Some(StructuralTypeShape::FixedArray { .. })
         );
         // A fixed-array loan preserves the exact carrier and its standing
@@ -75,16 +142,10 @@ impl TerminalExecution<'_> {
         let preserves_membership_carrier = |whole: &[_], projected: &[_]| {
             fixed_array_formal || whole.is_empty() && projected.is_empty()
         };
-        if argument.access != parameter.access
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !preserves_membership_carrier(
-                &parameter.qualifications,
-                &parameter.projected_qualifications,
-            )
-            || self
-                .live_claims
-                .values()
-                .any(|claim| claim.place == Some(argument.place))
+        if self
+            .live_claims
+            .values()
+            .any(|claim| claim.place == Some(argument.place))
         {
             return Err(malformed());
         }
@@ -142,7 +203,7 @@ impl TerminalExecution<'_> {
         // Capturing a loan pins backing; it never observes its contents. The
         // requested access must still fit the actual source, including when
         // forwarding a write-only loan or attenuating mutable access.
-        if !parameter.access.admits(source_access)
+        if !argument.access.admits(source_access)
             || (!argument
                 .path
                 .contains(&terminal_psi::StructuralPathSegment::Referent)
@@ -167,17 +228,19 @@ impl TerminalExecution<'_> {
                 )
                 || !loan.matches_descriptor_home(referent)
                 || loan.len() != length
-                || fixed_array_formal && !borrowed_array_memberships_match(referent, parameter)
             {
                 return Err(malformed());
             }
             let mut presented = referent.clone();
-            presented.structural_type = parameter.structural_type;
+            presented.structural_type = structural_type;
             let loan = loan
-                .subslice(0, length, parameter.access)
+                .subslice(0, length, argument.access)
                 .ok_or_else(malformed)?
                 .with_descriptor_home(presented.clone());
-            return Ok(Some((presented, loan)));
+            return Ok(Some(CapturedArrayLoan {
+                value: presented,
+                companion: Some(loan),
+            }));
         }
         let (root, _) =
             self.array_storage_root_staged(argument.place, identity_cursor, local_roots)?;
@@ -201,7 +264,6 @@ impl TerminalExecution<'_> {
                 &referent.qualifications,
                 &referent.projected_qualifications,
             )
-            || fixed_array_formal && !borrowed_array_memberships_match(&referent, parameter)
         {
             return Err(malformed());
         }
@@ -216,10 +278,13 @@ impl TerminalExecution<'_> {
             && !self.scalar_array_values.contains_key(&argument.place)
             && !self.element_view_values.contains_key(&argument.place)
         {
-            return Ok(None);
+            return Ok(Some(CapturedArrayLoan {
+                value: referent,
+                companion: None,
+            }));
         }
         let mut presented = referent.clone();
-        presented.structural_type = parameter.structural_type;
+        presented.structural_type = structural_type;
         let home = match captured_home {
             Some(home) => Some(home),
             None if let Some(loan) = self.element_view_values.get(&argument.place) => {
@@ -228,7 +293,7 @@ impl TerminalExecution<'_> {
                 // home. Pinning this forwarding activation would leave returned
                 // rows pointing at a frame that has already retired.
                 if !loan.matches_descriptor_home(&root)
-                    || !parameter.access.admits_referent(loan.access())
+                    || !argument.access.admits_referent(loan.access())
                 {
                     return Err(malformed());
                 }
@@ -239,10 +304,12 @@ impl TerminalExecution<'_> {
                 path: argument.path.clone(),
             }),
         };
-        let loan =
-            ElementView::structural(referent, length, parameter.access, home, argument.place)
-                .with_descriptor_home(presented.clone());
-        Ok(Some((presented, loan)))
+        let loan = ElementView::structural(referent, length, argument.access, home, argument.place)
+            .with_descriptor_home(presented.clone());
+        Ok(Some(CapturedArrayLoan {
+            value: presented,
+            companion: Some(loan),
+        }))
     }
 
     /// The fixed-array type a borrowed formal lends: the formal's own
@@ -251,17 +318,14 @@ impl TerminalExecution<'_> {
     /// (a forwarded view, a byte carrier) is not this loan.
     fn lent_collection_type(
         &self,
-        parameter: &StructuralParameterDeclaration,
+        structural_type: StructuralTypeId,
         argument: &StructuralArgument,
     ) -> Option<StructuralTypeId> {
         let types = self.program.structural_types();
-        match types.get(&parameter.structural_type)?.shape {
+        match types.get(&structural_type)?.shape {
             StructuralTypeShape::FixedArray { .. } => {
-                terminal_semantics::scalar_array_leaf_shape(
-                    types.values(),
-                    parameter.structural_type,
-                )?;
-                Some(parameter.structural_type)
+                terminal_semantics::scalar_array_leaf_shape(types.values(), structural_type)?;
+                Some(structural_type)
             }
             StructuralTypeShape::ElementView { element, .. } => {
                 let root_type = self.live_structural_type(argument.place).ok()?;

@@ -191,7 +191,14 @@ impl BorrowedRegions {
                         observed.insert(destination.clone());
                     }
                     for edge in &step.successors {
-                        observed.extend(edge.bindings.iter().map(|(source, _)| source.clone()));
+                        // Exact arrivals keep their selected path; contents or
+                        // unavailable arrivals observe the whole original root.
+                        // This schedules replay queries, not a selected address.
+                        observed.extend(
+                            edge.bindings
+                                .iter()
+                                .map(|binding| binding.source.observation()),
+                        );
                     }
                     // A cohort is born after its defining operation. Unit
                     // field stores have no structural result place, but their

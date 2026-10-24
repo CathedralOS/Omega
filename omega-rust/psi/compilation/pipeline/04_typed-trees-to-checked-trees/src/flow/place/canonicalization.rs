@@ -66,12 +66,23 @@ pub(crate) fn canonical_place_from_semantic_place(
     let mut canonical = match place.root {
         facts::PlaceRoot::Unknown => return None,
         facts::PlaceRoot::Symbol(symbol) => canonical_place_from_symbol(symbol)?,
-        root @ facts::PlaceRoot::InvocationReferent { .. } => CanonicalPlace {
+        root @ (facts::PlaceRoot::InvocationReferent { .. }
+        | facts::PlaceRoot::InvocationOutput(_)) => CanonicalPlace {
             root,
             segments: Vec::new(),
         },
         facts::PlaceRoot::Expression(expression) => {
-            canonical_place_from_expression(program, expression)?
+            // A semantic root identifies the value already observed here.
+            // Resolving its source syntax again would turn a completed copy
+            // back into the storage from which it was read. Live referents
+            // retain their separately captured storage roots and write epochs.
+            if !program.expression_table.expression_is_valid(expression) {
+                return None;
+            }
+            CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            }
         }
         facts::PlaceRoot::TypeReference(type_reference) => CanonicalPlace {
             root: facts::PlaceRoot::TypeReference(type_reference),

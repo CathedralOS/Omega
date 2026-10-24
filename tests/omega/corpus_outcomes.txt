@@ -1,4 +1,3 @@
-# context: {"cpus": 10, "jobs": "2", "load1_end": 8.21, "load1_start": 7.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/address_literal_requires_supported_representation rejected 835ms expected @a9ae30e1c334+wt
 fail/arithmetic/affine_difference_negative_edges rejected 681ms expected @70da601bb299+wt
 fail/arithmetic/affine_difference_unpaired_term rejected 677ms expected @70da601bb299+wt
@@ -20,6 +19,10 @@ fail/arithmetic/boolean_shift_guard_subject_written rejected 829ms expected @a9a
 fail/arithmetic/bounded_assignment_unproven rejected 2731ms expected @a9ae30e1c334+wt
 fail/arithmetic/bounded_call_unproven rejected 1571ms expected @a9ae30e1c334+wt
 fail/arithmetic/bounded_store_consumed_before_repair rejected 913ms expected @a9ae30e1c334+wt
+fail/arithmetic/call_argument_snapshot_not_current_field rejected 368ms expected @598688c61fee
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/call_result_index_selector_revision rejected 367ms expected @598688c61fee
+	partial exact division in machine `main` state `divide` local `quotient`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 fail/arithmetic/captured_boolean_exposed_condition rejected 1765ms expected @35b277d4a6f9
 	cannot prove requires contract for call next from stale: count + 1 <= 9 && embed(rest - 10) + embed(count + 1) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/arithmetic/captured_boolean_replaced_condition rejected 1776ms expected @35b277d4a6f9
@@ -76,6 +79,10 @@ fail/arithmetic/exact_overflow_value_call_hint rejected 2764ms expected @a9ae30e
 fail/arithmetic/exact_remainder_signed_pair_unproven rejected 824ms expected @a9ae30e1c334+wt
 fail/arithmetic/exact_shift_count_unproven rejected 848ms expected @a9ae30e1c334+wt
 fail/arithmetic/exact_shift_left_value_unproven rejected 858ms expected @a9ae30e1c334+wt
+fail/arithmetic/fixed_array_larger_length_does_not_bound_index rejected 2408ms expected @598688c61fee
+	cannot prove index `b * 20 + a` is within length 200 in Main::main::put
+fail/arithmetic/fixed_array_length_checks_indexed_receiver rejected 2481ms expected @598688c61fee
+	cannot prove index `index` is within length 2 in length::entry
 fail/arithmetic/fixed_input_copy_keeps_definedness rejected 818ms expected @a9ae30e1c334+wt
 fail/arithmetic/float_policy_cast_fractional rejected 807ms expected @a9ae30e1c334+wt
 fail/arithmetic/float_to_int_exact_unproven rejected 856ms expected @a9ae30e1c334+wt
@@ -121,6 +128,8 @@ fail/arithmetic/integer_multiple_remainder_zero_divisor rejected 307ms expected 
 	remainder by zero in machine `invalid` state `entry` terminal expression: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit rejected 877ms expected @a9ae30e1c334+wt
 fail/arithmetic/match_constructor_divisor_requires_nonzero rejected 862ms expected @a9ae30e1c334+wt
+fail/arithmetic/match_subject_write_changes_operand_version rejected 436ms expected @598688c61fee
+	exact arithmetic in machine `invalid` state `entry` terminal expression may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/mixed_signed_exclusion_has_no_sign rejected 3981ms expected @7875d3411f26+wt
 fail/arithmetic/modulo_by_zero_rejected rejected 2871ms expected @a9ae30e1c334+wt
 fail/arithmetic/narrowing_anonymous_expression_unproven rejected 2654ms expected @a9ae30e1c334+wt
@@ -138,6 +147,8 @@ fail/arithmetic/relative_midpoint_zero_divisor rejected 234ms expected @4c1d863a
 fail/arithmetic/remainder_dividend_range_excludes_zero_rejected rejected 826ms expected @a9ae30e1c334+wt
 fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected rejected 1542ms expected @a9ae30e1c334+wt
 fail/arithmetic/remainder_signed_minimum_underbound_rejected rejected 897ms expected @a9ae30e1c334+wt
+fail/arithmetic/repeated_call_argument_snapshots_are_distinct rejected 407ms expected @598688c61fee
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `capture(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 fail/arithmetic/saturating_shift_count_unproven rejected 826ms expected @a9ae30e1c334+wt
 fail/arithmetic/short_circuit_cast_fact_escapes rejected 828ms expected @a9ae30e1c334+wt
 fail/arithmetic/short_circuit_cast_mutated_subject rejected 858ms expected @a9ae30e1c334+wt
@@ -1420,8 +1431,36 @@ fail/core/content_conservation_changed_intermediate rejected 1607ms expected @94
 fail/core/content_conservation_changed_state_input rejected 1597ms expected @94192499b002+wt
 fail/core/content_conservation_constructed_duplicate_claim rejected 1226ms expected @a9ae30e1c334+wt
 fail/core/content_conservation_constructed_wrong_qualification rejected 1542ms expected @a9ae30e1c334+wt
+fail/core/content_conservation_incompatible_units rejected 459ms expected @598688c61fee
+	cannot form specification operator `==` in trait `InvalidSplit` state `split` ensures contract: no exact selected meaning
+	callable `InvalidSplit::split` has an invalid content-conservation contract: `separate(...)` mixes incompatible algebras (`CountedQuantity<named(name(ByteUnit))>` and `CountedQuantity<named(name(WordUnit))>`)
 fail/core/content_conservation_incomplete_exits rejected 1593ms expected @94192499b002+wt
+fail/core/content_conservation_independent_selected_claims rejected 6293ms expected @598688c61fee
+	cannot prove ensures contract for exit from Main::split_proved at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_interval_balanced_overlap rejected 2262ms expected @598688c61fee
+	cannot prove ensures contract for exit from retain at statement 0: separate(Owned.content(old(&left)), Owned.content(old(&right))) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_interval_balanced_reversed rejected 2495ms expected @598688c61fee
+	cannot prove ensures contract for exit from retain at statement 0: Owned.content(old(&whole)) == Owned.content(&result)
+fail/core/content_conservation_interval_gap rejected 2667ms expected @598688c61fee
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_interval_overlap rejected 2382ms expected @598688c61fee
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_interval_reversed rejected 2802ms expected @598688c61fee
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_local_projection_lookalike rejected 408ms expected @598688c61fee
+	callable `InvalidSplit::split` has an invalid content-conservation contract: call `Owned.content(old(&whole))` is not the exact owner-unique `Content<Owner, A>::project` conformance machine; there is no generic `content(...)` intrinsic
 fail/core/content_conservation_mixed_call_results rejected 1533ms expected @94192499b002+wt
+fail/core/content_conservation_selected_bad_arm rejected 3427ms expected @598688c61fee
+	cannot prove ensures contract for exit from Main::split_proved at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_selected_changed_result rejected 3667ms expected @598688c61fee
+	cannot prove ensures contract for exit from Main::split_proved at statement 2: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
+fail/core/content_conservation_selected_live_replacement rejected 478ms expected @598688c61fee
+	replacement cannot dispose its remaining owned region
+fail/core/content_conservation_selected_unproved_cycle rejected 3375ms expected @598688c61fee
+	cannot prove ensures contract for exit from Main::split_proved at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 fail/core/content_conservation_unqualified_place rejected 928ms expected @a9ae30e1c334+wt
 fail/core/content_conservation_wrapper_match_unproved_alternative rejected 10182ms expected @4bd2529e7559+wt
 	cannot prove ensures contract for exit from Main::split_mixed at statement 0: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
@@ -1465,6 +1504,21 @@ fail/core/content_partition_provider_unconserved rejected 1476ms expected @e5267
 fail/core/content_projected_duplicate_consumption rejected 287ms expected @7bd69d0648b7
 fail/core/content_projection_arbitrary_call rejected 922ms expected @a9ae30e1c334+wt
 fail/core/content_projection_foreign_owner rejected 827ms expected @a9ae30e1c334+wt
+fail/core/content_projection_partial_integer_cancellation rejected 375ms expected @598688c61fee
+	exact arithmetic in machine `Owned::content` state `content` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/core/content_projection_partial_natural_cancellation rejected 370ms expected @598688c61fee
+	cannot form specification operator `-` in proof body `Owned::content`: no exact selected meaning
+	machine `Owned::content` state `content` applies `Add` to a `Nat` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
+	machine `Owned::content` state `content` applies `Subtract` to a `Nat` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
+fail/core/content_projection_saturating_arithmetic rejected 412ms expected @598688c61fee
+	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
+	machine `Owned::content` state `content` casts with `as Nat`, but `Nat` is not a scalar type; non-scalar `as` only erases qualifications from the same data carrier
+fail/core/content_projection_trapping_arithmetic rejected 421ms expected @598688c61fee
+	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
+	machine `Owned::content` state `content` casts with `as Nat`, but `Nat` is not a scalar type; non-scalar `as` only erases qualifications from the same data carrier
+fail/core/content_projection_wrapping_arithmetic rejected 516ms expected @598688c61fee
+	content projection `Owned::content` is outside the closed projection fragment; use one selected algebra constructor over subject field reads, proof-natural constructors, and closed arithmetic only
+	machine `Owned::content` state `content` casts with `as Nat`, but `Nat` is not a scalar type; non-scalar `as` only erases qualifications from the same data carrier
 fail/core/content_retained_custody_from_borrow rejected 1571ms expected @a9ae30e1c334+wt
 fail/core/content_reunion_anonymous_mutation rejected 1009ms expected @51666ce89b10
 	cannot prove ensures contract for exit from rejoin at statement 11: result in Region::Owned
@@ -1708,7 +1762,8 @@ fail/domains/authored_record_result_unauthorized_issuer rejected 9267ms expected
 fail/domains/bitwise_membership_authored_operand rejected 4044ms expected @d1fa4738e67a+wt
 fail/domains/bitwise_membership_false_arrival rejected 6458ms expected @d1fa4738e67a+wt
 fail/domains/bitwise_membership_false_literal rejected 6286ms expected @d1fa4738e67a+wt
-fail/domains/bitwise_membership_incompatible_carrier rejected 2395ms expected @d1fa4738e67a+wt
+fail/domains/bitwise_membership_incompatible_carrier rejected 460ms expected @598688c61fee
+	cannot form specification operator `==` in domain `u8::Clear` predicate: no exact selected meaning
 fail/domains/bitwise_membership_non_singleton rejected 5430ms expected @d1fa4738e67a+wt
 fail/domains/bitwise_membership_requires_issuance rejected 5451ms expected @d1fa4738e67a+wt
 fail/domains/bitwise_membership_stale_store rejected 5424ms expected @d1fa4738e67a+wt
@@ -2036,6 +2091,12 @@ fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 1993ms expected
 fail/drops/guarded_record_return_duplicate_move rejected 683ms expected @77554b7685c5+wt
 	cannot use `observation` in machine `choose` state `entry` (statement 2) after `observation` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `observation` first
 fail/drops/guarded_record_return_linear_debt rejected 629ms expected @166de40fb052+wt
+fail/drops/indexed_cleanup_mutated_current_value rejected 2333ms expected @598688c61fee
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: owner does not establish Owner::drop clause `owner.values[1] == 7`
+fail/drops/indexed_cleanup_unproved_disjunction rejected 2898ms expected @598688c61fee
+	cannot prove automatic cleanup requires at selected edge from finish state entry after statement 1: owner does not establish Owner::drop clause `owner.values[1] == 7`
+fail/drops/indexed_cleanup_wrong_current_value rejected 2534ms expected @598688c61fee
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: owner does not establish Owner::drop clause `owner.values[1] == 7`
 fail/drops/local_cleanup_unmet_prerequisite rejected 1531ms expected @a9ae30e1c334+wt
 fail/drops/named_linear_container_abnormal_hook rejected 818ms expected @a9ae30e1c334+wt
 fail/drops/named_linear_container_duplicate_transfer rejected 1184ms expected @a9ae30e1c334+wt
@@ -2043,8 +2104,10 @@ fail/drops/named_linear_container_missing_hook rejected 1722ms expected @a9ae30e
 fail/drops/named_linear_container_unmet_prerequisite rejected 1756ms expected @a9ae30e1c334+wt
 fail/drops/narrowed_cleanup_requires_actual_element rejected 1620ms expected @a9ae30e1c334+wt
 fail/drops/nested_cleanup_parent_mutates_child_prerequisite rejected 4938ms expected @a9ae30e1c334+wt
-fail/drops/overlapping_projected_reference_transition rejected 23060ms expected @a9ae30e1c334+wt
-fail/drops/overlapping_projected_transition rejected 22698ms expected @a9ae30e1c334+wt
+fail/drops/overlapping_projected_reference_transition rejected 1400ms expected @598688c61fee
+	projected owned storage is not established in machine `exercise` state `entry` at statement 0
+fail/drops/overlapping_projected_transition rejected 1193ms expected @598688c61fee
+	projected owned storage is not established in machine `Main::main` state `main` at statement 1
 fail/drops/owned_replacement_old_hook_prerequisite rejected 1509ms expected @a9ae30e1c334+wt
 fail/drops/owned_replacement_transferred_source_read rejected 1151ms expected @a9ae30e1c334+wt
 fail/drops/parent_cleanup_cross_field_guarantee_retired rejected 1562ms expected @a9ae30e1c334+wt
@@ -2444,6 +2507,8 @@ fail/facts/applied_requirement_indices_through_target_body_rejected rejected 140
 	index compatibility condition `index-equality:Tagged:forward::windows_x86_64::entry:statement-0:Tagged<Value>==Tagged<Alt>` is not established: actual `Tagged<Value>` and expected `Tagged<Alt>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:call-1-0:Tagged<Other>==Tagged<Word>` is not established: actual `Tagged<Other>` and expected `Tagged<Word>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Tagged:forward$specialized$7f9cb6972e7178fd$0::entry:statement-0:Tagged<Word>==Tagged<Other>` is not established: actual `Tagged<Word>` and expected `Tagged<Other>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/facts/applied_target_family_const_extent_not_other_call rejected 3374ms expected @598688c61fee
+	cannot prove requires contract for call require_four from main: entry(shared range(shared three, 0, three.len)).len == 4 (needs fact `items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_call_result_short_extent rejected 7357ms expected @d68dc74a14e0
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/as_slice_views_through_const_name_short_extent rejected 5932ms expected @d68dc74a14e0
@@ -3109,9 +3174,13 @@ fail/facts/checked_asm_zero_branch_target_body_exit rejected 2463ms expected @79
 	cannot prove requires contract for call done from countdown$assembly$macos_x86_64$4$entry: ((asm#scratch#93#eax as ) - (1 as ) as ) == 1 (needs fact `asm#scratch#93#eax == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 fail/facts/checked_asm_zero_branch_uninitialized_flag rejected 1418ms expected @79972ff7f4c8
 	assembly label `entry` jz reads uninitialized ZF
+fail/facts/compound_guard_call_association_alias_write_compile rejected 2578ms expected @598688c61fee
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_different_call_result_compile rejected 3197ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_different_grouping_compile rejected 3217ms expected @2ef2ab353498+wt
+	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
+fail/facts/compound_guard_match_call_disagreement_compile rejected 2432ms expected @598688c61fee
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
 fail/facts/compound_guard_missing_lower_compile rejected 3183ms expected @2ef2ab353498+wt
 	cannot prove index `main.b * 20 + a` is within length 200 in Main::main::put
@@ -13304,6 +13373,12 @@ fail/generics/transition_result_cannot_reselect_explicit_extent rejected 84ms ex
 	generic machine `empty` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/generics/transition_value_generic_result_parameter_mismatch rejected 239ms expected @6ef08ceefee0+wt
 fail/generics/transition_value_slice_element_mismatch rejected 243ms expected @6ef08ceefee0+wt
+fail/generics/type_equation_template_open_constructor rejected 22ms expected @598688c61fee
+	generic data `Template` where type equation requires a complete constructor argument tuple
+fail/generics/type_equation_template_unresolved_operand rejected 18ms expected @598688c61fee
+	generic data `Template` where type equation operand `Missing` does not name a closed type
+fail/generics/type_equation_template_value_operand rejected 19ms expected @598688c61fee
+	generic data `Template` where type equation operand `COUNT` does not name a closed type
 fail/generics/type_index_compound_wrong_actual rejected 915ms expected @7b786cd56594+wt
 	index compatibility condition `index-equality:Tagged:wrong::entry:call-0-0:Tagged<Box<Left>>==Tagged<Box<Value>>` is not established: actual `Tagged<Box<Left>>` and expected `Tagged<Box<Value>>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/type_index_distinct_binders rejected 858ms expected @7b786cd56594+wt
@@ -13700,6 +13775,8 @@ fail/ownership/cleanup_receiver_keeps_child_loan rejected 772ms expected @9365eb
 fail/ownership/computed_window_selector_keeps_snapshot rejected 1147ms expected @a9ae30e1c334+wt
 fail/ownership/computed_window_selector_requires_builtin_meaning rejected 1260ms expected @a9ae30e1c334+wt
 fail/ownership/conditional_scalar_return_preserves_live_claim rejected 669ms expected @e12a9f3ff2a3
+fail/ownership/constructed_child_claim_second_transfer rejected 510ms expected @598688c61fee
+	cannot use `receipt` in machine `main` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/copy_linear_conflict rejected 3ms expected @a9ae30e1c334+wt
 fail/ownership/cyclic_arrival_restores_consumed_field rejected 338ms expected @d41afc784463+wt
 fail/ownership/dispatch_payload_duplicates_linear_field rejected 916ms expected @ef97e2a38c91+wt
@@ -13718,6 +13795,10 @@ fail/ownership/first_match_pattern_double_consumption rejected 345ms expected @a
 fail/ownership/generic_borrowed_value_retains_backing_loan rejected 1593ms expected @a9ae30e1c334+wt
 fail/ownership/generic_linear_constructor_keeps_backing_loan rejected 1663ms expected @a9ae30e1c334+wt
 fail/ownership/generic_linear_constructor_second_transfer rejected 1195ms expected @a9ae30e1c334+wt
+fail/ownership/inactive_constructed_carrier_second_transfer rejected 478ms expected @598688c61fee
+	projected owned storage is not established in machine `main` state `entry` at statement 2
+fail/ownership/inactive_whole_carrier_second_transfer rejected 522ms expected @598688c61fee
+	cannot use `value` in machine `main` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/ownership/linear_array_call_argument_wrong_element rejected 883ms expected @a9ae30e1c334+wt
 fail/ownership/linear_array_call_argument_wrong_extent rejected 833ms expected @a9ae30e1c334+wt
 fail/ownership/linear_array_constructor_duplicate_operand rejected 1175ms expected @a9ae30e1c334+wt
@@ -13768,6 +13849,8 @@ fail/ownership/nested_call_reuses_transferred_owner rejected 689ms expected @d76
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
 fail/ownership/nested_selected_call_reuses_owner rejected 688ms expected @d761e1cfc099+wt
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 1) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
+fail/ownership/nominal_constructor_child_second_transfer rejected 542ms expected @598688c61fee
+	cannot use `receipt` in machine `main` state `entry` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/owned_content_projection_after_call_result rejected 13568ms expected @e74967d11875
 fail/ownership/owned_content_projection_in_nested_field rejected 13463ms expected @e74967d11875
 fail/ownership/owned_content_projection_in_parameter rejected 11822ms expected @e74967d11875
@@ -13792,7 +13875,8 @@ fail/ownership/read_after_short_circuit_move rejected 348ms expected @a81c7e227e
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 0) after `ticket` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
 fail/ownership/read_through_consumed_owner_rejected rejected 1142ms expected @a9ae30e1c334+wt
 fail/ownership/read_through_dropped_owner_rejected rejected 1226ms expected @a9ae30e1c334+wt
-fail/ownership/reconstructed_case_carrier_second_transfer rejected 1186ms expected @a9ae30e1c334+wt
+fail/ownership/reconstructed_case_carrier_second_transfer rejected 507ms expected @598688c61fee
+	projected owned storage is not established in machine `main` state `entry` at statement 2
 fail/ownership/reconstructed_case_write_keeps_linear_debt rejected 1633ms expected @a9ae30e1c334+wt
 fail/ownership/reconstructed_unknown_case_keeps_linear_debt rejected 1557ms expected @a9ae30e1c334+wt
 fail/ownership/registration_capacity_cannot_release_twice rejected 537ms expected @e74967d11875
@@ -13817,6 +13901,10 @@ fail/ownership/selected_constructor_overlapping_source rejected 719ms expected @
 	owned match record fields must name disjoint moved places; overlapping paths on one arm consume the same owned storage twice
 fail/ownership/selected_constructor_source_reuse rejected 690ms expected @f77f2aa2a1c2+wt
 	owned value may have been transferred by an earlier match; it cannot be used here
+fail/ownership/selected_field_frontier_second_transfer rejected 3494ms expected @598688c61fee
+	projected owned storage is not established in machine `choose` state `entry` at statement 0
+fail/ownership/selected_linear_source_missing_drop rejected 455ms expected @598688c61fee
+	cannot automatically dispose retained selected owner region: every live linear obligation requires an eligible disposition
 fail/ownership/selected_linear_temporary_double_consumption rejected 349ms expected @a81c7e227ee2+wt
 	cannot use `receipt` in machine `invalid` state `entry` (statement 1) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/selected_partial_owner_reuse rejected 1238ms expected @a9ae30e1c334+wt
@@ -13870,6 +13958,12 @@ fail/proofs/accepted_axiom_engine_veto rejected 2688ms expected @a9ae30e1c334+wt
 fail/proofs/accumulator_guarantee_unbounded_formals rejected 2678ms expected @a9ae30e1c334+wt
 fail/proofs/addition_commutativity_false_twin rejected 810ms expected @a9ae30e1c334+wt
 fail/proofs/applied_callable_unproven_law rejected 33434ms expected @a9ae30e1c334+wt
+fail/proofs/applied_dependent_const_caller_name_capture rejected 380ms expected @598688c61fee
+	cannot prove requires contract for specification call `identity` in machine `witness` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `identity` in machine `witness` requires contract: establish its selected precondition in an independently formed prior requires fact
+fail/proofs/applied_operator_const_caller_name_capture rejected 367ms expected @598688c61fee
+	cannot prove requires contract for specification call `Carrier::select` in machine `witness` requires contract: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `Carrier::select` in machine `witness` requires contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/assignment_alias_slot_retargeted rejected 616ms expected @86af356b96fb+wt
 fail/proofs/assignment_frozen_selector_postcondition rejected 613ms expected @86af356b96fb+wt
 fail/proofs/assignment_parameter_slot_retargeted rejected 617ms expected @86af356b96fb+wt
@@ -13942,6 +14036,10 @@ fail/proofs/embedded_successor_call_requirement_weakened_bound rejected 2726ms e
 	cannot prove requires contract for call require_length from transfer: NextLength <= 8 (needs fact `Length <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/embedded_successor_weakened_upper_bound rejected 1907ms expected @e0550ac3bf28
 	exact arithmetic in machine `remain` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/entry_comparison_invalidated_by_mutation rejected 2300ms expected @598688c61fee
+	cannot prove ensures contract for exit from stale at statement 1: result > 0
+fail/proofs/entry_comparison_not_inherited_by_state rejected 3238ms expected @598688c61fee
+	cannot prove ensures contract for exit from wrong at statement 0: result > 0
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4427ms expected @4ce1ff349782+wt
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 1840ms expected @4ce1ff349782+wt
 fail/proofs/fact_only_proof_value_citation_mutable rejected 2555ms expected @4ce1ff349782+wt
@@ -13956,6 +14054,16 @@ fail/proofs/float_guarded_negated_result_mismatch rejected 464ms expected @1f63e
 fail/proofs/float_unordered_guard_is_not_order_complement rejected 464ms expected @1f63ee648905+wt
 fail/proofs/float_zero_equality_is_not_meaning_identity rejected 461ms expected @1f63ee648905+wt
 fail/proofs/higher_order_machine_schema_contract_mismatch rejected 759ms expected @a9ae30e1c334+wt
+fail/proofs/indexed_boolean_disjunction_not_first rejected 2906ms expected @598688c61fee
+	cannot prove requires contract for call require_ready from finish: flags.bits[0] (needs fact `flags.bits[0]` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/indexed_boolean_guarantee_after_write rejected 2834ms expected @598688c61fee
+	cannot prove requires contract for call require_ready from main: flags.bits[1] (needs fact `flags.bits[1]` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/indexed_boolean_guarantee_sibling rejected 2915ms expected @598688c61fee
+	cannot prove requires contract for call require_ready from main: flags.bits[0] (needs fact `flags.bits[0]` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/indexed_boolean_normal_guarantee_false rejected 2610ms expected @598688c61fee
+	cannot prove ensures contract for exit from initialize at statement 1: flags.bits[1]
+fail/proofs/indexed_boolean_runtime_selector_not_constant rejected 2368ms expected @598688c61fee
+	cannot prove requires contract for call require_selected from main: flags.bits[index] (needs fact `flags.bits[index]` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/indexed_field_changed_selector rejected 170ms expected @7ba26861e79c+wt
 fail/proofs/indexed_field_changed_value rejected 170ms expected @7ba26861e79c+wt
 fail/proofs/inductive_climbing_sum_step_false_twin rejected 808ms expected @a9ae30e1c334+wt
@@ -14020,6 +14128,8 @@ fail/proofs/nat_unmeasured_recursion_rejected rejected 2674ms expected @a9ae30e1
 fail/proofs/negated_guard_after_mutation rejected 562ms expected @1f63ee648905+wt
 fail/proofs/nested_boolean_target_family_requires_agreement rejected 466ms expected @062e69fdf925+wt
 	cannot prove requires contract for call demand from main: relay() == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/nonbyte_array_literal_comparison rejected 373ms expected @598688c61fee
+	cannot form specification operator `==` in machine `invalid` requires contract: no exact selected meaning
 fail/proofs/nonlinear_square_range_false_twin rejected 796ms expected @a9ae30e1c334+wt
 fail/proofs/normal_call_guarantee_mutating_initializer rejected 1498ms expected @a9ae30e1c334+wt
 fail/proofs/normal_return_expression_statement_is_not_return rejected 5218ms expected @a9ae30e1c334+wt
@@ -14152,6 +14262,8 @@ fail/proofs/selected_specification_requires_wrong_machine rejected 421ms expecte
 fail/proofs/selected_specification_requires_wrong_subject rejected 379ms expected @4ce1ff349782+wt
 fail/proofs/self_call_without_witness_not_denotational rejected 686ms expected @b7aaf37278ea+wt
 fail/proofs/short_circuit_skipped_rhs_bound rejected 10615ms expected @5b35eda9b8d6
+fail/proofs/specification_static_argument_body_local rejected 372ms expected @598688c61fee
+	cannot prove requires contract for specification call `selected` in machine `witness` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/static_machine_result_effectful_contract rejected 664ms expected @fedeee648fc7+wt
 fail/proofs/static_machine_result_partial_contract rejected 600ms expected @fedeee648fc7+wt
 fail/proofs/static_machine_result_wrong_field rejected 289ms expected @fedeee648fc7+wt
@@ -15056,6 +15168,18 @@ fail/traits/trait_requirement_cycle rejected 849ms expected @a9ae30e1c334+wt
 fail/traits/trait_satisfies_parameter_mismatch rejected 1249ms expected @a9ae30e1c334+wt
 fail/traits/transparent_refinement_widening_axis rejected 29ms expected @a9ae30e1c334+wt
 fail/types/addr_plus_addr_rejected rejected 2901ms expected @a9ae30e1c334+wt
+fail/types/address_comparison_anonymous_landing_rejected rejected 385ms expected @598688c61fee
+	anonymous integer value `-1` does not fit destination `addr` in machine `negative` requires contract
+	anonymous value `1/2` is not an integer and cannot land in `addr` in machine `fractional` requires contract; type an operand before division if integer division was intended
+	anonymous integer value `18446744073709551616` does not fit destination `addr` in machine `wide` requires contract
+	anonymous address comparison operand cannot prove fit in `addr::Bound` in machine `model_exclusive` requires contract
+	anonymous address comparison operand cannot prove fit in `addr::Bound` in machine `model_outside` requires contract
+fail/types/address_comparison_typed_count_rejected rejected 408ms expected @598688c61fee
+	cannot form specification operator `==` in machine `direct` requires contract: no exact selected meaning
+	cannot form specification operator `==` in machine `reversed` requires contract: no exact selected meaning
+fail/types/address_literal_model_admission_rejected rejected 412ms expected @598688c61fee
+	anonymous address value cannot prove fit in `addr::Bound` in machine `invalid_local` state `entry` local `bad`
+	anonymous address specification argument cannot prove fit in `addr::Bound` in machine `invalid_specification_argument` requires contract
 fail/types/address_model_after_zero_storage_wide rejected 264ms expected @8fd8af53161a+wt
 fail/types/address_model_conversion_narrow rejected 183ms expected @8eeea22df054+wt
 fail/types/address_model_conversion_wide rejected 183ms expected @8eeea22df054+wt
@@ -15099,6 +15223,7 @@ pass/arithmetic/anonymous_integer_arith checked 10106ms @5041ef1af684+wt
 pass/arithmetic/anonymous_rational_arguments checked 1594ms @a9ae30e1c334+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 1591ms @a9ae30e1c334+wt
 pass/arithmetic/bounded_assignment checked 1562ms @a9ae30e1c334+wt
+pass/arithmetic/call_argument_snapshot_survives_write_exit checked 10331ms check-target:macos_arm64 @598688c61fee
 pass/arithmetic/call_surviving_return_exit checked 13025ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/carrier_endpoint_exclusion_exit checked 15185ms check-target:linux_x86_64 @7875d3411f26+wt
 pass/arithmetic/chained_const_binder_scale_exit checked 5864ms check-target:macos_arm64 @5a08952f5dbd+wt
@@ -15116,12 +15241,15 @@ pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 13282ms che
 pass/arithmetic/disjunctive_requires_exact_slot checked 1049ms @fa9134cda58d+wt
 pass/arithmetic/every_width_index checked 9830ms @5041ef1af684+wt
 pass/arithmetic/exact_integer_cast_proven checked 1628ms @a9ae30e1c334+wt
+pass/arithmetic/fixed_array_length_checks_indexed_receiver checked 2328ms @598688c61fee
+pass/arithmetic/fixed_array_live_length_compound_guard checked 2303ms @598688c61fee
 pass/arithmetic/fixed_division_values_survive_calls_exit checked 7458ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arithmetic/fixed_unsigned_multiply_values_survive_calls_exit checked 7506ms check-target:macos_arm64 @589aedee8ebc+wt
 pass/arithmetic/full_width_integer_literals_compose_exit checked 12587ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/indexed_divisor_requirement checked 1676ms @a9ae30e1c334+wt
 pass/arithmetic/int_literal_suffixes checked 9774ms @5041ef1af684+wt
 pass/arithmetic/integer_multiple_remainder_exit checked 749ms check-target:macos_arm64 @dbebd59811f6+wt
+pass/arithmetic/match_operand_versions checked 2778ms @598688c61fee
 pass/arithmetic/mixed_len_compare checked 10385ms @5041ef1af684+wt
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 11904ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/arithmetic/negative_div_remainder checked 9987ms @5041ef1af684+wt
@@ -16520,16 +16648,27 @@ pass/core/carry_permission_provider_adapter checked 11097ms check-target:macos_a
 pass/core/content_conservation_constructed_argument checked 1711ms @5b58c9723867
 pass/core/content_conservation_constructed_result_exit checked 6863ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_contract_exit checked 23008ms check-target:macos_arm64 @e52673d2bcdb+wt
+pass/core/content_conservation_interval_split_exit checked 12580ms check-target:macos_arm64 @598688c61fee
 pass/core/content_conservation_moved_result_exit checked 6824ms check-target:macos_arm64 @94192499b002+wt
+pass/core/content_conservation_named_selection checked 7756ms check-target:macos_arm64 @598688c61fee
 pass/core/content_conservation_nested_projected_exit checked 6221ms check-target:macos_arm64 @7bd69d0648b7
+pass/core/content_conservation_nested_selection checked 7246ms check-target:macos_arm64 @598688c61fee
 pass/core/content_conservation_projected_exit checked 6219ms check-target:macos_arm64 @7bd69d0648b7
+pass/core/content_conservation_selected_calls checked 7327ms check-target:macos_arm64 @598688c61fee
+pass/core/content_conservation_selected_field_replacement_exit checked 7303ms check-target:macos_arm64 @598688c61fee
+pass/core/content_conservation_selected_parameter_transport checked 6874ms check-target:macos_arm64 @598688c61fee
+pass/core/content_conservation_selected_reconstruction checked 6802ms check-target:macos_arm64 @598688c61fee
+pass/core/content_conservation_selected_replacement checked 6939ms check-target:macos_arm64 @598688c61fee
 pass/core/content_conservation_state_arrival_exit checked 6825ms check-target:macos_arm64 @94192499b002+wt
+pass/core/content_conservation_stored_selection checked 7557ms check-target:macos_arm64 @598688c61fee
 pass/core/content_conservation_unobserved_write_exit checked 6825ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_wrapper_exit checked 3399ms check-target:macos_arm64 @94192499b002+wt
 pass/core/content_conservation_wrapper_match_exit checked 10710ms check-target:macos_arm64 @4bd2529e7559+wt
 pass/core/content_counted_partition_exit checked 3956ms check-target:macos_arm64 @b794c35ad5f8+wt
 pass/core/content_membership_return checked 12484ms check-target:macos_arm64 @064c5aeb618a+wt
 pass/core/content_membership_return_boundary_crossing checked 5719ms @bd134a19a5f9+wt
+pass/core/content_projection_exact_integer_arithmetic checked 2535ms @598688c61fee
+pass/core/content_projection_signed_integer_cancellation checked 2532ms @598688c61fee
 pass/core/content_retained_custody_round_trip checked 11400ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/core/content_transform_empty_array checked 2707ms @42423ab60d61+wt
 pass/core/content_transform_ended_parent_loan checked 2815ms @42423ab60d61+wt
@@ -16829,7 +16968,11 @@ pass/drops/runtime_affine_record_conditional_result_exit checked 6011ms check-ta
 pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit checked 13878ms check-target:linux_x86_64 @753e7ce7a36e+wt
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 13039ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 12207ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_borrowed_temporary_deferred_child_cleanup_exit checked 11482ms check-target:macos_arm64 @598688c61fee
 pass/drops/runtime_borrowed_temporary_projection_cleanup_exit checked 3648ms check-target:macos_arm64 @0ec1d89748af
+pass/drops/runtime_borrowed_temporary_returned_child_cleanup_exit checked 10632ms check-target:macos_arm64 @598688c61fee
+pass/drops/runtime_borrowed_temporary_selected_child_cleanup_exit checked 11174ms check-target:macos_arm64 @598688c61fee
+pass/drops/runtime_borrowed_temporary_shared_cohort_cleanup_exit checked 10763ms check-target:macos_arm64 @598688c61fee
 pass/drops/runtime_case_selected_cleanup_continuations_exit checked 13091ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_claim_bearing_temporary_cleanup_exit checked 11491ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_cleanup_case_evidence_exit checked 958ms check-target:macos_arm64 @7e8766123767
@@ -16883,6 +17026,7 @@ pass/drops/runtime_replaced_record_custody_transfer_exit checked 11188ms check-t
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 752ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 12259ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 11261ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/drops/runtime_selected_linear_residual_death_exit checked 10437ms check-target:macos_arm64 @598688c61fee
 pass/drops/runtime_selected_nominal_owner_cleanup_exit checked 933ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_selected_partial_owner_cleanup_exit checked 923ms check-target:macos_arm64 @cf5a1803718b+wt
 pass/drops/runtime_selected_projected_sibling_cleanup_exit checked 836ms check-target:macos_arm64 @cf5a1803718b+wt
@@ -17118,6 +17262,7 @@ pass/facts/applied_requirement_indices_through_other_machine_exit checked 11597m
 pass/facts/applied_requirement_indices_through_other_state_exit checked 11716ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/applied_requirement_indices_through_parameter_exit checked 11723ms check-target:macos_arm64 @7df3e6a600f1+wt
 pass/facts/applied_requirement_indices_through_target_body_exit checked 11629ms check-target:macos_arm64 @7df3e6a600f1+wt
+pass/facts/applied_target_family_distinct_const_extents_exit checked 11147ms check-target:macos_arm64 @598688c61fee
 pass/facts/as_slice_views_through_call_result_exit checked 12276ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_const_name_exit checked 10830ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_field_exit checked 18298ms check-target:macos_arm64 @d68dc74a14e0
@@ -17394,12 +17539,14 @@ pass/facts/checked_asm_zero_branch_parameter_exit checked 3387ms check-target:li
 pass/facts/checked_asm_zero_branch_target_body_exit checked 3392ms check-target:linux_x86_64 @79972ff7f4c8
 pass/facts/compound_guard_through_call_result_compile checked 1913ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_const_name_compile checked 1881ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_distinct_match_calls_compile checked 2281ms @598688c61fee
 pass/facts/compound_guard_through_field_compile checked 1863ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_local_compile checked 1846ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_match_join_compile checked 1842ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_other_machine_compile checked 2089ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_other_state_compile checked 1834ms @2ef2ab353498+wt
 pass/facts/compound_guard_through_parameter_compile checked 1854ms @2ef2ab353498+wt
+pass/facts/compound_guard_through_stored_call_result_compile checked 2396ms @598688c61fee
 pass/facts/compound_guard_through_target_body_compile checked 2049ms @2ef2ab353498+wt
 pass/facts/compound_index_guard_through_call_result_exit checked 70527ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_const_name_exit checked 70397ms check-target:macos_arm64 @8137d4f697de+wt
@@ -22182,6 +22329,7 @@ pass/ownership/partial_carrier_refill_exit checked 5502ms check-target:macos_arm
 pass/ownership/partial_field_move_compile checked 1630ms @a9ae30e1c334+wt
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 1816ms @a9ae30e1c334+wt
 pass/ownership/registration_capacity_case_round_trip checked 8753ms check-target:macos_arm64 @03d6ab4d9d4c
+pass/ownership/runtime_affine_selected_field_frontier_exit checked 10265ms check-target:macos_arm64 @598688c61fee
 pass/ownership/runtime_borrowed_captured_selector_exit checked 10886ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_borrowed_carried_loan_roundtrip_exit checked 11584ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_borrowed_carried_loan_transform_exit checked 11152ms check-target:macos_arm64 @55ccf9be57c4
@@ -22212,6 +22360,7 @@ pass/ownership/runtime_carried_loan_field_replacement_exit checked 12208ms check
 pass/ownership/runtime_case_alternative_custody_exit checked 14038ms check-target:macos_arm64 @55ccf9be57c4
 pass/ownership/runtime_complete_array_reference_store_exit checked 2903ms check-target:macos_arm64 @f48a7c9556ec+wt
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 10843ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_constructed_child_claim_frontier_exit checked 10428ms check-target:macos_arm64 @598688c61fee
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 7999ms check-target:macos_arm64 @761f5fae99a7+wt
 pass/ownership/runtime_effectful_singleton_selector_cleanup_exit checked 3725ms check-target:macos_arm64 @a33c0bb290c1
 pass/ownership/runtime_empty_record_local_transfers_exit checked 11851ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -22234,6 +22383,7 @@ pass/ownership/runtime_nested_projected_claim_return_exit checked 11063ms check-
 pass/ownership/runtime_nested_view_affine_window_exit checked 2979ms check-target:macos_arm64 @f48a7c9556ec+wt
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 23539ms check-target:macos_arm64 @ecce693f370b
 pass/ownership/runtime_owned_parameter_restoration_exit checked 11625ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/ownership/runtime_owned_sum_store_completion_exit checked 10782ms check-target:macos_arm64 @598688c61fee
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit checked 10927ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_projected_constructor_operands_exit checked 11655ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_qualified_inventory_selection_exit checked 6467ms check-target:macos_arm64 @d5b3aea067bb
@@ -22242,8 +22392,12 @@ pass/ownership/runtime_repeated_linear_result_forwarding_exit checked 11003ms ch
 pass/ownership/runtime_replacement_call_child_snapshot_exit checked 11068ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_retained_alias_referent_transform_exit checked 4935ms check-target:macos_arm64 @9dd545defbc0
 pass/ownership/runtime_scalar_return_custody_exit checked 4196ms check-target:macos_arm64 @dd6871ed0476
+pass/ownership/runtime_selected_conditional_carrier_exit checked 12186ms check-target:macos_arm64 @598688c61fee
 pass/ownership/runtime_selected_constructed_argument_exit checked 4178ms check-target:macos_arm64 @dd6871ed0476
+pass/ownership/runtime_selected_field_replacement_exit checked 11177ms check-target:macos_arm64 @598688c61fee
+pass/ownership/runtime_selected_linear_reselection_exit checked 10878ms check-target:macos_arm64 @598688c61fee
 pass/ownership/runtime_selected_linear_temporary_exit checked 22240ms check-target:macos_arm64 @3b422f31da30+wt
+pass/ownership/runtime_selected_projection_completion_exit checked 11517ms check-target:macos_arm64 @598688c61fee
 pass/ownership/runtime_selected_reference_local_exit checked 11154ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 3460ms check-target:macos_arm64 @1a353f2e117b+wt
 pass/ownership/runtime_staged_read_before_owned_move_exit checked 4277ms check-target:macos_arm64 @cc35a4f0d368+wt
@@ -22286,9 +22440,13 @@ pass/parser/move_named_state_transition_exit checked 7030ms check-target:macos_a
 pass/progress/provider_receiver_progress_installation checked 692ms check-target:linux_x86_64 @cf5a1803718b+wt
 pass/proofs/accepted_axiom_cited_exit checked 11306ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/proofs/accumulator_guarantee_exit checked 11353ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/proofs/applied_dependent_const_requires checked 2722ms @598688c61fee
+pass/proofs/applied_operator_const_requires checked 2594ms @598688c61fee
 pass/proofs/axiom_citation checked 9748ms @5041ef1af684+wt
 pass/proofs/boolean_return_assembly_shape checked 541ms @062e69fdf925+wt
 pass/proofs/borrowed_descriptor_bound_local_result_exit checked 3519ms check-target:macos_arm64 @b3d0b7396229+wt
+pass/proofs/builtin_unsigned_integer_ordering checked 2629ms @598688c61fee
+pass/proofs/captured_entry_comparison_after_mutation checked 2745ms @598688c61fee
 pass/proofs/captured_scalar_field_observations checked 12762ms check-target:macos_arm64 @f22c0e54a812
 pass/proofs/case_call_premises checked 1644ms @a9ae30e1c334+wt
 pass/proofs/cauchy_predicates_compile checked 910ms @cf5a1803718b+wt
@@ -22321,6 +22479,7 @@ pass/proofs/float_guarded_negated_result_contract checked 1517ms @1654d389500c+w
 pass/proofs/float_named_contract_literal_landing checked 3204ms @1f63ee648905+wt
 pass/proofs/guarded_dynamic_field_arrival checked 43960ms check-target:macos_arm64 @7912abbc354e
 pass/proofs/higher_order_machine_schema_compile checked 1725ms @a9ae30e1c334+wt
+pass/proofs/indexed_boolean_normal_guarantee_exit checked 11736ms check-target:macos_arm64 @598688c61fee
 pass/proofs/integer_piecewise_result_contract checked 1718ms @1f63ee648905+wt
 pass/proofs/kernel_integer_discreteness checked 11286ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/proofs/kernel_integer_subtract_bound checked 1690ms @a9ae30e1c334+wt
@@ -22330,6 +22489,7 @@ pass/proofs/kernel_theorem_equality_certificates checked 11389ms check-target:ma
 pass/proofs/lemma_requires_citation checked 9734ms @5041ef1af684+wt
 pass/proofs/loop_postcondition_after_element_store checked 739ms @b3d0b7396229+wt
 pass/proofs/machine_parameterized_data_compile checked 1671ms @a9ae30e1c334+wt
+pass/proofs/mathematical_generic_result_carrier checked 2455ms @598688c61fee
 pass/proofs/mathematical_machine_result_carrier checked 4228ms check-target:macos_arm64 @3b72a3521c0e+wt
 pass/proofs/mathematical_negated_integer_order_double_exit checked 3797ms check-target:macos_arm64 @80e7797d0e1e
 pass/proofs/mathematical_negated_integer_order_exit checked 3757ms check-target:macos_arm64 @80e7797d0e1e
@@ -23008,7 +23168,7 @@ pass/targets/unreached_family_missing_member_exit checked 11591ms check-target:m
 pass/targets/unreached_foreign_body_caller_exit checked 11335ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/tasks/ordinary_named_task_runtime_compile checked 3908ms @3b422f31da30+wt
 pass/tasks/task_runtime_machine_selection_compile checked 4046ms @3b422f31da30+wt
-pass/terminal_psi/content_custody_exit checked 1599ms @a9ae30e1c334+wt
+pass/terminal_psi/content_custody_exit checked 7771ms check-target:macos_arm64 @598688c61fee
 pass/terminal_psi/debug_identity_complete_module checked 45206ms check-target:macos_arm64 terminal-inspections:match @a9ae30e1c334+wt
 pass/terminal_psi/integer_control_contract checked 4148ms @a9ae30e1c334+wt
 pass/terminal_psi/member_crash_contract_boundary checked 1704ms @a9ae30e1c334+wt
@@ -23016,7 +23176,7 @@ pass/terminal_psi/portable_contract_component checked 11792ms check-target:linux
 pass/terminal_psi/selected_empty_component checked 12124ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/terminal_psi/selected_lowering_optimizer_component checked 29237ms check-target:linux_x86_64 @e5140c7a7be2+wt
 pass/terminal_psi/selected_optimizer_component checked 11710ms check-target:linux_x86_64 @a9ae30e1c334+wt
-pass/terminal_psi/structural_content_passthrough checked 1666ms @a9ae30e1c334+wt
+pass/terminal_psi/structural_content_passthrough checked 7583ms check-target:macos_arm64 @598688c61fee
 pass/terminal_psi/structural_scalar_trait_operator checked 12611ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/terminal_psi/unsupported_optimizer_component checked 10624ms check-target:linux_x86_64 @a9ae30e1c334+wt
 pass/termination/auxiliary_payload_computed_arrival checked 1886ms @a9ae30e1c334+wt
@@ -23346,6 +23506,7 @@ pass/traits/trait_operator_token checked 8832ms @5041ef1af684+wt
 pass/traits/trait_parent_inherit checked 8738ms @5041ef1af684+wt
 pass/traits/transparent_refinement_declaration checked 10672ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/traits/unused_trait_implementation_member_exit checked 28866ms check-target:macos_arm64 @164f21ca3402
+pass/types/address_comparison_symbolic_bound_compile checked 2676ms @598688c61fee
 pass/types/address_model_conversion checked 7052ms check-target:macos_arm64 @8fd8af53161a+wt
 pass/types/exact_address_conversion checked 3826ms check-target:macos_arm64 @3b422f31da30+wt
 pass/types/runtime_addr_algebra_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -28,6 +28,7 @@ use super::self_induction::intake_available_self_induction_hypotheses;
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
 };
+use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -918,6 +919,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_>
             judge.normal_operation_entries(
                 self.statement_index,
                 self.call_expression,
+                OperationOperandDemand::All,
                 &environment,
                 scope,
             )
@@ -1022,6 +1024,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             let Some(entries) = site_judge.normal_operation_entries(
                 self.statement_index,
                 self.call_expression,
+                OperationOperandDemand::All,
                 environment,
                 (machine, caller_state, caller_state.return_type),
             ) else {
@@ -1049,20 +1052,18 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         let mut requirement_parameters = predicate_parameters.to_vec();
         let mut static_substitution = Vec::new();
         if let Some(site) = self.call_site {
-            let arguments = match site {
-                crate::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
-                crate::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-                crate::CallSite::TransitionNamed { .. } => &[],
-            };
             let Some(owner) =
                 super::specification_calls::selected_call_site_contract(program, site)
             else {
                 self.proven = false;
                 return;
             };
-            let Some(bindings) =
-                super::specification_calls::call_scalar_substitution(program, &owner, arguments)
-            else {
+            let Some(bindings) = super::specification_calls::call_static_value_substitution(
+                program,
+                machine.symbol,
+                &owner,
+                site,
+            ) else {
                 self.proven = false;
                 return;
             };
@@ -1437,13 +1438,23 @@ fn intake_state_induction(
     let Some(entry) = program.machine_states(machine).first() else {
         return;
     };
-    let Some(value) = immutable_value_origin(program, state, position, *value) else {
+    let Some((call_position, value)) =
+        crate::value_custody::places::binding_observations::immutable_value_origin(
+            program, state, position, *value,
+        )
+    else {
         return;
     };
     let Some(call) = program.expression_table.call_node(value) else {
         return;
     };
-    if !crate::machine_calls::calls::proof_call_has_structural_descent(program, machine, call) {
+    if !crate::machine_calls::calls::proof_call_has_structural_descent(
+        program,
+        machine,
+        state,
+        call_position,
+        call,
+    ) {
         return;
     }
     let Some(value) = judge.callee_term_in_scope(
@@ -1465,27 +1476,4 @@ fn intake_state_induction(
         return;
     }
     intake_available_self_induction_hypotheses(program, machine, &parameters, &value, judge);
-}
-
-/// Follow exact immutable local definitions, including ordinary call hoisting.
-/// Earlier-only definition lookup supplies a strictly decreasing walk bound.
-fn immutable_value_origin(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    mut before: usize,
-    mut expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    loop {
-        let Some(name) = program.expression_table.name_path_node(expression) else {
-            return Some(expression);
-        };
-        if !name.symbol.is_valid() {
-            return None;
-        }
-        let (position, local) = program
-            .state_local_declaration(state, name.symbol)
-            .filter(|&(position, local)| position < before && !local.is_mutable)?;
-        before = position;
-        expression = local.initial_value;
-    }
 }

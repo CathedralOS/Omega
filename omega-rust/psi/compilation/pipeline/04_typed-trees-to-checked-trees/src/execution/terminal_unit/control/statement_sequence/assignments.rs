@@ -232,13 +232,7 @@ pub(super) fn plan(
         } else {
             consume_value_places(facts, root.root, structural_results, &mut *operations)?;
         }
-        super::consume_value_call_sources(
-            facts,
-            structural_results,
-            &mut *operations,
-            &calls,
-            root.root,
-        )?;
+        super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
         assignment_phase("statement sequence: assignment: structural result type");
         // The installed carrier is the destination's stored value: a rebind
         // keeps the reference descriptor, and a write through it keeps the

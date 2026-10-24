@@ -23,6 +23,7 @@ use checked_trees::{
 struct ResourceDraft {
     resource: CheckedCallBorrowLoanResource,
     path: Vec<BorrowLoanOwnerSegment>,
+    backing: CapturedPlace,
 }
 
 pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut CheckFacts) {
@@ -48,6 +49,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
     }
     facts.borrow.call_loan_resources.reset_retain_capacity();
     facts.borrow.call_loan_paths.reset_retain_capacity();
+    facts.borrow.call_loan_backing_paths.reset_retain_capacity();
     facts.borrow.call_loan_parents = parents;
     for mut draft in resources {
         let owner = facts
@@ -59,6 +61,14 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
         else {
             continue;
         };
+        if draft.backing.root != draft.resource.parent_lifetime.root {
+            continue;
+        }
+        draft.resource.backing_incoming_reference = draft.backing.incoming_reference;
+        draft.resource.backing_path = facts
+            .borrow
+            .call_loan_backing_paths
+            .insert_many(draft.backing.segments);
         draft.resource.capture_path = facts.borrow.call_loan_paths.insert_many(path);
         draft.resource.owner_path = facts.borrow.owner_segments.insert_many(draft.path);
         facts.borrow.call_loan_resources.insert(draft.resource);
@@ -88,9 +98,18 @@ fn collect(
     if paths.is_empty() {
         return;
     }
-    if !capture.alternatives.is_empty() {
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        let Some(alternatives) = facts.flow.control.operand_alternatives.span(alternatives) else {
+            return;
+        };
+        if alternatives.is_empty() {
+            return;
+        }
         let mut complete = Vec::new();
-        for alternative in capture.alternatives.handles() {
+        for alternative in alternatives {
+            if !alternative.source_arm.is_valid() {
+                return;
+            }
             let mut branch = Vec::new();
             collect(
                 program,
@@ -98,7 +117,7 @@ fn collect(
                 state,
                 call,
                 owner_operand,
-                alternative,
+                alternative.value,
                 path,
                 &mut branch,
                 parents,
@@ -115,12 +134,12 @@ fn collect(
         resources.extend(complete);
         return;
     }
-    if !capture.children.is_empty() {
+    if !capture.constructed_children().is_empty() {
         for child in facts
             .flow
             .control
             .operand_children
-            .span_or_empty(capture.children)
+            .span_or_empty(capture.constructed_children())
         {
             let mut child_path = path.to_vec();
             child_path.extend(crate::borrow::owner_path_from_place_segments(
@@ -254,11 +273,126 @@ fn collect(
                         state_symbol: state.state_symbol,
                         root: row.root,
                     },
+                    backing_incoming_reference: Handle::invalid(),
+                    backing_path: HandleSpan::empty(),
                 },
                 path: owner_path,
+                backing: CapturedPlace {
+                    incoming_reference: row.incoming_reference,
+                    root: row.root,
+                    segments: facts.borrow.loan_segments(row).to_vec(),
+                },
             });
         }
     }
+}
+
+pub(in crate::checks::borrows) enum FrozenReferenceSelection {
+    NotFrozen,
+    Endpoint {
+        owner: FlowOperandFact,
+        leaf: checked_trees::FlowCapturedReferenceLeaf,
+        path: Vec<facts::PlaceSegment>,
+    },
+    /// A unique valid inline descriptor precedes the requested endpoint.
+    /// Its later pointer crossing belongs to the current-snapshot resolver.
+    ThroughReference,
+    Unavailable,
+}
+
+/// Select observation coordinates, never a permission. Missing or malformed
+/// inventories must not fall through to an ordinary descriptor/source shortcut.
+pub(in crate::checks::borrows) fn frozen_reference_leaf(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    operand: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+) -> FrozenReferenceSelection {
+    use FrozenReferenceSelection::{Endpoint, NotFrozen, ThroughReference, Unavailable};
+    if !control.operands.is_valid(operand) {
+        return Unavailable;
+    }
+    let capture = *control.operands.get(operand);
+    let (owner, leaves, prefix, path) = match capture.completion {
+        checked_trees::FlowOperandCompletion::Copied { copy, path } => {
+            if !control.copied_values.is_valid(copy) {
+                return Unavailable;
+            }
+            let copied = control.copied_values.get(copy);
+            if !control.operands.is_valid(copied.source) {
+                return Unavailable;
+            }
+            let Some(prefix) = control.operand_child_paths.span(path) else {
+                return Unavailable;
+            };
+            let mut path = prefix.to_vec();
+            path.extend_from_slice(projection);
+            (
+                *control.operands.get(copied.source),
+                copied.references,
+                prefix.len(),
+                path,
+            )
+        }
+        _ if !capture.reference_leaves.is_empty() => {
+            (capture, capture.reference_leaves, 0, projection.to_vec())
+        }
+        _ => return NotFrozen,
+    };
+    let Some(leaves) = control.captured_reference_leaves.span(leaves) else {
+        return Unavailable;
+    };
+    let mut selected = None;
+    for leaf in leaves {
+        let Some(leaf_path) = control.operand_child_paths.span(leaf.path) else {
+            return Unavailable;
+        };
+        if leaf_path.len() <= path.len()
+            && leaf_path.iter().zip(&path).all(|(left, right)| {
+                validation::storage_path_relations::canonical_place_segments_equal(
+                    program, *left, *right,
+                )
+            })
+        {
+            if selected.replace((*leaf, leaf_path)).is_some() {
+                return Unavailable;
+            }
+        }
+    }
+    let Some((leaf, leaf_path)) = selected else {
+        return Unavailable;
+    };
+    if leaf_path.len() < prefix {
+        return Unavailable;
+    }
+    let Some(selected) =
+        validation::project_type_reference_from_segments(program, owner.type_reference, leaf_path)
+    else {
+        return Unavailable;
+    };
+    let (Some(actual), Some(declared)) = (
+        validation::reference_shell(program, selected),
+        validation::reference_shell(program, leaf.type_reference),
+    ) else {
+        return Unavailable;
+    };
+    if actual.access != declared.access
+        || !validation::storage_origin_types_match(program, actual.referee, declared.referee)
+    {
+        return Unavailable;
+    }
+    if leaf_path.len() < path.len() {
+        // A typed final descriptor and a nonempty suffix establish that this
+        // query really continues beyond the frozen leaf. Geometry/access for
+        // that crossing remain the existing shared resolver's obligation.
+        if !validation::project_type_reference_from_segments(program, owner.type_reference, &path)
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+        {
+            return Unavailable;
+        }
+        return ThroughReference;
+    }
+    Endpoint { owner, leaf, path }
 }
 
 /// Lifetime retention follows the captured contents of every stored reference
@@ -640,14 +774,23 @@ fn projected_operand_places(
     use checked_trees::{
         CheckedReferenceOriginProjection as Projection, CheckedUnitStructuralPathSegment as Segment,
     };
-    if !operand.alternatives.is_empty() {
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
+        let alternatives = facts.flow.control.operand_alternatives.span(alternatives)?;
+        if alternatives.is_empty() {
+            return None;
+        }
         let mut complete = Vec::new();
-        for alternative in facts.flow.control.operands.span(operand.alternatives)? {
+        for alternative in alternatives {
+            if !alternative.source_arm.is_valid()
+                || !facts.flow.control.operands.is_valid(alternative.value)
+            {
+                return None;
+            }
             let places = projected_operand_places(
                 program,
                 facts,
                 state,
-                alternative,
+                facts.flow.control.operands.get(alternative.value),
                 reference,
                 path,
                 invocation,
@@ -663,7 +806,7 @@ fn projected_operand_places(
     // A by-value constructed input already owns captures for its children.
     // Select the child before asking for a storage place: the constructor need
     // not have a named home, and later siblings cannot rewrite its capture.
-    if !operand.children.is_empty() {
+    if !operand.constructed_children().is_empty() {
         let count = path
             .iter()
             .take_while(|projection| !matches!(projection, Projection::Exact(Segment::Referent)))
@@ -677,7 +820,7 @@ fn projected_operand_places(
             .flow
             .control
             .operand_children
-            .span(operand.children)?
+            .span(operand.constructed_children())?
             .iter()
             .filter_map(|child| {
                 let prefix = facts.flow.control.operand_child_paths.span(child.path)?;

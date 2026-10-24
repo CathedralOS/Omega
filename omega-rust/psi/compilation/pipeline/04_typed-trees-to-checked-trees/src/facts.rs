@@ -279,6 +279,7 @@ pub(crate) fn build_check_facts(
     }
     drop(flow_loop_guard);
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
+    crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
         crate::values::retain_nested_call_arguments(
             program,
@@ -294,10 +295,11 @@ pub(crate) fn build_check_facts(
         ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
             program,
             &prepared.operators,
+            &prepared.semantic,
             &prepared.flow,
             &prepared.borrow,
             &prepared.proof,
-            &prepared.values.scalar_expressions,
+            &mut prepared.values.scalar_expressions,
             &validation_facts.exact_integer_casts,
         );
     });
@@ -431,6 +433,7 @@ pub(crate) fn build_check_facts(
             &validation_facts.exact_integer_casts,
             &values.scalar_expressions,
             &values.scalar_computations,
+            &values.structural_values,
         )
     })?;
     let nominal_machine_uses = build_nominal_machine_use_facts(

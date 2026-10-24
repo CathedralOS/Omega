@@ -6,8 +6,8 @@
 //! builds the call operation, and binds its result: a
 //! discarded structural result is disposed on the call's continuation, a
 //! bound one joins the body's structural results, a scalar one binds in the
-//! dense namespace. The statement's pending result stores follow as the
-//! call's immediate continuation, then the call's cleanup. Select structural
+//! dense namespace. Normal operand cleanup follows result capture before an
+//! enclosing result store can displace its destination. Select structural
 //! replacement only after operand preparation updates the open-window ledger;
 //! selecting it earlier would dispose an actual that the call already consumed.
 use super::{
@@ -306,13 +306,14 @@ pub(super) fn plan(
                 )],
             });
         }
-        super::super::super::cleanup::anonymous::append_continuation(
+        super::super::super::cleanup::anonymous::insert_continuation(
             program,
             facts,
             shapes,
             machine,
             state,
             coordinate,
+            operations.len(),
             structural_results,
             operations,
             trace,
@@ -360,9 +361,10 @@ pub(super) fn plan(
         Some(result) => bind_scalar_call_result(facts, operation, result, true)?,
         None => operation,
     });
-    // The store consuming this call's scalar result is its immediate
-    // continuation: the result is live, and no cleanup separates the call
-    // from the field it was called to fill.
+    // The result is captured before operand cleanup. Select that cleanup
+    // against the complete planned result consumption below, then insert it
+    // at this normal-return boundary before enclosing destination effects.
+    let completion_position = operations.len();
     for store in call_result_stores {
         // The store consumes the call's minted result binding: record the
         // consumption so an affine producer sheds its return-edge disposal.
@@ -377,13 +379,14 @@ pub(super) fn plan(
     }
     *structural_count = structural_count.checked_add(structural_store_bindings)?;
     call_phase("statement sequence: call: normal completion");
-    super::super::super::cleanup::anonymous::append_continuation(
+    super::super::super::cleanup::anonymous::insert_continuation(
         program,
         facts,
         shapes,
         machine,
         state,
         coordinate,
+        completion_position,
         structural_results,
         operations,
         trace,

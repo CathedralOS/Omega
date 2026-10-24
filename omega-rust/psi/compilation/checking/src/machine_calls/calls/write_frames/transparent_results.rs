@@ -232,7 +232,7 @@ pub(crate) fn transparent_callee_result_origins(
         if !leaf.local_suffix.is_empty() || !leaf.local_segments.is_empty() {
             return None;
         }
-        let place = leaf.origin?;
+        let place = leaf.origin?.into_symbolic_place()?;
         let parameter_symbol = if place.source.is_static() {
             SymbolHandle::invalid()
         } else {

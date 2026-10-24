@@ -951,6 +951,36 @@ impl TypedTrees {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<NormalizedTypeIdentity> {
+        self.fixed_array_length_identity_with_substitution_semantics(
+            length,
+            binders,
+            substitutions,
+            SubstitutionSemantics::Transitive,
+        )
+    }
+
+    /// An authored extent under one simultaneous type/const telescope. Supplied
+    /// operands keep their own scope instead of seeing sibling replacements.
+    pub fn fixed_array_length_identity_with_simultaneous_substitutions(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<NormalizedTypeIdentity> {
+        self.fixed_array_length_identity_with_substitution_semantics(
+            length,
+            &[],
+            substitutions,
+            SubstitutionSemantics::Simultaneous,
+        )
+    }
+
+    fn fixed_array_length_identity_with_substitution_semantics(
+        &self,
+        length: &crate::types::FixedArrayLength,
+        binders: &[(SymbolHandle, String)],
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        substitution_semantics: SubstitutionSemantics,
+    ) -> Option<NormalizedTypeIdentity> {
         if let crate::types::FixedArrayLength::Expression(reference) = length
             && (!self
                 .type_reference_table
@@ -969,6 +999,7 @@ impl TypedTrees {
             &TypeIdentityContext {
                 binders,
                 substitutions,
+                substitution_semantics,
                 invalid_index_argument: Some(&invalid),
                 ..Default::default()
             },

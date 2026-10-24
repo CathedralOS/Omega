@@ -4,7 +4,10 @@ use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
 mod collection;
 mod expression;
+mod reference_custody;
 mod transitions;
+pub(in crate::borrow) use reference_custody::append_reference_custody;
+pub(crate) use reference_custody::replaces_reference_loan;
 
 use collection::BorrowCallCollection;
 use transitions::collect_transition_target_borrow_calls;
@@ -76,6 +79,7 @@ pub(crate) fn collect_statement_borrow_calls(
                     },
                 );
                 collection.append_borrow_call(
+                    Default::default(),
                     call.receiver_symbol,
                     if resolved_target.is_valid() {
                         resolved_target

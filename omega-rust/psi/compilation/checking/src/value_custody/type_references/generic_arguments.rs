@@ -103,6 +103,7 @@ pub(super) fn validate_symbolic_array_length(
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let FixedArrayLength::Expression(value) = length {
         let TypeReferenceNode::ConstExpression(root) =
@@ -144,7 +145,14 @@ pub(super) fn validate_symbolic_array_length(
             })
             .unwrap_or_default();
         crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
-            program, type_parameter_scope.lexical_owner, &parameters, *root, &prior, &owner.to_string(), diagnostics,
+            program,
+            type_parameter_scope.lexical_owner,
+            &parameters,
+            *root,
+            &prior,
+            &owner.to_string(),
+            diagnostics,
+            formation_obligations,
         );
         let natural = crate::parameter_expression_result_type_reference(
             program,
@@ -237,6 +245,8 @@ pub fn validate_closed_const_argument(
     owner: &str,
     parameter: &TypeParameter,
     argument: TypeReferenceHandle,
+    application_parameters: &[TypeParameter],
+    application_arguments: &[TypeReferenceHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     let (TypeParameterKind::Const { type_reference } | TypeParameterKind::Value { type_reference }) =
         parameter.kind
@@ -262,7 +272,11 @@ pub fn validate_closed_const_argument(
         program,
         owner,
         parameter,
-        AppliedValueCarrier::ordinary(type_reference),
+        AppliedValueCarrier::applied(
+            type_reference,
+            application_parameters,
+            application_arguments,
+        ),
         argument,
         TypeParameterScope {
             operand_lifetime_owner: symbols::SymbolHandle::invalid(),
@@ -377,7 +391,11 @@ impl<'application> AppliedValueCarrier<'application> {
         Self { reference, ..self }
     }
 
-    fn matches(self, program: &dyn crate::CheckingInput, actual: TypeReferenceHandle) -> bool {
+    pub(crate) fn matches(
+        self,
+        program: &dyn crate::CheckingInput,
+        actual: TypeReferenceHandle,
+    ) -> bool {
         let substitutions = self
             .parameters
             .iter()
@@ -392,12 +410,13 @@ impl<'application> AppliedValueCarrier<'application> {
             })
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        program.type_identity_with_simultaneous_substitutions(
+        let expected = program.type_identity_with_simultaneous_substitutions(
             typed_trees::type_identity::TypeIdentityRequest {
                 substitutions: &substitutions,
                 ..typed_trees::type_identity::TypeIdentityRequest::ordinary(self.reference)
             },
-        ) == program.normalized_type_identity(actual)
+        );
+        expected.is_valid() && expected == program.normalized_type_identity(actual)
     }
 
     fn array_length(
@@ -697,7 +716,7 @@ pub(crate) fn validate_exact_const_identity(
     )
 }
 
-fn validate_exact_const_identity_in_carrier(
+pub(crate) fn validate_exact_const_identity_in_carrier(
     program: &dyn crate::CheckingInput,
     carrier: AppliedValueCarrier<'_>,
     identity: &CanonicalConstIdentity,
@@ -1342,6 +1361,7 @@ pub(crate) fn validate_const_binder_carriers(
     parameters: &[TypeParameter],
     scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for parameter in parameters {
         let (TypeParameterKind::Const {
@@ -1364,6 +1384,7 @@ pub(crate) fn validate_const_binder_carriers(
                 generic_depth: 0,
             },
             scope,
+            formation_obligations,
         );
         let Some(primitive_type) = program
             .type_reference_table

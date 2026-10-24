@@ -13,7 +13,7 @@ use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinua
 use super::{lookup_type_id, unsupported};
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::structural_paths::{
-    PreparedStructuralPathSegment, emit_captured_argument_path, prepare_structural_argument_path,
+    PreparedStructuralPathSegment, prepare_structural_argument_path,
 };
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
@@ -26,6 +26,7 @@ impl Emission<'_, '_, '_> {
         selectors: arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
         source_value: checked_trees::CheckedStructuralValueHandle,
         storage: checked_trees::CheckedReferenceStorage,
+        completion: super::CompletionOccurrence,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         // Address demand belongs to the original source, including a scalar
@@ -38,6 +39,7 @@ impl Emission<'_, '_, '_> {
             source,
             self.values,
             self.structural_types,
+            self.domain_declarations,
             self.environment.next_place,
             self.operations,
             self.environment.private_places,
@@ -62,13 +64,13 @@ impl Emission<'_, '_, '_> {
                     &[],
                 ),
             )?;
-            // Backing is an independent owner, not a field stored in the
-            // descriptor: its own checked completion frontier is the active
-            // roster while its operand producers run.
-            let completed = self.establish_computed_operand(
+            // Backing completes through its own producer occurrence, not the
+            // descriptor's child roster. The shared construction/call owner
+            // publishes that exact home's claims before the loan is formed.
+            let completed = self.child_constructor_operand(
                 identities,
-                source_value,
                 root_type,
+                source_value,
                 node.type_reference,
             )?;
             // The loan and its later retirement name this exact home. Keep
@@ -101,26 +103,12 @@ impl Emission<'_, '_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "reference has stale selector evaluations",
             ))?;
-        let source_count = self.values.len();
-        for (ordinal, root) in evaluations.iter().enumerate() {
-            let selector = self.scalar(
-                identities,
-                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
-                    expression: formation.expression,
-                    selector_ordinal: u32::try_from(ordinal).map_err(|_| {
-                        LoweringError::Unsupported("reference selector ordinal exceeds u32")
-                    })?,
-                },
-                *root,
-                source_count,
-            )?;
-            self.values.push(selector);
+        if source
+            .computation_operands(&self.checked.facts.values.scalar_computations.operands)
+            .any(|root| !evaluations.contains(&root))
+        {
+            return unsupported("reference path has no retained selector evaluation");
         }
-        let captured = self.values[source_count..]
-            .iter()
-            .map(|value| value.id)
-            .collect::<Vec<_>>();
-        self.values.truncate(source_count);
         let bindings = self
             .evaluation
             .scalar_bindings
@@ -161,7 +149,7 @@ impl Emission<'_, '_, '_> {
                 )?
             }
             _ => {
-                let mut argument = bindings
+                let argument = bindings
                     .borrowed_structural_home(source, self.checked.state_parameters(state))?;
                 let root_type = bindings.structural_argument_type(&argument).ok_or(
                     LoweringError::Unsupported("reference source lost its published selected type"),
@@ -180,38 +168,15 @@ impl Emission<'_, '_, '_> {
                     .map(PreparedStructuralPathSegment::Static)
                     .chain(suffix)
                     .collect::<Vec<_>>();
-                let selected = prepared
-                    .iter()
-                    .filter_map(|segment| match segment {
-                        PreparedStructuralPathSegment::ComputedIndex(root) => Some(
-                            evaluations
-                                .iter()
-                                .position(|source| source == root)
-                                .and_then(|position| captured.get(position).copied())
-                                .ok_or(LoweringError::Unsupported(
-                                    "reference path has no captured selector",
-                                )),
-                        ),
-                        _ => None,
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let mut selectors = selected.into_iter();
-                // A view lends from its current descriptor. Its live extent
-                // and captured selectors belong to this reference formation's
-                // operand frame, just as they do for an ordinary call operand.
-                argument.path = emit_captured_argument_path(
-                    &prepared,
+                self.complete_projection(
+                    identities,
+                    formation.expression,
                     argument.place,
-                    Some(self.values.as_slice()),
-                    &mut selectors,
-                    Some(&mut *self.calls),
-                    Some((&mut *self.next_value, &mut *self.operations)),
-                )?;
-                argument.access =
+                    prepared,
                     crate::expression_preparation::bindings::structural_paths::terminal_access(
                         source.access,
-                    );
-                argument
+                    ),
+                )?
             }
         };
         // Destination access distinguishes an alias from a stored descriptor.
@@ -250,7 +215,7 @@ impl Emission<'_, '_, '_> {
             argument,
             storage,
             self.structural_types,
-            self.evaluation.structural_root_parameters(),
+            self.evaluation,
             super::super::super::place_id(super::super::super::allocate_dense(
                 self.environment.next_place,
             )?),
@@ -258,6 +223,6 @@ impl Emission<'_, '_, '_> {
         )?;
         let place = carrier.id;
         self.environment.private_places.push(carrier);
-        self.completed(place, continuation)
+        self.completed(identities, place, completion, continuation)
     }
 }

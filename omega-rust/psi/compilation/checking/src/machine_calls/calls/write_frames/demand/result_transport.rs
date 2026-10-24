@@ -7,7 +7,9 @@ use super::super::{LocalWriteSource, ReferenceResultLeafOrigin, ReferenceResultT
 use super::{CallFrameResolver, FrameInference, SymbolHandle, memoized};
 
 impl CallFrameResolver<'_> {
-    pub(crate) fn reference_result_transports(
+    /// Complete chronological result relation. Callers must substitute each
+    /// source through their own completed operands before publishing addresses.
+    pub fn reference_result_transports(
         &self,
         symbol: SymbolHandle,
     ) -> Option<Vec<ReferenceResultTransport>> {
@@ -32,7 +34,7 @@ impl CallFrameResolver<'_> {
                 transports.push(ReferenceResultTransport::Reference(
                     ReferenceResultLeafOrigin {
                         result_path: leaf.local_segments,
-                        source: LocalWriteSource::from(leaf.origin?),
+                        source: LocalWriteSource::from(leaf.origin?.into_symbolic_place()?),
                     },
                 ));
             }
@@ -40,6 +42,7 @@ impl CallFrameResolver<'_> {
                 transports.push(ReferenceResultTransport::Value {
                     result_path: moved.local_segments,
                     source: LocalWriteSource {
+                        invocation_output: moved.source.output_identity(),
                         is_image_storage: moved.source.is_static(),
                         recasts: moved.source.recasts,
                         representation: moved.source.representation,

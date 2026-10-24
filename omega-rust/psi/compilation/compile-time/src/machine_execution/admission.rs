@@ -132,6 +132,7 @@ pub struct BuildTimeAdmissionPlan {
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
+    pub(crate) accounting: crate::evaluation_accounting::EvaluationAccounting,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -206,6 +207,13 @@ fn walk_call_closure<Outcome>(
 }
 
 impl BuildTimeAdmissionPlan {
+    pub(crate) fn with_accounting(
+        mut self,
+        accounting: crate::evaluation_accounting::EvaluationAccounting,
+    ) -> Self {
+        self.accounting = accounting;
+        self
+    }
     pub fn infer(
         program: &TypedTrees,
         selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
@@ -221,6 +229,7 @@ impl BuildTimeAdmissionPlan {
             selection_authority,
             selected_operators: Vec::new(),
             selected_machine_bodies: Vec::new(),
+            accounting: Default::default(),
         }
     }
 
@@ -613,15 +622,16 @@ impl BuildTimeAdmissionPlan {
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_floor(input, machine, None, false)?;
-        checked_interpreter::evaluate_build_time_machine(
-            program,
-            BuildMachineEvaluationRequest {
-                machine_bodies: &self.selected_machine_bodies,
-                ..BuildMachineEvaluationRequest::named(machine_name, arguments)
-            },
-        )
-        .map(BuildTimeOperationEvaluation::into_value)
-        .map_err(BuildTimeAdmissionRejection::from)
+        self.accounting
+            .evaluate(
+                checked_interpreter::BuildMachineProgram::Typed(program),
+                BuildMachineEvaluationRequest {
+                    machine_bodies: &self.selected_machine_bodies,
+                    ..BuildMachineEvaluationRequest::named(machine_name, arguments)
+                },
+            )
+            .map(BuildTimeOperationEvaluation::into_value)
+            .map_err(BuildTimeAdmissionRejection::from)
     }
 
     /// Admit and evaluate the exact result-bearing machine selected by a
@@ -642,14 +652,15 @@ impl BuildTimeAdmissionPlan {
             )
         })?;
         self.require_floor(input, machine, Some(custody), false)?;
-        checked_interpreter::evaluate_build_time_machine(
-            program,
-            BuildMachineEvaluationRequest {
-                machine_bodies: &self.selected_machine_bodies,
-                ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-            },
-        )
-        .map(BuildTimeOperationEvaluation::into_measured)
+        self.accounting
+            .evaluate(
+                checked_interpreter::BuildMachineProgram::Typed(program),
+                BuildMachineEvaluationRequest {
+                    machine_bodies: &self.selected_machine_bodies,
+                    ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
+                },
+            )
+            .map(BuildTimeOperationEvaluation::into_measured)
     }
 
     /// Return the exact checked-machine closure admitted for one compiler
@@ -737,18 +748,20 @@ impl BuildTimeAdmissionPlan {
             custody,
             discharge,
         )?;
-        let value = checked_interpreter::evaluate_build_time_machine(
-            program,
-            BuildMachineEvaluationRequest {
-                product_entry_compatibility: None,
-                operators: &self.selected_operators,
-                machine_bodies: &self.selected_machine_bodies,
-                ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
-            },
-        )
-        .map(BuildTimeOperationEvaluation::into_measured)?
-        .into_parts()
-        .0;
+        let value = self
+            .accounting
+            .evaluate(
+                checked_interpreter::BuildMachineProgram::Typed(program),
+                BuildMachineEvaluationRequest {
+                    product_entry_compatibility: None,
+                    operators: &self.selected_operators,
+                    machine_bodies: &self.selected_machine_bodies,
+                    ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
+                },
+            )
+            .map(BuildTimeOperationEvaluation::into_measured)?
+            .into_parts()
+            .0;
         require_const_evaluable_result(program, machine, &value)?;
         Ok(value)
     }
@@ -850,16 +863,18 @@ impl BuildTimeAdmissionPlan {
             custody,
             discharge_authored_requires,
         )?;
-        let measured = checked_interpreter::evaluate_build_time_machine(
-            program,
-            BuildMachineEvaluationRequest {
-                product_entry_compatibility: None,
-                operators: &self.selected_operators,
-                machine_bodies: &self.selected_machine_bodies,
-                ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-            },
-        )
-        .map(BuildTimeOperationEvaluation::into_measured)?;
+        let measured = self
+            .accounting
+            .evaluate(
+                checked_interpreter::BuildMachineProgram::Typed(program),
+                BuildMachineEvaluationRequest {
+                    product_entry_compatibility: None,
+                    operators: &self.selected_operators,
+                    machine_bodies: &self.selected_machine_bodies,
+                    ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
+                },
+            )
+            .map(BuildTimeOperationEvaluation::into_measured)?;
         require_const_evaluable_result(program, machine, measured.value())?;
         Ok(measured)
     }

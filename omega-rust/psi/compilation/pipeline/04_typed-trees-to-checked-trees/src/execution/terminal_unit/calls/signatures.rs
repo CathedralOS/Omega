@@ -3,8 +3,9 @@
 
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, parameter_qualifications, projected_parameter_qualifications,
-    structural_access_for_type_reference, substituted_formal_type,
+    ShapeCollector, fold_parameter_entry_domains, parameter_qualifications,
+    projected_parameter_qualifications, structural_access_for_type_reference,
+    substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
@@ -159,11 +160,13 @@ fn structural_signature_for_partial_affine(
                 | CheckedStructuralAccess::WriteOnlyBorrow
                 | CheckedStructuralAccess::SharedBorrow
         );
+        // The registered referent retains its complete scalar receiving
+        // restriction. Nominal qualifications travel on the same exact
+        // carrier through the ordinary structural parameter channel below;
+        // a primitive loan does not erase them or become an owned scalar.
         let primitive_referent = shapes.primitive_scalar(type_identity);
         if primitive_referent.is_some()
-            && (multiplicity != Multiplicity::Unrestricted
-                || !qualifications.is_empty()
-                || !primitive_access_is_admitted)
+            && (multiplicity != Multiplicity::Unrestricted || !primitive_access_is_admitted)
         {
             return None;
         }
@@ -188,6 +191,13 @@ fn structural_signature_for_partial_affine(
     {
         return None;
     }
+    fold_parameter_entry_domains(
+        program,
+        shapes,
+        state.symbol,
+        binders,
+        &mut structural_parameters,
+    )?;
     Some((
         attachment.map(|(identity, _)| identity),
         structural_parameters,
@@ -299,14 +309,18 @@ fn scalar_and_structural_parameters(
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    parameter_signatures(
+    let (mut structural, scalar) = parameter_signatures(
         program,
         shapes,
         program.state_parameters(state),
         binders,
         &[],
         trace,
-    )
+    )?;
+    // An explicit entry membership belongs to the state signature, independent
+    // of the body route or result form that later consumes this declaration.
+    fold_parameter_entry_domains(program, shapes, state.symbol, binders, &mut structural)?;
+    Some((structural, scalar))
 }
 
 /// Classify a callee's formals into its scalar and structural lanes. A

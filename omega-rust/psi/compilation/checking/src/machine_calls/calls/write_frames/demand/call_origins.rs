@@ -424,6 +424,7 @@ impl<'program> CallFrameResolver<'program> {
         // stored reference without its retained origin.
         frames::reference_subjects::validate_owned_projection(program, root_reference, &segments)?;
         Some(vec![LocalWriteSource {
+            invocation_output: None,
             is_image_storage: false,
             recasts: Vec::new(),
             root,

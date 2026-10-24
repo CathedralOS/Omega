@@ -97,6 +97,33 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
         {
             (argument, parameter.type_reference)
         }
+        // A completed descriptor copy owns its value independently of the
+        // canonical storage spelling used to select it. Rejoin that checked
+        // producer before the place-only loan route can redirect a saved
+        // descriptor to a subsequently replaced source slot.
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+            if let Some(completed) = facts
+                .values
+                .structural_values
+                .root_for_expression(state, u32::try_from(statement_index).ok()?, argument)
+                .filter(|root| {
+                    facts.values.structural_values.nodes.is_valid(root.root)
+                        && matches!(
+                            facts.values.structural_values.nodes.get(root.root).kind,
+                            checked_trees::CheckedStructuralValueKind::Projection {
+                                copies_selected_value: true,
+                                ..
+                            }
+                        )
+                        && validation::reference_result_custody::stored_loan_parts(
+                            program,
+                            root.type_reference,
+                        )
+                        .is_some()
+                }) =>
+        {
+            (argument, completed.type_reference)
+        }
         // Registration and receiving planning retain the same source-selected
         // descriptor. The parameter's annotation does not create that value.
         typed_trees::types::TypeReferenceNode::Reference { .. }
@@ -832,7 +859,6 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
                     structural_results,
                     &mut *operations,
                     &calls,
-                    root.root,
                 )?;
                 let multiplicity = validation::reference_result_custody::result_multiplicity(
                     program,

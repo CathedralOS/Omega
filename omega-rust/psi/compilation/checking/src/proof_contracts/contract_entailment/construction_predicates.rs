@@ -16,6 +16,7 @@
 use super::citations::CitationFacts;
 use super::refuted_requires::instantiated_selected_fact_judgment;
 use super::structural_case_arms::structural_arm_judge;
+use super::structural_judgment::normal_returns::OperationOperandDemand;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::{
     StructuralPrefixSite, StructuralPrefixVisitor, expression_is_transition_target,
@@ -60,6 +61,28 @@ pub(crate) fn construction_predicate_judgments(
     }) {
         return vec![StructuralJudgment::Proven; predicates.len()];
     }
+    let mut demanded_fields = Vec::new();
+    for &predicate in predicates {
+        collect_predicate_fields(program, parameters, predicate, &mut demanded_fields);
+    }
+    // A source field selector can name its template while this construction
+    // owns an applied declaration. Demand and substitution must consume the
+    // same exact receiving-field correspondence.
+    let selected_fields = program
+        .expression_table
+        .struct_fields(literal.fields)
+        .iter()
+        .map(|field| {
+            crate::value_custody::struct_literals::selected_construction_field(
+                program,
+                expression,
+                literal,
+                field.field_symbol,
+            )
+            .map(|selected| selected.symbol)
+            .unwrap_or_default()
+        })
+        .collect::<Vec<_>>();
     let mut visitor = ConstructionPredicates {
         site: StructuralPrefixSite {
             state: state.symbol,
@@ -70,6 +93,8 @@ pub(crate) fn construction_predicate_judgments(
         literal,
         parameters,
         predicates,
+        demanded_fields: &demanded_fields,
+        selected_fields: &selected_fields,
         observed: false,
         judgments: vec![StructuralJudgment::Proven; predicates.len()],
     };
@@ -123,6 +148,34 @@ pub(crate) fn construction_predicate_judgments(
     incoming.judgments
 }
 
+/// Only the predicate's exact declared field subjects need value snapshots.
+/// Other constructor operands still execute and establish their own validity;
+/// their aggregate contents do not become premises of this query.
+fn collect_predicate_fields(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+    fields: &mut Vec<symbols::SymbolHandle>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    if let typed_trees::expression::ExpressionNode::Name(path) =
+        program.expression_table.expression(expression)
+        && parameters
+            .iter()
+            .any(|parameter| parameter.symbol == path.symbol)
+        && !fields.contains(&path.symbol)
+    {
+        fields.push(path.symbol);
+    }
+    crate::expression_traversal::children(
+        program,
+        program.expression_table.expression(expression),
+        |child| collect_predicate_fields(program, parameters, child, fields),
+    );
+}
+
 #[derive(Clone)]
 struct ConstructionPredicates<'query> {
     site: StructuralPrefixSite,
@@ -130,6 +183,8 @@ struct ConstructionPredicates<'query> {
     literal: &'query TableStructLiteral,
     parameters: &'query [StateParameter],
     predicates: &'query [ExpressionHandle],
+    demanded_fields: &'query [symbols::SymbolHandle],
+    selected_fields: &'query [symbols::SymbolHandle],
     observed: bool,
     judgments: Vec<StructuralJudgment>,
 }
@@ -174,7 +229,6 @@ impl ConstructionPredicates<'_> {
         judge: &StructuralJudge,
         mut supplied_value: impl FnMut(usize) -> Option<StructuralTerm>,
     ) -> Vec<StructuralJudgment> {
-        let supplied = program.expression_table.struct_fields(self.literal.fields);
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
         let reference = crate::value_custody::struct_literals::construction_application(
@@ -186,15 +240,14 @@ impl ConstructionPredicates<'_> {
             parameters.push(parameter);
         }
         for parameter in self.parameters {
-            let mut matches = supplied.iter().enumerate().filter(|(_, field)| {
-                crate::value_custody::struct_literals::selected_construction_field(
-                    program,
-                    self.expression,
-                    self.literal,
-                    field.field_symbol,
-                )
-                .is_some_and(|selected| selected.symbol == parameter.symbol)
-            });
+            if !self.demanded_fields.contains(&parameter.symbol) {
+                continue;
+            }
+            let mut matches = self
+                .selected_fields
+                .iter()
+                .enumerate()
+                .filter(|(_, selected)| **selected == parameter.symbol);
             let value = if let Some((position, _)) = matches.next() {
                 if matches.next().is_some() {
                     None
@@ -266,6 +319,13 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
             return;
         }
         guarantees.intake(&mut judge);
+        let supplied = program.expression_table.struct_fields(self.literal.fields);
+        let demanded_values = supplied
+            .iter()
+            .zip(self.selected_fields)
+            .filter(|(_, selected)| self.demanded_fields.contains(selected))
+            .map(|(field, _)| field.value)
+            .collect::<Vec<_>>();
         let entries = program
             .state_in_machine(machine, self.site.state)
             .and_then(|state| {
@@ -279,6 +339,7 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
                 judge.normal_operation_entries(
                     self.site.statement_index,
                     self.expression,
+                    OperationOperandDemand::Selected(&demanded_values),
                     environment,
                     (machine, state, reference),
                 )
@@ -295,7 +356,6 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
             }
             return;
         };
-        let supplied = program.expression_table.struct_fields(self.literal.fields);
         for entry in entries {
             self.observed = true;
             if entry.arguments.len() != supplied.len() {

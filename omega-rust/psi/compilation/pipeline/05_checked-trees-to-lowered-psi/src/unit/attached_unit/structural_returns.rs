@@ -88,6 +88,9 @@ pub(super) fn materialize(
     let mut operation_start = capture_operation_end;
     let cleanup_actions = if selected {
         crate::unit::attached_unit::argument_evaluation::cleanup_control::CleanupEmission {
+            structural_types: &evaluation.structural_types,
+            source_parameters: &evaluation.structural_parameters,
+            previous_parameter_homes: &evaluation.previous_parameter_homes,
             checked,
             current: &mut arrival_block,
             parameters: &mut arrival_parameters,

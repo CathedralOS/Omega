@@ -906,6 +906,11 @@ pub fn validate_flow(
                     let path = path
                         .iter()
                         .map(|segment| match segment {
+                            semantic_vocabulary::CanonicalStructuralPathSegment::Referent => {
+                                return Err(
+                                    "activation claim case copy cannot cross reference storage",
+                                );
+                            }
                             semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
                                 field_segment(types, *field)
                             }

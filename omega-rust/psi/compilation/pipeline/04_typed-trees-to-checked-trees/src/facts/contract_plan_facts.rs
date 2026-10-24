@@ -116,12 +116,17 @@ pub(crate) fn build_contract_plans(
     exact_integer_casts: &[validation::ExactIntegerCastFact],
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::with_capacity(program.machines().len());
     let mut publications = Vec::with_capacity(program.machines().len());
     let content_conservation = validation::content_conservation_plans(program);
-    let mut trapping_index =
-        PrecomputedTrappingSites::build(scalar_expressions, scalar_computations, operators);
+    let mut trapping_index = PrecomputedTrappingSites::build(
+        scalar_expressions,
+        scalar_computations,
+        structural_values,
+        operators,
+    );
     for (machine_index, machine) in program.machines().iter().enumerate() {
         let service_fact = service_reaches
             .machines()
@@ -822,6 +827,7 @@ impl PrecomputedTrappingSites {
     fn build(
         scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
         scalar_computations: &checked_trees::CheckedScalarComputationPlans,
+        structural_values: &checked_trees::CheckedStructuralValuePlans,
         operators: &checked_trees::CheckedOperatorFacts,
     ) -> Self {
         let mut expressions_by_state = symbols::SymbolKeyMap::<
@@ -840,7 +846,11 @@ impl PrecomputedTrappingSites {
             Vec<checked_trees::CrashSiteLocation>,
         >::default();
         for (_, root) in scalar_computations.roots.iter() {
-            if computation_contains_trapping_operation(scalar_computations, root.root) {
+            if computation_contains_trapping_operation(
+                scalar_computations,
+                structural_values,
+                root.root,
+            ) {
                 computations_by_machine
                     .entry(root.machine)
                     .or_default()
@@ -922,6 +932,7 @@ impl PrecomputedTrappingSites {
 /// any of its pure expressions, operands, arms, or constructed arguments.
 fn computation_contains_trapping_operation(
     plans: &checked_trees::CheckedScalarComputationPlans,
+    values: &checked_trees::CheckedStructuralValuePlans,
     root: checked_trees::CheckedScalarComputationHandle,
 ) -> bool {
     use checked_trees::{
@@ -935,7 +946,7 @@ fn computation_contains_trapping_operation(
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
         match argument {
-            Argument::Place(place) => return push_place(place, pending),
+            Argument::Place(place) => return push_place(plans, place, pending),
             Argument::Case(case) => pending.extend(
                 plans
                     .case_fields
@@ -947,16 +958,135 @@ fn computation_contains_trapping_operation(
         false
     }
     fn push_place(
+        plans: &checked_trees::CheckedScalarComputationPlans,
         place: &checked_trees::CheckedUnitStructuralArgumentPlan,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
-        pending.extend(place.computation_operands());
+        pending.extend(place.computation_operands(&plans.operands));
         place.scalar_operands().any(|operand| match operand {
             checked_trees::CheckedCallScalarArgument::Pure(value) => {
                 value.contains_trapping_operation()
             }
             checked_trees::CheckedCallScalarArgument::Computation(_) => false,
         })
+    }
+    fn push_structural(
+        plans: &checked_trees::CheckedScalarComputationPlans,
+        values: &checked_trees::CheckedStructuralValuePlans,
+        root: checked_trees::CheckedStructuralValueHandle,
+        pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+    ) -> bool {
+        use checked_trees::{
+            CheckedStructuralRecordFieldValue as Field, CheckedStructuralValueKind as Value,
+        };
+        let Some(mut dependencies) = values.value_dependencies(root) else {
+            // Stale value graphs have no executable admission. This inventory
+            // grants no route from a missing producer or its unexecuted types.
+            return false;
+        };
+        let mut position = 0;
+        while position < dependencies.len() {
+            let value = dependencies[position];
+            position += 1;
+            // Calls retain their prepared actual scalar operands, independently
+            // of their callee's own propagated crash contract.
+            for call in values
+                .call_schedule(value)
+                .map_or(&[][..], |(_, calls)| calls)
+            {
+                for operation in call
+                    .operands()
+                    .iter()
+                    .chain(std::iter::once(call.operation()))
+                    .flat_map(checked_trees::CheckedUnitEffectOperationPlan::with_value_calls)
+                {
+                    if let checked_trees::CheckedUnitEffectOperationPlan::EstablishLocal(
+                        checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
+                            value, ..
+                        },
+                    ) = operation
+                        && let Some(children) = values.value_dependencies(*value)
+                    {
+                        for child in children {
+                            if !dependencies.contains(&child) {
+                                dependencies.push(child);
+                            }
+                        }
+                    }
+                    if let Some(call) = operation.call() {
+                        for argument in call.scalar_operands() {
+                            match argument {
+                                checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                                    if expression.contains_trapping_operation() {
+                                        return true;
+                                    }
+                                }
+                                checked_trees::CheckedCallScalarArgument::Computation(value) => {
+                                    pending.push(*value);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            match &values.nodes.get(value).kind {
+                Value::Record { fields, .. } | Value::StructuralCase { fields, .. } => {
+                    for field in values.record_fields.span_or_empty(*fields) {
+                        if let Field::Scalar(value) = field.value {
+                            pending.push(value);
+                        }
+                    }
+                }
+                Value::Case(case) => pending.extend(
+                    plans.case_fields.span_or_empty(case.fields).iter().map(|field| field.value),
+                ),
+                Value::ScalarArray { elements } => pending.extend(elements),
+                Value::Scalar { value } | Value::ZeroedScalarArray { element: value, .. } => {
+                    pending.push(*value);
+                }
+                Value::Reference { source, selectors, .. } => {
+                    pending.extend(plans.operands.span_or_empty(*selectors));
+                    if push_place(plans, source, pending) {
+                        return true;
+                    }
+                }
+                Value::Projection { path, projection_evaluations, .. } => pending.extend(
+                    checked_trees::CheckedUnitStructuralArgumentPlan::projection_computation_operands(
+                        path, *projection_evaluations, &plans.operands,
+                    ),
+                ),
+                Value::Dispatch { subject, arms } => {
+                    pending.extend(subject.scalar_operands(&plans.operands));
+                    for arm in values.dispatch_arms.span_or_empty(*arms) {
+                        if let Pattern::Value(pattern) = arm.pattern {
+                            pending.push(pattern);
+                        }
+                    }
+                }
+                Value::Place(source) | Value::CopiedStructuralPlace { source, .. } => {
+                    if push_place(plans, source, pending) {
+                        return true;
+                    }
+                }
+                Value::BorrowedSliceView { source, region }
+                | Value::MutableSliceView { source, region } => {
+                    if push_place(plans, source, pending) {
+                        return true;
+                    }
+                    if let checked_trees::CheckedElementViewRegion::RepresentationBytes { start, .. } = region {
+                        pending.push(*start);
+                    }
+                }
+                Value::NativeCodeLayout { .. }
+                | Value::QuotientCall { .. }
+                | Value::QuotientAdaptation { .. }
+                | Value::Call { .. }
+                | Value::FixedArray { .. }
+                | Value::ByteLiteralView { .. }
+                | Value::ZeroedStructural { .. } => {}
+            }
+        }
+        false
     }
     let mut pending = vec![root];
     while let Some(handle) = pending.pop() {
@@ -988,7 +1118,7 @@ fn computation_contains_trapping_operation(
             Kind::StorageAddress { subject, .. }
             | Kind::ByteSequenceLiteralComparison { subject, .. }
             | Kind::ByteSequencePredicate { subject, .. } => {
-                if push_place(subject, &mut pending) {
+                if push_place(plans, subject, &mut pending) {
                     return true;
                 }
             }
@@ -998,12 +1128,29 @@ fn computation_contains_trapping_operation(
                     return true;
                 }
             }
+            Kind::WithOperands {
+                operands, operand, ..
+            } => {
+                pending.push(*operand);
+                for dependency in plans.evaluation_operands.span_or_empty(*operands) {
+                    match dependency {
+                        checked_trees::CheckedScalarEvaluationOperand::Scalar(value) => {
+                            pending.push(*value);
+                        }
+                        checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
+                            if push_structural(plans, values, *value, &mut pending) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
             Kind::SelectedComparison { left, right, .. } => pending.extend([*left, *right]),
             Kind::Qualification { operand, .. }
             | Kind::BooleanToInteger { operand, .. }
             | Kind::AuthoredCast { operand, .. } => pending.push(*operand),
             Kind::Dispatch { subject, arms, .. } => {
-                pending.extend(subject.scalar_operands());
+                pending.extend(subject.scalar_operands(&plans.operands));
                 for arm in plans.dispatch_arms.span_or_empty(*arms) {
                     pending.push(arm.value);
                     if let Some(value) = arm.pattern.computation() {

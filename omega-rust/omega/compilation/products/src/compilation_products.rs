@@ -176,6 +176,7 @@ impl PublishedNativeProduct {}
 
 #[derive(Debug)]
 pub struct CompileReport {
+    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     /// What the compilation produced and the evidence that kind owns.
     product: CompileProduct,
     /// Completed files only, bound to the same build observation as the
@@ -198,6 +199,7 @@ impl CompileReport {
     /// Shared shell fields every product kind starts from.
     fn shell(root_path: PathBuf, source_file_count: usize, product: CompileProduct) -> Self {
         Self {
+            source_completion_accounting: Default::default(),
             product,
             build_outputs: None,
             build_observation: None,
@@ -206,6 +208,22 @@ impl CompileReport {
             wrote_output: false,
             timings: Vec::new(),
         }
+    }
+
+    pub(crate) fn with_source_completion_accounting(
+        mut self,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        self.source_completion_accounting = accounting;
+        self
+    }
+
+    /// Actual authored-completion logical charges on cold or reused source.
+    /// These are distinct from fresh Build activation and publication custody.
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.source_completion_accounting
     }
 
     pub(crate) fn from_build_outputs(

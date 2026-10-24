@@ -47,7 +47,7 @@ pub use generic_arguments::normalize_closed_const_expression;
 pub(crate) use generic_arguments::{
     AppliedValueCarrier, const_argument_matches_parameter, const_integer_value_fits_primitive,
     exact_const_carrier_is_eligible, validate_const_binder_carriers, validate_exact_const_identity,
-    validate_exact_typed_structured_const_argument,
+    validate_exact_const_identity_in_carrier, validate_exact_typed_structured_const_argument,
 };
 use generic_arguments::{
     machine_argument_name, validate_const_data_argument, validate_generic_argument_bounds,
@@ -415,6 +415,7 @@ pub fn validate_static_type_argument(
     type_reference: TypeReferenceHandle,
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     // The invocation telescope excludes an owned member's captures. Static
     // operands are authored in the same lexical scope as its signature and
@@ -446,6 +447,7 @@ pub fn validate_static_type_argument(
             type_parameters: &type_parameters,
             lifetime_parameters: &lifetime_parameters,
         },
+        formation_obligations,
     );
 }
 
@@ -456,6 +458,7 @@ pub(crate) fn validate_type_reference_handle(
     diagnostics: &mut Vec<Diagnostic>,
     owner: TypeReferenceOwner<'_>,
     type_parameter_scope: TypeParameterScope<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     validate_routed_service_carrier_placement(
         program,
@@ -483,6 +486,7 @@ pub(crate) fn validate_type_reference_handle(
         owner,
         false,
         type_parameter_scope,
+        formation_obligations,
     );
 }
 
@@ -662,6 +666,7 @@ fn validate_type_reference_node(
     owner: TypeReferenceOwner<'_>,
     allow_bare_str: bool,
     mut type_parameter_scope: TypeParameterScope<'_>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let supplying_owner = program
         .type_reference_table
@@ -675,7 +680,7 @@ fn validate_type_reference_node(
     }
     // Generic-argument sites below validate every spelled argument under the
     // application owner's custody.
-    let validate_generic_argument =
+    let mut validate_generic_argument =
         |argument: TypeReferenceHandle, diagnostics: &mut Vec<Diagnostic>| {
             validate_type_reference_node(
                 program,
@@ -685,6 +690,7 @@ fn validate_type_reference_node(
                 owner.generic_argument(),
                 false,
                 type_parameter_scope,
+                formation_obligations,
             );
         };
     match program.type_reference_table.type_reference(type_reference) {
@@ -707,6 +713,7 @@ fn validate_type_reference_node(
                 owner,
                 type_reference_is_named_str(program, *referee),
                 type_parameter_scope,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Constrained {
@@ -721,6 +728,7 @@ fn validate_type_reference_node(
                 owner,
                 allow_bare_str,
                 type_parameter_scope,
+                formation_obligations,
             );
             validate_type_constraints_node(
                 program,
@@ -741,6 +749,7 @@ fn validate_type_reference_node(
                 type_parameter_scope,
                 diagnostics,
                 owner,
+                formation_obligations,
             );
             // Element spelling of `range-constraints-require-exact-domain`
             // (`[u8 [0..=9] in Wrapping; 3]`).
@@ -758,6 +767,7 @@ fn validate_type_reference_node(
                 owner,
                 false,
                 type_parameter_scope,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Slice { element_type } => {
@@ -769,6 +779,7 @@ fn validate_type_reference_node(
                 owner,
                 false,
                 type_parameter_scope,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Generic {
@@ -927,6 +938,7 @@ fn validate_type_reference_node(
                     symbols,
                     type_parameter_scope,
                     diagnostics,
+                    formation_obligations,
                 );
             } else {
                 for argument in argument_handles {
@@ -978,6 +990,7 @@ fn validate_type_reference_node(
                 symbols,
                 type_parameter_scope,
                 diagnostics,
+                formation_obligations,
             );
         }
         TypeReferenceNode::Named { symbol, name } => {

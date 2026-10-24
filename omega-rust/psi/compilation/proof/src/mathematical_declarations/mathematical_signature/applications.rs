@@ -175,38 +175,50 @@ impl Elaborator<'_> {
             .program
             .data_type_parameters
             .span_or_empty(definition.binders);
-        let level_binders = binders
-            .iter()
-            .filter(|binder| self.binder_is_level(binder))
-            .collect::<Vec<_>>();
-        let omit_levels = arguments.len() != binders.len()
-            && arguments.len() == binders.len() - level_binders.len();
-        if arguments.len() != binders.len() && !omit_levels {
+        let plan = validation::mathematical_applications::source_generic_argument_plan(
+            self.program,
+            binders,
+            arguments,
+            &self.fixed_core,
+        );
+        let Some(plan) = plan else {
+            let levels = binders
+                .iter()
+                .filter(|binder| self.binder_is_level(binder))
+                .count();
             return Err(self.refuse(format!(
                 "mathematical declaration `{}` requires {} explicit generic arguments or {} with universe arguments omitted, got {}",
-                definition.name,
-                binders.len(),
-                binders.len() - level_binders.len(),
-                arguments.len()
+                definition.name, binders.len(), binders.len() - levels, arguments.len()
             )));
-        }
+        };
+        let level_binders = plan
+            .iter()
+            .filter_map(|slot| {
+                matches!(
+                    slot.kind,
+                    validation::mathematical_applications::MathematicalBinderKind::Level
+                )
+                .then_some(slot.binder)
+            })
+            .collect::<Vec<_>>();
+        let omit_levels = plan.iter().any(|slot| slot.argument.is_none());
         let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
         let mut term_domains = Vec::new();
         let mut generalized = Vec::new();
         let mut constraints = Vec::new();
-        let mut arguments = arguments.iter();
         let mut level_position = 0;
-        for binder in binders {
+        for slot in &plan {
+            let binder = slot.binder;
             if self.binder_is_level(binder) {
                 if !omit_levels {
                     authored_levels[level_position] =
-                        Some(self.static_level(arguments.next().expect("checked generic arity"))?);
+                        Some(self.static_level(slot.argument.expect("checked generic arity"))?);
                 }
                 level_position += 1;
                 continue;
             }
-            let argument = arguments.next().expect("checked generic arity");
+            let argument = slot.argument.expect("checked generic arity");
             let (term, domain) = if let Some(literal) = &argument.const_literal {
                 self.static_integer_literal(binder, argument, literal)?
             } else {

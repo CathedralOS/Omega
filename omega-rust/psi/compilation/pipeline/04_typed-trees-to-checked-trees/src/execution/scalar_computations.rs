@@ -36,6 +36,7 @@ mod byte_comparisons;
 mod call_arguments;
 mod cases;
 mod dispatch;
+mod dispatch_copies;
 mod dynamic_calls;
 mod enum_equality;
 mod indexed_reads;
@@ -53,35 +54,20 @@ mod builder;
 pub(crate) fn build_checked_value_computation_plans(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
+    semantic: &facts::FactPlan,
     flow: &FlowFacts,
     borrow: &checked_trees::BorrowFacts,
     proof: &ProofFacts,
-    pure: &CheckedScalarExpressionPlans,
+    pure: &mut CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> (
     CheckedScalarComputationPlans,
     checked_trees::CheckedStructuralValuePlans,
 ) {
+    dispatch_copies::withdraw_captured_pure_roots(program, flow, pure);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = checked_trees::CheckedStructuralValuePlans::default();
-    let runtime_proof_output_callers: std::collections::HashSet<
-        SymbolHandle,
-        symbols::BuildSymbolHasher,
-    > = proof
-        .proof_output_calls
-        .iter()
-        .filter_map(|(_, call)| {
-            call.runtime_call
-                .is_some()
-                .then_some(call.caller_machine_symbol)
-        })
-        .collect();
     for machine in program.machines() {
-        // Existing named-output emission joins statement binding positions.
-        // It must not silently reinterpret computation-local call positions.
-        if runtime_proof_output_callers.contains(&machine.symbol) {
-            continue;
-        }
         let states = program.machine_states(machine);
         for state in states {
             let scalar_parameters = program
@@ -112,8 +98,10 @@ pub(crate) fn build_checked_value_computation_plans(
                 let mut builder = Builder {
                     program,
                     operators,
+                    semantic,
                     flow,
                     borrow,
+                    proof,
                     pure,
                     exact_integer_casts,
                     machine: machine.symbol,
@@ -131,6 +119,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
+                builder.retain_dispatch_copy_roots();
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
@@ -171,6 +160,12 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::LocalData(local) => {
                         Some((local.initial_value, local.type_reference))
                     }
+                    StatementNode::Assignment(assignment) => {
+                        validation::assignment_stored_value_type(
+                            program, machine, state, assignment,
+                        )
+                        .map(|expected| (assignment.value, expected))
+                    }
                     StatementNode::Expression(expression) => {
                         let expected = if program
                             .expression_table
@@ -191,13 +186,6 @@ pub(crate) fn build_checked_value_computation_plans(
                 // A closed primitive array whose elements the scalar route
                 // enumerates owns one scalar root per element.
                 let scalar_elements = construction_destination
-                    .or_else(|| {
-                        let assignment = statement.as_assignment()?;
-                        validation::assignment_stored_value_type(
-                            program, machine, state, assignment,
-                        )
-                        .map(|expected| (assignment.value, expected))
-                    })
                     .filter(|(expression, expected)| {
                         !structural_values::needs_copied_place_root(
                             program,
@@ -455,41 +443,6 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                 }
                 if let Some(assignment) = statement.as_assignment() {
-                    // Every structural replacement uses the same value graph:
-                    // constructors, calls and owned projections differ in
-                    // their producers, not in the receiving store. Selecting
-                    // roots by source spelling loses ordinary moved fields.
-                    // The sequence completes the RHS before replacing the
-                    // destination and retaining its restoration obligations.
-                    // Keep the destination's complete declared type. Carrier
-                    // classifiers may inspect its underlying shape, but value
-                    // custody must still distinguish arithmetic policies and
-                    // reference shells when comparing the source and result.
-                    // Assignment through a reference writes its referent, so
-                    // `referent = Sum::Case` through `referent: &mut Sum`
-                    // roots a value of the referee, which the sequence then
-                    // stores through the loan's whole-referent window.
-                    // Reference-valued replacement owns the descriptor, while
-                    // value-shaped assignment writes through the reference.
-                    // Share the source mutation owner's classification: the
-                    // declared reference shell alone cannot choose the store.
-                    // A projected descriptor slot has the same value semantics
-                    // as a local binding. Restricting this query to locals
-                    // strips a field's reference shell and loses its producer.
-                    let written = validation::assignment_stored_value_type(
-                        program, machine, state, assignment,
-                    );
-                    if let Some(expected) = written
-                        && program.primitive_type_reference(expected).is_none()
-                        && let Some(root) = builder.structural_value(assignment.value, expected)
-                    {
-                        builder.retain_structural_root(
-                            statement_ordinal,
-                            assignment.value,
-                            expected,
-                            root,
-                        );
-                    }
                     // An indexed store evaluates each selector of its
                     // target before its value. The pure plan already keeps
                     // the same `AssignmentIndex { depth }`/`AssignmentValue`
@@ -783,8 +736,10 @@ pub(crate) fn record_rank_observations(
     rank_observations::record(
         program,
         &facts.operators,
+        &facts.semantic,
         &facts.flow,
         &facts.borrow,
+        &facts.proof,
         &facts.values.scalar_expressions,
         &facts.operators.exact_integer_casts,
         &facts.termination.rank_arrivals,

@@ -50,11 +50,14 @@ pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
 pub(super) use projections::{path_covers, selected_slot_sources, slot_origins};
-pub(super) use projections::{project_stored_origins, projected_storage_type, projected_type};
+pub(super) use projections::{
+    project_aggregate_origins, project_stored_origins, projected_storage_type, projected_type,
+};
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{
     canonical_reference_origins, canonical_reference_sources,
     captured_reference_projection_origins, captured_reference_projection_sources,
+    completed_reference_projection_sources,
 };
 pub(super) use type_origins::declared_origins;
 pub(super) use type_origins::declared_origins_for_query;
@@ -70,85 +73,6 @@ pub(super) struct StoredLocalOrigins {
     /// can specialize an unknown index. Rows observed from an assigned or
     /// initialized value already name their source selectors.
     pub symbolic: bool,
-}
-
-/// An exclusive call can replace a private value's cases without introducing
-/// caller-visible references. Its old case and move snapshots cannot survive
-/// that call. Retain an empty row and append the same inference snapshot so a
-/// later projection cannot recover the overwritten initializer's evidence.
-/// Retiring before call traversal is conservative: it supplies no new origin,
-/// and the ordinary exposure fence and complete call frame are still required.
-pub(super) fn retire_private_call_argument_cases(
-    program: &dyn crate::CheckingInput,
-    state: &typed_trees::state::State,
-    call: &typed_trees::statement::TableCall,
-    aliases: &[(String, FramePlaceOrigin)],
-    stored: &mut [StoredLocalOrigins],
-    inference: &mut FrameInference,
-) {
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::statement::StatementNode;
-
-    for argument in program.statement_table.expression_handles(call.arguments) {
-        let ExpressionNode::Borrow(borrow) = program.expression_table.expression(*argument) else {
-            continue;
-        };
-        if !borrow.access.is_exclusive() {
-            continue;
-        }
-        let Some(name) = program.expression_table.name_path_node(borrow.target) else {
-            continue;
-        };
-        let Some(source) = frozen_bindings::binding_source(program, borrow.target, aliases) else {
-            continue;
-        };
-        if !source.root.is_valid()
-            || source.root != name.symbol
-            || !source.segments.is_empty()
-            || program
-                .expression_table
-                .name_path_members(name.members)
-                .len()
-                != 1
-        {
-            continue;
-        }
-        let declaration = program.symbols.get(source.root);
-        if declaration.kind != symbols::SymbolKind::Local || declaration.parent != state.symbol {
-            continue;
-        }
-        let Some(local) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == source.root => Some(local),
-                _ => None,
-            })
-        else {
-            continue;
-        };
-        if !super::type_is_caller_isolated_local(program, local.type_reference)
-            || super::type_may_carry_write(program, local.type_reference)
-        {
-            continue;
-        }
-        let Some(established) = stored
-            .iter_mut()
-            .find(|local| local.local_symbol == source.root)
-        else {
-            continue;
-        };
-        if !established.references.is_empty()
-            || (established.cases.is_empty() && established.moves.is_empty())
-        {
-            continue;
-        }
-        established.cases.clear();
-        established.moves.clear();
-        established.symbolic = false;
-        inference.record_local(established);
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -309,8 +233,9 @@ pub(super) fn declaration_origins_for_query(
         symbols,
         inference,
         include_shared,
-        &|expression, reference, _implicit_borrow, inference| {
-            if include_shared {
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|expression, reference, _implicit_borrow, inference| {
+            super::path_instantiation::aggregate_arguments::symbolic_sources(if include_shared {
                 super::reference_subjects::backing_origins(
                     program, machine, expression, symbols, inference, aliases, stored,
                 )
@@ -322,9 +247,9 @@ pub(super) fn declaration_origins_for_query(
                 super::reference_origins::exclusive_reference_origins(
                     program, machine, expression, symbols, inference,
                 )
-            }
+            })
         },
-        &|expression, reference, _| {
+            stored: &|expression, reference, _| {
             projections::moved_reference_leaves(
                 program,
                 state,
@@ -335,16 +260,25 @@ pub(super) fn declaration_origins_for_query(
                 include_shared,
             )
         },
+        },
     )?;
     let mut origins = Vec::new();
     for leaf in leaves.references {
         // Shared-value producers already captured their reference boundary.
         // Resolving that value through the current slot again would redirect
         // aliases after replacement.
-        let captured = if include_shared {
-            vec![leaf.origin.clone()]
-        } else {
-            canonical_reference_origins(program, &leaf.origin, aliases, stored)
+        let captured = match &leaf.origin {
+            Some(super::path_instantiation::aggregate_arguments::ReferenceSource::Captured(_)) => {
+                return None;
+            }
+            origin => {
+                let origin = origin.as_ref().map(|origin| origin.place().clone());
+                if include_shared {
+                    vec![origin]
+                } else {
+                    canonical_reference_origins(program, &origin, aliases, stored)
+                }
+            }
         };
         for origin in captured {
             origins.push(StoredWriteOrigin {

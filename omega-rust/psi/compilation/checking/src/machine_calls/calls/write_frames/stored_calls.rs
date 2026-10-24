@@ -13,10 +13,19 @@
 //! publishes one possible destination region, retaining old contents, rather
 //! than exporting its expression identity or duplicating the transfer per slot.
 
+mod captured_inputs;
+mod case_generations;
+pub(super) use case_generations::CaseStorageEffect;
 mod expression_effects;
+mod invocation_contract;
 mod opaque_outputs;
+pub use invocation_contract::ReferenceSlotContract;
+pub(super) use invocation_contract::invocation_contract;
 pub(super) mod retention;
-pub(super) use expression_effects::statement_effects;
+pub(super) use expression_effects::call_contexts;
+pub(super) use expression_effects::{
+    StatementSlotTransfers, effects_at_expression, statement_effects,
+};
 
 use super::caller_aliases::{LocalWriteOrigin, LocalWriteSource};
 use super::place_paths::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
@@ -39,11 +48,34 @@ pub struct StoredReferenceEffect {
     pub destination: LocalWriteOrigin,
     pub sources: Vec<StoredReferenceSource>,
     pub retains_incoming: bool,
+    /// The complete private relation has only this slot's incoming value.
+    /// Established before projecting away static sources: an empty public
+    /// source roster alone cannot distinguish identity from lost geometry.
+    pub incoming_identity: bool,
     /// A runtime-selected destination may leave other physical slots intact.
     /// Unlike a conditional write to one exact slot, it cannot replace the
     /// destination's complete current descriptor occurrence.
     pub may_select: bool,
     pub access: language_semantics::ReferenceAccess,
+}
+
+/// Construction graph of exact normal-call descriptor contexts. Each node
+/// depends only on preceding nodes, so alternatives merge once without
+/// enumerating combinations. Indices identify query-local snapshots, never
+/// storage or permission. The consumer supplies the authentic entry roster.
+#[derive(Clone)]
+pub enum StoredReferenceCallContext {
+    Entry,
+    Invocation {
+        entry: usize,
+        /// Zero is an ordinary statement call, never a transition target.
+        expression: ExpressionHandle,
+        /// Unknown transfer stays unavailable, including through later joins.
+        effects: Option<Vec<StoredReferenceEffect>>,
+    },
+    Join {
+        alternatives: Vec<usize>,
+    },
 }
 
 /// The actual descriptor home and its backing are distinct coordinates.
@@ -84,6 +116,54 @@ struct SlotInventory {
     ancestors: Vec<Vec<PlaceSegment>>,
 }
 
+/// One value and its evaluated operands. For Calls, context is the call-entry
+/// inventory after all actuals and before its own invocation effects, so the
+/// checked result relation can complete relative dereferences at that boundary.
+/// Non-call contexts are their ordinary expression-completion inventories.
+/// Child records retain their own earlier descriptor observations; the
+/// enclosing evaluator independently retains the post-call ambient inventory.
+/// These are query construction records, not runtime values or loan authority.
+#[derive(Clone)]
+struct SlotArgumentCapture {
+    expression: ExpressionHandle,
+    context: CollectedStatementPrefix,
+    inference: FrameInference,
+    operands: Vec<SlotArgumentCapture>,
+}
+
+impl SlotArgumentCapture {
+    fn at(
+        expression: ExpressionHandle,
+        context: &CollectedStatementPrefix,
+        inference: &FrameInference,
+        operands: Vec<SlotArgumentCapture>,
+    ) -> Self {
+        Self {
+            expression,
+            context: context.clone(),
+            inference: inference.clone(),
+            operands,
+        }
+    }
+
+    /// One evaluated occurrence is required. Shared syntax alone cannot select
+    /// between observations on different alternatives or at different epochs.
+    fn observation(&self, expression: ExpressionHandle) -> Option<&Self> {
+        let mut pending = vec![self];
+        let mut found = None;
+        while let Some(captured) = pending.pop() {
+            if captured.expression == expression {
+                if found.is_some() {
+                    return None;
+                }
+                found = Some(captured);
+            }
+            pending.extend(captured.operands.iter());
+        }
+        found
+    }
+}
+
 /// A failed invocation remains an obligation even if a later call overwrites
 /// every affected slot. Declaration dependence is recorded separately.
 #[derive(Clone)]
@@ -95,6 +175,9 @@ pub struct StoredReferenceCallFailure {
 #[derive(Clone, Default)]
 pub(super) struct SlotRelationTransfer {
     pub effects: Vec<SlotEffect>,
+    /// Old constructor/arrival case epochs retired by completed invocation
+    /// writes. These install possible cases, never selected-tag evidence.
+    pub case_effects: Vec<CaseStorageEffect>,
     pub template_dependent: bool,
     pub incomplete_calls: Vec<StoredReferenceCallFailure>,
 }
@@ -142,6 +225,7 @@ impl SlotRelationTransfer {
         }
         Self {
             effects,
+            case_effects: Vec::new(),
             template_dependent,
             incomplete_calls: if template_dependent {
                 Vec::new()
@@ -171,6 +255,7 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Option<Vec<StoredRefer
             let has_static_values = sources
                 .iter()
                 .any(|source| source.origin.source.is_static() && source.lifetime_access.is_none());
+            let incoming_identity = effect.incoming && sources.is_empty();
             Some(StoredReferenceEffect {
                 has_static_values,
                 destination: LocalWriteOrigin {
@@ -189,6 +274,7 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Option<Vec<StoredRefer
                     })
                     .collect(),
                 retains_incoming: effect.incoming,
+                incoming_identity,
                 may_select: effect.may_select,
                 access,
             })
@@ -196,11 +282,12 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Option<Vec<StoredRefer
         .collect()
 }
 
-pub(super) fn call_effects(
+fn call_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     caller_state: &State,
     call: &TableCall,
+    captures: &[SlotArgumentCapture],
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -211,7 +298,9 @@ pub(super) fn call_effects(
         caller_state,
         call.target_symbol,
         ExpressionHandle::invalid(),
+        super::caller_aliases::CallerWriteSite::Call(call),
         program.statement_table.expression_handles(call.arguments),
+        captures,
         call.machine_arguments.is_empty(),
         context,
         symbols,
@@ -225,45 +314,141 @@ fn invocation_effects(
     caller_state: &State,
     target: SymbolHandle,
     call_expression: ExpressionHandle,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
+    captures: &[SlotArgumentCapture],
     machine_arguments_empty: bool,
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
-    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
-        if let Some((definition, signature)) =
-            crate::selected_requirement_signature(program, target)
-            && definition.is_boundary
-        {
-            let signature = if call_expression.is_valid() {
-                let call = program.expression_table.call_node(call_expression)?;
-                if call.target_symbol != target {
-                    return None;
-                }
-                program.requirement_call_signature(machine.symbol, call)?
-            } else {
-                signature
-            };
-            let parameters = program.state_signature_parameters(signature);
-            return opaque_outputs::effects(
-                program, machine, parameters, arguments, context, symbols, inference,
+    let mut transfer = invocation_reference_effects(
+        program,
+        machine,
+        caller_state,
+        target,
+        call_expression,
+        call_site,
+        arguments,
+        captures,
+        machine_arguments_empty,
+        context,
+        symbols,
+        inference,
+    )?;
+    if transfer.is_complete() {
+        transfer.case_effects = case_generations::completed_effects(
+            program,
+            machine,
+            caller_state,
+            target,
+            captures,
+            context,
+            symbols,
+            inference,
+        );
+    }
+    Some(transfer)
+}
+
+fn invocation_reference_effects(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    caller_state: &State,
+    target: SymbolHandle,
+    call_expression: ExpressionHandle,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+    arguments: &[ExpressionHandle],
+    captures: &[SlotArgumentCapture],
+    machine_arguments_empty: bool,
+    context: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<SlotRelationTransfer> {
+    let trace_refusal = |phase: &str| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE stored-reference-invocation-refusal machine={:?} state={:?} target={:?} expression={:?} phase={} argument_count={} capture_count={} divergent_count={} machine_arguments_empty={}",
+                machine.symbol,
+                caller_state.symbol,
+                target,
+                call_expression,
+                phase,
+                arguments.len(),
+                captures.len(),
+                context.divergent.len(),
+                machine_arguments_empty,
             );
         }
-        // A requirement or intrinsic operation has no checked body to replay.
-        // It can still install a reference slot only through an argument that
-        // lends exclusive storage; value and shared arguments leave every
-        // stored slot as it was. An argument of unknown type may lend.
-        return arguments
-            .iter()
-            .all(|argument| !lends_exclusive_storage(program, machine, caller_state, *argument))
-            .then(|| SlotRelationTransfer::complete(Vec::new()));
     };
-    let parameters = program.state_parameters(state);
-    if (parameters.len() != arguments.len())
+    if arguments.len() != captures.len()
+        || arguments
+            .iter()
+            .zip(captures)
+            .any(|(expression, capture)| *expression != capture.expression)
+    {
+        trace_refusal("argument-capture-correspondence");
+        return None;
+    }
+    // The occurrence's applied logical contract owns caller-visible access.
+    // A private body's open telescope or availability cannot turn a known
+    // empty writable slot frontier into an unknown descriptor mutation.
+    let parameters = match call_site {
+        super::caller_aliases::CallerWriteSite::Call(call)
+            if !call_expression.is_valid() && call.target_symbol == target =>
+        {
+            crate::CallSite::Statement(call).parameters(program, machine.symbol)?
+        }
+        super::caller_aliases::CallerWriteSite::Expression(expression)
+            if expression == call_expression =>
+        {
+            let call = program.expression_table.call_node(expression)?;
+            if call.target_symbol != target {
+                return None;
+            }
+            crate::CallSite::Expression { expression, call }.parameters(program, machine.symbol)?
+        }
+        _ => return None,
+    };
+    if parameters.len() != captures.len() {
+        trace_refusal("parameter-capture-correspondence");
+        return None;
+    }
+    let inventory = parameter_destination_inventory(program, parameters)?;
+    // Captured machine arguments are not state operands. The state-only
+    // inventory cannot classify those captures; their existing relation owner
+    // must still succeed below before this invocation can be complete.
+    if machine_arguments_empty && !inventory.template_dependent && inventory.slots.is_empty() {
+        // This proves only that no argument can replace caller reference
+        // slots. Returned descriptor identity, loan formation, qualifications,
+        // scalar/content writes and normal-call permission have other owners.
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
+        if let Some((definition, _)) = crate::selected_requirement_signature(program, target)
+            && definition.is_boundary
+        {
+            return opaque_outputs::effects(
+                program,
+                machine,
+                parameters,
+                captures,
+                context,
+                symbols,
+                call_site,
+                target,
+                call_expression,
+            );
+        }
+        // A missing body cannot summarize a nonempty or symbolic frontier.
+        return None;
+    };
+    let body_parameters = program.state_parameters(state);
+    if body_parameters.len() != arguments.len()
         || !machine_arguments_empty
         || !program.machine_type_parameters(callee).is_empty()
     {
+        trace_refusal("checked-callee-application");
         return None;
     }
     if matches!(
@@ -273,39 +458,49 @@ fn invocation_effects(
             | language_semantics::MachineSupplyMode::ExternalRealization { .. }
     ) {
         return opaque_outputs::effects(
-            program, machine, parameters, arguments, context, symbols, inference,
+            program,
+            machine,
+            parameters,
+            captures,
+            context,
+            symbols,
+            call_site,
+            target,
+            call_expression,
         );
     }
+    let parameters = body_parameters;
     if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
+        trace_refusal("checked-body-unavailable");
         return None;
     }
-    if destination_inventory(program, state)?.is_empty() {
+    let Some(destinations_empty) =
+        destination_inventory(program, state).map(|destinations| destinations.is_empty())
+    else {
+        trace_refusal("destination-inventory");
+        return None;
+    };
+    if destinations_empty {
         return Some(SlotRelationTransfer::complete(Vec::new()));
     }
-    let relative = state_effects(program, callee, state, symbols, inference)?;
+    let Some(mut relative) = state_effects(program, callee, state, symbols, inference) else {
+        trace_refusal("relative-state-effects");
+        return None;
+    };
+    rebase_output_occurrences(
+        program,
+        machine,
+        caller_state,
+        call_site,
+        target,
+        call_expression,
+        parameters,
+        &mut relative,
+    )?;
     instantiate(
-        program, machine, parameters, arguments, &relative, context, symbols, inference,
+        program, machine, parameters, captures, &relative, context, symbols,
     )
-    .map(SlotRelationTransfer::complete)
-}
-
-fn lends_exclusive_storage(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    argument: ExpressionHandle,
-) -> bool {
-    if let typed_trees::expression::ExpressionNode::Borrow(borrow) =
-        program.expression_table.expression(argument)
-    {
-        return borrow.access.is_exclusive();
-    }
-    crate::expression_result_type_reference(program, machine, state, argument).is_none_or(
-        |reference| {
-            crate::reference_shell(program, reference)
-                .is_some_and(|shell| shell.access.is_exclusive())
-        },
-    )
+    .map(|instantiated| SlotRelationTransfer::complete(instantiated.effects))
 }
 
 fn destination_inventory(
@@ -314,6 +509,91 @@ fn destination_inventory(
 ) -> Option<Vec<SlotInventory>> {
     let inventory = parameter_destination_inventory(program, program.state_parameters(state))?;
     (!inventory.template_dependent).then_some(inventory.slots)
+}
+
+/// Form the output namespace from an authenticated invocation occurrence.
+/// This carries no spatial relation or permission by itself.
+fn output_identity(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    site: super::caller_aliases::CallerWriteSite<'_>,
+    target: SymbolHandle,
+    expression: ExpressionHandle,
+    parameter: &StateParameter,
+) -> Option<facts::InvocationOutputIdentity> {
+    let (state, _, statement_index) =
+        super::caller_aliases::caller_statement_owner(program, machine, site)?;
+    let mut sites =
+        crate::collect_call_sites_in_statement(program, machine, state, statement_index)
+            .into_iter()
+            .enumerate()
+            .filter(|(_, occurrence)| match (site, occurrence) {
+                (
+                    super::caller_aliases::CallerWriteSite::Call(expected),
+                    crate::CallSite::Statement(actual),
+                ) => std::ptr::eq(expected, *actual),
+                (
+                    super::caller_aliases::CallerWriteSite::Expression(expected),
+                    crate::CallSite::Expression { expression, .. },
+                ) => expected == *expression,
+                _ => false,
+            });
+    let (call_ordinal, occurrence) = sites.next().filter(|_| sites.next().is_none())?;
+    if occurrence.target_symbol(program) != target
+        || match occurrence {
+            crate::CallSite::Statement(_) => expression.is_valid(),
+            crate::CallSite::Expression {
+                expression: actual, ..
+            } => actual != expression,
+            crate::CallSite::TransitionNamed { .. } => true,
+        }
+    {
+        return None;
+    }
+    Some(facts::InvocationOutputIdentity {
+        state_symbol: state.symbol,
+        statement_index,
+        call_ordinal,
+        parameter_symbol: parameter.symbol,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rebase_output_occurrences(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    site: super::caller_aliases::CallerWriteSite<'_>,
+    target: SymbolHandle,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    effects: &mut [SlotEffect],
+) -> Option<()> {
+    for effect in effects {
+        for source in effect.sources.as_mut()? {
+            if source.origin.source.output_identity().is_none() {
+                continue;
+            }
+            let parameter = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == effect.root)?;
+            let identity = output_identity(program, machine, site, target, expression, parameter)?;
+            if identity.state_symbol != state.symbol {
+                return None;
+            }
+            // A checked body supplies an opaque output on this normal route.
+            // Caller instantiation owns the new descriptor occurrence; it may
+            // not reuse an internal callee expression as a caller value epoch.
+            let place = FrameSourcePlace::invocation_output(identity, effect.segments.clone());
+            source.origin = FramePlaceOrigin {
+                path: "invocation output".to_owned(),
+                precision: FramePathPrecision::Exact,
+                source: place.clone(),
+            };
+            source.carrier = place;
+        }
+    }
+    Some(())
 }
 
 /// Opaque calls with possible reference outputs require a complete call-site
@@ -562,7 +842,7 @@ enum SlotExit {
     Return(Vec<StoredLocalOrigins>),
     Edge {
         target: usize,
-        arguments: Vec<ExpressionHandle>,
+        arguments: Vec<SlotArgumentCapture>,
         prefix: CollectedStatementPrefix,
     },
 }
@@ -606,7 +886,13 @@ fn solve_state_effects<'program>(
                 continue;
             }
             let prefix = prefixes.get(ordinal)?.as_ref()?;
+            let completed = expression_effects::completed_targets(
+                program, machine, state, statement, prefix, symbols, inference,
+            )?;
             for edge in transition.targets() {
+                let completed = completed
+                    .iter()
+                    .find(|completed| completed.target == edge)?;
                 match program.statement_table.transition_target(edge) {
                     TransitionTargetNode::Named { arguments, .. } => {
                         if super::terminal_calls::target(program, machine, edge).is_valid() {
@@ -629,55 +915,23 @@ fn solve_state_effects<'program>(
                         if parameters.len() != arguments.len() {
                             return None;
                         }
-                        for (parameter, argument) in parameters.iter().zip(arguments) {
-                            let carries_origin = super::type_reference_is_reference(
-                                program,
-                                parameter.type_reference,
-                            ) || stored_origins::declared_origins_for_query(
-                                program,
-                                parameter.symbol,
-                                parameter.name.as_str(),
-                                parameter.type_reference,
-                                true,
-                            )
-                            .is_some_and(|inventory| !inventory.references.is_empty());
-                            if !carries_origin {
-                                continue;
-                            }
-                            // Finiteness follows captured backing roots, not
-                            // exact descriptor identity. A dynamic window may
-                            // cross this edge with conservative geometry; its
-                            // destination slot is still matched exactly by
-                            // instantiate. Static storage adds no dependency.
-                            let origin = argument_origin(
-                                program, machine, parameter, *argument, prefix, symbols, inference,
-                            )?;
-                            let source = &origin.source;
-                            if !source.builtin_coordinates {
-                                return None;
-                            }
-                            if source.is_static() {
-                                continue;
-                            }
-                            if !source.root.is_valid() {
-                                return None;
-                            }
-                            let from = substitutions.parameter(target.symbol, parameter.symbol);
-                            let to = substitutions.parameter(state.symbol, source.root);
-                            substitutions.insert(
-                                from,
-                                to,
-                                !source.segments.is_empty() || !source.recasts.is_empty(),
-                            );
+                        if completed.arguments.len() != arguments.len()
+                            || completed
+                                .arguments
+                                .iter()
+                                .zip(arguments)
+                                .any(|(captured, expression)| captured.expression != *expression)
+                        {
+                            return None;
                         }
                         exits.push(SlotExit::Edge {
                             target: target_index,
-                            arguments: arguments.to_vec(),
-                            prefix: prefix.clone(),
+                            arguments: completed.arguments.clone(),
+                            prefix: completed.context.clone(),
                         });
                     }
                     TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        exits.push(SlotExit::Return(prefix.stored.clone()))
+                        exits.push(SlotExit::Return(completed.context.stored.clone()))
                     }
                 }
             }
@@ -691,9 +945,6 @@ fn solve_state_effects<'program>(
             exits,
         });
         index += 1;
-    }
-    if !substitutions.is_finite() {
-        return None;
     }
     let mut known = vec![None::<Vec<SlotEffect>>; equations.len()];
     loop {
@@ -712,7 +963,7 @@ fn solve_state_effects<'program>(
                         let Some(relative) = &known[*target] else {
                             continue;
                         };
-                        let effects = instantiate(
+                        let instantiated = instantiate(
                             program,
                             machine,
                             program.state_parameters(equations[*target].state),
@@ -720,10 +971,15 @@ fn solve_state_effects<'program>(
                             relative,
                             prefix,
                             symbols,
-                            inference,
+                        )?;
+                        retain_demanded_substitutions(
+                            equation.state,
+                            equations[*target].state,
+                            &instantiated.substitutions,
+                            &mut substitutions,
                         )?;
                         let mut stored = prefix.stored.clone();
-                        apply(program, &mut stored, &effects);
+                        apply(program, &mut stored, &instantiated.effects);
                         stored
                     }
                 };
@@ -817,6 +1073,37 @@ fn solve_state_effects<'program>(
     known.into_iter().next()?
 }
 
+/// Only actual relation roots participate in substitution. A checked empty
+/// relation demands no argument origin; an unknown relation never reaches here.
+/// Ordered argument effects have already established each selected edge's slot
+/// inventory. The same growing-cycle law still bounds every demanded root.
+fn retain_demanded_substitutions(
+    source: &State,
+    target: &State,
+    demanded: &[(SymbolHandle, FrameSourcePlace)],
+    substitutions: &mut super::cycle_substitutions::Substitutions,
+) -> Option<()> {
+    for (parameter, actual) in demanded {
+        if !actual.builtin_coordinates {
+            return None;
+        }
+        if actual.is_static() {
+            continue;
+        }
+        if !actual.root.is_valid() {
+            return None;
+        }
+        let from = substitutions.parameter(target.symbol, *parameter);
+        let to = substitutions.parameter(source.symbol, actual.root);
+        substitutions.insert(
+            from,
+            to,
+            !actual.segments.is_empty() || !actual.recasts.is_empty(),
+        );
+    }
+    substitutions.is_finite().then_some(())
+}
+
 fn collect_exit(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -874,7 +1161,7 @@ fn collect_exit(
             if !source.source.builtin_coordinates {
                 return None;
             }
-            if !source.source.is_static() {
+            if !source.source.is_static() && source.source.output_identity().is_none() {
                 if !source.source.root.is_valid() {
                     return None;
                 }
@@ -941,177 +1228,105 @@ fn collect_exit(
     Some(())
 }
 
+struct InstantiatedSlots {
+    effects: Vec<SlotEffect>,
+    /// Exact input prefixes discovered while instantiating demanded effects.
+    /// Keeping them beside the result avoids querying an argument a second
+    /// time or counting a callee-authored suffix as argument growth.
+    substitutions: Vec<(SymbolHandle, FrameSourcePlace)>,
+}
+
 fn instantiate(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    arguments: &[SlotArgumentCapture],
     relative: &[SlotEffect],
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<Vec<SlotEffect>> {
+) -> Option<InstantiatedSlots> {
     if parameters.len() != arguments.len() || !context.divergent.is_empty() {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE stored-reference-input-context-refusal machine={:?} phase={} parameter_count={} capture_count={} divergent_count={}",
+                machine.symbol,
+                if parameters.len() != arguments.len() {
+                    "parameter-count"
+                } else {
+                    "divergent-entry"
+                },
+                parameters.len(),
+                arguments.len(),
+                context.divergent.len(),
+            );
+        }
         return None;
     }
-    // The relation below captures actuals from the incoming inventory. Pure
-    // argument calls preserve it; a write during argument evaluation needs a
-    // post-evaluation inventory, which this query must not fabricate from the
-    // pre-call snapshot. Use ordinary frame inference, not a syntactic call ban.
-    if arguments
-        .iter()
-        .any(|argument| super::caller_aliases::expression_has_calls(program, *argument))
-    {
-        let actual = *arguments.first()?;
-        let (caller_state, _, _) = super::caller_aliases::caller_statement_owner(
-            program,
-            machine,
-            super::caller_aliases::CallerWriteSite::Expression(actual),
-        )?;
-        let mut diagnostics = Vec::new();
-        let machine_symbols =
-            crate::declarations::symbols::MachineSymbols::build(program, machine, &mut diagnostics);
-        if !diagnostics.is_empty() {
-            return None;
-        }
-        let origins = super::caller_aliases::CallOriginContext {
-            parameters: program.state_parameters(caller_state),
-            isolated_locals: &context.isolated_locals,
-            aliases: &context.aliases,
-            divergent: &context.divergent,
-            stored: &context.stored,
-        };
-        let mut writes = Vec::new();
-        for argument in arguments {
-            super::demand::collect_expression_call_written_paths(
-                program,
-                *argument,
-                machine,
-                &machine_symbols,
-                symbols,
-                inference,
-                &mut writes,
-                &origins,
-            )?;
-        }
-        if !writes.is_empty() {
-            return None;
-        }
-    }
-    let substitute = |root, segments: &[PlaceSegment], inference: &mut FrameInference| {
+    // Every demanded actual uses its own completed input inventory. The
+    // evaluator has already retained all ordered argument effects in context;
+    // applying those effects again here would retarget an earlier descriptor.
+    let argument = |index: usize| {
+        let captured = arguments.get(index)?;
+        captured.context.divergent.is_empty().then_some(captured)
+    };
+    let substitute = |root, segments: &[PlaceSegment]| {
         let index = typed_trees::signature::state_parameter_position(parameters, root)?;
+        let captured = argument(index)?;
         destination_source(
             program,
             machine,
             &parameters[index],
-            *arguments.get(index)?,
+            captured,
             segments,
             context,
             symbols,
-            inference,
         )
     };
     let mut output = Vec::new();
+    let mut substitutions = Vec::new();
     for effect in relative {
         // An identity row proves preservation; it has no store to instantiate.
         // In particular, a wildcard default is not an executable selector.
         if effect.incoming && effect.sources.as_ref()?.is_empty() {
             continue;
         }
-        let destination = substitute(effect.root, &effect.segments, inference)?;
+        let Some((destination, input)) = substitute(effect.root, &effect.segments) else {
+            trace_instantiation_refusal(
+                machine,
+                parameters,
+                arguments,
+                effect,
+                None,
+                "destination",
+            );
+            return None;
+        };
+        if !substitutions.contains(&(effect.root, input.clone())) {
+            substitutions.push((effect.root, input));
+        }
         let mut sources = Vec::new();
         for supplied in effect.sources.as_ref()? {
-            let source = &supplied.origin;
-            if !source.source.is_static() {
-                let index = typed_trees::signature::state_parameter_position(
-                    parameters,
-                    source.source.root,
-                )?;
-                if !super::type_reference_is_reference(program, parameters[index].type_reference) {
-                    for source in aggregate_argument_sources(
-                        program,
-                        machine,
-                        &parameters[index],
-                        *arguments.get(index)?,
-                        supplied,
-                        context,
-                        symbols,
-                        inference,
-                    )? {
-                        if !sources.contains(&source) {
-                            sources.push(source);
-                        }
-                    }
-                    continue;
-                }
-            }
-            // Keep the actual descriptor home beside its backing. Resolving
-            // only the backing would turn an exclusive transfer into a fresh
-            // competing loan of the same referent.
-            let carrier = if supplied.carrier.is_static() {
-                supplied.carrier.clone()
-            } else {
-                let index = typed_trees::signature::state_parameter_position(
-                    parameters,
-                    supplied.carrier.root,
-                )?;
-                let actual = FrameSourcePlace::from_expression(program, *arguments.get(index)?);
-                if !actual.root.is_valid() || !actual.builtin_coordinates {
-                    return None;
-                }
-                actual.append_relative(program, &supplied.carrier)
-            };
-            let candidates = if source.source.is_static() {
-                vec![Some(supplied.clone())]
-            } else {
-                let index = typed_trees::signature::state_parameter_position(
-                    parameters,
-                    source.source.root,
-                )?;
-                let actual = *arguments.get(index)?;
-                let captured = argument_origin(
-                    program,
+            let Some(observed_sources) = captured_inputs::instantiate_sources(
+                program, machine, parameters, arguments, supplied, context, symbols,
+            ) else {
+                trace_instantiation_refusal(
                     machine,
-                    &parameters[index],
-                    actual,
-                    context,
-                    symbols,
-                    inference,
-                )?;
-                let mut projected = captured.clone();
-                projected.source = captured.source.append_relative(program, &source.source);
-                if source.precision == FramePathPrecision::CollectionCoarse {
-                    projected.precision = FramePathPrecision::CollectionCoarse;
-                }
-                projected.path = if projected.source.is_static() {
-                    String::new()
-                } else {
-                    path(program, &projected.source)
-                };
-                stored_origins::captured_reference_projection_sources(
-                    program,
-                    &captured,
-                    &projected,
-                    &context.stored,
-                )
+                    parameters,
+                    arguments,
+                    effect,
+                    Some(supplied),
+                    "source",
+                );
+                return None;
             };
-            for candidate in candidates {
-                let candidate = candidate?;
-                let source = &candidate.origin.source;
-                if (!source.root.is_valid() && !source.is_static()) || !source.builtin_coordinates {
-                    return None;
+            for observed in observed_sources {
+                for substitution in observed.substitutions {
+                    if !substitutions.contains(&substitution) {
+                        substitutions.push(substitution);
+                    }
                 }
-                let source = SlotSource {
-                    origin: candidate.origin,
-                    carrier: if candidate.lifetime_access.is_some() {
-                        candidate.carrier
-                    } else {
-                        carrier.clone()
-                    },
-                    lifetime_access: candidate.lifetime_access.or(supplied.lifetime_access),
-                };
-                if !sources.contains(&source) {
-                    sources.push(source);
+                if !sources.contains(&observed.source) {
+                    sources.push(observed.source);
                 }
             }
         }
@@ -1124,7 +1339,59 @@ fn instantiate(
             kind: effect.kind,
         });
     }
-    Some(output)
+    Some(InstantiatedSlots {
+        effects: output,
+        substitutions,
+    })
+}
+
+/// A refused summary remains refused. Keep diagnostics at the substitution
+/// owner so a missing destination cannot be mistaken for a source association
+/// failure, without exporting complete body inventories or unbounded paths.
+fn trace_instantiation_refusal(
+    machine: &Machine,
+    parameters: &[StateParameter],
+    arguments: &[SlotArgumentCapture],
+    effect: &SlotEffect,
+    source: Option<&SlotSource>,
+    reason: &str,
+) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+        return;
+    }
+    eprintln!(
+        "CHECKSITE stored-reference-instantiation-refusal machine={:?} reason={} destination={:?}:path_count={}:prefix={:?} incoming={} may_select={} source_count={:?} input_count={} inputs_prefix={:?}",
+        machine.symbol,
+        reason,
+        effect.root,
+        effect.segments.len(),
+        &effect.segments[..effect.segments.len().min(32)],
+        effect.incoming,
+        effect.may_select,
+        effect.sources.as_ref().map(Vec::len),
+        arguments.len(),
+        parameters
+            .iter()
+            .zip(arguments)
+            .take(8)
+            .map(|(parameter, argument)| (parameter.symbol, argument.expression))
+            .collect::<Vec<_>>(),
+    );
+    if let Some(source) = source {
+        eprintln!(
+            "CHECKSITE stored-reference-instantiation-source carrier={:?}:path_count={}:prefix={:?} backing={:?}:path_count={}:prefix={:?} precision={:?} lifetime_only={:?} recast_count={} representation={}",
+            source.carrier.root,
+            source.carrier.segments.len(),
+            &source.carrier.segments[..source.carrier.segments.len().min(32)],
+            source.origin.source.root,
+            source.origin.source.segments.len(),
+            &source.origin.source.segments[..source.origin.source.segments.len().min(32)],
+            source.origin.precision,
+            source.lifetime_access,
+            source.origin.source.recasts.len(),
+            source.origin.source.representation.is_some(),
+        );
+    }
 }
 
 /// Resolve each pointer boundary before appending the destination slot.
@@ -1135,12 +1402,11 @@ fn destination_source(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameter: &StateParameter,
-    actual: ExpressionHandle,
+    captured: &SlotArgumentCapture,
     mut segments: &[PlaceSegment],
-    context: &CollectedStatementPrefix,
+    entry: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<FrameSourcePlace> {
+) -> Option<(FrameSourcePlace, FrameSourcePlace)> {
     if segments.iter().any(|segment| {
         !matches!(
             segment,
@@ -1153,13 +1419,40 @@ fn destination_source(
     }
     let mut reference = parameter.type_reference;
     let mut base = None;
+    let mut input = None;
     if let Some(shell) = crate::reference_shell(program, reference) {
         if !shell.access.is_exclusive() {
             return None;
         }
-        base = Some(argument_origin(
-            program, machine, parameter, actual, context, symbols, inference,
-        )?);
+        let relative = FrameSourcePlace {
+            root: parameter.symbol,
+            builtin_coordinates: true,
+            ..Default::default()
+        };
+        let mut sources = aggregate_argument_sources(
+            program,
+            machine,
+            parameter,
+            captured,
+            &SlotSource {
+                origin: FramePlaceOrigin {
+                    path: parameter.name.to_string(),
+                    precision: FramePathPrecision::Exact,
+                    source: relative.clone(),
+                },
+                carrier: relative,
+                lifetime_access: None,
+            },
+            entry,
+            symbols,
+        )?
+        .into_iter();
+        let source = sources.next()?;
+        if source.lifetime_access.is_some() || sources.next().is_some() {
+            return None;
+        }
+        input = Some(source.origin.source.clone());
+        base = Some(source.origin);
         reference = shell.referee;
     }
     loop {
@@ -1183,7 +1476,7 @@ fn destination_source(
             {
                 return None;
             }
-            return Some(base.source.append_segments(segments));
+            return Some((base.source.append_segments(segments), input?));
         };
         if boundaries.next().is_some() {
             return None;
@@ -1203,7 +1496,7 @@ fn destination_source(
                 program,
                 captured,
                 &projected,
-                &context.stored,
+                &entry.stored,
             )
             .into_iter()
             .collect::<Option<Vec<_>>>()?
@@ -1218,7 +1511,7 @@ fn destination_source(
                 program,
                 machine,
                 parameter,
-                actual,
+                captured,
                 &SlotSource {
                     lifetime_access: None,
                     origin: FramePlaceOrigin {
@@ -1228,16 +1521,19 @@ fn destination_source(
                     },
                     carrier: relative,
                 },
-                context,
+                entry,
                 symbols,
-                inference,
             )?
             .into_iter()
             .map(|source| source.origin)
             .collect()
         };
         let mut candidates = candidates.into_iter();
-        base = Some(candidates.next()?);
+        let selected = candidates.next()?;
+        if input.is_none() {
+            input = Some(selected.source.clone());
+        }
+        base = Some(selected);
         if candidates.next().is_some() {
             return None;
         }
@@ -1246,135 +1542,21 @@ fn destination_source(
     }
 }
 
-/// Instantiate value operands through their returned leaf relation before
-/// resolving caller backing. The symbolic leaf is the supplying carrier;
-/// resolving it first would lose the exclusive permission being transferred.
-/// This is shared by names, projections, constructors and computed results.
-#[allow(clippy::too_many_arguments)]
+/// Returned source substitution uses each operand's completed observation.
+/// Spatial backing and descriptor carrier stay associated through computed
+/// results; no later ambient inventory can reinterpret a prior descriptor.
 fn aggregate_argument_sources(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameter: &StateParameter,
-    actual: ExpressionHandle,
+    captured: &SlotArgumentCapture,
     supplied: &SlotSource,
-    context: &CollectedStatementPrefix,
+    entry: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
 ) -> Option<Vec<SlotSource>> {
-    // A relative normal-exit row must still identify the same input leaf for
-    // carrier transport and backing substitution. Do not pair independent
-    // alternatives merely because their referents happen to overlap.
-    if supplied.carrier != supplied.origin.source {
-        return None;
-    }
-    let carriers = super::result_origins::instantiate_source(
-        program,
-        machine,
-        parameter,
-        actual,
-        &supplied.origin,
-        symbols,
-        inference,
-        true,
-        &|expression, reference, _, inference| {
-            let (state, _, index) = super::caller_aliases::caller_statement_owner(
-                program,
-                machine,
-                super::caller_aliases::CallerWriteSite::Expression(expression),
-            )?;
-            super::result_origins::reference_result_relation(
-                program, machine, state, index, expression, reference, symbols, inference,
-            )?
-            .references
-            .into_iter()
-            .map(|leaf| leaf.origin)
-            .collect()
-        },
-        &|expression, reference, _| {
-            let (state, before, _) = super::caller_aliases::caller_statement_owner(
-                program,
-                machine,
-                super::caller_aliases::CallerWriteSite::Expression(expression),
-            )?;
-            stored_origins::reference_leaves_before_statement_for_query(
-                program, state, before, expression, reference, None, None, true,
-            )
-        },
-    )?;
-    let mut sources = Vec::new();
-    for carrier in carriers {
-        if (!carrier.source.root.is_valid() && !carrier.source.is_static())
-            || !carrier.source.builtin_coordinates
-        {
-            return None;
-        }
-        for candidate in stored_origins::canonical_reference_sources(
-            program,
-            &Some(carrier.clone()),
-            &context.aliases,
-            &context.stored,
-        ) {
-            let candidate = candidate?;
-            let origin = candidate.origin;
-            if (!origin.source.root.is_valid() && !origin.source.is_static())
-                || !origin.source.builtin_coordinates
-            {
-                return None;
-            }
-            let source = SlotSource {
-                origin,
-                carrier: if candidate.lifetime_access.is_some() {
-                    candidate.carrier
-                } else {
-                    carrier.source.clone()
-                },
-                lifetime_access: candidate.lifetime_access.or(supplied.lifetime_access),
-            };
-            if !sources.contains(&source) {
-                sources.push(source);
-            }
-        }
-    }
-    (!sources.is_empty()).then_some(sources)
-}
-
-fn argument_origin(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    parameter: &StateParameter,
-    actual: ExpressionHandle,
-    context: &CollectedStatementPrefix,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<FramePlaceOrigin> {
-    if super::caller_aliases::expression_has_calls(program, actual) {
-        return None;
-    }
-    if super::type_reference_is_reference(program, parameter.type_reference) {
-        return super::reference_subjects::backing_origin(
-            program,
-            machine,
-            actual,
-            symbols,
-            inference,
-            &context.aliases,
-            &context.stored,
-        );
-    }
-    let source = stored_origins::binding_source(program, actual, &context.aliases)?;
-    if !source.root.is_valid() || !source.builtin_coordinates {
-        return None;
-    }
-    let (path, precision) = super::place_paths::coordinate_storage_path(
-        program,
-        program.symbols.name(source.root),
-        &source.segments,
-    );
-    Some(FramePlaceOrigin {
-        path,
-        precision,
-        source,
-    })
+    captured_inputs::sources(
+        program, machine, parameter, captured, supplied, entry, symbols,
+    )
 }
 
 fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String {
@@ -1384,6 +1566,21 @@ fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String
         &source.segments,
     )
     .0
+}
+
+pub(super) fn apply_transfer(
+    program: &dyn crate::CheckingInput,
+    stored: &mut Vec<StoredLocalOrigins>,
+    transfer: &SlotRelationTransfer,
+) {
+    // Retire prior case/move epochs before publishing current pointer slots.
+    // Only a complete normal route can justify a closed case-frontier update.
+    if transfer.is_complete() {
+        for effect in &transfer.case_effects {
+            effect.install(stored);
+        }
+    }
+    apply(program, stored, &transfer.effects);
 }
 
 pub(super) fn apply(

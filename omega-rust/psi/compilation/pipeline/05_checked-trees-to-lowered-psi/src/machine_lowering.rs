@@ -363,7 +363,8 @@ fn lower_terminal_selection(
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );
-    crate::retention::copied_memberships::retain(&mut lowered.semantic_module)?;
+    crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)?;
+    crate::retention::payload_memberships::retain(&mut lowered.semantic_module)?;
     lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
     Ok((lowered, completion))
 }

@@ -48,6 +48,10 @@ pub struct CheckedReturnedReferencePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedReferenceOriginSourcePlan {
     pub root: CheckedReferenceOriginRoot,
+    /// Exact entry-shell steps emitted by this source producer, before its
+    /// storage-relative path. Borrowed formal ingress erases these steps;
+    /// invocation storage and every nested reference crossing retain theirs.
+    pub entry_reference_hops: u32,
     pub path: Vec<CheckedReferenceOriginProjection>,
     pub extent: semantic_vocabulary::ReferenceOriginExtent,
     /// Type of the selected source endpoint. For a region relation this need

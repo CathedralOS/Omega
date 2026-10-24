@@ -15,7 +15,9 @@ mod constant_predicate_obligations;
 mod constant_recipe_obligations;
 mod integer_range_obligations;
 pub use constant_predicate_obligations::ConstantPredicateObligation;
-pub use integer_range_obligations::{IntegerRangeObligation, IntegerRangeRecipe};
+pub use integer_range_obligations::{
+    IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe,
+};
 mod contextual_cleanup;
 pub mod scalar_predicates;
 
@@ -83,12 +85,13 @@ pub use carry::{
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
 pub use collection::{CheckFacts, DecidedCallRequires, ProvenAssignmentIndex};
 pub use content::{
-    ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyConservationFact,
-    ContentBodyDerivation, ContentBodyTransformation, ContentClaimTransformation,
+    ContentBackingAddressTransport, ContentBodyAvailableInput, ContentBodyClaimBinding,
+    ContentBodyConservationFact, ContentBodyCustody, ContentBodyDerivation,
+    ContentBodyTransformation, ContentBoundaryBodyRequirement, ContentClaimTransformation,
     ContentClaimTransformationSource, ContentIdentityReshuffleFact,
     ContentPartitionCompositionFact, ContentPartitionInputClaimBinding,
-    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentProjectionFacts,
-    RetainedBorrowCustodyFact,
+    ContentPartitionPlaceSubstitution, ContentPartitionResultRewrite, ContentPartitionReturnFact,
+    ContentProjectionFacts, RetainedBorrowCustodyFact,
 };
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{

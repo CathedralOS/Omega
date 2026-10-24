@@ -142,21 +142,26 @@ pub(crate) fn lower_entry_scalar(
             if reader.primitive(type_reference, 0)??.0 != primitive {
                 return None;
             }
-            Some(if path.is_empty() {
-                CheckedScalarExpression::Parameter {
-                    position: crate::values::scalar::scalar_position_count(
-                        program,
-                        &reader.parameters[..parameter_position],
-                    ),
-                    primitive_type: primitive,
-                }
-            } else {
-                CheckedScalarExpression::StructuralParameterField {
-                    parameter_position: position,
-                    path,
-                    primitive_type: primitive,
-                }
-            })
+            Some(
+                if path.is_empty()
+                    && crate::values::scalar::occupies_scalar_position(program, parameter)
+                {
+                    CheckedScalarExpression::Parameter {
+                        position: crate::values::scalar::scalar_position_count(
+                            program,
+                            &reader.parameters[..parameter_position],
+                        ),
+                        primitive_type: primitive,
+                    }
+                } else {
+                    CheckedScalarExpression::StructuralParameterField {
+                        observation: Default::default(),
+                        parameter_position: position,
+                        path,
+                        primitive_type: primitive,
+                    }
+                },
+            )
         },
     )
 }
@@ -369,6 +374,7 @@ impl<'program> Reader<'program> {
                     })
                 } else {
                     Some(CheckedBooleanExpression::StructuralParameterField {
+                        observation: Default::default(),
                         parameter_position: u32::try_from(subject.parameter_position).ok()?,
                         path: subject.path,
                     })
@@ -715,6 +721,7 @@ impl<'program> Reader<'program> {
                 }
             } else {
                 CheckedScalarExpression::StructuralParameterField {
+                    observation: Default::default(),
                     parameter_position: u32::try_from(subject.parameter_position).ok()?,
                     path: subject.path.clone(),
                     primitive_type,

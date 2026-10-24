@@ -220,17 +220,7 @@ pub fn selected_call_arguments<'program>(
             else {
                 return Err("selected Value argument lost its runtime source binding");
             };
-            let same_source = if bound_expression.is_valid() {
-                bound_expression == *expression
-            } else {
-                subject.is_valid()
-                    && crate::canonical_place_from_expression(program, *expression).is_some_and(
-                        |place| {
-                            place.root.as_symbol() == Some(subject) && place.segments.is_empty()
-                        },
-                    )
-            };
-            if !same_source {
+            if !runtime_source_matches(program, subject, bound_expression, *expression) {
                 return Err("selected Value argument belongs to another source expression");
             }
             let source_machine = program
@@ -378,6 +368,430 @@ fn formal_origin(
             return Ok(original);
         }
         return Err("selected formal clone does not belong to its exact template frame");
+    }
+    Ok(parameter)
+}
+
+/// The retained header of one executable application, related to the contract
+/// namespace its captured actuals use. This construction scratch authenticates
+/// identity only: runtime parameters are never constant substitutions.
+pub(crate) struct CallBindingCorrespondence {
+    pub declaration: SymbolHandle,
+    pub public_owner: SymbolHandle,
+    /// Zero means that exact static binder was erased by realization; it
+    /// supplies no receiving proof name. Runtime binders always have a name.
+    pub parameters: Vec<(SymbolHandle, SymbolHandle)>,
+    pub runtime_parameters: Vec<SymbolHandle>,
+}
+
+pub(crate) fn call_binding_correspondence(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    site: &CallSite<'_>,
+) -> Result<CallBindingCorrespondence, &'static str> {
+    let handle = match site {
+        CallSite::Expression { call, .. } => call.authored_machine_application,
+        CallSite::Statement(call) => call.authored_machine_application,
+        CallSite::TransitionNamed { .. } => {
+            return Err("an internal edge has no application header");
+        }
+    };
+    if !handle.is_valid() {
+        return Err("the call has no retained application header");
+    }
+    let application = program.expression_table.static_machine_application(handle);
+    if application.lexical_owner != caller {
+        return Err("the application header belongs to another caller");
+    }
+    let Some(declaration) = program.machine_by_symbol(application.binding_declaration) else {
+        return requirement_binding_correspondence(program, caller, site, handle);
+    };
+    let header = program.machine_type_parameters(declaration);
+    let retained = program
+        .expression_table
+        .static_machine_application_bindings(handle);
+    let mut parameters = Vec::with_capacity(header.len());
+    let mut runtime_parameters = Vec::new();
+    let public_owner;
+    if let Some(dispatch) = site.static_requirement_dispatch() {
+        // This existing owner authenticates every executable actual, public
+        // carrier, clone origin and retained runtime source before header
+        // identities can be transported into that same public namespace.
+        let arguments = selected_call_arguments(program, caller, site)?;
+        let (_, public) = requirement_contract_signature(program, caller, site)
+            .ok_or("the selected header lost its public application")?;
+        let (_, declared) = program
+            .trait_machine_signature(dispatch.requirement)
+            .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)
+            .ok_or("the selected header lost its authored requirement")?;
+        let source = program
+            .machine_by_symbol(dispatch.realization_machine)
+            .ok_or("the selected header lost its authored realization")?;
+        let source_header = program.machine_type_parameters(source);
+        let declared_header = program.state_signature_type_parameters(declared);
+        if source_header.len() != declared_header.len() || header.len() != source_header.len() {
+            return Err("the selected header changed its declared telescope");
+        }
+        public_owner = public.symbol;
+        let lineage = application_lineage(program, declaration.symbol, source.symbol)?;
+        for (ordinal, parameter) in header.iter().enumerate() {
+            let original = application_parameter_origin(program, &lineage, parameter.symbol)?;
+            let position = source_header
+                .iter()
+                .position(|source| source.symbol == original)
+                .ok_or("the selected header parameter has no authored origin")?;
+            if position != ordinal {
+                return Err("the selected header changed its authored parameter order");
+            }
+            let logical = program
+                .applied_signature_parameter(declared, public, declared_header[position].symbol)
+                .ok_or("the selected header parameter has no public binder")?;
+            let public_parameter = program
+                .state_signature_type_parameters(public)
+                .iter()
+                .find(|parameter| parameter.symbol == logical)
+                .ok_or("the selected header parameter has no public declaration")?;
+            if std::mem::discriminant(&parameter.kind)
+                != std::mem::discriminant(&public_parameter.kind)
+                || parameters.iter().any(|(_, previous)| *previous == logical)
+            {
+                return Err("the selected header changed or duplicated a public binder");
+            }
+            if retained.iter().any(|binding| {
+                binding.parameter == parameter.symbol
+                    && matches!(
+                        binding.value,
+                        StaticMachineBindingValue::RuntimeValue { .. }
+                    )
+            }) {
+                if !arguments.iter().any(|argument| {
+                    argument.public_position.is_none() && argument.logical_parameter == logical
+                }) {
+                    return Err("the runtime header binder has no authenticated executable actual");
+                }
+                runtime_parameters.push(parameter.symbol);
+            }
+            parameters.push((parameter.symbol, logical));
+        }
+    } else {
+        let (machine, state) = crate::find_state(program, site.target_symbol(program))
+            .ok_or("the application has no exact executable entry")?;
+        public_owner = state.symbol;
+        // A concrete realization preserves the source header through the
+        // existing executable-template chain. Only its runtime Value binders
+        // become ordinary trailing parameters; a static tuple adds no executable argument.
+        let lineage = application_lineage(program, machine.symbol, declaration.symbol)?;
+        let actuals = call_site_argument_expressions(program, site);
+        let executable = program.state_parameters(state);
+        let source_state = application_parameter_origin(program, &lineage, state.symbol)
+            .ok()
+            .and_then(|symbol| program.state_by_symbol(symbol))
+            .ok_or("the executable entry lost its exact source state")?;
+        if program
+            .machine_holding_state(source_state.symbol)
+            .is_none_or(|owner| owner.symbol != declaration.symbol)
+        {
+            return Err("the executable entry belongs to another source machine");
+        }
+        let ordinary = program.state_parameters(source_state);
+        let runtime_header = header
+            .iter()
+            .filter(|parameter| {
+                retained.iter().any(|binding| {
+                    binding.parameter == parameter.symbol
+                        && matches!(
+                            binding.value,
+                            StaticMachineBindingValue::RuntimeValue { .. }
+                        )
+                })
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        if executable.len() != actuals.len()
+            || executable.len() != ordinary.len() + runtime_header.len()
+            || !executable
+                .iter()
+                .take(ordinary.len())
+                .zip(ordinary)
+                .all(|(actual, declared)| {
+                    application_parameter_origin(program, &lineage, actual.symbol).ok()
+                        == Some(declared.symbol)
+                })
+        {
+            return Err("the application lost its ordered executable parameter correspondence");
+        }
+        let mut next_header_position = 0;
+        for logical in program.machine_type_parameters(machine) {
+            let original = application_parameter_origin(program, &lineage, logical.symbol)?;
+            let position = header
+                .iter()
+                .position(|parameter| parameter.symbol == original)
+                .ok_or("the realized header has no source parameter")?;
+            if position < next_header_position
+                || std::mem::discriminant(&logical.kind)
+                    != std::mem::discriminant(&header[position].kind)
+            {
+                return Err("the realized header changed its source order or parameter kind");
+            }
+            next_header_position = position + 1;
+        }
+        for parameter in header {
+            let mut public_parameters =
+                program
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .filter(|logical| {
+                        application_parameter_origin(program, &lineage, logical.symbol).ok()
+                            == Some(parameter.symbol)
+                    });
+            let mut logical = public_parameters
+                .next()
+                .map_or_else(SymbolHandle::invalid, |parameter| parameter.symbol);
+            if public_parameters.next().is_some() {
+                return Err("the application duplicated a retained static header binder");
+            }
+            let mut rows = retained
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let binding = rows
+                .next()
+                .ok_or("the application header has a missing binding")?;
+            if rows.next().is_some() {
+                return Err("the application header has duplicate bindings");
+            }
+            if let StaticMachineBindingValue::RuntimeValue {
+                type_reference,
+                subject,
+                expression,
+            } = binding.value
+            {
+                let position = runtime_header
+                    .iter()
+                    .position(|symbol| *symbol == parameter.symbol)
+                    .ok_or("the runtime header binder has no retained ordinal")?;
+                let index = ordinary.len() + position;
+                let formal = &executable[index];
+                let actual = actuals[index];
+                if application_parameter_origin(program, &lineage, formal.symbol).ok()
+                    != Some(parameter.symbol)
+                    || formal.is_const
+                    || formal.is_mutable
+                    || !matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Value { .. }
+                    )
+                    || !crate::declared_carriers_match(
+                        program,
+                        type_reference,
+                        formal.type_reference,
+                    )
+                    || !runtime_source_matches(program, subject, expression, actual)
+                {
+                    return Err(
+                        "the runtime header binder has no exact captured executable argument",
+                    );
+                }
+                logical = formal.symbol;
+                runtime_parameters.push(parameter.symbol);
+            }
+            parameters.push((parameter.symbol, logical));
+        }
+    }
+    Ok(CallBindingCorrespondence {
+        declaration: declaration.symbol,
+        public_owner,
+        parameters,
+        runtime_parameters,
+    })
+}
+
+/// An open requirement has no executable instance or trailing Value operands.
+/// The exact retained invocation view still transports its authored header.
+/// Rejoin through the same applied-signature owner that prepared its public
+/// contract; a same-sized telescope or a provider body cannot supply this map.
+fn requirement_binding_correspondence(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    site: &CallSite<'_>,
+    handle: typed_trees::static_applications::StaticMachineApplicationHandle,
+) -> Result<CallBindingCorrespondence, &'static str> {
+    if site.static_requirement_dispatch().is_some() {
+        return Err("a realized requirement header has no authored machine declaration");
+    }
+    let application = program.expression_table.static_machine_application(handle);
+    let (declaring_trait, declared) = program
+        .trait_machine_signature(application.binding_declaration)
+        .ok_or("the open application has no exact authored requirement header")?;
+    let (selected_trait, public) = requirement_contract_signature(program, caller, site)
+        .ok_or("the open application lost its exact public invocation view")?;
+    let header = program.state_signature_type_parameters(declared);
+    let logical = program.state_signature_type_parameters(public);
+    let retained = program
+        .expression_table
+        .static_machine_application_bindings(handle);
+    if declaring_trait.symbol != selected_trait.symbol
+        || declared.symbol != public.symbol
+        || header.len() != logical.len()
+        || retained.len() != header.len()
+        || retained.iter().any(|binding| {
+            header
+                .iter()
+                .filter(|parameter| parameter.symbol == binding.parameter)
+                .count()
+                != 1
+        })
+    {
+        return Err("the open application changed its declared public telescope");
+    }
+    let mut parameters = Vec::with_capacity(header.len());
+    let mut runtime_parameters = Vec::new();
+    for parameter in header {
+        let selected = program
+            .applied_signature_parameter(declared, public, parameter.symbol)
+            .ok_or("the open application lost its applied header binder")?;
+        let mut public_parameters = logical
+            .iter()
+            .filter(|parameter| parameter.symbol == selected);
+        let (Some(public_parameter), None) = (public_parameters.next(), public_parameters.next())
+        else {
+            return Err("the open application duplicated its public header binder");
+        };
+        if std::mem::discriminant(&parameter.kind) != std::mem::discriminant(&public_parameter.kind)
+            || parameters.iter().any(|(_, previous)| *previous == selected)
+        {
+            return Err("the open application changed its public binder kind or identity");
+        }
+        let mut bindings = retained
+            .iter()
+            .filter(|binding| binding.parameter == parameter.symbol);
+        let (Some(binding), None) = (bindings.next(), bindings.next()) else {
+            return Err("the open application has a missing or duplicate header binding");
+        };
+        if matches!(
+            binding.value,
+            StaticMachineBindingValue::RuntimeValue { .. }
+        ) {
+            if !matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Value { .. }
+            ) {
+                return Err("the open runtime operand does not belong to a Value binder");
+            }
+            immutable_runtime_parameter(program, caller, &binding.value)?;
+            runtime_parameters.push(parameter.symbol);
+        }
+        parameters.push((parameter.symbol, selected));
+    }
+    Ok(CallBindingCorrespondence {
+        declaration: declared.symbol,
+        public_owner: public.symbol,
+        parameters,
+        runtime_parameters,
+    })
+}
+
+/// A lexical Value binder is an immutable runtime subject, never a constant.
+/// It needs no fresh read after this call's effects. Local/effectful actuals
+/// instead require their captured executable operand; this query cannot
+/// reconstruct that observation from a late source expression.
+pub(crate) fn immutable_runtime_parameter(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    value: &StaticMachineBindingValue,
+) -> Result<SymbolHandle, &'static str> {
+    let StaticMachineBindingValue::RuntimeValue {
+        type_reference,
+        subject,
+        expression,
+    } = value
+    else {
+        return Err("the runtime header binding has another operand kind");
+    };
+    if !subject.is_valid() || expression.is_valid() {
+        return Err("the runtime header actual needs a captured executable observation");
+    }
+    let machine = program
+        .machine_by_symbol(caller)
+        .ok_or("the runtime header actual has no lexical machine owner")?;
+    let mut parameters = program
+        .machine_type_parameters(machine)
+        .iter()
+        .filter(|parameter| parameter.symbol == *subject);
+    let (Some(parameter), None) = (parameters.next(), parameters.next()) else {
+        return Err("the runtime header actual has no unique lexical Value binder");
+    };
+    let typed_trees::data::TypeParameterKind::Value {
+        type_reference: declared,
+    } = parameter.kind
+    else {
+        return Err("the runtime header actual is not an immutable Value binder");
+    };
+    if !crate::declared_carriers_match(program, declared, *type_reference) {
+        return Err("the runtime header actual differs from its lexical carrier");
+    }
+    Ok(*subject)
+}
+
+fn runtime_source_matches(
+    program: &dyn crate::CheckingInput,
+    subject: SymbolHandle,
+    bound: ExpressionHandle,
+    actual: ExpressionHandle,
+) -> bool {
+    if bound.is_valid() {
+        bound == actual
+    } else {
+        subject.is_valid()
+            && crate::canonical_place_from_expression(program, actual).is_some_and(|place| {
+                place.root.as_symbol() == Some(subject) && place.segments.is_empty()
+            })
+    }
+}
+
+/// Retained executable-template identity, never a body or spelling search.
+fn application_lineage(
+    program: &dyn crate::CheckingInput,
+    mut machine: SymbolHandle,
+    declaration: SymbolHandle,
+) -> Result<Vec<SymbolHandle>, &'static str> {
+    let mut lineage = Vec::new();
+    while machine != declaration {
+        if lineage.contains(&machine) {
+            return Err("the executable application template chain is cyclic");
+        }
+        lineage.push(machine);
+        machine = program
+            .executable_application_template(machine)
+            .ok()
+            .flatten()
+            .ok_or("the executable application lost its authored template")?;
+    }
+    lineage.push(declaration);
+    Ok(lineage)
+}
+
+fn application_parameter_origin(
+    program: &dyn crate::CheckingInput,
+    lineage: &[SymbolHandle],
+    mut parameter: SymbolHandle,
+) -> Result<SymbolHandle, &'static str> {
+    if !parameter.is_valid() {
+        return Err("the application parameter has no identity");
+    }
+    for frame in lineage.windows(2) {
+        let original = program.symbols.get(parameter).generated_from;
+        if !original.is_valid() {
+            return Err("the application parameter lost its clone origin");
+        }
+        let parent = program.symbols.get(original).parent;
+        if parent != frame[1]
+            && program
+                .machine_holding_state(parent)
+                .is_none_or(|owner| owner.symbol != frame[1])
+        {
+            return Err("the application parameter belongs to another template scope");
+        }
+        parameter = original;
     }
     Ok(parameter)
 }

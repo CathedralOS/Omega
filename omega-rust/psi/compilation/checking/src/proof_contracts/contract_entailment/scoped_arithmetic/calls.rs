@@ -51,6 +51,7 @@ impl CallOccurrence {
     }
 }
 
+#[derive(Clone)]
 pub(in crate::proof_contracts::contract_entailment) struct ScopedCalls<'program> {
     program: &'program dyn crate::CheckingInput,
     context: SymbolHandle,

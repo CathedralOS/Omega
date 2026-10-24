@@ -46,7 +46,7 @@ enum OutputKind {
 
 /// Shared admission premise for every exact foreign call binding before any
 /// trusted host adapter is offered for it: an identified provider-plan report,
-/// a valid entry mechanism, no callback materializations, no declaration
+/// a valid entry mechanism, no callback materializations, no host-supplied
 /// residue obligations, normal completion, and an evaluated boundary-entry
 /// plan that validates the native signature the adapter will actually run.
 /// Each family below keeps its own declaration/ABI shape rules; this one rule
@@ -77,8 +77,11 @@ pub(super) fn admit_exact_foreign_call(
             "foreign call binding retains callback materializations",
         ));
     }
-    if !declaration.requires.is_empty()
-        || !declaration.scalar_requires.is_empty()
+    // Structural requirements are caller-carried qualifications. The ordinary
+    // boundary argument binder checks them before invoking any host effect;
+    // admitting an adapter neither supplies nor re-establishes that evidence.
+    // Keep unsupported proof/output residue on the refusal path below.
+    if !declaration.scalar_requires.is_empty()
         || !declaration.scalar_ensures.is_empty()
         || !declaration.content_guarantees.is_empty()
         || !declaration.program_local_root_introductions.is_empty()

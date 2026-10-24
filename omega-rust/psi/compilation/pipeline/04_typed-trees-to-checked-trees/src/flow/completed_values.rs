@@ -25,10 +25,12 @@ pub(crate) fn terminal_alternatives(
         }
         visited.push(value);
         let capture = control.operands.get(value);
-        if capture.alternatives.is_empty() {
-            completed.push(value);
+        if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+            let rows = control.operand_alternatives.span(alternatives)?;
+            if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) { return None; }
+            pending.extend(rows.iter().map(|row| row.value));
         } else {
-            pending.extend(capture.alternatives.handles());
+            completed.push(value);
         }
     }
     Some(completed)
@@ -87,14 +89,19 @@ pub(crate) fn predecessors_in_flow(
             .is_valid(capture.value_source)
             .then(|| vec![(capture.value_source, projection.to_vec())]);
     }
-    if !capture.alternatives.is_empty() {
-        return Some(
-            capture
-                .alternatives
-                .handles()
-                .map(|alternative| (alternative, projection.to_vec()))
-                .collect(),
-        );
+    if let checked_trees::FlowOperandCompletion::Copied { copy, path } = capture.completion
+        && (matches!(observation, super::stored_values::StoredObservation::Binding) || !crosses_reference)
+    {
+        if !flow.control.copied_values.is_valid(copy) { return None; }
+        let copied = flow.control.copied_values.get(copy);
+        let mut selected = flow.control.operand_child_paths.span(path)?.to_vec();
+        selected.extend_from_slice(projection);
+        return Some(vec![(copied.source, selected)]);
+    }
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion {
+        let rows = flow.control.operand_alternatives.span(alternatives)?;
+        if rows.is_empty() || rows.iter().any(|row| !row.source_arm.is_valid()) { return None; }
+        return Some(rows.iter().map(|row| (row.value, projection.to_vec())).collect());
     }
     if !projection.is_empty()
         && let Some((selected, _, consumed)) = super::operand_values::captured_operand_child_at_path(

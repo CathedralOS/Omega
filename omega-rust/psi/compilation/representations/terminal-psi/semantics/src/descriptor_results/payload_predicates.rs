@@ -18,7 +18,47 @@ mod tests;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PayloadScalarObservation {
     pub path: Vec<DescriptorPathSegment>,
-    pub value: ScalarTerm,
+    /// A known executable scalar expression. An entry snapshot identity below
+    /// does not manufacture such an expression or a numeric premise.
+    pub value: Option<ScalarTerm>,
+    /// Equality-only provenance of an unknown immutable entry value. This is
+    /// disposable history data, not serialized SSA or an address/permission.
+    pub entry: Option<PayloadEntryScalarIdentity>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PayloadEntryScalarIdentity {
+    pub root: semantic_vocabulary::PlaceId,
+    pub path: Vec<DescriptorPathSegment>,
+    pub scalar_type: ScalarType,
+}
+
+impl PayloadScalarObservation {
+    /// Meet the two independent observations at one typed location. A new read
+    /// may provide an expression without changing its original entry snapshot.
+    /// Neither component survives a conflicting or absent incoming component.
+    pub(super) fn intersect(retained: &mut Vec<Self>, incoming: &[Self]) -> bool {
+        let mut changed = false;
+        retained.retain_mut(|observation| {
+            let mut rows = incoming.iter().filter(|row| row.path == observation.path);
+            let Some(row) = rows.next() else {
+                changed = true;
+                return false;
+            };
+            if rows.next().is_some() {
+                changed = true;
+                return false;
+            }
+            if observation.value != row.value && observation.value.take().is_some() {
+                changed = true;
+            }
+            if observation.entry != row.entry && observation.entry.take().is_some() {
+                changed = true;
+            }
+            observation.value.is_some() || observation.entry.is_some()
+        });
+        changed
+    }
 }
 
 pub(super) fn canonical_path(
@@ -33,7 +73,7 @@ pub(super) fn canonical_path(
                 Some(CanonicalStructuralPathSegment::FixedIndex(*index))
             }
             DescriptorPathSegment::Case(case) => Some(CanonicalStructuralPathSegment::Case(*case)),
-            DescriptorPathSegment::Referent => None,
+            DescriptorPathSegment::Referent => Some(CanonicalStructuralPathSegment::Referent),
         })
         .collect()
 }
@@ -68,7 +108,9 @@ pub(super) fn close(
         }
         let mut value_types = Vec::new();
         for observation in &contract.scalar_observations {
-            collect_value_types(&observation.value, &mut value_types, 0);
+            if let Some(value) = &observation.value {
+                collect_value_types(value, &mut value_types, 0);
+            }
         }
         for premise in &contract.scalar_requirements {
             collect_proposition_types(premise, &mut value_types);
@@ -88,10 +130,13 @@ pub(super) fn close(
         // equations do; the requested domain supplies neither roster.
         let mut equations = contract.scalar_requirements.clone();
         for observation in &contract.scalar_observations {
+            let Some(value) = &observation.value else {
+                continue;
+            };
             let Some(path) = canonical_path(&observation.path) else {
                 continue;
             };
-            let scalar_type = observation.value.scalar_type();
+            let scalar_type = value.scalar_type();
             if observation_type(types, contract.carrier, &observation.path) != Some(scalar_type) {
                 continue;
             }
@@ -103,7 +148,7 @@ pub(super) fn close(
                 // IEEE equality is not a snapshot equation for NaN.
                 ScalarType::IeeeFloat(_) => continue,
             };
-            equations.push(Proposition::Equal(observed, observation.value.clone()));
+            equations.push(Proposition::Equal(observed, value.clone()));
         }
         visit_proposition_terms(&predicate.proposition, &mut |term| {
             if let Some(value) = observed_byte_predicate(types, contract, predicate.subject, term) {
@@ -242,18 +287,19 @@ fn observed_byte_predicate(
             canonical_path(&observation.path).as_ref() == Some(&element_path)
         });
         let observation = matching.next()?;
+        let observed = observation.value.as_ref()?;
         if matching.next().is_some()
             || observation_type(types, contract.carrier, &observation.path)
-                != Some(observation.value.scalar_type())
+                != Some(observed.scalar_type())
         {
             return None;
         }
-        let ScalarTerm::Integer { value, .. } = observation.value else {
+        let ScalarTerm::Integer { value, .. } = observed else {
             return None;
         };
         let byte = match value {
-            semantic_vocabulary::IntegerValue::Unsigned(value) => u8::try_from(value).ok()?,
-            semantic_vocabulary::IntegerValue::Signed(value) => u8::try_from(value).ok()?,
+            semantic_vocabulary::IntegerValue::Unsigned(value) => u8::try_from(*value).ok()?,
+            semantic_vocabulary::IntegerValue::Signed(value) => u8::try_from(*value).ok()?,
         };
         bytes.push(byte);
     }
@@ -434,4 +480,19 @@ impl<'machine> TerminalScalarExpressions<'machine> {
             Some((scalar_type, denotation))
         })
     }
+}
+
+pub(crate) fn terminal_scalar_snapshots(
+    machine: &terminal_psi::TerminalMachine,
+    values: &[semantic_vocabulary::ValueId],
+) -> Vec<(semantic_vocabulary::ValueId, ScalarTerm)> {
+    let expressions = TerminalScalarExpressions::new(machine);
+    values
+        .iter()
+        .filter_map(|value| {
+            expressions
+                .expression(*value)
+                .map(|expression| (*value, expression))
+        })
+        .collect()
 }

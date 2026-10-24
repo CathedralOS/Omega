@@ -23,12 +23,8 @@ pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
 pub(crate) mod place_observations;
 pub(crate) mod structural_cases;
-mod structural_copy;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
-pub(crate) use structural_copy::{
-    PreparedCopyPathSegment, PreparedStructuralCopy, StructuralCopySelector,
-};
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 
@@ -541,6 +537,9 @@ impl ScalarBindings {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
                         symbol,
                         root_type_identity: checked.normalized_type_identity(alias.loan.root_type),
+                        // The captured loan already owns a root-relative path.
+                        // Its nested reference steps remain strict suffixes.
+                        root_reference_hops: 0,
                     }
                 }
                 checked_trees::CheckedPlaceLoanRoot::ScalarParameter { .. } => {
@@ -765,6 +764,9 @@ impl ScalarBindings {
             segments
                 .iter()
                 .map(|segment| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Referent)
+                    }
                     checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
                         Ok(checked_trees::CheckedStructuralPredicatePathSegment::Field(
                             identity.clone(),
@@ -773,7 +775,14 @@ impl ScalarBindings {
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(
                         checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index),
                     ),
-                    _ => unsupported("runtime case observation has a non-field projection"),
+                    checked_trees::CheckedUnitStructuralPathSegment::Case(identity) => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                            identity.clone(),
+                        ))
+                    }
+                    _ => {
+                        unsupported("runtime case observation has an unsupported static projection")
+                    }
                 })
                 .collect::<Result<Vec<_>, _>>()
         };

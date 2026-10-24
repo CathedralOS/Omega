@@ -48,14 +48,14 @@ impl Execution<'_, '_, '_> {
         let mut roots = self.context.control.retained_roots(retention)?.to_vec();
         let mut places = Vec::new();
         let mut candidates = Vec::new();
-        let mut has_image = false;
+        let mut has_unknown_geometry = false;
         let mut all_image = true;
         for source in sources {
             if self.returned_slot_path(returned, &source.result_path)? != path {
                 continue;
             }
             if source.source.is_image_storage {
-                has_image = true;
+                has_unknown_geometry = true;
                 candidates.push((Vec::new(), true, None));
                 continue;
             }
@@ -115,24 +115,27 @@ impl Execution<'_, '_, '_> {
                         }
                     }
                 }
-                let referents = self.captured_referent_places(value.referents);
-                // Opaque pointers retain the exact supplier association below.
-                // Neither its lifetime roots nor its containing home is geometry.
-                let selected = referents
-                    .into_iter()
-                    .map(|referent| {
-                        validation::completed_storage::project_captured_view_place(
-                            referent,
-                            &projection,
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>()?;
+                // Preserve the exact captured formation namespace. An opaque
+                // supplier can withhold geometry without losing its independent
+                // evaluated-source association; roots never fill that gap.
+                let selected =
+                    super::super::operand_values::captured_operand_reference_places_with_formation(
+                        self.program,
+                        &self.context.control,
+                        &value,
+                        value.type_reference,
+                        &projection,
+                    );
+                if selected.as_ref().is_some_and(Vec::is_empty) && !image {
+                    return None;
+                }
+                has_unknown_geometry |= image || selected.is_none();
+                let selected = selected.unwrap_or_default();
                 for place in &selected {
                     if !places.contains(place) {
                         places.push(place.clone());
                     }
                 }
-                has_image |= image;
                 all_image &= image;
                 candidates.push((selected, image, Some((value, projection))));
             }
@@ -172,7 +175,7 @@ impl Execution<'_, '_, '_> {
                     .get_mut(retention)
                     .suppliers = suppliers;
             }
-            let referents = self.append_referent_places(&places);
+            let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {
                 type_reference: reference,
                 state_symbol: self.state.symbol,
@@ -186,11 +189,22 @@ impl Execution<'_, '_, '_> {
         if alternatives.len() == 1 {
             return Some(self.context.control.operands.insert(alternatives.pop()?));
         }
-        let alternatives = self.context.control.operands.insert_many(alternatives);
-        let referents = if has_image {
+        let mut profiles = Vec::new();
+        for value in alternatives {
+            let descriptor = self.context.control.operands.insert(value);
+            let mut profile = *self.context.control.operand_retentions.get(value.retention);
+            profile.descriptor = descriptor;
+            profiles.push(profile);
+        }
+        let alternatives = self
+            .context
+            .control
+            .operand_retentions
+            .insert_many(profiles);
+        let referents = if has_unknown_geometry {
             Default::default()
         } else {
-            self.append_referent_places(&places)
+            self.append_captured_references(&places)
         };
         let retention = self.append_retention(&roots);
         self.context
@@ -198,12 +212,16 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .get_mut(retention)
             .immutable_image = all_image;
+        self.context
+            .control
+            .operand_retentions
+            .get_mut(retention)
+            .alternatives = alternatives;
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
             storage_snapshot: self.storage_snapshot,
-            alternatives,
             referents,
             retention,
             ..Default::default()

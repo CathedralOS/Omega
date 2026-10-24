@@ -4,9 +4,9 @@
 //! `permission_events.rs` records the events, `claim_outcomes.rs` settles
 //! which claim each outcome reaches, `linear_validation.rs` walks the
 //! statements, and `type_multiplicity.rs` answers what a type carries;
-//! `owned_selection`, `projected_affine` and `temporary_results` stay as they
-//! were, with the nested-ownership and generic-substitution tests beside
-//! them.
+//! `owned_selection` transports actual completed sources through guarded joins;
+//! `returned_claims` queries their exact consuming occurrences. Projected
+//! ownership and temporary completion retain the same source custody owner.
 
 mod body_input_frontier;
 mod content_snapshots;
@@ -32,7 +32,10 @@ mod permission_schedule;
 mod returned_claims;
 pub(crate) use linear_obligations::LinearPlace;
 pub(crate) use returned_claims::completed_owned_claims;
-pub(crate) use returned_claims::{ReturnedClaim, ReturnedClaimSource, current_returned_claims};
+pub(crate) use returned_claims::{
+    ClaimConsumption, ReturnedClaim, ReturnedClaimSource, consumed_operand_claims,
+    current_returned_claims,
+};
 mod selected_cleanup;
 mod selected_evaluation;
 pub(crate) use claim_outcomes::ClaimOutcomePreparation;

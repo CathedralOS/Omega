@@ -757,19 +757,39 @@ impl Operation<'_, '_> {
                 state,
                 self.expression,
             )
-            && let Some(floor) = ordered_values::subtract_floor(
+        {
+            let captured = state.and_then(|state| {
+                walk.environment
+                    .numeric_observations
+                    .integer_operations
+                    .iter()
+                    .find(|observation| {
+                        observation.state == state.symbol
+                            && observation.expression == self.expression
+                    })
+            });
+            // A raw place denotes current storage. Only the shared operation
+            // owner's complete frame can equate it with both operand epochs;
+            // immutable snapshots remain denotations across arbitrary writes.
+            let denotational = ordered_values::subtract_floor(
                 program,
                 machine,
                 state,
                 walk.environment,
                 left,
                 right,
-            )
-        {
-            return interval.intersect(Interval {
-                low: Some(floor),
-                high: None,
-            });
+                captured.is_some_and(|observation| observation.preserves_storage),
+            );
+            let floor = denotational
+                .into_iter()
+                .chain(captured.and_then(|observation| observation.minimum_difference))
+                .max();
+            if let Some(floor) = floor {
+                return interval.intersect(Interval {
+                    low: Some(floor),
+                    high: None,
+                });
+            }
         }
         interval
     }

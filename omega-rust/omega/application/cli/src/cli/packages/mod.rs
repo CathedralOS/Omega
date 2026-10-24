@@ -67,6 +67,9 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
             session.dispose(result)
         }
     };
+    if phase_profile::enabled() {
+        eprint!("{}", phase_profile::render());
+    }
     let outcome = match result {
         Ok(outcome) => outcome,
         Err(error) => {

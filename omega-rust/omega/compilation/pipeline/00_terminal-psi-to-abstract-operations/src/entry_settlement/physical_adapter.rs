@@ -71,6 +71,9 @@ impl PhysicalProgramEntry {
         {
             return Err("physical adapter formals are not the complete arrival signature");
         }
+        // Firmware supplies the declared arrival operands, with no erased
+        // witness lane. A selected provider cannot acquire extra premises.
+        terminal_semantics::validate_empty_erased_invocation_inputs(module, machine)?;
         // The checked conformance preserves each lane's positional order.
         // Derive its interleave from the retained requirement, never accept
         // a caller-supplied permutation of equal-sized firmware arguments.

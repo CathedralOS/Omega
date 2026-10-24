@@ -47,6 +47,11 @@ pub(super) fn at_call(
     let Some(epoch) = operands.last() else {
         return CapturedOrigins::Unavailable;
     };
+    // The roster authenticates expressions, not their evaluation epoch. This
+    // query consumes the final operand's completion prefix at this exact call.
+    if epoch.state_symbol != state.state_symbol || epoch.statement_index != call.statement_index {
+        return CapturedOrigins::Unavailable;
+    }
     let observation = validation::canonical_place_type_reference(
         program,
         state.state_symbol,
@@ -63,7 +68,9 @@ pub(super) fn at_call(
         observation,
     ) {
         None => CapturedOrigins::Incoming,
-        Some(StoredOperand::Unavailable) => CapturedOrigins::Unavailable,
+        Some(StoredOperand::Unavailable | StoredOperand::Incoming(_)) => {
+            CapturedOrigins::Unavailable
+        }
         Some(stored @ StoredOperand::Alternatives(_)) => {
             let Some(captures) = stored.captures() else {
                 return CapturedOrigins::Unavailable;

@@ -1,0 +1,25 @@
+// Expected exit: 0
+// A checked whole-value write establishes output case metadata; the caller
+// consumes that guarantee without observing through the write-only loan.
+data Choice [copy] { case Ready(value: u32); case Empty; }
+
+machine initialize(destination: &write Choice)
+ensures destination in Choice::Ready {
+    destination = Choice::Ready { value: 7 };
+}
+
+machine read_ready(source: &Choice) -> u32
+requires source in Choice::Ready {
+    source.value
+}
+
+machine main() crashes Trap {
+    let mut destination: Choice = Choice::Empty;
+    initialize(&write destination);
+    transition read_ready(&destination) == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

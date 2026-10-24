@@ -91,7 +91,7 @@ impl<'catalogs> catalogs::ComposedCatalogs<'catalogs> {
         &mut self,
     ) -> (
         ComposedOperationCatalogs<'_, 'catalogs>,
-        &mut super::scalar_calls::ComposedScalarCalls,
+        &mut super::scalar_calls::ComposedScalarCalls<'catalogs>,
     ) {
         (
             ComposedOperationCatalogs {
@@ -217,6 +217,7 @@ pub(super) fn emit_call_operations(
     let mut staged_scalar_slots = vec![Vec::new(); planned_operations.len()];
     let mut staged_ranges = vec![Vec::new(); planned_operations.len()];
     let mut staged_selector_slots = vec![Vec::new(); planned_operations.len()];
+    let mut staged_structural_arguments = vec![Vec::new(); planned_operations.len()];
     while let Some(step) = schedule.next() {
         let (operation_index, staged) = match *step {
             Step::CaptureBefore(statement) => {
@@ -226,6 +227,7 @@ pub(super) fn emit_call_operations(
                     state.state,
                     statement,
                     &catalogs.structural_types,
+                    catalogs.domain_declarations,
                     values,
                     &mut catalogs.next_place,
                     next_value,
@@ -350,6 +352,63 @@ pub(super) fn emit_call_operations(
                 scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 staged_selector_slots[operation].push(values.len());
                 values.push(value);
+                continue;
+            }
+            Step::Structural {
+                operation,
+                argument,
+                complete,
+            } => {
+                let source_value_count = retained_source_count.ok_or(
+                    LoweringError::Unsupported("composed structural actual has no source prefix"),
+                )?;
+                let call =
+                    planned_operations[operation]
+                        .call()
+                        .ok_or(LoweringError::Unsupported(
+                            "composed structural actual has no call",
+                        ))?;
+                let offset = call.structural_arguments[..argument]
+                    .iter()
+                    .map(|source| source.call_selector_positions().count())
+                    .sum::<usize>();
+                let selectors = staged_selector_slots[operation][offset..].to_vec();
+                if staged_structural_arguments[operation].is_empty() {
+                    staged_structural_arguments[operation] =
+                        vec![None; call.structural_arguments.len()];
+                }
+                let previous = staged_structural_arguments[operation][argument].take();
+                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+                let mut calls = scalar_calls.emission_context();
+                let captured = operation_catalogs
+                    .operation_frame(
+                        checked,
+                        machine,
+                        state,
+                        parameters,
+                        erased_parameters,
+                        sequence,
+                        OperationEmission {
+                            source_value_count,
+                            evaluation,
+                            values,
+                            next_value,
+                            next_block,
+                            next_edge,
+                            calls: &mut calls,
+                            operations,
+                        },
+                    )
+                    .capture_argument(
+                        identities,
+                        &planned_operations[operation],
+                        argument,
+                        &selectors,
+                        previous,
+                        complete,
+                    )?;
+                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                staged_structural_arguments[operation][argument] = Some(captured);
                 continue;
             }
             Step::Endpoint {
@@ -542,6 +601,9 @@ pub(super) fn emit_call_operations(
                     evaluated_scalar_arguments: arguments.as_deref(),
                     byte_places,
                     evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
+                    completed_structural_arguments: (!staged_structural_arguments[operation_index]
+                        .is_empty())
+                    .then_some(staged_structural_arguments[operation_index].as_slice()),
                 },
             )?,
         }

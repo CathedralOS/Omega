@@ -84,6 +84,17 @@ pub fn structural_place_backing_access<'types>(
     place: semantic_vocabulary::PlaceId,
     types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
 ) -> Option<terminal_psi::StructuralAccess> {
+    // An arrival retains outer storage access separately from its contained
+    // descriptor ceiling. Query the actual row; absent contained permission
+    // cannot become a readable grant from the outer storage loan.
+    if let Some(parameter) = function.arrival_parameter(place)
+        && terminal_semantics::descriptor_results::is_descriptor(
+            types.clone(),
+            parameter.structural_type,
+        )
+    {
+        return terminal_semantics::descriptor_parameter_access(parameter, types);
+    }
     unit_validation::operation_contracts::structural_source_contract(function, place)
         .map(|source| source.backing_access(types))
 }

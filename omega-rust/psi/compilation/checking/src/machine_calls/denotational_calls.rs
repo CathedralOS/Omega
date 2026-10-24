@@ -12,6 +12,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod normal_return;
+mod requirement_satisfiers;
+pub(crate) use requirement_satisfiers::RequirementSatisfierIndex;
+pub use requirement_satisfiers::requirement_satisfiers;
 mod specification;
 pub use normal_return::normal_return_call_candidate;
 pub(crate) use normal_return::plain_value_call_target;
@@ -559,35 +562,6 @@ pub(crate) fn has_no_crash_routes(
             })
         })
     })
-}
-
-/// The machines that declare this boundary requirement satisfied. A call to a
-/// requirement denotes whichever satisfier the build selects, so a source-level
-/// judgment that has no selection row must account for all of them. The
-/// denotational-call closure and the machine progress summary consult this same
-/// query, so both layers agree on what a requirement denotes.
-pub fn requirement_satisfiers(
-    program: &dyn crate::CheckingInput,
-    requirement: symbols::SymbolHandle,
-) -> Vec<symbols::SymbolHandle> {
-    program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            program
-                .machine_trait_conformances(machine)
-                .iter()
-                .any(|conformance| {
-                    typed_trees::machine::resolve_satisfied_declaration(
-                        program.typed_program(),
-                        machine,
-                        conformance,
-                    )
-                    .is_some_and(|satisfied| satisfied.symbol() == requirement)
-                })
-        })
-        .map(|machine| machine.symbol)
-        .collect()
 }
 
 fn complete_family_members<'program>(

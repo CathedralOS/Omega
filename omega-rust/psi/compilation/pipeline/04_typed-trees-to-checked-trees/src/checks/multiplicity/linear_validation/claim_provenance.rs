@@ -77,6 +77,7 @@ pub(crate) fn written_linear_targets(
                                 .is_some())
                     })
                     .map(|(place_index, _)| WrittenLinearTarget {
+                        value: typed_trees::expression::ExpressionHandle::invalid(),
                         root: facts::PlaceRoot::Symbol(local.symbol),
                         destination_path: Vec::new(),
                         place_index,
@@ -197,6 +198,7 @@ pub(crate) fn written_owner_targets(
                     )
                 });
             Some(WrittenLinearTarget {
+                value,
                 root: target.root,
                 destination_path: target.segments.clone(),
                 place_index,
@@ -367,53 +369,20 @@ fn expression_permission_claim_identity_for_claim(
     relative_path: &[facts::PlaceSegment],
     places: &[LinearPlace],
 ) -> Option<PermissionClaimIdentity> {
-    if relative_path.is_empty() {
-        match program.expression_table.expression(expression) {
-            // Every call result is its own occurrence until an exact result
-            // correspondence proves forwarding. A boundary/signature call
-            // does not inherit a borrowed argument's owned claim merely
-            // because that argument has the only known origin.
-            typed_trees::expression::ExpressionNode::Call(_) => return None,
-            typed_trees::expression::ExpressionNode::StructLiteral(literal) => {
-                return common_permission_claim_identity(
-                    program
-                        .expression_table
-                        .struct_fields(literal.fields)
-                        .iter()
-                        .filter_map(|field| {
-                            expression_permission_claim_identity_for_claim(
-                                program,
-                                state_symbol,
-                                statement_index,
-                                field.value,
-                                &[],
-                                places,
-                            )
-                        }),
-                );
-            }
-            typed_trees::expression::ExpressionNode::ArrayLiteral(values) => {
-                return common_permission_claim_identity(
-                    program
-                        .expression_table
-                        .expression_handles(*values)
-                        .iter()
-                        .filter_map(|value| {
-                            expression_permission_claim_identity_for_claim(
-                                program,
-                                state_symbol,
-                                statement_index,
-                                *value,
-                                &[],
-                                places,
-                            )
-                        }),
-                );
-            }
-            _ => {}
-        }
+    if relative_path.is_empty()
+        && matches!(
+            program.expression_table.expression(expression),
+            typed_trees::expression::ExpressionNode::Call(_)
+        )
+    {
+        // Every call result owns its occurrence until exact result
+        // correspondence proves forwarding, including boundary calls.
+        return None;
     }
 
+    // A completed construction owns its root establishment. Its child
+    // identities travel only through the exact Field/Index descent above;
+    // a sole named child cannot donate its identity to a nominal whole root.
     expression_permission_claim_scan(
         program,
         state_symbol,
@@ -438,31 +407,6 @@ fn expression_permission_provenance_for_claim(
     if program.expression_table.call_node(expression).is_some() {
         return None;
     }
-    if relative_path.is_empty()
-        && matches!(
-            program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::StructLiteral(_)
-                | typed_trees::expression::ExpressionNode::ArrayLiteral(_)
-        )
-    {
-        return validation::expression_permission_provenance(
-            program,
-            expression,
-            &mut |candidate| {
-                Ok(expression_permission_provenance_for_claim(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    candidate,
-                    &[],
-                    places,
-                ))
-            },
-        )
-        .ok()
-        .flatten();
-    }
-
     expression_permission_claim_scan(
         program,
         state_symbol,

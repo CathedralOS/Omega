@@ -327,22 +327,8 @@ impl TerminalExecution<'_> {
                 access,
                 ..source.clone()
             };
-            let (qualifications, projected_qualifications) =
-                terminal_psi::StructuralPathQualification::select(
-                    &[],
-                    &result.projected_qualifications,
-                    &[StructuralPathSegment::Referent],
-                );
             self.prepare_scalar_array_reference(
-                &StructuralParameterDeclaration {
-                    place: source.place,
-                    position: 0,
-                    structural_type: referent_type,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    access,
-                    qualifications,
-                    projected_qualifications,
-                },
+                referent_type,
                 &argument,
                 &mut identity_cursor,
                 &mut BTreeMap::new(),
@@ -680,6 +666,8 @@ impl TerminalExecution<'_> {
         // fresh shared view, not on its source home. Routed authority and Content
         // still require existing runtime custody, and mutable preservation debts
         // never grow merely because the bytes happen to satisfy a predicate.
+        // Primitive byte predicates have their own retained catalog form; they
+        // need not also carry a general structural predicate expression.
         if access == StructuralAccess::SharedBorrow {
             let (whole, projected) = terminal_psi::StructuralPathQualification::select(
                 &[],
@@ -805,13 +793,18 @@ impl TerminalExecution<'_> {
             Vec::new(),
         );
         carrier.projected_qualifications = projected;
+        // The companion keeps the original backing and captured window. Its
+        // descriptor presentation follows the fresh reference's authenticated
+        // observations, so later forwarding sees this same completed view.
+        let collection_loan =
+            collection_loan.map(|(_, loan)| loan.with_descriptor_home(referent.clone()));
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&carrier),
             ReferenceReferent {
                 view: placed.as_ref().map_or(referent, |ram| ram.source.clone()),
                 placed,
                 primitive_loan,
-                collection_loan: collection_loan.map(|(_, loan)| loan),
+                collection_loan,
                 byte_owner: byte_owner_loan.map(|(_, binding)| binding),
                 byte_region,
                 aggregate_view,

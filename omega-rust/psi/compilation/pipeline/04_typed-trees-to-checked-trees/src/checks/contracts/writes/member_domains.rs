@@ -8,7 +8,7 @@ use typed_trees::expression::ExpressionHandle;
 
 /// `self in T::Case` lowers to `self == T::Case` (unions become `||`); the
 /// fact is decided by the construction's own selected case or by live
-/// `AssignedCase`/guard evidence at the value's place. Member comparisons
+/// `CaseValue`/guard evidence at the value's place. Member comparisons
 /// (`self.f == 0`, `self.flag`) read the literal's field value or the place's
 /// scalar snapshot; `self.f in D` recurses into the field initializer or the
 /// nested place. Mutation invalidation retires both evidence forms, so stale

@@ -156,7 +156,7 @@ impl TerminalExecution<'_> {
                 .scalar_array_values
         };
         arrays
-            .get_mut(&place)
+            .backing_mut(&place)
             .ok_or_else(malformed)?
             .storage_identity = Some(identity);
         Ok(identity)

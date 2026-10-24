@@ -246,6 +246,35 @@ impl TypedReferences for ReferenceCollector {
         self.mathematical_types.insert(handle)
     }
 }
+/// Exact symbol dependencies of one expression, including its retained static
+/// arguments and type-expression payloads. This is the same reference walk as
+/// declaration retention; it does not visit a selected callable's body or infer
+/// another selection. Consumers may project proposition-local substitutions
+/// without overlooking an operand used inside a static argument.
+pub fn collect_expression_symbol_dependencies(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Vec<SymbolHandle> {
+    let mut references = ReferenceCollector::default();
+    visit_expression(program, &mut references, expression);
+    let mut symbols = references.symbols.into_iter().collect::<Vec<_>>();
+    symbols.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    symbols
+}
+
+/// Exact symbols reached by one source type graph, including dependent value
+/// expressions. This is source dependency projection, not type substitution.
+pub fn collect_type_symbol_dependencies(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Vec<SymbolHandle> {
+    let mut references = ReferenceCollector::default();
+    visit_type_reference(program, &mut references, reference);
+    let mut symbols = references.symbols.into_iter().collect::<Vec<_>>();
+    symbols.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    symbols
+}
+
 pub fn collect_program_references(program: &TypedTrees) -> ProgramReferences {
     collect_selected_program_references(program, &DeclarationSelection::default())
 }

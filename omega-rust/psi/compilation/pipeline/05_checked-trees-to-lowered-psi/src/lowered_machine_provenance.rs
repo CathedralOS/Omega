@@ -46,7 +46,12 @@ pub fn lowered_machine_provenance(
         if let Some(operation) = occurrence.terminal_site.operation()
             && let Some(callee) = callee_by_operation.get(&operation)
         {
-            name(&mut provenance, checked, *callee, occurrence.source_target);
+            // Module custody uses its selected state. Diagnostic attribution
+            // names that state's machine through the same exact occurrence join;
+            // it is neither a source-label fallback nor an execution premise.
+            if let Ok(target) = crate::call_sites::selected_module_target(checked, occurrence) {
+                name(&mut provenance, checked, *callee, target.machine.symbol);
+            }
         }
     }
     // Provider candidate bodies are reached through boundary dispatch,

@@ -136,6 +136,7 @@ impl StructuralPrefixVisitor for Bounds {
         let Some(entries) = judge.normal_operation_entries(
             self.site.statement_index,
             self.expression,
+            super::structural_judgment::normal_returns::OperationOperandDemand::All,
             environment,
             (machine, state, state.return_type),
         ) else {

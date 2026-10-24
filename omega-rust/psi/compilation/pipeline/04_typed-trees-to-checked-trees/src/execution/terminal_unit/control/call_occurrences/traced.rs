@@ -75,7 +75,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             .position(source)
             .is_some_and(|position| position < end_position)
     };
-    let mut consumed = Vec::new();
+    let mut consumed = super::CallOccurrenceLedger::default();
     let mut structural = Vec::<&checked_trees::FlowCallFact>::new();
     let mut outer = Vec::new();
     let owner = program.machine_by_symbol(machine)?;
@@ -251,8 +251,31 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                         pending.extend(plans.dispatch_arms.span(arms)?.iter().map(|arm| arm.value));
                     }
-                    checked_trees::CheckedStructuralValueKind::Projection { source, .. }
-                    | checked_trees::CheckedStructuralValueKind::QuotientAdaptation {
+                    checked_trees::CheckedStructuralValueKind::Projection {
+                        source,
+                        ref path,
+                        ref projection_evaluations,
+                        ..
+                    } => {
+                        for root in
+                            checked_trees::CheckedUnitStructuralArgumentPlan::projection_computation_operands(
+                                path, *projection_evaluations, &facts.values.scalar_computations.operands,
+                            )
+                        {
+                            super::collecting::collect_root_calls(
+                                program,
+                                facts,
+                                state.symbol,
+                                statement_index,
+                                root,
+                                calls,
+                                0,
+                                &mut consumed,
+                            )?;
+                        }
+                        pending.push(source);
+                    }
+                    checked_trees::CheckedStructuralValueKind::QuotientAdaptation {
                         source,
                         ..
                     } => {
@@ -714,7 +737,7 @@ fn claim_structural_operand_calls<'a>(
     calls: &'a [checked_trees::FlowCallFact],
     structural: &mut Vec<&'a checked_trees::FlowCallFact>,
     claimed: &mut usize,
-    consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
+    consumed: &mut super::CallOccurrenceLedger,
     expands: &dyn Fn(&checked_trees::FlowCallFact) -> bool,
     trace: &LocalConstructionTrace,
 ) -> Option<()> {

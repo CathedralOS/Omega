@@ -26,7 +26,8 @@ mod contract;
 
 pub(super) use contract::{
     encode_crash_cause, encode_crash_predicate, encode_crash_route_bucket,
-    encode_evidence_contract_lane, encode_machine_contract, encode_outcome_specific_call_evidence,
+    encode_evidence_contract_lane, encode_evidence_interface, encode_machine_contract,
+    encode_outcome_specific_call_evidence,
 };
 
 pub(super) fn encode_place_declaration(
@@ -359,6 +360,29 @@ pub(super) fn encode_content_transformation(
 ) {
     encode_content_conservation(bytes, &derived.conservation);
     bytes.id(derived.lineage_anchor);
+    match &derived.custody {
+        terminal_psi::ContentTransformationCustody::Derived => bytes.u8(0),
+        terminal_psi::ContentTransformationCustody::Boundary {
+            requirements,
+            addresses,
+        } => {
+            bytes.u8(1);
+            bytes.slice(requirements, |bytes, requirement| {
+                bytes.id(requirement.boundary);
+                encode_content_conservation_guarantee(bytes, &requirement.guarantee);
+                bytes.slice(&requirement.substitutions, |bytes, substitution| {
+                    encode_content_term(bytes, &substitution.source);
+                    encode_content_term(bytes, &substitution.target);
+                });
+            });
+            bytes.slice(addresses, |bytes, address| {
+                for endpoint in [&address.input, &address.output] {
+                    bytes.id(endpoint.claim);
+                    encode_content_place(bytes, &endpoint.subject);
+                }
+            });
+        }
+    }
     bytes.slice(&derived.ancestry, |bytes, step| {
         bytes.id(step.producer_operation);
         bytes.slice(&step.inputs, |bytes, claim| bytes.id(*claim));

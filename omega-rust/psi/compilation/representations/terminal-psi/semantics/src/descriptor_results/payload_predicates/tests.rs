@@ -45,7 +45,10 @@ fn byte_predicate_observations_require_complete_current_typed_contents() {
             .enumerate()
             .map(|(index, value)| PayloadScalarObservation {
                 path: vec![DescriptorPathSegment::FixedIndex(index as u64)],
-                value: ScalarTerm::integer(integer, IntegerValue::Unsigned(value.into())).unwrap(),
+                value: Some(
+                    ScalarTerm::integer(integer, IntegerValue::Unsigned(value.into())).unwrap(),
+                ),
+                entry: None,
             })
             .collect(),
         scalar_requirements: Vec::new(),
@@ -70,9 +73,9 @@ fn byte_predicate_observations_require_complete_current_typed_contents() {
         .push(duplicate.scalar_observations[0].clone());
     assert_eq!(classify(&duplicate), None);
     let mut wrong_type = contract.clone();
-    wrong_type.scalar_observations[1].value = ScalarTerm::Boolean(true);
+    wrong_type.scalar_observations[1].value = Some(ScalarTerm::Boolean(true));
     assert_eq!(classify(&wrong_type), None);
     contract.scalar_observations[1].value =
-        ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap();
+        Some(ScalarTerm::integer(integer, IntegerValue::Unsigned(255)).unwrap());
     assert_eq!(classify(&contract), Some(false));
 }

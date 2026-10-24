@@ -203,12 +203,21 @@ pub(crate) fn emit_call(
         ),
     )?;
     if let Some(scalar) = scalar {
+        let scalar = crate::unit::attached_unit::primitive_locals::completed_scalar(
+            scalar,
+            &[],
+            operations,
+        )?;
         crate::unit::attached_unit::primitive_locals::establish_at(
             place,
             operations,
             scalar,
             structural_type,
-            calls.structural_types,
+            crate::unit::attached_unit::primitive_locals::PrimitiveStorageCatalog {
+                types: calls.structural_types,
+                domains: calls.domain_declarations,
+                scalars: calls.scalar_qualifications,
+            },
             None,
         )
     } else {

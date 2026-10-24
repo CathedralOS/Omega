@@ -310,6 +310,23 @@ pub(crate) fn argument_borrow_loan_place(
     machine_symbol: SymbolHandle,
     argument: ExpressionHandle,
 ) -> Option<accesses::BorrowAccessPlace> {
+    argument_borrow_loan_geometry(
+        program,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        argument,
+    )
+    .map(|geometry| geometry.place)
+}
+
+pub(super) fn argument_borrow_loan_geometry(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    argument: ExpressionHandle,
+) -> Option<accesses::BorrowAccessGeometry> {
     match program.expression_table.expression(argument) {
         checked_trees::expression::ExpressionNode::Call(inner_call) => {
             helper_call_borrow_loan_place(
@@ -319,8 +336,9 @@ pub(crate) fn argument_borrow_loan_place(
                 machine_symbol,
                 inner_call,
             )
+            .map(accesses::BorrowAccessGeometry::declared)
         }
-        _ => borrow_access_place(
+        _ => accesses::borrow_access_geometry(
             program,
             state_symbol,
             statement_index,
@@ -335,15 +353,38 @@ pub(super) fn rebase_borrow_places_through_local_loans(
     place: accesses::BorrowAccessPlace,
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<RebasedBorrowPlace> {
-    rebase_borrow_places_following(program, place, loan_trackers, &mut Vec::new())
+    rebase_borrow_geometry_through_local_loans(
+        program,
+        accesses::BorrowAccessGeometry::declared(place),
+        loan_trackers,
+    )
+}
+
+pub(super) fn rebase_borrow_geometry_through_local_loans(
+    program: &dyn ::validation::CheckingInput,
+    geometry: accesses::BorrowAccessGeometry,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<RebasedBorrowPlace> {
+    rebase_borrow_places_following(program, geometry, loan_trackers, &mut Vec::new())
 }
 
 fn rebase_borrow_places_following(
     program: &dyn ::validation::CheckingInput,
-    place: accesses::BorrowAccessPlace,
+    geometry: accesses::BorrowAccessGeometry,
     loan_trackers: &[StateLoanTracker],
     active: &mut Vec<accesses::BorrowAccessPlace>,
 ) -> Vec<RebasedBorrowPlace> {
+    let accesses::BorrowAccessGeometry {
+        place,
+        representation_address,
+    } = geometry;
+    // Forwarding the formal's outer pointer observes no contained descriptor.
+    // Its own borrowed grant supplies this namespace; an entry leaf at owner[]
+    // is the next pointer stored in that referent, not this pointer's supplier.
+    // Keep every entry leaf in the roster for actual inner loads/restoration.
+    let parameter_referent = !place.incoming_reference.is_valid()
+        && place.segments.is_empty()
+        && accesses::is_borrowed_parameter_root(program, place.root);
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()
@@ -352,9 +393,18 @@ fn rebase_borrow_places_following(
                 && owner_path_matches(program, &loan.owner_path, &place.segments)
         })
         .collect();
-    if source_loans.is_empty() || place.incoming_reference.is_valid() || active.contains(&place) {
+    if parameter_referent
+        || source_loans.is_empty()
+        || place.incoming_reference.is_valid()
+        || active.contains(&place)
+    {
         return vec![RebasedBorrowPlace {
             source_place: place.clone(),
+            representation_address: if active.contains(&place) {
+                None
+            } else {
+                representation_address
+            },
             retained_operand: None,
             place,
             source_owner_symbol: SymbolHandle::invalid(),
@@ -383,8 +433,36 @@ fn rebase_borrow_places_following(
                 rebased_segments.extend(remainder.iter().copied());
             }
 
+            // Rebase both halves through THIS selected descriptor occurrence.
+            // A representation parent cannot translate a descendant address
+            // without its own typed projection, so retain unknown geometry.
+            let address = if lifetime_only {
+                None
+            } else if remainder.is_empty() && representation_address.is_none() {
+                source_loan.representation_address.clone()
+            } else if source_loan.representation_address.is_some() {
+                None
+            } else {
+                representation_address.as_ref().and_then(|address| {
+                    if address.root != place.root
+                        || address.incoming_reference != place.incoming_reference
+                        || !owner_path_matches(program, &source_loan.owner_path, &address.segments)
+                    {
+                        return None;
+                    }
+                    let mut segments = source_loan.place.segments.clone();
+                    segments.extend_from_slice(&address.segments[source_loan.owner_path.len()..]);
+                    crate::flow::compose_captured_view_segments(&mut segments)?;
+                    Some(accesses::BorrowAccessPlace {
+                        incoming_reference: source_loan.place.incoming_reference,
+                        root: source_loan.place.root,
+                        segments,
+                    })
+                })
+            };
             RebasedBorrowPlace {
                 source_place: place.clone(),
+                representation_address: address,
                 lifetime_only,
                 // A projection can narrow an ordinary reborrow. It cannot
                 // release the input held by an earlier call result, including
@@ -418,7 +496,10 @@ fn rebase_borrow_places_following(
             // each current storage boundary, not only the outer named holder.
             let nested = rebase_borrow_places_following(
                 program,
-                source.place.clone(),
+                accesses::BorrowAccessGeometry {
+                    place: source.place.clone(),
+                    representation_address: source.representation_address.clone(),
+                },
                 loan_trackers,
                 active,
             );
@@ -430,6 +511,7 @@ fn rebase_borrow_places_following(
                     } else {
                         RebasedBorrowPlace {
                             place: nested.place,
+                            representation_address: nested.representation_address,
                             ..source.clone()
                         }
                     }

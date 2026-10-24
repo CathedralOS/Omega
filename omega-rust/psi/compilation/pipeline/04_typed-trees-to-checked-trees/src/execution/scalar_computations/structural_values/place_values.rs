@@ -57,7 +57,9 @@ impl Builder<'_, '_> {
         let source = self.structural_value(target, actual)?;
         Some(CheckedStructuralValueKind::Projection {
             source,
+            logical_root_type_identity: Default::default(),
             path: Vec::new(),
+            projection_evaluations: Default::default(),
             copies_selected_value: false,
             type_identity: validation::stored_structural_type_identity(
                 self.program,
@@ -98,7 +100,9 @@ impl Builder<'_, '_> {
         let source = self.structural_value(operand, actual)?;
         Some(CheckedStructuralValueKind::Projection {
             source,
+            logical_root_type_identity: Default::default(),
             path: Vec::new(),
+            projection_evaluations: Default::default(),
             copies_selected_value: false,
             type_identity: carrier,
         })
@@ -112,8 +116,14 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
+        if let Some(kind) = self.copied_dispatch_place(expression, expected) {
+            return Some(kind);
+        }
         let (source, leaf, _) = self.borrowed_leaf_argument(expression, expected)?;
-        for (ordinal, value) in source.computation_operands().enumerate() {
+        let computations = source
+            .computation_operands(&self.plans.operands)
+            .collect::<Vec<_>>();
+        for (ordinal, value) in computations.into_iter().enumerate() {
             self.push_scalar_root(
                 checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
                     expression,
@@ -209,12 +219,17 @@ impl Builder<'_, '_> {
         // and bounded-byte shapes follow the same registry rule as owned values.
         let type_identity =
             validation::stored_structural_type_identity(self.program, projected, &[], &[]);
-        let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+        let mut source = checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path,
+            projection_evaluations: Default::default(),
             type_identity,
             access: checked_trees::CheckedStructuralAccess::SharedBorrow,
         };
+        source.retain_projection_evaluations(
+            self.projection_selector_span(expression, &selectors)?,
+            &self.plans.operands,
+        )?;
         Some((source, projected, selectors))
     }
 
@@ -305,9 +320,27 @@ impl Builder<'_, '_> {
         // Copy permission belongs to the selected value. The source's own
         // checked disposition is independent: an anonymous owner's eventual
         // death cannot turn an observation into a partial ownership move.
+        let projection_evaluations = self.projection_selector_span(expression, &selectors)?;
+        if !checked_trees::CheckedUnitStructuralArgumentPlan::projection_evaluations_match(
+            &path,
+            projection_evaluations,
+            &self.plans.operands,
+        ) {
+            return None;
+        }
         Some(CheckedStructuralValueKind::Projection {
             source,
+            // Symbol-rooted paths use the declared borrowed backing. An
+            // expression-rooted path above already retains its physical hops.
+            logical_root_type_identity: if matches!(place.root, facts::PlaceRoot::Symbol(_))
+                && validation::stores_reference_shape(self.program, root_reference, &[])
+            {
+                validation::logical_structural_type_identity(self.program, root_reference, &[], &[])
+            } else {
+                Default::default()
+            },
             path,
+            projection_evaluations,
             copies_selected_value: super::place_types::copied_place_type(self.program, expected),
             type_identity: validation::stored_structural_type_identity(
                 self.program,
@@ -347,6 +380,7 @@ impl Builder<'_, '_> {
                         expression: anchor,
                     },
                 path: Vec::new(),
+                projection_evaluations: Default::default(),
                 type_identity: validation::stored_structural_type_identity(
                     self.program,
                     expected,
@@ -432,6 +466,7 @@ impl Builder<'_, '_> {
         let type_identity =
             validation::stored_structural_type_identity(self.program, reference, &[], &[]);
         Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source,
             path: Vec::new(),
             type_identity,

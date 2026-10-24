@@ -86,6 +86,14 @@ pub fn validate_native_program_entry_settlement(
     {
         return Err(NativeProgramEntrySettlementError::SourceMachineSubstitution);
     }
+    // These are actual selected boundary inputs, not module.entry discovery.
+    // The public source declaration and selected realization both retain
+    // their full erased-input obligation when they are distinct coordinates.
+    for machine in [checked_entry.terminal_entry(), entry] {
+        terminal_semantics::validate_empty_erased_invocation_inputs(module, machine).map_err(
+            |reason| NativeProgramEntrySettlementError::UnsuppliedErasedInputs { machine, reason },
+        )?;
+    }
     validate_receiver_eligibility(module, checked_entry, program_entry)?;
     service_establishment::validate_terminal_rows(
         module,

@@ -1,77 +1,36 @@
-//! Selected owned values retain exact source and destination paths per arm.
-//! Whole moves settle their original storage on every arm; partial moves keep
-//! the typed residual until its checked death. Fresh literal producers retain
-//! separate establishment evidence rather than masquerading as transfers.
-//! Result names bind the obligations that actually arrive. Different arm
-//! identities can join without gaining common lineage or new resource authority.
+//! Conditional completed-value transfers, keyed by retained selection captures.
+//! Availability is conservative; residual custody remains in the receipts until
+//! the actual death edge. Every candidate keeps its physical source home;
+//! selected transfer and complementary disposal retain their exact occurrences.
 //! A shared-reference member owns descriptor storage, not its referent. Its
 //! carrier therefore needs the same selected-source receipt as other owned
 //! storage; loan checking independently retains its complete backing frontier.
 //! The occurrence frontier ends only at an authenticated receiving write, not
 //! at inherited provenance or a sibling edge's establishment.
-use checked_trees::CheckFacts;
-use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
-
-pub(super) use availability::record_statement;
+pub(super) use availability::{apply_availability, retire_source_storage};
+pub(super) use captures::SelectionProduction;
+pub(in crate::checks::multiplicity) use captures::evaluated_source_custody;
 pub(in crate::checks) use operands::reachable_arms;
-use operands::*;
 mod availability;
-mod leaves;
+mod captures;
 mod occurrences;
 mod operands;
-mod results;
+mod routes;
 pub(super) use occurrences::SelectionOccurrences;
-pub(in crate::checks::multiplicity) use results::{
-    selection_claim_origin, terminal_arm_route, terminal_arms,
-};
+pub(in crate::checks::multiplicity) use routes::terminal_arm_route;
 
-/// Finite stored-value transport is independent of access, availability and
-/// retirement. Loan checking retains every descriptor's exact backing frontier.
-fn stored_contents(
-    program: &dyn ::validation::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
+/// Exact descendant claims and the affine containing home share source
+/// availability. A projected transfer makes its containing value unavailable
+/// for whole use or ordinary cleanup; it does not transfer an ancestor claim.
+fn source_frontier_matches(
+    place: &super::linear_obligations::LinearPlace,
+    root: facts::PlaceRoot,
+    path: &[facts::PlaceSegment],
 ) -> bool {
-    validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StoredValue,
-    )
-}
-
-fn source_multiplicity(
-    program: &dyn ::validation::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> language_semantics::Multiplicity {
-    if validation::reference_shell(program, reference).is_some() {
-        validation::reference_result_custody::binding_multiplicity(program, reference)
-    } else {
-        program.type_multiplicity(reference)
-    }
-}
-
-fn owned_source(
-    program: &dyn ::validation::CheckingInput,
-    places: &[super::linear_obligations::LinearPlace],
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: typed_trees::types::TypeReferenceHandle,
-) -> Option<SymbolHandle> {
-    validation::whole_owned_value_source(program, expression, reference).filter(|symbol| {
-        source_multiplicity(program, reference)
-            != language_semantics::Multiplicity::Unrestricted
-            && stored_contents(program, reference)
-            // A borrowed ingress denotes the referent. Only the permission
-            // inventory's installed descriptor occurrence is a stored source;
-            // otherwise ordinary reference capture forms a fresh arm carrier.
-            && (validation::reference_shell(program, reference).is_none()
-                || places.iter().any(|place| {
-                    place.root == facts::PlaceRoot::Symbol(*symbol)
-                        && place.path.is_empty()
-                        && place.ever_established
-                }))
-    })
+    place.root == root
+        && (place.path.starts_with(path)
+            || (place.multiplicity == language_semantics::Multiplicity::Affine
+                && path.starts_with(&place.path)))
 }
 
 /// Two canonical paths overlap when one reaches inside the other or both
@@ -93,51 +52,41 @@ pub(super) fn place_paths_overlap(
     })
 }
 
-/// Live loans exclude a move. Earlier borrow syntax alone does not: a
-/// completed temporary invocation can retain no dependency on its argument.
-/// Before trusting expiry, require every earlier receiving generation to
-/// have complete attribution to its exact loan occurrence. Alias forwarding
-/// can retain a source without spelling another borrow of its name.
-fn source_needs_loan_closure(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    prior_statements: &[StatementNode],
-    symbol: SymbolHandle,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+/// Before a named source moves, every previously completed receiver retaining
+/// it must belong to its actual published loan occurrence. This is attribution,
+/// not a second availability walk: ordered borrow-move checking owns live-loan
+/// exclusion at the exact source path and operand cut, including projections.
+fn source_outputs_are_attributed(
+    program: &dyn validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement: usize,
+    source: symbols::SymbolHandle,
+    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(state_flow) = facts.flow.control.states.iter().find_map(|(_, flow)| {
-        (flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol).then_some(flow)
-    }) else {
-        return true;
+    let Some(machine) = program.machine_by_symbol(machine) else {
+        return false;
     };
-    for (index, statement) in prior_statements.iter().enumerate() {
+    let Some(state) = program.state_in_machine(machine, state) else {
+        return false;
+    };
+    let Some(flow) = facts.flow.control.unique_state(machine.symbol, state.symbol) else {
+        return false;
+    };
+    let order = program.statement_table.admitted_execution_order(state.statement_nodes);
+    let Some(position) = order.position(statement) else {
+        return false;
+    };
+    for &index in &order.indices()[..position] {
+        let Some(statement) = program.statement_table.statement_at(state, index) else {
+            return false;
+        };
         if !crate::checks::borrows::retained_outputs_are_attributed(
-            program,
-            facts,
-            machine,
-            state_flow,
-            index,
-            statement,
-            symbol,
-            call_frames,
+            program, facts, machine, flow, index, statement, source, frames,
         ) {
-            return true;
+            return false;
         }
     }
-    let Some(statement) = facts.flow.state_statement(state_flow, statement_index) else {
-        return true;
-    };
-    facts
-        .flow
-        .borrow_loan_constraints(statement.entry_constraints)
-        .any(|loan| facts.borrow.loans.get(loan).root == facts::PlaceRoot::Symbol(symbol))
-}
-
-fn unsupported() -> Diagnostic {
-    Diagnostic::error(
-        "owned match requires one existing whole plain-affine or linear-owned local per path and an immutable local or return destination; projections, calls and borrowed custody require additional ownership evidence",
-    )
+    true
 }

@@ -240,9 +240,8 @@ pub(super) fn proves_collection_footprint(
     })
 }
 
-/// Exact always-full array geometry and symbolic runtime lengths share the
-/// same judgment. Capacity of a variable-fill owner is never a live extent;
-/// the declared geometry owner preserves that distinction through type shells.
+/// Use the ordered observation owner's length denotation for both the goal
+/// and its supporting guard relations; neither may fold geometry separately.
 fn collection_length(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -251,17 +250,10 @@ fn collection_length(
     observations: &mut Observations,
 ) -> Option<ScopedArithmeticValue> {
     let observed = super::ordered_values::operand(program, machine, state, collection, None)?;
-    if let Some(extent) = crate::value_custody::places::declared_collection_extent(
-        program,
-        machine,
-        Some(state),
-        collection,
-    ) {
-        return Some(ScopedArithmeticValue::Integer(BigInt::from_u128(
-            extent as u128,
-        )));
-    }
-    observations.value(&Operand::CollectionLength(Box::new(observed)))
+    let length = super::ordered_values::collection_length_operand(
+        program, machine, state, collection, observed,
+    )?;
+    observations.value(&length)
 }
 
 fn contradicts(

@@ -511,15 +511,18 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 target_parameters.get(target.position as usize)?,
             )
             .filter(|root| {
-                // Established edge values currently transport a whole home,
-                // not an owner plus a selected loan path. Keep projected
-                // borrows out of that route: copying the child would lose
-                // the complete owner's cleanup obligation.
+                // Established edge values transport a whole completed home.
+                // A copied projection establishes its own carrier, including
+                // a shared descriptor's captured backing. A borrowed subtree
+                // still needs its containing owner's separate cleanup path.
                 target.access == CheckedStructuralAccess::Owned
                     || validation::slice_view_shell(program, root.type_reference, &[]).is_some()
                     || !matches!(
                         facts.values.structural_values.nodes.get(root.root).kind,
-                        checked_trees::CheckedStructuralValueKind::Projection { .. }
+                        checked_trees::CheckedStructuralValueKind::Projection {
+                            copies_selected_value: false,
+                            ..
+                        }
                     )
             });
             mark(SuccessorGuard::LoanTransfer);
@@ -894,6 +897,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     )?
                 } else {
                     CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
                         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: result.binding_ordinal,
                         },
@@ -1212,6 +1216,7 @@ fn projected_value_subject(
     let access =
         super::super::types::structural_access_for_type_reference(program, projected_type)?;
     Some(CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: argument_source,
         path,
         type_identity: target.type_identity.clone(),
@@ -1341,6 +1346,7 @@ fn projected_loan_transfer(
             formation_expression,
             carrier_type_identity,
             subject: CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: subject_source,
                 path,
                 type_identity: target.type_identity.clone(),
@@ -1547,6 +1553,7 @@ fn case_payload_transfer(
     Some(
         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject: CheckedUnitStructuralArgumentPlan {
+                projection_evaluations: Default::default(),
                 source: subject_source,
                 path,
                 type_identity: subject_identity,

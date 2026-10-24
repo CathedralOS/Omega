@@ -283,11 +283,12 @@ pub fn initializer_source(
             return None;
         }
         return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(position).ok()?,
             },
             path: Vec::new(),
-            type_identity: crate::structural_type_identity(program, referent, &[], &[]),
+            type_identity: crate::stored_structural_type_identity(program, referent, &[], &[]),
             access,
         });
     }
@@ -512,9 +513,10 @@ pub fn borrowed_initializer_source(
         return None;
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source,
         path: segments,
-        type_identity: crate::structural_type_identity(program, referent, &[], &[]),
+        type_identity: crate::stored_structural_type_identity(program, referent, &[], &[]),
         access,
     })
 }
@@ -816,6 +818,7 @@ fn whole_reference_sources(
             return None;
         }
         let source = checked_trees::CheckedUnitStructuralArgumentPlan {
+            projection_evaluations: Default::default(),
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
@@ -916,6 +919,7 @@ pub fn record_carrier_sources(
             Some(checked_trees::CheckedReferenceResultSourcePlan {
                 path,
                 source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    projection_evaluations: Default::default(),
                     source: carrier.clone(),
                     path: source_path,
                     type_identity: leaf.type_identity,
@@ -1948,6 +1952,7 @@ fn call_result_field_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
@@ -2039,6 +2044,7 @@ pub fn record_argument(
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
     }
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        projection_evaluations: Default::default(),
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
@@ -2514,6 +2520,18 @@ pub fn local_storage_loans(
     state: SymbolHandle,
     root: SymbolHandle,
 ) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
+    storage_loans(facts, machine, state, facts::PlaceRoot::Symbol(root))
+}
+
+/// The same captured backing relationship applies to anonymous owned homes.
+/// Descriptor suppliers name transport history; only the checked loan root
+/// identifies the storage whose disposal must wait for that holder.
+pub fn storage_loans(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    root: facts::PlaceRoot,
+) -> Option<Vec<arena::Handle<checked_trees::BorrowLoanFact>>> {
     let borrowing = facts
         .borrow
         .with_state_index(|index| match index.bucket(machine, state) {
@@ -2525,7 +2543,8 @@ pub fn local_storage_loans(
             .borrow
             .loan_group(borrowing.loans)?
             .filter_map(|(handle, loan)| {
-                (loan.root == facts::PlaceRoot::Symbol(root)).then_some(handle)
+                (facts.borrow.state_owns_loan(borrowing, handle) && loan.root == root)
+                    .then_some(handle)
             })
             .collect(),
     )

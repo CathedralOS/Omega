@@ -933,6 +933,7 @@ pub(super) fn case_projection(
     while let Some(segment) = segments.next() {
         let shape = &declarations.get(&current).ok_or_else(invalid)?.shape;
         let (next, displacement) = match segment {
+            Segment::Referent => return Err(invalid()),
             Segment::Case(identity) => {
                 let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
                     shape

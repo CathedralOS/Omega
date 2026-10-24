@@ -111,7 +111,13 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Whole-value placement demands retain normalized geometry without requiring a view.
 // Content reunion retains completed producer operations and exact claim frontiers.
 // Logical source copy permission is separate from descriptor retirement.
-pub(crate) const FORMAT_MARKER: u16 = 184;
+// Combined public descriptor-copy and private completed-custody wire changes.
+// Borrowed storage slots and owned stored-descriptor arrivals have distinct roles.
+// Earlier borrowed Some-access value arrivals must not be reinterpreted as slots.
+// Nominal evidence lanes retain complete typed argument subjects.
+// Scalar reads have one explicit Referent lane; the former nested-static
+// spelling is noncanonical even though both old grammars used tag five.
+pub(crate) const FORMAT_MARKER: u16 = 188;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

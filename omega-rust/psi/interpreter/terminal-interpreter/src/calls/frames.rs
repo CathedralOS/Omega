@@ -121,6 +121,18 @@ impl TerminalExecution<'_> {
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
+            if terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                self.program.structural_types().values(),
+            ) && terminal_semantics::stored_reference_access(&declaration.shape).is_some()
+                && terminal_semantics::borrowed_storage_reference_ceiling(
+                    parameter,
+                    self.program.structural_types().values(),
+                )
+                .is_none()
+            {
+                continue;
+            }
             if let Some((value, binding)) =
                 self.prepare_owned_byte_descriptor_argument(parameter, argument, resolved)?
             {
@@ -211,6 +223,17 @@ impl TerminalExecution<'_> {
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
+            if terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                self.program.structural_types().values(),
+            ) && terminal_semantics::borrowed_storage_reference_ceiling(
+                parameter,
+                self.program.structural_types().values(),
+            )
+            .is_none()
+            {
+                continue;
+            }
             // Lookup uses the source's physical descriptor identity. The
             // callee may present its canonical borrowed type at that same
             // home; this must never choose another descriptor or window.
@@ -238,6 +261,21 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 view.access()
+            } else if terminal_semantics::borrowed_storage_parameter(
+                parameter,
+                self.program.structural_types().values(),
+            ) {
+                // Preserve the resident descriptor home behind the outer loan.
+                // Its view companion is attenuated, never a copied value home.
+                if argument.access != parameter.access {
+                    return Err(malformed());
+                }
+                self.validate_descriptor_borrow(argument, parameter.access)?;
+                terminal_semantics::borrowed_storage_reference_ceiling(
+                    parameter,
+                    self.program.structural_types().values(),
+                )
+                .ok_or_else(malformed)?
             } else {
                 if !is_direct_borrowed_rebinding(
                     parameter,
@@ -408,7 +446,7 @@ impl TerminalExecution<'_> {
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         aggregate_payload.publish(self)?;
-        self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.scalar_array_values = prepared_arguments.scalar_arrays.into();
         self.element_view_values = prepared_arguments.element_views;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
@@ -523,6 +561,50 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
         }
+        let mut preserved_projected_qualifications = Vec::new();
+        if claim_origin == crate::execution::ResultClaimOrigin::CalleeReturn
+            && result
+                .projected_qualifications
+                .iter()
+                .any(|row| !callee_result.projected_qualifications.contains(row))
+        {
+            let caller = program.verified_machine(self.current_machine)?;
+            let mut operations = caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    operation
+                        .result
+                        .structural()
+                        .is_some_and(|value| value.place == result.place)
+                });
+            let operation = operations.next().ok_or_else(malformed)?;
+            if operations.next().is_some() || operation.result.structural() != Some(&result) {
+                return Err(malformed());
+            }
+            let performed_arguments = structural_arguments;
+            let same_call = match &operation.kind {
+                terminal_psi::call_structural_pair_pattern!(callee, structural_arguments, ..) => {
+                    *callee == callee_id && structural_arguments.as_slice() == performed_arguments
+                }
+                _ => false,
+            };
+            if !same_call {
+                return Err(malformed());
+            }
+            let preserved = terminal_semantics::ReferenceResultMemberships::new(&program.catalogs)
+                .for_operation(caller, operation)
+                .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
+            for row in &result.projected_qualifications {
+                if !callee_result.projected_qualifications.contains(row) {
+                    if !preserved.contains(row) {
+                        return Err(malformed());
+                    }
+                    preserved_projected_qualifications.push(row.clone());
+                }
+            }
+        }
         // Argument preparation owns projection, access, qualification and alias
         // checks. Returning a value does not impose a second argument-path or
         // result-shape language. Completion checks the produced carrier against
@@ -533,6 +615,7 @@ impl TerminalExecution<'_> {
             || !claim_origin.result_projected_qualifications_match(
                 &result,
                 &callee_result.projected_qualifications,
+                &preserved_projected_qualifications,
             )
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
@@ -550,6 +633,7 @@ impl TerminalExecution<'_> {
                 result,
                 claim_origin,
                 expected_reference_backings: Vec::new(),
+                preserved_projected_qualifications,
                 profile_completion: None,
             },
         )

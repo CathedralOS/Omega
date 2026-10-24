@@ -5,6 +5,7 @@
 pub(crate) mod activation_storage;
 pub(crate) mod atomic_fences;
 pub(crate) mod atomic_operations;
+pub(crate) mod byte_observations;
 pub(crate) mod claim_frontier;
 pub(crate) mod cleanup;
 pub(crate) mod const_expressions;

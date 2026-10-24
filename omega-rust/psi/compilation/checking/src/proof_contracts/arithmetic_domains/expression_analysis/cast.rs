@@ -44,6 +44,16 @@ pub(super) fn analyze(
             primitive,
         };
     }
+    crate::proof_contracts::arithmetic_domains::validate_anonymous_address_landing(
+        program,
+        walk.machine,
+        walk.state,
+        cast.value,
+        primitive,
+        walk.owner,
+        diagnostics,
+        &mut decisions.integer_range_obligations,
+    );
     let source = source_value(walk, cast, primitive, diagnostics, decisions);
     // Source facts precede target qualification. In particular a Wrapping cast
     // must not use its asserted target range to prove that same range, or

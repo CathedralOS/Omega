@@ -42,9 +42,12 @@ impl TerminalExecution<'_> {
         place: PlaceId,
     ) -> Option<&TerminalScalarArrayValue> {
         if depth == self.call_stack.len() {
-            self.scalar_array_values.get(&place)
+            self.scalar_array_values.backing(&place)
         } else {
-            self.call_stack.get(depth)?.scalar_array_values.get(&place)
+            self.call_stack
+                .get(depth)?
+                .scalar_array_values
+                .backing(&place)
         }
     }
 
@@ -143,11 +146,11 @@ impl TerminalExecution<'_> {
                     .filter(|index| *index < end)
                     .ok_or_else(malformed)?;
                 let array = if depth == self.call_stack.len() {
-                    self.scalar_array_values.get_mut(&place)
+                    self.scalar_array_values.backing_mut(&place)
                 } else {
                     self.call_stack
                         .get_mut(depth)
-                        .and_then(|frame| frame.scalar_array_values.get_mut(&place))
+                        .and_then(|frame| frame.scalar_array_values.backing_mut(&place))
                 }
                 .ok_or_else(malformed)?;
                 let scalar_type =

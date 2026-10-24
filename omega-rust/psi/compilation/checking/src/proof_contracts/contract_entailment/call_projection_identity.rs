@@ -170,6 +170,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     judge.normal_operation_entries(
                         self.statement_index,
                         expression,
+                        super::structural_judgment::normal_returns::OperationOperandDemand::All,
                         environment,
                         (machine, state, state.return_type),
                     ),

@@ -1,0 +1,21 @@
+// Expected exit: 0
+// A scalar local snapshots the argument before a later parameter mutates its source.
+data Cell { value: u32; }
+machine capture(value: u32, cell: &mut Cell) -> u32
+ensures result == value;
+{
+    cell.value = 2u32;
+    value
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 1u32 };
+    let before: u32 = cell.value;
+    let captured: u32 = capture(before, &mut cell);
+    let difference: u32 = captured - before;
+    transition captured == 1u32 && cell.value == 2u32 && difference == 0u32 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

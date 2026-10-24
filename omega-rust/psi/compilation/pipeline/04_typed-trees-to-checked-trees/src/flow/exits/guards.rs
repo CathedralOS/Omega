@@ -197,6 +197,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
                 state_symbol,
                 statement_index,
                 &[subject],
+                &[],
                 FactPayload::FloatPredicate { predicate },
                 point,
                 origin,
@@ -289,15 +290,12 @@ pub(in crate::flow) fn append_comparison_bounds_context(
             }
             _ => continue,
         };
-        let Some(place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
-            program,
-            semantic,
-            state_symbol,
-            statement_index,
-            operand,
-        ) else {
+        let Some(place) =
+            build.completed_read_place_at(program, state_symbol, statement_index, operand)
+        else {
             continue;
         };
+        let place = crate::semantic::places::append_place(semantic, place.root, &place.segments);
         let Some(carrier) = validation::expression_type_reference_in_state(
             program,
             state_symbol,
@@ -601,6 +599,14 @@ pub(in crate::flow) fn append_predicate_context(
         active_contexts,
         active_constraints,
     );
+    let predicate_dependencies = super::super::observations::predicate_case_dependencies(
+        program,
+        build,
+        state_symbol,
+        statement_index,
+        expression,
+    );
+    let repeatable = expression_is_stable_predicate(program, expression);
     // A tag observation describes the evaluated storage, not the expression
     // that produced it. In particular a saved dispatch result keeps its
     // canonical occurrence without executing its call again. Retain the
@@ -609,13 +615,12 @@ pub(in crate::flow) fn append_predicate_context(
     if let Some((machine_position, state_position)) = build.state_location(program, state_symbol) {
         let machine = &program.machines()[machine_position];
         let state = &program.machine_states(machine)[state_position];
-        // Each signed observation held when it was evaluated, and the
-        // last one still holds at guard completion. An earlier one was
-        // followed by its successors' effects, and the short-circuit meet
-        // with the skipped path has already dropped its tag. It survives
-        // exactly when no write of this guard can reach its subject; a
-        // later conjunct that replaces the sum, or an unknown write,
-        // retires it.
+        // Each signed observation held when it was evaluated. A short-circuit
+        // meet may have dropped its tag before this whole guard is known true;
+        // reconstruct it only across writes since that actual observation.
+        // Earlier writes do not invalidate a freshly read tag. A later tag
+        // replacement or unknown write still retires it, including for the
+        // final signed observation of a guard containing trailing effects.
         let mut observations = Vec::new();
         guard_observations(
             program,
@@ -625,8 +630,73 @@ pub(in crate::flow) fn append_predicate_context(
             value,
             &mut observations,
         );
-        let last = observations.len().saturating_sub(1);
-        for (position, (observation, selected)) in observations.into_iter().enumerate() {
+        // A true conjunction (or false disjunction) also completes its signed
+        // scalar propositions. A call-containing whole expression cannot be
+        // replayed, but its independently repeatable leaves remain evidence if
+        // every observed coordinate survived the actual write prefix. This is
+        // deliberately conservative about writes before an observation too.
+        if !repeatable {
+            for (observation, selected) in observations.iter().copied() {
+                if !expression_is_stable_predicate(program, observation) {
+                    continue;
+                }
+                let Some(dependencies) = super::super::observations::predicate_case_dependencies(
+                    program,
+                    build,
+                    state_symbol,
+                    statement_index,
+                    observation,
+                ) else {
+                    continue;
+                };
+                let Some(predicate) = build.completed_guard_predicate_at(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    observation,
+                    selected,
+                    entry_writes,
+                    entry_unknown_write,
+                ) else {
+                    continue;
+                };
+                if predicate
+                    .bindings
+                    .iter()
+                    .map(|binding| &binding.place)
+                    .chain(dependencies.places.iter())
+                    .any(|place| {
+                        // The shared selected-place law authenticates index
+                        // coordinates independently of current contents.
+                        !super::super::stable_case_subject(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            place,
+                        ) || !super::super::entry_origin_is_stable(
+                            program,
+                            &build.control,
+                            entry_writes,
+                            entry_unknown_write,
+                            place,
+                        )
+                    })
+                {
+                    continue;
+                }
+                let context = crate::facts::boolean_predicates::seed_with_dependencies(
+                    semantic,
+                    &predicate,
+                    point,
+                    FactOrigin::TransitionGuard,
+                    &dependencies.places,
+                );
+                retain_descriptor_observations(build, context, &dependencies.descriptors);
+                retain_semantic_context(build, active_contexts, active_constraints, context);
+            }
+        }
+        for (observation, selected) in observations {
             let Some(binary) = program.expression_table.binary_node(observation) else {
                 continue;
             };
@@ -639,45 +709,76 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
-            if position != last
-                && !validation::canonical_place_from_expression_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    binary.left,
-                )
-                .is_some_and(|subject| {
-                    crate::flow::operand_contexts::case_origin_is_stable(
+            let Some(observed) = super::super::observations::case_observation(
+                program,
+                build,
+                state_symbol,
+                statement_index,
+                observation,
+                binary.left,
+            ) else {
+                continue;
+            };
+            if std::iter::once(&observed.subject)
+                .chain(&observed.dependencies)
+                .any(|subject| {
+                    let agrees = if observed.descriptor.is_valid() {
+                        super::super::operand_contexts::observation_prefixes_agree
+                    } else {
+                        super::super::operand_contexts::case_observation_prefixes_agree
+                    };
+                    !agrees(
                         program,
                         &build.control,
+                        observed.origin_writes,
+                        observed.origin_unknown_write,
                         entry_writes,
                         entry_unknown_write,
-                        &subject,
+                        subject,
                     )
                 })
             {
                 continue;
             }
-            append_observation_context(
-                program,
+            let place = crate::semantic::places::append_place(
                 semantic,
-                build,
-                state_symbol,
-                statement_index,
-                &[binary.left],
-                if selected {
-                    FactPayload::AssignedCase { variant: case }
-                } else {
-                    FactPayload::BooleanValue {
-                        expression: observation,
-                        value: false,
-                    }
-                },
-                point,
-                FactOrigin::TransitionGuard,
-                active_contexts,
-                active_constraints,
+                observed.subject.root,
+                &observed.subject.segments,
             );
+            let dependencies = observed
+                .dependencies
+                .iter()
+                .map(|dependency| {
+                    FactPlace::Place(crate::semantic::places::append_place(
+                        semantic,
+                        dependency.root,
+                        &dependency.segments,
+                    ))
+                })
+                .collect::<Vec<_>>();
+            let context = crate::semantic::facts::append_observation_context(
+                semantic,
+                Fact {
+                    place: FactPlace::Place(place),
+                    point,
+                    origin: FactOrigin::TransitionGuard,
+                    evidence: QualificationEvidence::default(),
+                    payload: FactPayload::CaseValue {
+                        variant: case,
+                        value: selected,
+                    },
+                },
+                &dependencies,
+            );
+            if observed.descriptor.is_valid() {
+                build.control.descriptor_context_observations.append(
+                    checked_trees::FlowDescriptorContextObservation {
+                        context,
+                        observation: observed.descriptor,
+                    },
+                );
+            }
+            retain_semantic_context(build, active_contexts, active_constraints, context);
         }
     }
     // A `pred(place)` scrutinee taken true is whole-carrier evidence: every
@@ -702,34 +803,58 @@ pub(in crate::flow) fn append_predicate_context(
     }
     // An effectful invocation's result is not a promise about evaluating that
     // invocation again. A saved local boolean is an ordinary stable place.
-    if !expression_is_stable_predicate(program, expression) {
+    if !repeatable {
         return;
     }
-    if let Some(predicate) =
-        build.guard_predicate_at(program, state_symbol, statement_index, expression, value)
-    {
-        let context = crate::facts::boolean_predicates::seed(
+    let Some(dependencies) = predicate_dependencies else {
+        return;
+    };
+    if dependencies.places.iter().any(|dependency| {
+        !crate::flow::entry_origin_is_stable(
+            program,
+            &build.control,
+            entry_writes,
+            entry_unknown_write,
+            dependency,
+        )
+    }) {
+        return;
+    }
+    if let Some(predicate) = build.completed_guard_predicate_at(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+        value,
+        entry_writes,
+        entry_unknown_write,
+    ) {
+        let context = crate::facts::boolean_predicates::seed_with_dependencies(
             semantic,
-            predicate,
+            &predicate,
             point,
             FactOrigin::TransitionGuard,
+            &dependencies.places,
         );
+        retain_descriptor_observations(build, context, &dependencies.descriptors);
         retain_semantic_context(build, active_contexts, active_constraints, context);
     }
     let occurrences = build.expression_occurrences_at(program, expression);
-    append_observation_context(
+    let context = append_observation_context(
         program,
         semantic,
         build,
         state_symbol,
         statement_index,
         occurrences.as_slice(),
+        &dependencies.places,
         FactPayload::BooleanValue { expression, value },
         point,
         FactOrigin::TransitionGuard,
         active_contexts,
         active_constraints,
     );
+    retain_descriptor_observations(build, context, &dependencies.descriptors);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -794,7 +919,11 @@ pub(in crate::flow) fn append_match_pattern_context(
                 state_symbol,
                 statement_index,
                 &[subject],
-                FactPayload::AssignedCase { variant: case },
+                &[],
+                FactPayload::CaseValue {
+                    variant: case,
+                    value: true,
+                },
                 point,
                 FactOrigin::TransitionGuard,
                 active_contexts,
@@ -823,7 +952,7 @@ pub(in crate::flow) fn append_match_pattern_context(
             active_constraints,
         );
     }
-    let Some((subject, pattern, _)) = payload.match_pattern_comparison(program) else {
+    let Some((subject, pattern, matched)) = payload.match_pattern_comparison(program) else {
         return;
     };
     let FactPayload::MatchPattern { expression, .. } = payload else {
@@ -850,6 +979,28 @@ pub(in crate::flow) fn append_match_pattern_context(
     {
         return;
     }
+    if !build.active_completed_copies.is_empty()
+        && let Some(predicate) = crate::facts::boolean_predicates::bind_current_match(
+            program,
+            build.operators,
+            state_symbol,
+            statement_index,
+            subject,
+            pattern,
+            matched,
+        )
+        .and_then(|predicate| {
+            build.complete_predicate_bindings(program, state_symbol, statement_index, predicate)
+        })
+    {
+        let context = crate::facts::boolean_predicates::seed(
+            semantic,
+            &predicate,
+            point,
+            FactOrigin::TransitionGuard,
+        );
+        retain_semantic_context(build, active_contexts, active_constraints, context);
+    }
     let mut occurrences = Vec::new();
     for expression in [subject, pattern] {
         occurrences.extend(
@@ -866,6 +1017,7 @@ pub(in crate::flow) fn append_match_pattern_context(
         state_symbol,
         statement_index,
         &occurrences,
+        &[],
         payload,
         point,
         FactOrigin::TransitionGuard,
@@ -949,6 +1101,7 @@ pub(in crate::flow) fn append_byte_predicate_context(
             state_symbol,
             statement_index,
             occurrences.as_slice(),
+            &[],
             FactPayload::BytePredicate { predicate },
             point,
             origin,
@@ -966,28 +1119,43 @@ fn append_observation_context(
     state_symbol: SymbolHandle,
     statement_index: usize,
     occurrences: &[ExpressionHandle],
+    dependencies: &[validation::CanonicalPlace],
     payload: FactPayload,
     point: ProgramPoint,
     origin: FactOrigin,
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
-) {
+) -> facts::FactContextHandle {
     let mut places = Vec::new();
     for occurrence in occurrences.iter().copied() {
-        let Some(place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
-            program,
-            semantic,
-            state_symbol,
-            statement_index,
-            occurrence,
-        ) else {
-            return;
+        let Some(source) =
+            build.canonical_place_at(program, state_symbol, statement_index, occurrence)
+        else {
+            return Handle::invalid();
         };
+        let Some(observed) =
+            build.completed_read_place(program, state_symbol, statement_index, occurrence, &source)
+        else {
+            return Handle::invalid();
+        };
+        // These compatibility rows contain raw source operands. The checked
+        // predicate above owns rebased operands; never also assert its source
+        // spelling as a proposition about a different, newer storage value.
+        if matches!(
+            payload,
+            FactPayload::BooleanValue { .. } | FactPayload::MatchPattern { .. }
+        ) && observed != source
+        {
+            return Handle::invalid();
+        }
+        let place =
+            crate::semantic::places::append_place(semantic, observed.root, &observed.segments);
         if !places.contains(&place) {
             places.push(place);
         }
     }
     let mut refs = HandleSpan::empty();
+    let mut dependent = Handle::invalid();
     for place in places
         .iter()
         .copied()
@@ -1001,10 +1169,26 @@ fn append_observation_context(
             evidence: QualificationEvidence::default(),
             payload,
         });
+        if !dependent.is_valid() {
+            dependent = fact;
+        }
+        semantic.append_ref(&mut refs, fact);
+    }
+    for dependency in dependencies {
+        let place =
+            crate::semantic::places::append_place(semantic, dependency.root, &dependency.segments);
+        let fact = semantic.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point,
+            origin,
+            evidence: QualificationEvidence::default(),
+            payload: FactPayload::StorageDependency { dependent },
+        });
         semantic.append_ref(&mut refs, fact);
     }
     let context = semantic.append_context(point, refs);
     retain_semantic_context(build, active_contexts, active_constraints, context);
+    context
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1044,4 +1228,22 @@ fn append_entry_path_context(
         return;
     };
     retain_semantic_context(build, active_contexts, active_constraints, context);
+}
+
+fn retain_descriptor_observations(
+    build: &mut FlowBuildContext,
+    context: facts::FactContextHandle,
+    observations: &[Handle<checked_trees::FlowValueObservationFact>],
+) {
+    if !context.is_valid() {
+        return;
+    }
+    for observation in observations {
+        build.control.descriptor_context_observations.append(
+            checked_trees::FlowDescriptorContextObservation {
+                context,
+                observation: *observation,
+            },
+        );
+    }
 }

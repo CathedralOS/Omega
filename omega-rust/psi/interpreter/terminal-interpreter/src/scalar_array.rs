@@ -13,7 +13,9 @@ use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachine;
 
 mod loans;
+mod storage;
 pub(crate) use loans::borrowed_array_memberships_match;
+pub(crate) use storage::{PackedHomeRetirement, ScalarArrayStorage};
 /// Exact row-major primitive payload; the type retains all array dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {
@@ -243,7 +245,7 @@ impl TerminalExecution<'_> {
             elements: contents,
         };
         self.validate_scalar_array_qualifications(&snapshot, &result.qualifications)?;
-        self.scalar_array_values.insert(result.place, snapshot);
+        self.scalar_array_values.publish(result.place, snapshot)?;
         Ok(())
     }
 }

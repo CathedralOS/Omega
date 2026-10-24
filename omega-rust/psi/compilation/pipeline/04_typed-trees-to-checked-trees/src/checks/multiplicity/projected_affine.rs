@@ -25,9 +25,9 @@ pub(super) fn append_transfer(
     places: &[LinearPlace],
     remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
-) {
+) -> Result<(), diagnostics::Diagnostic> {
     let Some(statement_index) = event_statement_index(event.source) else {
-        return;
+        return Ok(());
     };
     // Payload binders retain their exact selected Case/Field coordinates.
     // Their affine storage moves even when only a sibling has a linear claim.
@@ -42,7 +42,7 @@ pub(super) fn append_transfer(
         })
         || program.state_by_symbol(state).is_none()
     {
-        return;
+        return Ok(());
     }
     // A carrier move is independent of its contained claim frontier. An
     // exact tracked endpoint already publishes its own transfer; otherwise
@@ -55,10 +55,10 @@ pub(super) fn append_transfer(
         .filter(|place| place.root == event.root)
         .collect::<Vec<_>>();
     if owners.iter().any(|owner| owner.path == path)
-        || !(owners.iter().any(|owner| owner.ever_established) || remaining.is_reserved(event.root))
-        || !remaining.is_present(event.root, path)
+        || !(owners.iter().any(|owner| owner.ever_established)
+            || remaining.has_storage_frontier(event.root))
     {
-        return;
+        return Ok(());
     }
     let provenance = owners
         .iter()
@@ -95,7 +95,42 @@ pub(super) fn append_transfer(
             is_borrowed_place_transfer(program, machine, declaration, event, path)
         })
     {
-        return;
+        return Ok(());
+    }
+    // A typed owned affine path still needs established storage. Absence
+    // cannot silently omit its move event. Borrowed referents and copy
+    // observations were excluded by the shared classification above.
+    if !remaining.is_present(event.root, path) {
+        if let Some(consumed) = remaining.consumed_place(event.root, path)
+            && let Some(machine) = program.machine_by_symbol(machine)
+            && let Some(state) = program.state_by_symbol(state)
+        {
+            let spelling =
+                super::borrowed_windows::place_spelling(program, machine, state, event.root, path);
+            let consumed_spelling = super::borrowed_windows::place_spelling(
+                program,
+                machine,
+                state,
+                consumed.root,
+                &consumed.segments,
+            );
+            return Err(diagnostics::Diagnostic::error(
+                super::consumed_owners::consumed_use_message(
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                    statement_index,
+                    &spelling,
+                    &consumed_spelling,
+                    None,
+                ),
+            ));
+        }
+        return Err(diagnostics::Diagnostic::error(format!(
+            "projected owned storage is not established in machine `{}` state `{}` at statement {}",
+            program.symbols.name(machine),
+            program.symbols.name(state),
+            statement_index,
+        )));
     }
     permissions.push(FlowPermissionEventFact {
         expression: event.expression,
@@ -112,6 +147,7 @@ pub(super) fn append_transfer(
         segments: event.segments,
         obligation_live: false,
     });
+    Ok(())
 }
 
 /// A move candidate detaches owned storage only when its canonical endpoint

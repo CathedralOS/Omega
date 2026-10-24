@@ -46,8 +46,9 @@ pub(super) fn call_origins(
         symbols,
         inference,
         true,
-        &|actual, _, implicit_borrow, inference| {
-            value_origins(
+        &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
+            reference: &|actual, _, implicit_borrow, inference| {
+            super::super::path_instantiation::aggregate_arguments::symbolic_sources(value_origins(
                 program,
                 machine,
                 actual,
@@ -56,9 +57,9 @@ pub(super) fn call_origins(
                 aliases,
                 stored,
                 implicit_borrow,
-            )
+            ))
         },
-        &|actual, reference, _| {
+            stored: &|actual, reference, _| {
             stored_origins::reference_leaves_before_statement_for_query(
                 program,
                 state,
@@ -70,6 +71,7 @@ pub(super) fn call_origins(
                 true,
             )
         },
+        },
     )?;
     if !returned.cases.is_empty() || !returned.moves.is_empty() || returned.references.is_empty() {
         return None;
@@ -78,7 +80,7 @@ pub(super) fn call_origins(
         .references
         .into_iter()
         .map(|leaf| {
-            let origin = leaf.origin?;
+            let origin = leaf.origin?.into_symbolic_place()?;
             (matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_))
                 && leaf.local_segments.is_empty()
                 && leaf.local_suffix.is_empty()

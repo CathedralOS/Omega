@@ -85,7 +85,11 @@ impl OperationFrame<'_, '_> {
                     .facts
                     .flow
                     .ownership
-                    .owned_selection_at(state, result.statement_index)
+                    .owned_selection_for_expression(
+                        state,
+                        result.statement_index,
+                        occurrence.expression,
+                    )
                     .map(|(handle, _)| handle)
                     .unwrap_or_default(),
                 calls: operand_calls,
@@ -138,8 +142,7 @@ impl OperationEnvironment<'_> {
             .facts
             .values
             .structural_values
-            .root_for_expression(node.state, node.statement_index, node.expression)
-            .filter(|root| root.root == value)
+            .root_for_value(value)
             .ok_or(LoweringError::Unsupported(
                 "computed value lost its complete checked root",
             ))?;
@@ -188,8 +191,7 @@ impl OperationEnvironment<'_> {
                 .facts
                 .flow
                 .ownership
-                .owned_selection_at(node.state, node.statement_index)
-                .filter(|(_, receipt)| receipt.expression == node.expression)
+                .owned_selection_for_expression(node.state, node.statement_index, node.expression)
                 .map(|(handle, _)| handle)
                 .unwrap_or_default();
             structural_values::emit(

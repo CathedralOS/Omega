@@ -81,6 +81,10 @@ impl ValueReceiver<'_> {
 pub(in crate::execution::terminal_unit) struct Transfers {
     pub(in crate::execution::terminal_unit) possible: Vec<Transfer>,
     pub(in crate::execution::terminal_unit) definite: Vec<Path>,
+    /// Moves after this exact producing occurrence, on every normal path
+    /// where it completes. None means this summary contains no such producer.
+    /// Unconditional `definite` remains independent for pre-existing storage.
+    after_production: Option<Vec<Path>>,
 }
 
 impl Transfers {
@@ -92,43 +96,83 @@ impl Transfers {
     }
 
     fn append(&mut self, other: Self) {
+        // Once produced before a later choice, the source exists on every
+        // outgoing alternative. Only that choice's unconditional moves can
+        // extend this prefix; an arm-local production cannot erase a sibling.
+        let preceding = self.after_production.take().map(|mut paths| {
+            paths.extend(other.definite.iter().cloned());
+            paths
+        });
+        self.after_production = match (preceding, other.after_production) {
+            (Some(preceding), Some(following)) => Some(common_paths(&[&preceding, &following])),
+            (preceding, None) => preceding,
+            (None, following) => following,
+        };
         self.possible.extend(other.possible);
         self.definite.extend(other.definite);
     }
 
     fn alternatives(alternatives: Vec<Self>) -> Self {
-        let definite = alternatives
+        let definite = common_paths(
+            &alternatives
+                .iter()
+                .map(|arm| arm.definite.as_slice())
+                .collect::<Vec<_>>(),
+        );
+        let produced = alternatives
             .iter()
-            .flat_map(|arm| &arm.definite)
-            .filter(|path| {
-                alternatives
-                    .iter()
-                    .all(|arm| arm.definite.iter().any(|covered| path.starts_with(covered)))
-            })
-            .cloned()
-            .collect();
+            .filter_map(|arm| arm.after_production.as_deref())
+            .collect::<Vec<_>>();
+        let after_production = (!produced.is_empty()).then(|| common_paths(&produced));
         Self {
             definite,
+            after_production,
             possible: alternatives
                 .into_iter()
                 .flat_map(|arm| arm.possible)
                 .collect(),
         }
     }
+
+    /// Paths transferred on every normal path producing this exact occurrence.
+    /// A source without a producer in this summary keeps the unconditional
+    /// all-alternative proof; a branch-born source cannot donate sibling facts.
+    pub(in crate::execution::terminal_unit) fn occurrence_transfers(&self) -> &[Path] {
+        self.after_production.as_deref().unwrap_or(&self.definite)
+    }
 }
 
+fn common_paths(alternatives: &[&[Path]]) -> Vec<Path> {
+    alternatives
+        .iter()
+        .flat_map(|paths| paths.iter())
+        .filter(|path| {
+            alternatives
+                .iter()
+                .all(|paths| paths.iter().any(|covered| path.starts_with(covered)))
+        })
+        .cloned()
+        .collect()
+}
+
+#[derive(Clone)]
 struct Query<'a> {
     program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
     results: &'a Results,
     source: CheckedUnitStructuralArgumentSourcePlan,
+    source_is_unrestricted: bool,
     formation: u32,
     operations: &'a [CheckedUnitEffectOperationPlan],
+    prepared_calls: &'a super::structural_value_calls::PreparedCalls,
+    established_values: Vec<CheckedStructuralValueHandle>,
+    completed_computations: Vec<checked_trees::CheckedScalarComputationHandle>,
 }
 
 pub(in crate::execution::terminal_unit) fn transfers(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    prepared_calls: &super::structural_value_calls::PreparedCalls,
     results: &Results,
     binding: u32,
     operations: &[CheckedUnitEffectOperationPlan],
@@ -140,6 +184,7 @@ pub(in crate::execution::terminal_unit) fn transfers(
     from_storage(
         program,
         facts,
+        prepared_calls,
         results,
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: binding,
@@ -153,19 +198,46 @@ pub(in crate::execution::terminal_unit) fn transfers(
 pub(in crate::execution::terminal_unit) fn from_storage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    prepared_calls: &super::structural_value_calls::PreparedCalls,
     results: &Results,
     source: CheckedUnitStructuralArgumentSourcePlan,
     formation: u32,
     selection: &[CheckedUnitStructuralPathSegment],
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Transfers> {
+    // Owned access selects a by-value operand; the producing declaration still
+    // decides whether that operand copies or transfers its storage. All aliases
+    // of a registered copyable home retain the original descriptor occurrence.
+    // Missing result metadata supplies no copy evidence.
+    let mut bindings = results.iter().filter(|(result, root)| match &source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+            result.binding_ordinal == *binding_ordinal
+        }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            *root == facts::PlaceRoot::Symbol(*symbol)
+        }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+            *root == facts::PlaceRoot::Expression(*expression)
+        }
+        _ => false,
+    });
+    let source_is_unrestricted = bindings.next().is_some_and(|(result, _)| {
+        result.multiplicity == language_semantics::Multiplicity::Unrestricted
+            && bindings.all(|(other, _)| {
+                other.multiplicity == language_semantics::Multiplicity::Unrestricted
+            })
+    });
     let query = Query {
         program,
         facts,
         results,
         source,
+        source_is_unrestricted,
         formation,
         operations,
+        prepared_calls,
+        established_values: Vec::new(),
+        completed_computations: Vec::new(),
     };
     let mut output = Transfers::default();
     for operation in operations {
@@ -215,8 +287,13 @@ pub(in crate::execution::terminal_unit) fn has_computation_transfer(
         source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal: result.binding_ordinal,
         },
+        source_is_unrestricted: result.multiplicity
+            == language_semantics::Multiplicity::Unrestricted,
         formation: result.statement_index,
         operations,
+        prepared_calls: &super::structural_value_calls::PreparedCalls::EMPTY,
+        established_values: Vec::new(),
+        completed_computations: Vec::new(),
     };
     for (_, root) in facts.values.scalar_computations.roots.iter() {
         if root.state == state
@@ -244,9 +321,11 @@ pub(super) struct ParameterVacancies {
 pub(super) fn parameter_vacancies(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    prepared_calls: &super::structural_value_calls::PreparedCalls,
     parameter_index: u32,
     parameter_position: u32,
     parameter_symbol: SymbolHandle,
+    parameter_multiplicity: language_semantics::Multiplicity,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<ParameterVacancies> {
     let query = Query {
@@ -254,8 +333,13 @@ pub(super) fn parameter_vacancies(
         facts,
         results: &[],
         source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+        source_is_unrestricted: parameter_multiplicity
+            == language_semantics::Multiplicity::Unrestricted,
         formation: 0,
         operations,
+        prepared_calls,
+        established_values: Vec::new(),
+        completed_computations: Vec::new(),
     };
     let mut definite = Vec::<Path>::new();
     let mut possible = Vec::<Path>::new();
@@ -382,6 +466,16 @@ impl Query<'_> {
                 active,
             )?);
         }
+        if operation.structural_result_binding().is_some_and(|result| {
+            self.source
+                == CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: result.binding_ordinal,
+                }
+        }) {
+            // Birth occurs after the operation's inputs and initializer have
+            // completed. No earlier observation can spend its partial result.
+            output.after_production = Some(Vec::new());
+        }
         Some(output)
     }
     fn local_store_owns_destination(
@@ -434,8 +528,12 @@ impl Query<'_> {
     }
 
     fn leaf(&self, source: Path, destination: Destination) -> Transfers {
+        if self.source_is_unrestricted {
+            return Transfers::default();
+        }
         Transfers {
             definite: vec![source.clone()],
+            after_production: None,
             possible: vec![Transfer {
                 source,
                 destination,
@@ -499,82 +597,6 @@ impl Query<'_> {
         )
     }
 
-    /// Transfers performed while evaluating a call product no `EstablishLocal`
-    /// carries a retained schedule for at this point: finalization publishes
-    /// those rows after retirement planning. The authored call's retained
-    /// operand facts name every evaluated actual: each operand's structural
-    /// value composes exactly as it does inside a named construction, and each
-    /// scalar operand composes through its ordinary computation graph. The
-    /// consumed product's own landing keeps the retained row's rule: the
-    /// queried source transfers into the receiver only when it is this call's
-    /// result binding, identified by the binding's authored occurrence.
-    fn anonymous_call_transfers(
-        &self,
-        source_call: arena::Handle<checked_trees::FlowCallFact>,
-        selection: &[CheckedUnitStructuralPathSegment],
-        consumes_selection: bool,
-        receiver: ValueReceiver<'_>,
-        destination: &[OwnerSegment],
-        active: &mut Vec<CheckedStructuralValueHandle>,
-    ) -> Option<Transfers> {
-        let calls = &self.facts.flow.control;
-        if !calls.calls.is_valid(source_call) {
-            return None;
-        }
-        let fact = calls.calls.get(source_call);
-        let values = &self.facts.values.structural_values;
-        let computations = &self.facts.values.scalar_computations;
-        let mut output = Transfers::default();
-        if consumes_selection
-            && let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
-                self.source
-            && self.results.iter().any(|(result, root)| {
-                result.binding_ordinal == binding_ordinal
-                    && *root == facts::PlaceRoot::Expression(fact.authored_expression)
-            })
-        {
-            // The queried source is this call's own product: consuming the
-            // value transfers it into the receiver. Operand moves answer a
-            // different query, exactly as in the retained row's rule.
-            return Some(self.leaf(selection.to_vec(), receiver.destination(destination)));
-        }
-        for operand in calls.operands.span(fact.operands)? {
-            let mut structural = values
-                .roots
-                .iter()
-                .map(|(_, root)| root)
-                .filter(|root| root.expression == operand.expression);
-            if let Some(root) = structural.next() {
-                if structural.next().is_some() {
-                    return None;
-                }
-                output.append(self.value(
-                    root.root,
-                    &[],
-                    true,
-                    ValueReceiver::Unbound,
-                    &[],
-                    active,
-                )?);
-            }
-            // A scalar-only operand still composes its nested structural
-            // arguments through the ordinary computation graph.
-            for root in computations
-                .roots
-                .iter()
-                .map(|(_, root)| root)
-                .filter(|root| {
-                    root.state == operand.state_symbol
-                        && root.statement_ordinal == operand.statement_index as u32
-                        && computations.nodes.get(root.root).authored_root == operand.expression
-                })
-            {
-                output.append(self.computation(root.root)?);
-            }
-        }
-        Some(output)
-    }
-
     fn value(
         &self,
         value: CheckedStructuralValueHandle,
@@ -584,13 +606,16 @@ impl Query<'_> {
         destination: &[OwnerSegment],
         active: &mut Vec<CheckedStructuralValueHandle>,
     ) -> Option<Transfers> {
+        if self.established_values.contains(&value) {
+            return Some(Transfers::default());
+        }
         let values = &self.facts.values.structural_values;
         if !values.nodes.is_valid(value) || active.contains(&value) {
             return None;
         }
         active.push(value);
         let output = self.value_kind(
-            &values.nodes.get(value).kind,
+            values.nodes.get(value),
             selection,
             consumes_selection,
             if consumes_selection {
@@ -605,9 +630,121 @@ impl Query<'_> {
         output
     }
 
+    /// Join one retained value occurrence to its actual producer operation.
+    /// Aggregate schedules own nested calls; ordinary calls own their result
+    /// directly. Both retain the same checked source occurrence, while only
+    /// the former supplies operand preparation at this DAG position.
+    fn value_call(
+        &self,
+        value: &checked_trees::CheckedStructuralValue,
+        source_call: arena::Handle<checked_trees::FlowCallFact>,
+        active: &[CheckedStructuralValueHandle],
+    ) -> Option<(
+        &CheckedUnitEffectOperationPlan,
+        Option<&checked_trees::CheckedStructuralValueCall>,
+    )> {
+        let control = &self.facts.flow.control;
+        if !control.calls.is_valid(source_call) {
+            return None;
+        }
+        let source = control.calls.get(source_call);
+        let state = control.state(value.machine, value.state)?;
+        if source.authored_expression != value.expression
+            || source.statement_index != value.statement_index as usize
+            || !control
+                .calls
+                .span(state.calls)?
+                .iter()
+                .any(|candidate| std::ptr::eq(candidate, source))
+        {
+            return None;
+        }
+        let coordinate = checked_trees::CheckedUnitCallCoordinate {
+            statement_index: u32::try_from(source.statement_index).ok()?,
+            call_ordinal: u32::try_from(source.call_ordinal).ok()?,
+        };
+        let mut operations = self
+            .operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .filter(|operation| {
+                operation.call().is_some_and(|call| {
+                    call.coordinate == coordinate && call.target.state == source.target_symbol
+                })
+            });
+        let ordinary = operations.next();
+        if operations.next().is_some() {
+            return None;
+        }
+        // A value-owned call is reached through its actual DAG root's
+        // prepared schedule. Private result ordinals belong to that root's
+        // preceding namespace; a global coordinate search cannot select it.
+        let deferred = if ordinary.is_none() {
+            let calls = active.iter().find_map(|root| {
+                self.prepared_calls.schedule(*root).or_else(|| {
+                    self.facts
+                        .values
+                        .structural_values
+                        .call_schedule(*root)
+                        .map(|(_, calls)| calls)
+                })
+            })?;
+            let mut calls = super::structural_value_calls::dependencies(calls).filter(|call| {
+                self.facts.values.structural_values.nodes.is_valid(call.value)
+                    && matches!(self.facts.values.structural_values.nodes.get(call.value).kind,
+                        CheckedStructuralValueKind::Call { source_call: captured } if captured == source_call)
+            });
+            let call = calls.next()?;
+            if calls.next().is_some() {
+                return None;
+            }
+            Some(call)
+        } else {
+            None
+        };
+        let operation = ordinary.or_else(|| deferred.map(|call| call.operation()))?;
+        if operation.call()?.coordinate != coordinate
+            || operation.call()?.target.state != source.target_symbol
+            || operation.call()?.structural_result()?.statement_index != value.statement_index
+        {
+            return None;
+        }
+        let mut schedules = self
+            .operations
+            .iter()
+            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::EstablishLocal(
+                    checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
+                ) => Some(calls.as_slice()),
+                _ => None,
+            })
+            .flatten()
+            .filter(|scheduled| std::ptr::eq(scheduled.operation(), operation));
+        let scheduled = schedules.next().or(deferred);
+        if schedules.next().is_some()
+            || scheduled.is_some_and(|scheduled| {
+                !self
+                    .facts
+                    .values
+                    .structural_values
+                    .nodes
+                    .is_valid(scheduled.value)
+                    || !matches!(
+                        self.facts.values.structural_values.nodes.get(scheduled.value).kind,
+                        CheckedStructuralValueKind::Call { source_call: captured }
+                            if captured == source_call
+                    )
+            })
+        {
+            return None;
+        }
+        Some((operation, scheduled))
+    }
+
     fn value_kind(
         &self,
-        kind: &CheckedStructuralValueKind,
+        value: &checked_trees::CheckedStructuralValue,
         selection: &[CheckedUnitStructuralPathSegment],
         consumes_selection: bool,
         receiver: ValueReceiver<'_>,
@@ -616,7 +753,7 @@ impl Query<'_> {
     ) -> Option<Transfers> {
         let values = &self.facts.values.structural_values;
         let mut output = Transfers::default();
-        match kind {
+        match &value.kind {
             CheckedStructuralValueKind::Place(argument)
                 if consumes_selection && self.belongs(argument) =>
             {
@@ -625,79 +762,54 @@ impl Query<'_> {
                 return Some(self.leaf(path, receiver.destination(destination)));
             }
             CheckedStructuralValueKind::Call { source_call } => {
-                let mut matching = self
-                    .operations
-                    .iter()
-                    .flat_map(|operation| operation.with_value_calls())
-                    .filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::EstablishLocal(
-                            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue {
-                                calls,
-                                ..
-                            },
-                        ) => Some(calls.as_slice()),
-                        _ => None,
-                    })
-                    .flatten()
-                    .filter(|call| {
-                        matches!(values.nodes.get(call.value).kind,
-                            CheckedStructuralValueKind::Call { source_call: captured }
-                                if captured == *source_call)
-                    });
-                let Some(call) = matching.next() else {
-                    // A call product owns no EstablishLocal-carried schedule at
-                    // this point when it is anonymous (or established by an
-                    // operation outside this roster): finalization publishes
-                    // those rows after retirement planning. Answer from the
-                    // authored call's retained operand facts instead.
-                    return self.anonymous_call_transfers(
-                        *source_call,
-                        selection,
-                        consumes_selection,
-                        receiver,
-                        destination,
-                        active,
-                    );
-                };
-                if matching.next().is_some() {
-                    return None;
+                let (operation, scheduled) = self.value_call(value, *source_call, active)?;
+                // Only a DAG-owned invocation evaluates its preparation here.
+                // An ordinary call's operation already summarized its inputs
+                // in the ordered prefix; this node names its completed result.
+                if let Some(scheduled) = scheduled {
+                    // Dispatch intersects these summaries at its own arms;
+                    // catalog enumeration never makes a selected call definite.
+                    for operand in scheduled.operands().iter() {
+                        output.append(self.operation(operand, active)?);
+                    }
+                    output.append(self.operation(operation, active)?);
                 }
-                // A call product transfers into the graph's receiving value
-                // just like a stored place. Its anonymous output holder is
-                // distinct from both the call's inputs and the final local.
+                let result = operation.call()?.structural_result()?;
                 if consumes_selection
                     && self.source
                         == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal: call.structural_result().binding_ordinal,
+                            binding_ordinal: result.binding_ordinal,
                         })
                 {
-                    return Some(self.leaf(selection.to_vec(), receiver.destination(destination)));
+                    output.append(self.leaf(selection.to_vec(), receiver.destination(destination)));
                 }
-                // The graph's dispatch intersects definite moves across its
-                // arms. Flattening operand calls here instead would assert a
-                // conditional owned argument moved on every path.
-                for operand in call.operands().iter() {
-                    output.append(self.operation(operand, active)?);
-                }
-                output.append(self.call(call.operation().call()?, active)?);
                 return Some(output);
             }
             CheckedStructuralValueKind::Projection {
                 source,
                 path,
+                projection_evaluations,
                 copies_selected_value,
                 ..
             } => {
                 let mut selected = path.clone();
                 selected.extend_from_slice(selection);
-                return self.value(
+                output.append(self.value(
                     *source,
                     &selected,
                     consumes_selection && !copies_selected_value,
                     receiver,
                     destination,
                     active,
-                );
+                )?);
+                for operand in CheckedUnitStructuralArgumentPlan::projection_computation_operands(
+                    path,
+                    *projection_evaluations,
+                    &self.facts.values.scalar_computations.operands,
+                ) {
+                    output.append(self.computation(operand)?);
+                }
+                return Some(output);
             }
             checked_trees::record_or_structural_case_pattern!(data_symbol, fields, ..) => {
                 let data = self.program.data_definition_by_symbol(*data_symbol)?;
@@ -712,7 +824,7 @@ impl Query<'_> {
                         DataMember::Variant(_) => None,
                     })
                     .collect::<Vec<_>>();
-                if let CheckedStructuralValueKind::StructuralCase { case, .. } = kind {
+                if let CheckedStructuralValueKind::StructuralCase { case, .. } = &value.kind {
                     let variant =
                         self.program
                             .data_members(data)

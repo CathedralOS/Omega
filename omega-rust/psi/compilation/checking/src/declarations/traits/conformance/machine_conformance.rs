@@ -31,6 +31,7 @@ pub(crate) fn validate_machine_trait_conformances(
     machine: &Machine,
     symbols: &crate::declarations::symbols::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for conformance in program.machine_trait_conformances(machine) {
         if let Some(requirement) = program.machines().iter().find(|requirement| {
@@ -122,6 +123,7 @@ pub(crate) fn validate_machine_trait_conformances(
                 lifetime_parameters: &authored_machine.lifetime_parameters,
             },
             diagnostics,
+            formation_obligations,
         );
 
         let Some(requirement_name) = conformance.requirement.as_ref() else {
@@ -463,6 +465,7 @@ pub fn revalidate_machine_trait_conformances(
     machine: &Machine,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
     let symbols = crate::declarations::symbols::TopLevelSymbols::build(program, &mut diagnostics);
     let operational = crate::infer_operational_may(program);
     let service_reaches = crate::infer_service_reaches(program, &operational);
@@ -472,6 +475,7 @@ pub fn revalidate_machine_trait_conformances(
         machine,
         &symbols,
         &mut diagnostics,
+        &mut formation_obligations,
     );
     if diagnostics.is_empty() {
         Ok(())

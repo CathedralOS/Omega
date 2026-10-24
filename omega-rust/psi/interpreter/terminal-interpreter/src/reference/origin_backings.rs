@@ -6,6 +6,28 @@
 use super::*;
 use terminal_psi::ReferenceOriginProjection;
 
+impl ReferenceBacking {
+    /// Ingress already split fixed descriptor crossings from this suffix.
+    /// Retain its exact selected subtree (or all elements in its captured
+    /// family window), rather than treating an ancestor array as a live value.
+    /// WithinRegion retains every subobject of that selected endpoint.
+    pub(crate) fn retain_storage(&self, retained: &mut crate::structural_storage::RetainedStorage) {
+        if let Some(storage) = &self.primitive_storage {
+            retained.primitive_endpoint(&storage.endpoint);
+        }
+        if let Some(view) = &self.element_view {
+            // resolve_return_origin consults this captured presentation directly;
+            // it does not reload the descriptor cell at the old formal home.
+            view.retain_projection_storage(retained, &self.suffix);
+        } else {
+            retained.projection(&self.value, &self.suffix);
+            if let Some(view) = &self.array_loan {
+                view.retain_projection_storage(retained, &self.suffix);
+            }
+        }
+    }
+}
+
 impl TerminalExecution<'_> {
     pub(super) fn resolve_return_origin(
         &self,

@@ -24,6 +24,7 @@ pub(crate) use invocation_parameters::invocation_parameters;
 /// executable authority and never uses the called machine's ensures.
 pub fn validate_source_const_recipes(
     program: &dyn crate::CheckingInput,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let scopes = requirement_predicates::CallScopes::build(program);
@@ -50,6 +51,7 @@ pub fn validate_source_const_recipes(
             parameters,
             call.arguments(program),
             &mut diagnostics,
+            formation_obligations,
         );
     };
     for (handle, expression) in program.expression_table.iter_expressions() {
@@ -78,6 +80,7 @@ pub fn validate_source_const_recipes(
 
 pub fn validate_authored_static_arguments(
     program: &dyn crate::CheckingInput,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = crate::TopLevelSymbols::build(program, &mut diagnostics);
@@ -92,6 +95,7 @@ pub fn validate_authored_static_arguments(
                 &expression_states,
                 &symbols,
                 &mut diagnostics,
+                formation_obligations,
             );
         }
     }
@@ -106,6 +110,7 @@ pub fn validate_authored_static_arguments(
                         &expression_states,
                         &symbols,
                         &mut diagnostics,
+                        formation_obligations,
                     );
                 }
             }
@@ -305,6 +310,7 @@ fn validate_call(
     expression_states: &[(typed_trees::expression::ExpressionHandle, &State)],
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     if let Err(diagnostic) =
         crate::compiler_operations::validate_declaration_operands(program, call)
@@ -327,6 +333,7 @@ fn validate_call(
                 applied.requirement_application,
                 symbols,
                 diagnostics,
+                formation_obligations,
             ),
             None => diagnostics.push(Diagnostic::error(
                 "applied requirement call has no retained caller machine",
@@ -360,6 +367,7 @@ fn validate_call(
                 parameters,
                 arguments,
                 diagnostics,
+                formation_obligations,
             );
         }
     }
@@ -372,7 +380,14 @@ fn validate_call(
                 .data_definition_by_symbol(owner)
                 .map(crate::StaticTypeArgumentOwner::Data)
         });
-    validate_types(program, caller, arguments, symbols, diagnostics);
+    validate_types(
+        program,
+        caller,
+        arguments,
+        symbols,
+        diagnostics,
+        formation_obligations,
+    );
 }
 
 fn validate_types(
@@ -381,6 +396,7 @@ fn validate_types(
     arguments: &[StaticMachineArgument],
     symbols: &crate::TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     for argument in arguments {
         // ConstExpression is a retained value recipe, not a type application.
@@ -397,6 +413,7 @@ fn validate_types(
                     argument.type_reference,
                     symbols,
                     diagnostics,
+                    formation_obligations,
                 );
             } else {
                 diagnostics.push(Diagnostic::error(
@@ -411,6 +428,7 @@ fn validate_types(
                 &application.arguments,
                 symbols,
                 diagnostics,
+                formation_obligations,
             );
         }
     }

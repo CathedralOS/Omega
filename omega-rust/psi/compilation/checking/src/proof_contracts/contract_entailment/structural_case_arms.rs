@@ -913,6 +913,11 @@ fn recognize_structural_state_leaves_from<'a>(
                             Some(state),
                             guard,
                         )
+                        && let Some(subject_type) =
+                            crate::value_custody::field_domains::readable_type_reference(
+                                program,
+                                subject_type,
+                            )
                     {
                         // Only this successful arm owns the case predicate.
                         // Failed and sibling arms retain their prior context.

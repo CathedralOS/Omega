@@ -52,6 +52,7 @@ pub(crate) fn append_place_writes(
                     .operand_referent_segments
                     .insert_many(place.segments.iter().copied());
                 FlowOperandReferent {
+                    formation: Handle::invalid(),
                     root: place.root,
                     segments,
                 }
@@ -99,6 +100,7 @@ pub(crate) fn append_store(
             previous,
             operation: checked_trees::FlowStorageOperation::Store {
                 destination: FlowOperandReferent {
+                    formation: Handle::invalid(),
                     root: destination.root,
                     segments,
                 },
@@ -106,6 +108,27 @@ pub(crate) fn append_store(
                 projection,
             },
         })
+}
+
+/// Reinstall only the exact descriptor's entry association. A surviving
+/// incoming value is a predecessor query, never a newly invented capture.
+pub(crate) fn append_preserved_binding(
+    control: &mut FlowControlFacts,
+    previous: Handle<checked_trees::FlowStorageSnapshot>,
+    destination: &CanonicalPlace,
+    source: Handle<checked_trees::FlowStorageSnapshot>,
+) -> Handle<checked_trees::FlowStorageSnapshot> {
+    if !destination.segments.iter().all(super::place_segment_has_static_identity) {
+        return previous;
+    }
+    let segments = control.operand_referent_segments.insert_many(destination.segments.iter().copied());
+    control.storage_snapshots.insert(checked_trees::FlowStorageSnapshot {
+        previous,
+        operation: checked_trees::FlowStorageOperation::PreserveBinding {
+            destination: FlowOperandReferent { formation: Handle::invalid(), root: destination.root, segments },
+            source,
+        },
+    })
 }
 
 pub(crate) fn join(
@@ -127,3 +150,20 @@ pub(crate) fn join(
             operation: checked_trees::FlowStorageOperation::Join { predecessors },
         })
 }
+
+pub(in crate::flow) fn invalidates_destination(
+        program: &dyn validation::CheckingInput,
+        writes: Option<&[CanonicalPlace]>,
+        destination: &CanonicalPlace,
+    ) -> bool {
+        writes.is_none_or(|writes| {
+            writes.iter().any(|write| {
+                write.root == destination.root
+                    && super::operand_contexts::binding_overwrite(
+                        program,
+                        destination,
+                        &write.segments,
+                    )
+            })
+        })
+    }

@@ -19,7 +19,7 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
-use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
+use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
@@ -72,7 +72,9 @@ impl StateGraphEmission<'_, '_> {
         } = emitted;
         let current_parameters = evaluation.current_parameters(state_parameters);
         let state_parameters = current_parameters.as_ref();
-        operations.length_observations.clone_from(inherited_lengths);
+        operations
+            .storage_observations
+            .clone_from(inherited_lengths);
         let target = plan
             .state_position(edge.target_state)
             .ok_or(LoweringError::Unsupported(
@@ -96,6 +98,19 @@ impl StateGraphEmission<'_, '_> {
             established,
         );
         edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
+        let copied_values = self.capture_dispatch_copies(
+            identities,
+            position,
+            edge.statement_ordinal,
+            state_parameters,
+            &mut edge_evaluation,
+            &mut edge_values,
+            next_value,
+            next_block,
+            next_edge,
+            operations,
+            &mut sequence,
+        )?;
         let mut arguments = Vec::new();
         let mut structural_arguments = Vec::new();
         let mut retiring_loan_carriers = Vec::new();
@@ -474,7 +489,7 @@ impl StateGraphEmission<'_, '_> {
                                         domain_ids: &self.catalogs.domain_ids,
                                     },
                                     carrier_type, source, crate::unit::attached_unit::reference_results::PublishedReferenceStorage::Declared, &self.catalogs.structural_types,
-                                    edge_evaluation.structural_root_parameters(),
+                                    &edge_evaluation,
                                     place_id(allocate_dense(&mut self.catalogs.next_place)?), operations,
                                 )?;
                                 captured_loans.push((group, carrier.id));
@@ -1312,6 +1327,9 @@ impl StateGraphEmission<'_, '_> {
                 operations,
             )?;
         }
+        let copied_regions =
+            self.complete_dispatch_copies(&copied_values, &edge_evaluation, operations)?;
+        cleanup_regions.splice(0..0, copied_regions);
         let cleanup_actions = edge_evaluation.emit_cleanup_regions(
             identities,
             self.checked,
@@ -1450,7 +1468,7 @@ pub(super) struct SuccessorFrame<'f> {
     pub(super) state_parameters: &'f [StructuralParameterDeclaration],
     pub(super) bindings: &'f ScalarBindings,
     pub(super) current_rank: Option<ValueId>,
-    pub(super) inherited_lengths: &'f CollectionLengthObservations,
+    pub(super) inherited_lengths: &'f StorageObservations,
     pub(super) sequence:
         &'f crate::unit::attached_unit::composed_control::emission::OperationSequence,
 }

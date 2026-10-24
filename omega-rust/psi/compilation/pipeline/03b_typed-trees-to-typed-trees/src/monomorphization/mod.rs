@@ -21,6 +21,8 @@
 //! the live generic span. Template commitments protect its stable contract axes;
 //! application commitments also protect each exact retained-call binding.
 
+pub(crate) use result_locals::require_complete_dispatch_subjects;
+
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
 use arena::{Handle, HandleSpan};
@@ -206,6 +208,13 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         // discovers no further ordinary specialization.
         let unavailable = crate::constructed_results::retain_constructed_result_types(program);
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
+        let subjects = result_locals::materialize_dispatch_subjects(program);
+        if !subjects.is_empty() {
+            changed_owners.extend(subjects);
+            // Recollect consumers only after dispatch value types and place
+            // observations are complete, before selecting calls against them.
+            continue;
+        }
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
         native_query_lifetimes::retain(program)?;
@@ -214,11 +223,14 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         crate::constructed_results::retain_constructed_result_types(program);
         // Source formation needs the normal typed operand/context inventory,
         // but must precede tuple derivation and canonical const replacement.
-        validation::static_arguments::validate_source_const_recipes(program)?;
-        // Authored closed recipes and recipes closed by caller substitution
-        // enter the same canonical argument operation. A nongeneric caller has
-        // no cloning step to close an inferred aggregate index for selection.
-        // Source formation must succeed above before any recipe is replaced.
+        // This is a provisional source-recipe query, not formation admission.
+        // StaticArgumentCall::arguments retains these exact source operands
+        // through canonical replacement; final program validation judges them
+        // again and publishes their conditional formation obligations.
+        validation::static_arguments::validate_source_const_recipes(program, &mut Vec::new())?;
+        // Closed recipes and recipes closed by caller substitution enter the
+        // same canonical argument operation. Retained source operands above
+        // still carry their conditional formation obligations into final checking.
         body_rewriting::fold_closed_const_machine_arguments(program)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         trait_implementation_arguments::prepare(program)?;
@@ -239,7 +251,22 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
                 changed_owners,
             ));
         }
-        let contract_expressions = contract_expression_handles(program);
+        let (contract_expressions, logical_selections) = {
+            let scopes = selection::contract_expression_scopes(program);
+            let expressions = selection::contract_expression_handles(program);
+            let selections = selection::collect_contract_call_selections(
+                program,
+                &scopes,
+                &candidates,
+                &callee_states,
+            );
+            (expressions, selections)
+        };
+        for selection in &logical_selections {
+            let candidate =
+                candidate_for_selection(program, &candidates[selection.candidate_index], selection);
+            applications::retain_call(program, &candidate, selection);
+        }
         let mut selections = selection::collect_call_selections(
             program,
             &candidates,
@@ -546,7 +573,7 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 /// never rewritten: it remains the package API and every closed application
 /// is cloned from that stable template.
 mod operator_candidates;
-use crate::monomorphization::selection::{contract_expression_handles, unique_complete_selections};
+use crate::monomorphization::selection::unique_complete_selections;
 pub(crate) use operator_candidates::{OperatorCandidateTemplates, specialize_operator_candidates};
 
 /// Keep the failed occurrence's source context; the callee alone cannot identify

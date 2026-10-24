@@ -287,6 +287,20 @@ fn canonical_projection_type<'a>(
     for segment in path {
         let shape = &declaration(root)?.shape;
         match segment {
+            CanonicalStructuralPathSegment::Referent => {
+                if case_fields.is_some() {
+                    return None;
+                }
+                let StructuralTypeShape::Reference { referent, .. } = shape else {
+                    return None;
+                };
+                // Canonical type/storage paths describe geometry for predicates
+                // and postconditions too; this query grants no readable access.
+                if let Some(storage) = storage.as_mut() {
+                    storage.push(StructuralPathSegment::Referent);
+                }
+                root = *referent;
+            }
             CanonicalStructuralPathSegment::Case(identity) => {
                 if case_fields.is_some() {
                     return None;
@@ -395,5 +409,93 @@ pub fn qualification_path_carrier<'types>(
             _ => return None,
         };
         cursor = &cursor[count + 1..];
+    }
+}
+
+#[cfg(test)]
+mod reference_predicate_tests {
+    use super::*;
+
+    #[test]
+    fn canonical_geometry_keeps_each_typed_reference_crossing() {
+        let identity = |value| StructuralTypeId::new(value).unwrap();
+        let declaration = |value, shape| StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: identity(value),
+            identity: terminal_psi::TerminalIdentityIndex(value as u32),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            scalar_restriction: None,
+            shape,
+        };
+        let mut types = vec![
+            declaration(1, StructuralTypeShape::Sum { cases: Vec::new() }),
+            declaration(
+                2,
+                StructuralTypeShape::Reference {
+                    referent: identity(1),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+            declaration(
+                3,
+                StructuralTypeShape::Reference {
+                    referent: identity(2),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+            declaration(
+                4,
+                StructuralTypeShape::FixedArray {
+                    element: identity(3),
+                    length: 2,
+                },
+            ),
+        ];
+        let path = [
+            CanonicalStructuralPathSegment::FixedIndex(0),
+            CanonicalStructuralPathSegment::Referent,
+            CanonicalStructuralPathSegment::Referent,
+        ];
+        assert_eq!(
+            canonical_structural_storage_path(types.iter(), identity(4), &path),
+            Some(vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::Referent
+            ])
+        );
+        assert_eq!(
+            canonical_structural_path_tip(types.iter(), identity(4), &path).map(|row| row.id),
+            Some(identity(1))
+        );
+        assert_eq!(
+            canonical_structural_path_tip(types.iter(), identity(4), &path[..2]).map(|row| row.id),
+            Some(identity(2))
+        );
+        let mut extra = path.to_vec();
+        extra.push(CanonicalStructuralPathSegment::Referent);
+        assert!(canonical_structural_path_tip(types.iter(), identity(4), &extra).is_none());
+        let mut outside = path;
+        outside[0] = CanonicalStructuralPathSegment::FixedIndex(2);
+        assert!(canonical_structural_path_tip(types.iter(), identity(4), &outside).is_none());
+        types[1].shape = StructuralTypeShape::Reference {
+            referent: identity(1),
+            access: StructuralAccess::WriteOnlyBorrow,
+        };
+        assert_eq!(
+            canonical_structural_path_tip(types.iter(), identity(4), &path).map(|row| row.id),
+            Some(identity(1))
+        );
+        assert_eq!(
+            canonical_structural_storage_path(types.iter(), identity(4), &path),
+            Some(vec![
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::Referent
+            ])
+        );
     }
 }

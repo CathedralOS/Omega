@@ -23,6 +23,7 @@ mod order;
 mod partial_affine_cleanup;
 mod replacements;
 mod residuals;
+pub(in crate::execution::terminal_unit) mod retained_owners;
 pub(super) mod temporary_actions;
 mod temporary_descriptors;
 pub(crate) use temporary_actions::finalize_completion_actions;

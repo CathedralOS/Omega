@@ -11,10 +11,12 @@ pub(super) fn effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    arguments: &[SlotArgumentCapture],
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
+    call_site: super::super::caller_aliases::CallerWriteSite<'_>,
+    target: SymbolHandle,
+    expression: ExpressionHandle,
 ) -> Option<SlotRelationTransfer> {
     if parameters.len() != arguments.len() {
         return None;
@@ -24,23 +26,27 @@ pub(super) fn effects(
     for output in relation.outputs {
         let ProviderOutputDestination::Parameter(parameter_index) = output.destination;
         let parameter = &parameters[parameter_index];
-        let destination = destination_source(
+        let (destination, _) = destination_source(
             program,
             machine,
             parameter,
-            arguments[parameter_index],
+            &arguments[parameter_index],
             &owner_segments(&output.owner_path)?,
             context,
             symbols,
-            inference,
         )?;
-        let mut sources = Vec::new();
+        let identity =
+            super::output_identity(program, machine, call_site, target, expression, parameter)?;
+        let mut sources = vec![supplied_source(
+            identity,
+            owner_segments(&output.owner_path)?,
+        )];
         for dependency in output.dependencies {
             let parameter = parameters.get(dependency.parameter_index)?;
             if parameter.type_reference != dependency.source_type {
                 return None;
             }
-            let actual = *arguments.get(dependency.parameter_index)?;
+            let actual = arguments.get(dependency.parameter_index)?;
             let relative = FrameSourcePlace {
                 root: parameter.symbol,
                 segments: owner_segments(&dependency.source_path)?,
@@ -59,50 +65,76 @@ pub(super) fn effects(
             let captured =
                 if !super::super::type_reference_is_reference(program, dependency.source_type) {
                     aggregate_argument_sources(
-                        program, machine, parameter, actual, &selected, context, symbols, inference,
+                        program, machine, parameter, actual, &selected, context, symbols,
                     )?
                 } else {
-                    let captured = argument_origin(
-                        program, machine, parameter, actual, context, symbols, inference,
+                    let root = FrameSourcePlace {
+                        root: parameter.symbol,
+                        builtin_coordinates: true,
+                        ..Default::default()
+                    };
+                    let captured = aggregate_argument_sources(
+                        program,
+                        machine,
+                        parameter,
+                        actual,
+                        &SlotSource {
+                            origin: FramePlaceOrigin {
+                                path: parameter.name.to_string(),
+                                precision: FramePathPrecision::Exact,
+                                source: root.clone(),
+                            },
+                            carrier: root,
+                            lifetime_access: None,
+                        },
+                        context,
+                        symbols,
                     )?;
-                    let mut projected = captured.clone();
-                    projected.source = captured.source.append_relative(program, &relative);
-                    projected.path = path(program, &projected.source);
-                    let carrier = FrameSourcePlace::from_expression(program, actual)
-                        .append_relative(program, &relative);
-                    match dependency.source {
-                        // This is the outer reference's referent, not a descriptor
-                        // stored at the same empty path inside that referent.
-                        ViewReturnInputSource::Referent => vec![SlotSource {
-                            origin: projected,
-                            carrier,
-                            lifetime_access: Some(dependency.access),
-                        }],
-                        ViewReturnInputSource::Stored => {
-                            stored_origins::captured_reference_projection_sources(
-                                program,
-                                &captured,
-                                &projected,
-                                &context.stored,
-                            )
-                            .into_iter()
-                            .map(|source| {
-                                let source = source?;
-                                Some(SlotSource {
-                                    origin: source.origin,
-                                    carrier: if source.lifetime_access.is_some() {
-                                        source.carrier
-                                    } else {
-                                        carrier.clone()
-                                    },
-                                    lifetime_access: source
-                                        .lifetime_access
-                                        .or(Some(dependency.access)),
-                                })
-                            })
-                            .collect::<Option<Vec<_>>>()?
+                    let mut sources = Vec::new();
+                    for captured in captured {
+                        if captured.lifetime_access.is_some() {
+                            sources.push(captured);
+                            continue;
                         }
+                        let mut projected = captured.origin.clone();
+                        projected.source = projected.source.append_relative(program, &relative);
+                        projected.path = path(program, &projected.source);
+                        let carrier = captured.carrier.clone();
+                        sources.extend(match dependency.source {
+                            // This is the outer reference's referent, not a descriptor
+                            // stored at the same empty path inside that referent.
+                            ViewReturnInputSource::Referent => vec![SlotSource {
+                                origin: projected,
+                                carrier,
+                                lifetime_access: Some(dependency.access),
+                            }],
+                            ViewReturnInputSource::Stored => {
+                                stored_origins::captured_reference_projection_sources(
+                                    program,
+                                    &captured.origin,
+                                    &projected,
+                                    &context.stored,
+                                )
+                                .into_iter()
+                                .map(|source| {
+                                    let source = source?;
+                                    Some(SlotSource {
+                                        origin: source.origin,
+                                        carrier: if source.lifetime_access.is_some() {
+                                            source.carrier
+                                        } else {
+                                            carrier.clone()
+                                        },
+                                        lifetime_access: source
+                                            .lifetime_access
+                                            .or(Some(dependency.access)),
+                                    })
+                                })
+                                .collect::<Option<Vec<_>>>()?
+                            }
+                        });
                     }
+                    sources
                 };
             for source in captured {
                 if !sources.contains(&source) {
@@ -160,4 +192,76 @@ pub(super) fn owner_segments(
             })
         })
         .collect()
+}
+
+/// Formal correspondence for the same complete applied output relation. The
+/// dependencies remain lifetime-only. Flow authenticates and retains their
+/// actual captured cohort from the performed invocation, not these coordinates.
+pub(super) fn formal_effects(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    parameters: &[StateParameter],
+    site: super::super::caller_aliases::CallerWriteSite<'_>,
+    target: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<StoredReferenceEffect>> {
+    let relation = resolve_provider_outputs(program, parameters).ok()?;
+    if relation.readiness != crate::borrow_contracts::BorrowRelationReadiness::Complete {
+        return None;
+    }
+    let mut effects = Vec::new();
+    for output in relation.outputs {
+        let ProviderOutputDestination::Parameter(position) = output.destination;
+        let parameter = parameters.get(position)?;
+        let segments = owner_segments(&output.owner_path)?;
+        let identity =
+            super::output_identity(program, machine, site, target, expression, parameter)?;
+        let mut sources = vec![supplied_source(identity, segments.clone())];
+        for dependency in output.dependencies {
+            let parameter = parameters.get(dependency.parameter_index)?;
+            if parameter.type_reference != dependency.source_type {
+                return None;
+            }
+            let source = FrameSourcePlace {
+                root: parameter.symbol,
+                segments: owner_segments(&dependency.source_path)?,
+                builtin_coordinates: true,
+                ..Default::default()
+            };
+            sources.push(SlotSource {
+                origin: FramePlaceOrigin {
+                    path: path(program, &source),
+                    precision: FramePathPrecision::Exact,
+                    source: source.clone(),
+                },
+                carrier: source,
+                lifetime_access: Some(dependency.access),
+            });
+        }
+        effects.push(SlotEffect {
+            root: parameter.symbol,
+            segments,
+            sources: Some(sources),
+            incoming: false,
+            may_select: false,
+            kind: stored_origins::StoredOriginKind::Reference(output.access),
+        });
+    }
+    super::public_effects(effects)
+}
+
+fn supplied_source(
+    identity: facts::InvocationOutputIdentity,
+    segments: Vec<PlaceSegment>,
+) -> SlotSource {
+    let supplied = FrameSourcePlace::invocation_output(identity, segments);
+    SlotSource {
+        origin: FramePlaceOrigin {
+            path: "invocation output".to_owned(),
+            precision: FramePathPrecision::Exact,
+            source: supplied.clone(),
+        },
+        carrier: supplied,
+        lifetime_access: None,
+    }
 }

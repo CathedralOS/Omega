@@ -335,7 +335,10 @@ pub(crate) fn validate_structural_call_result(
     if result.structural_type != signature.structural_type
         || result.multiplicity != signature.multiplicity
         || result.qualifications != signature.qualifications
-        || result.projected_qualifications != signature.projected_qualifications
+        || !signature
+            .projected_qualifications
+            .iter()
+            .all(|row| result.projected_qualifications.contains(row))
         || result
             .qualifications
             .windows(2)

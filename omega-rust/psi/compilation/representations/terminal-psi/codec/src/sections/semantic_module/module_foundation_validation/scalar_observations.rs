@@ -289,7 +289,7 @@ fn validate_terms(
             let projections = path
                 .iter()
                 .cloned()
-                .map(semantic_vocabulary::ScalarReadProjection::Static)
+                .map(semantic_vocabulary::ScalarReadProjection::from)
                 .collect::<Vec<_>>();
             if terminal_semantics::structural_read_scalar_type(
                 module.structural_types.iter(),

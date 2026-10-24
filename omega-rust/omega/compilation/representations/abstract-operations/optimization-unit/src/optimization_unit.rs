@@ -28,6 +28,7 @@ mod ownership;
 mod proof;
 mod range;
 mod rewrite;
+mod runtime_evidence;
 mod structural_places;
 
 pub use attachment::{
@@ -81,6 +82,7 @@ pub(crate) use proof::{ProofQuestion, ProofQuestionAdmissionKind, ProofQuestionC
 pub use range::{
     ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
+pub use runtime_evidence::{RuntimeEvidenceCatalog, validate_runtime_evidence_context};
 
 pub use rewrite::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
@@ -142,6 +144,10 @@ pub struct PsiOptimizationUnit {
     /// against — the sealed module table, retained after the module itself
     /// is discarded.
     pub identities: terminal_psi::TerminalIdentityTable,
+    /// Immutable declaration/evidence context from verified Terminal admission.
+    /// Rewrites share these catalogs, but re-authenticate all runtime operands
+    /// against their current bodies through the common evidence reader.
+    pub runtime_evidence: Option<Arc<RuntimeEvidenceCatalog>>,
     pub functions: Vec<PsiOptimizationFunction>,
 }
 
