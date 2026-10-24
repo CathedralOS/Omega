@@ -108,13 +108,14 @@ pub fn validate_macho_aarch64_loader_mapping(
     final_data: &[u8],
     bss_bytes: usize,
 ) -> Result<(), Diagnostic> {
-    validate_macho_loader_mapping(
+    validate_macho_container_mapping(
         bytes,
         layout,
         final_text,
         final_data,
         bss_bytes,
         MachoIsa::Aarch64,
+        None,
     )
 }
 
@@ -127,25 +128,15 @@ pub fn validate_macho_x86_64_loader_mapping(
     final_data: &[u8],
     bss_bytes: usize,
 ) -> Result<(), Diagnostic> {
-    validate_macho_loader_mapping(
+    validate_macho_container_mapping(
         bytes,
         layout,
         final_text,
         final_data,
         bss_bytes,
         MachoIsa::X86_64,
+        None,
     )
-}
-
-pub(crate) fn validate_macho_loader_mapping(
-    bytes: &[u8],
-    layout: FinalImageLayout,
-    final_text: &[u8],
-    final_data: &[u8],
-    bss_bytes: usize,
-    isa: MachoIsa,
-) -> Result<(), Diagnostic> {
-    validate_macho_container_mapping(bytes, layout, final_text, final_data, bss_bytes, isa, None)
 }
 
 #[allow(clippy::too_many_arguments)]

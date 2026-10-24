@@ -59,33 +59,11 @@ pub(crate) fn macho_data_segment_index(image: &FinalImage, dylib: bool) -> Optio
     Some(pagezero_segments + 1) // TEXT precedes DATA.
 }
 
-/// `code_signature_identifier` is bound here, not at byte-writing time: its
-/// length sets the `LC_CODE_SIGNATURE` extent and `__LINKEDIT` size, so the
-/// signing identity is fixed before any load command is emitted.
-pub(crate) fn plan_macho_image(
-    image: &FinalImage,
-    import_count: usize,
-    rebase_size: usize,
-    bind_size: usize,
-    dylibs: &[MachoDylib],
-    code_signature_identifier: &str,
-    isa: MachoIsa,
-) -> MachOImagePlan {
-    plan_macho_container(
-        image,
-        import_count,
-        rebase_size,
-        bind_size,
-        dylibs,
-        code_signature_identifier,
-        isa,
-        None,
-        0,
-    )
-}
-
-/// Dylibs keep their own identity and exported symbol trie; process entry
-/// commands and PAGEZERO belong only to executable containers.
+/// Every offset for one container. `code_signature_identifier` is bound here,
+/// not at byte-writing time: its length sets the `LC_CODE_SIGNATURE` extent and
+/// `__LINKEDIT` size, so the signing identity is fixed before any load command
+/// is emitted. Dylibs keep their own identity and exported symbol trie; process
+/// entry commands and PAGEZERO belong only to executable containers.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_macho_container(
     image: &FinalImage,
@@ -209,7 +187,7 @@ pub(crate) fn plan_macho_container(
 
 #[cfg(test)]
 mod tests {
-    use super::plan_macho_image;
+    use super::plan_macho_container;
     use crate::file_layout::constants::MACHO_EXECUTABLE_BASE;
     use crate::isa::MachoIsa;
     use arena::Handle;
@@ -233,7 +211,7 @@ mod tests {
             0,
         );
 
-        let plan = plan_macho_image(
+        let plan = plan_macho_container(
             &image,
             1,
             0,
@@ -241,6 +219,8 @@ mod tests {
             &[crate::dyld_linking::load_commands::MachoDylib::LIBSYSTEM],
             "omega-program",
             MachoIsa::Aarch64,
+            None,
+            0,
         );
 
         assert!(plan.has_dyld_info);
@@ -275,7 +255,7 @@ mod tests {
             0,
         );
 
-        let plan = plan_macho_image(
+        let plan = plan_macho_container(
             &image,
             0,
             5,
@@ -283,6 +263,8 @@ mod tests {
             &[crate::dyld_linking::load_commands::MachoDylib::LIBSYSTEM],
             "omega-program",
             MachoIsa::Aarch64,
+            None,
+            0,
         );
 
         assert!(plan.has_dyld_info);

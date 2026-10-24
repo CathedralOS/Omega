@@ -15,22 +15,25 @@
 //!
 //! ```text
 //!   install_import_thunks     preflights the dylib roster, THEN mutates .text
-//!   macho_bind_info           the bind opcode stream for those thunks
-//!   macho_rebase_info         the pointers dyld must slide for a PIE
-//!   plan_macho_image          every offset, now that all four sizes are known
+//!   macho_bind_info_for_segment  the bind opcode stream for those thunks
+//!   macho_rebase_info_for_segment the pointers dyld must slide for a PIE
+//!   plan_macho_container      every offset, now that all four sizes are known
 //!   patch_import_thunks / isa relocation application
 //!   validate_patched_preferred_pointers   rebased pointers still point right
 //!   validate_import_thunk_footprints      thunk opcodes survived relocation
 //!   ... write header, load commands, segments, linkedit ...
-//!   macho_ad_hoc_code_signature           hashes the finished file, so LAST
+//!   macho_ad_hoc_code_signature_for_container   hashes the finished file, so LAST
 //!   validate_macho_aarch64_loader_mapping / loader_fixups
 //!       read-only checks of the actual container and exact loader writes
 //! ```
 //!
 //! The signature has to be last because it hashes every byte before it, and its
 //! size has to be known before that because `LC_CODE_SIGNATURE` and the
-//! `__LINKEDIT` extent are written earlier. That is why the blob length is
-//! computed twice - see the @Cleanup below.
+//! `__LINKEDIT` extent are written earlier. One `CodeSignatureLayout` supplies
+//! both: the plan asks it for the extent of the planned signature offset and
+//! the writer fills the same offsets for the bytes it actually hashed, so the
+//! recorded length and the emitted blob are one derivation rather than two that
+//! a release build could let drift.
 //!
 //! Binding is eager and total. `write_macho_dyld_info_command` writes rebase and
 //! bind offsets and then six zero words: weak bind offset and size, lazy bind
@@ -64,16 +67,10 @@
 //! `place_executable_regions`. This is the only emitter in the tree that both
 //! binds imports and signs its output.
 //!
-//! @Cleanup: the 88-byte code directory header size is written as a literal in
-//! two places, `code_signature_size` and `macho_ad_hoc_code_signature`, which
-//! independently recompute the same offset arithmetic over identifier length,
-//! special slots and page count. Nothing derives 88 from the field widths it
-//! stands for. The only check that the two agree is
-//! `debug_assert_eq!(code_signature.len(), plan.code_signature_size)` in the
-//! shared emit - a DEBUG assert, compiled out of a release
-//! build, where a disagreement would instead ship an executable whose
-//! `LC_CODE_SIGNATURE` length does not match its actual signature blob.
-//!
+//! `code_signature.rs` derives the signature blob once: its CodeDirectory
+//! prefix is summed from the field widths it stands for, and the extent
+//! `LC_CODE_SIGNATURE` records is that same blob's own length, checked against
+//! the finished container's `__LINKEDIT` extent and file end.
 //!
 //! `file_layout/` places every byte and `dyld_linking/` describes the file to
 //! the loader; `entry_symbol.rs` and `code_signature.rs` stay at the root
@@ -390,7 +387,8 @@ fn emit_macho_container_contents(
         isa,
         identity.is_none(),
     );
-    debug_assert_eq!(code_signature.len(), plan.code_signature_size);
+    // This blob and `plan.code_signature_size` come from one layout; the
+    // container mapping check below pins the recorded extent to the file end.
     bytes.extend(code_signature);
 
     dyld_linking::loader_mapping::validate_macho_container_mapping(
