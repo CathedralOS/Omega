@@ -371,50 +371,75 @@ pub struct StructuralResultContract {
     pub qualifications: Vec<SemanticDomainId>,
 }
 
+/// Read one carrier's declared value qualifications: the domain memberships
+/// on its `Constrained` chain, and the type that chain terminates at. A
+/// `Carry` subject yields no row -- carry permission travels with claim
+/// custody, not value membership -- and a non-domain constraint refuses.
+///
+/// `carrier_is_referent` states where the caller's carrier identity sits. A
+/// byte view's lowered spelling names the referent slice as the result's own
+/// carrier, so the chain crosses that borrow and its inside-borrow domains
+/// become result rows; every other reference spelling terminates the chain,
+/// leaving its owner to refuse custody it cannot manufacture.
+fn declared_carrier_qualifications(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    carrier_is_referent: bool,
+) -> Result<(TypeReferenceHandle, Vec<SemanticDomainId>), &'static str> {
+    let mut qualifications = Vec::new();
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let retained = program.type_reference_table.constraints(*constraints);
+                if retained.len() != constraints.len() {
+                    return Err("declared qualification span is stale");
+                }
+                for constraint in retained {
+                    let TypeConstraintNode::Domain(domain) = constraint else {
+                        return Err("declared qualification constraint is not a domain");
+                    };
+                    if matches!(
+                        domain.subject,
+                        typed_trees::types::DomainConstraintSubject::Carry(_)
+                    ) {
+                        continue;
+                    }
+                    if !domain.semantic_id.is_valid() {
+                        return Err("declared qualification has no exact identity");
+                    }
+                    qualifications.push(domain.semantic_id);
+                }
+                reference = *base_type;
+            }
+            TypeReferenceNode::Reference { referee, .. } if carrier_is_referent => {
+                reference = *referee;
+            }
+            _ => break,
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    Ok((reference, qualifications))
+}
+
 /// Split an owned value's declared contract without granting any qualification.
 /// Establishment and call checking remain the owners of those judgments.
 pub fn structural_result_contract(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Result<StructuralResultContract, &'static str> {
-    let mut qualifications = Vec::new();
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(reference)
-    {
-        let retained = program.type_reference_table.constraints(*constraints);
-        if retained.len() != constraints.len() {
-            return Err("structural result qualification span is stale");
-        }
-        for constraint in retained {
-            let TypeConstraintNode::Domain(domain) = constraint else {
-                return Err("structural result has an unsupported qualification");
-            };
-            // Carry permission travels with claim custody, not value membership.
-            if matches!(
-                domain.subject,
-                typed_trees::types::DomainConstraintSubject::Carry(_)
-            ) {
-                continue;
-            }
-            if !domain.semantic_id.is_valid() {
-                return Err("structural result qualification has no exact identity");
-            }
-            qualifications.push(domain.semantic_id);
-        }
-        reference = *base_type;
-    }
+    let (carrier, qualifications) = declared_carrier_qualifications(program, reference, false)?;
     if matches!(
-        program.type_reference_table.type_reference(reference),
+        program.type_reference_table.type_reference(carrier),
         TypeReferenceNode::Reference { .. }
     ) {
         return Err("structural result custody cannot manufacture an owned reference");
     }
-    qualifications.sort_by_key(|domain| domain.0);
-    qualifications.dedup();
     Ok(StructuralResultContract {
-        carrier: reference,
+        carrier,
         qualifications,
     })
 }
@@ -428,62 +453,24 @@ pub fn structural_result_qualifications(
 }
 
 /// Every domain a view result's carrier declares. Constraints above the
-/// borrow qualify the result shell directly. Constraints inside the borrow
-/// qualify the referent — except on a byte view, whose lowered type peels
-/// the reference so the referent slice and the result spell one carrier
+/// borrow qualify the result shell directly, and a byte view's lowered type
+/// peels the reference so the referent slice and the result spell one carrier
 /// identity: `&[u8] in Utf8` registers `Utf8` on the result's own structural
 /// type, making the inside-borrow domain a result qualification rather than
 /// a referent claim the loan cannot transport. Other reference referents
 /// carry a distinct identity, so their inside-borrow domains stay out.
 pub fn view_result_carrier_qualifications(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
 ) -> Result<Vec<SemanticDomainId>, &'static str> {
-    let byte_view = matches!(
+    let carrier_is_referent = matches!(
         crate::value_custody::reference_shells::byte_sequence_carrier(program, reference, &[]),
         Some(
             checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
                 | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
         )
     );
-    let mut qualifications = Vec::new();
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let retained = program.type_reference_table.constraints(*constraints);
-                if retained.len() != constraints.len() {
-                    return Err("view result qualification span is stale");
-                }
-                for constraint in retained {
-                    let TypeConstraintNode::Domain(domain) = constraint else {
-                        return Err("view result has an unsupported qualification");
-                    };
-                    // Carry permission travels with claim custody, not value membership.
-                    if matches!(
-                        domain.subject,
-                        typed_trees::types::DomainConstraintSubject::Carry(_)
-                    ) {
-                        continue;
-                    }
-                    if !domain.semantic_id.is_valid() {
-                        return Err("view result qualification has no exact identity");
-                    }
-                    qualifications.push(domain.semantic_id);
-                }
-                reference = *base_type;
-            }
-            TypeReferenceNode::Reference { referee, .. } if byte_view => {
-                reference = *referee;
-            }
-            _ => break,
-        }
-    }
-    qualifications.sort_by_key(|domain| domain.0);
-    qualifications.dedup();
-    Ok(qualifications)
+    Ok(declared_carrier_qualifications(program, reference, carrier_is_referent)?.1)
 }
 
 /// Map a logical membership to the result's physical carrier. Ordinary
@@ -622,6 +609,9 @@ fn structural_qualification_inventory(
                 base_type,
                 constraints,
             } => {
+                // The projected inventory admits a layer's non-domain
+                // constraints, so it reads the layer itself rather than
+                // through the result walk, which refuses them.
                 let retained = program.type_reference_table.constraints(*constraints);
                 if retained.len() != constraints.len() {
                     return Err("projected qualification span is stale");
@@ -630,7 +620,6 @@ fn structural_qualification_inventory(
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         continue;
                     };
-                    // Carry permission travels with claim custody, not value membership.
                     if matches!(
                         domain.subject,
                         typed_trees::types::DomainConstraintSubject::Carry(_)
