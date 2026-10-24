@@ -138,8 +138,9 @@ pub(in crate::flow) fn call_mutation_writes(
         return Some(Vec::new());
     }
     // An unknown frame retires no more than the declared-signature ceiling
-    // (mutation/ceiling.rs); only an unrepresentable ceiling stays unknown
-    // and retires every live fact.
+    // (mutation/ceiling.rs); only an unrepresentable ceiling stays unknown and
+    // retires every live fact. `call_write_places` already applies that
+    // fallback for this namespace, so no second copy stands here.
     call_write_places(
         program,
         caller_machine_symbol,
@@ -151,17 +152,6 @@ pub(in crate::flow) fn call_mutation_writes(
         call_frames,
         None,
     )
-    .or_else(|| {
-        ceiling::signature_ceiling_regions(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            Some(borrow),
-            borrow_call,
-            call_frames,
-        )
-        .map(unattributed_writes)
-    })
 }
 
 /// The access route retains the local loan owner; storage rebasing must not
@@ -331,59 +321,21 @@ fn call_write_places(
         // permission would allow. Only the fallback below uses loan ceilings.
         return Some(summarized_places);
     }
-    let mut places = exclusive_loan_places(
+    // Only the access-route namespace reaches this tail: a storage-namespace
+    // call returned above through its complete summary, its shared boundary
+    // frame, or the declared-signature ceiling. The access route retains the
+    // local loan owner as the written place, so storage rebasing never turns a
+    // write through that loan into an independent write to its referent.
+    let places = exclusive_loan_places(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         borrow,
         borrow_call,
     );
-
-    if matches!(namespace, WritePlaceNamespace::Storage) {
-        let boundary_target = program.traits().iter().any(|definition| {
-            definition.is_boundary
-                && program
-                    .trait_machine_signature_by_symbol(definition, borrow_call.target_symbol)
-                    .is_some()
-        });
-        if boundary_target {
-            // The shared boundary frame owns implicit receiver and argument
-            // reach. Reconstruct its storage paths instead of using access
-            // roots, which can name a field without its caller receiver.
-            return shared_call_storage_regions(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                borrow,
-                borrow_call,
-                call_frames,
-            )
-            .map(unattributed_writes);
-        }
-        if places.is_empty() {
-            return call_is_storage_free_asm_intrinsic(program, borrow_call).then(Vec::new);
-        }
-        let mut storage = Vec::new();
-        for place in places {
-            let canonical_places = local_origins::rebase_local_write_regions(
-                program,
-                caller_state_symbol,
-                borrow_call.statement_index,
-                place,
-                call_frames,
-            )?;
-            for canonical in canonical_places {
-                if !storage.contains(&canonical) {
-                    storage.push(canonical);
-                }
-            }
-        }
-        Some(unattributed_writes(storage))
-    } else {
-        Some(unattributed_writes(
-            places.into_iter().map(StorageRegion::Declared).collect(),
-        ))
-    }
+    Some(unattributed_writes(
+        places.into_iter().map(StorageRegion::Declared).collect(),
+    ))
 }
 
 /// Exclusive argument, mutable-parameter, and mutable-receiver places the call
@@ -838,18 +790,6 @@ fn storage_extends_frame_place(
         )
         && (exact.segments.len() == coarse.segments.len()
             || is_index_place_segment(exact.segments[coarse.segments.len()]))
-}
-
-fn call_is_storage_free_asm_intrinsic(
-    program: &dyn ::validation::CheckingInput,
-    call: &BorrowCallFact,
-) -> bool {
-    // These canonical intrinsics affect machine services, not caller storage.
-    // Input/read results are separate assignment writes in the typed tree.
-    program
-        .symbols
-        .builtin_function_for_symbol(call.target_symbol)
-        .is_some_and(symbols::BuiltinFunction::is_asm_intrinsic)
 }
 
 pub(crate) fn statement_mutated_place(
