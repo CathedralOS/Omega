@@ -8574,6 +8574,24 @@ fail/facts/selected_scalar_initializer_through_parameter_rejected rejected 1205m
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/selected_scalar_initializer_through_target_body_rejected rejected 1232ms expected @a0ebcac9edda+wt
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/selected_value_application_through_call_result_rejected rejected 298ms expected @870e735dd37d
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/selected_value_application_through_const_name_rejected rejected 291ms expected @870e735dd37d
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/selected_value_application_through_field_rejected rejected 293ms expected @870e735dd37d
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/selected_value_application_through_local_rejected rejected 294ms expected @870e735dd37d
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/selected_value_application_through_match_join_rejected rejected 294ms expected @870e735dd37d
+	exact arithmetic in machine `exercise` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/selected_value_application_through_other_machine_rejected rejected 655ms expected @870e735dd37d
+	cannot prove requires contract for call relay from main: incoming <= 10 (needs fact `input <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/selected_value_application_through_other_state_rejected rejected 654ms expected @870e735dd37d
+	cannot prove requires contract for call exercise from main: incoming <= 10 (needs fact `index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/selected_value_application_through_parameter_rejected rejected 649ms expected @870e735dd37d
+	cannot prove requires contract for call exercise from main: 11 <= 10 (needs fact `index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/selected_value_application_through_target_body_rejected rejected 315ms expected @870e735dd37d
+	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/seven_variant_enum_payload_bound_through_call_result_rejected rejected 7596ms expected @595562a958b4+wt
 	cannot prove ensures contract for exit from extract_payload at statement 13: result >= 40 && result <= 80
 fail/facts/seven_variant_enum_payload_bound_through_const_name_rejected rejected 7969ms expected @595562a958b4+wt
@@ -13199,6 +13217,8 @@ fail/generics/runtime_index_carrier_tail_mismatch rejected 1756ms expected @afe3
 fail/generics/runtime_index_carrier_tail_stale rejected 1759ms expected @afe3f46cebb2+wt
 fail/generics/runtime_index_predicate_global_shadow rejected 6360ms expected @336cafc17e1a+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/selected_member_value_bound rejected 558ms expected @870e735dd37d
+	cannot prove requires contract for call selected$specialized$4e4b568dcb9c374d$0 from main: index <= 10 (needs fact `Index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1353ms expected @a9ae30e1c334+wt
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 259ms expected @6ef08ceefee0+wt
 fail/generics/static_callable_excess_local_type_argument rejected 905ms expected @a9ae30e1c334+wt
@@ -13221,6 +13241,13 @@ fail/generics/type_index_distinct_binders rejected 858ms expected @7b786cd56594+
 fail/generics/type_index_wrong_telescope rejected 906ms expected @7b786cd56594+wt
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:statement-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/unused_selected_value_is_not_const rejected 165ms expected @870e735dd37d
+	const parameter `Index` of `read` cannot accept runtime-capable Value binder `Index`
+	retained requirement tuple lost its exact source call application: call `read` in `unused` binds declaration Handle { arena_index: 764, generation: 1 }, but its retained targets are [(Handle { arena_index: 892, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+fail/generics/unused_selected_value_unproved_where rejected 162ms expected @870e735dd37d
+	cannot prove declared where facts for static application of requirement `Reader::read` under its complete applied telescope
+fail/generics/unused_selected_value_wrong_carrier rejected 162ms expected @870e735dd37d
+	const parameter `Index` of `read` requires `u32`, but `Index` declares `u64`
 fail/generics/value_binder_unknown_field rejected 312ms expected @16802f0d1e96
 fail/generics/value_binder_used_as_nested_type rejected 3433ms expected @a9ae30e1c334+wt
 fail/generics/value_generic_erased_runtime_static_length rejected 1343ms expected @2c386725b87c+wt
@@ -19492,6 +19519,15 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit checked 7877ms
 pass/facts/selected_scalar_initializer_through_other_state_exit checked 7880ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/selected_scalar_initializer_through_parameter_exit checked 7923ms check-target:macos_arm64 @a0ebcac9edda+wt
 pass/facts/selected_scalar_initializer_through_target_body_exit checked 8126ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/facts/selected_value_application_through_call_result_exit checked 823ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_const_name_exit checked 823ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_field_exit checked 782ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_local_exit checked 866ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_match_join_exit checked 866ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_other_machine_exit checked 781ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_other_state_exit checked 784ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_parameter_exit checked 863ms check-target:macos_arm64 @870e735dd37d
+pass/facts/selected_value_application_through_target_body_exit checked 875ms check-target:macos_arm64 @870e735dd37d
 pass/facts/seven_variant_enum_payload_bound_through_call_result_exit checked 12509ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/seven_variant_enum_payload_bound_through_const_name_exit checked 8864ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/seven_variant_enum_payload_bound_through_field_exit checked 8795ms check-target:macos_arm64 @595562a958b4+wt
@@ -21567,10 +21603,14 @@ pass/generics/runtime_static_requirement_complex_composition_exit checked 17350m
 pass/generics/runtime_symbolic_receiver_extent_exit checked 11324ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/runtime_transition_result_inference_exit checked 725ms check-target:macos_arm64 @a94178e1c015
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/selected_member_distinct_binder_names_exit checked 780ms check-target:macos_arm64 @870e735dd37d
+pass/generics/selected_member_shared_runtime_subject_exit checked 781ms check-target:macos_arm64 @870e735dd37d
 pass/generics/seq_map_filter checked 10288ms @fcc053dc7014+wt
 pass/generics/static_callable_local_type_argument_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2884ms @fcc053dc7014+wt
 pass/generics/swapped_type_parameter_result checked 1860ms @c083b963e5ba
+pass/generics/unused_selected_value_carrier checked 678ms @870e735dd37d
+pass/generics/unused_selected_value_proved_where checked 603ms @870e735dd37d
 pass/host/console_exit_process_exit checked 11700ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/host/efi_vtable_entry checked 9644ms @5041ef1af684+wt
 pass/host/foreign_byte_recast checked 12749ms @5041ef1af684+wt
