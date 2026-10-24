@@ -65,9 +65,11 @@ pub fn lower_typed_trees(
     preparation: TypedPreparation,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_reusing(program, preparation, None, request, None, false).map(|outcome| {
-        std::sync::Arc::try_unwrap(outcome.checked).unwrap_or_else(|shared| (*shared).clone())
-    })
+    lower_typed_trees_reusing(program, preparation, None, request, None, &[], false).map(
+        |outcome| {
+            std::sync::Arc::try_unwrap(outcome.checked).unwrap_or_else(|shared| (*shared).clone())
+        },
+    )
 }
 
 /// One language judgment kept with the exact input it judged. Only this module
@@ -84,6 +86,10 @@ pub struct RetainedCheck {
     admits_pending_inputs: bool,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     checked: std::sync::Arc<CheckedTrees>,
+    /// Entailment judgments for non-instance machines in this strict check.
+    /// A later dependent in the same invocation may reuse one of them when
+    /// the body's correspondence still matches. Pending checks record none.
+    dependency_bodies: Vec<validation::DependencyBodyJudgment>,
 }
 
 impl RetainedCheck {
@@ -104,6 +110,16 @@ impl RetainedCheck {
         admission: &typed_trees_to_typed_trees::PreparationAdmission,
     ) -> bool {
         self.preparation_admission == *admission && *self.preparation_input == *program
+    }
+
+    /// Dependency-body entailment judgments a strict consumer may reuse.
+    /// A pending admission does not supply a judgment to anyone.
+    pub fn strict_dependency_bodies(&self) -> &[validation::DependencyBodyJudgment] {
+        if self.admits_pending_inputs {
+            &[]
+        } else {
+            &self.dependency_bodies
+        }
     }
 }
 
@@ -154,6 +170,7 @@ pub fn lower_typed_trees_reusing(
     )>,
     request: &CheckingRequest<'_>,
     prior: Option<&RetainedCheck>,
+    prior_dependency_bodies: &[validation::DependencyBodyJudgment],
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     let (
@@ -183,13 +200,16 @@ pub fn lower_typed_trees_reusing(
                     )
                 })
             });
-            let checked = std::sync::Arc::new(check_program(
+            let (checked, dependency_bodies) = check_program(
                 program,
                 admits_pending_inputs,
                 mathematics,
                 opaque_property_receipts,
                 opaque_representation_selections,
-            )?);
+                prior_dependency_bodies,
+                retain && !admits_pending_inputs,
+            )?;
+            let checked = std::sync::Arc::new(checked);
             let retained = input.map(
                 |(preparation_input, preparation_admission, program, opaque_property_receipts)| {
                     RetainedCheck {
@@ -199,6 +219,7 @@ pub fn lower_typed_trees_reusing(
                         admits_pending_inputs,
                         opaque_property_receipts,
                         checked: checked.clone(),
+                        dependency_bodies,
                     }
                 },
             );
@@ -240,7 +261,9 @@ fn check_program(
     mathematics: proof::mathematical_declarations::CheckedMathematics,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
-) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+    record_dependency_bodies: bool,
+) -> Result<(CheckedTrees, Vec<validation::DependencyBodyJudgment>), Vec<diagnostics::Diagnostic>> {
     // Borrow the prepared program with invocation-owned query state. Read-only inputs
     // carry this context through the checking flow; no consumer discovers it
     // by thread or address. Metadata publication waits until checking ends.
@@ -256,8 +279,15 @@ fn check_program(
     let program = program
         .with_retained_borrow_custodies(declared_content.retained_borrow_custodies.clone().into());
     let mut validated = phase_profile::scope("05.d.2.prepare_typed_program", || {
-        prepare_typed_program(&program, &opaque_property_receipts, admits_pending_inputs)
+        prepare_typed_program(
+            &program,
+            &opaque_property_receipts,
+            admits_pending_inputs,
+            prior_dependency_bodies,
+            record_dependency_bodies,
+        )
     })?;
+    let dependency_body_judgments = std::mem::take(&mut validated.dependency_body_judgments);
     // Caller-visible mutation summaries depend only on the immutable typed
     // program and the borrow facts assembled once here. Fact construction, the
     // direct-borrow resource closures, and the independent check replay all
@@ -529,5 +559,5 @@ fn check_program(
         },
     )?;
     drop(final_guard);
-    Ok(checked)
+    Ok((checked, dependency_body_judgments))
 }
