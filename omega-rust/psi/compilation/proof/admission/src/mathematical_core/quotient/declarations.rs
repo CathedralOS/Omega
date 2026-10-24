@@ -45,8 +45,8 @@ fn set_quotient_declaration(arena: &mut TermArena) -> Declaration {
 /// `sound` — declaration 4, an assumption:
 /// `Π A R. Π(a b : A). Π(_ : R a b). Id (Q A R) (project a) (project b)`.
 fn sound_declaration(arena: &mut TermArena) -> Declaration {
-    let statement = pi_description(pis(
-        [("a", v("A")), ("b", v("A")), ("_", related(v("a"), v("b")))],
+    let statement = pi_description(related_pis(
+        "_",
         id(quotient_of(), project_of(v("a")), project_of(v("b"))),
     ));
     assume(arena, 2, &statement)
@@ -57,6 +57,9 @@ fn sound_declaration(arena: &mut TermArena) -> Declaration {
 /// Effectivity supplies evidence of exactly the selected relation —
 /// never an extraction of the representative.
 fn effective_declaration(arena: &mut TermArena) -> Declaration {
+    // Effectivity's third binder is the projection identity `Id (Q A R)
+    // (project a) (project b)`, not the relation evidence: it spells the
+    // description independently of `related_pis`.
     let statement = pi_description(pis(
         [
             ("a", v("A")),
@@ -80,14 +83,15 @@ fn effective_declaration(arena: &mut TermArena) -> Declaration {
 /// optional precondition-transport surface for premise evidence.
 fn transport_declaration(arena: &mut TermArena) -> Declaration {
     let statement = pi_description(pis(
-        [
-            ("P", motive_type()),
-            ("a", v("A")),
-            ("b", v("A")),
-            ("_", related(v("a"), v("b"))),
-            ("_", app(v("P"), project_of(v("a")))),
-        ],
-        app(v("P"), project_of(v("b"))),
+        [("P", motive_type())],
+        related_pis(
+            "_",
+            pi(
+                "_",
+                app(v("P"), project_of(v("a"))),
+                app(v("P"), project_of(v("b"))),
+            ),
+        ),
     ));
     // `C y p = P y` over `p : Id Q (project a) y`.
     let motive = lam(
@@ -102,28 +106,16 @@ fn transport_declaration(arena: &mut TermArena) -> Declaration {
     let body = lam_description(lam(
         "P",
         motive_type(),
-        lam(
-            "a",
-            v("A"),
-            lam(
-                "b",
-                v("A"),
-                lam(
-                    "r",
-                    related(v("a"), v("b")),
-                    lam(
-                        "h",
-                        app(v("P"), project_of(v("a"))),
-                        jelim(
-                            motive,
-                            v("h"),
-                            project_of(v("b")),
-                            sound_of(v("a"), v("b"), v("r")),
-                        ),
-                    ),
-                ),
+        related_lams(lam(
+            "h",
+            app(v("P"), project_of(v("a"))),
+            jelim(
+                motive,
+                v("h"),
+                project_of(v("b")),
+                sound_of(v("a"), v("b"), v("r")),
             ),
-        ),
+        )),
     ));
     define(arena, 3, &statement, &body)
 }
@@ -148,8 +140,8 @@ fn pi_cases(rest: Syntax) -> Syntax {
             ("d", pi("a", v("A"), app(v("P"), project_of(v("a"))))),
             (
                 "c",
-                pis(
-                    [("a", v("A")), ("b", v("A")), ("r", related(v("a"), v("b")))],
+                related_pis(
+                    "r",
                     id(
                         app(v("P"), project_of(v("b"))),
                         apps(
@@ -170,6 +162,30 @@ fn pi_cases(rest: Syntax) -> Syntax {
             ),
         ],
         rest,
+    )
+}
+
+/// `Π(a b : A). Π(evidence : R a b). rest` — the shape of a representative
+/// congruence theorem every relation-stated declaration shares. `evidence`
+/// is `"_"` when `rest` never names the relation proof.
+fn related_pis(evidence: &'static str, rest: Syntax) -> Syntax {
+    pis(
+        [
+            ("a", v("A")),
+            ("b", v("A")),
+            (evidence, related(v("a"), v("b"))),
+        ],
+        rest,
+    )
+}
+
+/// `λ(a b : A). λ(r : R a b). rest` — the clause form every coherence a
+/// derived declaration supplies is stated under.
+fn related_lams(rest: Syntax) -> Syntax {
+    lam(
+        "a",
+        v("A"),
+        lam("b", v("A"), lam("r", related(v("a"), v("b")), rest)),
     )
 }
 
@@ -380,19 +396,7 @@ fn lift_declaration(arena: &mut TermArena) -> Declaration {
                 pi("_", v("A"), v("B")),
                 pi(
                     "respect",
-                    pi(
-                        "a",
-                        v("A"),
-                        pi(
-                            "b",
-                            v("A"),
-                            pi(
-                                "_",
-                                related(v("a"), v("b")),
-                                id(v("B"), app(v("f"), v("a")), app(v("f"), v("b"))),
-                            ),
-                        ),
-                    ),
+                    related_pis("_", id(v("B"), app(v("f"), v("a")), app(v("f"), v("b")))),
                     pi("_", quotient_of(), v("B")),
                 ),
             ),
@@ -434,29 +438,17 @@ fn lift_declaration(arena: &mut TermArena) -> Declaration {
         ],
     );
     // `idTrans B transported (f a) (f b) (transportConst …) (respect a b r)`.
-    let coherence = lam(
-        "a",
-        v("A"),
-        lam(
-            "b",
-            v("A"),
-            lam(
-                "r",
-                related(v("a"), v("b")),
-                apps(
-                    scheme_at(QUOTIENT_ID_TRANS, vec![Level::Parameter(2)]),
-                    [
-                        v("B"),
-                        transported,
-                        app(v("f"), v("a")),
-                        app(v("f"), v("b")),
-                        transported_case,
-                        apps(v("respect"), [v("a"), v("b"), v("r")]),
-                    ],
-                ),
-            ),
-        ),
-    );
+    let coherence = related_lams(apps(
+        scheme_at(QUOTIENT_ID_TRANS, vec![Level::Parameter(2)]),
+        [
+            v("B"),
+            transported,
+            app(v("f"), v("a")),
+            app(v("f"), v("b")),
+            transported_case,
+            apps(v("respect"), [v("a"), v("b"), v("r")]),
+        ],
+    ));
     let body = lam_description(lam(
         "B",
         ty(2),
@@ -468,19 +460,7 @@ fn lift_declaration(arena: &mut TermArena) -> Declaration {
                 pi("_", v("A"), v("B")),
                 lam(
                     "respect",
-                    pi(
-                        "a",
-                        v("A"),
-                        pi(
-                            "b",
-                            v("A"),
-                            pi(
-                                "_",
-                                related(v("a"), v("b")),
-                                id(v("B"), app(v("f"), v("a")), app(v("f"), v("b"))),
-                            ),
-                        ),
-                    ),
+                    related_pis("_", id(v("B"), app(v("f"), v("a")), app(v("f"), v("b")))),
                     lam(
                         "z",
                         quotient_of(),
@@ -554,32 +534,23 @@ fn lift_precondition_declaration(arena: &mut TermArena) -> Declaration {
                             pi("a", v("A"), pi("_", app(v("Pre"), v("a")), v("B"))),
                             pi(
                                 "respect",
-                                pi(
-                                    "a",
-                                    v("A"),
+                                related_pis(
+                                    "_",
                                     pi(
-                                        "b",
-                                        v("A"),
+                                        "ha",
+                                        app(v("Pub"), project_of(v("a"))),
                                         pi(
-                                            "_",
-                                            related(v("a"), v("b")),
-                                            pi(
-                                                "ha",
-                                                app(v("Pub"), project_of(v("a"))),
-                                                pi(
-                                                    "hb",
-                                                    app(v("Pub"), project_of(v("b"))),
-                                                    id(
-                                                        v("B"),
-                                                        app(
-                                                            app(v("f"), v("a")),
-                                                            apps(v("t"), [v("a"), v("ha")]),
-                                                        ),
-                                                        app(
-                                                            app(v("f"), v("b")),
-                                                            apps(v("t"), [v("b"), v("hb")]),
-                                                        ),
-                                                    ),
+                                            "hb",
+                                            app(v("Pub"), project_of(v("b"))),
+                                            id(
+                                                v("B"),
+                                                app(
+                                                    app(v("f"), v("a")),
+                                                    apps(v("t"), [v("a"), v("ha")]),
+                                                ),
+                                                app(
+                                                    app(v("f"), v("b")),
+                                                    apps(v("t"), [v("b"), v("hb")]),
                                                 ),
                                             ),
                                         ),
@@ -942,37 +913,25 @@ fn ind_prop_declaration(arena: &mut TermArena) -> Declaration {
     // `c' a b r = boxProp (P (project b)) (transport P' a b r (d' a))
     //  (d' b)` — the coherence collapses because `Box (P _)` is a mere
     // proposition.
-    let coherence = lam(
-        "a",
-        v("A"),
-        lam(
-            "b",
-            v("A"),
-            lam(
-                "r",
-                related(v("a"), v("b")),
-                apps(
-                    scheme_at(QUOTIENT_BOX_PROP, strict_level()),
-                    [
-                        app(v("P"), project_of(v("b"))),
-                        apps(
-                            motive_scheme(QUOTIENT_TRANSPORT),
-                            [
-                                v("A"),
-                                v("R"),
-                                boxed_family.clone(),
-                                v("a"),
-                                v("b"),
-                                v("r"),
-                                app(case.clone(), v("a")),
-                            ],
-                        ),
-                        app(case.clone(), v("b")),
-                    ],
-                ),
+    let coherence = related_lams(apps(
+        scheme_at(QUOTIENT_BOX_PROP, strict_level()),
+        [
+            app(v("P"), project_of(v("b"))),
+            apps(
+                motive_scheme(QUOTIENT_TRANSPORT),
+                [
+                    v("A"),
+                    v("R"),
+                    boxed_family.clone(),
+                    v("a"),
+                    v("b"),
+                    v("r"),
+                    app(case.clone(), v("a")),
+                ],
             ),
-        ),
-    );
+            app(case.clone(), v("b")),
+        ],
+    ));
     // `unbox (λ(_ : Box (P z)). P z) (λ(t : P z). t) (elim P' sets' d'
     // c' z)` — the boxed section delivered by `elim` is unboxed into
     // the strict target.
@@ -1099,39 +1058,27 @@ fn unique_declaration(arena: &mut TermArena) -> Declaration {
     // `c a b r = sets (project b) (s₁ _) (s₂ _) (transport M a b r (h
     // a)) (h b)` — coherence by propositional collapse of `M (project
     // b)`.
-    let coherence = lam(
-        "a",
-        v("A"),
-        lam(
-            "b",
-            v("A"),
-            lam(
-                "r",
-                related(v("a"), v("b")),
-                apps(
-                    v("sets"),
-                    [
-                        project_of(v("b")),
-                        app(v("s1"), project_of(v("b"))),
-                        app(v("s2"), project_of(v("b"))),
-                        apps(
-                            motive_scheme(QUOTIENT_TRANSPORT),
-                            [
-                                v("A"),
-                                v("R"),
-                                identity_family.clone(),
-                                v("a"),
-                                v("b"),
-                                v("r"),
-                                app(v("h"), v("a")),
-                            ],
-                        ),
-                        app(v("h"), v("b")),
-                    ],
-                ),
+    let coherence = related_lams(apps(
+        v("sets"),
+        [
+            project_of(v("b")),
+            app(v("s1"), project_of(v("b"))),
+            app(v("s2"), project_of(v("b"))),
+            apps(
+                motive_scheme(QUOTIENT_TRANSPORT),
+                [
+                    v("A"),
+                    v("R"),
+                    identity_family.clone(),
+                    v("a"),
+                    v("b"),
+                    v("r"),
+                    app(v("h"), v("a")),
+                ],
             ),
-        ),
-    );
+            app(v("h"), v("b")),
+        ],
+    ));
     let family_type = motive_type();
     let sets_type = pi(
         "z",
