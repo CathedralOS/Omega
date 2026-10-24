@@ -5,7 +5,7 @@
 //! remain conjoined with every retained interval shell.
 use super::{
     CheckedUnitStructuralFieldType, DataMember, PrimitiveType, SymbolHandle, TypeReferenceHandle,
-    TypeReferenceNode,
+    TypeReferenceNode, substituted_formal_type,
 };
 use numerics::bignum::BigInt;
 use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
@@ -231,20 +231,15 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
                 }
                 type_reference = *base_type;
             }
-            TypeReferenceNode::Named { symbol, .. } => {
-                let Some((_, replacement)) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
-                else {
-                    break;
-                };
-                // A substitution can bind a parameter to its own reference;
-                // rewriting it again only loops.
-                if *replacement == type_reference {
+            TypeReferenceNode::Named { .. } => {
+                // A formal carrier keeps resolving through the substitutions
+                // until they fix it; `substituted_formal_type` owns that walk,
+                // including the stop on a binding to the reference itself.
+                let resolved = substituted_formal_type(program, type_reference, substitutions);
+                if resolved == type_reference {
                     break;
                 }
-                type_reference = *replacement;
+                type_reference = resolved;
             }
             // A selector is a plain word with no restriction of its own.
             TypeReferenceNode::DynamicTrait { .. } => break,

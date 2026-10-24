@@ -159,34 +159,47 @@ pub(in crate::execution::terminal_unit) fn lent_storage_identity(
     base_type_identity(program, storage, &[], substitutions)
 }
 
+/// The last checked substitution binding `parameter`, if the call edge
+/// supplied one.
+pub(in crate::execution::terminal_unit) fn substitution_for(
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    parameter: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    substitutions
+        .iter()
+        .rev()
+        .find(|(candidate, _)| *candidate == parameter)
+        .map(|(_, actual)| *actual)
+}
+
 /// A call edge's checked specialization maps a bare `Type` formal to the
 /// actual its admission derived before custody or shape evidence is
 /// replayed against the caller's concrete values. A compound formal keeps
 /// its own reference: the substitution only names a top-level `Type`
 /// parameter, and identity-level substitution covers the generic arguments
 /// inside it.
+///
+/// This is the one owner of that walk — the last binding wins, and a binding
+/// to the reference itself stops it — so a caller that must keep resolving
+/// past its own shells calls this instead of spelling the loop again.
 pub(in crate::execution::terminal_unit) fn substituted_formal_type(
     program: &dyn ::validation::CheckingInput,
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> TypeReferenceHandle {
     loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                let Some((_, actual)) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
-                else {
-                    return type_reference;
-                };
-                if *actual == type_reference {
-                    return type_reference;
-                }
-                type_reference = *actual;
-            }
-            _ => return type_reference,
+        let TypeReferenceNode::Named { symbol, .. } =
+            program.type_reference_table.type_reference(type_reference)
+        else {
+            return type_reference;
+        };
+        let Some(actual) = substitution_for(substitutions, *symbol) else {
+            return type_reference;
+        };
+        if actual == type_reference {
+            return type_reference;
         }
+        type_reference = actual;
     }
 }
 
@@ -217,21 +230,12 @@ pub(in crate::execution::terminal_unit) fn scalar_type(
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Named { symbol, name } => {
-                if let Some((_, replacement)) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)
-                {
-                    // A substitution can bind a parameter to its own
-                    // reference; rewriting it again only loops.
-                    if *replacement == type_reference {
-                        return PrimitiveType::from_name(name.as_str());
-                    }
-                    type_reference = *replacement;
-                    continue;
+            TypeReferenceNode::Named { name, .. } => {
+                let resolved = substituted_formal_type(program, type_reference, substitutions);
+                if resolved == type_reference {
+                    return PrimitiveType::from_name(name.as_str());
                 }
-                return PrimitiveType::from_name(name.as_str());
+                type_reference = resolved;
             }
             TypeReferenceNode::DynamicTrait { .. } => return Some(PrimitiveType::Selector),
             _ => return None,

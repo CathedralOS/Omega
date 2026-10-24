@@ -626,28 +626,13 @@ impl<'program> ShapeCollector<'program> {
                     | checked_trees::CheckedByteSequenceCarrier::BoundedView { .. }
                     | checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             ) {
-                let mut referee = self
-                    .program
-                    .type_reference_table
-                    .peeled_type_reference(type_reference);
-                loop {
-                    match self.program.type_reference_table.type_reference(referee) {
-                        TypeReferenceNode::Named { symbol, .. } => {
-                            let Some((_, replacement)) = substitutions
-                                .iter()
-                                .rev()
-                                .find(|(parameter, _)| parameter == symbol)
-                            else {
-                                break;
-                            };
-                            if *replacement == referee {
-                                break;
-                            }
-                            referee = *replacement;
-                        }
-                        _ => break,
-                    }
-                }
+                let referee = substituted_formal_type(
+                    self.program,
+                    self.program
+                        .type_reference_table
+                        .peeled_type_reference(type_reference),
+                    substitutions,
+                );
                 if let TypeReferenceNode::Slice { element_type }
                 | TypeReferenceNode::FixedArray { element_type, .. } =
                     self.program.type_reference_table.type_reference(referee)
@@ -785,11 +770,8 @@ impl<'program> ShapeCollector<'program> {
                     u64::try_from(*value).ok().map(CheckedExtent::Literal)
                 }
                 typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
-                    substitutions
-                        .iter()
-                        .rev()
-                        .find(|(parameter, _)| parameter == symbol)
-                        .and_then(|(_, replacement)| self.const_length_extent(*replacement))
+                    substitution_for(substitutions, *symbol)
+                        .and_then(|replacement| self.const_length_extent(replacement))
                 }
                 typed_trees::types::FixedArrayLength::Expression(_) => None,
                 typed_trees::types::FixedArrayLength::ConstCall { .. } => {
