@@ -807,386 +807,245 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     }
 }
 
-#[test]
-fn hosted_receiver_accepts_only_canonical_borrowed_pointer_placement() {
-    use calling_conventions::{
-        CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
-    };
-    for shape in [
-        ValueShape::borrowed_reference(0, 1),
-        ValueShape::borrowed_reference(4, 4),
-        ValueShape::borrowed_reference(32, 16),
-    ] {
-        let signature = CallSignature {
-            parameters: vec![shape],
-            result: None,
-        };
-        let plan = evaluate_call_plan(CallingPolicy::Aapcs64, &signature)
-            .expect("canonical receiver pointer ABI");
-        let placement = &plan.parameters[0];
-        assert!(receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::Aarch64X(0)
-        ));
-        // A Linux/System V placement register must never satisfy the Darwin
-        // bridge's x0 custody, and vice versa.
-        assert!(!receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::X86Rdi
-        ));
-        assert_corrupted_receiver_rejected(
-            shape,
-            placement,
-            MachineRegister::Aarch64X(0),
-            MachineRegister::Aarch64X(1),
-        );
-        let changed_shape = ValueShape::borrowed_reference(shape.byte_size + 1, shape.alignment);
-        assert!(!receiver_pointer_matches(
-            changed_shape,
-            placement,
-            MachineRegister::Aarch64X(0)
-        ));
-        assert!(!receiver_pointer_matches(
-            ValueShape::integer(shape.byte_size, shape.alignment),
-            placement,
-            MachineRegister::Aarch64X(0)
-        ));
-    }
+/// One hosted policy's receiver arrival row: the register the bridge passes
+/// the receiver through, the foreign registers whose placements must never
+/// satisfy it, and the neighboring register a corrupted substitution uses.
+struct ReceiverPlacementCase {
+    policy: calling_conventions::CallingPolicy,
+    register: MachineRegister,
+    foreign_registers: &'static [MachineRegister],
+    corrupted_register: MachineRegister,
 }
 
 #[test]
-fn windows_receiver_accepts_only_canonical_borrowed_pointer_placement() {
-    use calling_conventions::{
-        CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
-    };
-    for shape in [
-        ValueShape::borrowed_reference(0, 1),
-        ValueShape::borrowed_reference(4, 4),
-        ValueShape::borrowed_reference(32, 16),
-    ] {
-        let signature = CallSignature {
-            parameters: vec![shape],
-            result: None,
-        };
-        let plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
-            .expect("canonical Microsoft x64 receiver pointer ABI");
-        let placement = &plan.parameters[0];
-        // Microsoft x64 passes the first argument pointer in rcx through an
-        // indirect location retaining the referent geometry; a borrowed
-        // reference carries no caller copy.
-        assert!(receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::X86Rcx
-        ));
-        // A System V placement register must never satisfy the Windows
-        // bridge's rcx custody, and vice versa.
-        assert!(!receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::X86Rdi
-        ));
-        assert!(!receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::Aarch64X(0)
-        ));
-        assert_corrupted_receiver_rejected(
-            shape,
-            placement,
-            MachineRegister::X86Rcx,
-            MachineRegister::X86Rdx,
-        );
+fn receiver_placement_accepts_only_each_policys_canonical_borrowed_pointer_placement() {
+    use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    let cases = [
+        ReceiverPlacementCase {
+            policy: CallingPolicy::Aapcs64,
+            register: MachineRegister::Aarch64X(0),
+            foreign_registers: &[MachineRegister::X86Rdi],
+            corrupted_register: MachineRegister::Aarch64X(1),
+        },
+        ReceiverPlacementCase {
+            policy: CallingPolicy::MicrosoftX64,
+            register: MachineRegister::X86Rcx,
+            foreign_registers: &[MachineRegister::X86Rdi, MachineRegister::Aarch64X(0)],
+            corrupted_register: MachineRegister::X86Rdx,
+        },
+        ReceiverPlacementCase {
+            policy: CallingPolicy::SystemVAMD64,
+            register: MachineRegister::X86Rdi,
+            foreign_registers: &[MachineRegister::Aarch64X(0)],
+            corrupted_register: MachineRegister::X86Rsi,
+        },
+    ];
+    for case in cases {
+        for shape in [
+            ValueShape::borrowed_reference(0, 1),
+            ValueShape::borrowed_reference(4, 4),
+            ValueShape::borrowed_reference(32, 16),
+        ] {
+            let signature = CallSignature {
+                parameters: vec![shape],
+                result: None,
+            };
+            let plan = evaluate_call_plan(case.policy, &signature)
+                .expect("canonical receiver pointer ABI");
+            let placement = &plan.parameters[0];
+            // Each policy passes the first integer argument through an
+            // indirect location retaining the referent geometry; a borrowed
+            // reference carries no caller copy.
+            assert!(receiver_pointer_matches(shape, placement, case.register));
+            // A foreign policy's placement register must never satisfy this
+            // bridge's custody, and vice versa.
+            for foreign in case.foreign_registers {
+                assert!(!receiver_pointer_matches(shape, placement, *foreign));
+            }
+            assert_corrupted_receiver_rejected(
+                shape,
+                placement,
+                case.register,
+                case.corrupted_register,
+            );
+            // A non-canonical referent geometry or a non-reference class
+            // never matches the canonical placement.
+            assert!(!receiver_pointer_matches(
+                ValueShape::borrowed_reference(shape.byte_size + 1, shape.alignment),
+                placement,
+                case.register
+            ));
+            assert!(!receiver_pointer_matches(
+                ValueShape::integer(shape.byte_size, shape.alignment),
+                placement,
+                case.register
+            ));
+        }
     }
 }
 
-#[test]
-fn linux_receiver_accepts_only_canonical_borrowed_pointer_placement() {
-    use calling_conventions::{
-        CallSignature, CallingPolicy, MachineRegister, ValueShape, evaluate_call_plan,
-    };
-    for shape in [
-        ValueShape::borrowed_reference(0, 1),
-        ValueShape::borrowed_reference(4, 4),
-        ValueShape::borrowed_reference(32, 16),
-    ] {
-        let signature = CallSignature {
-            parameters: vec![shape],
-            result: None,
-        };
-        let plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature)
-            .expect("canonical System V receiver pointer ABI");
-        let placement = &plan.parameters[0];
-        // System V passes the first integer argument in rdi through an
-        // indirect location retaining the referent geometry.
-        assert!(receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::X86Rdi
-        ));
-        assert!(!receiver_pointer_matches(
-            shape,
-            placement,
-            MachineRegister::Aarch64X(0)
-        ));
-        assert_corrupted_receiver_rejected(
-            shape,
-            placement,
-            MachineRegister::X86Rdi,
-            MachineRegister::X86Rsi,
-        );
-    }
+/// One hosted target's exact contract row, as the plan crate declares it.
+/// The tests read these constants independently of the production row, so a
+/// misplaced slot, package, digest, identity, or boundary plan on either side
+/// fails the other.
+struct HostedContractCase {
+    profile: target::TargetProfile,
+    package: target::ProgramEntryPhysicalContractPackage,
+    requirement_identity: &'static str,
+    accepted_spelling: &'static str,
+    package_source_digest:
+        fn() -> program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+    parameter_type_identities: &'static [&'static str],
+    result_type_identity: &'static str,
+    boundary_entry_plan: fn() -> calling_conventions::ValidatedBoundaryEntryPlan,
+    /// The case whose plan is presented on this target as a foreign contract
+    /// substitution, not an alias.
+    substitution: Option<usize>,
 }
 
-fn physical_contract(
+fn hosted_contract_cases() -> [HostedContractCase; 4] {
+    use program_entry_plan as plan;
+    [
+        HostedContractCase {
+            profile: target::TargetProfile::MacosArm64,
+            package: target::ProgramEntryPhysicalContractPackage::MacosArm64,
+            requirement_identity: plan::MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
+            accepted_spelling: "accepted-package::MacosArm64PhysicalEntry::enter",
+            package_source_digest: plan::exact_macos_arm64_physical_contract_package_source_digest,
+            parameter_type_identities: &[
+                plan::MACOS_ARM64_I32_TYPE_IDENTITY,
+                plan::MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+                plan::MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+                plan::MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+            ],
+            result_type_identity: plan::MACOS_ARM64_I32_TYPE_IDENTITY,
+            boundary_entry_plan: plan::exact_macos_arm64_physical_boundary_entry_plan,
+            substitution: None,
+        },
+        HostedContractCase {
+            profile: target::TargetProfile::LinuxX64,
+            package: target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
+            requirement_identity: plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+            accepted_spelling: "accepted-package::LinuxX86_64PhysicalEntry::enter",
+            package_source_digest: plan::exact_linux_x86_64_physical_contract_package_source_digest,
+            parameter_type_identities: &[plan::LINUX_X86_64_ADDRESS_TYPE_IDENTITY],
+            result_type_identity: plan::LINUX_X86_64_I32_TYPE_IDENTITY,
+            boundary_entry_plan: plan::exact_linux_x86_64_physical_boundary_entry_plan,
+            substitution: Some(0),
+        },
+        HostedContractCase {
+            profile: target::TargetProfile::LinuxArm64,
+            package: target::ProgramEntryPhysicalContractPackage::LinuxArm64,
+            requirement_identity: plan::LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
+            accepted_spelling: "accepted-package::LinuxArm64PhysicalEntry::enter",
+            package_source_digest: plan::exact_linux_arm64_physical_contract_package_source_digest,
+            parameter_type_identities: &[plan::LINUX_ARM64_U64_TYPE_IDENTITY],
+            result_type_identity: plan::LINUX_ARM64_I32_TYPE_IDENTITY,
+            boundary_entry_plan: plan::exact_linux_arm64_physical_boundary_entry_plan,
+            substitution: Some(1),
+        },
+        HostedContractCase {
+            profile: target::TargetProfile::WindowsX64,
+            package: target::ProgramEntryPhysicalContractPackage::WindowsX64,
+            requirement_identity: plan::WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
+            accepted_spelling: "accepted-package::WindowsProcessEntry::enter",
+            package_source_digest:
+                plan::exact_windows_x86_64_physical_contract_package_source_digest,
+            parameter_type_identities: &[],
+            result_type_identity: plan::WINDOWS_X86_64_U32_TYPE_IDENTITY,
+            boundary_entry_plan: plan::exact_windows_x86_64_physical_boundary_entry_plan,
+            substitution: Some(1),
+        },
+    ]
+}
+
+fn contract_plan(
+    case: &HostedContractCase,
     requirement: &str,
     source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
 ) -> ProgramEntryPhysicalContractPlan {
-    let plan = program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan();
+    let boundary = (case.boundary_entry_plan)();
     ProgramEntryPhysicalContractPlan::new(
-        target::TargetProfile::MacosArm64.program_entry_slot(),
+        case.profile.program_entry_slot(),
         requirement.into(),
-        target::ProgramEntryPhysicalContractPackage::MacosArm64,
+        case.package,
         source,
         0,
-        [
-            program_entry_plan::MACOS_ARM64_I32_TYPE_IDENTITY,
-            program_entry_plan::MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-            program_entry_plan::MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-            program_entry_plan::MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect(),
-        program_entry_plan::MACOS_ARM64_I32_TYPE_IDENTITY.into(),
-        plan.contract_report_fingerprint(),
-        plan.plan().clone(),
+        case.parameter_type_identities
+            .iter()
+            .map(|identity| (*identity).to_owned())
+            .collect(),
+        case.result_type_identity.into(),
+        boundary.contract_report_fingerprint(),
+        boundary.plan().clone(),
     )
     .expect("well-shaped physical plan")
 }
 
+fn contract_case(profile: target::TargetProfile) -> HostedContractCase {
+    hosted_contract_cases()
+        .into_iter()
+        .find(|case| case.profile == profile)
+        .expect("hosted contract case")
+}
+
+/// The canonical plan of one hosted target's row, for callers that need the
+/// exact contract before any requirement spelling is under test.
+fn canonical_contract_plan(profile: target::TargetProfile) -> ProgramEntryPhysicalContractPlan {
+    let case = contract_case(profile);
+    contract_plan(
+        &case,
+        case.requirement_identity,
+        (case.package_source_digest)(),
+    )
+}
+
 #[test]
 fn hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
-    let source = program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest();
-    for requirement in [
-        program_entry_plan::MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::MacosArm64PhysicalEntry::enter",
-    ] {
-        assert!(physical_contract_matches(
-            &physical_contract(requirement, source),
-            target::NativeTarget::macos_arm64()
+    let cases = hosted_contract_cases();
+    for (index, case) in cases.iter().enumerate() {
+        let source = (case.package_source_digest)();
+        for requirement in [case.requirement_identity, case.accepted_spelling] {
+            let plan = contract_plan(case, requirement, source);
+            assert!(physical_contract_matches(
+                &plan,
+                case.profile.native_target()
+            ));
+            // The exact contract must not satisfy a different bridge target.
+            for foreign in &cases {
+                if foreign.profile != case.profile {
+                    assert!(!physical_contract_matches(
+                        &plan,
+                        foreign.profile.native_target()
+                    ));
+                }
+            }
+        }
+        let changed_source =
+            program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+                case.package,
+                b"different target implementation",
+            );
+        assert!(!physical_contract_matches(
+            &contract_plan(case, case.accepted_spelling, changed_source),
+            case.profile.native_target()
         ));
+        // A foreign contract presented on this target is a contract
+        // substitution, not an alias.
+        if let Some(foreign_index) = case.substitution {
+            let foreign = &cases[foreign_index];
+            let plan = contract_plan(
+                foreign,
+                foreign.requirement_identity,
+                (foreign.package_source_digest)(),
+            );
+            assert!(
+                !physical_contract_matches(&plan, case.profile.native_target()),
+                "case {index} accepted a foreign contract substitution"
+            );
+        }
     }
-    let changed_source =
-        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-            target::ProgramEntryPhysicalContractPackage::MacosArm64,
-            b"different target implementation",
-        );
-    assert!(!physical_contract_matches(
-        &physical_contract(
-            "accepted-package::MacosArm64PhysicalEntry::enter",
-            changed_source
-        ),
-        target::NativeTarget::macos_arm64()
-    ));
 }
-
-fn linux_physical_contract(
-    requirement: &str,
-    source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
-) -> ProgramEntryPhysicalContractPlan {
-    let plan = program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan();
-    ProgramEntryPhysicalContractPlan::new(
-        target::TargetProfile::LinuxX64.program_entry_slot(),
-        requirement.into(),
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
-        source,
-        0,
-        [program_entry_plan::LINUX_X86_64_ADDRESS_TYPE_IDENTITY]
-            .into_iter()
-            .map(str::to_owned)
-            .collect(),
-        program_entry_plan::LINUX_X86_64_I32_TYPE_IDENTITY.into(),
-        plan.contract_report_fingerprint(),
-        plan.plan().clone(),
-    )
-    .expect("well-shaped Linux physical plan")
-}
-
-#[test]
-fn linux_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
-    let source = program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest();
-    for requirement in [
-        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::LinuxX86_64PhysicalEntry::enter",
-    ] {
-        assert!(physical_contract_matches(
-            &linux_physical_contract(requirement, source),
-            target::NativeTarget::linux_x64()
-        ));
-        // The exact Linux contract must not satisfy a different bridge target.
-        assert!(!physical_contract_matches(
-            &linux_physical_contract(requirement, source),
-            target::NativeTarget::macos_arm64()
-        ));
-    }
-    let changed_source =
-        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-            target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
-            b"different target implementation",
-        );
-    assert!(!physical_contract_matches(
-        &linux_physical_contract(
-            "accepted-package::LinuxX86_64PhysicalEntry::enter",
-            changed_source
-        ),
-        target::NativeTarget::linux_x64()
-    ));
-    // A Darwin contract presented on the Linux target is a contract
-    // substitution, not an alias.
-    let darwin = physical_contract(
-        program_entry_plan::MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-        program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest(),
-    );
-    assert!(!physical_contract_matches(
-        &darwin,
-        target::NativeTarget::linux_x64()
-    ));
-}
-
-fn linux_arm64_physical_contract(
-    requirement: &str,
-    source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
-) -> ProgramEntryPhysicalContractPlan {
-    let plan = program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan();
-    ProgramEntryPhysicalContractPlan::new(
-        target::TargetProfile::LinuxArm64.program_entry_slot(),
-        requirement.into(),
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64,
-        source,
-        0,
-        [program_entry_plan::LINUX_ARM64_U64_TYPE_IDENTITY]
-            .into_iter()
-            .map(str::to_owned)
-            .collect(),
-        program_entry_plan::LINUX_ARM64_I32_TYPE_IDENTITY.into(),
-        plan.contract_report_fingerprint(),
-        plan.plan().clone(),
-    )
-    .expect("well-shaped Linux ARM64 physical plan")
-}
-
-#[test]
-fn linux_arm64_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
-    let source = program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest();
-    for requirement in [
-        program_entry_plan::LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::LinuxArm64PhysicalEntry::enter",
-    ] {
-        assert!(physical_contract_matches(
-            &linux_arm64_physical_contract(requirement, source),
-            target::NativeTarget::linux_arm64()
-        ));
-        // The exact Linux ARM64 contract must not satisfy a different bridge.
-        assert!(!physical_contract_matches(
-            &linux_arm64_physical_contract(requirement, source),
-            target::NativeTarget::linux_x64()
-        ));
-        assert!(!physical_contract_matches(
-            &linux_arm64_physical_contract(requirement, source),
-            target::NativeTarget::macos_arm64()
-        ));
-    }
-    let changed_source =
-        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-            target::ProgramEntryPhysicalContractPackage::LinuxArm64,
-            b"different target implementation",
-        );
-    assert!(!physical_contract_matches(
-        &linux_arm64_physical_contract(
-            "accepted-package::LinuxArm64PhysicalEntry::enter",
-            changed_source
-        ),
-        target::NativeTarget::linux_arm64()
-    ));
-    // An x86-64 contract presented on the ARM64 target is a contract
-    // substitution, not an alias.
-    let linux_x64 = linux_physical_contract(
-        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
-    );
-    assert!(!physical_contract_matches(
-        &linux_x64,
-        target::NativeTarget::linux_arm64()
-    ));
-}
-
-fn windows_physical_contract(
-    requirement: &str,
-    source: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
-) -> ProgramEntryPhysicalContractPlan {
-    let plan = program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan();
-    ProgramEntryPhysicalContractPlan::new(
-        target::TargetProfile::WindowsX64.program_entry_slot(),
-        requirement.into(),
-        target::ProgramEntryPhysicalContractPackage::WindowsX64,
-        source,
-        0,
-        Vec::new(),
-        program_entry_plan::WINDOWS_X86_64_U32_TYPE_IDENTITY.into(),
-        plan.contract_report_fingerprint(),
-        plan.plan().clone(),
-    )
-    .expect("well-shaped Windows physical plan")
-}
-
-#[test]
-fn windows_hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements() {
-    let source = program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest();
-    for requirement in [
-        program_entry_plan::WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::WindowsProcessEntry::enter",
-    ] {
-        assert!(physical_contract_matches(
-            &windows_physical_contract(requirement, source),
-            target::NativeTarget::windows_x64()
-        ));
-        // The exact Windows contract must not satisfy a different bridge.
-        assert!(!physical_contract_matches(
-            &windows_physical_contract(requirement, source),
-            target::NativeTarget::linux_x64()
-        ));
-        assert!(!physical_contract_matches(
-            &windows_physical_contract(requirement, source),
-            target::NativeTarget::macos_arm64()
-        ));
-    }
-    let changed_source =
-        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-            target::ProgramEntryPhysicalContractPackage::WindowsX64,
-            b"different target implementation",
-        );
-    assert!(!physical_contract_matches(
-        &windows_physical_contract(
-            "accepted-package::WindowsProcessEntry::enter",
-            changed_source
-        ),
-        target::NativeTarget::windows_x64()
-    ));
-    // A Linux contract presented on the Windows target is a contract
-    // substitution, not an alias.
-    let linux = linux_physical_contract(
-        program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
-    );
-    assert!(!physical_contract_matches(
-        &linux,
-        target::NativeTarget::windows_x64()
-    ));
-}
-
 fn hosted_receiver_binding(
     physical: ProgramEntryPhysicalContractPlan,
     ceiling_bytes: u64,
@@ -1252,14 +1111,9 @@ fn hosted_receiver_binding(
 
 #[test]
 fn hosted_receiver_partitions_reserve_disjoint_aligned_residences() {
-    let linux_source =
-        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest();
     let linux = |ceiling_bytes: u64, receiver_byte_count: u64, receiver_alignment: u64| {
         hosted_receiver_binding(
-            linux_physical_contract(
-                program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-                linux_source,
-            ),
+            canonical_contract_plan(target::TargetProfile::LinuxX64),
             ceiling_bytes,
             receiver_byte_count,
             receiver_alignment,
@@ -1295,10 +1149,7 @@ fn hosted_receiver_partitions_reserve_disjoint_aligned_residences() {
     // The Windows caller owes shadow space plus the pushed return address on
     // top of the checked demand; the private stack partition carries it.
     let windows = hosted_receiver_binding(
-        windows_physical_contract(
-            program_entry_plan::WINDOWS_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-            program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest(),
-        ),
+        canonical_contract_plan(target::TargetProfile::WindowsX64),
         0,
         8,
         8,

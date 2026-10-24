@@ -958,131 +958,128 @@ pub(crate) fn validate_binding(
     Ok(())
 }
 
+/// One hosted target's exact toolchain-owned physical contract: the profile
+/// whose entry slot owns the closed contract package, the package source
+/// digest, the visible parameter identity order, the result identity, and the
+/// validated boundary entry plan. `physical_contract_matches` reads this row
+/// once, so a hosted target is one row rather than a named matcher family
+/// plus a dispatch ladder re-deriving the same per-target association.
+struct PhysicalContractRow {
+    profile: target::TargetProfile,
+    package_source_digest:
+        fn() -> program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
+    parameter_type_identities: &'static [&'static str],
+    result_type_identity: &'static str,
+    boundary_entry_plan: fn() -> calling_conventions::ValidatedBoundaryEntryPlan,
+}
+
+/// The row for a hosted-receiver target. `None` names a target this bridge
+/// does not answer, so no target is ever matched against another's contract.
+fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContractRow> {
+    use program_entry_plan::{
+        LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY,
+        LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
+        MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
+        MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY,
+        WINDOWS_X86_64_U32_TYPE_IDENTITY,
+    };
+    Some(if target == target::NativeTarget::macos_arm64() {
+        PhysicalContractRow {
+            profile: target::TargetProfile::MacosArm64,
+            package_source_digest:
+                program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest,
+            parameter_type_identities: &[
+                MACOS_ARM64_I32_TYPE_IDENTITY,
+                MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+                MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+                MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
+            ],
+            result_type_identity: MACOS_ARM64_I32_TYPE_IDENTITY,
+            boundary_entry_plan: program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan,
+        }
+    } else if target == target::NativeTarget::macos_x64() {
+        PhysicalContractRow {
+            profile: target::TargetProfile::MacosX64,
+            package_source_digest:
+                program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest,
+            parameter_type_identities: &[
+                MACOS_X86_64_I32_TYPE_IDENTITY,
+                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+                MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
+            ],
+            result_type_identity: MACOS_X86_64_I32_TYPE_IDENTITY,
+            boundary_entry_plan:
+                program_entry_plan::exact_macos_x86_64_physical_boundary_entry_plan,
+        }
+    } else if target == target::NativeTarget::linux_x64() {
+        PhysicalContractRow {
+            profile: target::TargetProfile::LinuxX64,
+            package_source_digest:
+                program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest,
+            parameter_type_identities: &[LINUX_X86_64_ADDRESS_TYPE_IDENTITY],
+            result_type_identity: LINUX_X86_64_I32_TYPE_IDENTITY,
+            boundary_entry_plan:
+                program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan,
+        }
+    } else if target == target::NativeTarget::linux_arm64() {
+        PhysicalContractRow {
+            profile: target::TargetProfile::LinuxArm64,
+            package_source_digest:
+                program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest,
+            parameter_type_identities: &[LINUX_ARM64_U64_TYPE_IDENTITY],
+            result_type_identity: LINUX_ARM64_I32_TYPE_IDENTITY,
+            boundary_entry_plan: program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan,
+        }
+    } else if target == target::NativeTarget::windows_x64() {
+        PhysicalContractRow {
+            profile: target::TargetProfile::WindowsX64,
+            package_source_digest:
+                program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest,
+            parameter_type_identities: &[],
+            result_type_identity: WINDOWS_X86_64_U32_TYPE_IDENTITY,
+            boundary_entry_plan:
+                program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan,
+        }
+    } else {
+        return None;
+    })
+}
+
 fn physical_contract_matches(
     physical: &ProgramEntryPhysicalContractPlan,
     target: target::NativeTarget,
 ) -> bool {
-    if target == target::NativeTarget::macos_arm64() {
-        return macos_physical_contract_matches(physical);
-    }
-    if target == target::NativeTarget::macos_x64() {
-        return macos_x86_64_physical_contract_matches(physical);
-    }
-    if target == target::NativeTarget::linux_x64() {
-        return linux_x86_64_physical_contract_matches(physical);
-    }
-    if target == target::NativeTarget::linux_arm64() {
-        return linux_arm64_physical_contract_matches(physical);
-    }
-    if target == target::NativeTarget::windows_x64() {
-        return windows_x86_64_physical_contract_matches(physical);
-    }
-    false
-}
-
-fn physical_contract_shape_matches(
-    physical: &ProgramEntryPhysicalContractPlan,
-    slot: target::ProgramEntrySlotDeclaration,
-    package: target::ProgramEntryPhysicalContractPackage,
-    package_source_digest: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
-    parameter_identities: &[&str],
-    result_identity: &str,
-    expected: &calling_conventions::ValidatedBoundaryEntryPlan,
-) -> bool {
+    let Some(row) = physical_contract_row(target) else {
+        return false;
+    };
+    // The entry slot owns the closed contract package — the profile declares
+    // both — so the expected package is read from the slot rather than spelled
+    // a second time beside it. Native settlement separately rejoins the
+    // accepted package requirement identity: a package-qualified requirement is
+    // not the standalone spelling; it must still carry these exact
+    // target-source bytes, role, and ABI/state.
+    let slot = row.profile.program_entry_slot();
+    let Some(package) = slot.physical_contract_package else {
+        return false;
+    };
+    let expected = (row.boundary_entry_plan)();
     let identities = physical.identities();
-    // Native settlement separately rejoins the accepted package requirement
-    // identity. A package-qualified requirement is not the standalone spelling;
-    // it must still carry these exact target-source bytes, role, and ABI/state.
     physical.target_slot() == slot
         && physical.target_package() == package
-        && physical.target_package_source_digest() == package_source_digest
+        && physical.target_package_source_digest() == (row.package_source_digest)()
         && !physical.requirement_identity().is_absent()
-        && physical.parameter_type_identities().len() == parameter_identities.len()
+        && physical.parameter_type_identities().len() == row.parameter_type_identities.len()
         && physical
             .parameter_type_identities()
             .iter()
-            .zip(parameter_identities.iter())
+            .zip(row.parameter_type_identities.iter())
             .all(|(left, right)| Some(*left) == identities.index_of(right))
-        && Some(physical.result_type_identity()) == identities.index_of(result_identity)
+        && Some(physical.result_type_identity()) == identities.index_of(row.result_type_identity)
         && physical.boundary_entry_plan() == expected.plan()
         && physical.calling_plan_report_fingerprint() == expected.contract_report_fingerprint()
         && physical.guaranteed_entry_stack().is_none()
         && physical.guaranteed_entry_stack_application().is_none()
-}
-
-fn macos_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
-    use program_entry_plan::{MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY};
-    physical_contract_shape_matches(
-        physical,
-        target::TargetProfile::MacosArm64.program_entry_slot(),
-        target::ProgramEntryPhysicalContractPackage::MacosArm64,
-        program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest(),
-        &[
-            MACOS_ARM64_I32_TYPE_IDENTITY,
-            MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-            MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-            MACOS_ARM64_ADDRESS_TYPE_IDENTITY,
-        ],
-        MACOS_ARM64_I32_TYPE_IDENTITY,
-        &program_entry_plan::exact_macos_arm64_physical_boundary_entry_plan(),
-    )
-}
-
-fn macos_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
-    use program_entry_plan::{MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY};
-    physical_contract_shape_matches(
-        physical,
-        target::TargetProfile::MacosX64.program_entry_slot(),
-        target::ProgramEntryPhysicalContractPackage::MacosX64,
-        program_entry_plan::exact_macos_x86_64_physical_contract_package_source_digest(),
-        &[
-            MACOS_X86_64_I32_TYPE_IDENTITY,
-            MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-            MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-            MACOS_X86_64_ADDRESS_TYPE_IDENTITY,
-        ],
-        MACOS_X86_64_I32_TYPE_IDENTITY,
-        &program_entry_plan::exact_macos_x86_64_physical_boundary_entry_plan(),
-    )
-}
-
-fn linux_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
-    use program_entry_plan::{LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY};
-    physical_contract_shape_matches(
-        physical,
-        target::TargetProfile::LinuxX64.program_entry_slot(),
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64,
-        program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest(),
-        &[LINUX_X86_64_ADDRESS_TYPE_IDENTITY],
-        LINUX_X86_64_I32_TYPE_IDENTITY,
-        &program_entry_plan::exact_linux_x86_64_physical_boundary_entry_plan(),
-    )
-}
-
-fn linux_arm64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
-    use program_entry_plan::{LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY};
-    physical_contract_shape_matches(
-        physical,
-        target::TargetProfile::LinuxArm64.program_entry_slot(),
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64,
-        program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest(),
-        &[LINUX_ARM64_U64_TYPE_IDENTITY],
-        LINUX_ARM64_I32_TYPE_IDENTITY,
-        &program_entry_plan::exact_linux_arm64_physical_boundary_entry_plan(),
-    )
-}
-
-fn windows_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContractPlan) -> bool {
-    use program_entry_plan::WINDOWS_X86_64_U32_TYPE_IDENTITY;
-    physical_contract_shape_matches(
-        physical,
-        target::TargetProfile::WindowsX64.program_entry_slot(),
-        target::ProgramEntryPhysicalContractPackage::WindowsX64,
-        program_entry_plan::exact_windows_x86_64_physical_contract_package_source_digest(),
-        &[],
-        WINDOWS_X86_64_U32_TYPE_IDENTITY,
-        &program_entry_plan::exact_windows_x86_64_physical_boundary_entry_plan(),
-    )
 }
 
 /// Layout-side zero checking cannot establish authored default domains or
@@ -1099,30 +1096,22 @@ fn receiver_layout(
     use calling_conventions::CallingPolicy;
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     let invalid = || invalid(artifact.target);
-    let (expected_policy, receiver_register) = match artifact.target {
-        target_
-            if target_ == target::NativeTarget::macos_arm64()
-                || target_ == target::NativeTarget::linux_arm64() =>
-        {
-            (
-                CallingPolicy::Aapcs64,
-                calling_conventions::MachineRegister::Aarch64X(0),
-            )
+    // The layout policy is not a second per-target table: `calling-conventions`
+    // already declares every supported (architecture, object-format) pair's
+    // callable policy, and the hosted-receiver row owns which targets this
+    // bridge answers. Only the arrival register of the receiver argument stays
+    // here, because it is this bridge's own placement choice.
+    if receiver_form(artifact.target).is_none() {
+        return Err(invalid());
+    }
+    let expected_policy = CallingPolicy::native_for_target(artifact.target);
+    let receiver_register = match expected_policy {
+        CallingPolicy::Aapcs64 => calling_conventions::MachineRegister::Aarch64X(0),
+        CallingPolicy::SystemVAMD64 => calling_conventions::MachineRegister::X86Rdi,
+        CallingPolicy::MicrosoftX64 => calling_conventions::MachineRegister::X86Rcx,
+        CallingPolicy::LinuxSyscallX86_64 | CallingPolicy::LinuxSyscallAarch64 => {
+            return Err(invalid());
         }
-        target_
-            if target_ == target::NativeTarget::linux_x64()
-                || target_ == target::NativeTarget::macos_x64() =>
-        {
-            (
-                CallingPolicy::SystemVAMD64,
-                calling_conventions::MachineRegister::X86Rdi,
-            )
-        }
-        target_ if target_ == target::NativeTarget::windows_x64() => (
-            CallingPolicy::MicrosoftX64,
-            calling_conventions::MachineRegister::X86Rcx,
-        ),
-        _ => return Err(invalid()),
     };
     let (function, target) = crate::function_fragments::replay::entry_source(artifact)?;
     let replay = artifact.fragment_replay.as_ref().ok_or_else(invalid)?;
