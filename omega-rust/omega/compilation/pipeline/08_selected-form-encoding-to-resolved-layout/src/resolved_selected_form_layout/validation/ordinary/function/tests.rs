@@ -6,8 +6,8 @@
 
 use crate::resolved_selected_form_layout::order_suite::{branch, instruction, successor};
 use isa_aarch64::{
-    aarch64_physical_register_model, encode_aarch64_selected_jump_form,
-    encode_aarch64_selected_nonzero_branch_form,
+    aarch64_physical_register_model, encode_aarch64_selected_conditional_branch_form,
+    encode_aarch64_selected_jump_form,
 };
 use machine_code::{
     DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
@@ -96,7 +96,14 @@ fn branch_alternative() -> MachineAlternative {
         family: MachineAlternativeFamily::ConditionalBranchNonZero,
         variant: 0,
     };
-    let encoded = encode_aarch64_selected_nonzero_branch_form(&physical, key, 8).unwrap();
+    let encoded = encode_aarch64_selected_conditional_branch_form(
+        &physical,
+        key,
+        MachineAlternativeFamily::ConditionalBranchNonZero,
+        isa_aarch64::Aarch64ConditionalBranchForm::CanonicalWordV1,
+        8,
+    )
+    .unwrap();
     MachineAlternative {
         key,
         applicability: MachineAlternativeApplicability::Always,
