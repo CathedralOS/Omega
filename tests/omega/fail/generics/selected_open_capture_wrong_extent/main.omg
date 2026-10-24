@@ -1,0 +1,7 @@
+trait Echo<Value [copy]> { machine forward(value: Value) -> Value; }
+Selected<Element [copy], const Count: u64, Role> satisfies Echo<[Element; Count]> {
+    machine forward(value: [Element; Count]) -> [Element; Count] { value }
+}
+machine carry<Role>(value: [u64; 3]) -> [u64; 2] {
+    Selected<u64, 2, Role>::forward(value)
+}

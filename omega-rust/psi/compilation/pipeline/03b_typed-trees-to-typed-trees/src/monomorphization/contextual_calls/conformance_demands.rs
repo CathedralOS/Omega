@@ -1,4 +1,6 @@
-//! Prepare all map-owned callable demands independently of method execution.
+//! Retain every map's applied telescope independently of method execution,
+//! including operands needed to check a still-open captured body. Callable
+//! demands consume that same telescope rather than creating another one.
 //! A callback's complete provider tuple and a map's complete capture tuple have
 //! separate retained applications. Preparation grants no callable admission.
 use super::super::{Diagnostic, TypedTrees};
@@ -20,12 +22,6 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             .cloned()
             .ok_or_else(|| failure("captured callable demand lost its map declaration"))?;
         let parameters = program.conformance_type_parameters(&declaration).to_vec();
-        if !parameters
-            .iter()
-            .any(|p| matches!(p.kind, TypeParameterKind::Machine { .. }))
-        {
-            continue;
-        }
         if parameters.len() != application.arguments.len()
             || declaration.lifetime_parameters.len() != application.lifetime_arguments.len()
         {

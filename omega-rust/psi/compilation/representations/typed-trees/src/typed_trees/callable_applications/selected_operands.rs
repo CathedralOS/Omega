@@ -313,16 +313,11 @@ impl CallableApplication {
                 .type_reference_table
                 .insert(types::TypeReferenceNode::ConstExpression(expression)));
         }
-        if let Some(declaration) = program.const_declaration_by_symbol(selected.symbol)
-            && declaration.evaluated_value.is_some()
-            && declaration.materialized_initializer.is_valid()
-        {
-            let initializer = declaration.materialized_initializer;
-            let value = program.expression_table.insert_copy(initializer);
-            return Ok(program
-                .type_reference_table
-                .insert(types::TypeReferenceNode::ConstExpression(value)));
-        }
+        // A binding retains the selected constant's canonical value identity.
+        // Materializing its initializer here loses that identity for aggregate
+        // values and makes the binding impossible to rejoin to its source.
+        // `selected_value_expression` owns materialization when an executable
+        // value is actually requested, for both named and canonical constants.
         if let Some(spelling) =
             crate::typed_trees::static_const_argument_spelling(program, selected)
             && let Some(value) =

@@ -89,6 +89,52 @@ pub fn selected_call_arguments<'program>(
     let [application] = applications.as_slice() else {
         return Err("selected call has no unique supplying application");
     };
+    let conformance = program
+        .conformance_by_symbol(application.declaration)
+        .ok_or("selected call lost its supplying declaration")?;
+    let capture_parameters = program.conformance_type_parameters(conformance);
+    if capture_parameters.len() != application.arguments.len() {
+        return Err("selected call lost its supplying argument telescope");
+    }
+    if !application.callable_application.is_valid() {
+        return Err("selected call lost its retained supplying telescope");
+    }
+    let capture = program
+        .expression_table
+        .static_machine_application(application.callable_application);
+    if capture.binding_declaration != application.declaration {
+        return Err("selected call supplying telescope belongs to another declaration");
+    }
+    let bindings = program
+        .expression_table
+        .static_machine_application_bindings(application.callable_application);
+    if bindings.len() != capture_parameters.len() {
+        return Err("selected call lost its complete supplying bindings");
+    }
+    let mut substitutions = Vec::new();
+    for (parameter, binding) in capture_parameters.iter().zip(bindings) {
+        if parameter.symbol != binding.parameter {
+            return Err("selected call changed its supplying binder order");
+        }
+        match (&parameter.kind, &binding.value) {
+            (
+                typed_trees::data::TypeParameterKind::Type,
+                StaticMachineBindingValue::Type(reference),
+            )
+            | (
+                typed_trees::data::TypeParameterKind::Const { .. }
+                | typed_trees::data::TypeParameterKind::Value { .. },
+                StaticMachineBindingValue::Const(reference),
+            ) => {
+                substitutions.push((parameter.symbol, *reference));
+            }
+            (
+                typed_trees::data::TypeParameterKind::Machine { .. },
+                StaticMachineBindingValue::Machine(_),
+            ) => {}
+            _ => return Err("selected call changed its supplying operand kind"),
+        }
+    }
     let lineage = program
         .realization_entry_lineage(state.symbol, application)
         .ok_or("selected call lost its capture or invocation lineage")?;
@@ -228,10 +274,11 @@ pub fn selected_call_arguments<'program>(
             }
             (logical_parameter, public_type, None)
         };
-        if !crate::declared_carriers_match(
+        if !crate::value_custody::places::declared_carriers_match_with_substitutions(
             program,
             parameter.type_reference,
             logical_type_reference,
+            &substitutions,
         ) {
             return Err("selected executable carrier differs from its exact public application");
         }

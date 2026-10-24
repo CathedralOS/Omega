@@ -13247,6 +13247,12 @@ fail/generics/runtime_index_predicate_global_shadow rejected 6360ms expected @33
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/selected_member_value_bound rejected 558ms expected @870e735dd37d
 	cannot prove requires contract for call selected$specialized$4e4b568dcb9c374d$0 from main: index <= 10 (needs fact `Index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/selected_open_capture_wrong_access rejected 200ms expected @9be76689b257+wt
+	argument `value` for state `update` is declared `&mut` (`&mut Cell`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/generics/selected_open_capture_wrong_extent rejected 202ms expected @9be76689b257+wt
+	argument `value` for state `forward` expects `[u64; 2]`, got `named value`
+fail/generics/selected_open_capture_wrong_nominal rejected 204ms expected @9be76689b257+wt
+	argument `value` for state `Selected::forward::forward` expects the `First` data type but got `Second` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1353ms expected @a9ae30e1c334+wt
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 259ms expected @6ef08ceefee0+wt
 fail/generics/static_callable_excess_local_type_argument rejected 905ms expected @a9ae30e1c334+wt
@@ -21665,6 +21671,7 @@ pass/generics/runtime_transition_result_inference_exit checked 725ms check-targe
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/selected_member_distinct_binder_names_exit checked 780ms check-target:macos_arm64 @870e735dd37d
 pass/generics/selected_member_shared_runtime_subject_exit checked 781ms check-target:macos_arm64 @870e735dd37d
+pass/generics/selected_open_capture_carriers_exit checked 876ms check-target:macos_arm64 @9be76689b257+wt
 pass/generics/seq_map_filter checked 10288ms @fcc053dc7014+wt
 pass/generics/static_callable_local_type_argument_exit checked 11056ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2884ms @fcc053dc7014+wt

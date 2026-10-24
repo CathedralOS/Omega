@@ -46,6 +46,20 @@ pub fn closed_requirement_dispatch_is_valid(
         .expression_table
         .static_machine_application(supplying_application)
         .lexical_owner;
+    // The public call may be checked before an open map can acquire an
+    // executable clone. Its retained telescope still owes the same exact
+    // supplying-application join as a materialized capture.
+    if application.callable_application.is_valid()
+        && conformance_binding_is_exact(
+            program,
+            supplying_application,
+            application.callable_application,
+            application,
+        )
+        .is_err()
+    {
+        return reject("supplying-map-telescope");
+    }
     let mut visited = Vec::new();
     loop {
         if visited.contains(&executable) {
