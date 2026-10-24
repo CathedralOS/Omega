@@ -14,10 +14,10 @@ use super::local_aliases::rebase_local_alias_path;
 use super::place_paths::{FramePathPrecision, split_place_root};
 use super::stored_origins::canonical_write_origins;
 use super::transition_equations::CycleFrameEquation;
-use super::transition_topology::strongly_connected_components;
 use super::transparent_results::transparent_place_expression_origins;
 use super::type_capabilities::parameter_may_carry_write;
 use crate::declarations::symbols::TopLevelSymbols;
+use crate::machine_calls::graph_components::strongly_connected_components;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 

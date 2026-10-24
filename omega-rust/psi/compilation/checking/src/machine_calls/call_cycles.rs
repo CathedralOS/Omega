@@ -6,6 +6,7 @@
 //! form non-tail SCCs only when every member is structurally measured and every
 //! edge passes a strict case-payload subterm to the callee's ranked parameter.
 
+use super::graph_components::strongly_connected_components;
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::places::exact_data_member_field;
 use diagnostics::Diagnostic;
@@ -740,66 +741,6 @@ fn proof_call_site_sort_key(
             0,
         ),
     }
-}
-
-fn strongly_connected_components(adjacency: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    fn finish_order(
-        node: usize,
-        adjacency: &[Vec<usize>],
-        visited: &mut [bool],
-        order: &mut Vec<usize>,
-    ) {
-        if std::mem::replace(&mut visited[node], true) {
-            return;
-        }
-        for next in &adjacency[node] {
-            finish_order(*next, adjacency, visited, order);
-        }
-        order.push(node);
-    }
-
-    fn collect_component(
-        node: usize,
-        reverse: &[Vec<usize>],
-        visited: &mut [bool],
-        component: &mut Vec<usize>,
-    ) {
-        if std::mem::replace(&mut visited[node], true) {
-            return;
-        }
-        component.push(node);
-        for next in &reverse[node] {
-            collect_component(*next, reverse, visited, component);
-        }
-    }
-
-    let mut order = Vec::with_capacity(adjacency.len());
-    let mut visited = vec![false; adjacency.len()];
-    for node in 0..adjacency.len() {
-        finish_order(node, adjacency, &mut visited, &mut order);
-    }
-    let mut reverse = vec![Vec::new(); adjacency.len()];
-    for (source, targets) in adjacency.iter().enumerate() {
-        for target in targets {
-            reverse[*target].push(source);
-        }
-    }
-    for targets in &mut reverse {
-        targets.sort_unstable();
-        targets.dedup();
-    }
-    visited.fill(false);
-    let mut components = Vec::new();
-    while let Some(node) = order.pop() {
-        if visited[node] {
-            continue;
-        }
-        let mut component = Vec::new();
-        collect_component(node, &reverse, &mut visited, &mut component);
-        component.sort_unstable();
-        components.push(component);
-    }
-    components
 }
 
 fn collect_proof_call_dependencies(

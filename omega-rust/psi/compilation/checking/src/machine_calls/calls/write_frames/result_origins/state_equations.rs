@@ -6,12 +6,12 @@
 
 use super::super::cycle_substitutions::Substitutions;
 use super::super::path_instantiation::aggregate_arguments::AggregateMove;
-use super::super::transition_topology::strongly_connected_components;
 use super::{
     AggregateOrigins, CollectedStatementPrefix, ExpressionHandle, FrameInference,
     FramePathPrecision, FramePlaceOrigin, Machine, ReferenceLeaf, State, TopLevelSymbols,
     TypeReferenceHandle, instantiate_edge_origins, state_equation,
 };
+use crate::machine_calls::graph_components::component_ids;
 
 pub(super) struct Edge<'program> {
     pub(super) target: &'program State,
@@ -328,7 +328,7 @@ fn finite_substitutions(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<()> {
-    let components = strongly_connected_components(successors);
+    let components = component_ids(successors);
     let mut substitutions = Substitutions::default();
     for (index, equation) in equations.iter().enumerate() {
         for (edge, target) in equation.edges.iter().zip(&successors[index]) {

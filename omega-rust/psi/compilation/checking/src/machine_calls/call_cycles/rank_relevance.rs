@@ -16,6 +16,7 @@
 //! executable rank consumers retain their existing formation and edge proofs.
 
 use crate::machine_calls::calls::{call_target_state, collect_call_sites_in_statement, find_state};
+use crate::machine_calls::graph_components::strongly_connected_components;
 use symbols::SymbolHandle;
 
 /// Transient source topology shared by range arrivals and runtime projection.
@@ -112,7 +113,7 @@ pub fn rank_relevance(
         position += 1;
     }
     let mut relevant = opaque;
-    for component in super::strongly_connected_components(&adjacency) {
+    for component in strongly_connected_components(&adjacency) {
         let cyclic = component.len() > 1
             || component
                 .first()

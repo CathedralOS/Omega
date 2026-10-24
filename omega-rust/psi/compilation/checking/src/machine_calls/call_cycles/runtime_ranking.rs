@@ -17,6 +17,7 @@ use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+use crate::machine_calls::graph_components::strongly_connected_components;
 use crate::proof_contracts::contract_entailment::{
     RankingRangeCallEdge, RankingRangeCallMember, RankingRangeCallProgress, RankingRangeCallSite,
     RankingRangeMeasure, call_member_premise_symbols, mixed_call_endpoints_are_pinned,
@@ -711,7 +712,7 @@ pub(super) fn project_component(
 }
 
 fn weak_edges_are_acyclic(adjacency: &[Vec<usize>]) -> bool {
-    super::strongly_connected_components(adjacency)
+    strongly_connected_components(adjacency)
         .iter()
         .all(|component| component.len() == 1 && !adjacency[component[0]].contains(&component[0]))
 }
@@ -801,7 +802,7 @@ pub(crate) fn internal_arrival_sites<'program>(
     for arrival in &arrivals {
         adjacency[arrival.source].push(arrival.destination);
     }
-    let components = super::strongly_connected_components(&adjacency);
+    let components = strongly_connected_components(&adjacency);
     for arrival in &mut arrivals {
         arrival.recurrent = components.iter().any(|component| {
             component.contains(&arrival.source)

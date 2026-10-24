@@ -4,9 +4,8 @@
 //! component judgment, then retains its decision beside the same witnesses. Progress and executable
 //! rank projection read the retained rows without rebuilding the source proof.
 
-use super::{
-    TopLevelSymbols, build_machine_call_graph, runtime_ranking, strongly_connected_components,
-};
+use super::{TopLevelSymbols, build_machine_call_graph, runtime_ranking};
+use crate::machine_calls::graph_components::strongly_connected_components;
 use checked_trees::{
     CheckedRankArrivalPlan, CheckedRankCoordinate, CheckedRuntimeNaturalState,
     CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
