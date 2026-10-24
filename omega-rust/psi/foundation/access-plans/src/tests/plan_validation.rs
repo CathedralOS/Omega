@@ -247,19 +247,31 @@ fn access_identity_covers_operation_width_and_exposure() {
         exposure: AccessExposure::Exported,
     };
 
-    let identities = [
-        validate(stable_read),
-        validate(stable_write),
-        validate(wider),
-        validate(private),
-        validate(external),
-    ];
+    let commitment = |access: FieldAccess| {
+        validate_placement_plan(PlacementPlan {
+            access: access_plan(&layout, &[("word", access)]),
+            layout: layout.clone(),
+            reach: BoundaryReach::default(),
+        })
+        .expect("interpretation test placement")
+        .content_interpretation()
+        .commitment()
+    };
+    let policies = [stable_read, stable_write, wider, private, external];
+    let identities = policies.clone().map(validate);
+    let interpretations = policies.map(commitment);
     for (index, identity) in identities.iter().enumerate() {
         assert!(
             identities[index + 1..]
                 .iter()
                 .all(|other| other != identity),
-            "every semantic policy change must alter normalized identity"
+            "every semantic policy change must alter the compact compatibility identity"
+        );
+        assert!(
+            interpretations[index + 1..]
+                .iter()
+                .all(|other| *other != interpretations[index]),
+            "every semantic policy change must alter the authoritative interpretation commitment"
         );
     }
 }
