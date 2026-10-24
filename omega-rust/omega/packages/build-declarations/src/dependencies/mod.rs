@@ -11,10 +11,10 @@
 use std::fmt;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 use crate::BuildEntrySyntaxProjection;
+use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 
 /// Which authorized context one direct dependency edge serves.
 ///
@@ -209,11 +209,6 @@ pub fn project_dependency_rows(
     build: &BuildEntrySyntaxProjection,
 ) -> Result<Vec<DependencyRow>, DependencyRowError> {
     let entry = syntax_trees.items.state(build.build_entry());
-    let builder_name = syntax_trees
-        .items
-        .state_parameter(build.builder_parameter())
-        .name
-        .as_str(syntax_trees);
     let mut rows = Vec::new();
     for statement_handle in syntax_trees.items.statements(entry.statements) {
         let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
@@ -223,34 +218,19 @@ pub fn project_dependency_rows(
         else {
             continue;
         };
-        if !call.target_is_static
-            || !matches!(syntax_trees.statements.identifier_path_members(call.receiver), [owner] if owner.as_str(syntax_trees) == "Build")
-        {
-            return Err(DependencyRowError::WrongReceiver);
-        }
-        if !call.machine_arguments.is_empty()
-            || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement != Default::default()
-            || call.discards_result
-        {
-            return Err(DependencyRowError::WrongArguments);
-        }
-        let arguments = syntax_trees.statements.expression_handles(call.arguments);
-        let Some((builder, arguments)) = arguments.split_first() else {
-            return Err(DependencyRowError::WrongArguments);
-        };
-        if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
-            if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == builder_name))
-        {
-            return Err(DependencyRowError::WrongReceiver);
-        }
+        let operands = direct_build_call_operands(syntax_trees, call).map_err(|failure| {
+            match failure {
+                DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
+                DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
+            }
+        })?;
         let (alias, source) = if operation.takes_alias() {
-            let [alias, source] = arguments else {
+            let [alias, source] = operands else {
                 return Err(DependencyRowError::WrongArguments);
             };
             (Some(*alias), *source)
         } else {
-            let [source] = arguments else {
+            let [source] = operands else {
                 return Err(DependencyRowError::WrongArguments);
             };
             (None, *source)

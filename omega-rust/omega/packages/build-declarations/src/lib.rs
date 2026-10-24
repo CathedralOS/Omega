@@ -10,7 +10,8 @@
 //! Start at `build_declaration.rs`, the root: the declaration and its validated
 //! parts. `syntax_projection` reads one from source, `declaration_errors`
 //! names every rejection, and `dependencies` projects the dependency rows
-//! beside the role.
+//! beside the role; `direct_build_call` owns the one direct
+//! `Build::<operation>(builder, ...)` call shape both projections consume.
 //! `prelude` supplies the toolchain-authored Build API as ordinary source,
 //! projecting optimization names from their shared catalog. These static
 //! declarations confer no interpreter authority.
@@ -18,6 +19,7 @@
 mod build_declaration;
 mod declaration_errors;
 mod dependencies;
+mod direct_build_call;
 mod prelude;
 mod syntax_projection;
 #[cfg(test)]
