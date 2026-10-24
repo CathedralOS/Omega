@@ -25,8 +25,8 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     LocalConstructionTrace, Multiplicity, ScalarCalleeClosure, ShapeCollector, SymbolHandle,
-    checked_structural_result_type, consume_value_places, is_record_pattern_marker,
-    retain_selected_sources, scalar_computation_local_at, structural_operands,
+    checked_structural_result_type, is_record_pattern_marker, scalar_computation_local_at,
+    structural_operands,
 };
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::execution::terminal_unit::types::{
@@ -512,8 +512,8 @@ fn plan_inner(
         {
             return None;
         }
-        local_phase("statement sequence: local data: structural value: value calls");
-        let calls = structural_operands::value_calls(
+        local_phase("statement sequence: local data: structural value: operand custody");
+        let calls = super::prepare_value_operands(
             program,
             facts,
             scalar_callees,
@@ -523,30 +523,13 @@ fn plan_inner(
             structural_parameters,
             trivial_affine_locals,
             entry_claims,
+            statement_index,
             structural_results,
-            &*operations,
-            &mut *structural_count,
+            operations,
+            structural_count,
             root.root,
             trace,
             windows,
-        )?;
-        local_phase("statement sequence: local data: structural value: source custody");
-        if facts
-            .flow
-            .ownership
-            .owned_selection_at(state.symbol, statement_index)
-            .is_some()
-        {
-            retain_selected_sources(program, facts, state, statement_index, &mut *operations)?;
-        } else {
-            consume_value_places(facts, root.root, structural_results, &mut *operations)?;
-        }
-        super::consume_value_call_sources(
-            facts,
-            structural_results,
-            &mut *operations,
-            &calls,
-            root.root,
         )?;
         local_phase("statement sequence: local data: structural value: type shape");
         // A stored loan retains its reference shell, unlike argument

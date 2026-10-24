@@ -29,24 +29,7 @@ impl Retirement<'_> {
         // The ordinary contextual owner owns this death and all of its
         // descriptor leaves. Before exit, only a completed exact call cleanup
         // can settle it; a future hook or a dependency edge cannot do so.
-        if self.facts.contextual_cleanup.any_state_disposition(
-            self.machine,
-            self.state.symbol,
-            |_, disposition| {
-                disposition.root == owner
-                    && disposition.path.is_empty()
-                    && disposition.exclusions.is_empty()
-                    && matches!(disposition.source,
-                        language_semantics::PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                        if statement_index == node.statement_index as usize
-                            && (self.at_exit || self.operations[..self.completed_operations].iter().any(|operation| {
-                                matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
-                                } if coordinate.statement_index as usize == statement_index
-                                    && coordinate.call_ordinal as usize == call_ordinal)
-                            })))
-            },
-        ) {
+        if self.call_cleanup_settles_owner(&owner, node.statement_index as usize) {
             return true;
         }
         // A projected receiving region may finish independently. Follow its

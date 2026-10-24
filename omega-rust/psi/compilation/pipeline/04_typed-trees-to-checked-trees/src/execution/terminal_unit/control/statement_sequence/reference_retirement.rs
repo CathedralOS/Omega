@@ -1221,6 +1221,30 @@ impl Retirement<'_> {
         Some(selected)
     }
 
+    /// Whether the contextual owner's death is already settled by a completed
+    /// exact call cleanup: one disposition names the call that owns it and,
+    /// before exit, that call's continuation cleanup has been planned. A
+    /// future hook or a dependency edge cannot settle it. Both the retained
+    /// loan owner and an anonymous backing owner ask this same question.
+    fn call_cleanup_settles_owner(&self, owner: &facts::PlaceRoot, statement_index: usize) -> bool {
+        self.facts
+            .contextual_cleanup
+            .any_state_disposition(self.machine, self.state.symbol, |_, disposition| {
+                disposition.root == *owner
+                    && disposition.path.is_empty()
+                    && disposition.exclusions.is_empty()
+                    && matches!(disposition.source,
+                    language_semantics::PermissionEventSource::Call { statement_index: call_statement, call_ordinal, .. }
+                        if call_statement == statement_index
+                            && (self.at_exit || self.operations[..self.completed_operations].iter().any(|operation| {
+                                matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
+                                } if coordinate.statement_index as usize == call_statement
+                                    && coordinate.call_ordinal as usize == call_ordinal)
+                            })))
+            })
+    }
+
     /// Disposal ends an occurrence, not all future values in the same local.
     /// Replacement's checked boundary captures the old destination after RHS
     /// evaluation. A release instead names the exact retained loan group.
@@ -1237,23 +1261,7 @@ impl Retirement<'_> {
         if self
             .order
             .precedes(loan.statement_index, self.statement_index as usize)
-            && self
-                .facts
-                .contextual_cleanup
-                .any_state_disposition(self.machine, self.state.symbol, |_, disposition| {
-                    disposition.root == loan.storage_owner
-                        && disposition.path.is_empty()
-                        && disposition.exclusions.is_empty()
-                        && matches!(disposition.source,
-                        language_semantics::PermissionEventSource::Call { statement_index, call_ordinal, .. }
-                            if statement_index == loan.statement_index
-                                && (self.at_exit || self.operations[..self.completed_operations].iter().any(|operation| {
-                                    matches!(operation, CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                                        boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), ..
-                                    } if coordinate.statement_index as usize == statement_index
-                                        && coordinate.call_ordinal as usize == call_ordinal)
-                                })))
-                })
+            && self.call_cleanup_settles_owner(&loan.storage_owner, loan.statement_index)
         {
             return true;
         }

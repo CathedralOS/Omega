@@ -21,8 +21,7 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
     ScalarCalleeClosure, ShapeCollector, StatementNode, StatementSequence, SymbolHandle,
-    append_exit_reference_releases, append_reference_releases, consume_value_places,
-    retain_selected_sources, structural_operands,
+    append_exit_reference_releases, append_reference_releases, structural_operands,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
@@ -176,7 +175,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         ) {
             Some(result)
         } else {
-            let calls = structural_operands::value_calls(
+            let calls = super::prepare_value_operands(
                 program,
                 facts,
                 scalar_callees,
@@ -186,35 +185,13 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                 structural_parameters,
                 trivial_affine_locals,
                 entry_claims,
-                &structural_results,
-                &operations,
+                root.statement_ordinal,
+                &mut structural_results,
+                &mut operations,
                 &mut structural_count,
                 root.root,
                 trace,
                 &mut windows,
-            )?;
-            if facts
-                .flow
-                .ownership
-                .owned_selection_at(state.symbol, root.statement_ordinal)
-                .is_some()
-            {
-                retain_selected_sources(
-                    program,
-                    facts,
-                    state,
-                    root.statement_ordinal,
-                    &mut operations,
-                )?;
-            } else {
-                consume_value_places(facts, root.root, &structural_results, &mut operations)?;
-            }
-            super::consume_value_call_sources(
-                facts,
-                &mut structural_results,
-                &mut operations,
-                &calls,
-                root.root,
             )?;
             // Completion owns the same stored result carrier as an ordinary
             // returning call, including reference shells and views. Argument

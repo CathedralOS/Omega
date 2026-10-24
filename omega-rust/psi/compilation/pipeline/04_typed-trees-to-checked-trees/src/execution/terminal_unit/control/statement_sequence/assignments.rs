@@ -15,9 +15,8 @@ use super::{
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, LocalConstructionTrace, Multiplicity,
-    ScalarCalleeClosure, ShapeCollector, SymbolHandle, checked_structural_result_type,
-    consume_value_places, is_unit, retain_selected_sources, statement_call_target,
-    structural_operands,
+    ScalarCalleeClosure, ShapeCollector, SymbolHandle, checked_structural_result_type, is_unit,
+    statement_call_target, structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
@@ -203,8 +202,8 @@ pub(super) fn plan(
         if root.machine != machine.symbol {
             return None;
         }
-        assignment_phase("statement sequence: assignment: structural operand calls");
-        let calls = structural_operands::value_calls(
+        assignment_phase("statement sequence: assignment: structural operand custody");
+        let calls = super::prepare_value_operands(
             program,
             facts,
             scalar_callees,
@@ -214,30 +213,13 @@ pub(super) fn plan(
             structural_parameters,
             trivial_affine_locals,
             entry_claims,
+            statement_index,
             structural_results,
-            &*operations,
-            &mut *structural_count,
+            operations,
+            structural_count,
             root.root,
             trace,
             windows,
-        )?;
-        assignment_phase("statement sequence: assignment: structural source custody");
-        if facts
-            .flow
-            .ownership
-            .owned_selection_at(state.symbol, statement_index)
-            .is_some()
-        {
-            retain_selected_sources(program, facts, state, statement_index, &mut *operations)?;
-        } else {
-            consume_value_places(facts, root.root, structural_results, &mut *operations)?;
-        }
-        super::consume_value_call_sources(
-            facts,
-            structural_results,
-            &mut *operations,
-            &calls,
-            root.root,
         )?;
         assignment_phase("statement sequence: assignment: structural result type");
         // The installed carrier is the destination's stored value: a rebind
