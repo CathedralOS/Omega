@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use arena::{Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles};
+use arena::{Arena, HandleSpan, HierarchyArena, SpanHandles};
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
@@ -59,7 +59,7 @@ pub struct SymbolTable {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolTableBuilder {
-    symbols: HierarchyArenaBuilder<Symbol>,
+    symbols: HierarchyArena<Symbol>,
     names: Arena<SymbolName>,
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<SourceScopedTopLevelBinding>,
@@ -186,7 +186,7 @@ impl SymbolTableBuilder {
 
     pub fn finish(self) -> SymbolTable {
         SymbolTable {
-            symbols: self.symbols.finish(),
+            symbols: self.symbols,
             names: self.names,
             path_members: Arena::new(),
             sources: self.sources,
@@ -506,7 +506,7 @@ impl SymbolTable {
         let name = self
             .names
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
-        self.symbols.insert_generated_root(Symbol {
+        self.symbols.insert_root(Symbol {
             parent: SymbolHandle::invalid(),
             children: HandleSpan::empty(),
             kind,
@@ -549,7 +549,7 @@ impl SymbolTable {
         self.module_path_index.clear();
         self.module_scope_index.clear();
         let names = &mut self.names;
-        self.symbols.insert_generated_children(
+        self.symbols.insert_children(
             parent,
             children
                 .into_iter()
@@ -1271,7 +1271,7 @@ impl SymbolTable {
 }
 
 pub struct SymbolChildHandles<'table> {
-    contiguous: Option<HierarchyChildHandles<Symbol>>,
+    contiguous: Option<SpanHandles<Symbol>>,
     supplemental: SupplementalChildHandles<'table>,
     namespace: std::vec::IntoIter<SymbolHandle>,
 }
@@ -1348,9 +1348,7 @@ impl SymbolTableExtension {
                 )
             })
             .collect::<Vec<_>>();
-        self.table
-            .symbols
-            .insert_generated_children(parent, children)
+        self.table.symbols.insert_children(parent, children)
     }
 
     pub fn finish(mut self) -> SymbolTable {

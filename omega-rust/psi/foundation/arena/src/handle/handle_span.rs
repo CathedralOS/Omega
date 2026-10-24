@@ -64,8 +64,15 @@ impl<T> HandleSpan<T> {
     }
 
     /// Iterates the span's handles in order: `start` through `start + count`.
-    pub fn handles(self) -> impl Iterator<Item = Handle<T>> {
-        (0..self.count).map(move |offset| self.handle_at(offset))
+    ///
+    /// This is the one owner of the span-to-handles rule. A caller that keeps
+    /// the iterator — or needs `len`/`nth` over the sequence — uses the same
+    /// index arithmetic as `handle_at` instead of reimplementing the walk.
+    pub fn handles(self) -> SpanHandles<T> {
+        SpanHandles {
+            span: self,
+            offset: 0,
+        }
     }
 
     /// Whether `handle` is the contiguous next handle after this span: same
@@ -103,6 +110,85 @@ impl<T> HandleSpan<T> {
             .expect("handle span count overflow");
     }
 }
+
+/// The handles of one span, in order: `start` through `start + count`.
+///
+/// The sequence is a span plus a consumed offset, so `len` and `nth` skip by
+/// index arithmetic instead of stepping, and every handle keeps the span's
+/// generation. An exhausted iterator stays exhausted.
+#[derive(Debug)]
+pub struct SpanHandles<T> {
+    span: HandleSpan<T>,
+    offset: u32,
+}
+
+impl<T> SpanHandles<T> {
+    pub const fn empty() -> Self {
+        Self {
+            span: HandleSpan::empty(),
+            offset: 0,
+        }
+    }
+
+    #[inline]
+    fn remaining(&self) -> u32 {
+        self.span.count() - self.offset
+    }
+}
+
+impl<T> Clone for SpanHandles<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for SpanHandles<T> {}
+
+impl<T> Iterator for SpanHandles<T> {
+    type Item = Handle<T>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.span.count() {
+            return None;
+        }
+
+        let handle = self.span.handle_at(self.offset);
+        self.offset += 1;
+
+        Some(handle)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining() as usize;
+        (remaining, Some(remaining))
+    }
+
+    /// Skip whole parts by length: the span knows its count, so skipping is
+    /// index arithmetic rather than `n` calls to `next`.
+    fn nth(&mut self, n: usize) -> Option<Self::Item> {
+        match u32::try_from(n) {
+            Ok(skip) if skip < self.remaining() => {
+                self.offset += skip;
+                self.next()
+            }
+            _ => {
+                self.offset = self.span.count();
+                None
+            }
+        }
+    }
+}
+
+impl<T> ExactSizeIterator for SpanHandles<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.remaining() as usize
+    }
+}
+
+impl<T> std::iter::FusedIterator for SpanHandles<T> {}
 
 impl<T> Clone for HandleSpan<T> {
     fn clone(&self) -> Self {

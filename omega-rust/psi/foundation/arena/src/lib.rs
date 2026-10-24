@@ -6,10 +6,9 @@
 //! Uniform slot identity stays on that page until retirement requires per-slot
 //! metadata; the first retirement pays its initialization, and reuse retains it.
 //! `PagedArenaSet` retains several independently built dense pages behind the
-//! same direct handle surface, while `PagedArena` and `GenerationalPagedArena`
-//! serve sequential hierarchy and reusable-slot ownership respectively.
-//! `HierarchyArena` gives parents an owned child range, and `OrderedRootArena`
-//! keeps root order stable.
+//! same direct handle surface, while `HierarchyArena` gives parents an owned
+//! child range in one dense `Arena` and `OrderedRootArena` keeps root
+//! order stable.
 //! `ConcurrentPagedArena` lets workers publish their final vector allocations
 //! directly, then seals those pages for ordinary reads and exclusive later-stage
 //! rewrites without flattening or building a lookup table.
@@ -26,7 +25,6 @@ mod hierarchy_arena;
 mod ordered_root_arena;
 mod owned_index;
 mod owned_interner;
-mod paged_arena;
 mod paged_arena_set;
 
 pub use arena::{Arena, ArenaIter, ArenaSpanInserter};
@@ -35,13 +33,10 @@ pub use concurrent_paged_arena::{
     SealedPagedArena,
 };
 pub use generational_paged_arena::{GenerationalPagedArena, SlotRef};
-pub use handle::handle_span::HandleSpan;
+pub use handle::handle_span::{HandleSpan, SpanHandles};
 pub use handle::{Handle, unique_handles_in_order};
-pub use hierarchy_arena::{
-    HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles, HierarchyNode,
-};
+pub use hierarchy_arena::{HierarchyArena, HierarchyNode};
 pub use ordered_root_arena::{OrderedRootArena, OrderedRootArenaIter};
 pub use owned_index::OwnedIndex;
 pub use owned_interner::OwnedInterner;
-pub use paged_arena::{PagedArena, PagedArenaIter, PagedSlice, PagedSliceIter};
 pub use paged_arena_set::{PagedArenaFrontier, PagedArenaSet};

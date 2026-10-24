@@ -1,6 +1,13 @@
-use std::marker::PhantomData;
+//! Parents own one contiguous child range in the shared dense [`Arena`].
+//!
+//! Child ranges are contiguous by construction: `insert_children` appends one
+//! span and the parent records it, so children resolve through the arena's own
+//! span validation instead of a second paged layout. Construction and later
+//! extension run in the same arena, so a hierarchy built in place is already
+//! published: no node is copied to publish it, and authored handles stay
+//! stable because the arena only appends.
 
-use crate::{Arena, Handle, HandleSpan, PagedArena, PagedSlice};
+use crate::{Arena, Handle, HandleSpan, SpanHandles};
 
 pub trait HierarchyNode: Clone + Default + Sized {
     fn parent(&self) -> Handle<Self>;
@@ -11,10 +18,16 @@ pub trait HierarchyNode: Clone + Default + Sized {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HierarchyArena<T: HierarchyNode> {
-    nodes: PagedArena<T>,
+    nodes: Arena<T>,
 }
 
 impl<T: HierarchyNode> HierarchyArena<T> {
+    pub fn new() -> Self {
+        Self {
+            nodes: Arena::new(),
+        }
+    }
+
     #[inline]
     pub fn get(&self, node: Handle<T>) -> &T {
         self.nodes.get(node)
@@ -25,14 +38,43 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.get_mut(node)
     }
 
-    /// Insert a generated root after the authored hierarchy has been frozen.
-    /// Later compiler stages use this for materialized declarations (for
-    /// example generic-machine specializations). Authored handles remain
-    /// stable because the paged arena only appends.
-    pub fn insert_generated_root(&mut self, mut node: T) -> Handle<T> {
+    /// Insert one root. A root has no parent and no child range.
+    pub fn insert_root(&mut self, mut node: T) -> Handle<T> {
         node.set_parent(Handle::invalid());
         node.set_children(HandleSpan::empty());
-        self.nodes.insert(node)
+
+        self.nodes.append(node)
+    }
+
+    /// Insert one parent's complete child range as a contiguous span. The
+    /// parent must be an existing node that does not own a child range yet;
+    /// this deliberately does not mutate an authored range or attempt a
+    /// non-contiguous append.
+    pub fn insert_children(
+        &mut self,
+        parent: Handle<T>,
+        children: impl IntoIterator<Item = T>,
+    ) -> HandleSpan<T> {
+        assert!(
+            self.nodes.is_valid(parent),
+            "hierarchy arena parent handle must be valid"
+        );
+        assert!(
+            self.get(parent).children().is_empty(),
+            "hierarchy arena parent already has a child range"
+        );
+
+        let children = self
+            .nodes
+            .insert_many(children.into_iter().map(|mut child| {
+                child.set_parent(parent);
+                child.set_children(HandleSpan::empty());
+                child
+            }));
+
+        self.nodes.get_mut(parent).set_children(children);
+
+        children
     }
 
     /// Append one child without extending the parent's frozen contiguous
@@ -41,53 +83,27 @@ impl<T: HierarchyNode> HierarchyArena<T> {
     pub fn insert_supplemental_child(&mut self, parent: Handle<T>, mut node: T) -> Handle<T> {
         node.set_parent(parent);
         node.set_children(HandleSpan::empty());
-        self.nodes.insert(node)
+
+        self.nodes.append(node)
     }
 
-    /// Populate one freshly generated parent's child range. The parent must
-    /// not already own children; this deliberately does not mutate authored
-    /// ranges or attempt non-contiguous append.
-    pub fn insert_generated_children(
-        &mut self,
-        parent: Handle<T>,
-        children: impl IntoIterator<Item = T>,
-    ) -> HandleSpan<T> {
-        assert!(
-            self.get(parent).children().is_empty(),
-            "generated hierarchy parent already has children"
-        );
-        let children = self
-            .nodes
-            .insert_many(children.into_iter().map(|mut child| {
-                child.set_parent(parent);
-                child.set_children(HandleSpan::empty());
-                child
-            }));
-        self.nodes.get_mut(parent).set_children(children);
-        children
+    /// The parent's child range, resolved as one contiguous slice.
+    pub fn children(&self, parent: Handle<T>) -> Option<&[T]> {
+        self.nodes.span(self.get(parent).children())
     }
 
-    pub fn children(&self, parent: Handle<T>) -> Option<PagedSlice<'_, T>> {
-        let parent_node = self.get(parent);
-
-        self.nodes.paged_span(parent_node.children())
-    }
-
-    pub fn child_handles(&self, parent: Handle<T>) -> Option<HierarchyChildHandles<T>> {
-        let parent_node = self.get(parent);
-        let children = parent_node.children();
+    /// The handles of one parent's child range, validated like the range
+    /// itself. An absent range occupies no handles.
+    pub fn child_handles(&self, parent: Handle<T>) -> Option<SpanHandles<T>> {
+        let children = self.get(parent).children();
 
         if children.is_empty() {
-            return Some(HierarchyChildHandles::empty());
+            return Some(SpanHandles::empty());
         }
 
-        self.nodes.paged_span(children)?;
+        self.nodes.span(children)?;
 
-        Some(HierarchyChildHandles {
-            next_index: children.start().arena_index(),
-            remaining: children.count(),
-            marker: PhantomData,
-        })
+        Some(children.handles())
     }
 
     pub fn find_child(
@@ -107,168 +123,20 @@ impl<T: HierarchyNode> HierarchyArena<T> {
         self.nodes.is_empty()
     }
 
-    pub fn nodes(&self) -> &PagedArena<T> {
+    pub fn nodes(&self) -> &Arena<T> {
         &self.nodes
     }
 }
 
 impl<T: HierarchyNode> Default for HierarchyArena<T> {
     fn default() -> Self {
-        Self {
-            nodes: PagedArena::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HierarchyArenaBuilder<T: HierarchyNode> {
-    nodes: Arena<T>,
-}
-
-impl<T: HierarchyNode> HierarchyArenaBuilder<T> {
-    pub fn new() -> Self {
-        Self {
-            nodes: Arena::new(),
-        }
-    }
-
-    pub fn insert_root(&mut self, mut node: T) -> Handle<T> {
-        node.set_parent(Handle::invalid());
-        node.set_children(HandleSpan::empty());
-
-        self.nodes.insert(node)
-    }
-
-    pub fn insert_children(
-        &mut self,
-        parent: Handle<T>,
-        children: impl IntoIterator<Item = T>,
-    ) -> HandleSpan<T> {
-        assert!(
-            self.nodes.is_valid(parent),
-            "hierarchy arena parent handle must be valid"
-        );
-        assert!(
-            self.nodes.get(parent).children().is_empty(),
-            "hierarchy arena parent already has a child range"
-        );
-
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for mut child in children {
-            child.set_parent(parent);
-            child.set_children(HandleSpan::empty());
-
-            let child = self.nodes.append(child);
-            if count == 0 {
-                start = child;
-            }
-            count = count
-                .checked_add(1)
-                .expect("hierarchy child span count overflow");
-        }
-
-        let span = HandleSpan::from_parts_or_empty(start, count);
-
-        self.nodes.get_mut(parent).set_children(span);
-
-        span
-    }
-
-    pub fn get(&self, node: Handle<T>) -> &T {
-        self.nodes.get(node)
-    }
-
-    pub fn get_mut(&mut self, node: Handle<T>) -> &mut T {
-        self.nodes.get_mut(node)
-    }
-
-    pub fn children(&self, parent: Handle<T>) -> Option<&[T]> {
-        let parent_node = self.get(parent);
-
-        self.nodes.span(parent_node.children())
-    }
-
-    pub fn finish(self) -> HierarchyArena<T> {
-        let mut nodes = PagedArena::new();
-
-        nodes.insert_many(self.nodes.iter().map(|(_, node)| node.clone()));
-
-        HierarchyArena { nodes }
-    }
-}
-
-impl<T: HierarchyNode> Default for HierarchyArenaBuilder<T> {
-    fn default() -> Self {
         Self::new()
     }
 }
 
-pub struct HierarchyChildHandles<T> {
-    next_index: u32,
-    remaining: u32,
-    marker: PhantomData<fn() -> T>,
-}
-
-impl<T> HierarchyChildHandles<T> {
-    fn empty() -> Self {
-        Self {
-            next_index: 0,
-            remaining: 0,
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<T> Iterator for HierarchyChildHandles<T> {
-    type Item = Handle<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 {
-            return None;
-        }
-
-        let handle = Handle::from_arena_index(self.next_index);
-        self.next_index = self
-            .next_index
-            .checked_add(1)
-            .expect("hierarchy child handle index overflow");
-        self.remaining -= 1;
-
-        Some(handle)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.remaining as usize;
-        (remaining, Some(remaining))
-    }
-
-    /// Children are contiguous, so skipping is index arithmetic rather than
-    /// `n` calls to `next`.
-    fn nth(&mut self, n: usize) -> Option<Self::Item> {
-        match u32::try_from(n) {
-            Ok(skip) if skip < self.remaining => {
-                self.next_index = self
-                    .next_index
-                    .checked_add(skip)
-                    .expect("hierarchy child handle index overflow");
-                self.remaining -= skip;
-                self.next()
-            }
-            _ => {
-                self.remaining = 0;
-                None
-            }
-        }
-    }
-}
-
-impl<T> ExactSizeIterator for HierarchyChildHandles<T> {}
-
 #[cfg(test)]
 mod tests {
-    use crate::{Handle, HandleSpan, HierarchyArenaBuilder, HierarchyNode};
+    use crate::{Handle, HandleSpan, HierarchyArena, HierarchyNode};
 
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
     struct TestNode {
@@ -305,31 +173,50 @@ mod tests {
     }
 
     #[test]
-    fn builder_sets_parent_and_exact_child_range() {
-        let mut builder = HierarchyArenaBuilder::new();
-        let root = builder.insert_root(TestNode::named("root"));
+    fn construction_sets_parent_and_exact_child_range() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
         let children =
-            builder.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
+            arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
 
-        assert_eq!(builder.get(root).children(), children);
+        assert_eq!(arena.get(root).children(), children);
         assert_eq!(children.start().arena_index(), 2);
         assert_eq!(children.count(), 2);
         assert_eq!(
-            builder.children(root).expect("children should resolve")[0].name,
+            arena.children(root).expect("children should resolve")[0].name,
             "alpha"
         );
         assert_eq!(
-            builder.children(root).expect("children should resolve")[1].parent(),
+            arena.children(root).expect("children should resolve")[1].parent(),
             root
         );
     }
 
     #[test]
-    fn published_arena_walks_child_handles() {
-        let mut builder = HierarchyArenaBuilder::new();
-        let root = builder.insert_root(TestNode::named("root"));
-        builder.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
-        let arena = builder.finish();
+    fn bulk_child_range_resolves_as_one_slice() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        let children = arena.insert_children(root, (0..600).map(|_| TestNode::named("child")));
+
+        // Appends only ever grow the dense arena, so a range larger than any
+        // former page size still resolves through one span.
+        let resolved = arena.children(root).expect("children should resolve");
+        assert_eq!(resolved.len(), 600);
+        assert_eq!(children.count(), 600);
+        assert_eq!(
+            arena
+                .child_handles(root)
+                .expect("children should resolve")
+                .count(),
+            600
+        );
+    }
+
+    #[test]
+    fn walks_child_handles() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
 
         let child_names = arena
             .child_handles(root)
@@ -341,11 +228,25 @@ mod tests {
     }
 
     #[test]
+    fn child_handles_skip_by_index_and_stay_exhausted() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
+
+        let mut children = arena.child_handles(root).expect("children should resolve");
+        assert_eq!(children.len(), 2);
+        let second = children.nth(1).expect("second child");
+        assert_eq!(arena.get(second).name, "beta");
+        assert_eq!(children.len(), 0);
+        assert_eq!(children.nth(0), None);
+        assert_eq!(children.next(), None);
+    }
+
+    #[test]
     fn finds_child_by_local_sibling_scan() {
-        let mut builder = HierarchyArenaBuilder::new();
-        let root = builder.insert_root(TestNode::named("root"));
-        builder.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
-        let arena = builder.finish();
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha"), TestNode::named("beta")]);
 
         let beta = arena
             .find_child(root, |_, node| node.name == "beta")
@@ -356,13 +257,34 @@ mod tests {
     }
 
     #[test]
+    fn extends_a_retained_hierarchy_without_rebinding_authored_handles() {
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        let authored = arena.insert_children(root, [TestNode::named("alpha")]);
+
+        let generated = arena.insert_root(TestNode::named("generated"));
+        let supplemental = arena.insert_supplemental_child(root, TestNode::named("late"));
+
+        assert_eq!(arena.get(authored.start()).name, "alpha");
+        assert_eq!(arena.get(root).children(), authored);
+        assert_eq!(
+            arena.children(root).expect("authored range")[0].name,
+            "alpha"
+        );
+        assert_eq!(arena.get(supplemental).parent(), root);
+        assert_eq!(arena.len(), 4);
+        assert_eq!(arena.nodes().len(), 4);
+        assert_eq!(arena.get(generated).parent(), Handle::invalid());
+    }
+
+    #[test]
     fn rejects_duplicate_child_ranges() {
-        let mut builder = HierarchyArenaBuilder::new();
-        let root = builder.insert_root(TestNode::named("root"));
-        builder.insert_children(root, [TestNode::named("alpha")]);
+        let mut arena = HierarchyArena::new();
+        let root = arena.insert_root(TestNode::named("root"));
+        arena.insert_children(root, [TestNode::named("alpha")]);
 
         let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            builder.insert_children(root, [TestNode::named("beta")]);
+            arena.insert_children(root, [TestNode::named("beta")]);
         }));
 
         assert!(panic.is_err());

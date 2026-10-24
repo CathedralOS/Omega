@@ -2,7 +2,7 @@
 //! Unlike root snapshots, this includes detached nodes and arena allocation
 //! metadata: Build continuation sharing must compare all remaining source work.
 use crate::{SyntaxTextOwner, SyntaxTrees};
-use arena::{Arena, Handle, HandleSpan, PagedArena, PagedArenaSet};
+use arena::{Arena, Handle, HandleSpan, PagedArenaSet};
 use std::sync::Arc;
 
 pub trait SyntaxEquivalent {
@@ -99,7 +99,7 @@ macro_rules! arena_equality {
         }
     })* };
 }
-arena_equality!(Arena, PagedArena, PagedArenaSet);
+arena_equality!(Arena, PagedArenaSet);
 macro_rules! plain {
     ($($kind:ty),* $(,)?) => { $(impl SyntaxEquivalent for $kind {
         fn same_syntax(&self, other: &Self, _: &SyntaxTextOwner, _: &SyntaxTextOwner) -> bool { self == other }

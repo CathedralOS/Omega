@@ -388,10 +388,8 @@ impl SymbolTable {
                     && self.indexed_display_path(symbol) == logical_import_path(import))
                     || (import.exact_source
                         && !self.source_module(declaration.source_id).is_valid()
-                        && self.exact_import_exposes_source(
-                            binding.declaration_source,
-                            declaration,
-                        ))
+                        && self
+                            .exact_import_exposes_source(binding.declaration_source, declaration))
             })
     }
 
