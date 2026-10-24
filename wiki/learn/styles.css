@@ -38,10 +38,13 @@ body {
   color: var(--ink);
   font-family: "Source Serif 4", Georgia, serif;
   -webkit-font-smoothing: antialiased;
-  background:
-    url("assets/plates/paper-v2.webp") center / cover no-repeat fixed,
-    radial-gradient(120% 90% at 50% 0%, var(--paper) 55%, var(--paper-deep));
-  background-blend-mode: multiply, normal;
+  background-color: var(--paper-deep);
+  background-image: url("assets/plates/paper-v2.webp");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-blend-mode: multiply;
 }
 
 ::selection { background: var(--sage-wash); }
