@@ -20,7 +20,7 @@
   --sage: #8fa382;
   --sage-wash: rgba(143, 163, 130, 0.28);
   --rule: rgba(46, 42, 36, 0.14);
-  --rail-w: clamp(232px, 16vw, 260px); /* widest title, "Working With the Agent", fits on one line */
+  --rail-w: clamp(14.5rem, 16vw, 16.25rem); /* widest title, "Working With the Agent", fits on one line */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -28,6 +28,9 @@
 * { box-sizing: border-box; }
 
 html {
+  /* fluid root: 16px through ~1440px wide, growing to 24px at 4K so the
+     page uses a big monitor instead of forcing the reader to zoom */
+  font-size: clamp(16px, 0.36vw + 10.8px, 24px);
   scroll-behavior: smooth;
   scrollbar-color: rgba(107, 97, 84, 0.42) var(--paper);
 }
@@ -125,7 +128,7 @@ body { position: relative; }
   position: static;
   margin-left: var(--rail-w);
   padding: 4.5vh 5.5vw 8vh;
-  max-width: 1620px;
+  max-width: 101.25rem;
 }
 
 .chapter {
@@ -152,7 +155,7 @@ body { position: relative; }
   position: absolute;
   top: -2vh;
   right: -1.5vw;
-  width: clamp(190px, 20vw, 320px);
+  width: clamp(11.875rem, 20vw, 20rem);
   height: auto;
   pointer-events: none;
   mix-blend-mode: multiply;
@@ -179,10 +182,10 @@ body { position: relative; }
 
 /* ---- staff: the facing-page unit ---- */
 
-.staff { margin: 0 auto 4.5rem; max-width: 1320px; content-visibility: auto; contain-intrinsic-size: auto 60vh; }
-.chapter .foot, .ch-head { max-width: 1320px; margin-inline: auto; }
+.staff { margin: 0 auto 4.5rem; max-width: 82.5rem; content-visibility: auto; contain-intrinsic-size: auto 60vh; }
+.chapter .foot, .ch-head { max-width: 82.5rem; margin-inline: auto; }
 /* keep chapter-opening text clear of the absolute vignette ornament */
-.chapter .ch-head { padding-right: clamp(200px, 21vw, 340px); }
+.chapter .ch-head { padding-right: clamp(12.5rem, 21vw, 21.25rem); }
 .ch-head .standfirst { max-width: 56ch; }
 
 .staff-title {
@@ -480,7 +483,7 @@ body { position: relative; }
 /* ---- cover ---- */
 
 .cover-page {
-  max-width: 1320px;
+  max-width: 82.5rem;
   margin-inline: auto;
 }
 .cover-page .breadcrumb { margin-bottom: 2.6rem; }
@@ -519,7 +522,7 @@ body { position: relative; }
 
 .dramatis {
   margin: 6rem auto 0;
-  max-width: 1320px;
+  max-width: 82.5rem;
   padding-top: 3.5rem;
   border-top: 1px solid var(--rule);
 }
@@ -536,7 +539,7 @@ body { position: relative; }
 
 .endmatter {
   margin: 6rem auto 0;
-  max-width: 1320px;
+  max-width: 82.5rem;
   padding-top: 3.5rem;
   border-top: 1px solid var(--rule);
 }
@@ -544,7 +547,7 @@ body { position: relative; }
 .gloss {
   margin: 2.2rem 0 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(18.75rem, 1fr));
   gap: 0;
 }
 .gterm {
