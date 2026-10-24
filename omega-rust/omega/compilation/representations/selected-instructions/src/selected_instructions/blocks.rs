@@ -1,34 +1,34 @@
-//! Ordered selected blocks in a typed arena, sharing immutable block contents.
+//! Ordered selected blocks sharing immutable block contents.
 //!
 //! Recovery edits a few blocks of one function. Cloning that function must not
 //! duplicate every instruction and operand vector in unrelated blocks, nor hash
-//! them again. The arena owns the block roster; its span preserves block order.
-//! Shared entries retain content and its derived digest together. Every mutable
-//! escape detaches that entry and clears its digest. Handles and allocation
-//! addresses never enter semantic equality or canonical identity.
+//! them again. The roster is one vector of shared entries; each entry retains
+//! its block and its derived memos together, and every mutable escape detaches
+//! that entry and clears its memos — the roster contract `functions` carries
+//! beside its own memos.
+//!
+//! No consumer holds a handle or observes an allocation address: neither is
+//! compared, copied or serialized, so the roster carries no slot identity of
+//! its own. The arena-and-span pair that preceded this stored the same rows
+//! behind an occupancy sentinel whose vacant state was unreachable from an
+//! occupied roster, resolved every read through a span, and rebuilt the whole
+//! arena on `truncate` instead of dropping the tail.
 
 use super::plan_identity::selected_block_digest;
 use super::{SelectedBlock, SelectedInstructionId, VirtualRegisterId};
-use arena::{Arena, HandleSpan};
 use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
 
-#[derive(Clone, Default)]
-pub struct SelectedBlocks {
-    entries: Arena<BlockStorage>,
-    order: HandleSpan<BlockStorage>,
-}
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SelectedBlocks(Vec<Arc<BlockEntry>>);
 
-// Vacant is the arena's zero-handle sentinel; occupied roster rows are always
-// Shared. Construction and the arena stay private so it cannot become a block.
-#[derive(Clone, Default)]
-pub enum BlockStorage {
-    #[default]
-    Vacant,
-    Shared(Arc<BlockEntry>),
-}
-
+/// One block and the memoized derivations of its content: the digest of its
+/// canonical identity encoding and the mechanical lookup index. Each memo is a
+/// pure function of the block beside it; every mutable access detaches the
+/// entry and clears both before handing out the block. Equality compares the
+/// block alone, like the storage. Public only so the storage iterator types
+/// can name it; this module is private.
 #[derive(Clone)]
 pub struct BlockEntry {
     block: SelectedBlock,
@@ -41,6 +41,18 @@ struct BlockLookup {
     maximum_instruction: SelectedInstructionId,
 }
 impl BlockEntry {
+    fn new(block: SelectedBlock) -> Arc<Self> {
+        Arc::new(Self {
+            block,
+            digest: OnceLock::new(),
+            lookup: OnceLock::new(),
+        })
+    }
+    fn digest(&self) -> [u8; 32] {
+        *self
+            .digest
+            .get_or_init(|| selected_block_digest(&self.block))
+    }
     fn lookup(&self) -> &BlockLookup {
         self.lookup.get_or_init(|| {
             let mut fixed_definitions = Vec::new();
@@ -67,45 +79,35 @@ impl BlockEntry {
         })
     }
 }
-impl BlockStorage {
-    fn new(block: SelectedBlock) -> Self {
-        Self::Shared(Arc::new(BlockEntry {
-            block,
-            digest: OnceLock::new(),
-            lookup: OnceLock::new(),
-        }))
-    }
-    fn entry(&self) -> &Arc<BlockEntry> {
-        match self {
-            Self::Shared(entry) => entry,
-            Self::Vacant => unreachable!("occupied block roster row"),
-        }
-    }
-    fn block(&self) -> &SelectedBlock {
-        &self.entry().block
-    }
-    fn detach(&mut self) -> &mut SelectedBlock {
-        let Self::Shared(entry) = self else {
-            unreachable!("occupied block roster row")
-        };
-        let entry = Arc::make_mut(entry);
-        entry.digest.take();
-        entry.lookup.take();
-        &mut entry.block
+impl PartialEq for BlockEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.block == other.block
     }
 }
+impl Eq for BlockEntry {}
+/// Shows the block alone, like equality.
+impl fmt::Debug for BlockEntry {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.block, formatter)
+    }
+}
+/// The only route to a mutable block: detach a shared entry and drop its
+/// memos, which no longer describe what the caller may write.
+fn detach(entry: &mut Arc<BlockEntry>) -> &mut SelectedBlock {
+    let entry = Arc::make_mut(entry);
+    entry.digest.take();
+    entry.lookup.take();
+    &mut entry.block
+}
+fn block_of(entry: &Arc<BlockEntry>) -> &SelectedBlock {
+    &entry.block
+}
 impl SelectedBlocks {
-    fn rows(&self) -> &[BlockStorage] {
-        self.entries.span_or_empty(self.order)
-    }
-    fn rows_mut(&mut self) -> &mut [BlockStorage] {
-        self.entries.span_mut_or_empty(self.order)
-    }
     /// A mechanical negative filter for split admission. Positive candidates
     /// still undergo the complete source/constraint/use audit at its owner.
     pub fn has_fixed_definition(&self, register: VirtualRegisterId) -> bool {
-        self.rows().iter().any(|row| {
-            row.entry()
+        self.0.iter().any(|entry| {
+            entry
                 .lookup()
                 .fixed_definitions
                 .binary_search(&register)
@@ -113,83 +115,57 @@ impl SelectedBlocks {
         })
     }
     pub fn maximum_instruction_id(&self) -> Option<SelectedInstructionId> {
-        self.rows()
+        self.0
             .iter()
-            .map(|row| row.entry().lookup().maximum_instruction)
+            .map(|entry| entry.lookup().maximum_instruction)
             .max()
     }
     pub fn len(&self) -> usize {
-        self.order.len()
+        self.0.len()
     }
     pub fn is_empty(&self) -> bool {
-        self.order.is_empty()
+        self.0.is_empty()
     }
     pub fn get(&self, index: usize) -> Option<&SelectedBlock> {
-        self.rows().get(index).map(BlockStorage::block)
+        self.0.get(index).map(block_of)
     }
     pub fn get_mut(&mut self, index: usize) -> Option<&mut SelectedBlock> {
-        self.rows_mut().get_mut(index).map(BlockStorage::detach)
+        self.0.get_mut(index).map(detach)
     }
     pub fn first(&self) -> Option<&SelectedBlock> {
         self.get(0)
     }
     pub fn last(&self) -> Option<&SelectedBlock> {
-        self.rows().last().map(BlockStorage::block)
+        self.0.last().map(block_of)
     }
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &SelectedBlock> + DoubleEndedIterator {
-        self.rows().iter().map(BlockStorage::block)
+        self.0.iter().map(block_of)
     }
     pub fn iter_mut(
         &mut self,
     ) -> impl ExactSizeIterator<Item = &mut SelectedBlock> + DoubleEndedIterator {
-        self.rows_mut().iter_mut().map(BlockStorage::detach)
+        self.0.iter_mut().map(detach)
     }
     pub fn push(&mut self, block: SelectedBlock) {
-        self.entries
-            .append_to_span(&mut self.order, BlockStorage::new(block));
+        self.0.push(BlockEntry::new(block));
     }
     pub fn extend(&mut self, blocks: impl IntoIterator<Item = SelectedBlock>) {
-        for block in blocks {
-            self.push(block);
-        }
+        self.0.extend(blocks.into_iter().map(BlockEntry::new));
     }
+    /// Drops the tail in place; the retained prefix keeps its shared entries.
     pub fn truncate(&mut self, length: usize) {
-        if length >= self.len() {
-            return;
-        }
-        let mut entries = Arena::with_capacity(length);
-        let order = entries.insert_many(self.rows().iter().take(length).cloned());
-        *self = Self { entries, order };
+        self.0.truncate(length);
     }
     pub fn shares_block_storage(&self, other: &Self, index: usize) -> bool {
-        self.rows()
+        self.0
             .get(index)
-            .zip(other.rows().get(index))
-            .is_some_and(|(left, right)| Arc::ptr_eq(left.entry(), right.entry()))
+            .zip(other.0.get(index))
+            .is_some_and(|(left, right)| Arc::ptr_eq(left, right))
     }
     pub(crate) fn identity_digests(&self) -> impl ExactSizeIterator<Item = [u8; 32]> + '_ {
-        self.rows().iter().map(|row| {
-            let entry = row.entry();
-            *entry
-                .digest
-                .get_or_init(|| selected_block_digest(&entry.block))
-        })
+        self.0.iter().map(|entry| entry.digest())
     }
 }
-impl fmt::Debug for SelectedBlocks {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_list().entries(self.iter()).finish()
-    }
-}
-impl PartialEq for SelectedBlocks {
-    fn eq(&self, other: &Self) -> bool {
-        self.len() == other.len()
-            && self.rows().iter().zip(other.rows()).all(|(left, right)| {
-                Arc::ptr_eq(left.entry(), right.entry()) || left.block() == right.block()
-            })
-    }
-}
-impl Eq for SelectedBlocks {}
 impl From<Vec<SelectedBlock>> for SelectedBlocks {
     fn from(blocks: Vec<SelectedBlock>) -> Self {
         blocks.into_iter().collect()
@@ -197,39 +173,40 @@ impl From<Vec<SelectedBlock>> for SelectedBlocks {
 }
 impl FromIterator<SelectedBlock> for SelectedBlocks {
     fn from_iter<T: IntoIterator<Item = SelectedBlock>>(blocks: T) -> Self {
-        let mut entries = Arena::new();
-        let order = entries.insert_many(blocks.into_iter().map(BlockStorage::new));
-        Self { entries, order }
+        Self(blocks.into_iter().map(BlockEntry::new).collect())
     }
 }
 impl Index<usize> for SelectedBlocks {
     type Output = SelectedBlock;
+
     fn index(&self, index: usize) -> &Self::Output {
-        self.rows()[index].block()
+        block_of(&self.0[index])
     }
 }
 impl IndexMut<usize> for SelectedBlocks {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.rows_mut()[index].detach()
+        detach(&mut self.0[index])
     }
 }
 impl<'storage> IntoIterator for &'storage SelectedBlocks {
     type Item = &'storage SelectedBlock;
     type IntoIter = std::iter::Map<
-        std::slice::Iter<'storage, BlockStorage>,
-        fn(&'storage BlockStorage) -> &'storage SelectedBlock,
+        std::slice::Iter<'storage, Arc<BlockEntry>>,
+        fn(&'storage Arc<BlockEntry>) -> &'storage SelectedBlock,
     >;
+
     fn into_iter(self) -> Self::IntoIter {
-        self.rows().iter().map(BlockStorage::block)
+        self.0.iter().map(block_of)
     }
 }
 impl<'storage> IntoIterator for &'storage mut SelectedBlocks {
     type Item = &'storage mut SelectedBlock;
     type IntoIter = std::iter::Map<
-        std::slice::IterMut<'storage, BlockStorage>,
-        fn(&'storage mut BlockStorage) -> &'storage mut SelectedBlock,
+        std::slice::IterMut<'storage, Arc<BlockEntry>>,
+        fn(&'storage mut Arc<BlockEntry>) -> &'storage mut SelectedBlock,
     >;
+
     fn into_iter(self) -> Self::IntoIter {
-        self.rows_mut().iter_mut().map(BlockStorage::detach)
+        self.0.iter_mut().map(detach)
     }
 }

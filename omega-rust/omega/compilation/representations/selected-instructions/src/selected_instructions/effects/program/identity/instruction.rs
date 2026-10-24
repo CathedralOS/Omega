@@ -420,7 +420,11 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     }
 }
 
-fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue) {
+/// The canonical identity encoding of an integer immediate: its sign tag and
+/// little-endian payload. Shared by every identity domain that encodes an
+/// `IntegerValue` — the selected-effect program identity and the plan identity
+/// both derive exactly these bytes.
+pub(crate) fn encode_integer(bytes: &mut Vec<u8>, value: semantic_vocabulary::IntegerValue) {
     match value {
         semantic_vocabulary::IntegerValue::Signed(value) => {
             bytes.push(0);

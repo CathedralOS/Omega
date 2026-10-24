@@ -29,7 +29,7 @@ mod ordinary;
 mod primitives;
 mod register;
 
-use crate::effects::program::identity::encode_ids;
+use crate::effects::program::identity::{encode_ids, encode_integer};
 use primitives::encode_constraint_key;
 
 /// The identity of a complete selected plan: its roots and the ordered
@@ -288,16 +288,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             contracts::frame_slot(bytes, slot);
             crate::codec_bytes::push_encoded(bytes, byte_offset.to_le_bytes());
         }
-        SelectedInstructionKind::MaterializeI64 { value } => match value {
-            semantic_vocabulary::IntegerValue::Signed(value) => {
-                bytes.push(0);
-                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-            }
-            semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-            }
-        },
+        SelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
         SelectedInstructionKind::ExactDivideU64 {
             obligation,
             accepted_fact,
@@ -316,11 +307,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::ExactAddI64 {
             obligation,
             accepted_fact,
-        } => {
-            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-            bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::ExactSubtractI64 {
+        | SelectedInstructionKind::ExactSubtractI64 {
             obligation,
             accepted_fact,
         }
@@ -344,29 +332,13 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
         crate::exact_add_or_sub_pair_pattern!(immediate, obligation, accepted_fact, ..) => {
-            match immediate {
-                semantic_vocabulary::IntegerValue::Signed(value) => {
-                    bytes.push(0);
-                    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-                }
-                semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                    bytes.push(1);
-                    crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-                }
-            }
+            encode_integer(bytes, immediate);
             crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
         }
-        SelectedInstructionKind::CompareI64Immediate { immediate } => match immediate {
-            semantic_vocabulary::IntegerValue::Signed(value) => {
-                bytes.push(0);
-                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-            }
-            semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, value.to_le_bytes());
-            }
-        },
+        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+            encode_integer(bytes, immediate)
+        }
         // Every float form shares one tag; its dense ordinal follows.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
