@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 
 use crate::mathematical_core::tests::{
     box_elim, box_intro, boxed, default_budget, id, lambda, quotient_signature, sigma, squash,
-    squash_elim, squash_intro, two, two_quotient, variable,
+    squash_elim, squash_intro, two, two_identity, two_quotient, two_quotient_over, variable,
 };
 use crate::mathematical_core::{
     Context, CoreError, Level, MathematicalCertificate, QUOTIENT, QUOTIENT_BETA,
@@ -25,28 +25,15 @@ use crate::mathematical_core::{
     verify_mathematical_certificate,
 };
 
-/// A closed description for tests: carrier `Two`, relation `λa. λb.
-/// Box (Squash (Id Two a b))` — the explicit squashed projection of
-/// the equality relation — at levels `[0, 0]`.
+/// The closed quotient family projecting the equality relation's explicit
+/// squashed form `λa. λb. Box (Squash (Id Two a b))` — the receiver-policy
+/// leg's relation.
 fn squashed_two_quotient(arena: &mut TermArena) -> QuotientFamily {
-    let carrier = two(arena);
-    let relation = {
-        let domain = two(arena);
-        let inner_domain = two(arena);
-        let ty = two(arena);
-        let left = variable(arena, 1);
-        let right = variable(arena, 0);
-        let body = id(arena, ty, left, right);
-        let body = squash(arena, body);
-        let body = boxed(arena, body);
-        let inner = lambda(arena, inner_domain, body);
-        lambda(arena, domain, inner)
-    };
-    QuotientFamily {
-        levels: [Level::Constant(0), Level::Constant(0)],
-        carrier,
-        relation,
-    }
+    two_quotient_over(arena, |arena| {
+        let identity = two_identity(arena, 1, 0);
+        let squashed = squash(arena, identity);
+        boxed(arena, squashed)
+    })
 }
 
 #[test]
@@ -62,17 +49,9 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
     // own prefix: `q` sees `[a, b]` (a = 1, b = 0), `r` sees
     // `[a, b, q]` (a = 2, b = 1) and `p` sees `[a, b, q, r]` (a = 3,
     // b = 2).
-    let identity_ab = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 1);
-        let b = variable(&mut arena, 0);
-        id(&mut arena, ty, a, b)
-    };
+    let identity_ab = two_identity(&mut arena, 1, 0);
     let squashed_evidence = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 2);
-        let b = variable(&mut arena, 1);
-        let body = id(&mut arena, ty, a, b);
+        let body = two_identity(&mut arena, 2, 1);
         let body = squash(&mut arena, body);
         boxed(&mut arena, body)
     };
@@ -128,10 +107,7 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
         family.effective(&mut arena, a, b, p)
     };
     let ambient_squashed_identity = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 4);
-        let b = variable(&mut arena, 3);
-        let body = id(&mut arena, ty, a, b);
+        let body = two_identity(&mut arena, 4, 3);
         let body = squash(&mut arena, body);
         boxed(&mut arena, body)
     };
@@ -151,20 +127,14 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
     let unboxed = {
         let motive = {
             let body = {
-                let ty = two(&mut arena);
-                let a = variable(&mut arena, 5);
-                let b = variable(&mut arena, 4);
-                let body = id(&mut arena, ty, a, b);
+                let body = two_identity(&mut arena, 5, 4);
                 squash(&mut arena, body)
             };
             lambda(&mut arena, ambient_squashed_identity, body)
         };
         let body = {
             let domain = {
-                let ty = two(&mut arena);
-                let a = variable(&mut arena, 4);
-                let b = variable(&mut arena, 3);
-                let body = id(&mut arena, ty, a, b);
+                let body = two_identity(&mut arena, 4, 3);
                 squash(&mut arena, body)
             };
             let bound = variable(&mut arena, 0);
@@ -179,10 +149,7 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
         box_elim(&mut arena, motive, body, scrutinee)
     };
     let strict_evidence = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 4);
-        let b = variable(&mut arena, 3);
-        let body = id(&mut arena, ty, a, b);
+        let body = two_identity(&mut arena, 4, 3);
         squash(&mut arena, body)
     };
     check_type(&mut arena, &context, unboxed, strict_evidence, &mut budget).unwrap();
@@ -191,19 +158,9 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
     // squash into the relevant `Id Two a b` is extraction, and the
     // eliminator's target must be a strict proposition.
     let extraction = {
-        let proposition = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 4);
-            let b = variable(&mut arena, 3);
-            id(&mut arena, ty, a, b)
-        };
+        let proposition = two_identity(&mut arena, 4, 3);
         let function = {
-            let domain = {
-                let ty = two(&mut arena);
-                let a = variable(&mut arena, 4);
-                let b = variable(&mut arena, 3);
-                id(&mut arena, ty, a, b)
-            };
+            let domain = two_identity(&mut arena, 4, 3);
             let bound = variable(&mut arena, 0);
             lambda(&mut arena, domain, bound)
         };
@@ -231,19 +188,11 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
         "a relevant identity witness is not evidence of the squashed relation: {error:?}"
     );
     let selected = {
-        let identity = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 4);
-            let b = variable(&mut arena, 3);
-            id(&mut arena, ty, a, b)
-        };
+        let identity = two_identity(&mut arena, 4, 3);
         let q = variable(&mut arena, 2);
         let squashed = squash_intro(&mut arena, identity, q);
         let strict = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 4);
-            let b = variable(&mut arena, 3);
-            let body = id(&mut arena, ty, a, b);
+            let body = two_identity(&mut arena, 4, 3);
             squash(&mut arena, body)
         };
         box_intro(&mut arena, strict, squashed)
@@ -284,10 +233,7 @@ fn a_squashed_relation_yields_only_squashed_evidence() {
             family.effective(&mut arena, a, b, p)
         };
         let expected = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 2);
-            let b = variable(&mut arena, 1);
-            let body = id(&mut arena, ty, a, b);
+            let body = two_identity(&mut arena, 2, 1);
             let body = squash(&mut arena, body);
             boxed(&mut arena, body)
         };
@@ -351,12 +297,7 @@ fn a_quotient_refusing_policy_distinguishes_the_same_certificate() {
     // definition in the same signature, so it carries no quotient
     // assumption at all. Ambient indices: p = 0, b = 1, a = 2; `p`'s
     // entry sees `[a, b]` (a = 1, b = 0).
-    let identity_ab = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 1);
-        let b = variable(&mut arena, 0);
-        id(&mut arena, ty, a, b)
-    };
+    let identity_ab = two_identity(&mut arena, 1, 0);
     let symmetrized = {
         let ty = two(&mut arena);
         let a = variable(&mut arena, 2);
@@ -364,12 +305,7 @@ fn a_quotient_refusing_policy_distinguishes_the_same_certificate() {
         let p = variable(&mut arena, 0);
         family.id_sym(&mut arena, Level::Constant(0), ty, a, b, p)
     };
-    let symmetrized_type = {
-        let ty = two(&mut arena);
-        let b = variable(&mut arena, 1);
-        let a = variable(&mut arena, 2);
-        id(&mut arena, ty, b, a)
-    };
+    let symmetrized_type = two_identity(&mut arena, 1, 2);
     let representative_certificate = MathematicalCertificate {
         signature: declarations.clone(),
         level_arity: 0,

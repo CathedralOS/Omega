@@ -8,7 +8,7 @@
 
 use crate::mathematical_core::tests::{
     apply, boxed, default_budget, id, is_set_zero, lambda, pi, quotient_signature, refl, squash,
-    squash_intro, two, two_quotient, variable,
+    squash_intro, two, two_identity, two_quotient, variable,
 };
 use crate::mathematical_core::{
     Context, CoreError, Level, TermArena, check_type, convertible, infer_type,
@@ -25,12 +25,7 @@ fn quotient_identity_lemmas_check_at_two() {
     // Context `a : Two`, `b : Two`, `p : Id Two a b` — the plain
     // identity-lemma inputs. Ambient indices: p = 0, b = 1, a = 2;
     // inside `p`'s entry the prefix is `[a, b]`, so a = 1, b = 0.
-    let identity_ab = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 1);
-        let b = variable(&mut arena, 0);
-        id(&mut arena, ty, a, b)
-    };
+    let identity_ab = two_identity(&mut arena, 1, 0);
     let context = Context::empty()
         .with_signature(signature)
         .extend(two(&mut arena))
@@ -43,12 +38,7 @@ fn quotient_identity_lemmas_check_at_two() {
     let b = variable(&mut arena, 1);
     let p = variable(&mut arena, 0);
     let symmetrized = family.id_sym(&mut arena, zero.clone(), ty, a, b, p);
-    let expected = {
-        let ty = two(&mut arena);
-        let b = variable(&mut arena, 1);
-        let a = variable(&mut arena, 2);
-        id(&mut arena, ty, b, a)
-    };
+    let expected = two_identity(&mut arena, 1, 2);
     check_type(&mut arena, &context, symmetrized, expected, &mut budget).unwrap();
 
     // `idCancel Two a b p : Id (Id Two b b) (trans (sym p) p) (refl b)`
@@ -75,11 +65,7 @@ fn quotient_identity_lemmas_check_at_two() {
     let p = variable(&mut arena, 0);
     let cancelled = family.id_cancel(&mut arena, zero.clone(), ty, a, b, p);
     let expected = {
-        let id_bb = {
-            let ty = two(&mut arena);
-            let b = variable(&mut arena, 1);
-            id(&mut arena, ty, b, b)
-        };
+        let id_bb = two_identity(&mut arena, 1, 1);
         let ty = two(&mut arena);
         let b = variable(&mut arena, 1);
         let refl_b = refl(&mut arena, ty, b);
@@ -105,26 +91,13 @@ fn quotient_prop_is_set_and_box_prop_close_propositions() {
         let x_domain = two(&mut arena);
         let codomain = {
             let y_domain = two(&mut arena);
-            let ty = two(&mut arena);
-            let x = variable(&mut arena, 1);
-            let y = variable(&mut arena, 0);
-            let body = id(&mut arena, ty, x, y);
+            let body = two_identity(&mut arena, 1, 0);
             pi(&mut arena, y_domain, body)
         };
         pi(&mut arena, x_domain, codomain)
     };
-    let identity_ab = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 1);
-        let b = variable(&mut arena, 0);
-        id(&mut arena, ty, a, b)
-    };
-    let identity_ab2 = {
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 2);
-        let b = variable(&mut arena, 1);
-        id(&mut arena, ty, a, b)
-    };
+    let identity_ab = two_identity(&mut arena, 1, 0);
+    let identity_ab2 = two_identity(&mut arena, 2, 1);
     let context = Context::empty()
         .with_signature(signature)
         .extend(is_prop_two)
@@ -147,12 +120,7 @@ fn quotient_prop_is_set_and_box_prop_close_propositions() {
     let set_witness = apply(&mut arena, set_witness, p);
     let set_witness = apply(&mut arena, set_witness, q);
     let expected = {
-        let id_ab = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 3);
-            let b = variable(&mut arena, 2);
-            id(&mut arena, ty, a, b)
-        };
+        let id_ab = two_identity(&mut arena, 3, 2);
         let p = variable(&mut arena, 1);
         let q = variable(&mut arena, 0);
         id(&mut arena, id_ab, p, q)

@@ -22,7 +22,7 @@ pub(crate) fn strict_sort(arena: &mut TermArena, level: u32) -> TermHandle {
     arena.insert(Term::Sort(Sort::Strict(Level::Constant(level))))
 }
 
-fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
+pub(crate) fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
     arena.insert(Term::Variable(index))
 }
 
@@ -64,6 +64,17 @@ fn two_zero(arena: &mut TermArena) -> TermHandle {
 
 fn two_one(arena: &mut TermArena) -> TermHandle {
     arena.insert(Term::TwoOne)
+}
+
+/// `Id Two a b` — the identity type at the two-element carrier, its left
+/// endpoint at the ambient binder index `a` and its right at `b`. Every
+/// quotient fixture's relation, projection type and coherence goal is this
+/// one term, so the composite is written once here.
+fn two_identity(arena: &mut TermArena, a: u32, b: u32) -> TermHandle {
+    let ty = two(arena);
+    let left = variable(arena, a);
+    let right = variable(arena, b);
+    id(arena, ty, left, right)
 }
 
 fn case_two(
@@ -182,7 +193,7 @@ fn box_elim(
     })
 }
 
-fn default_budget() -> Budget {
+pub(crate) fn default_budget() -> Budget {
     Budget::new(DEFAULT_CONVERSION_STEPS)
 }
 
@@ -359,7 +370,7 @@ fn constant(arena: &mut TermArena, declaration: u32, levels: Vec<Level>) -> Term
 
 /// `polyId : Π(A : Type u). Π(x : A). A := λ(A : Type u). λ(x : A). x` —
 /// the canonical universe-polymorphic definition, one level parameter.
-fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
+pub(crate) fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
     let type_u = sort_level(arena, Level::Parameter(0));
     let bound_a = variable(arena, 0);
     let inner_a = variable(arena, 1);
@@ -513,17 +524,19 @@ fn indexed_context(arena: &mut TermArena, family: &IndexedFamily) -> Context {
         .extend(g_binding)
 }
 
-/// A closed description for tests: carrier `Two`, relation `λa. λb. Id
-/// Two a b` — the equality relation — at levels `[0, 0]`.
-fn two_quotient(arena: &mut TermArena) -> QuotientFamily {
+/// A closed description for tests: carrier `Two` and relation `λa. λb.
+/// <body>` over the two bound representatives, at levels `[0, 0]` — one
+/// owner for every `Two`-carrier quotient fixture, whatever relation its
+/// body projects.
+fn two_quotient_over(
+    arena: &mut TermArena,
+    body: impl FnOnce(&mut TermArena) -> TermHandle,
+) -> QuotientFamily {
     let carrier = two(arena);
     let relation = {
         let domain = two(arena);
         let inner_domain = two(arena);
-        let ty = two(arena);
-        let left = variable(arena, 1);
-        let right = variable(arena, 0);
-        let body = id(arena, ty, left, right);
+        let body = body(arena);
         let inner = lambda(arena, inner_domain, body);
         lambda(arena, domain, inner)
     };
@@ -532,6 +545,11 @@ fn two_quotient(arena: &mut TermArena) -> QuotientFamily {
         carrier,
         relation,
     }
+}
+
+/// The closed quotient family over the equality relation `λa. λb. Id Two a b`.
+fn two_quotient(arena: &mut TermArena) -> QuotientFamily {
+    two_quotient_over(arena, |arena| two_identity(arena, 1, 0))
 }
 
 /// The checked signature holding exactly the twenty scheme

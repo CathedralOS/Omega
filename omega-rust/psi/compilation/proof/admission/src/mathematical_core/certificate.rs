@@ -177,19 +177,14 @@ pub(crate) fn certificate_assumption_closure_on_current_thread(
 #[cfg(test)]
 mod tests {
     use super::{
-        Budget, CoreError, Declaration, MathematicalCertificate, TermArena, TermHandle,
+        CoreError, Declaration, MathematicalCertificate, TermArena, TermHandle,
         certificate_assumption_closure, verify_mathematical_certificate,
     };
-    use crate::mathematical_core::tests::{lambda, pi, strict_sort, type_sort};
-    use crate::mathematical_core::{DEFAULT_CONVERSION_STEPS, Level, Sort, Term};
-
-    fn budget() -> Budget {
-        Budget::new(DEFAULT_CONVERSION_STEPS)
-    }
-
-    fn variable(arena: &mut TermArena, index: u32) -> TermHandle {
-        arena.insert(Term::Variable(index))
-    }
+    use crate::mathematical_core::tests::{
+        default_budget, lambda, pi, polymorphic_identity_declaration, strict_sort, type_sort,
+        variable,
+    };
+    use crate::mathematical_core::{Level, Sort, Term};
 
     /// `λ(A : Type 0). λ(x : A). x` and its type `Π(A : Type 0). Π(x : A). A`.
     fn polymorphic_identity(arena: &mut TermArena) -> (TermHandle, TermHandle) {
@@ -215,7 +210,7 @@ mod tests {
             term: identity,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
     }
 
     #[test]
@@ -230,7 +225,7 @@ mod tests {
             term: bound,
             expected: type_zero,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // The same term and type without their context is a different,
         // unprovable judgment: the variable is unbound.
@@ -245,7 +240,7 @@ mod tests {
             expected: type_zero,
         };
         assert_eq!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::UnboundVariable {
                 index: 0,
                 context_depth: 0,
@@ -267,7 +262,7 @@ mod tests {
             term: bound,
             expected: shifted,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // A binding that is not a type under its prefix cannot stand in the
         // context: `λ(x : Type 0). x` is a term, not a type.
@@ -283,7 +278,7 @@ mod tests {
             expected: type_zero,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::NotASort { .. })
         ));
     }
@@ -307,7 +302,7 @@ mod tests {
             expected: wrong_expected,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::TypeMismatch { .. })
         ));
 
@@ -322,7 +317,7 @@ mod tests {
             expected,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::UnboundVariable { .. })
         ));
     }
@@ -380,7 +375,7 @@ mod tests {
             term,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // The same elimination at `zero`'s landing `C zero ≡ A` is not
         // the claimed judgment: `C t` stays stuck on the neutral
@@ -398,7 +393,7 @@ mod tests {
             expected: wrong_expected,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::TypeMismatch { .. })
         ));
     }
@@ -525,7 +520,7 @@ mod tests {
             term,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // Claiming `P x` instead of `P y` is a different, false
         // judgment: transport moved the subject, and the kernel
@@ -553,7 +548,7 @@ mod tests {
             expected: wrong_expected,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::TypeMismatch { .. })
         ));
     }
@@ -691,7 +686,7 @@ mod tests {
             term,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // Claiming `P t` instead of `P (sup …)` is a different, false
         // judgment: the neutral tree `t` is not the constructor the
@@ -714,7 +709,7 @@ mod tests {
             expected: wrong_expected,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::TypeMismatch { .. })
         ));
     }
@@ -735,7 +730,7 @@ mod tests {
             term: bound,
             expected: shifted,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // A claimed type that is not a type at all — a lambda — rejects
         // rather than inheriting any collapse.
@@ -751,7 +746,7 @@ mod tests {
             expected: identity_body,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::NotASort { .. })
         ));
     }
@@ -777,7 +772,7 @@ mod tests {
             term: identity,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
 
         // The same bytes under a closed judgment are a malformed
         // universe: `u` names nothing without the arity to bind it.
@@ -789,7 +784,7 @@ mod tests {
             expected,
         };
         assert_eq!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::UnboundLevelParameter { index: 0, arity: 0 })
         );
 
@@ -807,25 +802,9 @@ mod tests {
             expected: type_v,
         };
         assert_eq!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::UnboundLevelParameter { index: 1, arity: 1 })
         );
-    }
-
-    /// `polyId : Π(A : Type u). Π(x : A). A := λA. λx. x`, one level
-    /// parameter — shared by the signature tests below.
-    fn polymorphic_identity_declaration(arena: &mut TermArena) -> Declaration {
-        let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
-        let bound_a = variable(arena, 0);
-        let inner_a = variable(arena, 1);
-        let inner_pi = pi(arena, bound_a, inner_a);
-        let ty = pi(arena, type_u, inner_pi);
-        let type_u = arena.insert(Term::Sort(Sort::Type(Level::Parameter(0))));
-        let bound_a = variable(arena, 0);
-        let inner_x = variable(arena, 0);
-        let inner = lambda(arena, bound_a, inner_x);
-        let body = lambda(arena, type_u, inner);
-        Declaration::definition(1, ty, body)
     }
 
     fn instantiated_identity_type(arena: &mut TermArena, u: Level) -> TermHandle {
@@ -852,7 +831,7 @@ mod tests {
             term: evidence,
             expected,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
     }
 
     #[test]
@@ -873,7 +852,7 @@ mod tests {
             expected,
         };
         assert_eq!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::UnknownDeclaration {
                 declaration: 1,
                 signature_len: 1,
@@ -906,7 +885,7 @@ mod tests {
             expected: two,
         };
         assert!(matches!(
-            verify_mathematical_certificate(&mut arena, &certificate, &mut budget()),
+            verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()),
             Err(CoreError::TypeMismatch { .. })
         ));
     }
@@ -936,7 +915,7 @@ mod tests {
             term: evidence,
             expected: type_zero,
         };
-        verify_mathematical_certificate(&mut arena, &certificate, &mut budget()).unwrap();
+        verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget()).unwrap();
         assert_eq!(
             certificate_assumption_closure(&arena, &certificate),
             [0].into_iter().collect()

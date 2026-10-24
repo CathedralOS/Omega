@@ -1,6 +1,6 @@
 use crate::mathematical_core::tests::{
     apply, constant, default_budget, id, is_set_zero, lambda, pi, quotient_signature, two,
-    two_quotient, type_sort, variable,
+    two_identity, two_quotient, type_sort, variable,
 };
 use crate::mathematical_core::{
     Context, CoreError, Declaration, Level, QUOTIENT_ELIM, QUOTIENT_IS_SET, QUOTIENT_LIFT,
@@ -52,12 +52,7 @@ fn quotient_beta_is_propositional_evidence_not_conversion() {
         // has `d` at index 0 and `P` at index 2; under `a, b, r` add 3.
         let a_domain = two(&mut arena);
         let b_domain = two(&mut arena);
-        let r_domain = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 1);
-            let b = variable(&mut arena, 0);
-            id(&mut arena, ty, a, b)
-        };
+        let r_domain = two_identity(&mut arena, 1, 0);
         let codomain = {
             let b = variable(&mut arena, 1);
             let projected_b = family.project(&mut arena, b);
@@ -139,10 +134,7 @@ fn quotient_lift_rejects_a_malformed_congruence() {
     let flipped = {
         let domain = two(&mut arena);
         let inner_domain = two(&mut arena);
-        let ty = two(&mut arena);
-        let a = variable(&mut arena, 1);
-        let b = variable(&mut arena, 0);
-        let related = id(&mut arena, ty, a, b);
+        let related = two_identity(&mut arena, 1, 0);
         let ty = two(&mut arena);
         let f = variable(&mut arena, 3);
         let b = variable(&mut arena, 1);
@@ -251,12 +243,7 @@ fn quotient_lift_precondition_admits_the_transport_backed_shape() {
         // t = 6.
         let a_domain = two(&mut arena);
         let b_domain = two(&mut arena);
-        let r_domain = {
-            let ty = two(&mut arena);
-            let a = variable(&mut arena, 1);
-            let b = variable(&mut arena, 0);
-            id(&mut arena, ty, a, b)
-        };
+        let r_domain = two_identity(&mut arena, 1, 0);
         let ha_domain = type_sort(&mut arena, 0);
         let hb_domain = type_sort(&mut arena, 0);
         let codomain = {
