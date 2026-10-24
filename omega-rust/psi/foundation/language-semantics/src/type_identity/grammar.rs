@@ -41,10 +41,12 @@ pub(super) fn type_identity(
             }
             "named" => const_or_name(reader, "name", visitor)?,
             "dynamic-trait" => {
+                // The renderer follows the trait name with the trait's generic
+                // arguments as type identities, in declaration order.
                 name_atom(reader, "name", visitor)?;
-                if reader.next(b',') {
+                while reader.next(b',') {
                     reader.expect(b',')?;
-                    name_atom(reader, "conformance", visitor)?;
+                    type_identity(reader, visitor)?;
                 }
             }
             "index-expression" => index::expression(reader, visitor)?,
