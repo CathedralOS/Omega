@@ -401,72 +401,24 @@ pub(super) fn membership_field_name(
     crate::expression_traversal::name_path_last_member(program, value)
 }
 
+/// Whether any `Name` path `expression` contains spells `name` as its last
+/// member (`count`, `sample.count`). The child roster belongs to
+/// [`crate::expression_traversal::visit_pre_order`]; this query adds only the
+/// member predicate.
 fn expression_mentions_name(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     name: &str,
 ) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .last()
-            .is_some_and(|member| member.as_str() == name),
-        ExpressionNode::Binary(binary) => {
-            expression_mentions_name(program, binary.left, name)
-                || expression_mentions_name(program, binary.right, name)
-        }
-        ExpressionNode::Member(member) => expression_mentions_name(program, member.receiver, name),
-        ExpressionNode::Indexed(indexed) => {
-            expression_mentions_name(program, indexed.collection, name)
-                || expression_mentions_name(program, indexed.index, name)
-        }
-        ExpressionNode::Borrow(inner) => expression_mentions_name(program, inner.target, name),
-        ExpressionNode::Cast(cast) => expression_mentions_name(program, cast.value, name),
-        ExpressionNode::Unary(unary) => expression_mentions_name(program, unary.operand, name),
-        ExpressionNode::Atomic(atomic) => {
-            expression_mentions_name(program, atomic.value, name)
-                || expression_mentions_name(program, atomic.result, name)
-        }
-        ExpressionNode::Range(range) => {
-            expression_mentions_name(program, range.start, name)
-                || expression_mentions_name(program, range.end, name)
-        }
-        ExpressionNode::ArrayLiteral(elements) => program
-            .expression_table
-            .expression_handles(*elements)
-            .iter()
-            .any(|element| expression_mentions_name(program, *element, name)),
-        ExpressionNode::StructLiteral(literal) => program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_mentions_name(program, field.value, name)),
-        ExpressionNode::Match(matched) => {
-            expression_mentions_name(program, matched.subject, name)
-                || program
+    crate::expression_traversal::visit_pre_order(program, vec![expression], |_, node| {
+        matches!(
+            node,
+            ExpressionNode::Name(path)
+                if program
                     .expression_table
-                    .match_arms(matched.arms)
-                    .iter()
-                    .any(|arm| {
-                        expression_mentions_name(program, arm.value, name)
-                            || program
-                                .expression_table
-                                .match_pattern_operands(arm.pattern)
-                                .any(|operand| expression_mentions_name(program, operand, name))
-                    })
-        }
-        ExpressionNode::Call(call) => {
-            expression_mentions_name(program, call.receiver, name)
-                || program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_mentions_name(program, *argument, name))
-        }
-        _ => false,
-    }
+                    .name_path_members(path.members)
+                    .last()
+                    .is_some_and(|member| member.as_str() == name)
+        )
+    })
 }
