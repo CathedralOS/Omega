@@ -796,6 +796,28 @@ impl TypedTrees {
         })
     }
 
+    /// The declared field roster of one construction: the common fields in
+    /// declaration order, then the payload fields of the constructed case.
+    /// `selected_case` is the alternative the construction names; a record
+    /// construction selects none and receives its common fields only.
+    pub fn data_construction_fields<'a>(
+        &'a self,
+        members: &'a [data::DataMember],
+        selected_case: Option<symbols::SymbolHandle>,
+    ) -> Vec<&'a data::DataField> {
+        let mut fields: Vec<&data::DataField> = Vec::new();
+        for member in members {
+            match member {
+                data::DataMember::Field(field) => fields.push(field),
+                data::DataMember::Variant(variant) if selected_case == Some(variant.symbol) => {
+                    fields.extend(self.data_payload_fields(variant));
+                }
+                _ => {}
+            }
+        }
+        fields
+    }
+
     /// The unique non-primitive data definition a named type reference
     /// selects: `Ok(None)` for primitive or non-`Named` references and
     /// for a symbol that resolves to no definition, `Err` when the

@@ -549,21 +549,8 @@ impl Scope<'_> {
                     })) { continue; }
                     let Some(field) = data.and_then(|data| {
                         self.program
-                            .data_members(data)
-                            .iter()
-                            .find_map(|member| match member {
-                                typed_trees::data::DataMember::Field(field)
-                                    if field.symbol == *symbol =>
-                                {
-                                    Some(field)
-                                }
-                                typed_trees::data::DataMember::Variant(case) => self
-                                    .program
-                                    .data_payload_fields(case)
-                                    .iter()
-                                    .find(|field| field.symbol == *symbol),
-                                _ => None,
-                            })
+                            .data_member_fields(self.program.data_members(data))
+                            .find(|field| field.symbol == *symbol)
                     }) else {
                         return None;
                     };
@@ -1310,26 +1297,22 @@ impl Scope<'_> {
                     });
                 if let Some(data) = data {
                     let fields = self.program.expression_table.struct_fields(literal.fields);
-                    for member in self.program.data_members(data) {
-                        let declared = match member {
-                            typed_trees::data::DataMember::Field(field) => {
-                                std::slice::from_ref(field)
-                            }
-                            typed_trees::data::DataMember::Variant(case)
-                                if Some(case.symbol) == literal.case_symbol =>
-                            {
-                                self.program.data_payload_fields(case)
-                            }
-                            _ => &[],
-                        };
-                        for declared in declared {
-                            if self.has_indices(declared.type_reference, 0)
-                                && !fields
-                                    .iter()
-                                    .any(|field| field.field_symbol == declared.symbol)
-                            {
-                                diagnostics.push(Diagnostic::error("runtime indexed field requires an explicit captured construction"));
-                            }
+                    // One authored roster for both obligations below: the
+                    // construction's common fields and the payload fields of
+                    // the case it selects.
+                    let declared = self.program.data_construction_fields(
+                        self.program.data_members(data),
+                        literal.case_symbol,
+                    );
+                    for declared in &declared {
+                        if self.has_indices(declared.type_reference, 0)
+                            && !fields
+                                .iter()
+                                .any(|field| field.field_symbol == declared.symbol)
+                        {
+                            diagnostics.push(Diagnostic::error(
+                                "runtime indexed field requires an explicit captured construction",
+                            ));
                         }
                     }
                     for (symbol, argument) in self.descriptor_arguments(&required) {
@@ -1343,29 +1326,11 @@ impl Scope<'_> {
                             ));
                         }
                     }
-                    for field in self.program.expression_table.struct_fields(literal.fields) {
-                        let mut field_type = None;
-                        for member in self.program.data_members(data) {
-                            match member {
-                                typed_trees::data::DataMember::Field(declared)
-                                    if declared.symbol == field.field_symbol =>
-                                {
-                                    field_type = Some(declared.type_reference)
-                                }
-                                typed_trees::data::DataMember::Variant(case)
-                                    if Some(case.symbol) == literal.case_symbol =>
-                                {
-                                    field_type = self
-                                        .program
-                                        .data_payload_fields(case)
-                                        .iter()
-                                        .find(|declared| declared.symbol == field.field_symbol)
-                                        .map(|declared| declared.type_reference)
-                                        .or(field_type);
-                                }
-                                _ => {}
-                            }
-                        }
+                    for field in fields {
+                        let field_type = declared
+                            .iter()
+                            .find(|declared| declared.symbol == field.field_symbol)
+                            .map(|declared| declared.type_reference);
                         if let Some(reference) = field_type {
                             self.check(
                                 field.value,

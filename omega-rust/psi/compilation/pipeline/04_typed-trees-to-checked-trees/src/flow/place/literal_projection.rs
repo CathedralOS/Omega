@@ -279,13 +279,7 @@ fn literal_projections(
                     }
                     None => None,
                 };
-                let mut fields = members
-                    .iter()
-                    .filter_map(DataMember::as_field)
-                    .collect::<Vec<_>>();
-                if let Some(variant) = variant {
-                    fields.extend(program.data_payload_fields(variant));
-                }
+                let fields = program.data_construction_fields(members, literal.case_symbol);
                 let (selected_variant, segments) = match segments.split_first() {
                     Some((facts::PlaceSegment::Case { variant: selected }, remaining)) => {
                         if variant.is_none_or(|variant| variant.symbol != *selected) {
