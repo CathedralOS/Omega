@@ -505,10 +505,8 @@ pub(crate) fn build_sysv_hash(symbol_names: &[&[u8]]) -> Result<ElfSysvHash, Dia
 }
 
 fn build_gnu_hash(symbol_names: &[&[u8]]) -> Result<ElfGnuHash, Diagnostic> {
-    require_equal(
-        !symbol_names.is_empty(),
-        "GNU hash planning requires at least one dynamic symbol after the reserved row",
-    )?;
+    // Empty import sets retain the reserved symbol; a zero bucket makes every
+    // lookup miss without indexing a nonexistent chain (LLVM ELFDumper's empty-table case).
     let mut bloom = vec![0u64; GNU_HASH_BLOOM_COUNT as usize];
     let mut chains = Vec::with_capacity(symbol_names.len());
     for name in symbol_names {
@@ -527,7 +525,11 @@ fn build_gnu_hash(symbol_names: &[&[u8]]) -> Result<ElfGnuHash, Diagnostic> {
         bloom_count: GNU_HASH_BLOOM_COUNT,
         bloom_shift: GNU_HASH_BLOOM_SHIFT,
         bloom,
-        buckets: vec![GNU_HASH_SYMBOL_OFFSET],
+        buckets: vec![if symbol_names.is_empty() {
+            0
+        } else {
+            GNU_HASH_SYMBOL_OFFSET
+        }],
         chains,
     })
 }
@@ -734,7 +736,12 @@ fn validate_gnu_hash_reachability(hash: &ElfGnuHash, names: &[&[u8]]) -> Result<
             && hash.bloom.len() == hash.bloom_count as usize
             && hash.buckets.len() == hash.bucket_count as usize
             && hash.chains.len() == names.len()
-            && hash.buckets.first() == Some(&GNU_HASH_SYMBOL_OFFSET),
+            && hash.buckets.first()
+                == Some(&if names.is_empty() {
+                    0
+                } else {
+                    GNU_HASH_SYMBOL_OFFSET
+                }),
         "GNU hash counts or canonical one-bucket symbol domain drifted",
     )?;
     let bloom_word = hash.bloom[0];
