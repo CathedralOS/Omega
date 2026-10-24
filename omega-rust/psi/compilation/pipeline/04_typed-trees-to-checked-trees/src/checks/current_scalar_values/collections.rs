@@ -198,67 +198,11 @@ impl CurrentScalarValues<'_> {
                     expression,
                 ) =>
             {
-                let range = self.program.expression_table.range_node(indexed.index)?;
-                let source = self.collection_length(indexed.collection, depth + 1)?;
-                let zero = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::zero());
-                let start = if range.start.is_valid() {
-                    self.capture(self.program, self.machine, self.state, range.start)?
-                } else {
-                    zero.clone()
-                };
-                let authored_end = if range.end.is_valid() {
-                    self.capture(self.program, self.machine, self.state, range.end)?
-                } else {
-                    source.clone()
-                };
-                let end = if range.end_inclusive {
-                    if !range.end.is_valid() {
-                        return None;
-                    }
-                    ScopedArithmeticValue::IntegerOperation {
-                        operator: BinaryOperator::Add,
-                        left: Box::new(authored_end.clone()),
-                        right: Box::new(ScopedArithmeticValue::Integer(
-                            numerics::bignum::BigInt::from_u64(1),
-                        )),
-                    }
-                } else {
-                    authored_end.clone()
-                };
-                // The operator's own `requires` discharge ordering and
-                // inclusion. Re-proving them here would drop the ensured
-                // extent whenever this capture roster has not yet unfolded
-                // the same premises. Builtin windows without that contract
-                // still owe the four relations before their length is real.
-                let contract_owns_bounds = validation::range_operator_establishes_endpoint_extent(
-                    self.program,
-                    self.machine,
-                    Some(self.state),
-                    expression,
-                );
-                if !contract_owns_bounds {
-                    for (left, right) in [
-                        (&zero, &start),
-                        (&start, &end),
-                        (&end, &source),
-                        (&zero, &authored_end),
-                    ] {
-                        if !self.proves_values_relation(
-                            self.program,
-                            self.machine,
-                            BinaryOperator::LessOrEqual,
-                            left,
-                            right,
-                        ) {
-                            return None;
-                        }
-                    }
-                }
-                Some(ScopedArithmeticValue::IntegerOperation {
-                    operator: BinaryOperator::Subtract,
-                    left: Box::new(end),
-                    right: Box::new(start),
-                })
+                // A window is entered for a builtin subslice spelling or for a
+                // range operator that ensures the endpoint difference; the
+                // derivation and its single span decision live in
+                // `window_length`.
+                self.window_length(expression, indexed, depth, None, None)
             }
             ExpressionNode::Match(dispatch) => self.matched_length(dispatch, depth),
             ExpressionNode::Member(member) => self
@@ -603,8 +547,8 @@ impl CurrentScalarValues<'_> {
     }
 
     /// Length of one match arm. A window whose endpoint mentions the subject
-    /// is measured after that arm's pattern replaces the subject, then checked
-    /// for a non-negative ordered span. Other arms keep `collection_length`.
+    /// is measured after that arm's pattern replaces the subject. Other arms
+    /// keep `collection_length`.
     fn arm_length(
         &self,
         expression: ExpressionHandle,
@@ -635,6 +579,24 @@ impl CurrentScalarValues<'_> {
         ) {
             return self.collection_length(expression, depth);
         }
+        self.window_length(expression, indexed, depth, subject, replacement)
+    }
+
+    /// The length of one builtin subslice window: both endpoints applied to
+    /// the source's length, an inclusive end adjusted by one, and the four
+    /// ordered relations that make the span real. A range operator whose own
+    /// definition ensures `result.len == end - start` has already discharged
+    /// ordering and inclusion, so its window owes no second proof; a builtin
+    /// spelling has no such contract. A match arm substitutes its pattern
+    /// value for the subject at each endpoint; an ordinary capture passes none.
+    fn window_length(
+        &self,
+        expression: ExpressionHandle,
+        indexed: &typed_trees::expression::TableIndexedExpression,
+        depth: usize,
+        subject: Option<&ScopedArithmeticValue>,
+        replacement: Option<&ScopedArithmeticValue>,
+    ) -> Option<ScopedArithmeticValue> {
         let range = self.program.expression_table.range_node(indexed.index)?;
         let source = self.collection_length(indexed.collection, depth + 1)?;
         let zero = ScopedArithmeticValue::Integer(numerics::bignum::BigInt::zero());
@@ -658,20 +620,27 @@ impl CurrentScalarValues<'_> {
         } else {
             authored_end.clone()
         };
-        for (left, right) in [
-            (&zero, &start),
-            (&start, &end),
-            (&end, &source),
-            (&zero, &authored_end),
-        ] {
-            if !self.proves_values_relation(
-                self.program,
-                self.machine,
-                BinaryOperator::LessOrEqual,
-                left,
-                right,
-            ) {
-                return None;
+        if !validation::range_operator_establishes_endpoint_extent(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            for (left, right) in [
+                (&zero, &start),
+                (&start, &end),
+                (&end, &source),
+                (&zero, &authored_end),
+            ] {
+                if !self.proves_values_relation(
+                    self.program,
+                    self.machine,
+                    BinaryOperator::LessOrEqual,
+                    left,
+                    right,
+                ) {
+                    return None;
+                }
             }
         }
         Some(ScopedArithmeticValue::IntegerOperation {
