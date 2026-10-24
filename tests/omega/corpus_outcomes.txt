@@ -405,6 +405,8 @@ fail/borrows/borrow_local_alias_active rejected 1516ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_mut_and_read rejected 1566ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_mut_literal rejected 813ms expected @a9ae30e1c334+wt
 fail/borrows/borrow_unknown_index_pair_mut rejected 1580ms expected @a9ae30e1c334+wt
+fail/borrows/borrowed_descriptor_operand_retains_source_home rejected 1328ms expected @bee167b35fd4
+	state `inspect` receives `view` as both mutable and read-only
 fail/borrows/boundary_additional_input_domain_not_restored rejected 926ms expected @068118abfe8d
 	cannot prove requires contract for call read from exercise: ticket in Ticket::Issued (invalidated by prior mutation of ticket; ticket is part of Ticket::Issued) in state `entry`
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 1640ms expected @a9ae30e1c334+wt
@@ -441,10 +443,21 @@ fail/borrows/constant_temporary_reference_escape rejected 620ms expected @1bce9a
 fail/borrows/constructor_case_owner_mismatch rejected 812ms expected @a9ae30e1c334+wt
 fail/borrows/constructor_reference_element_mismatch rejected 903ms expected @a9ae30e1c334+wt
 fail/borrows/consumed_nominal_carrier_retains_backing rejected 2334ms expected @a9ae30e1c334+wt
+fail/borrows/copied_active_case_snapshot_retains_backing rejected 1302ms expected @bee167b35fd4
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 2
 fail/borrows/copied_borrowed_slot_retains_parent_loan rejected 626ms expected @3ea0aec65b44+wt
 fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 344ms expected @37bad412b02a
 	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/copied_computed_backing_retains_nested_loan rejected 1615ms expected @a9ae30e1c334+wt
+fail/borrows/copied_descriptor_operand_retains_consumed_backing rejected 1917ms expected @bee167b35fd4
+	a completed copied argument retains backing storage consumed by a later operand
+fail/borrows/copied_descriptor_operand_retains_intermediate_backing rejected 1162ms expected @bee167b35fd4
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 3
+fail/borrows/copied_input_descriptor_retarget_rejected rejected 1293ms expected @bee167b35fd4
+	state `receive` receives `counter` while local borrow `saved` is still active (borrowed at statement 1; its last use is at statement 2)
+	state `mutate` receives `counter` while local borrow `saved` is still active (borrowed at statement 1; its last use is at statement 2)
+	a completed copied argument retains backing storage overlapping a staged exclusive loan
+	statement 2 mutates `counter.value` while local borrow `saved` is still active (borrowed at statement 1; its last use is at statement 2)
 fail/borrows/copied_reference_cohort_live_source_write rejected 1704ms expected @a9ae30e1c334+wt
 fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 1747ms expected @dd658fb23eef
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 871ms expected @a9ae30e1c334+wt
@@ -3311,6 +3324,27 @@ fail/facts/content_reunion_through_target_body_rejected rejected 3507ms expected
 	cannot prove ensures contract for exit from rejoin at statement 10: Owned.content(old(&whole)) == Owned.content(&result)
 	cannot prove default-domain field requirement for return from rejoin, state entry, at statement 10: Region requires Region::Owned
 	construction value is not proven in domain `Region::Owned` in rejoin state `entry` at statement 10; a construction value must establish the domain's predicates and any required provenance
+fail/facts/copied_call_argument_snapshot_descriptor_through_call_result_rejected rejected 1746ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_const_name_rejected rejected 1154ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_field_rejected rejected 1908ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_local_rejected rejected 1431ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_match_join_rejected rejected 1337ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_other_machine_rejected rejected 1473ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_other_state_rejected rejected 1503ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_parameter_rejected rejected 1007ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_call_argument_snapshot_descriptor_through_target_body_rejected rejected 1059ms expected @bee167b35fd4
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.target.value == 7 (needs fact `selected.target.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_call_argument_snapshot_through_call_result_rejected rejected 405ms expected @6e37ba29d416+wt
 	cannot prove requires contract for call receive from main: source == 7 (needs fact `first == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_call_argument_snapshot_through_const_name_rejected rejected 408ms expected @6e37ba29d416+wt
@@ -15321,6 +15355,14 @@ pass/borrows/conditional_copied_slot_restores_parent_exit checked 3687ms check-t
 pass/borrows/constant_shared_boundary_exit checked 3644ms check-target:macos_arm64 @1bce9ab2e5d5+wt
 pass/borrows/constructor_reference_access checked 1653ms @a9ae30e1c334+wt
 pass/borrows/copied_borrowed_slot_restores_parent_exit checked 3682ms check-target:macos_arm64 @3ea0aec65b44+wt
+pass/borrows/copied_empty_case_before_active_replacement_exit checked 1564ms check-target:macos_arm64 @bee167b35fd4
+pass/borrows/copied_empty_case_does_not_retain_inactive_backing_exit checked 1567ms check-target:macos_arm64 @bee167b35fd4
+pass/borrows/copied_image_descriptor_unrelated_write incomplete 1846ms check-target:macos_arm64 @bee167b35fd4
+	`receive` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `receive::entry`
+pass/borrows/copied_input_descriptor_independent_mutation_exit checked 1568ms check-target:macos_arm64 @bee167b35fd4
+pass/borrows/copied_input_descriptor_local_copy_exit checked 1883ms check-target:macos_arm64 @bee167b35fd4
+pass/borrows/copied_input_descriptor_return_copy_exit checked 1587ms check-target:macos_arm64 @bee167b35fd4
+pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 1899ms check-target:macos_arm64 @bee167b35fd4
 pass/borrows/data_copy_property checked 9605ms @5041ef1af684+wt
 pass/borrows/disjoint_branch_closure_with_grandchild checked 10342ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/dynamic_window_return_custody_exit checked 3476ms check-target:macos_arm64 @ea7b63644a0a+wt
@@ -15365,6 +15407,7 @@ pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 628ms @3d1b
 pass/borrows/opaque_reference_identity checked 2840ms @3ac38090e82f
 pass/borrows/opaque_region_known_calls checked 1740ms @641c98043b7c
 pass/borrows/opaque_shared_writeonly_carrier checked 606ms @3d1bd96aeaa5
+pass/borrows/overwritten_intermediate_descriptor_releases_backing_exit checked 1861ms check-target:macos_arm64 @bee167b35fd4
 pass/borrows/owned_byte_value_call_exit checked 11067ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_nested_record_copy_exit checked 11044ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/owned_reference_arrival_projection_exit checked 3581ms check-target:macos_arm64 @ea7b63644a0a+wt
@@ -17424,6 +17467,15 @@ pass/facts/content_reunion_through_other_machine_exit checked 5753ms check-targe
 pass/facts/content_reunion_through_other_state_exit checked 5735ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/content_reunion_through_parameter_exit checked 5736ms check-target:macos_arm64 @6cd22386cbb5
 pass/facts/content_reunion_through_target_body_exit checked 6081ms check-target:macos_arm64 @6cd22386cbb5
+pass/facts/copied_call_argument_snapshot_descriptor_through_call_result_exit checked 1851ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_const_name_exit checked 1881ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_field_exit checked 1931ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_local_exit checked 1901ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_match_join_exit checked 1526ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_other_machine_exit checked 1897ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_other_state_exit checked 2176ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_parameter_exit checked 1607ms check-target:macos_arm64 @bee167b35fd4
+pass/facts/copied_call_argument_snapshot_descriptor_through_target_body_exit checked 1626ms check-target:macos_arm64 @bee167b35fd4
 pass/facts/copied_call_argument_snapshot_through_call_result_exit checked 664ms check-target:macos_arm64 @6e37ba29d416+wt
 pass/facts/copied_call_argument_snapshot_through_const_name_exit checked 632ms check-target:macos_arm64 @6e37ba29d416+wt
 pass/facts/copied_call_argument_snapshot_through_field_exit checked 634ms check-target:macos_arm64 @6e37ba29d416+wt
