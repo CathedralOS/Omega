@@ -32,7 +32,7 @@ impl PackagePolicyMembershipLimits {
     pub(super) fn bounded(self) -> Self {
         Self::new(
             self.maximum_owned_bytes.min(64 * 1024 * 1024),
-            self.maximum_identity_nodes.min(1_048_576),
+            self.maximum_identity_nodes.min(2 * 128 * 1024 * 1024),
             self.maximum_depth.min(128),
         )
     }

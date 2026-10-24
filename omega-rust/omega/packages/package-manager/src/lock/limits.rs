@@ -22,7 +22,11 @@ impl Default for PackageLockRecoveryLimits {
             maximum_packages: 16 * 1024,
             maximum_dependency_requests: 256 * 1024,
             maximum_policy_elements: 1024 * 1024,
-            maximum_identity_nodes: 1024 * 1024,
+            // Every identity node consumes lock text, at most two productions
+            // per byte (a nominal name opens one scope for its atom and one for
+            // its owner), so the node ceiling follows the byte ceiling. A
+            // 17-package application's membership exceeded a fixed 1,048,576.
+            maximum_identity_nodes: 2 * 128 * 1024 * 1024,
             maximum_decisions: 65_536,
         }
     }
