@@ -141,7 +141,7 @@ pub(super) fn validate_state_statement_node<'p>(
 /// The authored position a statement-level diagnostic belongs to. Variant
 /// payloads retain their own spans or expressions worth pointing at; a
 /// machine-free diagnostic reports no position rather than an invented one.
-pub(super) fn statement_source_span(
+pub(crate) fn statement_source_span(
     program: &dyn crate::CheckingInput,
     statement: &StatementNode,
 ) -> Option<source::SourceSpan> {

@@ -5,6 +5,7 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct PreparedTypedProgram<'program> {
+    pub(crate) dependency_body_judgments: Vec<validation::DependencyBodyJudgment>,
     pub(crate) integer_assignments: Vec<proof::checker::CheckedIntegerAssignment>,
     /// Comparisons the proof pass established against retained constant
     /// recipes, for the target closure to discharge.
@@ -19,6 +20,8 @@ pub(crate) fn prepare_typed_program<'program>(
     program: &'program dyn ::validation::CheckingInput,
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
+    prior_dependency_bodies: &[validation::DependencyBodyJudgment],
+    record_dependency_bodies: bool,
 ) -> Result<PreparedTypedProgram<'program>, Vec<Diagnostic>> {
     let opaque_properties = if allow_pending_opaque_copy {
         validation::OpaquePropertyValidation::PendingBuildSelection
@@ -29,7 +32,12 @@ pub(crate) fn prepare_typed_program<'program>(
     // (`lower_typed_trees` calls `admit_checked_quotient_requests` beside
     // `build_check_facts`); validation keeps formation checking here.
     let validated = phase_profile::scope("05.d.2.a.validate", || {
-        validation::prepare_specialized_program(program, opaque_properties)
+        validation::prepare_specialized_program(
+            program,
+            opaque_properties,
+            prior_dependency_bodies,
+            record_dependency_bodies,
+        )
     })?;
 
     let proof_plan = phase_profile::scope("05.d.2.b.build_proof_plan", || {
@@ -47,7 +55,9 @@ pub(crate) fn prepare_typed_program<'program>(
         validate_no_bare_boundary_trait_values(program)
     })?;
 
+    let dependency_body_judgments = validated.dependency_body_judgments;
     Ok(PreparedTypedProgram {
+        dependency_body_judgments,
         integer_assignments,
         constant_recipe_obligations,
         proof_plan,
