@@ -130,14 +130,23 @@ impl<'program> ShapeCollector<'program> {
             ) {
             None
         } else if let Some(primitive) = self.program.primitive_type_reference(carrier) {
-            Some(validation::scalar_domain_predicate(
+            let predicate = validation::scalar_domain_predicate(
                 self.program,
                 application,
                 checked_trees::CheckedScalarExpression::Parameter {
                     position: 0,
                     primitive_type: primitive,
                 },
-            )?)
+            )?;
+            // A vacuous indexed tag has the same empty numeric theory as its
+            // unindexed or reference-carrier presentation. Keep the exact
+            // application identity below, not a second `true` predicate shape
+            // that would conflict when both presentations share storage.
+            (!matches!(
+                predicate,
+                checked_trees::CheckedBooleanExpression::Constant(true)
+            ))
+            .then_some(predicate)
         } else {
             // Aggregate and routed applications retain their exact instance
             // and declaration-owned routes. A pure scalar projection is not

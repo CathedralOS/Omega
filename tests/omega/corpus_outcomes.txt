@@ -646,6 +646,8 @@ fail/borrows/runtime_slice_result_requires_bounds rejected 487ms expected @82749
 fail/borrows/runtime_slice_result_retains_backing rejected 487ms expected @82749ba0e736
 fail/borrows/same_initializer_reference_live_source_move rejected 1588ms expected @a9ae30e1c334+wt
 fail/borrows/scalar_call_stored_carrier_holds_backing rejected 439ms expected @dd6871ed0476
+fail/borrows/scalar_field_loan_carrier_mismatch rejected 196ms expected @3cdf6784ca76+wt
+	machine `view` state `entry`: reference initializer type `u32` must match the stated `&u64`; re-viewing a place's bytes under another shape is spelled `&x as &u64` (§5b recast)
 fail/borrows/scalar_operand_consumes_reference_carrier_once rejected 249ms expected @dd6871ed0476
 fail/borrows/selected_primitive_reference_live_backing_write rejected 1770ms expected @a9ae30e1c334+wt
 fail/borrows/selected_projected_sibling_keeps_residual_loan rejected 634ms expected @cf5a1803718b+wt
@@ -676,6 +678,8 @@ fail/borrows/shared_float_array_element_store rejected 5599ms expected @a9ae30e1
 fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 5989ms expected @a9ae30e1c334+wt
 fail/borrows/shared_record_byte_write_before_last_observation rejected 5775ms expected @a9ae30e1c334+wt
 fail/borrows/shared_reference_carrier_writable_call rejected 968ms expected @c4c0ab7a5d11
+fail/borrows/slice_descriptor_is_not_fixed_array_reference rejected 190ms expected @3cdf6784ca76+wt
+	machine `view` state `entry` local `fixed` expects `&[u8; 4]`, but the value is delivered as `&[u8]`
 fail/borrows/state_argument_borrows_forwarded_reference rejected 2484ms expected @00748f0a5289+wt
 fail/borrows/state_arrival_recast_keeps_backing_loan rejected 2535ms expected @d3af6d5ca3c5
 fail/borrows/state_index_bound rejected 5677ms expected @a9ae30e1c334+wt
@@ -1667,6 +1671,8 @@ fail/domains/bitwise_membership_stale_store rejected 5424ms expected @d1fa4738e6
 fail/domains/bitwise_membership_trapping_operand rejected 178ms expected @d1fa4738e67a+wt
 fail/domains/bodyful_owner_establishment_bypass rejected 1708ms expected @a9ae30e1c334+wt
 fail/domains/borrowed_record_domain_requires_qualified_input rejected 13822ms expected @c48489ea6ad6
+fail/domains/borrowed_scalar_tag_wrong_index rejected 426ms expected @3cdf6784ca76+wt
+	index compatibility condition `index-equality:Coordinate:main::entry:call-2-0:Coordinate<9>==Coordinate<7>` is not established: actual `Coordinate<9>` and expected `Coordinate<7>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/domains/byte_predicate_declared_callee_crash rejected 533ms expected @ef7962801508
 fail/domains/byte_predicate_operand_callee_crash rejected 815ms expected @ef7962801508
 fail/domains/call_requires_invalidated_by_mutation rejected 1674ms expected @a9ae30e1c334+wt
@@ -1784,6 +1790,8 @@ fail/domains/module_domain_broad_import_hides_leaf rejected 853ms expected @a9ae
 fail/domains/module_qualified_cast_domain_false rejected 285ms expected @2012446ad74a+wt
 fail/domains/module_qualified_cast_domain_unimported rejected 285ms expected @2012446ad74a+wt
 fail/domains/module_qualified_cast_domain_unknown rejected 285ms expected @2012446ad74a+wt
+fail/domains/moved_payload_cannot_revive_issued_membership rejected 550ms expected @3cdf6784ca76+wt
+	cannot prove requires contract for call read_issued from main: moved.cell in Cell::Issued in state `entry`
 fail/domains/named_const_subject_binding rejected 15ms expected @a9ae30e1c334+wt
 fail/domains/named_issuer_independent_predicate rejected 3119ms expected @d6cf554fd1cb+wt
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
@@ -1917,6 +1925,8 @@ fail/domains/structural_predicate_cast_unproved rejected 1389ms expected @201244
 fail/domains/structural_qualification_cast_other_domain rejected 226ms expected @0bb0340f378d+wt
 fail/domains/structural_qualification_transition_other_domain rejected 282ms expected @2012446ad74a+wt
 fail/domains/structural_qualification_transition_routed rejected 1282ms expected @e74967d11875
+fail/domains/tag_alias_keeps_receiving_predicate rejected 190ms expected @3cdf6784ca76+wt
+	cannot prove assignment value `0` satisfies bounded target `cell.value` in `write.entry`; expected 1..=4294967295
 fail/domains/target_issuer_no_self_assumption rejected 961ms expected @8fdb0071edab
 	cannot prove requires contract for call consume from issue: value in i64::Classified in state `entry`
 fail/domains/target_issuer_nonrealized_predicate rejected 1013ms expected @8fdb0071edab
@@ -8400,6 +8410,24 @@ fail/facts/scalar_sign_zero_extension_through_target_body_rejected rejected 440m
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/scalar_tag_field_loan_through_call_result_backing_write rejected 700ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/scalar_tag_field_loan_through_const_name_backing_write rejected 697ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/scalar_tag_field_loan_through_field_backing_write rejected 702ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/scalar_tag_field_loan_through_local_backing_write rejected 703ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/scalar_tag_field_loan_through_match_join_backing_write rejected 697ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 6)
+fail/facts/scalar_tag_field_loan_through_other_machine_backing_write rejected 694ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/scalar_tag_field_loan_through_other_state_backing_write rejected 703ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/facts/scalar_tag_field_loan_through_parameter_backing_write rejected 694ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/scalar_tag_field_loan_through_target_body_backing_write rejected 691ms expected @3cdf6784ca76+wt
+	statement 2 mutates `storage.value` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/scalar_width_shifts_through_call_result_rejected rejected 2398ms expected @45cbafd80d9c
 	exact arithmetic in machine `shift_round_trip` state `entry` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply_val(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 fail/facts/scalar_width_shifts_through_const_name_rejected rejected 2430ms expected @45cbafd80d9c
@@ -15446,6 +15474,7 @@ pass/borrows/stored_reference_address_field_exit checked 3628ms check-target:mac
 pass/borrows/stored_reference_projection_exit checked 11240ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/stored_view_return_consumers checked 1799ms @f329f97f57f7+wt
 pass/borrows/structural_operand_view_catalog_exit checked 3433ms check-target:macos_arm64 @ea7b63644a0a+wt
+pass/borrows/tagged_scalar_field_live_copy_exit checked 865ms check-target:macos_arm64 @3cdf6784ca76+wt
 pass/borrows/terminal_call_loan_completion_exit checked 11894ms check-target:macos_arm64 @f772dfc723fb+wt
 pass/borrows/transition_shared_borrow_result checked 11028ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/view_field_record_exit_disposal checked 1549ms @a9ae30e1c334+wt
@@ -16481,6 +16510,7 @@ pass/domains/captured_predicate_readonly_call_exit checked 647ms @cc9e4517d62d+w
 pass/domains/case_payload_call_restore_exit checked 11797ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/case_payload_guarded_domain_exit checked 668ms check-target:macos_arm64 @3d64278a43eb
 pass/domains/case_payload_predicate_domain_member_exit checked 11675ms check-target:macos_arm64 @7c847bad15b6+wt
+pass/domains/chained_tagged_reference_moves_exit checked 865ms check-target:macos_arm64 @3cdf6784ca76+wt
 pass/domains/copied_array_domain_survives_original_mutation_exit checked 689ms check-target:macos_arm64 @e34cad686b12
 pass/domains/dependent_coordinate_sum_rational_bound checked 1903ms @92056ecd9701
 pass/domains/dependent_coordinate_sum_upper_bound checked 1826ms @92056ecd9701
@@ -16512,11 +16542,13 @@ pass/domains/match_domain_patterns checked 1622ms @a9ae30e1c334+wt
 pass/domains/match_domain_results checked 9876ms @5041ef1af684+wt
 pass/domains/match_join_alias_domain_transfer checked 1214ms @fd94a7b8095c+wt
 pass/domains/module_domain_narrow_import_spelling checked 1609ms @a9ae30e1c334+wt
+pass/domains/moved_payload_uses_current_membership_exit checked 836ms check-target:macos_arm64 @3cdf6784ca76+wt
 pass/domains/named_const_subject_binding checked 11573ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/named_subject_capacity_identity_exit checked 11829ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/policy_plan_shapes checked 9261ms @5041ef1af684+wt
 pass/domains/predicate_domain_param checked 9737ms @5041ef1af684+wt
 pass/domains/progress_domain_provider checked 18456ms @3b422f31da30+wt
+pass/domains/qualified_fixed_byte_field_loan_exit checked 835ms check-target:macos_arm64 @3cdf6784ca76+wt
 pass/domains/qualified_mutable_field_exit checked 10906ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/qualified_mutable_scalar_input_domain_expires checked 1206ms @61f89705e5ff
 pass/domains/qualified_owned_array_scalar_control_exit checked 889ms check-target:macos_arm64 @65641cea7412+wt
@@ -16563,6 +16595,8 @@ pass/domains/runtime_structural_contract_erasure_exit checked 5362ms check-targe
 pass/domains/runtime_terminal_result_context_exit checked 14710ms check-target:macos_arm64 @8d3a0acb500a+wt
 pass/domains/semantic_cast_guard_chain_mint checked 2041ms @a9ae30e1c334+wt
 pass/domains/slice_domain_validator checked 32151ms check-target:macos_arm64 @3b422f31da30+wt
+pass/domains/tag_alias_retains_receiving_predicate_exit checked 1011ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/domains/tagged_scalar_reference_carriers_exit checked 1025ms check-target:macos_arm64 @3cdf6784ca76+wt
 pass/domains/target_generic_issuer_forwarding_exit checked 1458ms check-target:macos_arm64 @8fdb0071edab
 pass/domains/threaded_subject_keeps_established_domains checked 15236ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/domains/transparent_alias_expansion checked 1833ms @a9ae30e1c334+wt
@@ -19339,6 +19373,15 @@ pass/facts/scalar_sign_zero_extension_through_other_machine_exit checked 2676ms 
 pass/facts/scalar_sign_zero_extension_through_other_state_exit checked 2567ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/scalar_sign_zero_extension_through_parameter_exit checked 3728ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/scalar_sign_zero_extension_through_target_body_exit checked 4054ms check-target:macos_arm64 @595562a958b4+wt
+pass/facts/scalar_tag_field_loan_through_call_result_exit checked 850ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_const_name_exit checked 835ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_field_exit checked 831ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_local_exit checked 831ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_match_join_exit checked 825ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_other_machine_exit checked 824ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_other_state_exit checked 835ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_parameter_exit checked 835ms check-target:macos_arm64 @3cdf6784ca76+wt
+pass/facts/scalar_tag_field_loan_through_target_body_exit checked 839ms check-target:macos_arm64 @3cdf6784ca76+wt
 pass/facts/scalar_width_shifts_through_call_result_exit checked 7542ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_const_name_exit checked 7845ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/scalar_width_shifts_through_field_exit checked 7660ms check-target:macos_arm64 @45cbafd80d9c

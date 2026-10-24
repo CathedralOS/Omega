@@ -22,6 +22,15 @@ pub enum LoweringError {
         domain: language_semantics::SemanticDomainId,
         carrier: semantic_vocabulary::StructuralTypeId,
     },
+    /// A checked operand's membership did not join its exact subject carrier.
+    InvalidOccurrenceMembership {
+        machine: String,
+        state: String,
+        statement_index: u32,
+        domain: String,
+        carrier: semantic_vocabulary::StructuralTypeId,
+        cause: Box<LoweringError>,
+    },
     /// A complete checked predicate cannot silently become an opaque domain.
     InvalidUnitDomainPredicate {
         domain: language_semantics::SemanticDomainId,

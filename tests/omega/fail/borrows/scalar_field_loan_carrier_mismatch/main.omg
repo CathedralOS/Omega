@@ -1,0 +1,4 @@
+data Cell { value: u32; }
+machine view(cell: &Cell) {
+    let widened: &u64 = &cell.value;
+}

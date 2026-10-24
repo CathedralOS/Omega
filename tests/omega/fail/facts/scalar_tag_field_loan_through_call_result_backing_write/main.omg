@@ -1,0 +1,16 @@
+// Expected exit: 0
+// Fact: a shared tagged scalar-field loan keeps its original backing and value 73 while computing value ^ 0.
+data Cell { value: u32; }
+domain u32::Controlled;
+machine consume(value: &u32 in Controlled) -> u32 { value ^ 0 }
+machine forward<'owner>(value: &'owner u32 in Controlled) -> &'owner u32 in Controlled { value }
+machine main() crashes Trap {
+    let mut storage: Cell = Cell { value: 73 };
+    let selected: &u32 in Controlled = &storage.value;
+    storage.value = 74;
+    let returned: &u32 in Controlled = forward(selected);
+    let result: u32 = consume(returned);
+    transition result == 73 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

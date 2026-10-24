@@ -1,0 +1,25 @@
+// Expected exit: 0
+// Each move preserves only the exact selected descriptor and its backing.
+data Pair { left: &u32 in Left; right: &u32 in Right; }
+domain u32::Left;
+domain u32::Right;
+machine read_left(value: &u32 in Left) -> u32 { value ^ 0 }
+machine read_right(value: &u32 in Right) -> u32 { value ^ 0 }
+machine main() crashes Trap {
+    let left: u32 = 73;
+    let right: u32 = 19;
+    let left_view: &u32 in Left = &left;
+    let right_view: &u32 in Right = &right;
+    let pair: Pair = Pair { left: left_view, right: right_view };
+    let first: &u32 in Left = pair.left;
+    let second: &u32 in Left = first;
+    let third: &u32 in Left = second;
+    let left_value: u32 = read_left(third);
+    let right_value: u32 = read_right(pair.right);
+    transition left_value == 73 && right_value == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

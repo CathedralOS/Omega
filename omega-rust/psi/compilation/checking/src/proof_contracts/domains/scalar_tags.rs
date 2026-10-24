@@ -85,7 +85,7 @@ pub fn scalar_type_routed_domains(
 /// Classify the exact application once for signature and stored-field readers.
 /// This is a vacuous storage predicate, not evidence that two indexed tags are
 /// compatible or that an establishment route has been executed.
-pub(super) fn scalar_tag_constraint(
+pub(crate) fn scalar_tag_constraint(
     program: &dyn crate::CheckingInput,
     constraint: &typed_trees::types::DomainConstraint,
     primitive: PrimitiveType,

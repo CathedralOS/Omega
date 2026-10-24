@@ -1,4 +1,4 @@
-//! Complete-graph membership transport for copied payloads.
+//! Complete-graph membership transport for copied and moved payloads.
 //! Copying through a descriptor observes its captured backing at that operation,
 //! not the descriptor's own empty roster. Intersect every possible source and
 //! propagate completed copies until dependencies stop growing. Owned arrival
@@ -6,6 +6,11 @@
 //! additional facts without strengthening an explicitly weakened value home.
 //! Receiving declarations supply no new rows. Independent Terminal validation
 //! replays each copy and every edge/store after this producer elaboration.
+//! Late additions to an ordinary move come from its exact current selected
+//! source occurrence, not its initial declaration. This does not repair stale
+//! rows already seeded by earlier emission. It does not follow a
+//! descriptor to its backing, infer membership from equal storage geometry, or
+//! rewrite a block arrival's intended receiving contract.
 use crate::lowering_error::LoweringError;
 mod construction_memberships;
 mod membership_reachability;
@@ -59,6 +64,34 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         &memberships,
                     ) {
                         copies.push((machine_index, block_index, ordinal, contract));
+                    }
+                    if let OperationKind::MoveStructuralValue { source } = &operation.kind
+                        && let Some(result) = operation.result.structural()
+                        && let Ok(root) = history.current_payload_contract(position, source.place)
+                        && terminal_semantics::qualification_path_carrier(
+                            types.iter(),
+                            root.carrier,
+                            &source.path,
+                        ) == Some(result.structural_type)
+                    {
+                        let (qualifications, projected_qualifications) =
+                            terminal_psi::StructuralPathQualification::select(
+                                &root.qualifications,
+                                &root.projected_qualifications,
+                                &source.path,
+                            );
+                        copies.push((
+                            machine_index,
+                            block_index,
+                            ordinal,
+                            PayloadMembershipContract {
+                                scalar_observations: Vec::new(),
+                                scalar_requirements: Vec::new(),
+                                carrier: result.structural_type,
+                                qualifications,
+                                projected_qualifications,
+                            },
+                        ));
                     }
                     let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
                         continue;

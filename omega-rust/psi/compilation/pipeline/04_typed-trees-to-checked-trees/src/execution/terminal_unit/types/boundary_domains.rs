@@ -51,27 +51,59 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
                 }
                 continue;
             }
-            if let Some(primitive_type) =
-                validation::scalar_membership_value_carrier(program, membership)
-            {
-                let routed = validation::field_domains::domain_requires_provenance(
+            // The published formal owns the value lane. A structural subject
+            // can expose a scalar observation (for example a borrowed u32),
+            // but that observation does not replace its reference or move its
+            // nominal requirement into a nonexistent scalar argument slot.
+            let source_position = validation::single_segment_name_symbol(program, membership.value)
+                .and_then(|root| {
+                    source_parameters
+                        .iter()
+                        .position(|parameter| parameter.symbol == root)
+                });
+            let primitive_type = validation::scalar_membership_value_carrier(program, membership);
+            if primitive_type.is_some()
+                && !validation::field_domains::domain_requires_provenance(
                     program,
                     membership.domain_symbol,
-                );
-                let vacuous = validation::field_domains::domain_is_vacuous(
+                )
+                && !validation::field_domains::domain_is_vacuous(
                     program,
                     membership.domain_symbol,
                     &mut Vec::new(),
-                );
-                // Predicate-only domains retain their complete numeric contract.
-                // Routed atoms and vacuous tags additionally retain exact identity.
-                if !routed && !vacuous {
-                    continue;
-                }
-                let root = validation::single_segment_name_symbol(program, membership.value)?;
-                let source_position = source_parameters
+                )
+            {
+                // Predicate-only scalar membership has an independent numeric
+                // contract owner. Do not replace that predicate with opaque
+                // identity merely because its subject occupies a structural slot.
+                continue;
+            }
+            if let Some(argument_index) = source_position.and_then(|source_position| {
+                structural_parameters
                     .iter()
-                    .position(|parameter| parameter.symbol == root)?;
+                    .position(|parameter| parameter.position as usize == source_position)
+            }) {
+                let domain = membership.semantic_domain;
+                if !domain.is_valid() {
+                    return None;
+                }
+                let carrier = program
+                    .unwrapped_type_reference(source_parameters[source_position?].type_reference)?;
+                shapes.add_selected_domain(
+                    domain,
+                    membership.domain_symbol,
+                    carrier,
+                    binders,
+                    false,
+                )?;
+                structural.push(CheckedUnitStructuralDomainRequirementPlan {
+                    argument_index: u32::try_from(argument_index).ok()?,
+                    domain,
+                });
+                continue;
+            }
+            if let Some(primitive_type) = primitive_type {
+                let source_position = source_position?;
                 let argument_index = scalar_parameters
                     .iter()
                     .position(|parameter| parameter.source_position as usize == source_position)?;
@@ -101,30 +133,7 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements<'a>(
                 });
                 continue;
             }
-            let root = validation::single_segment_name_symbol(program, membership.value)?;
-            let source_position = source_parameters
-                .iter()
-                .position(|parameter| parameter.symbol == root)?;
-            let argument_index = structural_parameters
-                .iter()
-                .position(|parameter| parameter.position as usize == source_position)?;
-            let domain = membership.semantic_domain;
-            if !domain.is_valid() {
-                return None;
-            }
-            let carrier = program
-                .unwrapped_type_reference(source_parameters[source_position].type_reference)?;
-            shapes.add_selected_domain(
-                domain,
-                membership.domain_symbol,
-                carrier,
-                binders,
-                false,
-            )?;
-            structural.push(CheckedUnitStructuralDomainRequirementPlan {
-                argument_index: u32::try_from(argument_index).ok()?,
-                domain,
-            });
+            return None;
         }
     }
     structural.sort_by_key(|requirement| (requirement.argument_index, requirement.domain.0));

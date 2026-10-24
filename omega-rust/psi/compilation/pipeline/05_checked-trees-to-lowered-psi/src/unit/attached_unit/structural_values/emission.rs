@@ -2169,8 +2169,10 @@ impl Emission<'_, '_, '_> {
                 // The literal carries the memberships checking established
                 // for this occurrence (`""` into a `&[u8] in Utf8` field);
                 // Terminal replays its byte predicates against the octets.
-                let qualifications =
-                    self.checked_membership_domains(node.qualification_decisions)?;
+                let qualifications = self.checked_membership_domains(
+                    node.qualification_decisions,
+                    self.structural_type,
+                )?;
                 let declaration =
                     crate::emission::structural_byte_sequence_store::emit_call_literal(
                         identities,
@@ -2503,24 +2505,23 @@ impl Emission<'_, '_, '_> {
         // The checker proved these exact memberships at this operand's
         // evaluation point, before a later constructor child may mutate the
         // source home. This is decision transport, not a second proof replay.
-        let decisions = self
-            .checked
-            .facts
-            .qualifications
-            .value_formations
-            .span(qualification_decisions)
-            .ok_or(LoweringError::Unsupported(
-                "copied membership decisions are stale",
-            ))?;
-        for decision in decisions {
-            qualifications.push(crate::terminal_identities::lookup_domain_id_for_carrier(
-                self.domain_ids,
-                decision.semantic_domain,
-                self.structural_type,
-            )?);
+        let (membership_carrier, membership_path) = self.checked_membership_subject()?;
+        let domains =
+            self.checked_membership_domains(qualification_decisions, membership_carrier)?;
+        if membership_path.is_empty() {
+            qualifications.extend(domains);
+        } else {
+            terminal_psi::StructuralPathQualification::append_under(
+                &domains,
+                &[],
+                membership_path,
+                &mut projected_qualifications,
+            );
         }
         qualifications.sort();
         qualifications.dedup();
+        projected_qualifications.sort();
+        projected_qualifications.dedup();
         let place = place_id(allocate_dense(self.environment.next_place)?);
         let operation = self.operations.allocate();
         self.operations.push(terminal_psi::Operation {

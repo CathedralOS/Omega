@@ -1,4 +1,8 @@
 //! Preserve producer-authored custody when publishing a completed source value.
+//! Checked operand memberships describe the denoted value: for a reference
+//! descriptor they qualify its referent, never its pointer geometry. Copies
+//! and owned transport share that carrier/path join; neither establishes a new
+//! loan or changes the selected backing.
 
 use super::{
     Emission, LoweringError, OperationBuffer, PlaceId, StructuralAccess, StructuralArgument,
@@ -147,11 +151,59 @@ impl Emission<'_, '_, '_> {
             })
     }
 
-    /// The Terminal domains of an occurrence's checked memberships on this
-    /// emission's carrier.
+    /// The exact subject of source-value qualification on the emitted carrier.
+    pub(super) fn checked_membership_subject(
+        &self,
+    ) -> Result<
+        (
+            semantic_vocabulary::StructuralTypeId,
+            &'static [terminal_psi::StructuralPathSegment],
+        ),
+        LoweringError,
+    > {
+        let declaration =
+            terminal_psi::find_structural_type(self.structural_types, self.structural_type).ok_or(
+                LoweringError::Unsupported("checked membership carrier is absent"),
+            )?;
+        Ok(match declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
+                (referent, &[terminal_psi::StructuralPathSegment::Referent])
+            }
+            _ => (self.structural_type, &[]),
+        })
+    }
+
+    pub(super) fn checked_membership_domain(
+        &self,
+        decision: &checked_trees::CheckedValueQualification,
+        carrier: semantic_vocabulary::StructuralTypeId,
+    ) -> Result<semantic_vocabulary::StructuralDomainId, LoweringError> {
+        crate::terminal_identities::lookup_domain_id_for_carrier(
+            self.domain_ids,
+            decision.semantic_domain,
+            carrier,
+        )
+        .map_err(|cause| LoweringError::InvalidOccurrenceMembership {
+            machine: self.checked.symbols.display_path(self.machine, "::"),
+            state: self.checked.symbols.display_path(self.state, "::"),
+            statement_index: self.statement,
+            domain: self
+                .checked
+                .typed
+                .semantic_domains
+                .name(decision.semantic_domain)
+                .unwrap_or("<unregistered domain>")
+                .to_owned(),
+            carrier,
+            cause: Box::new(cause),
+        })
+    }
+
+    /// The Terminal domains of checked memberships on their exact subject.
     pub(super) fn checked_membership_domains(
         &self,
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+        carrier: semantic_vocabulary::StructuralTypeId,
     ) -> Result<Vec<semantic_vocabulary::StructuralDomainId>, LoweringError> {
         let mut domains = self
             .checked
@@ -163,13 +215,7 @@ impl Emission<'_, '_, '_> {
                 "operand membership decisions are stale",
             ))?
             .iter()
-            .map(|decision| {
-                crate::terminal_identities::lookup_domain_id_for_carrier(
-                    self.domain_ids,
-                    decision.semantic_domain,
-                    self.structural_type,
-                )
-            })
+            .map(|decision| self.checked_membership_domain(decision, carrier))
             .collect::<Result<Vec<_>, _>>()?;
         domains.sort();
         domains.dedup();
@@ -186,7 +232,7 @@ impl Emission<'_, '_, '_> {
         decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         continuation: Option<&mut super::ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
-        let domains = self.checked_membership_domains(decisions)?;
+        let domains = self.checked_membership_domains(decisions, self.structural_type)?;
         crate::emission::formation_memberships::publish(
             self.operations,
             place,
@@ -224,17 +270,9 @@ impl Emission<'_, '_, '_> {
         // Source memberships qualify a reference's referent, not its affine
         // permission descriptor. Rejoin the already captured rows at that
         // boundary; a decision cannot mint a domain on the pointer carrier.
+        let (membership_carrier, relative) = self.checked_membership_subject()?;
         let mut membership_path = source.path.clone();
-        let membership_carrier =
-            match terminal_psi::find_structural_type(self.structural_types, self.structural_type)
-                .map(|declaration| &declaration.shape)
-            {
-                Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) => {
-                    membership_path.push(terminal_psi::StructuralPathSegment::Referent);
-                    *referent
-                }
-                _ => self.structural_type,
-            };
+        membership_path.extend_from_slice(relative);
         let (qualifications, projected_qualifications) = self
             .completed_memberships(source.place)
             .ok_or(LoweringError::Unsupported(
@@ -247,11 +285,7 @@ impl Emission<'_, '_, '_> {
         );
         let mut established = Vec::new();
         for decision in memberships {
-            let domain = crate::terminal_identities::lookup_domain_id_for_carrier(
-                self.domain_ids,
-                decision.semantic_domain,
-                membership_carrier,
-            )?;
+            let domain = self.checked_membership_domain(decision, membership_carrier)?;
             if !qualifications.contains(&domain) {
                 // Direct Terminal routes do not include every inherited or
                 // aliased restriction. Consult the resolved source declaration,
@@ -284,7 +318,6 @@ impl Emission<'_, '_, '_> {
                     ))?;
             let (mut qualifications, mut projected_qualifications) =
                 terminal_psi::StructuralPathQualification::select(whole, projected, &source.path);
-            let relative = &membership_path[source.path.len()..];
             if relative.is_empty() {
                 qualifications.extend(established);
                 qualifications.sort();

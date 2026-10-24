@@ -2839,6 +2839,9 @@ crash and native exit behavior.
     agree for the 16 affected runtime controls; bounds, shared-write, backing
     lifetime and constrained exclusive-store refusals remain enforced.
   - Remaining: qualify the other acceptance routes on Ubuntu and Windows.
+    Carry the [tagged scalar-field loan row](samples/cli/facts/scalar_tag_field_loan/README.md)
+    through the remaining matching hosts; its macOS ARM64 execution does not
+    qualify Linux or Windows.
     Runtime-indexed shared constrained-field reads also need cross-host
     execution under **PLACED-ACCESS-NATIVE-OPS**; retain the
     [unchanged authored witness](tests/omega/pass/layouts/runtime_indexed_restricted_field_read/README.md).
@@ -3786,7 +3789,9 @@ deletions, which the commit lists.
     and interval/finite-refined element-view writes, including generated indexed
     stores. Finish the formation audit outside statement-level concrete scalar
     constructor first stores and captured unrestricted record/array child memberships.
-    Finish affine aggregate entries, contract-bearing scalar continuations and
+    Finish affine aggregate entries, separating exact occurrence establishments
+    from current source memberships after writes rather than seeding moves from
+    a stale initial construction roster. Finish contract-bearing scalar continuations and
     proposition positions; unify
     abstract declaration-contract carrier resolution with the ordinary formation walk.
   - Carry source decisions for invocation-entry, scalar-graph,

@@ -1,0 +1,11 @@
+data Cell { value: u32; }
+data Box { cell: Cell; }
+domain Cell::Issued established by issue;
+machine issue() -> Cell ensures result in Cell::Issued { Cell { value: 73 } }
+machine read_issued(cell: Cell in Issued) -> u32 { cell.value ^ 0 }
+machine main() -> u32 {
+    let mut original: Box = Box { cell: issue() };
+    original.cell.value = 0;
+    let moved: Box = original;
+    read_issued(moved.cell)
+}

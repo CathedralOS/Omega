@@ -19,6 +19,7 @@ pub use runtime_predicates::{
     scalar_membership_value_carrier, scalar_membership_value_predicates,
 };
 mod scalar_tags;
+pub(crate) use scalar_tags::scalar_tag_constraint;
 pub use scalar_tags::{scalar_predicate_domains, scalar_type_routed_domains, scalar_type_tags};
 
 use crate::declarations::symbols::TopLevelSymbols;

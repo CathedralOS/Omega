@@ -177,22 +177,14 @@ pub(crate) fn capture(
         checked_trees::CheckedUnitStructuralPathSegment::Referent,
         crossings,
     ));
+    // Storage identity already separates tag membership from receiving
+    // restrictions. Keep those restrictions exact here; equal byte geometry
+    // does not authorize an unrelated owner or a stronger writable referee.
     if !is_view
         && validation::structural_type_identity(program, endpoint, &[], &[])
             != validation::structural_type_identity(program, referent, &[], &[])
     {
-        // Bounded byte domains name different theories over the same owner
-        // geometry. Their preservation is checked separately; neither may be
-        // confused with a plain fixed array or a borrowed view descriptor.
-        let supplied = validation::byte_sequence_carrier(program, endpoint, &[]);
-        let requested = validation::byte_sequence_carrier(program, referent, &[]);
-        if !matches!(
-            supplied,
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-        ) || supplied != requested
-        {
-            return None;
-        }
+        return None;
     }
     let placed_storage = if is_placed {
         let named_symbol = |reference| {

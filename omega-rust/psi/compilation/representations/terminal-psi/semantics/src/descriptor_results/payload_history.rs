@@ -136,6 +136,27 @@ impl<'input> PayloadMembershipHistory<'input> {
         });
         contract.ok_or(failure.unwrap_or("selected payload memberships are unresolved"))
     }
+
+    /// Observe this owned value occurrence before the operation, without
+    /// following a descriptor to its backing. Mutable fields use their current
+    /// contract after preceding stores, not the producer's establishment roster.
+    pub fn current_payload_contract(
+        &mut self,
+        position: DescriptorPosition,
+        root: PlaceId,
+    ) -> Result<PayloadMembershipContract, &'static str> {
+        let machine = self.machine;
+        current_payload_contract_reusing(
+            self.types,
+            self.domains,
+            self.graph,
+            machine.id,
+            position,
+            root,
+            &|place| super::terminal_payload_contract(machine, place),
+            &mut self.cached,
+        )
+    }
 }
 
 /// Observe the current payload selected by an operand, following descriptors

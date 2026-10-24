@@ -86,11 +86,20 @@ pub(super) fn boundary_scalar_requires(
                                         })
                                     })
                             });
-                    if structural {
+                    if structural
+                        && validation::scalar_membership_value_carrier(program, membership)
+                            .is_none()
+                    {
                         continue;
                     }
-                    let retained_scalar =
-                        validation::single_segment_name_symbol(program, membership.value)
+                    // Nominal membership and its numeric component are
+                    // independent. A borrowed scalar's identity lives in the
+                    // structural lane, but its complete predicate must survive
+                    // just as a scalar-lane routed requirement's does. An
+                    // unavailable projection refuses; an opaque domain plan
+                    // is not a substitute for this predicate.
+                    let retained_nominal = structural
+                        || validation::single_segment_name_symbol(program, membership.value)
                             .and_then(|symbol| {
                                 parameters
                                     .iter()
@@ -111,7 +120,7 @@ pub(super) fn boundary_scalar_requires(
                                         })
                                     })
                             });
-                    let project = if retained_scalar {
+                    let project = if retained_nominal {
                         crate::values::scalar::result_contract::lower_callable_scalar_membership_value
                     } else {
                         crate::values::scalar::result_contract::lower_callable_scalar_membership

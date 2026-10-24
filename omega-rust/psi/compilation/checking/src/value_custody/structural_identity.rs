@@ -15,6 +15,11 @@
 //!   primitive interval or scalar predicate keeps its qualification so its
 //!   receiving stores and fresh reads can name the exact restriction. Value
 //!   domain membership such as Finite remains in the separate custody channel.
+//!   Predicate-free scalar tags use that same separation. Keeping their
+//!   qualification in storage identity would create multiple unrestricted
+//!   scalar declarations and make an inline field's carrier ambiguous. The
+//!   declaration-backed tag judgment is shared with signature custody; every
+//!   non-tag constraint still retains its full receiving declaration.
 //!   Fixed arrays retain their exact carrier identity under qualification.
 //! - A type parameter bound in `substitutions` stands for its actual.
 //!
@@ -41,13 +46,32 @@ pub fn structural_identity_type(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => reference = *referee,
             TypeReferenceNode::Constrained { constraints, .. }
-                if (program.primitive_type_reference(reference).is_some()
-                        && program.type_reference_table.constraints(*constraints).iter().any(|constraint|
-                            matches!(constraint, typed_trees::types::TypeConstraintNode::Range { .. }
-                                | typed_trees::types::TypeConstraintNode::Named(_))
-                            || matches!(constraint, typed_trees::types::TypeConstraintNode::Domain(domain)
-                                if domain.subject != typed_trees::types::DomainConstraintSubject::Value(
-                                    language_semantics::value_domain::ValueDomain::Finite)))) => return reference,
+                if program
+                    .primitive_type_reference(reference)
+                    .is_some_and(|primitive| {
+                        program
+                            .type_reference_table
+                            .constraints(*constraints)
+                            .iter()
+                            .any(|constraint| {
+                                use typed_trees::types::TypeConstraintNode;
+                                match constraint {
+                                    TypeConstraintNode::Range { .. }
+                                    | TypeConstraintNode::Named(_) => true,
+                                    TypeConstraintNode::Domain(domain) => domain.subject
+                                        != typed_trees::types::DomainConstraintSubject::Value(
+                                            language_semantics::value_domain::ValueDomain::Finite,
+                                        )
+                                        && !crate::proof_contracts::domains::scalar_tag_constraint(
+                                            program, domain, primitive,
+                                        ),
+                                    _ => false,
+                                }
+                            })
+                    }) =>
+            {
+                return reference;
+            }
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { symbol, .. } => {
                 match crate::substitutions::actual_for(substitutions, *symbol) {

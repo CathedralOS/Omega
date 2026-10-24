@@ -1,0 +1,19 @@
+// Expected exit: 0
+data Cell { value: u32; }
+domain u32::Controlled;
+machine authorized_read(value: &u32 in Controlled) -> u32 { value }
+machine copy_selected(cell: &Cell) -> u32 { cell.value }
+machine inspect_scalar(value: u32) -> u32 { value ^ 0 }
+machine observed_exit() -> u32 {
+    let storage: Cell = Cell { value: 73 };
+    let protected: &u32 in Controlled = &storage.value;
+    let copied: u32 = copy_selected(&storage);
+    let inspected: u32 = inspect_scalar(copied);
+    let final_value: u32 = authorized_read(protected);
+    transition inspected == 73 && final_value == 73 { true -> 0 _ -> 1 }
+}
+machine main() crashes Trap {
+    transition observed_exit() == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
