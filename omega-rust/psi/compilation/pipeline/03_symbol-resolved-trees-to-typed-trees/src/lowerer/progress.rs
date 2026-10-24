@@ -4,11 +4,13 @@ use language_semantics::{
 };
 use typed_trees as typed;
 
-/// Complete the public termination records after every typed domain,
-/// requirement, contract, and conformance edge exists. Earlier stages retain
-/// only the authored `terminates` bit; this is the single point that can attach
-/// semantic-domain identity and parameter-rooted subject identity together.
-pub(crate) fn normalize_progress_premises(
+/// Complete the public termination records of every trait requirement in the
+/// program. Every typed domain, requirement, contract and conformance edge
+/// exists by now; earlier stages retain only the authored `terminates` bit,
+/// and this is the single point that can attach semantic-domain identity and
+/// parameter-rooted subject identity together. The continuation routes cannot
+/// introduce a trait requirement, so they never run it.
+pub(crate) fn normalize_trait_progress_premises(
     program: &mut typed::TypedTrees,
 ) -> Result<(), Diagnostic> {
     let signature_updates = program
@@ -43,20 +45,13 @@ pub(crate) fn normalize_progress_premises(
             }
         });
 
-    normalize_machine_progress_premises_from(program, 0)
+    Ok(())
 }
 
 /// Normalize only the machine suffix appended after a retained checkpoint.
-/// Trait requirements cannot be introduced by this continuation cohort, so
-/// their already-normalized guarantees remain exact base state.
-pub(crate) fn normalize_progress_premises_from(
-    program: &mut typed::TypedTrees,
-    machine_frontier: usize,
-) -> Result<(), Diagnostic> {
-    normalize_machine_progress_premises_from(program, machine_frontier)
-}
-
-fn normalize_machine_progress_premises_from(
+/// Trait requirements cannot be introduced by a continuation, so their
+/// already-normalized guarantees remain exact base state.
+pub(crate) fn normalize_machine_progress_premises(
     program: &mut typed::TypedTrees,
     machine_frontier: usize,
 ) -> Result<(), Diagnostic> {

@@ -13,35 +13,17 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+/// Land exact-width quoted-byte literals into the owned fixed byte array
+/// destinations this run produced: those of machines appended after
+/// `machine_frontier`, plus any retained machine named in `completed_machines`
+/// whose body this run completed in place. Base literals have already been
+/// contextualized, so expression discovery also starts past
+/// `expression_frontier`; a whole program passes zeroes.
 pub(crate) fn land_exact_fixed_byte_array_literals(
-    program: &mut TypedTrees,
-) -> Result<(), Diagnostic> {
-    land_exact_fixed_byte_array_literals_from(program, 0, 0)
-}
-
-/// Land only destinations owned by expressions or machines appended after a
-/// retained checkpoint. Base literals have already been contextualized and
-/// must not be rewritten by extension finalization.
-pub(crate) fn land_exact_fixed_byte_array_literals_from(
     program: &mut TypedTrees,
     expression_frontier: usize,
     machine_frontier: usize,
-) -> Result<(), Diagnostic> {
-    let selected = program
-        .machines()
-        .iter()
-        .skip(machine_frontier)
-        .map(|machine| machine.symbol)
-        .collect::<Vec<_>>();
-    land_exact_fixed_byte_array_literals_for_machines(program, expression_frontier, &selected)
-}
-
-/// Authored completion adds implementation expressions to existing machines,
-/// not a new declaration suffix. Both transitions share destination discovery.
-pub(crate) fn land_exact_fixed_byte_array_literals_for_machines(
-    program: &mut TypedTrees,
-    expression_frontier: usize,
-    selected: &[SymbolHandle],
+    completed_machines: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
     let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
 
@@ -110,12 +92,13 @@ pub(crate) fn land_exact_fixed_byte_array_literals_for_machines(
         }
     }
 
-    // Machine/state declarations own the remaining result positions.
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| selected.contains(&machine.symbol))
-    {
+    // Machine/state declarations own the remaining result positions: the
+    // machines this run appended, plus every retained machine whose body it
+    // completed in place.
+    for (ordinal, machine) in program.machines().iter().enumerate() {
+        if ordinal < machine_frontier && !completed_machines.contains(&machine.symbol) {
+            continue;
+        }
         for owned in program.machine_owned_data(machine) {
             if owned.initial_value.is_valid() && owned.type_reference.is_valid() {
                 destinations.push((owned.initial_value, owned.type_reference));

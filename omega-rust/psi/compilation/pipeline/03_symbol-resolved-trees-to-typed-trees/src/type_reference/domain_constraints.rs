@@ -6,20 +6,14 @@ use typed_trees::domain::DomainDefinition;
 use typed_trees::name::Identifier;
 use typed_trees::types::{DomainConstraint, DomainConstraintSubject, TypeConstraintNode};
 
-/// Bind and expand every declared-domain type constraint after the complete
-/// typed program exists. Carrier-aware lookup precedes transparent-alias
-/// expansion, so a short source name never becomes an identity oracle.
+/// Bind and expand declared-domain type constraints after the complete typed
+/// program exists. Carrier-aware lookup precedes transparent-alias expansion,
+/// so a short source name never becomes an identity oracle. Only
+/// type-reference nodes appended after a retained checkpoint are normalized:
+/// existing constrained nodes have already published their exact domain and
+/// authored-selection identities and are immutable continuation input. A whole
+/// program passes zero.
 pub(crate) fn normalize_domain_constraints(
-    source: &SymbolResolvedTrees,
-    program: &mut TypedTrees,
-) -> Result<(), Diagnostic> {
-    normalize_domain_constraints_from(source, program, 0)
-}
-
-/// Normalize only type-reference nodes appended after a retained checkpoint.
-/// Existing constrained nodes have already published their exact domain and
-/// authored-selection identities and are immutable continuation input.
-pub(crate) fn normalize_domain_constraints_from(
     source: &SymbolResolvedTrees,
     program: &mut TypedTrees,
     type_reference_frontier: usize,

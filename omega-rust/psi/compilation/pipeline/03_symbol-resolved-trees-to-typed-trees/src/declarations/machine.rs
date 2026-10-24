@@ -599,15 +599,10 @@ fn lower_machine_implementation(
     Ok(())
 }
 
-pub(crate) fn settle_satisfied_declarations(
-    program: &mut typed::TypedTrees,
-) -> Result<(), Diagnostic> {
-    settle_satisfied_declarations_from(program, 0)
-}
-
 /// Settle only machines appended after a retained typed checkpoint. Existing
 /// conformance rows and their authored-selection custody are immutable input
-/// to the continuation and must never be recorded a second time.
+/// to the continuation and must never be recorded a second time. A whole
+/// program passes zero.
 pub(crate) fn settle_satisfied_declarations_from(
     program: &mut typed::TypedTrees,
     machine_frontier: usize,

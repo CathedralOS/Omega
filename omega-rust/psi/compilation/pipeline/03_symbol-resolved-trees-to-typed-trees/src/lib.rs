@@ -21,14 +21,13 @@
 //! 4. `type_reference` owns every written type: type references, domain
 //!    aliases, generic origins, and constraint normalization.
 //!
-//! `lowerer::finish` closes the stage. It settles satisfied declarations and
-//! normalizes progress premises, rebuilds the typed trees, then runs the
-//! normalization passes the last three modules own over that rebuild: domain
-//! constraints, proof membership interning, qualification casts, fixed byte
-//! array literals, and range argument validation. It ends by finalizing
-//! provider default calls (`declarations::provider_defaults`) and publishing
-//! product target families from resolved declaration handles. The compiler
-//! consumes those records; it does not reconstruct them after typing.
+//! Two operations in `lowerer.rs` carry the whole stage and every route
+//! through it: `type_resolved_cohort` types the declaration suffix one
+//! `TypingCohort` names, and `close_typed_cohort` settles that cohort and
+//! publishes the identities later stages read. The fresh entrance and both
+//! continuation routes run those two operations; they differ only in the
+//! cohort and in the retained-base checks that admit it, so `lowerer.rs` is
+//! where a step added to typing is added once rather than at three call sites.
 //!
 //! `signatures` is not a step of its own. The entrance never calls it; it is
 //! the shared parameter, type-parameter and callable-interface vocabulary each
