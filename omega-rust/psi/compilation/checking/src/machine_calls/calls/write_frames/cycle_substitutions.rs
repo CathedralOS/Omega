@@ -17,7 +17,7 @@ use super::transition_equations::CycleFrameEquation;
 use super::transparent_results::transparent_place_expression_origins;
 use super::type_capabilities::parameter_may_carry_write;
 use crate::declarations::symbols::TopLevelSymbols;
-use crate::machine_calls::graph_components::strongly_connected_components;
+use crate::machine_calls::graph_components::component_ids;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
@@ -76,7 +76,9 @@ impl Substitutions {
         for dependency in &self.dependencies {
             successors[dependency.source].push(dependency.target);
         }
-        let components = strongly_connected_components(&successors);
+        // Addressed by root position: the component roster itself is indexed
+        // by component, not by node, and has fewer rows than roots.
+        let components = component_ids(&successors);
         self.dependencies.iter().all(|dependency| {
             !dependency.grows || components[dependency.source] != components[dependency.target]
         })

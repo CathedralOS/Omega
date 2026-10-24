@@ -1379,6 +1379,8 @@ fail/control_flow/termination_cycle_missing_decreases rejected 1602ms expected @
 fail/control_flow/transition_empty_arms_rejected rejected 0ms expected @a9ae30e1c334+wt
 fail/control_flow/transition_fall_through_bool rejected 1770ms expected @a9ae30e1c334+wt
 fail/control_flow/transition_target_undeclared_state rejected 2774ms expected @a9ae30e1c334+wt
+fail/control_flow/transition_value_without_result rejected 588ms expected @0b1532482841+wt
+	machine `Counter::wipe` state `step` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
 fail/control_flow/tuple_destructure_duplicate_binding_rejected rejected 1ms expected @a9ae30e1c334+wt
 fail/control_flow/unconditional_unit_live_linear rejected 4220ms expected @7875d3411f26+wt
 fail/core/address_interval_partition_missing_ceiling rejected 224ms expected @70da601bb299+wt
@@ -13485,6 +13487,8 @@ fail/machines/retired_projected_data_call_statement rejected 816ms expected @a9a
 fail/machines/retired_self_expression rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_receiver rejected 0ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_transition rejected 0ms expected @a9ae30e1c334+wt
+fail/machines/scalar_cast_for_data_result rejected 588ms expected @0b1532482841+wt
+	machine `byte_at` state `entry` terminal expression expects `R`, got `cast expression`
 fail/machines/static_namespace_has_no_fields rejected 802ms expected @a9ae30e1c334+wt
 fail/memory/bump_allocator_borrowed_oversized rejected 561ms expected @11842869af23+wt
 	machine `invalid` state `entry` value call to `allocate` violates required fact `length <= available`: the instantiated fact is structurally false (`32 <= 16`)
@@ -15382,6 +15386,7 @@ pass/borrows/qualified_owner_state_loan_exit checked 5010ms check-target:macos_a
 pass/borrows/qualified_record_view_call_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/qualified_reference_field_retarget_exit checked 973ms check-target:macos_arm64 @85a91d4c22f6+wt
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/reference_cycle_projection_root_partition checked 1591ms @0b1532482841+wt
 pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:macos_arm64 @8df1d091a810
 pass/borrows/region_stored_reference_occurrences_exit checked 3615ms check-target:macos_arm64 @3ea0aec65b44+wt
 pass/borrows/retained_envelope_refs checked 9757ms @5041ef1af684+wt
@@ -16327,7 +16332,7 @@ pass/control_flow/float_literal_dispatch_compile checked 1605ms @a9ae30e1c334+wt
 pass/control_flow/float_relational_subject_compile checked 1613ms @a9ae30e1c334+wt
 pass/control_flow/guarded_case_arm_value_result_exit checked 8773ms check-target:macos_arm64 @70a1b2216e74+wt
 pass/control_flow/guarded_jump_field_view_forward checked 10784ms check-target:macos_arm64 @a9ae30e1c334+wt
-pass/control_flow/guarded_leaf_branch_expansion checked 1614ms @a9ae30e1c334+wt
+pass/control_flow/guarded_leaf_branch_expansion checked 1624ms @0b1532482841+wt
 pass/control_flow/guarded_mid_arm_return checked 11347ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/guarded_transition_dispatch_exit checked 11770ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/control_flow/guarded_two_param_dispatch_compile checked 1812ms @a9ae30e1c334+wt
