@@ -25,3 +25,28 @@ timeout exits 75 rather than starting the build.
 Slots live under the checkout's ignored `build/build-slots/`, keyed by the
 common git directory, so all worktrees of one checkout share a pool while
 unrelated checkouts do not contend.
+
+Waiting is a race among pollers, not a queue: every waiter wakes on its own
+cadence and the first to see a freed slot takes it, so waiting longest grants
+nothing. On 2026-10-23, amid a fifty-lane wave, single chain acquisitions
+waited 3,039-5,282 seconds (up to 88 minutes) for one of the two slots —
+longer than any per-step re-acquisition pattern can survive inside a
+`--timeout`.
+
+## One hold for a whole chain
+
+Cover every step a chain needs — checks, tests, corpus runs, builds and the
+scripted landing sequence — with a single acquisition:
+
+```sh
+python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash chain.sh
+```
+
+`hold()` exports `OMEGA_BUILD_SLOT_HELD=1` into everything it wraps, and the
+flag is inherited: a nested `build_slot.py`, `corpus_gate.py`'s runner build,
+and `landing.py`'s verify checks all see it and short-circuit instead of
+queueing again, so the whole chain costs one slot wait and the landing
+re-verify cannot lose its lease to the queue
+([landing](landing.md#land-from-one-scripted-invocation)). Run the chain's
+steps strictly sequentially; a candidate whose verify checks no packages
+(docs-only changes) needs no hold at all.

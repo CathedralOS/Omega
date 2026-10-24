@@ -171,6 +171,15 @@ and carry these guards inside the script rather than around it.
   ([splicing a golden](testing.md#splicing-a-golden-the-content-guard)); a
   lossy splice published under a granted base is another lane's silent
   regression.
+- **When the script builds, let one build-slot hold cover all of it.** A
+  re-verify that runs outside the hold queues behind the wave's other builds
+  and can lose the 180-second lease while it waits; wrap the whole invocation
+  once
+  (`python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash land.sh`) —
+  the nested `build_slot.py` runs and `verify`'s own hold see the inherited
+  `OMEGA_BUILD_SLOT_HELD=1` and short-circuit
+  ([build slots](build_slot.md#one-hold-for-a-whole-chain)). A candidate whose
+  verify checks no packages needs no hold.
 
 ## Check locally, then publish
 
