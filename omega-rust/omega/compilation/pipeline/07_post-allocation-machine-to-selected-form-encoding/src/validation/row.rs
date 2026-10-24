@@ -477,3 +477,24 @@ fn operand_views(machine: &PostAllocationMachineInstruction) -> Vec<RegisterView
         .map(|operand| operand.view)
         .collect()
 }
+
+/// The register views the declared effects' external operand indices name. The
+/// fixup replays resolve each effect's reads and writes through it; a missing
+/// operand footprint names the machine instruction.
+fn views_for_effects(
+    machine: &PostAllocationMachineInstruction,
+    effects: &MachineEncodedEffects,
+    reads: bool,
+) -> Result<Vec<RegisterViewId>, OptimizedSelectedFormEncodingError> {
+    let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
+    let operands = if reads {
+        &effects.external_operand_reads
+    } else {
+        &effects.external_operand_writes
+    };
+    operands
+        .iter()
+        .map(|operand| resolve(*operand))
+        .collect::<Option<Vec<_>>>()
+        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))
+}

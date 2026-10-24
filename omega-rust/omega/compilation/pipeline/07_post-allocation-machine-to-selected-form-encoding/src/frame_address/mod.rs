@@ -1,12 +1,16 @@
 //! Resolve symbolic frame addresses against retained raw frame geometry.
 //! These checks do not confer callee-save or frame-protocol authority.
+//!
+//! Production and replay share the slot geometry and the named hosted access
+//! windows (`hosted_window_displacement`); only the equation direction
+//! differs between `resolve` and `validate_address`.
 use crate::OptimizedSelectedFormEncodingError as Error;
 use machine_code::{FunctionTargetFrameLayout, ResolvedPhysicalAddress, TargetFrameLayoutPlan};
 use physical_instructions::{
     PhysicalAddressOperation as Address, PostAllocationMachineFunction,
     PostAllocationMachineInstruction, PostAllocationMachinePlan,
 };
-use selected_instructions::FrameStorageSlotId;
+use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot};
 
 #[cfg(test)]
 mod tests;
@@ -16,14 +20,14 @@ mod tests;
 fn local_slot_region<'function, 'frame>(
     function: &'function PostAllocationMachineFunction,
     frame: Option<&'frame TargetFrameLayoutPlan>,
-    slot: selected_instructions::LocalStorageSlotId,
+    slot: LocalStorageSlotId,
 ) -> Result<
     (
         &'frame FunctionTargetFrameLayout,
         u64,
         u32,
         u64,
-        &'function selected_instructions::SelectedLocalStorageSlot,
+        &'function SelectedLocalStorageSlot,
     ),
     Error,
 > {
@@ -262,18 +266,86 @@ fn frame_displacement(
         .ok_or(Error::ArtifactMismatch)
 }
 
+/// The storage class one hosted access window owns.
+#[derive(Clone, Copy)]
+enum HostedWindowClass {
+    /// The hosted runtime's own storage: floating control and written bytes.
+    Boundary,
+    /// A read-only structural home.
+    Structural,
+}
+
+impl HostedWindowClass {
+    fn admits(self, slot: LocalStorageSlotId) -> bool {
+        matches!(
+            (self, slot),
+            (Self::Boundary, LocalStorageSlotId::Boundary { .. })
+                | (Self::Structural, LocalStorageSlotId::Structural { .. })
+        )
+    }
+}
+
+/// The checked post-prologue displacement of one hosted window. The symbolic
+/// operation names the window's contract — the slot class it must own, its
+/// exact byte width and its alignment — and the layout must place the window
+/// inside the slot's region inside the signed displacement range.
+///
+/// Production resolves through this displacement and replay compares its
+/// submitted displacement to it, so each window's contract is stated once.
+fn hosted_window_displacement(
+    function: &PostAllocationMachineFunction,
+    frame: Option<&TargetFrameLayoutPlan>,
+    symbolic: Address,
+) -> Result<i64, Error> {
+    let (slot, class, width, alignment) = match symbolic {
+        Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
+            (slot, HostedWindowClass::Boundary, 8_u32, 8_u16)
+        }
+        Address::HostedWriteByteI32 { slot } => (slot, HostedWindowClass::Boundary, 1, 1),
+        Address::HostedReadByte { slot } => (slot, HostedWindowClass::Structural, 8, 4),
+        _ => return Err(Error::ArtifactMismatch),
+    };
+    if !class.admits(slot) {
+        return Err(Error::ArtifactMismatch);
+    }
+    let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
+    let displacement = frame_displacement(geometry, start)?;
+    if size != width
+        || source.alignment != alignment
+        || !start.is_multiple_of(u64::from(alignment))
+        || start
+            .checked_add(u64::from(width))
+            .is_none_or(|end| end > limit)
+        || !(0..=i64::from(i32::MAX)).contains(&displacement)
+    {
+        return Err(Error::ArtifactMismatch);
+    }
+    Ok(displacement)
+}
+
+/// Replay a hosted window: the submitted displacement must be the checked
+/// window's.
+fn validate_hosted_window(
+    candidate: &ResolvedPhysicalAddress,
+    function: &PostAllocationMachineFunction,
+    frame: Option<&TargetFrameLayoutPlan>,
+    symbolic: Address,
+) -> Result<(), Error> {
+    if candidate.displacement != hosted_window_displacement(function, frame, symbolic)? {
+        return Err(Error::ArtifactMismatch);
+    }
+    Ok(())
+}
+
 /// A materialized activation-local address resolves only through the
 /// validated stable-address-loan roster: a non-spill materialization is a
 /// loan the layout must have recorded, while an allocator spill
 /// materialization is a private reload window that must stay unrostered.
 fn check_address_loan(
     geometry: &FunctionTargetFrameLayout,
-    slot: selected_instructions::LocalStorageSlotId,
+    slot: LocalStorageSlotId,
 ) -> Result<(), Error> {
-    let spill = matches!(
-        slot,
-        selected_instructions::LocalStorageSlotId::Spill { .. }
-    );
+    let spill = matches!(slot, LocalStorageSlotId::Spill { .. });
     if geometry.stable_address_loans.contains(&slot) == spill {
         return Err(Error::ArtifactMismatch);
     }
@@ -307,62 +379,10 @@ pub(super) fn resolve(
                 .ok_or(Error::ArtifactMismatch)?;
             i64::try_from(displacement).map_err(|_| Error::ArtifactMismatch)?
         }
-        Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
-            if !matches!(
-                slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
-            ) {
-                return Err(Error::ArtifactMismatch);
-            }
-            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
-            let displacement = frame_displacement(geometry, start)?;
-            if size != 8
-                || source.alignment != 8
-                || !start.is_multiple_of(8)
-                || start.checked_add(8).is_none_or(|end| end > limit)
-                || !(0..=i64::from(i32::MAX)).contains(&displacement)
-            {
-                return Err(Error::ArtifactMismatch);
-            }
-            displacement
-        }
-        Address::HostedWriteByteI32 { slot } => {
-            if !matches!(
-                slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
-            ) {
-                return Err(Error::ArtifactMismatch);
-            }
-            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
-            let displacement = frame_displacement(geometry, start)?;
-            if size != 1
-                || source.alignment != 1
-                || start.checked_add(1).is_none_or(|end| end > limit)
-                || !(0..=i64::from(i32::MAX)).contains(&displacement)
-            {
-                return Err(Error::ArtifactMismatch);
-            }
-            displacement
-        }
-        Address::HostedReadByte { slot } => {
-            if !matches!(
-                slot,
-                selected_instructions::LocalStorageSlotId::Structural { .. }
-            ) {
-                return Err(Error::ArtifactMismatch);
-            }
-            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
-            let displacement = frame_displacement(geometry, start)?;
-            if size != 8
-                || source.alignment != 4
-                || !start.is_multiple_of(4)
-                || start.checked_add(8).is_none_or(|end| end > limit)
-                || !(0..=i64::from(i32::MAX)).contains(&displacement)
-            {
-                return Err(Error::ArtifactMismatch);
-            }
-            displacement
-        }
+        Address::SaveFloatingControl { .. }
+        | Address::RestoreFloatingControl { .. }
+        | Address::HostedWriteByteI32 { .. }
+        | Address::HostedReadByte { .. } => hosted_window_displacement(function, frame, symbolic)?,
         Address::Load8Indexed { .. } => 0,
         Address::PlacedScalarAccess { byte_offset, .. }
         | Address::LoadPacked { byte_offset, .. }
@@ -464,61 +484,11 @@ pub(super) fn validate_address(
             }
             Ok(())
         }
-        Address::SaveFloatingControl { slot } | Address::RestoreFloatingControl { slot } => {
-            if !matches!(
-                slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
-            ) {
-                return Err(Error::ArtifactMismatch);
-            }
-            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
-            if candidate.displacement != frame_displacement(geometry, start)?
-                || size != 8
-                || source.alignment != 8
-                || !start.is_multiple_of(8)
-                || start.checked_add(8).is_none_or(|end| end > limit)
-                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
-            {
-                return Err(Error::ArtifactMismatch);
-            }
-            Ok(())
-        }
-        Address::HostedWriteByteI32 { slot } => {
-            if !matches!(
-                slot,
-                selected_instructions::LocalStorageSlotId::Boundary { .. }
-            ) {
-                return Err(Error::ArtifactMismatch);
-            }
-            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
-            if candidate.displacement != frame_displacement(geometry, start)?
-                || size != 1
-                || source.alignment != 1
-                || start.checked_add(1).is_none_or(|end| end > limit)
-                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
-            {
-                return Err(Error::ArtifactMismatch);
-            }
-            Ok(())
-        }
-        Address::HostedReadByte { slot } => {
-            if !matches!(
-                slot,
-                selected_instructions::LocalStorageSlotId::Structural { .. }
-            ) {
-                return Err(Error::ArtifactMismatch);
-            }
-            let (geometry, start, size, limit, source) = local_slot_region(function, frame, slot)?;
-            if candidate.displacement != frame_displacement(geometry, start)?
-                || size != 8
-                || source.alignment != 4
-                || !start.is_multiple_of(4)
-                || start.checked_add(8).is_none_or(|end| end > limit)
-                || !(0..=i64::from(i32::MAX)).contains(&candidate.displacement)
-            {
-                return Err(Error::ArtifactMismatch);
-            }
-            Ok(())
+        Address::SaveFloatingControl { .. }
+        | Address::RestoreFloatingControl { .. }
+        | Address::HostedWriteByteI32 { .. }
+        | Address::HostedReadByte { .. } => {
+            validate_hosted_window(&candidate, function, frame, symbolic)
         }
         Address::PlacedScalarAccess {
             base_operand: 0,

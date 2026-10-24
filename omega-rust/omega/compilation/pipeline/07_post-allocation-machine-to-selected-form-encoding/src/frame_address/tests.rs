@@ -478,13 +478,13 @@ fn local_address_replay_rejects_displacement_source_and_extent_substitution() {
         let local = &mut changed.functions[0].local_storage_slots[0];
         match mutation {
             0 => {
-                local.id = selected_instructions::LocalStorageSlotId::Structural {
+                local.id = LocalStorageSlotId::Structural {
                     operation: local.id.operation().expect("source-backed local slot"),
                     place: PlaceId::new(7).unwrap(),
                 }
             }
             1 => {
-                local.id = selected_instructions::LocalStorageSlotId::Structural {
+                local.id = LocalStorageSlotId::Structural {
                     operation: OperationId::new(11).unwrap(),
                     place: local.id.structural_place().unwrap(),
                 }

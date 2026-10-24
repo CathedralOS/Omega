@@ -1,43 +1,10 @@
 use super::super::OptimizedSelectedFormEncodingError;
-use machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingState};
+use machine_code::SelectedFormEncoding;
 
 pub(super) fn validate(
     artifact: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let mut counts = SelectedFormEncodingCounts::default();
-    for row in artifact.rows() {
-        let count = match row.state {
-            SelectedFormEncodingState::Encoded => &mut counts.ordinary_encoded,
-            SelectedFormEncodingState::DeferredControl { .. } => {
-                &mut counts.ordinary_deferred_control
-            }
-            SelectedFormEncodingState::UnresolvedInternalMachineCall { .. } => {
-                counts.ordinary_encoded_call_templates = counts
-                    .ordinary_encoded_call_templates
-                    .checked_add(1)
-                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-                counts.ordinary_deferred_internal_control = counts
-                    .ordinary_deferred_internal_control
-                    .checked_add(1)
-                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-                &mut counts.ordinary_internal_fixups
-            }
-            SelectedFormEncodingState::UnresolvedNormalizedForeignCall { .. } => {
-                counts.ordinary_encoded_call_templates = counts
-                    .ordinary_encoded_call_templates
-                    .checked_add(1)
-                    .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-                &mut counts.ordinary_normalized_foreign_import_fixups
-            }
-            SelectedFormEncodingState::UnresolvedImageAddress { .. } => {
-                &mut counts.ordinary_image_address_fixups
-            }
-        };
-        *count = count
-            .checked_add(1)
-            .ok_or(OptimizedSelectedFormEncodingError::CountOverflow)?;
-    }
-    if artifact.counts != counts {
+    if artifact.counts != crate::rows::counts_of(artifact.rows())? {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     let identity = artifact.recomputed_identity();

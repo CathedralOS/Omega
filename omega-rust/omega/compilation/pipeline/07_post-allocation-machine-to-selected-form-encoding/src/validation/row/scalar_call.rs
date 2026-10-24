@@ -11,7 +11,9 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
-use super::{decoded_footprint, operand_views, validate_machine_footprint, validate_size};
+use super::{
+    decoded_footprint, operand_views, validate_machine_footprint, validate_size, views_for_effects,
+};
 use crate::OptimizedSelectedFormEncodingError;
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
@@ -154,29 +156,4 @@ pub(super) fn validate(
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     Ok(())
-}
-
-fn views_for_effects(
-    machine: &PostAllocationMachineInstruction,
-    effects: &selected_instructions::MachineEncodedEffects,
-    reads: bool,
-) -> Result<Vec<register_model::RegisterViewId>, OptimizedSelectedFormEncodingError> {
-    let operands = if reads {
-        &effects.external_operand_reads
-    } else {
-        &effects.external_operand_writes
-    };
-    operands
-        .iter()
-        .map(|operand| {
-            machine
-                .operand_footprint(*operand)
-                .map(|row| row.view)
-                .ok_or(
-                    OptimizedSelectedFormEncodingError::OperandFootprintMismatch(
-                        machine.instruction,
-                    ),
-                )
-        })
-        .collect()
 }
