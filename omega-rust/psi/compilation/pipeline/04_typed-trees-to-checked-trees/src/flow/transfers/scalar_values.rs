@@ -362,7 +362,6 @@ fn selected_statement<'plans>(
     &'plans checked_trees::CheckedScalarExpression,
     &'plans [SymbolHandle],
 )> {
-    let plans = context.scalar_expressions;
     let (source, destination) = match statement {
         StatementNode::LocalData(local) => (local.initial_value, local.symbol),
         StatementNode::Assignment(assignment) => (
@@ -378,11 +377,8 @@ fn selected_statement<'plans>(
         return None;
     }
     let statement_ordinal = u32::try_from(statement_index).ok()?;
-    let mut bindings = context
-        .scalar_binding_handles_at(state, statement_ordinal)
-        .iter()
-        .map(|handle| plans.source_bindings.get(*handle))
-        .filter(|binding| {
+    let (binding, expression) = context
+        .selected_scalar_at(state, statement_ordinal, |binding| {
             binding.expression == source
                 && binding.destination == destination
                 && match statement {
@@ -398,22 +394,15 @@ fn selected_statement<'plans>(
                     }
                     _ => false,
                 }
-        });
-    let binding = bindings.next()?;
-    if bindings.next().is_some() {
-        return None;
-    }
-    let mut expressions = context
-        .scalar_expression_rows_at(state, statement_ordinal)
-        .iter()
-        .map(|row| &plans.expressions[*row])
-        .filter(|expression| expression.role == binding.role);
-    let expression = &expressions.next()?.expression;
-    if expressions.next().is_some() {
-        return None;
-    }
-    let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-    Some((expression, symbols))
+        })
+        .flatten()?;
+    Some((
+        expression,
+        context
+            .scalar_expressions
+            .binding_symbols
+            .span_or_empty(binding.symbols),
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -542,18 +531,14 @@ fn selected_scalar_argument(
     argument_ordinal: usize,
     argument: ExpressionHandle,
 ) -> bool {
-    let plans = context.scalar_expressions;
     let (Ok(statement_ordinal), Ok(argument_ordinal)) = (
         u32::try_from(statement_index),
         u32::try_from(argument_ordinal),
     ) else {
         return false;
     };
-    let mut bindings = context
-        .scalar_binding_handles_at(state, statement_ordinal)
-        .iter()
-        .map(|handle| plans.source_bindings.get(*handle))
-        .filter(|binding| {
+    context
+        .selected_scalar_at(state, statement_ordinal, |binding| {
             binding.expression == argument
                 && !binding.destination.is_valid()
                 && match binding.role {
@@ -567,19 +552,9 @@ fn selected_scalar_argument(
                     } => ordinal == argument_ordinal,
                     _ => false,
                 }
-        });
-    let Some(binding) = bindings.next() else {
-        return false;
-    };
-    if bindings.next().is_some() {
-        return false;
-    }
-    let mut expressions = context
-        .scalar_expression_rows_at(state, statement_ordinal)
-        .iter()
-        .map(|row| &plans.expressions[*row])
-        .filter(|expression| expression.role == binding.role);
-    expressions.next().is_some() && expressions.next().is_none()
+        })
+        .flatten()
+        .is_some()
 }
 
 /// Call-local scratch: immutable bindings use their selected ordinal namespace;

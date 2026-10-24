@@ -363,26 +363,20 @@ fn selected<'plans>(
     destination: SymbolHandle,
     symbols: &[SymbolHandle],
 ) -> Option<&'plans CheckedScalarExpression> {
-    let plans = context.scalar_expressions;
-    let mut bindings = context
-        .scalar_binding_handles_at(state, ordinal)
-        .iter()
-        .map(|handle| plans.source_bindings.get(*handle))
-        .filter(|binding| {
+    let (binding, expression) = context
+        .selected_scalar_at(state, ordinal, |binding| {
             binding.role == role
                 && binding.expression == source
                 && binding.destination == destination
-        });
-    let binding = bindings.next()?;
-    if bindings.next().is_some() || plans.binding_symbols.span_or_empty(binding.symbols) != symbols
+        })
+        .flatten()?;
+    if context
+        .scalar_expressions
+        .binding_symbols
+        .span_or_empty(binding.symbols)
+        != symbols
     {
         return None;
     }
-    let mut expressions = context
-        .scalar_expression_rows_at(state, ordinal)
-        .iter()
-        .map(|row| &plans.expressions[*row])
-        .filter(|expression| expression.role == role);
-    let expression = &expressions.next()?.expression;
-    expressions.next().is_none().then_some(expression)
+    Some(expression)
 }

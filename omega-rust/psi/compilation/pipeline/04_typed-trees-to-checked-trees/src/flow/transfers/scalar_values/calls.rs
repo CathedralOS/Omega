@@ -154,35 +154,31 @@ pub(super) fn capture_call<Value: CapturedValue>(
                 },
                 _ => return None,
             };
-            let plans = context.scalar_expressions;
-            let mut bindings = context
-                .scalar_binding_handles_at(caller_state, statement_ordinal)
-                .iter()
-                .map(|handle| plans.source_bindings.get(*handle))
-                .filter(|binding| binding.role == role);
-            if let Some(binding) = bindings.next() {
-                if bindings.next().is_some()
-                    || binding.expression != *argument
-                    || binding.destination.is_valid()
-                {
-                    return None;
+            match context.selected_scalar_at(caller_state, statement_ordinal, |binding| {
+                binding.role == role
+            }) {
+                // No matching custody row: the value falls back to its
+                // literal, its live place, or its declared formal below.
+                None => {}
+                // A conflict is a capture failure, never a reason to re-derive
+                // this argument from its declared formal.
+                Some(None) => return None,
+                Some(Some((binding, expression))) => {
+                    if binding.expression != *argument || binding.destination.is_valid() {
+                        return None;
+                    }
+                    // Capture selected arithmetic against the live caller
+                    // facts. A missing value must not fall back to replaying
+                    // its source.
+                    return Value::evaluate_live(
+                        expression,
+                        context
+                            .scalar_expressions
+                            .binding_symbols
+                            .span_or_empty(binding.symbols),
+                        &live,
+                    );
                 }
-                let mut expressions = context
-                    .scalar_expression_rows_at(caller_state, statement_ordinal)
-                    .iter()
-                    .map(|row| &plans.expressions[*row])
-                    .filter(|expression| expression.role == binding.role);
-                let expression = &expressions.next()?.expression;
-                if expressions.next().is_some() {
-                    return None;
-                }
-                // Capture selected arithmetic against the live caller facts.
-                // A missing value must not fall back to replaying its source.
-                return Value::evaluate_live(
-                    expression,
-                    plans.binding_symbols.span_or_empty(binding.symbols),
-                    &live,
-                );
             }
             // No selected binding. Every argument is still bounded by its
             // formal's declared scalar type — at worst the raw carrier — and

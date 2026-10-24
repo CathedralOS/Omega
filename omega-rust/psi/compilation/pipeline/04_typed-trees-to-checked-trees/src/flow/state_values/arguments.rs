@@ -73,42 +73,35 @@ pub(in crate::flow) fn capture_argument(
     } else {
         return ScalarValue::Unknown;
     };
-    let plans = context.scalar_expressions;
-    let mut bindings = context
-        .scalar_binding_handles_at(state.symbol, statement_ordinal)
-        .iter()
-        .map(|handle| plans.source_bindings.get(*handle))
-        .filter(|binding| binding.role == role);
-    if let Some(binding) = bindings.next() {
-        if bindings.next().is_some()
-            || binding.expression != argument
-            || binding.destination != parameter.symbol
-        {
-            return ScalarValue::Unknown;
-        }
-        let mut expressions = context
-            .scalar_expression_rows_at(state.symbol, statement_ordinal)
-            .iter()
-            .map(|row| &plans.expressions[*row])
-            .filter(|expression| expression.role == role);
-        let Some(expression) = expressions.next() else {
-            return ScalarValue::Unknown;
-        };
-        if expressions.next().is_some() {
-            return ScalarValue::Unknown;
-        }
-        return crate::values::evaluate_checked_scalar(
-            &expression.expression,
-            &mut crate::values::PlaceScalarValues {
-                program,
-                parameters: program.state_parameters(state),
-                symbols: plans.binding_symbols.span_or_empty(binding.symbols),
-                value_at_place: |place: &CanonicalPlace| {
-                    context.scalar_value_at_place(program, semantic, contexts, place)
+    match context.selected_scalar_at(state.symbol, statement_ordinal, |binding| {
+        binding.role == role
+    }) {
+        // No matching custody row: the literal or projected read below still
+        // bounds the delivered value.
+        None => {}
+        // A conflict is a capture failure, never a reason to re-derive the
+        // argument from its declared formal.
+        Some(None) => return ScalarValue::Unknown,
+        Some(Some((binding, expression))) => {
+            if binding.expression != argument || binding.destination != parameter.symbol {
+                return ScalarValue::Unknown;
+            }
+            return crate::values::evaluate_checked_scalar(
+                expression,
+                &mut crate::values::PlaceScalarValues {
+                    program,
+                    parameters: program.state_parameters(state),
+                    symbols: context
+                        .scalar_expressions
+                        .binding_symbols
+                        .span_or_empty(binding.symbols),
+                    value_at_place: |place: &CanonicalPlace| {
+                        context.scalar_value_at_place(program, semantic, contexts, place)
+                    },
                 },
-            },
-        )
-        .unwrap_or_default();
+            )
+            .unwrap_or_default();
+        }
     }
     if let Some(value) = literal(program, argument) {
         return value;

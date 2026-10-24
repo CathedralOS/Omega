@@ -180,12 +180,12 @@ pub(super) struct FlowBuildContext<'plans> {
     /// Checked scalar plan rows grouped by their binding site, keyed
     /// (state, statement_ordinal). Both plans tables are program-immutable;
     /// role filtering stays at the call site, so the row lists keep the
-    /// table's iteration order.
-    pub(super) scalar_bindings_by_site: HashMap<
+    /// table's iteration order. `selected_scalar_at` is their only reader.
+    scalar_bindings_by_site: HashMap<
         (SymbolHandle, u32),
         Vec<arena::Handle<checked_trees::CheckedScalarExpressionBindings>>,
     >,
-    pub(super) scalar_expressions_by_site: HashMap<(SymbolHandle, u32), Vec<usize>>,
+    scalar_expressions_by_site: HashMap<(SymbolHandle, u32), Vec<usize>>,
     /// Program-pure per-site answers repeated on every pass: canonical
     /// places, expression result types, transition call targets, entry
     /// parameter origin chains, and reference-local candidate places. The
@@ -669,26 +669,50 @@ impl<'plans> FlowBuildContext<'plans> {
             .clone()
     }
 
-    pub(super) fn scalar_binding_handles_at(
+    /// The checked scalar row at `(state, statement ordinal)` whose binding
+    /// `accepts`: `Some(Some(row))` is the one selected row, `Some(None)` is
+    /// the coordinate's conflict -- more than one binding matched, or the
+    /// selected binding's role owns no single expression row -- and `None` is
+    /// no matching binding at all. The plans retain one custody row per
+    /// selected scalar, so a conflict resolves to nothing rather than to the
+    /// first row. An expected expression, destination or symbol namespace is
+    /// checked after this lookup, so an expected value can never filter a
+    /// conflict into agreement.
+    pub(super) fn selected_scalar_at(
         &self,
-        state_symbol: SymbolHandle,
+        state: SymbolHandle,
         statement_ordinal: u32,
-    ) -> &[arena::Handle<checked_trees::CheckedScalarExpressionBindings>] {
-        self.scalar_bindings_by_site
-            .get(&(state_symbol, statement_ordinal))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
-
-    pub(super) fn scalar_expression_rows_at(
-        &self,
-        state_symbol: SymbolHandle,
-        statement_ordinal: u32,
-    ) -> &[usize] {
-        self.scalar_expressions_by_site
-            .get(&(state_symbol, statement_ordinal))
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+        accepts: impl Fn(&checked_trees::CheckedScalarExpressionBindings) -> bool,
+    ) -> Option<
+        Option<(
+            &'plans checked_trees::CheckedScalarExpressionBindings,
+            &'plans checked_trees::CheckedScalarExpression,
+        )>,
+    > {
+        let plans = self.scalar_expressions;
+        let mut bindings = self
+            .scalar_bindings_by_site
+            .get(&(state, statement_ordinal))
+            .into_iter()
+            .flatten()
+            .map(|handle| plans.source_bindings.get(*handle))
+            .filter(|binding| accepts(binding));
+        let binding = bindings.next()?;
+        if bindings.next().is_some() {
+            return Some(None);
+        }
+        let mut expressions = self
+            .scalar_expressions_by_site
+            .get(&(state, statement_ordinal))
+            .into_iter()
+            .flatten()
+            .map(|row| &plans.expressions[*row])
+            .filter(|expression| expression.role == binding.role);
+        let expression = expressions.next()?;
+        if expressions.next().is_some() {
+            return Some(None);
+        }
+        Some(Some((binding, &expression.expression)))
     }
 
     /// Storage-write places for one statement site. The enumeration walks
