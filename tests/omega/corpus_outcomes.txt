@@ -4472,6 +4472,42 @@ fail/facts/fourteen_variant_enum_payload_bound_through_target_body_rejected reje
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call verify_payload from target_probe: res >= 40 && res <= 80 (needs fact `value >= 40 && value <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/free_entry_local_state_through_call_result_unprovided rejected 1683ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_const_name_unprovided rejected 1681ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_field_unprovided rejected 1608ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_local_unprovided rejected 1567ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_match_join_unprovided rejected 1601ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_other_machine_unprovided rejected 2192ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_other_state_unprovided rejected 1628ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_parameter_unprovided rejected 1642ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+fail/facts/free_entry_local_state_through_target_body_unprovided rejected 1579ms expected @c2e06b875ba2+wt
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
+	hosted `ProgramEntry` exposes no arrival parameters, but `start` declares `unprovided`
 fail/facts/generic_calling_policy/constant_projection_exit rejected 20220ms expected @164f21ca3402
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy/distinct_applications_exit rejected 11346ms expected @164f21ca3402
@@ -17676,6 +17712,15 @@ pass/facts/fourteen_variant_enum_payload_bound_through_other_machine_exit checke
 pass/facts/fourteen_variant_enum_payload_bound_through_other_state_exit checked 3147ms check-target:macos_arm64 @00ef417922c0+wt
 pass/facts/fourteen_variant_enum_payload_bound_through_parameter_exit checked 3399ms check-target:macos_arm64 @00ef417922c0+wt
 pass/facts/fourteen_variant_enum_payload_bound_through_target_body_exit checked 3685ms check-target:macos_arm64 @00ef417922c0+wt
+pass/facts/free_entry_local_state_through_call_result_exit checked 1849ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_const_name_exit checked 1798ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_field_exit checked 2321ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_local_exit checked 1768ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_match_join_exit checked 1808ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_other_machine_exit checked 1803ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_other_state_exit checked 1716ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_parameter_exit checked 1812ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_target_body_exit checked 1833ms check-target:macos_arm64 @c2e06b875ba2+wt
 pass/facts/generic_calling_policy/bound_argument_exit checked 31430ms check-target:linux_x86_64 @164f21ca3402
 pass/facts/generic_calling_policy/constant_projection_exit checked 32057ms check-target:linux_x86_64 @164f21ca3402
 pass/facts/generic_calling_policy/distinct_applications_exit checked 21163ms check-target:linux_x86_64 @164f21ca3402

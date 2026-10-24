@@ -369,6 +369,15 @@ pass/facts/erased_reference_contract_through_other_machine_exit built 7496ms exi
 pass/facts/erased_reference_contract_through_other_state_exit built 9441ms exit:0 interpreter-exit:0 interpreter:agrees @bc4f7059a402
 pass/facts/erased_reference_contract_through_parameter_exit built 9596ms exit:0 interpreter-exit:0 interpreter:agrees @bc4f7059a402
 pass/facts/erased_reference_contract_through_target_body_exit built 8996ms exit:0 interpreter-exit:0 interpreter:agrees @bc4f7059a402
+pass/facts/free_entry_local_state_through_call_result_exit built 1835ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_const_name_exit built 1900ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_field_exit built 1891ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_local_exit built 1788ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_match_join_exit built 1879ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_other_machine_exit built 1737ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_other_state_exit built 1764ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_parameter_exit built 1834ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_target_body_exit built 1707ms exit:0 interpreter-exit:0 interpreter:agrees @c2e06b875ba2+wt
 pass/facts/generic_calling_policy/bound_argument_exit built 35153ms exit:0 interpreter-exit:0 interpreter:agrees @164f21ca3402
 pass/facts/generic_calling_policy/constant_projection_exit built 33061ms exit:0 interpreter-exit:0 interpreter:agrees @164f21ca3402
 pass/facts/generic_calling_policy/distinct_applications_exit built 19830ms exit:0 interpreter-exit:0 interpreter:agrees @164f21ca3402

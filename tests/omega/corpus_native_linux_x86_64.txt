@@ -1679,6 +1679,15 @@ pass/facts/foreign_retained_shared_borrow_parameter built 2781ms exit:0 @b0640f0
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow built 2804ms exit:0 @b0640f0a9309
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called built 2937ms exit:0 @b0640f0a9309
 pass/facts/foreign_retained_shared_borrow_target_body built 2444ms exit:0 @b0640f0a9309
+pass/facts/free_entry_local_state_through_call_result_exit built 1846ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_const_name_exit built 1878ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_field_exit built 1868ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_local_exit built 2387ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_match_join_exit built 1835ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_other_machine_exit built 1753ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_other_state_exit built 1807ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_parameter_exit built 1785ms exit:0 @c2e06b875ba2+wt
+pass/facts/free_entry_local_state_through_target_body_exit built 1627ms exit:0 @c2e06b875ba2+wt
 pass/facts/indexed_element_mut_loan_through_call_result_exit built 7579ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_const_name_exit built 9536ms exit:0 @907be3818acc
 pass/facts/indexed_element_mut_loan_through_field_exit built 9382ms exit:0 @907be3818acc

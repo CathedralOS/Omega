@@ -1,0 +1,19 @@
+// A free entry owns and cleans an ordinary local tally of 7, and the hosted contract supplies no provisioned ZII context.
+// Place: parameter.
+// Expected exit: 0
+data Tally { total: u64; }
+data Mark { slot: &mut Tally; code: u64; }
+machine Mark::drop(mark: &mut Mark) requires mark.code == 7 {
+    mark.slot.total = mark.code;
+}
+machine settle(mark: &Mark) {}
+machine finish(tally: &mut Tally, code: u64) requires code == 7 crashes Trap {
+    settle(&Mark { slot: tally, code: code });
+    transition tally.total == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine start(unprovided: u64) crashes Trap {
+    let mut tally: Tally = Tally { total: 0 };
+    finish(&mut tally, 7);
+}

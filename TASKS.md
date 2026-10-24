@@ -167,10 +167,9 @@ helper that passes does not close an item.
   platform bridges, root lineage, storage partitioning, qualification
   establishment and cleanup; Build selection supplies no runtime authority.
   Migrate existing entry-context samples and fixtures rather than retaining an
-  alias or compatibility mode. Acceptance: a free entry owns and cleans up
-  ordinary local state, static-backed state retains exclusive access without
-  ambient globals, and an installed handoff receives exactly its declared
-  arguments on matching targets. Unprovided parameters, invented backing,
+  alias or compatibility mode. Acceptance: static-backed state retains
+  exclusive access without ambient globals, and an installed handoff receives
+  exactly its declared arguments on matching targets. Invented backing,
   invalid initialization and overlapping root claims still reject. Programs
   need neither a reserved `main` name nor a data-qualified machine, and actual
   matching-host native/Terminal execution establishes the migrated behavior.
