@@ -26,7 +26,13 @@ pub(crate) struct NormalExitSource<'a> {
 }
 
 /// Existing callable/storage identities used to materialize checked dispositions.
-pub(crate) struct CompletionCleanupCatalog<'a, 'calls> {
+///
+/// The call context borrows the emitting machine's call namespace, which a
+/// composed state hands to one operation at a time; that namespace's own
+/// lifetime is independent of the catalog's control/type borrows, so it is
+/// named separately and a site can build the catalog from within
+/// `with_call_namespace` without tying the two.
+pub(crate) struct CompletionCleanupCatalog<'a, 'calls, 'context> {
     pub(crate) control: &'a checked_trees::CheckedCleanupControlPlans,
     pub(crate) types: &'a [terminal_psi::StructuralTypeDeclaration],
     pub(crate) type_ids: &'a [(
@@ -34,7 +40,7 @@ pub(crate) struct CompletionCleanupCatalog<'a, 'calls> {
         semantic_vocabulary::StructuralTypeId,
     )],
     pub(crate) calls:
-        &'calls mut crate::emission::operation_emission::calls::CallEmissionContext<'a>,
+        &'calls mut crate::emission::operation_emission::calls::CallEmissionContext<'context>,
 }
 
 pub(crate) fn destination(
@@ -65,7 +71,7 @@ pub(crate) fn scalar_returns(
     checked: &CheckedTrees,
     source: NormalExitSource<'_>,
     control: &checked_trees::CheckedUnitScalarControlPlan,
-    catalog: &mut CompletionCleanupCatalog<'_, '_>,
+    catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
     operations: &OperationBuffer,
@@ -151,7 +157,7 @@ pub(crate) fn for_exit_regions(
     checked: &CheckedTrees,
     source: NormalExitSource<'_>,
     exit: FlowClaimJoinExit,
-    catalog: &mut CompletionCleanupCatalog<'_, '_>,
+    catalog: &mut CompletionCleanupCatalog<'_, '_, '_>,
     parameters: &[StructuralParameterDeclaration],
     evaluation: &Evaluation,
     operations: &OperationBuffer,

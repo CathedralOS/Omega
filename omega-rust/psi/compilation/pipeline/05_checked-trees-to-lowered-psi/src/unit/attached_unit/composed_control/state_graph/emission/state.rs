@@ -22,6 +22,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::buffer::{CollectionLengthObservations, OperationBuffer};
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
+use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 impl StateGraphEmission<'_, '_> {
     /// Standalone and selected crash exits share the exact authored crash site.
@@ -371,45 +372,38 @@ impl StateGraphEmission<'_, '_> {
                 &scalar_slots,
                 &structural_actuals,
             )?;
-            let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-            let mut calls = scalar_calls.emission_context();
             let observation_entry = evaluation.current;
-            let observed = {
-                let (mut environment, emission) = operation_catalogs
-                    .operation_frame(
-                        checked,
-                        owner,
-                        state,
-                        &state_parameters,
-                        &self.state_erased[position],
-                        &mut sequence,
-                        crate::unit::attached_unit::operation_frame::OperationEmission {
-                            source_value_count: values.len(),
-                            evaluation: &mut evaluation,
-                            values: &mut values,
-                            next_value: &mut next_value,
-                            next_block: &mut next_block,
-                            next_edge: &mut next_edge,
-                            calls: &mut calls,
-                            operations: &mut operations,
-                        },
-                    )
-                    .split();
-                emission.evaluation.retained_observation(
-                    identities,
-                    checked,
-                    root,
-                    &bindings,
-                    emission.values,
-                    emission.next_value,
-                    emission.next_block,
-                    emission.next_edge,
-                    emission.operations,
-                    emission.calls,
-                    &mut environment,
-                )
-            }?;
-            scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            let observed = StateFrame::new(checked, owner, state, &self.state_erased[position])
+                .evaluate(
+                    self.catalogs,
+                    &state_parameters,
+                    &mut sequence,
+                    FrameValues {
+                        source_value_count: values.len(),
+                        evaluation: &mut evaluation,
+                        values: &mut values,
+                        next_value: &mut next_value,
+                        next_block: &mut next_block,
+                        next_edge: &mut next_edge,
+                        operations: &mut operations,
+                    },
+                    |frame| {
+                        let (mut environment, emission) = frame.split();
+                        emission.evaluation.retained_observation(
+                            identities,
+                            checked,
+                            root,
+                            &bindings,
+                            emission.values,
+                            emission.next_value,
+                            emission.next_block,
+                            emission.next_edge,
+                            emission.operations,
+                            emission.calls,
+                            &mut environment,
+                        )
+                    },
+                )?;
             // Admitted source measures are pure scalar observations. Their
             // prepared chains complete inline before the body, so this value
             // dominates every cyclic block carrying the state's rank. Never
@@ -433,7 +427,6 @@ impl StateGraphEmission<'_, '_> {
             &state.operations,
             self.catalogs,
             &state_parameters,
-            self.claims.published(),
             &mut evaluation,
             &mut values,
             &self.state_erased[position],
@@ -535,122 +528,71 @@ impl StateGraphEmission<'_, '_> {
             }
             _ => false,
         };
-        let condition = if let Some(true_ordinal) = conditional_true_ordinal {
+        // The state's entry guard is the decision at its first selected
+        // ordinal: a conditional's true arm, or the first arm of an ordered
+        // chain. Only that guard is observed on the entry path; every later
+        // chain guard is staged below into its own private block, and a
+        // short-circuit guard is planned below exactly like a two-arm
+        // conditional's, so it evaluates no value here.
+        let entry_guard_ordinal = match conditional_true_ordinal {
+            Some(true_ordinal) => Some(true_ordinal),
+            None => match &state.terminator {
+                CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
+                    let Some(first) = arms.first() else {
+                        return unsupported("guarded jump chain lost its first arm");
+                    };
+                    if arms.len() < 2 {
+                        return unsupported("guarded jump chain lost its ordered arms");
+                    }
+                    Some(first.statement_ordinal())
+                }
+                _ => None,
+            },
+        };
+        let condition = if let Some(guard_ordinal) = entry_guard_ordinal {
             branch_guard = evaluation.branch_guard(
                 identities,
                 checked,
                 state.state,
-                true_ordinal,
+                guard_ordinal,
                 &values,
                 first_successor_reads_payloads,
             )?;
             if branch_guard.is_some() {
                 None
             } else {
-                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let condition = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
-                            checked,
-                            owner,
-                            state,
-                            &state_parameters,
-                            &self.state_erased[position],
-                            &mut sequence,
-                            crate::unit::attached_unit::operation_frame::OperationEmission {
-                                source_value_count: values.len(),
-                                evaluation: &mut evaluation,
-                                values: &mut values,
-                                next_value: &mut next_value,
-                                next_block: &mut next_block,
-                                next_edge: &mut next_edge,
-                                calls: &mut calls,
-                                operations: &mut operations,
-                            },
-                        )
-                        .split();
-                    emission.evaluation.guard_value(
-                        identities,
-                        checked,
-                        owner,
-                        state.state,
-                        true_ordinal,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
-                Some(condition.id)
-            }
-        } else if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
-            &state.terminator
-        {
-            // Only the first guard is observed on the entry path. Every
-            // later guard is staged below into its own private block. A
-            // short-circuit guard is planned below exactly like a two-arm
-            // conditional's, so it evaluates no value here.
-            let Some(first) = arms.first() else {
-                return unsupported("guarded jump chain lost its first arm");
-            };
-            if arms.len() < 2 {
-                return unsupported("guarded jump chain lost its ordered arms");
-            }
-            branch_guard = evaluation.branch_guard(
-                identities,
-                checked,
-                state.state,
-                first.statement_ordinal(),
-                &values,
-                first_successor_reads_payloads,
-            )?;
-            if branch_guard.is_some() {
-                None
-            } else {
-                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let condition = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
-                            checked,
-                            owner,
-                            state,
-                            &state_parameters,
-                            &self.state_erased[position],
-                            &mut sequence,
-                            crate::unit::attached_unit::operation_frame::OperationEmission {
-                                source_value_count: values.len(),
-                                evaluation: &mut evaluation,
-                                values: &mut values,
-                                next_value: &mut next_value,
-                                next_block: &mut next_block,
-                                next_edge: &mut next_edge,
-                                calls: &mut calls,
-                                operations: &mut operations,
-                            },
-                        )
-                        .split();
-                    emission.evaluation.guard_value(
-                        identities,
-                        checked,
-                        owner,
-                        state.state,
-                        first.statement_ordinal(),
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let condition =
+                    StateFrame::new(checked, owner, state, &self.state_erased[position]).evaluate(
+                        self.catalogs,
+                        state_parameters,
+                        &mut sequence,
+                        FrameValues {
+                            source_value_count: values.len(),
+                            evaluation: &mut evaluation,
+                            values: &mut values,
+                            next_value: &mut next_value,
+                            next_block: &mut next_block,
+                            next_edge: &mut next_edge,
+                            operations: &mut operations,
+                        },
+                        |frame| {
+                            let (mut environment, emission) = frame.split();
+                            emission.evaluation.guard_value(
+                                identities,
+                                checked,
+                                owner,
+                                state.state,
+                                guard_ordinal,
+                                emission.values,
+                                emission.next_value,
+                                emission.next_block,
+                                emission.next_edge,
+                                emission.operations,
+                                emission.calls,
+                                &mut environment,
+                            )
+                        },
+                    )?;
                 Some(condition.id)
             }
         } else {
@@ -706,46 +648,39 @@ impl StateGraphEmission<'_, '_> {
                     &operations,
                 )?;
                 scalar_return_exits.extend(cleanups.iter().map(|row| row.exit));
-                let (mut operation_catalogs, scalar_calls) = self.catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let value = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
-                            checked,
-                            owner,
-                            state,
-                            &state_parameters,
-                            &self.state_erased[position],
-                            &mut sequence,
-                            crate::unit::attached_unit::operation_frame::OperationEmission {
-                                source_value_count: values.len(),
-                                evaluation: &mut evaluation,
-                                values: &mut values,
-                                next_value: &mut next_value,
-                                next_block: &mut next_block,
-                                next_edge: &mut next_edge,
-                                calls: &mut calls,
-                                operations: &mut operations,
-                            },
-                        )
-                        .split();
-                    emission.evaluation.scalar_control_result(
-                        identities,
-                        checked,
-                        owner,
-                        state.state,
-                        exits,
-                        &cleanups,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                let value = StateFrame::new(checked, owner, state, &self.state_erased[position])
+                    .evaluate(
+                        self.catalogs,
+                        &state_parameters,
+                        &mut sequence,
+                        FrameValues {
+                            source_value_count: values.len(),
+                            evaluation: &mut evaluation,
+                            values: &mut values,
+                            next_value: &mut next_value,
+                            next_block: &mut next_block,
+                            next_edge: &mut next_edge,
+                            operations: &mut operations,
+                        },
+                        |frame| {
+                            let (mut environment, emission) = frame.split();
+                            emission.evaluation.scalar_control_result(
+                                identities,
+                                checked,
+                                owner,
+                                state.state,
+                                exits,
+                                &cleanups,
+                                emission.values,
+                                emission.next_value,
+                                emission.next_block,
+                                emission.next_edge,
+                                emission.operations,
+                                emission.calls,
+                                &mut environment,
+                            )
+                        },
+                    )?;
                 Some(value)
             }
             // The operation sequence above already bound the returned value;

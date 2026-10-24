@@ -9,6 +9,13 @@
 //! and consumption of the same authored-position operand schedule as ordinary
 //! machines. Structural snapshots must stay between earlier and later scalar
 //! side effects even when the surrounding body has state transitions.
+//!
+//! One state evaluates retained values at many places — its scalar prefix, its
+//! entry guard, a successor operand, a range endpoint, a return arm — and each
+//! of them needs that same frame and the same closure-wide call namespace.
+//! [`StateFrame`] builds the frame for one evaluation and
+//! [`with_call_namespace`] borrows the namespace for one operation, so no site
+//! re-derives either by hand.
 use super::super::super::StructuralParameterDeclaration;
 use super::super::argument_schedule::{self, Step};
 use super::super::bodies::UnitPlans;
@@ -20,6 +27,7 @@ use super::super::primitive_locals::PrimitiveLocal;
 use super::super::{CheckedUnitEffectOperationPlan, ValueDeclaration, unsupported};
 use super::{CheckedTrees, LoweringError, catalogs, literal_arguments};
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::calls::CallEmissionContext;
 use std::borrow::Cow;
 
 /// Storage established by one selected operation sequence. Scalar operands,
@@ -178,6 +186,113 @@ impl ComposedOperationCatalogs<'_, '_> {
     }
 }
 
+/// The frame over one composed state's environment.
+///
+/// A state evaluates retained checked values at many places — its scalar
+/// prefix, its entry guard, a successor operand, a range endpoint, a return
+/// arm — and every one of them needs the same per-operation frame: the emitter
+/// the ordinary machine also uses, over the state's checked owner, plan,
+/// erased formals and custody frontier. `StateFrame` binds the parts that
+/// cannot change between those places, so a site hands over only what is
+/// genuinely local to it: the transported parameters, the operation sequence
+/// under evaluation and the namespace that evaluation reads and advances.
+pub(super) struct StateFrame<'f> {
+    checked: &'f CheckedTrees,
+    /// The machine that authored the emitting state. A fused roster mixes
+    /// owners, so each position's facts resolve in its own.
+    machine: symbols::SymbolHandle,
+    state: &'f checked_trees::CheckedComposedUnitControlStatePlan,
+    /// The state's erased formals: the machine contract's for a plain entry,
+    /// its own block's declarations otherwise.
+    erased_parameters: &'f [ValueDeclaration],
+}
+
+impl<'f> StateFrame<'f> {
+    pub(super) fn new(
+        checked: &'f CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: &'f checked_trees::CheckedComposedUnitControlStatePlan,
+        erased_parameters: &'f [ValueDeclaration],
+    ) -> Self {
+        Self {
+            checked,
+            machine,
+            state,
+            erased_parameters,
+        }
+    }
+
+    /// Build this state's operation frame for one evaluation and hand it to
+    /// `evaluate`, publishing the advanced call-obligation counter back to the
+    /// closure's call namespace. The frame borrows the site's value namespace,
+    /// counters and operation buffer for the call, so the site reads and
+    /// writes them through the frame it splits.
+    pub(super) fn evaluate<T>(
+        &self,
+        catalogs: &mut catalogs::ComposedCatalogs<'_>,
+        parameters: &[StructuralParameterDeclaration],
+        sequence: &mut OperationSequence,
+        values: FrameValues<'_>,
+        evaluate: impl FnOnce(OperationFrame<'_, '_>) -> Result<T, LoweringError>,
+    ) -> Result<T, LoweringError> {
+        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
+        with_call_namespace(scalar_calls, |calls| {
+            let frame = operation_catalogs.operation_frame(
+                self.checked,
+                self.machine,
+                self.state,
+                parameters,
+                self.erased_parameters,
+                sequence,
+                OperationEmission {
+                    source_value_count: values.source_value_count,
+                    evaluation: values.evaluation,
+                    values: values.values,
+                    next_value: values.next_value,
+                    next_block: values.next_block,
+                    next_edge: values.next_edge,
+                    calls,
+                    operations: values.operations,
+                },
+            );
+            evaluate(frame)
+        })
+    }
+}
+
+/// The live namespace one frame evaluation reads and advances: the completed
+/// values the operation's authored source can still name, the private staging
+/// that follows any control split, the dense counters, and the operation
+/// buffer the frame emits into. The call namespace and its obligation counter
+/// belong to `with_call_namespace`, not to a site.
+pub(super) struct FrameValues<'f> {
+    pub(super) source_value_count: usize,
+    pub(super) evaluation: &'f mut super::super::argument_evaluation::Evaluation,
+    pub(super) values: &'f mut Vec<ValueDeclaration>,
+    pub(super) next_value: &'f mut u64,
+    pub(super) next_block: &'f mut u64,
+    pub(super) next_edge: &'f mut u64,
+    pub(super) operations: &'f mut OperationBuffer,
+}
+
+/// Borrow the closure's call namespace for one operation.
+///
+/// Every composed evaluation and call emission resolves against the one
+/// scalar-call namespace this machine was admitted with, and an operation may
+/// allocate requirement obligations in it. The advanced counter is published
+/// back to the catalog when the operation ends so the next operation's
+/// namespace starts past it; keeping the borrow and its publication together
+/// keeps a site from publishing a stale counter.
+pub(super) fn with_call_namespace<T>(
+    scalar_calls: &mut super::scalar_calls::ComposedScalarCalls,
+    run: impl FnOnce(&mut CallEmissionContext<'_>) -> Result<T, LoweringError>,
+) -> Result<T, LoweringError> {
+    let mut calls = scalar_calls.emission_context();
+    let result = run(&mut calls);
+    scalar_calls.next_call_obligation = calls.next_obligation_identity;
+    result
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_call_operations(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -187,7 +302,6 @@ pub(super) fn emit_call_operations(
     planned_operations: &[CheckedUnitEffectOperationPlan],
     catalogs: &mut catalogs::ComposedCatalogs,
     parameters: &[StructuralParameterDeclaration],
-    claim_bindings: crate::emission::claim_bindings::PublishedClaims<'_>,
     evaluation: &mut super::super::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
     // The emitting machine's erased roster, for `ErasedParameter` actuals
@@ -253,47 +367,39 @@ pub(super) fn emit_call_operations(
                 if staged_scalar_slots[operation].len() != ordinal {
                     return unsupported("composed scalar operand ordinals are not dense");
                 }
-                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let value = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
+                let value = StateFrame::new(checked, machine, state, erased_parameters).evaluate(
+                    catalogs,
+                    parameters,
+                    sequence,
+                    FrameValues {
+                        source_value_count,
+                        evaluation,
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        operations,
+                    },
+                    |frame| {
+                        let (mut environment, emission) = frame.split();
+                        emission.evaluation.argument_at(
+                            identities,
                             checked,
                             machine,
-                            state,
-                            parameters,
-                            erased_parameters,
-                            sequence,
-                            OperationEmission {
-                                source_value_count,
-                                evaluation,
-                                values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                calls: &mut calls,
-                                operations,
-                            },
+                            state.state,
+                            &planned_operations[operation],
+                            ordinal,
+                            source_value_count,
+                            emission.values,
+                            emission.next_value,
+                            emission.next_block,
+                            emission.next_edge,
+                            emission.operations,
+                            emission.calls,
+                            &mut environment,
                         )
-                        .split();
-                    emission.evaluation.argument_at(
-                        identities,
-                        checked,
-                        machine,
-                        state.state,
-                        &planned_operations[operation],
-                        ordinal,
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                    },
+                )?;
                 staged_scalar_slots[operation].push(values.len());
                 values.push(value);
                 continue;
@@ -306,48 +412,40 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed selector has no source prefix"),
                 )?;
-                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                let value = {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
+                let value = StateFrame::new(checked, machine, state, erased_parameters).evaluate(
+                    catalogs,
+                    parameters,
+                    sequence,
+                    FrameValues {
+                        source_value_count,
+                        evaluation,
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        operations,
+                    },
+                    |frame| {
+                        let (mut environment, emission) = frame.split();
+                        emission.evaluation.call_selector(
+                            identities,
                             checked,
                             machine,
-                            state,
-                            parameters,
-                            erased_parameters,
-                            sequence,
-                            OperationEmission {
-                                source_value_count,
-                                evaluation,
-                                values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                calls: &mut calls,
-                                operations,
-                            },
+                            state.state,
+                            &planned_operations[operation],
+                            argument,
+                            segment,
+                            source_value_count,
+                            emission.values,
+                            emission.next_value,
+                            emission.next_block,
+                            emission.next_edge,
+                            emission.operations,
+                            emission.calls,
+                            &mut environment,
                         )
-                        .split();
-                    emission.evaluation.call_selector(
-                        identities,
-                        checked,
-                        machine,
-                        state.state,
-                        &planned_operations[operation],
-                        argument,
-                        segment,
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                    },
+                )?;
                 staged_selector_slots[operation].push(values.len());
                 values.push(value);
                 continue;
@@ -359,47 +457,39 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed endpoint operand has no source prefix"),
                 )?;
-                let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-                let mut calls = scalar_calls.emission_context();
-                {
-                    let (mut environment, emission) = operation_catalogs
-                        .operation_frame(
+                StateFrame::new(checked, machine, state, erased_parameters).evaluate(
+                    catalogs,
+                    parameters,
+                    sequence,
+                    FrameValues {
+                        source_value_count,
+                        evaluation,
+                        values,
+                        next_value,
+                        next_block,
+                        next_edge,
+                        operations,
+                    },
+                    |frame| {
+                        let (mut environment, emission) = frame.split();
+                        emission.evaluation.window_endpoints(
+                            identities,
                             checked,
                             machine,
-                            state,
-                            parameters,
-                            erased_parameters,
-                            sequence,
-                            OperationEmission {
-                                source_value_count,
-                                evaluation,
-                                values,
-                                next_value,
-                                next_block,
-                                next_edge,
-                                calls: &mut calls,
-                                operations,
-                            },
+                            state.state,
+                            &planned_operations[operation],
+                            argument,
+                            source_value_count,
+                            emission.values,
+                            emission.next_value,
+                            emission.next_block,
+                            emission.next_edge,
+                            emission.operations,
+                            emission.calls,
+                            &mut environment,
                         )
-                        .split();
-                    emission.evaluation.window_endpoints(
-                        identities,
-                        checked,
-                        machine,
-                        state.state,
-                        &planned_operations[operation],
-                        argument,
-                        source_value_count,
-                        emission.values,
-                        emission.next_value,
-                        emission.next_block,
-                        emission.next_edge,
-                        emission.operations,
-                        emission.calls,
-                        &mut environment,
-                    )
-                }?;
-                scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                    },
+                )?;
                 continue;
             }
             Step::Subslice { operation, ordinal } => {
@@ -507,45 +597,40 @@ pub(super) fn emit_call_operations(
         if matches!(step, Step::Call(_)) && matches!(schedule.peek(), Some(Step::End)) {
             values.truncate(source_value_count);
         }
-        let (mut operation_catalogs, scalar_calls) = catalogs.operation_catalogs();
-        let mut calls = scalar_calls.emission_context();
-        calls.claims = crate::emission::claim_bindings::ClaimBindings::Fixed(claim_bindings);
-        let frame = operation_catalogs.operation_frame(
-            checked,
-            machine,
-            state,
+        let mut established_local = None;
+        StateFrame::new(checked, machine, state, erased_parameters).evaluate(
+            catalogs,
             parameters,
-            erased_parameters,
             sequence,
-            OperationEmission {
+            FrameValues {
                 source_value_count,
                 evaluation,
                 values,
                 next_value,
                 next_block,
                 next_edge,
-                calls: &mut calls,
                 operations,
             },
-        );
-        let mut established_local = None;
-        match &call_operands {
-            None if establishes_local => {
-                let local = frame.establish_primitive_local(identities, operation)?;
-                established_local = Some(local);
-            }
-            None => frame.emit(identities, operation)?,
-            Some((arguments, byte_places)) => frame.emit_call(
-                identities,
-                operation,
-                CallInputs {
-                    evaluated_scalar_arguments: arguments.as_deref(),
-                    byte_places,
-                    evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
-                },
-            )?,
-        }
-        scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            |frame| {
+                match &call_operands {
+                    None if establishes_local => {
+                        let local = frame.establish_primitive_local(identities, operation)?;
+                        established_local = Some(local);
+                    }
+                    None => frame.emit(identities, operation)?,
+                    Some((arguments, byte_places)) => frame.emit_call(
+                        identities,
+                        operation,
+                        CallInputs {
+                            evaluated_scalar_arguments: arguments.as_deref(),
+                            byte_places,
+                            evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
+                        },
+                    )?,
+                }
+                Ok(())
+            },
+        )?;
         if let Some(local) = established_local {
             catalogs.temporary_places.push(local.declaration);
             sequence.primitive_locals.push(local);
