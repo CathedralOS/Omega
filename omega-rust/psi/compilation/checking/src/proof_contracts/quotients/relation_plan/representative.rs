@@ -1,9 +1,10 @@
-//! Exact representative entry identity plus initial termination and purity
-//! certificates for quotient-operation planning.
+//! Exact representative entry identity for quotient-operation planning.
 //!
-//! These certificates consume existing checked summaries. They do not perform
-//! a second local effect analysis, discharge progress premises, or establish
-//! result flow, contracts, `Respects`, or custody preservation.
+//! The representative runtime telescope and its exact static application are
+//! consumed by the shared termination and purity fences in `relation_plan`,
+//! which read existing checked summaries. They do not perform a second local
+//! effect analysis, discharge progress premises, or establish result flow,
+//! contracts, `Respects`, or custody preservation.
 
 use super::{RelationPlanError, RepresentativeStaticApplication};
 use arena::HandleSpan;
@@ -81,48 +82,4 @@ pub(super) fn representative_machine_state(
         return Err(RelationPlanError::RepresentativeEntryDoesNotResolveExactly);
     }
     Ok((machine, state))
-}
-
-/// Retain the exact local termination summary only when it is unconditional.
-/// Progress-profile premises are observable admission dependencies and cannot
-/// be silently discharged by the initial quotient wrapper.
-pub(super) fn unconditional_representative_termination(
-    termination: &dyn crate::proof_contracts::quotients::CheckedTerminationOracle,
-    representative: &RepresentativeTelescope,
-) -> Option<MachineStateCoordinate> {
-    termination
-        .unconditionally_terminates(representative.machine_symbol)
-        .then_some(MachineStateCoordinate {
-            machine_symbol: representative.machine_symbol,
-            state_symbol: representative.state_symbol,
-        })
-}
-
-/// Consume the shared whole-program operational and service-reach fixed points
-/// to retain the initial pure-representative certificate. The exact entry must
-/// have no mutable/out parameter, the enclosing machine must have no recursive
-/// service, suspension, or blocking behavior, and every concrete call reachable
-/// from that machine must retain a resolved machine target. Custody occurrence
-/// remains a separate fence.
-pub(in crate::proof_contracts::quotients) fn pure_representative_effect(
-    program: &dyn crate::CheckingInput,
-    representative: &RepresentativeTelescope,
-    operational: &flow_effects::OperationalPlan,
-    service_reaches: &flow_effects::ServiceReachInferencePlan,
-) -> Option<MachineStateCoordinate> {
-    crate::machine_calls::denotational_calls::has_pure_effect_closure(
-        program,
-        representative.machine_symbol,
-        representative.state_symbol,
-        representative
-            .parameters
-            .iter()
-            .any(|parameter| parameter.is_mutable),
-        operational,
-        service_reaches,
-    )
-    .then_some(MachineStateCoordinate {
-        machine_symbol: representative.machine_symbol,
-        state_symbol: representative.state_symbol,
-    })
 }

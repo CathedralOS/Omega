@@ -59,10 +59,8 @@ pub(super) struct ContractFactLocation {
     pub(super) fact_position: usize,
 }
 
-pub(super) use representative::pure_representative_effect;
 use representative::{
     RepresentativeTelescope, derive_representative_telescope, representative_machine_state,
-    unconditional_representative_termination,
 };
 use runtime_correspondence::DefineRuntimePosition;
 use runtime_correspondence::{
@@ -103,6 +101,10 @@ pub(super) struct DirectTerminalRelationPlan {
     pub(super) result_relation: PositionalRelation,
     pub(super) representative: RepresentativeTelescope,
     pub(super) representative_termination: Option<MachineStateCoordinate>,
+    /// The representative operation's result-closure fence, derived with the
+    /// plan so both consumers read one answer instead of re-deriving the
+    /// whole-program effect graphs and re-running the fence per request.
+    pub(super) representative_purity: Option<MachineStateCoordinate>,
     /// Exact role-ordered explicitly selected theorem applications and common
     /// eligibility. Congruence and forward transport each retain their own
     /// verified role-specific correspondence.
@@ -435,31 +437,54 @@ pub(super) fn derive_direct_terminal_plan(
 ) -> Result<DirectTerminalRelationPlan, RelationPlanError> {
     let (input_relations, result_relation, representative) =
         derive_relation_and_representative(program, machine, state, call, request)?;
-    let representative_termination =
-        unconditional_representative_termination(termination, &representative);
+    let representative_termination = unconditional_termination_fence(
+        termination,
+        representative.machine_symbol,
+        representative.state_symbol,
+    );
     validate_theorem_role_collection(request)?;
-    let theorem_operational = crate::infer_operational_may(program);
-    let theorem_reaches = crate::infer_service_reaches(program, &theorem_operational);
+    // One whole-program effect inference feeds both purity fences: the
+    // representative's answer is retained in the plan below, so every
+    // consumer reads it instead of re-deriving these graphs per request.
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
+    let representative_purity = pure_effect_fence(
+        program,
+        representative.machine_symbol,
+        representative.state_symbol,
+        representative
+            .parameters
+            .iter()
+            .any(|parameter| parameter.is_mutable),
+        &operational,
+        &service_reaches,
+    );
     let theorem_evidence = request
         .theorem_evidence
         .iter()
         .map(|evidence| {
             let selected_application =
                 theorem::derive_selected_theorem_telescope(program, &evidence.application)?;
-            let termination = theorem::unconditional_selected_theorem_termination(
+            let termination = unconditional_termination_fence(
                 termination,
-                &selected_application,
+                selected_application.machine_symbol,
+                selected_application.state_symbol,
             );
-            let purity = theorem::pure_selected_theorem_effect(
+            let purity = pure_effect_fence(
                 program,
-                &selected_application,
-                &theorem_operational,
-                &theorem_reaches,
+                selected_application.machine_symbol,
+                selected_application.state_symbol,
+                selected_application
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.is_mutable),
+                &operational,
+                &service_reaches,
             );
             let crash_free = crate::machine_calls::denotational_calls::has_no_crash_routes(
                 program,
                 selected_application.machine_symbol,
-                &theorem_operational,
+                &operational,
             );
             Ok(PlannedQuotientTheoremEvidence {
                 role: evidence.role,
@@ -726,6 +751,7 @@ pub(super) fn derive_direct_terminal_plan(
         result_relation,
         representative,
         representative_termination,
+        representative_purity,
         theorem_evidence,
         expected_theorem_schema,
         theorem_schema_verification,
@@ -738,6 +764,53 @@ pub(super) fn derive_direct_terminal_plan(
         fixed_representative_call_preconditions,
         define_precondition_correspondence,
         correspondence_certificate,
+    })
+}
+
+/// The one unconditional-termination fence: only a checked guarantee with no
+/// progress-profile premises is retained for the named machine state.
+/// Progress-profile premises are observable admission dependencies the
+/// initial quotient wrapper cannot discharge silently, so the representative
+/// operation's certificates and every selected theorem share this fence over
+/// the machine/state coordinate they name.
+fn unconditional_termination_fence(
+    termination: &dyn super::CheckedTerminationOracle,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Option<MachineStateCoordinate> {
+    termination
+        .unconditionally_terminates(machine_symbol)
+        .then_some(MachineStateCoordinate {
+            machine_symbol,
+            state_symbol,
+        })
+}
+
+/// The one result-closure effect fence, shared by the representative operation
+/// and every selected theorem. The exact entry must have no mutable/out
+/// parameter, the enclosing machine must have no recursive service,
+/// suspension, or blocking behavior, and every concrete call reachable from
+/// that machine must retain a resolved machine target. Custody occurrence
+/// remains a separate fence.
+fn pure_effect_fence(
+    program: &dyn crate::CheckingInput,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    has_mutable_parameter: bool,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+) -> Option<MachineStateCoordinate> {
+    crate::machine_calls::denotational_calls::has_pure_effect_closure(
+        program,
+        machine_symbol,
+        state_symbol,
+        has_mutable_parameter,
+        operational,
+        service_reaches,
+    )
+    .then_some(MachineStateCoordinate {
+        machine_symbol,
+        state_symbol,
     })
 }
 
