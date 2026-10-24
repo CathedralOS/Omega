@@ -325,11 +325,12 @@ pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
-    MatchCaseDispatch, MatchCaseDispatchArm, MatchCaseSubject, match_case_dispatch,
-};
-pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
+};
+pub use value_custody::expression_types::{
+    structural_match_cases_are_covered, structural_match_pattern_case,
+    structural_match_subject_type,
 };
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
@@ -350,6 +351,7 @@ pub use value_custody::literals::{
     is_closed_primitive_array_type, peel_arithmetic_policy, scalar_array_elements,
     scalar_array_preserves_memberships,
 };
+pub use value_custody::places::ownership_place_from_expression_in_state;
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{
     declared_carriers_match, peel_declared_constraints, unwrapped_type_reference,

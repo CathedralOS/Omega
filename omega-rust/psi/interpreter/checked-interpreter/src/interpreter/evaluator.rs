@@ -197,6 +197,13 @@ pub(crate) struct Frame {
     /// references and aggregate ownership stay with their existing evaluators.
     scalar_expression_depth: usize,
     scalar_expression_values: Vec<(ExpressionHandle, Value)>,
+    /// Lexically scoped aliases of subjects actually evaluated by Match.
+    /// A cell preserves the original reference descriptor and backing; reading
+    /// an alias never executes the source expression a second time.
+    match_subjects: Vec<(
+        arena::Handle<typed_trees::expression::MatchSubjectCapture>,
+        Cell,
+    )>,
 }
 
 /// One open descriptor in the interpreter's virtual filesystem: which path it

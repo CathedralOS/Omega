@@ -1179,10 +1179,12 @@ fn fact_call_targets(
                 .iter()
                 .copied(),
         ),
-        typed_trees::literal_expression_pattern!() => FactCallTargets {
-            any: false,
-            all_declared: true,
-        },
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {
+            FactCallTargets {
+                any: false,
+                all_declared: true,
+            }
+        }
     }
 }
 

@@ -901,7 +901,7 @@ fn excluded_input_at_call(
     if !projections.is_empty() {
         return None;
     }
-    let mut place = validation::canonical_place_from_expression_in_state(
+    let mut place = validation::ownership_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

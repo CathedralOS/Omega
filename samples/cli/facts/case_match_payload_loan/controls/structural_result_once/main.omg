@@ -1,0 +1,22 @@
+// A structural-result match evaluates its effectful copyable subject once.
+// Expected exit: 0
+data Counter { value: u32 in Wrapping; }
+data Probe [copy] { case Active(value: i32); case Empty; }
+data SelectedValue [copy] { value: i32; }
+machine produce(counter: &mut Counter) -> Probe {
+    counter.value = counter.value + 1;
+    Probe::Active { value: 41 }
+}
+machine exercise() -> bool {
+    let mut counter: Counter = Counter { value: 0 };
+    let result: SelectedValue = match produce(&mut counter) {
+        Probe::Active { value } -> SelectedValue { value: value }
+        Probe::Empty -> SelectedValue { value: 0 }
+    };
+    result.value == 41 && (counter.value as u32) == 1
+}
+machine main() crashes Trap {
+    transition exercise() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

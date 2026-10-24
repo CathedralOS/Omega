@@ -22,7 +22,7 @@ pub(super) fn merge(
     arrivals: impl Iterator<Item = Custody>,
 ) -> Result<Option<Custody>, LegalizationError> {
     let mut arrivals = arrivals.collect::<Vec<_>>();
-    let first = arrivals.first().ok_or_else(invalid)?;
+    let first = arrivals.first().ok_or_else(|| invalid())?;
     let is_parameter = |place| {
         function.block(target).is_some_and(|block| {
             block.structural_parameters.iter().any(|parameter| {
@@ -86,17 +86,17 @@ pub(super) fn merge(
     for arrival in &mut arrivals {
         let mut identities = Vec::new();
         for location in &selected {
-            let structural_type = resident_type(function, location.0).ok_or_else(invalid)?;
+            let structural_type = resident_type(function, location.0).ok_or_else(|| invalid())?;
             let declaration = leaf_type(types, structural_type, &location.1)
                 .and_then(|reference| find_structural_type(types, reference))
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             let StructuralTypeShape::Reference { referent, access } = declaration.shape else {
                 return Err(invalid());
             };
-            let leaf = arrival.leaves.get_mut(location).ok_or_else(invalid)?;
+            let leaf = arrival.leaves.get_mut(location).ok_or_else(|| invalid())?;
             let carried = leaf_type(types, leaf.contract.structural_type(), &leaf.identity.path)
                 .and_then(|reference| find_structural_type(types, reference))
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             if carried.shape != declaration.shape
                 || leaf.referent != referent
                 || !matches!(
@@ -136,7 +136,7 @@ pub(super) fn merge(
         arrival.validate_occurrences()?;
     }
     let mut arrivals = arrivals.into_iter();
-    let mut complete = arrivals.next().ok_or_else(invalid)?;
+    let mut complete = arrivals.next().ok_or_else(|| invalid())?;
     for arrival in arrivals {
         if merge_arrivals(
             function,

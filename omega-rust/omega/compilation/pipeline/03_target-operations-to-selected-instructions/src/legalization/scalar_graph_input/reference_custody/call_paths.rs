@@ -62,7 +62,7 @@ pub(super) fn observe_reference_custody(
             access: argument.access,
         },
     )
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| invalid())?;
     let mut complete: Option<ReferenceObservation> = None;
     for mut root in roots {
         root.path.extend_from_slice(&argument.path);
@@ -93,7 +93,7 @@ pub(super) fn observe_reference_custody(
             complete = Some(observed);
         }
     }
-    complete.ok_or_else(invalid)
+    complete.ok_or_else(|| invalid())
 }
 
 fn observe_direct_reference_custody(
@@ -167,7 +167,7 @@ fn observe_direct_reference_custody(
                 &path,
                 cursor_budget,
             )
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
             for mut path in candidates {
                 if source_contract(function, custody, place)
                     .and_then(|contract| leaf_type(types, contract, &path))

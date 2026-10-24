@@ -167,9 +167,18 @@ pub(crate) fn retain_shapes(
             CheckedScalarComputationKind::RetainedConstant { .. }
             | CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                pending.push(*subject);
+                pending.extend(subject.scalar_operands());
+                if let checked_trees::CheckedDispatchSubject::Structural { value, .. } = subject {
+                    retain_declarations(
+                        shapes,
+                        super::super::terminal_unit::scalar_operand_shapes(
+                            program,
+                            structural_values.nodes.get(*value).type_reference,
+                        )?,
+                    )?;
+                }
                 for arm in plans.dispatch_arms.span(*arms)? {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(value) = arm.pattern {
+                    if let Some(value) = arm.pattern.computation() {
                         pending.push(value);
                     }
                     pending.push(arm.value);
@@ -221,14 +230,14 @@ pub(crate) fn retain_shapes(
                             expression,
                         } = argument.source
                     {
-                        let mut roots = structural_values.roots.iter().filter_map(|(_, root)| {
-                            (root.state == state && root.expression == expression).then_some(root)
-                        });
-                        let root = roots.next()?;
-                        if roots.next().is_some()
-                            || !structural_values.nodes.is_valid(root.root)
-                            || structural_values.nodes.get(root.root).expression != expression
-                            || (argument.path.is_empty()
+                        // A saved home is an alias of a completed subject,
+                        // not another producer root. Its catalog dependency
+                        // is the original retained value; executable reads
+                        // still use the saved anchor and never replay it.
+                        let root = structural_values.completed_expression_dependency(
+                            &program.expression_table, state, None, expression,
+                        )?;
+                        if (argument.path.is_empty()
                                 && validation::structural_type_identity(program, root.type_reference, &[], &[])
                                     != argument.type_identity)
                             || !matches!(argument.access,

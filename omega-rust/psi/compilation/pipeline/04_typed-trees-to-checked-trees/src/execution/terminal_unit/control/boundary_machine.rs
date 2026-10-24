@@ -98,9 +98,26 @@ pub(crate) fn build_boundary_machine(
         .for_machine(machine.symbol)
         .ok_or("boundary declaration has no checked service reach")?;
 
+    // An independent family containing only checked bodies is a portable
+    // contract, not a foreign completion. Its selected member returns actual
+    // checked custody through the ordinary call. Mixed/opaque families still
+    // need the full host-output contract, independently of the selected target.
+    let checked_family = program.target_machine_families.iter().any(|family| {
+        family.canonical == machine.symbol
+            && !family.members.is_empty()
+            && family.members.iter().all(|member| {
+                program
+                    .machine_by_symbol(member.machine)
+                    .is_some_and(|member| member.supplies_checked_body())
+            })
+    });
+    let reference_outputs = if checked_family {
+        Vec::new()
+    } else {
+        reference_outputs(program, program.state_parameters(state), &[])?
+    };
     Ok(CheckedBoundaryMachinePlan {
-        reference_outputs: reference_outputs(program, program.state_parameters(state), &[])
-            .map_err(|_| "boundary reference outputs have no retained custody plan")?,
+        reference_outputs,
         machine: machine.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,

@@ -217,6 +217,7 @@ fn match_arms_preserve_order_source_and_nonnumeric_values() {
     let expression = table.insert(ExpressionNode::Match(TableMatchExpression {
         subject,
         arms,
+        ..Default::default()
     }));
     table.set_source_span(expression, source_span);
     assert_eq!(
@@ -607,6 +608,7 @@ fn insert_every_node_kind(table: &mut ExpressionTable) -> super::ExpressionHandl
     let root = table.insert(ExpressionNode::Match(TableMatchExpression {
         subject: call,
         arms,
+        ..Default::default()
     }));
     table.set_source_span(root, span(20));
     table.attach_authored_selection_occurrences(root, [root_occurrence]);

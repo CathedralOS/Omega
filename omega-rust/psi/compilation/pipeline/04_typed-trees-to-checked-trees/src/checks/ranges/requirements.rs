@@ -100,6 +100,7 @@ fn seed_index_proofs_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => {
             // Only the subject executes unconditionally. An assumed-valid
             // dispatch does not establish validity of every alternative body.

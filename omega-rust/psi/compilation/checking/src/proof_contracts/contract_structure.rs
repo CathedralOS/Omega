@@ -90,9 +90,9 @@ pub fn declared_callable(
     generics: &[(SymbolHandle, String)],
     content_conservation: &[crate::ContentConservationSourcePlan],
     include_crashes: bool,
-) -> DeclaredCallableContract {
+) -> Result<DeclaredCallableContract, diagnostics::Diagnostic> {
     let binders = callable_binders(generics, parameters);
-    DeclaredCallableContract {
+    Ok(DeclaredCallableContract {
         parameters: parameters
             .iter()
             .map(|parameter| DeclaredContractParameter {
@@ -115,8 +115,8 @@ pub fn declared_callable(
             &binders,
             content_conservation,
             include_crashes,
-        ),
-    }
+        )?,
+    })
 }
 
 /// Project and sort declared clauses, merging same-cause crash alternatives.
@@ -126,11 +126,17 @@ pub fn declared_contracts(
     binders: &[(SymbolHandle, String)],
     content_conservation: &[crate::ContentConservationSourcePlan],
     include_crashes: bool,
-) -> Vec<DeclaredContractClause> {
+) -> Result<Vec<DeclaredContractClause>, diagnostics::Diagnostic> {
     let mut clauses = Vec::new();
     let mut crashes = Vec::<(checked_trees::CrashCause, bool, Vec<DeclaredContractFact>)>::new();
     for contract in contracts {
         let facts = program.proof_facts.span_or_empty(contract.facts);
+        let project = || {
+            facts
+                .iter()
+                .map(|fact| declared_fact(program, fact, binders, content_conservation))
+                .collect::<Result<Vec<_>, _>>()
+        };
         let kind = match contract.kind {
             SignatureContractKind::Requires => DeclaredContractKind::Requires,
             SignatureContractKind::Ensures => DeclaredContractKind::Ensures,
@@ -154,21 +160,18 @@ pub fn declared_contracts(
                         crashes.len() - 1
                     });
                 let bucket = &mut crashes[position];
+                let projected = project()?;
                 if facts.is_empty() || facts.iter().any(|fact| is_true_crash_route(program, fact)) {
                     bucket.1 = true;
                 } else {
-                    bucket.2.extend(
-                        facts.iter().map(|fact| {
-                            declared_fact(program, fact, binders, content_conservation)
-                        }),
-                    );
+                    bucket.2.extend(projected);
                 }
                 continue;
             }
         };
-        clauses.extend(facts.iter().map(|fact| DeclaredContractClause {
+        clauses.extend(project()?.into_iter().map(|fact| DeclaredContractClause {
             kind: kind.clone(),
-            fact: Some(declared_fact(program, fact, binders, content_conservation)),
+            fact: Some(fact),
         }));
     }
     for (cause, unconditional, mut routes) in crashes {
@@ -185,7 +188,7 @@ pub fn declared_contracts(
         }
     }
     clauses.sort();
-    clauses
+    Ok(clauses)
 }
 
 /// Project one fact without using its diagnostic spelling as binder identity.
@@ -194,11 +197,11 @@ pub fn declared_fact(
     fact: &typed_trees::domain::ProofFact,
     binders: &[(SymbolHandle, String)],
     content_conservation: &[crate::ContentConservationSourcePlan],
-) -> DeclaredContractFact {
+) -> Result<DeclaredContractFact, diagnostics::Diagnostic> {
     project_declared_fact(program, fact, binders, content_conservation, |expression| {
-        Some(normalized_expression_identity(program, expression, binders))
+        normalized_expression_identity(program, expression, binders)
     })
-    .expect("checked proposition application must have a normalized formula")
+    .ok_or_else(|| diagnostics::Diagnostic::error("declared contract fact has no complete normalized identity; an unbound subject or unresolved proposition cannot define a contract"))
 }
 
 fn try_declared_fact(
@@ -400,15 +403,10 @@ mod tests {
                 ..Default::default()
             }];
             let declaration = checked_trees::DeclaredContractStructure {
-                callables: vec![declared_callable(
-                    program,
-                    &parameters,
-                    value,
-                    &[],
-                    &[],
-                    &[],
-                    true,
-                )],
+                callables: vec![
+                    declared_callable(program, &parameters, value, &[], &[], &[], true)
+                        .expect("formed callable contract"),
+                ],
                 clauses: Vec::new(),
             };
             program.type_identities.with(|table| {
@@ -493,7 +491,8 @@ mod tests {
             &binders,
             &[],
             true,
-        );
+        )
+        .expect("formed original callable contract");
         // Lexical replacement used to rewrite the independently selected
         // nominal T too. Changing only the binder's name must do nothing.
         program.symbols.rename(generic, "Element");
@@ -507,7 +506,8 @@ mod tests {
             &binders,
             &[],
             true,
-        );
+        )
+        .expect("formed renamed callable contract");
         assert_eq!(original, renamed);
         assert_ne!(original.parameters[0].type_identity, original.result);
         parameters[0].type_reference = generic_type;
@@ -522,6 +522,7 @@ mod tests {
                 &[],
                 true
             )
+            .expect("formed generic callable contract")
         );
     }
 }

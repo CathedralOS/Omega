@@ -496,12 +496,10 @@ pub(super) fn expression_contains_call(
                     .iter()
                     .any(|arm| {
                         expression_contains_call(program, arm.value)
-                            || match arm.pattern {
-                                typed_trees::expression::MatchPattern::Value(pattern) => {
-                                    expression_contains_call(program, pattern)
-                                }
-                                typed_trees::expression::MatchPattern::Wildcard => false,
-                            }
+                            || program
+                                .expression_table
+                                .match_pattern_operands(arm.pattern)
+                                .any(|operand| expression_contains_call(program, operand))
                     })
         }
         _ => false,

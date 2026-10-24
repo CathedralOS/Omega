@@ -106,6 +106,12 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     /// Only the final destination of a descriptor replacement names its slot.
     /// Intermediate view projections still load their original referent.
     reference_slot_target: ExpressionHandle,
+    /// Actual completed dispatch subjects in lexical evaluation scope. Alias
+    /// reads borrow these captures; they never replay their source operands.
+    match_subjects: Vec<(
+        Handle<typed_trees::expression::MatchSubjectCapture>,
+        checked_trees::FlowOperandFact,
+    )>,
 }
 
 pub(super) struct StatementEvaluation {
@@ -390,6 +396,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             entry_origin_writes: HandleSpan::empty(),
             entry_origin_unknown_write: false,
             reference_slot_target: ExpressionHandle::invalid(),
+            match_subjects: Vec::new(),
         }
     }
 
@@ -409,6 +416,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 expression,
                 evaluation: self.evaluation,
                 receiver,
+                result: Handle::invalid(),
                 semantic_contexts,
                 constraints,
             },
@@ -571,6 +579,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             );
             capture.children = HandleSpan::empty();
             capture.type_reference = destination;
+            self.retain_observation_result(expression, capture);
             return EvaluatedOperand { boolean, capture };
         }
         let referents = if binds_view {
@@ -609,7 +618,37 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 Handle::invalid()
             };
         }
+        self.retain_observation_result(expression, capture);
         EvaluatedOperand { boolean, capture }
+    }
+
+    /// Attach the actual completed result, not a reconstructed expression or
+    /// a type-only claim that the observer cannot retain its receiver.
+    fn retain_observation_result(
+        &mut self,
+        expression: ExpressionHandle,
+        capture: checked_trees::FlowOperandFact,
+    ) {
+        let control = &mut self.context.control;
+        let observations = control
+            .statements
+            .get(self.statement_fact)
+            .value_observations;
+        let matching = observations
+            .handles()
+            .filter(|handle| {
+                let observation = control.value_observations.get(*handle);
+                observation.expression == expression
+                    && observation.evaluation == self.evaluation
+                    && !observation.result.is_valid()
+            })
+            .collect::<Vec<_>>();
+        // A repeated/ambiguous evaluation cannot borrow another occurrence's
+        // completion. The source occurrence inventory likewise refuses it.
+        if let [observation] = matching.as_slice() {
+            let result = control.operands.append(capture);
+            control.value_observations.get_mut(*observation).result = result;
+        }
     }
 
     /// Address formation observes a place, even when reading that place would
@@ -630,6 +669,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         );
         let capture =
             self.capture_place_operand(expression, first_write, completed, *contexts, *constraints);
+        self.retain_observation_result(expression, capture);
         EvaluatedOperand { boolean, capture }
     }
 
@@ -1094,6 +1134,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             return None;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(saved) => {
+                let captured = self
+                    .match_subjects
+                    .iter()
+                    .rev()
+                    .find_map(|(capture, value)| (*capture == saved.capture).then_some(*value));
+                if let Some(captured) = captured {
+                    *formed_type = captured.type_reference;
+                    *children = captured.children;
+                    *alternatives = captured.alternatives;
+                    *backing = self.context.control.operands.insert(captured);
+                    *referents = Some(captured.referents);
+                    *retention = Some(captured.retention);
+                } else {
+                    // Missing evaluation custody is unresolved, not a license
+                    // to recover the source's current descriptor or access.
+                    *referents = Some(HandleSpan::empty());
+                    *retention = Some(Handle::invalid());
+                }
+                return None;
+            }
             ExpressionNode::Match(dispatch) => {
                 *alternatives =
                     self.dispatch(expression, *dispatch, destination, contexts, constraints);

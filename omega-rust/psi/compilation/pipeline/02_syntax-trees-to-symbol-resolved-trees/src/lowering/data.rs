@@ -878,9 +878,10 @@ fn case_fact_expression_mentions(
         // Matches, struct literals, and atomics have
         // no generic-instance case-fact carriage yet: refuse rather than copy
         // a shape the seeded replay does not compare.
-        ExpressionNode::Match(_) | ExpressionNode::StructLiteral(_) | ExpressionNode::Atomic(_) => {
-            true
-        }
+        ExpressionNode::Match(_)
+        | ExpressionNode::SavedSubject(_)
+        | ExpressionNode::StructLiteral(_)
+        | ExpressionNode::Atomic(_) => true,
     }
 }
 

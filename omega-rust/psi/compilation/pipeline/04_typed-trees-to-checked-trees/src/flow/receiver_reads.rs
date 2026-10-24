@@ -481,7 +481,10 @@ impl DirectReads<'_, '_> {
         }
         let program = self.program;
         match program.expression_table.expression(expression) {
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            ExpressionNode::SavedSubject(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::Member(_)
+            | ExpressionNode::Indexed(_) => {
                 self.place(expression, true);
             }
             ExpressionNode::Borrow(inner) => self.place(inner.target, true),
@@ -498,7 +501,7 @@ impl DirectReads<'_, '_> {
             ExpressionNode::Match(dispatch) => {
                 self.value(dispatch.subject);
                 for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                         self.value(pattern);
                     }
                     self.value(arm.value);

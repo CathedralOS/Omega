@@ -17,6 +17,8 @@ use std::cell::Cell;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
+mod match_dispatch;
+
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) storage_value_indices: bool,
@@ -33,6 +35,7 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) index_substitutions:
         &'binders [(SymbolHandle, super::IndexIdentityArgument<'binders>)],
     pub(crate) invalid_index_argument: Option<&'binders Cell<bool>>,
+    pub(crate) match_subjects: &'binders [arena::Handle<crate::expression::MatchSubjectCapture>],
     pub(crate) exact_toolchain_sources: &'binders [(source::SourceId, [u8; 32])],
     pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     pub(crate) qualification: TypeIdentityQualification,
@@ -784,36 +787,12 @@ pub(crate) fn normalize_index_expression(
                 .iter()
                 .map(|element| normalize_index_expression(program, *element, context)),
         ),
-        ExpressionNode::Match(match_expression) => compound(
-            "match",
-            std::iter::once(normalize_index_expression(
-                program,
-                match_expression.subject,
-                context,
-            ))
-            .chain(
-                program
-                    .expression_table
-                    .match_arms(match_expression.arms)
-                    .iter()
-                    .map(|arm| {
-                        compound(
-                            "arm",
-                            [
-                                match arm.pattern {
-                                    crate::expression::MatchPattern::Value(pattern) => {
-                                        normalize_index_expression(program, pattern, context)
-                                    }
-                                    crate::expression::MatchPattern::Wildcard => {
-                                        "wildcard".to_owned()
-                                    }
-                                },
-                                normalize_index_expression(program, arm.value, context),
-                            ],
-                        )
-                    }),
-            ),
-        ),
+        ExpressionNode::Match(dispatch) => {
+            match_dispatch::normalize_match(program, expression, dispatch, context)
+        }
+        ExpressionNode::SavedSubject(saved) => {
+            match_dispatch::normalize_saved_subject(program, saved, context)
+        }
         ExpressionNode::Atomic(atomic) => compound(
             "atomic",
             [

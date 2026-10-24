@@ -1358,7 +1358,7 @@ impl ArrivalWalk<'_, '_> {
                     self.expression(source, field.value, environment);
                 }
             }
-            typed_trees::literal_expression_pattern!() => {}
+            ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
         }
         if let Ok(position) = self.observations.binary_search_by_key(
             &(expression.arena_index(), expression.generation()),

@@ -72,11 +72,11 @@ pub(super) fn normalize(
     let origins = origins
         .as_ref()
         .filter(|origins| !origins.is_empty())
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if source.path.contains(&StructuralPathSegment::Referent) {
         return combine_candidate_origins(
             flatten(function, custody, types, source)
-                .ok_or_else(invalid)?
+                .ok_or_else(|| invalid())?
                 .iter()
                 .map(|actual| normalized_direct_source(function, custody, types, actual))
                 .collect::<Result<Vec<_>, _>>()?,
@@ -84,7 +84,7 @@ pub(super) fn normalize(
     }
     // Presentation is checked at the receiving coordinate. It is not a demand
     // to reinterpret the original byte storage as a newly declared value.
-    storage_projection(function, custody, types, source).ok_or_else(invalid)?;
+    storage_projection(function, custody, types, source).ok_or_else(|| invalid())?;
     let mut candidates = Vec::with_capacity(origins.len());
     for origin in origins {
         if !source.access.admits(origin.access) {
@@ -121,7 +121,7 @@ pub(super) fn bind(
                 && let Some(relative) = owned_relative_path(&location.1, &binding.argument.path)
             {
                 let destination = (parameter.place, relative.to_vec());
-                let arrived = after.leaves.get(&destination).ok_or_else(invalid)?;
+                let arrived = after.leaves.get(&destination).ok_or_else(|| invalid())?;
                 if arrived.identity != OccurrenceIdentity::parameter(&destination)
                     || arrived.contract != CarrierContract::Parameter(parameter.clone())
                 {
@@ -270,7 +270,7 @@ pub(super) fn merge(left: &mut Custody, right: &Custody) -> Result<(), Legalizat
     }
     let sources = std::sync::Arc::make_mut(&mut left.borrowed_sources);
     for (place, incoming) in right.borrowed_sources.iter() {
-        let existing = sources.get_mut(place).ok_or_else(invalid)?;
+        let existing = sources.get_mut(place).ok_or_else(|| invalid())?;
         if let (Some(existing), Some(incoming)) = (existing.as_mut(), incoming.as_ref()) {
             existing.extend_from_slice(incoming);
             canonicalize(existing);

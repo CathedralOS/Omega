@@ -879,19 +879,21 @@ pub(super) fn collect(
             )?;
         }
         CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-            collect(
-                program,
-                facts,
-                state,
-                statement,
-                *subject,
-                calls,
-                minimum_call_ordinal,
-                visits,
-                consumed,
-            )?;
+            for operand in subject.scalar_operands() {
+                collect(
+                    program,
+                    facts,
+                    state,
+                    statement,
+                    operand,
+                    calls,
+                    minimum_call_ordinal,
+                    visits,
+                    consumed,
+                )?;
+            }
             for arm in plans.dispatch_arms.span(*arms)? {
-                if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
+                if let Some(pattern) = arm.pattern.computation() {
                     collect(
                         program,
                         facts,

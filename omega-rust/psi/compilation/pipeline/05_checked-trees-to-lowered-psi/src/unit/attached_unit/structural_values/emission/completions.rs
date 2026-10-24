@@ -70,27 +70,33 @@ impl Emission<'_, '_, '_> {
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
         if let Some(continuation) = continuation {
-            self.complete_value(
-                StructuralArgument {
-                    place,
-                    path: Vec::new(),
-                    access: self.result_access,
-                },
-                continuation,
-            )?;
+            let completed = self.published_operand(StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: self.result_access,
+            })?;
+            self.complete_value(completed, continuation)?;
         }
         Ok(place)
     }
 
     pub(super) fn complete_value(
         &mut self,
-        selected: StructuralArgument,
+        completed: super::super::operand_claims::CompletedOperand,
         continuation: &mut ValueContinuation,
     ) -> Result<(), LoweringError> {
         // Only the selected subtree crosses the join. Its original owner's
         // complement stays resident until the checked contextual death; shape
         // geometry cannot substitute an early discard for nominal hooks.
-        let structural_arguments = vec![selected];
+        let unchanged = completed.claims.len() == continuation.destination_claims.len()
+            && completed.claims.iter().all(|incoming| {
+                continuation
+                    .destination_claims
+                    .iter()
+                    .any(|destination| incoming == destination)
+            });
+        continuation.requires_claim_bindings |= !unchanged;
+        let structural_arguments = vec![completed.argument];
         if structural_arguments.len() != continuation.structural_parameters.len() {
             return unsupported(
                 "structural value has unequal source and receiving slots at its join",

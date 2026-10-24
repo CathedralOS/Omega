@@ -17,6 +17,15 @@ impl Evaluator<'_> {
         frame: &mut Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(expression).clone() {
+            ExpressionNode::SavedSubject(saved) => frame
+                .match_subjects
+                .iter()
+                .rev()
+                .find(|(capture, _)| *capture == saved.capture)
+                .map(|(_, cell)| cell.clone())
+                .ok_or_else(|| {
+                    Halt::Unsupported("saved subject has no active evaluated capture".to_owned())
+                }),
             ExpressionNode::Name(path) => {
                 let members = self
                     .program

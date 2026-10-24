@@ -560,6 +560,7 @@ fn scan_expression_calls_at_position(
         )));
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => {
             crate::value_custody::expression_types::validate_match_dispatch(
                 program,
@@ -602,6 +603,13 @@ fn scan_expression_calls_at_position(
                 .zip(&environments)
             {
                 let selected = match arm.pattern {
+                    typed_trees::expression::MatchPattern::Destructure(_) => {
+                        for operand in program.expression_table.match_pattern_operands(arm.pattern)
+                        {
+                            scan(operand, remaining_executes, environment);
+                        }
+                        None
+                    }
                     typed_trees::expression::MatchPattern::Wildcard => Some(true),
                     typed_trees::expression::MatchPattern::Value(pattern) => {
                         scan(pattern, remaining_executes, value_environment);

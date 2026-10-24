@@ -89,7 +89,10 @@ pub(super) fn expression_is_place_like(
         // Forming a loan does not transfer the referent. Nested call arguments
         // retain their own moves through ordinary call discovery.
         ExpressionNode::Borrow(_) => false,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => true,
+        ExpressionNode::SavedSubject(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Indexed(_) => true,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Match(_)
         | ExpressionNode::Binary(_)

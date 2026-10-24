@@ -236,11 +236,15 @@ pub(super) fn expression_contains(
     let contains = |child| expression_contains(lowerer, child, selects);
     match node {
         ExpressionNode::Match(dispatch) => {
-            contains(dispatch.subject) || expressions.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, symbol_resolved_trees::expression::MatchPattern::Value(pattern) if contains(pattern))
-                    || contains(arm.value)
-            })
+            contains(dispatch.subject)
+                || expressions.match_arms(dispatch.arms).iter().any(|arm| {
+                    expressions
+                        .match_pattern_dependencies(arm.pattern)
+                        .any(contains)
+                        || contains(arm.value)
+                })
         }
+        ExpressionNode::SavedSubject(_) => false,
         ExpressionNode::Call(call) => {
             (call.receiver.is_valid() && contains(call.receiver))
                 || expressions
@@ -266,7 +270,8 @@ pub(super) fn expression_contains(
             .any(|field| contains(field.value)),
         ExpressionNode::Unary(unary) => contains(unary.operand),
         ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

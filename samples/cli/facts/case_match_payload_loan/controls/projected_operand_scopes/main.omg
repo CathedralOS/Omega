@@ -1,0 +1,47 @@
+// Projected static type operands retain declaration scopes and current storage.
+// Expected exit: 0
+use omega::language::core::drop;
+
+data Counter { value: u32 in Wrapping; }
+data Note<'storage> { counter: &'storage mut Counter; }
+data First<'storage> { note: Note<'storage>; }
+data Second<'storage> { note: Note<'storage>; }
+data Swapped<'first, 'second> { left: Note<'second>; right: Note<'first>; }
+machine Note::drop(note: &mut Note) { note.counter.value = note.counter.value + 1; }
+
+machine separate_scopes() -> bool {
+    let mut left: Counter = Counter { value: 0 };
+    let mut right: Counter = Counter { value: 0 };
+    let first: First = First { note: Note { counter: &mut left } };
+    let second: Second = Second { note: Note { counter: &mut right } };
+    drop(first.note);
+    drop(second.note);
+    (left.value as u32) == 1 && (right.value as u32) == 1
+}
+machine replacement_epoch() -> bool {
+    let mut previous: Counter = Counter { value: 0 };
+    let mut current: Counter = Counter { value: 0 };
+    let mut holder: First = First { note: Note { counter: &mut previous } };
+    holder.note = Note { counter: &mut current };
+    drop(holder.note);
+    (previous.value as u32) == 1 && (current.value as u32) == 1
+}
+machine swap<'left, 'right>(left: &'left mut Counter, right: &'right mut Counter) -> Swapped<'left, 'right> {
+    Swapped { left: Note { counter: right }, right: Note { counter: left } }
+}
+machine applied_scopes() -> bool {
+    let mut left: Counter = Counter { value: 0 };
+    let mut right: Counter = Counter { value: 0 };
+    let value: Swapped = swap(&mut left, &mut right);
+    drop(value.left);
+    drop(value.right);
+    (left.value as u32) == 1 && (right.value as u32) == 1
+}
+machine main() crashes Trap {
+    transition separate_scopes() && replacement_epoch() && applied_scopes() {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -311,7 +311,9 @@ fn assign_contract_call_symbols(
                 dispatch.subject
             );
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                for pattern in expression_table
+                    .match_pattern_dependencies(arm.pattern)
+                    .collect::<Vec<_>>()
                 {
                     assign_calls!(
                         symbols,
@@ -334,6 +336,7 @@ fn assign_contract_call_symbols(
                 );
             }
         }
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::ArrayLiteral(values) => {
             let values = expression_table.expression_handles(values).to_vec();
             for value in values {

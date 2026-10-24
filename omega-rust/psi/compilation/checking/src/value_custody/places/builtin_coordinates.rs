@@ -685,6 +685,10 @@ fn builtin_coordinates(
     };
     match node {
         ExpressionNode::Name(_) => true,
+        ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .is_some(),
         ExpressionNode::Borrow(borrow) => {
             builtin_coordinates(program, machine, state, borrow.target, depth + 1)
         }

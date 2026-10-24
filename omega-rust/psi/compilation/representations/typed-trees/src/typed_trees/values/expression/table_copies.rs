@@ -21,7 +21,16 @@ use crate::typed_trees::values::expression::{
     TableNamePath, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
     TableUnaryExpression,
 };
-use arena::HandleSpan;
+use arena::{Handle, HandleSpan};
+
+#[derive(Default)]
+struct CopyGraph {
+    expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
+    subjects: Vec<(
+        Handle<super::MatchSubjectCapture>,
+        Handle<super::MatchSubjectCapture>,
+    )>,
+}
 use symbols::SymbolHandle;
 
 /// Where a subtree copy reads the rows it appends.
@@ -245,12 +254,24 @@ impl ExpressionTable {
                 self.remap_symbols_in_inner(dispatch.subject, symbols, visited);
                 let arms = self.match_arms(dispatch.arms).to_vec();
                 for arm in arms {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in self
+                        .match_pattern_dependencies(arm.pattern)
+                        .collect::<Vec<_>>()
+                    {
                         self.remap_symbols_in_inner(pattern, symbols, visited);
+                    }
+                    if let MatchPattern::Destructure(pattern) = arm.pattern {
+                        for position in 0..pattern.fields.count() {
+                            let field = self.match_field_mut(pattern.fields.handle_at(position));
+                            field.field_symbol = remapped(field.field_symbol, symbols);
+                        }
                     }
                     self.remap_symbols_in_inner(arm.value, symbols, visited);
                 }
             }
+            // A read does not own its defining subject or head. Match remaps
+            // those definitions; an ambient capture stays outside this clone.
+            ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::ArrayLiteral(values) => {
                 let children = self.expression_handles(values).to_vec();
                 for child in children {
@@ -358,7 +379,7 @@ impl ExpressionTable {
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
-        self.copy_subtree_with_occurrences(source, expression, retain, &mut Vec::new())
+        self.copy_subtree_with_occurrences(source, expression, retain, &mut CopyGraph::default())
     }
 
     fn copy_expression_list<RetainField>(
@@ -370,7 +391,12 @@ impl ExpressionTable {
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
-        self.copy_expression_list_with_occurrences(source, expressions, retain, &mut Vec::new())
+        self.copy_expression_list_with_occurrences(
+            source,
+            expressions,
+            retain,
+            &mut CopyGraph::default(),
+        )
     }
 
     fn copy_subtree_with_occurrences<RetainField>(
@@ -378,12 +404,19 @@ impl ExpressionTable {
         source: CopySource<'_>,
         expression: ExpressionHandle,
         retain: &RetainField,
-        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+        copies: &mut CopyGraph,
     ) -> ExpressionHandle
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
-        if let Some((_, copied)) = copies.iter().find(|(original, _)| *original == expression) {
+        if !expression.is_valid() {
+            return expression;
+        }
+        if let Some((_, copied)) = copies
+            .expressions
+            .iter()
+            .find(|(original, _)| *original == expression)
+        {
             return *copied;
         }
         let origin = source.table(self);
@@ -399,6 +432,7 @@ impl ExpressionTable {
             ExpressionNode::Match(dispatch) => {
                 let subject =
                     self.copy_subtree_with_occurrences(source, dispatch.subject, retain, copies);
+                let capture = self.copy_match_subject(source, dispatch.capture, retain, copies);
                 let source_arms = source.table(self).match_arms(dispatch.arms).to_vec();
                 let mut arms = Vec::with_capacity(source_arms.len());
                 for arm in source_arms {
@@ -407,6 +441,9 @@ impl ExpressionTable {
                             self.copy_subtree_with_occurrences(source, value, retain, copies),
                         ),
                         MatchPattern::Wildcard => MatchPattern::Wildcard,
+                        MatchPattern::Destructure(pattern) => MatchPattern::Destructure(
+                            self.copy_destructure_pattern(source, pattern, retain, copies),
+                        ),
                     };
                     let value =
                         self.copy_subtree_with_occurrences(source, arm.value, retain, copies);
@@ -419,8 +456,33 @@ impl ExpressionTable {
                 let arms = self.insert_match_arms(arms);
                 self.insert(ExpressionNode::Match(TableMatchExpression {
                     subject,
+                    capture,
                     arms,
                 }))
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                let copied_capture = copies
+                    .subjects
+                    .iter()
+                    .find_map(|(original, copied)| (*original == saved.capture).then_some(*copied));
+                if copied_capture.is_none() && matches!(source, CopySource::Own) {
+                    // Copying only an arm subtree keeps its enclosing capture;
+                    // it cannot create another subject evaluation or mutate the
+                    // definition while alpha-rebasing this child.
+                    self.insert(ExpressionNode::SavedSubject(saved))
+                } else {
+                    let capture = self.copy_match_subject(source, saved.capture, retain, copies);
+                    let pattern_head = self.copy_subtree_with_occurrences(
+                        source,
+                        saved.pattern_head,
+                        retain,
+                        copies,
+                    );
+                    self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                        capture,
+                        pattern_head,
+                    }))
+                }
             }
             ExpressionNode::ArrayLiteral(values) => {
                 let values = self.copy_expression_span(source, values, retain, copies);
@@ -580,8 +642,71 @@ impl ExpressionTable {
             }
             *self.index_expression_authority_mut(copied) = authority;
         }
-        copies.push((expression, copied));
+        copies.expressions.push((expression, copied));
         copied
+    }
+
+    fn copy_match_subject<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        capture: Handle<super::MatchSubjectCapture>,
+        retain: &RetainField,
+        copies: &mut CopyGraph,
+    ) -> Handle<super::MatchSubjectCapture>
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        if !capture.is_valid() {
+            return capture;
+        }
+        if let Some((_, copied)) = copies
+            .subjects
+            .iter()
+            .find(|(original, _)| *original == capture)
+        {
+            return *copied;
+        }
+        let subject = source.table(self).match_subject(capture).subject;
+        let subject = self.copy_subtree_with_occurrences(source, subject, retain, copies);
+        let copied = self.insert_match_subject(subject);
+        copies.subjects.push((capture, copied));
+        copied
+    }
+
+    fn copy_destructure_pattern<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        pattern: super::TableDestructurePattern,
+        retain: &RetainField,
+        copies: &mut CopyGraph,
+    ) -> super::TableDestructurePattern
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        let head = self.copy_subtree_with_occurrences(source, pattern.head, retain, copies);
+        let mut fields = source.table(self).match_fields(pattern.fields).to_vec();
+        for field in &mut fields {
+            if let super::MatchFieldAction::Equal(value) = &mut field.action {
+                *value = self.copy_subtree_with_occurrences(source, *value, retain, copies);
+            }
+        }
+        let fields = self.insert_match_fields(fields);
+        let guard = self.copy_subtree_with_occurrences(source, pattern.guard, retain, copies);
+        let condition =
+            self.copy_subtree_with_occurrences(source, pattern.condition, retain, copies);
+        let selectors = source
+            .table(self)
+            .match_proof_selectors(pattern.proof_selectors)
+            .to_vec();
+        let proof_selectors = self.insert_match_proof_selectors(selectors);
+        super::TableDestructurePattern {
+            head,
+            fields,
+            has_rest: pattern.has_rest,
+            guard,
+            condition,
+            proof_selectors,
+        }
     }
 
     /// Copies an optional child; the invalid handle marks an absent one and
@@ -591,7 +716,7 @@ impl ExpressionTable {
         source: CopySource<'_>,
         expression: ExpressionHandle,
         retain: &RetainField,
-        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+        copies: &mut CopyGraph,
     ) -> ExpressionHandle
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
@@ -608,7 +733,7 @@ impl ExpressionTable {
         source: CopySource<'_>,
         expressions: HandleSpan<ExpressionHandle>,
         retain: &RetainField,
-        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+        copies: &mut CopyGraph,
     ) -> HandleSpan<ExpressionHandle>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
@@ -624,7 +749,7 @@ impl ExpressionTable {
         source: CopySource<'_>,
         expressions: &[ExpressionHandle],
         retain: &RetainField,
-        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+        copies: &mut CopyGraph,
     ) -> HandleSpan<ExpressionHandle>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
@@ -692,7 +817,7 @@ impl ExpressionTable {
         source: CopySource<'_>,
         literal: &TableStructLiteral,
         retain: &RetainField,
-        copies: &mut Vec<(ExpressionHandle, ExpressionHandle)>,
+        copies: &mut CopyGraph,
     ) -> HandleSpan<TableStructLiteralField>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,

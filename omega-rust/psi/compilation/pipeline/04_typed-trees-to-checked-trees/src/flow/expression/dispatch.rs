@@ -35,13 +35,29 @@ impl Execution<'_, '_, '_> {
                 .unwrap_or_default()
         };
         let mut alternatives = Vec::new();
-        let subject_operand = self
-            .evaluated_operand(dispatch.subject, contexts, constraints)
-            .capture;
+        let structural = validation::structural_match_subject_type(
+            self.program,
+            self.machine,
+            self.state,
+            &dispatch,
+        );
+        let subject_operand = if structural.is_some() {
+            self.evaluated_place(dispatch.subject, contexts, constraints)
+                .capture
+        } else {
+            self.evaluated_operand(dispatch.subject, contexts, constraints)
+                .capture
+        };
+        let outer_captures = self.match_subjects.len();
+        if dispatch.capture.is_valid() {
+            self.match_subjects
+                .push((dispatch.capture, subject_operand));
+        }
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
         let mut boolean_coverage = [false; 2];
+        let mut case_coverage = Vec::new();
         let mut shared_predicates: Option<Vec<JoinedPredicate>> = None;
         let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
         let mut shared_members: Option<Vec<_>> = None;
@@ -54,6 +70,42 @@ impl Execution<'_, '_, '_> {
             .enumerate()
         {
             let mut covered = matches!(arm.pattern, MatchPattern::Wildcard);
+            if let Some(reference) = structural
+                && let Some(case) = validation::structural_match_pattern_case(
+                    self.program,
+                    self.machine,
+                    self.state,
+                    &dispatch,
+                    arm.pattern,
+                )
+                && match arm.pattern {
+                    MatchPattern::Destructure(pattern) => {
+                        !pattern.guard.is_valid()
+                            && !self
+                                .program
+                                .expression_table
+                                .match_fields(pattern.fields)
+                                .iter()
+                                .any(|field| {
+                                    matches!(
+                                        field.action,
+                                        typed_trees::expression::MatchFieldAction::Equal(_)
+                                    )
+                                })
+                    }
+                    MatchPattern::Value(_) => true,
+                    MatchPattern::Wildcard => false,
+                }
+            {
+                if !case_coverage.contains(&case) {
+                    case_coverage.push(case);
+                }
+                covered |= validation::structural_match_cases_are_covered(
+                    self.program,
+                    reference,
+                    &case_coverage,
+                );
+            }
             if let MatchPattern::Value(pattern) = arm.pattern {
                 let pattern_operand = self
                     .evaluated_operand(pattern, contexts, constraints)
@@ -74,12 +126,41 @@ impl Execution<'_, '_, '_> {
             }
             let mut selected_contexts = *contexts;
             let mut selected_constraints = *constraints;
+            if let MatchPattern::Destructure(pattern) = arm.pattern {
+                self.evaluated_operand(pattern.condition, contexts, constraints);
+                selected_contexts = *contexts;
+                selected_constraints = *constraints;
+                let prefix = self.write_prefix();
+                for (matched, branch_contexts, branch_constraints) in [
+                    (true, &mut selected_contexts, &mut selected_constraints),
+                    (false, &mut *contexts, &mut *constraints),
+                ] {
+                    super::super::exits::append_predicate_context(
+                        self.program,
+                        self.semantic,
+                        self.context,
+                        self.state.symbol,
+                        self.statement_index,
+                        pattern.condition,
+                        matched,
+                        ProgramPoint::Statement {
+                            machine_symbol: self.machine.symbol,
+                            state_symbol: self.state.symbol,
+                            statement_index: self.statement_index,
+                        },
+                        prefix.writes,
+                        prefix.unknown,
+                        branch_contexts,
+                        branch_constraints,
+                    );
+                }
+            }
             // Arm writes are absent on the fallthrough path. Retain their union
             // only after all alternatives, for later enclosing operands.
-            let branch_writes = self.operand_writes.len();
-            if self
-                .changed_operand_sources(&[(dispatch.subject, subject_writes)])
-                .is_empty()
+            if !matches!(arm.pattern, MatchPattern::Destructure(_))
+                && self
+                    .changed_operand_sources(&[(dispatch.subject, subject_writes)])
+                    .is_empty()
                 && let Ok(ordinal) = u32::try_from(ordinal)
             {
                 let source_arm = dispatch.arms.handle_at(ordinal);
@@ -109,6 +190,7 @@ impl Execution<'_, '_, '_> {
                     );
                 }
             }
+            let branch_writes = self.operand_writes.len();
             let completed = self.evaluated_operand_as(
                 arm.value,
                 destination,
@@ -163,10 +245,12 @@ impl Execution<'_, '_, '_> {
             }
         }
         self.operand_writes.extend(completed_writes);
+        self.match_subjects.truncate(outer_captures);
         if let Some((joined_contexts, joined_constraints)) = joined {
             *contexts = joined_contexts;
             *constraints = joined_constraints;
         }
+        self.retain_value_observation(expression, subject_operand, *contexts, *constraints);
         if value_coverage {
             if let Some(members) = shared_members {
                 self.publish_constructed_values(expression, members, contexts, constraints);

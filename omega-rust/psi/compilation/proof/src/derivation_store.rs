@@ -154,8 +154,11 @@ impl<D> DerivationStore<D> {
         proof_plan: &ProofPlan<'_>,
         obligation: &ProofObligation,
         derivation: D,
-    ) -> Result<DerivationId, DerivationStoreFull> {
-        self.store(proof_obligation_key(proof_plan, obligation), derivation)
+    ) -> Result<Option<DerivationId>, DerivationStoreFull> {
+        let Some(key) = proof_obligation_key(proof_plan, obligation) else {
+            return Ok(None);
+        };
+        self.store(key, derivation).map(Some)
     }
 
     /// The candidates retained under `key`, in the order they were stored.
@@ -184,7 +187,9 @@ impl<D> DerivationStore<D> {
         proof_plan: &ProofPlan<'_>,
         obligation: &ProofObligation,
     ) -> impl Iterator<Item = (DerivationId, &'store D)> + use<'store, D> {
-        self.candidates(&proof_obligation_key(proof_plan, obligation))
+        proof_obligation_key(proof_plan, obligation)
+            .into_iter()
+            .flat_map(move |key| self.candidates(&key))
     }
 
     /// The derivation `id` names, or `None` when `id` is stale or never

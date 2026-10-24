@@ -24,6 +24,11 @@ pub(super) fn match_label(
             let pattern = match arm.pattern {
                 MatchPattern::Value(value) => render(value),
                 MatchPattern::Wildcard => "_".to_owned(),
+                MatchPattern::Destructure(_) => typed_trees::expression::display_match_pattern(
+                    &program.expression_table,
+                    arm.pattern,
+                    render,
+                ),
             };
             format!("{pattern} -> {}", render(arm.value))
         })
@@ -147,6 +152,11 @@ pub(super) fn expression_label(
     struct_label: &dyn Fn(&typed_trees::expression::TableStructLiteral) -> String,
 ) -> String {
     match node {
+        typed_trees::expression::ExpressionNode::SavedSubject(saved) => format!(
+            "$saved-subject#{}:{}",
+            saved.capture.arena_index(),
+            saved.capture.generation()
+        ),
         typed_trees::expression::ExpressionNode::Match(dispatch) => {
             match_label(program, dispatch, render)
         }

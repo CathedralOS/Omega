@@ -843,7 +843,7 @@ fn projection_ends_at_owned_rvalue(
 pub(crate) fn place_forwarded_exclusive_reference_access(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    root: symbols::SymbolHandle,
+    root: facts::PlaceRoot,
     root_type: TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     let mut substitutions = Vec::new();
@@ -885,7 +885,7 @@ pub(crate) fn declared_reference_access(
 pub(crate) fn place_permits_reference_borrow(
     program: &dyn crate::CheckingInput,
     mut expression: ExpressionHandle,
-    root: symbols::SymbolHandle,
+    root: facts::PlaceRoot,
     root_type: TypeReferenceHandle,
     owned_root_is_writable: bool,
     access: ReferenceAccess,
@@ -951,7 +951,7 @@ pub(crate) enum StorageWriteAccess {
 pub(crate) fn place_storage_write_access(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    root: symbols::SymbolHandle,
+    root: facts::PlaceRoot,
     root_type: TypeReferenceHandle,
 ) -> Option<StorageWriteAccess> {
     let mut projection = ProjectionContext::requiring(ReferenceAccess::WriteOnly);
@@ -1036,7 +1036,7 @@ fn selected_value_type(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
-    forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
+    forwarding_root: Option<(facts::PlaceRoot, TypeReferenceHandle)>,
     projection: &mut ProjectionContext,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
@@ -1050,10 +1050,24 @@ fn selected_value_type(
             if let Some((root, reference)) = forwarding_root {
                 // The contextual owner already checked this root, including
                 // `self`, whose machine symbol need not be spelled `self`.
-                return (root == name.symbol).then_some(reference);
+                return (root == facts::PlaceRoot::Symbol(name.symbol)).then_some(reference);
             }
             (program.symbols.name(name.symbol) == spelling.as_str())
                 .then(|| named_value_type_reference(program, name))?
+        }
+        ExpressionNode::SavedSubject(saved) => {
+            // This query checks a declared access ceiling, never loan origin.
+            // The definition authenticates the completed capture; do not
+            // substitute the supplier's current place for its value anchor.
+            let source = program.expression_table.saved_subject_source(saved)?;
+            let anchor = program
+                .expression_table
+                .match_subject(saved.capture)
+                .value_anchor;
+            if let Some((root, reference)) = forwarding_root {
+                return (root == facts::PlaceRoot::Expression(anchor)).then_some(reference);
+            }
+            declared_value_type(program, source, substitutions)
         }
         ExpressionNode::Call(_) if forwarding_root.is_none() => {
             crate::machine_calls::calls::call_result_type(program, expression)

@@ -168,14 +168,41 @@ impl ExpressionSymbolContext<'_, '_> {
                 self.assign_expression_table_symbols(dispatch.subject);
                 for offset in 0..dispatch.arms.count() {
                     let arm = self.expression_table.match_arms(dispatch.arms)[offset as usize];
-                    if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) =
+                    let dependencies = self
+                        .expression_table
+                        .match_pattern_dependencies(arm.pattern)
+                        .collect::<Vec<_>>();
+                    for pattern in dependencies {
+                        self.assign_expression_table_symbols(pattern);
+                    }
+                    if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
                         arm.pattern
                     {
-                        self.assign_expression_table_symbols(pattern);
+                        let head = self
+                            .expression_table
+                            .name_path_node(pattern.head)
+                            .map(|path| path.symbol)
+                            .unwrap_or_default();
+                        for position in 0..pattern.fields.count() {
+                            let field = pattern.fields.handle_at(position);
+                            let spelling = self.expression_table.match_fields(pattern.fields)
+                                [position as usize]
+                                .member
+                                .as_str();
+                            let selected = crate::symbols::expression_paths::pattern_field_symbol(
+                                self.symbols,
+                                head,
+                                spelling,
+                            );
+                            self.expression_table.match_field_mut(field).field_symbol = selected;
+                        }
                     }
                     self.assign_expression_table_symbols(arm.value);
                 }
             }
+            // The definition's subject and each head are visited by Match.
+            // An alias is not another use/evaluation of that source subtree.
+            symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
             symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
                 // The instruction-observed prior has its own destination expression,
                 // distinct from references inside the arithmetic-shaped carrier.

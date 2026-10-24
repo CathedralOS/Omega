@@ -453,12 +453,10 @@ fn expression_mentions_name(
                     .iter()
                     .any(|arm| {
                         expression_mentions_name(program, arm.value, name)
-                            || match arm.pattern {
-                                typed_trees::expression::MatchPattern::Value(pattern) => {
-                                    expression_mentions_name(program, pattern, name)
-                                }
-                                typed_trees::expression::MatchPattern::Wildcard => false,
-                            }
+                            || program
+                                .expression_table
+                                .match_pattern_operands(arm.pattern)
+                                .any(|operand| expression_mentions_name(program, operand, name))
                     })
         }
         ExpressionNode::Call(call) => {

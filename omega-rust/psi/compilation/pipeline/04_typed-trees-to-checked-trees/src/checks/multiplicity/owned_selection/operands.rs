@@ -177,7 +177,7 @@ fn expression_read_nodes(
             ExpressionNode::Match(dispatch) => {
                 pending.push(dispatch.subject);
                 for (_, arm) in reachable_arms(program, dispatch.arms) {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                         pending.push(pattern);
                     }
                     pending.push(arm.value);
@@ -253,6 +253,7 @@ pub(in crate::checks) fn reachable_arms(
     for (ordinal, arm) in program.expression_table.match_arms(arms).iter().enumerate() {
         let mut covered = false;
         match arm.pattern {
+            MatchPattern::Destructure(_) => {}
             MatchPattern::Wildcard => covered = true,
             MatchPattern::Value(pattern) => {
                 let node = program.expression_table.expression(pattern);

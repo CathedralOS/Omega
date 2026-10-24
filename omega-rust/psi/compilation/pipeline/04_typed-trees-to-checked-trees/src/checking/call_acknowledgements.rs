@@ -227,6 +227,7 @@ fn validate_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => {
             validate_child(
                 program,
@@ -237,7 +238,7 @@ fn validate_expression(
                 diagnostics,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     validate_child(
                         program,
                         pattern,

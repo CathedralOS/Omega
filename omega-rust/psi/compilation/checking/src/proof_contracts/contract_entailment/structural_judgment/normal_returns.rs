@@ -700,7 +700,12 @@ impl<'program> StructuralJudge<'program> {
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut next_remaining = Vec::new();
                 for subject in remaining {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    let pattern = match arm.pattern {
+                        MatchPattern::Value(pattern) => Some((pattern, false)),
+                        MatchPattern::Destructure(pattern) => Some((pattern.condition, true)),
+                        MatchPattern::Wildcard => None,
+                    };
+                    if let Some((pattern, predicate)) = pattern {
                         // Patterns execute only after every preceding pattern
                         // failed. Keep their guarantees in that remaining path.
                         for tested in subject.judge.evaluate_normal_paths(
@@ -711,15 +716,27 @@ impl<'program> StructuralJudge<'program> {
                             observation,
                             NormalValueDemand::Value,
                         )? {
-                            let primitive = crate::match_subject_primitive_type(program, dispatch);
+                            let primitive = if predicate {
+                                Some(typed_trees::types::PrimitiveType::Bool)
+                            } else {
+                                crate::match_subject_primitive_type(program, dispatch)
+                            };
                             let equation_meaning = primitive.is_some_and(|primitive| {
                                 primitive == typed_trees::types::PrimitiveType::Bool
                                     || primitive.is_integer()
                             });
                             let comparison = if equation_meaning {
                                 tested.judge.judge_equation(
-                                    tested.judge.resolve(subject.value.clone()),
-                                    tested.judge.resolve(tested.value.clone()),
+                                    tested.judge.resolve(if predicate {
+                                        tested.value.clone()
+                                    } else {
+                                        subject.value.clone()
+                                    }),
+                                    if predicate {
+                                        boolean_term(true)
+                                    } else {
+                                        tested.judge.resolve(tested.value.clone())
+                                    },
                                     0,
                                 )
                             } else {
@@ -727,7 +744,13 @@ impl<'program> StructuralJudge<'program> {
                             };
                             if !matches!(comparison, StructuralJudgment::Proven) {
                                 let mut skipped = tested.judge.clone();
-                                if primitive == Some(typed_trees::types::PrimitiveType::Bool) {
+                                if predicate {
+                                    skipped.assume_normal_equation(
+                                        tested.value.clone(),
+                                        boolean_term(false),
+                                    );
+                                } else if primitive == Some(typed_trees::types::PrimitiveType::Bool)
+                                {
                                     let pattern = skipped.resolve(tested.value.clone());
                                     for truth in [false, true] {
                                         if matches!(
@@ -755,7 +778,9 @@ impl<'program> StructuralJudge<'program> {
                                 continue;
                             }
                             let mut selected = tested.judge;
-                            if equation_meaning {
+                            if predicate {
+                                selected.assume_normal_equation(tested.value, boolean_term(true));
+                            } else if equation_meaning {
                                 selected
                                     .assume_normal_equation(subject.value.clone(), tested.value);
                             }
@@ -1980,7 +2005,9 @@ fn discarded_value_has_no_own_effects(
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::String(_) => true,
-        ExpressionNode::UndeterminedNaN(_) | ExpressionNode::ZeroValue(_) => false,
+        ExpressionNode::SavedSubject(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

@@ -5428,7 +5428,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     for indexed predicates/theorems and package memberships, keeping
     qualifications, routed membership, callable signatures and erasure. Bare
     operator `-> T` binding exists; dependent shells cannot yet export
-    declaration-local identities.
+    declaration-local identities. Captured-subject expressions also need a scoped,
+    value-substituted identity for theorem/quotient correspondence; the current
+    entrance refuses them rather than comparing diagnostic capture handles.
 
   **OPERATOR-MACHINE-SUPPLY** owns operator execution, **CRASH-CONTRACT**
   crash-qualified equality, **STATE-LOCAL-VALUE-FRONTIER** numeric landing.

@@ -127,7 +127,7 @@ impl ProofDerivationCache {
 /// cache is attached.
 pub(crate) struct DerivationConsultation<'a> {
     /// Canonical semantic identity of the receiving obligation.
-    key: ProofObligationKey,
+    key: Option<ProofObligationKey>,
     /// The caller's cache.
     cache: &'a mut ProofDerivationCache,
 }
@@ -151,14 +151,10 @@ impl DerivationConsultation<'_> {
     /// and an empty row is a miss — the producer still decides the leg.
     pub(crate) fn recheck(&mut self) -> Option<AcceptedFact> {
         self.cache.report.consultations += 1;
+        let key = self.key.as_ref()?;
         // Candidate ids are collected before re-deciding so a rejected
         // candidate can be counted without holding a store borrow.
-        let candidates: Vec<_> = self
-            .cache
-            .store
-            .candidates(&self.key)
-            .map(|(id, _)| id)
-            .collect();
+        let candidates: Vec<_> = self.cache.store.candidates(key).map(|(id, _)| id).collect();
         for id in candidates {
             let Some(candidate) = self.cache.store.derivation(id) else {
                 continue;
@@ -180,7 +176,10 @@ impl DerivationConsultation<'_> {
     /// semantically identical obligation can reuse it. A capacity refusal is
     /// explicit: the leg's verdict stands either way.
     pub(crate) fn retain(&mut self, certificate: BoundedValueCertificate) {
-        match self.cache.store.store(self.key.clone(), certificate) {
+        let Some(key) = self.key.clone() else {
+            return;
+        };
+        match self.cache.store.store(key, certificate) {
             Ok(_) => {
                 self.cache.report.retained += 1;
             }

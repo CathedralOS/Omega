@@ -9,6 +9,31 @@ use arena::Handle;
 use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::PlaceSegment;
 
+/// The actual completions before a value join, rather than its intersected
+/// post-join custody. This follows only retained alternatives: stored-value
+/// predecessors are earlier observations and do not own this completion.
+pub(crate) fn terminal_alternatives(
+    control: &checked_trees::FlowControlFacts,
+    value: Handle<FlowOperandFact>,
+) -> Option<Vec<Handle<FlowOperandFact>>> {
+    let mut pending = vec![value];
+    let mut visited = Vec::new();
+    let mut completed = Vec::new();
+    while let Some(value) = pending.pop() {
+        if !control.operands.is_valid(value) || visited.contains(&value) {
+            return None;
+        }
+        visited.push(value);
+        let capture = control.operands.get(value);
+        if capture.alternatives.is_empty() {
+            completed.push(value);
+        } else {
+            pending.extend(capture.alternatives.handles());
+        }
+    }
+    Some(completed)
+}
+
 pub(crate) fn predecessors(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,

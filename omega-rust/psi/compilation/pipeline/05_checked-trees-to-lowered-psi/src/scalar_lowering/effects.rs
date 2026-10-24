@@ -63,7 +63,9 @@ pub(crate) fn emit(
                         &completed,
                     )?,
                     checked_trees::CheckedScalarComputationKind::CaseMembership {
-                        case, ..
+                        case,
+                        subject,
+                        ..
                     } => {
                         if !terminal_psi::StructuralAccess::SharedBorrow
                             .admits(completed.argument.access)
@@ -76,12 +78,18 @@ pub(crate) fn emit(
                             crate::scalar_lowering::computations::cases::structural_case_identity(
                                 checked, *case,
                             )?;
+                        let checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                            subject,
+                        ) = subject
+                        else {
+                            return unsupported("completed case observation has no source path");
+                        };
                         let (path, case) =
                             crate::expression_preparation::bindings::structural_cases::resolve_at(
                                 identities,
                                 calls.structural_types,
                                 completed.structural_type,
-                                &[],
+                                &subject.path,
                                 &case,
                             )?;
                         let mut prefix = completed.argument.path.clone();
@@ -301,6 +309,7 @@ pub(crate) fn emit(
             LoweredScalarEffect::ProduceStructuralValue {
                 value,
                 structural_type,
+                alias,
             } => {
                 // The scalar graph owns its active span. Lend that same span
                 // to ordinary value emission, then take its actual continuation
@@ -334,6 +343,7 @@ pub(crate) fn emit(
                 );
                 std::mem::swap(&mut evaluation.blocks, blocks);
                 produced?;
+                evaluation.bind_completed_value_alias(*value, *alias, operations)?;
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {
                 crate::scalar_lowering::computations::cases::emit(

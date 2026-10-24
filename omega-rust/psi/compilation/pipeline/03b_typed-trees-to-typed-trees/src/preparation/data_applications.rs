@@ -37,6 +37,9 @@ use typed_trees::types::TypeConstraintNode;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
 
+mod field_scopes;
+pub(super) use field_scopes::retain as retain_declared_field_scopes;
+
 pub(super) fn elaborate(program: &mut TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let type_start = program.type_reference_table.type_reference_count();
     let applications = program
@@ -340,20 +343,36 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         .zip(lifetime_arguments)
         .collect::<Vec<_>>();
     let members = program.data_members(&template).to_vec();
+    let scope = FieldApplicationScope {
+        declaration: template.symbol,
+        supplier: program
+            .type_reference_table
+            .operand_lifetime_owner(reference),
+    };
     let mut instantiated = Vec::with_capacity(members.len());
     for member in members {
         let member = match member {
             DataMember::Field(mut field) => {
-                field.type_reference =
-                    instantiate_type(program, field.type_reference, &substitutions, &lifetimes);
+                field.type_reference = instantiate_type(
+                    program,
+                    field.type_reference,
+                    &substitutions,
+                    &lifetimes,
+                    scope,
+                );
                 is_closed &= closed_type(program, field.type_reference);
                 DataMember::Field(field)
             }
             DataMember::Variant(mut variant) => {
                 let mut fields = program.data_payload_fields(&variant).to_vec();
                 for field in &mut fields {
-                    field.type_reference =
-                        instantiate_type(program, field.type_reference, &substitutions, &lifetimes);
+                    field.type_reference = instantiate_type(
+                        program,
+                        field.type_reference,
+                        &substitutions,
+                        &lifetimes,
+                        scope,
+                    );
                     is_closed &= closed_type(program, field.type_reference);
                 }
                 variant.payload = program.data_payload_fields.insert_many(fields);
@@ -535,12 +554,43 @@ fn closed_expression(
     })
 }
 
+#[derive(Clone, Copy)]
+struct FieldApplicationScope {
+    declaration: SymbolHandle,
+    supplier: SymbolHandle,
+}
+
 fn instantiate_type(
     program: &mut TypedTrees,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     lifetimes: &[(Identifier, Identifier)],
+    scope: FieldApplicationScope,
 ) -> TypeReferenceHandle {
+    let original_owner = program
+        .type_reference_table
+        .operand_lifetime_owner(reference);
+    let origin = program.type_reference_table.operand_origin(reference);
+    // An independently supplied operand keeps its own telescope. Declaration
+    // fields instead apply their formal regions in the receiver's scope;
+    // equal spellings do not make those two environments interchangeable.
+    let foreign = original_owner.is_valid()
+        && program.lifetime_declaration_owner(original_owner)
+            != program.lifetime_declaration_owner(scope.declaration);
+    let owner = if foreign {
+        original_owner
+    } else {
+        scope.supplier
+    };
+    let lifetimes = if foreign { &[][..] } else { lifetimes };
+    let children_scope = if foreign {
+        FieldApplicationScope {
+            declaration: original_owner,
+            supplier: original_owner,
+        }
+    } else {
+        scope
+    };
     let original = program
         .type_reference_table
         .type_reference(reference)
@@ -557,7 +607,7 @@ fn instantiate_type(
             access,
             lifetime,
         } => TypeReferenceNode::Reference {
-            referee: instantiate_type(program, referee, substitutions, lifetimes),
+            referee: instantiate_type(program, referee, substitutions, lifetimes, children_scope),
             access,
             lifetime: lifetime.map(|lifetime| instantiate_lifetime(lifetime, lifetimes)),
         },
@@ -573,7 +623,9 @@ fn instantiate_type(
                 .to_vec();
             let arguments = arguments
                 .into_iter()
-                .map(|argument| instantiate_type(program, argument, substitutions, lifetimes))
+                .map(|argument| {
+                    instantiate_type(program, argument, substitutions, lifetimes, children_scope)
+                })
                 .collect::<Vec<_>>();
             let lifetime_arguments = lifetime_arguments
                 .into_iter()
@@ -586,8 +638,10 @@ fn instantiate_type(
                 program
                     .type_reference_table
                     .type_reference_rows()
-                    .find(|(_, node)| {
-                        matches!(node, TypeReferenceNode::Generic {
+                    .find(|(handle, node)| {
+                        program.type_reference_table.operand_lifetime_owner(*handle) == owner
+                            && program.type_reference_table.operand_origin(*handle) == origin
+                            && matches!(node, TypeReferenceNode::Generic {
                     base_symbol: candidate, lifetime_arguments: regions, arguments: children, ..
                 } if *candidate == base_symbol && *regions == lifetime_arguments
                     && program.type_reference_table.type_reference_handles(*children) == arguments)
@@ -615,13 +669,17 @@ fn instantiate_type(
                 .to_vec();
             let arguments = arguments
                 .into_iter()
-                .map(|argument| instantiate_type(program, argument, substitutions, lifetimes))
+                .map(|argument| {
+                    instantiate_type(program, argument, substitutions, lifetimes, children_scope)
+                })
                 .collect::<Vec<_>>();
             if let Some((existing, _)) = program
                 .type_reference_table
                 .type_reference_rows()
-                .find(|(_, node)| {
-                    matches!(node, TypeReferenceNode::DynamicTrait {
+                .find(|(handle, node)| {
+                    program.type_reference_table.operand_lifetime_owner(*handle) == owner
+                        && program.type_reference_table.operand_origin(*handle) == origin
+                        && matches!(node, TypeReferenceNode::DynamicTrait {
                         symbol: candidate, arguments: children, ..
                     } if *candidate == symbol
                         && program.type_reference_table.type_reference_handles(*children) == arguments)
@@ -638,7 +696,13 @@ fn instantiate_type(
             }
         }
         TypeReferenceNode::Slice { element_type } => TypeReferenceNode::Slice {
-            element_type: instantiate_type(program, element_type, substitutions, lifetimes),
+            element_type: instantiate_type(
+                program,
+                element_type,
+                substitutions,
+                lifetimes,
+                children_scope,
+            ),
         },
         TypeReferenceNode::FixedArray {
             element_type,
@@ -661,7 +725,13 @@ fn instantiate_type(
                 }
             }
             TypeReferenceNode::FixedArray {
-                element_type: instantiate_type(program, element_type, substitutions, lifetimes),
+                element_type: instantiate_type(
+                    program,
+                    element_type,
+                    substitutions,
+                    lifetimes,
+                    children_scope,
+                ),
                 length,
             }
         }
@@ -669,7 +739,8 @@ fn instantiate_type(
             base_type,
             constraints,
         } => {
-            let base_type = instantiate_type(program, base_type, substitutions, lifetimes);
+            let base_type =
+                instantiate_type(program, base_type, substitutions, lifetimes, children_scope);
             let mut constraints = program
                 .type_reference_table
                 .constraints(constraints)
@@ -680,7 +751,13 @@ fn instantiate_type(
                         .arguments
                         .iter()
                         .map(|argument| {
-                            instantiate_type(program, *argument, substitutions, lifetimes)
+                            instantiate_type(
+                                program,
+                                *argument,
+                                substitutions,
+                                lifetimes,
+                                children_scope,
+                            )
                         })
                         .collect();
                 }
@@ -692,7 +769,7 @@ fn instantiate_type(
         }
         TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => return reference,
     };
-    if instantiated == original {
+    if instantiated == original && original_owner == owner {
         return reference;
     }
     let Ok(origins) = program
@@ -703,6 +780,16 @@ fn instantiate_type(
         return TypeReferenceHandle::invalid();
     };
     let result = program.type_reference_table.insert(instantiated);
+    program
+        .type_reference_table
+        .set_operand_origin(result, origin);
+    if program
+        .type_reference_table
+        .retain_operand_lifetime_owner(result, owner)
+        .is_err()
+    {
+        return TypeReferenceHandle::invalid();
+    }
     if program
         .type_reference_table
         .attach_constant_origins(result, origins)

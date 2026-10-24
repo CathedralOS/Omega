@@ -294,13 +294,17 @@ fn retarget_expression(
         symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
-                {
-                    children.push(pattern);
-                }
+                children.extend(
+                    program
+                        .tables
+                        .bodies
+                        .expressions
+                        .match_pattern_dependencies(arm.pattern),
+                );
                 children.push(arm.value);
             }
         }
+        symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
         symbol_resolved_trees::expression::ExpressionNode::ArrayLiteral(values) => {
             children
                 .extend_from_slice(program.tables.bodies.expressions.expression_handles(values));

@@ -462,7 +462,12 @@ fn source_type(
                     .facts
                     .values
                     .structural_values
-                    .root_for_expression(state, statement, expression)
+                    .completed_expression_dependency(
+                        &checked.expression_table,
+                        state,
+                        Some(statement),
+                        expression,
+                    )
             })
             .map(|root| {
                 validation::stored_structural_type_identity(

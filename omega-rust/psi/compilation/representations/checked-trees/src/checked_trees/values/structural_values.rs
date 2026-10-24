@@ -204,7 +204,7 @@ pub enum CheckedStructuralValueKind {
         copies_selected_value: bool,
     },
     Dispatch {
-        subject: CheckedScalarComputationHandle,
+        subject: crate::CheckedDispatchSubject,
         arms: HandleSpan<CheckedStructuralDispatchArm>,
     },
     /// An element-wise owned construction of a fixed array of structural
@@ -309,7 +309,11 @@ impl CheckedStructuralValuePlans {
                         }
                     }
                 }
-                CheckedStructuralValueKind::Dispatch { arms, .. } => {
+                CheckedStructuralValueKind::Dispatch { subject, arms } => {
+                    let captured = subject.structural_value();
+                    if captured.is_valid() {
+                        pending.push(captured);
+                    }
                     pending.extend(self.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
                 }
                 CheckedStructuralValueKind::Projection { source, .. }
@@ -460,6 +464,79 @@ impl CheckedStructuralValuePlans {
         })
     }
 
+    /// Resolve a retained value dependency through authenticated saved aliases.
+    /// A saved read depends on its capture's supplying subject, not an argument
+    /// catalog root for that read. Prefer the exact supplying root: a nested
+    /// observation may have produced a copy from another saved subject, and
+    /// that completed copy must not collapse to the older capture. This lookup establishes neither
+    /// execution nor dominance; scheduling must require an existing lexical
+    /// completion before consuming a saved alias. Catalog-only readers may omit
+    /// the statement, but still require a unique root within the state.
+    pub fn completed_expression_dependency(
+        &self,
+        expressions: &typed_trees::expression::ExpressionTable,
+        state: SymbolHandle,
+        statement: Option<u32>,
+        mut expression: ExpressionHandle,
+    ) -> Option<&CheckedStructuralValueRoot> {
+        let mut active_captures = Vec::new();
+        if !expressions.expression_is_valid(expression) {
+            return None;
+        }
+        if let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+            expressions.expression(expression)
+        {
+            active_captures.push(saved.capture);
+            expression = expressions.saved_subject_source(saved)?;
+        }
+        loop {
+            if !expressions.expression_is_valid(expression) {
+                return None;
+            }
+            if let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                expressions.expression(expression)
+                && active_captures.contains(&saved.capture)
+            {
+                return None;
+            }
+            let root = self
+                .with_state_roots(state, |handles| {
+                    let mut matching =
+                        handles
+                            .iter()
+                            .map(|handle| self.roots.get(*handle))
+                            .filter(|root| {
+                                root.state == state
+                                    && root.expression == expression
+                                    && statement
+                                        .is_none_or(|statement| root.statement_ordinal == statement)
+                            });
+                    let root = matching.next();
+                    if matching.next().is_some() {
+                        Err(())
+                    } else {
+                        Ok(root)
+                    }
+                })
+                .ok()?;
+            if let Some(root) = root {
+                return (self.nodes.is_valid(root.root)
+                    && self.nodes.get(root.root).expression == expression)
+                    .then_some(root);
+            }
+            let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                expressions.expression(expression)
+            else {
+                return None;
+            };
+            if active_captures.contains(&saved.capture) {
+                return None;
+            }
+            active_captures.push(saved.capture);
+            expression = expressions.saved_subject_source(saved)?;
+        }
+    }
+
     pub fn root_at(
         &self,
         state: SymbolHandle,
@@ -487,6 +564,130 @@ macro_rules! record_or_structural_case_pattern {
 #[cfg(test)]
 mod index_tests {
     use super::{CheckedStructuralValuePlans, CheckedStructuralValueRoot, SymbolHandle};
+    use typed_trees::expression::{
+        ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern, TableDestructurePattern,
+        TableMatchArm, TableMatchExpression, TableSavedSubject,
+    };
+
+    fn saved_subject(
+        expressions: &mut ExpressionTable,
+        source: ExpressionHandle,
+    ) -> ExpressionHandle {
+        let capture = expressions.insert_match_subject(source);
+        let head = expressions.insert(ExpressionNode::Boolean(true));
+        let alias = expressions.insert(ExpressionNode::SavedSubject(TableSavedSubject {
+            capture,
+            pattern_head: head,
+        }));
+        let arms = expressions.insert_match_arms([TableMatchArm {
+            pattern: MatchPattern::Destructure(TableDestructurePattern {
+                head,
+                ..Default::default()
+            }),
+            value: alias,
+            ..Default::default()
+        }]);
+        expressions.insert(ExpressionNode::Match(TableMatchExpression {
+            subject: source,
+            capture,
+            arms,
+        }));
+        alias
+    }
+
+    fn retain_root(
+        plans: &mut CheckedStructuralValuePlans,
+        expression: ExpressionHandle,
+    ) -> super::CheckedStructuralValueHandle {
+        let state = SymbolHandle::from_parts(1, 1);
+        let value = plans.nodes.insert(super::CheckedStructuralValue {
+            machine: state,
+            state,
+            statement_index: 7,
+            expression,
+            source_span: Default::default(),
+            type_reference: Default::default(),
+            qualification_decisions: Default::default(),
+            kind: super::CheckedStructuralValueKind::Scalar {
+                value: Default::default(),
+            },
+        });
+        plans.roots.insert(CheckedStructuralValueRoot {
+            machine: state,
+            state,
+            statement_ordinal: 7,
+            expression,
+            root: value,
+            ..Default::default()
+        });
+        value
+    }
+
+    #[test]
+    fn saved_dependency_uses_defining_subject_and_preserves_a_nested_capture() {
+        let mut expressions = ExpressionTable::default();
+        let source = expressions.insert(ExpressionNode::Boolean(true));
+        let first_alias = saved_subject(&mut expressions, source);
+        let second_alias = saved_subject(&mut expressions, first_alias);
+        let mut plans = CheckedStructuralValuePlans::default();
+        let original = retain_root(&mut plans, source);
+        let nested = retain_root(&mut plans, first_alias);
+        retain_root(&mut plans, second_alias);
+        let state = SymbolHandle::from_parts(1, 1);
+        assert_eq!(
+            plans
+                .completed_expression_dependency(&expressions, state, Some(7), first_alias)
+                .map(|root| root.root),
+            Some(original)
+        );
+        assert_eq!(
+            plans
+                .completed_expression_dependency(&expressions, state, Some(7), second_alias)
+                .map(|root| root.root),
+            Some(nested)
+        );
+        assert!(
+            plans
+                .completed_expression_dependency(&expressions, state, Some(8), first_alias)
+                .is_none()
+        );
+        assert!(
+            plans
+                .completed_expression_dependency(
+                    &expressions,
+                    SymbolHandle::from_parts(2, 1),
+                    Some(7),
+                    first_alias
+                )
+                .is_none()
+        );
+        retain_root(&mut plans, source);
+        assert!(
+            plans
+                .completed_expression_dependency(&expressions, state, Some(7), first_alias)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn saved_dependency_rejects_a_cycle_even_with_a_retained_source_root() {
+        let mut expressions = ExpressionTable::default();
+        let source = expressions.insert(ExpressionNode::Boolean(true));
+        let alias = saved_subject(&mut expressions, source);
+        *expressions.expression_mut(source) = expressions.expression(alias).clone();
+        let mut plans = CheckedStructuralValuePlans::default();
+        retain_root(&mut plans, source);
+        assert!(
+            plans
+                .completed_expression_dependency(
+                    &expressions,
+                    SymbolHandle::from_parts(1, 1),
+                    Some(7),
+                    alias
+                )
+                .is_none()
+        );
+    }
 
     #[test]
     fn root_index_preserves_mutation_before_batch_append() {

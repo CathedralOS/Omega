@@ -157,12 +157,27 @@ impl ExpressionNode {
                         crate::expression::MatchPattern::Value(value) => {
                             table.write_display_name(value, out)
                         }
+                        crate::expression::MatchPattern::Destructure(_) => out.push_str(
+                            &display_match_pattern(table.table, arm.pattern, |value| {
+                                let mut rendered = String::new();
+                                table.write_display_name(value, &mut rendered);
+                                rendered
+                            }),
+                        ),
                         crate::expression::MatchPattern::Wildcard => out.push('_'),
                     }
                     out.push_str(" => ");
                     table.write_display_name(arm.value, out);
                 }
                 out.push_str(" }");
+            }
+            Self::SavedSubject(saved) => {
+                let _ = write!(
+                    out,
+                    "<saved subject #{}:{}>",
+                    saved.capture.arena_index(),
+                    saved.capture.generation()
+                );
             }
             Self::ArrayLiteral(values) => {
                 out.push('[');
@@ -233,6 +248,64 @@ impl ExpressionNode {
             Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
         }
     }
+}
+
+/// Diagnostic rendering with the caller's value substitutions. This never
+/// supplies canonical value identity, pattern coverage or binding authority.
+pub fn display_match_pattern(
+    table: &ExpressionTable,
+    pattern: crate::expression::MatchPattern,
+    render: impl Fn(ExpressionHandle) -> String,
+) -> String {
+    use crate::expression::{MatchFieldAction, MatchPattern};
+    let pattern = match pattern {
+        MatchPattern::Value(value) => return render(value),
+        MatchPattern::Wildcard => return "_".to_owned(),
+        MatchPattern::Destructure(pattern) => pattern,
+    };
+    let mut fields = table
+        .match_fields(pattern.fields)
+        .iter()
+        .map(|field| {
+            let member = field.member.as_str();
+            match &field.action {
+                MatchFieldAction::Bind(binding) if binding.as_str() == member => member.to_owned(),
+                MatchFieldAction::Bind(binding) => format!("{member} as {}", binding.as_str()),
+                MatchFieldAction::Equal(value) => format!("{member}: {}", render(*value)),
+                MatchFieldAction::Waive => format!("{member} as _"),
+            }
+        })
+        .collect::<Vec<_>>();
+    if pattern.has_rest {
+        fields.push("..".to_owned());
+    }
+    let selectors = table.match_proof_selectors(pattern.proof_selectors);
+    let proofs = if selectors.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "; {}",
+            selectors
+                .iter()
+                .map(|selector| format!(
+                    "{}: {}",
+                    selector.output_field.as_str(),
+                    selector.binding.as_str()
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let guard = if pattern.guard.is_valid() {
+        format!(" if {}", render(pattern.guard))
+    } else {
+        String::new()
+    };
+    format!(
+        "{} {{ {}{proofs} }}{guard}",
+        render(pattern.head),
+        fields.join(", ")
+    )
 }
 
 impl RangeExpression {

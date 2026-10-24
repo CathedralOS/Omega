@@ -1,0 +1,15 @@
+// A shared subject cannot forward its stored exclusive descriptor as mutable.
+data Counter { value: u32 in Wrapping; }
+data Note { counter: &mut Counter; value: i32; }
+machine append(counter: &mut Counter) -> bool {
+    counter.value = counter.value + 1;
+    true
+}
+machine inspect(note: &Note) -> bool {
+    match note { Note { counter, value as _ } -> append(counter) }
+}
+machine main() {
+    let mut counter: Counter = Counter { value: 0 };
+    let note: Note = Note { counter: &mut counter, value: 41 };
+    let observed: bool = inspect(&note);
+}

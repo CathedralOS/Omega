@@ -279,13 +279,16 @@ fn assign_data_fact_local_symbols(
         symbol_resolved_trees::expression::ExpressionNode::Match(dispatch) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, dispatch.subject);
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                for pattern in expression_table
+                    .match_pattern_dependencies(arm.pattern)
+                    .collect::<Vec<_>>()
                 {
                     assign_data_fact_local_symbols(local_symbols, expression_table, pattern);
                 }
                 assign_data_fact_local_symbols(local_symbols, expression_table, arm.value);
             }
         }
+        symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
         symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             assign_data_fact_local_symbols(local_symbols, expression_table, atomic.value);
             if atomic.result.is_valid() {
@@ -608,7 +611,9 @@ fn assign_proof_expression_symbols(
                 dispatch.subject,
             );
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                for pattern in expression_table
+                    .match_pattern_dependencies(arm.pattern)
+                    .collect::<Vec<_>>()
                 {
                     assign_proof_expression_symbols(
                         symbols,
@@ -633,6 +638,7 @@ fn assign_proof_expression_symbols(
                 );
             }
         }
+        symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_) => {}
         symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
             assign_proof_expression_symbols(
                 symbols,

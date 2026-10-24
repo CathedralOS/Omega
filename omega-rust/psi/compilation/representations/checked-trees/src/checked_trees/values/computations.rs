@@ -10,6 +10,42 @@ use typed_trees::types::PrimitiveType;
 
 pub type CheckedScalarComputationHandle = Handle<CheckedScalarComputation>;
 
+/// The completed value a dispatch retains before testing its alternatives.
+/// A structural place is existing custody, not a fresh owned copy. A nonzero
+/// `value` establishes computed storage once before the place can be used.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedDispatchSubject {
+    Scalar(CheckedScalarComputationHandle),
+    Structural {
+        value: crate::CheckedStructuralValueHandle,
+        place: crate::CheckedUnitStructuralArgumentPlan,
+        /// A completed-home alias for lexical SavedSubject reads. Zero for
+        /// dispatches that introduce no payload bindings.
+        alias: typed_trees::expression::ExpressionHandle,
+    },
+}
+
+impl CheckedDispatchSubject {
+    pub fn scalar_operands(&self) -> impl Iterator<Item = CheckedScalarComputationHandle> + '_ {
+        let (scalar, place) = match self {
+            Self::Scalar(value) => (Some(*value), None),
+            Self::Structural { place, .. } => (None, Some(place)),
+        };
+        scalar.into_iter().chain(
+            place
+                .into_iter()
+                .flat_map(|place| place.computation_operands()),
+        )
+    }
+
+    pub fn structural_value(&self) -> crate::CheckedStructuralValueHandle {
+        match self {
+            Self::Structural { value, .. } => *value,
+            Self::Scalar(_) => Handle::invalid(),
+        }
+    }
+}
+
 /// A real structural value whose scalar payload is evaluated in authored order.
 /// Field and case symbols retain nominal identity; no tag occupies a scalar
 /// parameter slot, and evaluation is not permission to copy an affine value.
@@ -289,6 +325,22 @@ impl Default for CheckedScalarComputation {
 }
 
 impl CheckedScalarComputation {
+    /// Calls already retain their exact evaluated invocation. Its authored
+    /// expression owns normal completion; a folded enclosing root cannot.
+    pub fn completion_expression(
+        &self,
+        control: &crate::FlowControlFacts,
+    ) -> typed_trees::expression::ExpressionHandle {
+        if let CheckedScalarComputationKind::Call { source_call, .. } = &self.kind {
+            return if control.calls.is_valid(*source_call) {
+                control.calls.get(*source_call).authored_expression
+            } else {
+                typed_trees::expression::ExpressionHandle::invalid()
+            };
+        }
+        self.evaluated_expression()
+    }
+
     /// The executed occurrence, not a folded enclosing destination or a pure
     /// value marker rewritten by an erased cast.
     pub fn evaluated_expression(&self) -> typed_trees::expression::ExpressionHandle {
@@ -304,9 +356,6 @@ impl CheckedScalarComputation {
                 source_expression, ..
             }
             | CheckedScalarComputationKind::StructuralField {
-                source_expression, ..
-            }
-            | CheckedScalarComputationKind::CaseMembership {
                 source_expression, ..
             }
             | CheckedScalarComputationKind::Qualification {
@@ -330,6 +379,10 @@ impl CheckedScalarComputation {
             | CheckedScalarComputationKind::Apply {
                 source_expression, ..
             } => *source_expression,
+            CheckedScalarComputationKind::CaseMembership {
+                completion_expression,
+                ..
+            } => *completion_expression,
             CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
             CheckedScalarComputationKind::Value(_) => self.value_source,
             CheckedScalarComputationKind::SelectedComparison { .. }
@@ -408,6 +461,10 @@ pub enum CheckedScalarComputationKind {
     /// Observe an established structural operand without consuming its owner.
     CaseMembership {
         source_expression: typed_trees::expression::ExpressionHandle,
+        /// The source operation completed by this observation. A generated
+        /// classifier inside a larger operation retains that operation as
+        /// provenance above, but cannot run its enclosing normal cleanup.
+        completion_expression: typed_trees::expression::ExpressionHandle,
         /// Complete evaluated enum owner, established once before tag observation.
         /// Invalid for an existing place or a direct case constructor.
         receiver_value: super::structural_values::CheckedStructuralValueHandle,
@@ -464,7 +521,7 @@ pub enum CheckedScalarComputationKind {
     /// Save the subject once, then test arms in order and evaluate one result.
     Dispatch {
         source_expression: typed_trees::expression::ExpressionHandle,
-        subject: CheckedScalarComputationHandle,
+        subject: CheckedDispatchSubject,
         arms: HandleSpan<CheckedScalarDispatchArm>,
     },
     /// One scalar invocation. Every callee kind owns the same ordered mixed
@@ -609,8 +666,20 @@ pub struct CheckedScalarDispatchArm {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum CheckedScalarDispatchPattern {
     Value(CheckedScalarComputationHandle),
+    /// A case/field/domain predicate over the already captured subject.
+    /// Short-circuit composition dominates payload reads with their tag test.
+    Predicate(CheckedScalarComputationHandle),
     #[default]
     Wildcard,
+}
+
+impl CheckedScalarDispatchPattern {
+    pub fn computation(&self) -> Option<CheckedScalarComputationHandle> {
+        match self {
+            Self::Value(value) | Self::Predicate(value) => Some(*value),
+            Self::Wildcard => None,
+        }
+    }
 }
 
 #[macro_export]

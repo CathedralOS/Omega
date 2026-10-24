@@ -352,6 +352,7 @@ fn expression_mentions_any(
         // an unresolved binder fail-closed if one survives into such a shape.
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Match(_)
+        | ExpressionNode::SavedSubject(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Call(_)
@@ -991,16 +992,22 @@ fn render_expression(
                 .match_arms(dispatch.arms)
                 .iter()
                 .map(|arm| {
-                    let pattern = match arm.pattern {
-                        crate::expression::MatchPattern::Value(value) => render(value),
-                        crate::expression::MatchPattern::Wildcard => "_".to_owned(),
-                    };
+                    let pattern = crate::expression::display_match_pattern(
+                        &program.expression_table,
+                        arm.pattern,
+                        render,
+                    );
                     format!("{pattern} => {}", render(arm.value))
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("match {} {{ {arms} }}", render(dispatch.subject))
         }
+        ExpressionNode::SavedSubject(saved) => format!(
+            "<saved subject #{}:{}>",
+            saved.capture.arena_index(),
+            saved.capture.generation()
+        ),
         ExpressionNode::Atomic(atomic) => {
             format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value))
         }

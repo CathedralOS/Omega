@@ -4,6 +4,7 @@
 //! admits (struct literals, membership).
 
 pub(crate) mod context;
+mod match_dispatch;
 mod membership;
 pub(crate) mod parse_expression;
 pub(crate) mod parse_postfix;

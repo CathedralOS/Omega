@@ -13,6 +13,27 @@ use checked_trees::{
 };
 
 impl Query<'_> {
+    pub(super) fn dispatch_subject(
+        &self,
+        subject: &checked_trees::CheckedDispatchSubject,
+    ) -> Option<Transfers> {
+        let mut output = Transfers::default();
+        for operand in subject.scalar_operands() {
+            output.append(self.computation(operand)?);
+        }
+        let value = subject.structural_value();
+        if value.is_valid() {
+            output.append(self.value(
+                value,
+                &[],
+                false,
+                ValueReceiver::Unbound,
+                &[],
+                &mut Vec::new(),
+            )?);
+        }
+        Some(output)
+    }
     pub(super) fn operation_computations(
         &self,
         operation: &CheckedUnitEffectOperationPlan,
@@ -192,11 +213,11 @@ impl Query<'_> {
                 ]));
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                output.append(self.computation(*subject)?);
+                output.append(self.dispatch_subject(subject)?);
                 let mut prefix = Vec::new();
                 let mut alternatives = Vec::new();
                 for arm in plans.dispatch_arms.span(*arms)? {
-                    if let CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
+                    if let Some(pattern) = arm.pattern.computation() {
                         prefix.push(pattern);
                     }
                     let mut branch = Transfers::default();

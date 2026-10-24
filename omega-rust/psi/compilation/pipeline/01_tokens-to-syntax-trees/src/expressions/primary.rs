@@ -1,8 +1,6 @@
 use crate::expressions::context::ExpressionContext;
-use crate::expressions::parse_expression::{
-    parse_expression_handle, parse_expression_handle_in,
-    parse_expression_handle_without_struct_literals,
-};
+use crate::expressions::match_dispatch::parse_match_expression_handle;
+use crate::expressions::parse_expression::{parse_expression_handle, parse_expression_handle_in};
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use numerics::literals::IntegerLiteral;
@@ -14,68 +12,6 @@ use syntax_trees::expression::{
 use syntax_trees::identifier::Identifier;
 use tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
-/// Retain authored dispatch order and source custody for semantic checking.
-fn parse_match_expression_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    let start = input;
-    let input = input.take_keyword(KeywordKind::Match, "match")?;
-    let (subject, input) = parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-    let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut arms = Vec::new();
-    while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let arm_start = input;
-        let (pattern, rest) = if input.at_contextual("_") {
-            (
-                syntax_trees::expression::MatchPattern::Wildcard,
-                input.take_contextual("_")?,
-            )
-        } else {
-            let (pattern, rest) =
-                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-            // A `{` following a pattern name is the record/case destructure
-            // spelling that `transition` dispatch owns. Name the boundary
-            // instead of failing the arm on a missing `->`.
-            if rest.at_punctuation(PunctuationKind::LeftBrace)
-                && matches!(
-                    syntax_trees.expressions.expression(pattern),
-                    ExpressionNode::Name(_)
-                )
-            {
-                return Err(rest.error_here(
-                    "record and domain destructure patterns belong to `transition` \
-                     dispatch; `match` arms admit value and wildcard patterns",
-                ));
-            }
-            (syntax_trees::expression::MatchPattern::Value(pattern), rest)
-        };
-        let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
-        let (value, rest) = parse_expression_handle(syntax_trees, rest)?;
-        arms.push(syntax_trees::expression::TableMatchArm {
-            pattern,
-            value,
-            source_span: arm_start.source_span_until(rest),
-        });
-        input = if rest.at_punctuation(PunctuationKind::Comma) {
-            rest.take_punctuation(PunctuationKind::Comma, ",")?
-        } else {
-            rest
-        };
-    }
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    if arms.is_empty() {
-        return Err(input.error_here("match expression must have at least one arm"));
-    }
-    let arms = syntax_trees.expressions.insert_match_arms(arms);
-    let expression = syntax_trees.expressions.insert(ExpressionNode::Match(
-        syntax_trees::expression::TableMatchExpression { subject, arms },
-    ));
-    syntax_trees
-        .expressions
-        .set_source_span(expression, start.source_span_until(input));
-    Ok((expression, input))
-}
 pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,

@@ -54,7 +54,7 @@ pub(crate) fn build_qualification_facts(
                     visited,
                 );
                 for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                         collect_casts(
                             program,
                             machine,

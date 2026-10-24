@@ -23,8 +23,12 @@ pub(super) fn expression_is_effectful_for_transparent_result(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_is_effectful_for_transparent_result(program, pattern))
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|pattern| {
+                                expression_is_effectful_for_transparent_result(program, pattern)
+                            })
                             || expression_is_effectful_for_transparent_result(program, arm.value)
                     })
         }
@@ -63,7 +67,7 @@ pub(super) fn expression_is_effectful_for_transparent_result(
             .struct_fields(literal.fields)
             .iter()
             .any(|field| expression_is_effectful_for_transparent_result(program, field.value)),
-        typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }
 

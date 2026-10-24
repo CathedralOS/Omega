@@ -70,7 +70,8 @@ mod scalar_observations;
 pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{
-    MatchCaseDispatch, MatchCaseDispatchArm, MatchCaseSubject, match_case_dispatch,
+    structural_match_cases_are_covered, structural_match_pattern_case,
+    structural_match_subject_type,
 };
 pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,
@@ -1034,6 +1035,7 @@ pub(crate) fn expression_type_name_handle(
 ) -> &'static str {
     match program.expression_table.expression(argument) {
         ExpressionNode::Match(_) => "match expression",
+        ExpressionNode::SavedSubject(_) => "saved match subject",
         ExpressionNode::Atomic(atomic) => expression_type_name_handle(program, atomic.value),
         ExpressionNode::ArrayLiteral(_) => "array literal",
         ExpressionNode::Binary(_) => "binary expression",

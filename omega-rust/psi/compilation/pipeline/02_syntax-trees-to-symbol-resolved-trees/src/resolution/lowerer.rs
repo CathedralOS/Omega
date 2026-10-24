@@ -26,6 +26,17 @@ pub(crate) struct PendingAuthoredExpression {
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 
+/// An arm's lexical aliases can only read their own enclosing capture and
+/// exact structural head. This stack is construction scratch, not a name map.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MatchArmCapture {
+    pub(crate) syntax_capture: arena::Handle<syntax_trees::expression::MatchSubjectCapture>,
+    pub(crate) syntax_head: syntax_trees::expression::ExpressionHandle,
+    pub(crate) resolved_capture:
+        arena::Handle<symbol_resolved_trees::expression::MatchSubjectCapture>,
+    pub(crate) resolved_head: ExpressionHandle,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PendingConstDeclaration {
     pub(crate) scope: syntax_trees::identifier::Identifier,
@@ -183,6 +194,7 @@ pub(crate) struct Lowerer {
     /// (`statement::hoist_membership_match_subject`).
     match_subject_temps:
         std::collections::HashMap<syntax_trees::expression::ExpressionHandle, (String, SourceSpan)>,
+    pub(crate) expression_match_captures: Vec<MatchArmCapture>,
     /// The CURRENT state's parameters (name, resolved type,
     /// mutability). The scalar-computation classification of transition
     /// values reads them. Overwritten at each state.
@@ -281,6 +293,7 @@ impl Lowerer {
             current_state_name: None,
             current_evidence_term_names: Vec::new(),
             match_subject_temps: std::collections::HashMap::new(),
+            expression_match_captures: Vec::new(),
             current_state_parameters: Vec::new(),
             current_state_return_type: None,
             seed: None,

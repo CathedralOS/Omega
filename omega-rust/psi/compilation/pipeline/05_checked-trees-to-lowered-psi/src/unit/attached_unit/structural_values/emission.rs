@@ -37,9 +37,18 @@ mod reference;
 mod residual_complement;
 
 /// Checked value production is independent of a source local's publication.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ValueDestination {
+    /// Establish the receiving declaration's value, including owned transfer.
+    Binding,
+    /// Retain an evaluated operand; its eventual consumer owns any transfer.
+    Operand,
+}
+
 pub(crate) struct ValueProduction<'source> {
     pub(crate) value: CheckedStructuralValueHandle,
     pub(crate) owner: facts::PlaceRoot,
+    pub(crate) destination: ValueDestination,
     /// A scalar consumer reserves its receiving home before graph emission.
     pub(crate) statement: u32,
     pub(crate) structural_type: StructuralTypeId,
@@ -182,9 +191,10 @@ pub(crate) fn emit<'source>(
         })
         .transpose()?
         .unwrap_or_default();
-    if !sources.is_empty() && multiplicity != StructuralMultiplicity::Affine {
-        return unsupported("owned selection requires uniform affine root cleanup");
-    }
+    // Source homes own their residuals independently of the selected value's
+    // multiplicity. A linear child can leave an affine sibling at its named
+    // root; prepare_owners below authenticates those homes, while the result
+    // continuation transfers the child's exact checked claim frontier.
     // A referent alias observes storage through the selection's address join.
     // A materialized descriptor instead transfers its own affine lifetime
     // resource, even when the source binding has shared referent access.
@@ -326,8 +336,9 @@ pub(crate) fn emit<'source>(
     // A statement that carries an
     // owned-selection receipt keeps the selection route, because that receipt
     // retains its sources through the selected edge and an alias has no
-    // edge to carry it. Only a `Place` source aliases: a call result establishes
-    // a temporary whose checked completion still owns its residual cleanup.
+    // edge to carry it. A receiving binding over a computed source transfers
+    // its subtree; retaining an operand instead preserves even a computed
+    // owner's home until the actual consumer and contextual completion.
     // Whole-value views retain the selected storage geometry. Collect their
     // checked memberships separately: the exact source-claim join below must
     // precede any value formation that publishes those memberships.
@@ -344,22 +355,47 @@ pub(crate) fn emit<'source>(
         storage_memberships.push((node.qualification_decisions, node.expression));
         storage_value = *source;
     }
-    let projected_storage = if emission.sources.is_empty()
-        && let CheckedStructuralValueKind::Projection {
+    // Operand retention is not a receiving declaration. An already owned
+    // place keeps its physical home until the actual consumer transfers it;
+    // silently moving it here would strand its checked cleanup on the old
+    // home. Unrestricted reads still take their ordinary snapshot producer.
+    let storage_projection = match structural_values(checked)
+        .nodes
+        .get(storage_value)
+        .kind
+        .clone()
+    {
+        CheckedStructuralValueKind::Projection {
             source,
             path,
-            type_identity: _,
             copies_selected_value: false,
-        } = structural_values(checked)
-            .nodes
-            .get(storage_value)
-            .kind
-            .clone()
-        && !path.is_empty()
-        && matches!(
-            structural_values(checked).nodes.get(source).kind,
-            CheckedStructuralValueKind::Place(_)
-        ) {
+            ..
+        } if !path.is_empty()
+            && (production.destination == ValueDestination::Operand
+                || matches!(
+                    structural_values(checked).nodes.get(source).kind,
+                    CheckedStructuralValueKind::Place(_)
+                )) =>
+        {
+            Some((source, path))
+        }
+        CheckedStructuralValueKind::Place(_)
+            if production.destination == ValueDestination::Operand
+                && checked.type_multiplicity(
+                    structural_values(checked)
+                        .nodes
+                        .get(storage_value)
+                        .type_reference,
+                ) != Multiplicity::Unrestricted
+                && multiplicity != StructuralMultiplicity::Unrestricted =>
+        {
+            Some((storage_value, Vec::new()))
+        }
+        _ => None,
+    };
+    let projected_storage = if emission.sources.is_empty()
+        && let Some((source, path)) = storage_projection
+    {
         let projected = emission.projection_source(identities, source, path)?;
         let alias_path =
             projected.lowered_path(identities, emission.type_ids, emission.structural_types)?;
@@ -1143,10 +1179,21 @@ pub(super) struct ValueContinuation {
     place: PlaceId,
     remaining_owners: Vec<argument_evaluation::StructuralValueOwner>,
     claim_destinations: Vec<language_semantics::PermissionClaimIdentity>,
+    /// The complete receiving claim-path roster, before arm-local overlays.
+    destination_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    /// True when an actual predecessor needs destination-local names rather
+    /// than ordinary identity-preserving relocation. The roster is all-or-none.
+    requires_claim_bindings: bool,
     /// Memberships are the intersection of completed incoming values, never
     /// facts inferred from the receiving annotation. An empty first roster is
     /// distinct from a join that has not received an edge yet.
     has_incoming_memberships: bool,
+}
+
+pub(super) struct FallbackContinuation {
+    block: BlockId,
+    values: Vec<ValueDeclaration>,
+    homes: argument_evaluation::AvailableHomes,
 }
 
 /// The completed source and exact projection, before its consumer chooses
@@ -1741,6 +1788,40 @@ impl Emission<'_, '_, '_> {
             return unsupported("structural operand has a different checked source coordinate");
         }
         let transaction = self.content_transformation(&node)?;
+        let has_completion = self
+            .checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .cleanup_control
+            .value_completion(self.machine, self.state, self.statement, node.expression)
+            .is_some();
+        // A checked normal death belongs after this produced value exists,
+        // but before its enclosing consumer executes. Keep that cut explicit
+        // for every structural operation, not only copied projections. A
+        // selection first joins its selected result; residual cleanup must
+        // never precede the transfer that determines its exact complement.
+        if has_completion {
+            let first_new_place = *self.environment.next_place;
+            let raw = self.raw_value(identities, value, None)?;
+            let completed = if let Some(transaction) = transaction {
+                self.bind_fresh_completion_claims(&raw, first_new_place)?;
+                self.transform_content(identities, raw, transaction)?
+            } else {
+                raw
+            };
+            self.complete_observation(identities, node.expression)?;
+            if let Some(continuation) = continuation {
+                let operand = self.capture_operand(
+                    identities,
+                    completed.clone(),
+                    node.expression,
+                    first_new_place,
+                )?;
+                self.complete_value(operand, continuation)?;
+            }
+            return Ok(completed);
+        }
         if let Some(transaction) = transaction {
             // Formation owns the transaction, before any enclosing join can
             // publish this occurrence as a qualified source value.
@@ -1749,7 +1830,13 @@ impl Emission<'_, '_, '_> {
             self.bind_fresh_completion_claims(&raw, first_new_place)?;
             let transformed = self.transform_content(identities, raw, transaction)?;
             if let Some(continuation) = continuation {
-                self.complete_value(transformed.clone(), continuation)?;
+                let operand = self.capture_operand(
+                    identities,
+                    transformed.clone(),
+                    node.expression,
+                    first_new_place,
+                )?;
+                self.complete_value(operand, continuation)?;
             }
             return Ok(transformed);
         }
@@ -1763,6 +1850,7 @@ impl Emission<'_, '_, '_> {
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<StructuralArgument, LoweringError> {
         let node = self.structural_value_node(value);
+        let first_new_place = *self.environment.next_place;
         let place = match node.kind {
             CheckedStructuralValueKind::NativeCodeLayout { selected_state } => {
                 let (selected, _) =
@@ -1941,7 +2029,13 @@ impl Emission<'_, '_, '_> {
                     // Owning descriptor storage does not own its backing.
                     argument.access = self.result_access;
                     if let Some(continuation) = continuation {
-                        self.complete_value(argument.clone(), continuation)?;
+                        let operand = self.capture_operand(
+                            identities,
+                            argument.clone(),
+                            node.expression,
+                            first_new_place,
+                        )?;
+                        self.complete_value(operand, continuation)?;
                     }
                     return Ok(argument);
                 }
@@ -1984,7 +2078,6 @@ impl Emission<'_, '_, '_> {
                     };
                     let place =
                         self.copied_leaf_place(&argument, node.qualification_decisions, None)?;
-                    self.complete_observation(identities, node.expression)?;
                     let result_place = continuation
                         .as_ref()
                         .map_or(place, |continuation| continuation.place);
@@ -2009,16 +2102,8 @@ impl Emission<'_, '_, '_> {
                     owned_continuation = self.root_value_continuation(self.values.clone())?;
                     &mut owned_continuation
                 };
+                let first_new_place = *self.environment.next_place;
                 let projected = self.projection_source(identities, source, path)?;
-                if matches!(
-                    structural_values(self.checked).nodes.get(source).kind,
-                    CheckedStructuralValueKind::Place(_)
-                ) && !self.source_at(projected.root).is_some()
-                {
-                    return unsupported(
-                        "projected selection root is absent from its receipt sources",
-                    );
-                }
                 let selected = StructuralArgument {
                     place: projected.root,
                     path: projected.lowered_path(
@@ -2028,7 +2113,31 @@ impl Emission<'_, '_, '_> {
                     )?,
                     access: StructuralAccess::Owned,
                 };
-                self.complete_value(selected, continuation)?;
+                // The residual-home roster coordinates named owner cleanup;
+                // it is not move authority. Capture this consuming occurrence's
+                // exact claims, then transfer the selected subtree normally.
+                // A whole result home can cross the join even for a linear
+                // child; the original producer still owns its residual.
+                let completed =
+                    self.capture_operand(identities, selected, node.expression, first_new_place)?;
+                let (whole, projected) = self
+                    .completed_memberships(completed.argument.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "projected result has no source membership contract",
+                    ))?;
+                let (qualifications, projected_qualifications) =
+                    terminal_psi::StructuralPathQualification::select(
+                        whole,
+                        projected,
+                        &completed.argument.path,
+                    );
+                let selected = self.move_completed_operand(
+                    completed,
+                    qualifications,
+                    projected_qualifications,
+                )?;
+                let operand = self.published_operand(selected)?;
+                self.complete_value(operand, continuation)?;
                 if is_root {
                     self.record_root_continuation(continuation)?;
                 }
@@ -2256,7 +2365,13 @@ impl Emission<'_, '_, '_> {
                         .owned_argument(identities, &argument)?
                 };
                 if let Some(continuation) = continuation {
-                    self.complete_value(selected, continuation)?;
+                    let operand = self.capture_operand(
+                        identities,
+                        selected,
+                        node.expression,
+                        first_new_place,
+                    )?;
+                    self.complete_value(operand, continuation)?;
                     Ok(continuation.place)
                 } else {
                     return Ok(selected);
@@ -2404,9 +2519,17 @@ impl Emission<'_, '_, '_> {
             place,
             remaining_owners,
             claim_destinations: Vec::new(),
+            destination_claims: source_claims.clone(),
+            requires_claim_bindings: false,
             has_incoming_memberships: false,
         };
-        self.complete_value(source.clone(), &mut continuation)?;
+        self.complete_value(
+            super::operand_claims::CompletedOperand {
+                argument: source.clone(),
+                claims: source_claims.clone(),
+            },
+            &mut continuation,
+        )?;
         self.arrival_claims.push((place, source_claims));
         self.start(block);
         self.operations
@@ -2459,6 +2582,8 @@ impl Emission<'_, '_, '_> {
             place,
             remaining_owners: Vec::new(),
             claim_destinations: Vec::new(),
+            destination_claims: Vec::new(),
+            requires_claim_bindings: false,
             has_incoming_memberships: false,
         };
         let loan = match argument.access {
@@ -2608,7 +2733,7 @@ impl Emission<'_, '_, '_> {
     pub(super) fn boolean_case_split(
         &mut self,
         kind: OperationKind,
-        fallback: &mut Option<(BlockId, Vec<ValueDeclaration>)>,
+        fallback: &mut Option<FallbackContinuation>,
     ) -> Result<(), LoweringError> {
         let condition = value_id(allocate_dense(self.next_value)?);
         let id = self.operations.allocate();
@@ -2619,6 +2744,16 @@ impl Emission<'_, '_, '_> {
             result: scalar_result_declaration(condition, ScalarType::Boolean),
             kind,
         });
+        self.boolean_value_split(condition, fallback)
+    }
+
+    /// Split on an already evaluated predicate without manufacturing another
+    /// evaluation or changing its operation's observation identity.
+    pub(super) fn boolean_value_split(
+        &mut self,
+        condition: semantic_vocabulary::ValueId,
+        fallback: &mut Option<FallbackContinuation>,
+    ) -> Result<(), LoweringError> {
         let selected = block_id(allocate_dense(self.next_block)?);
         let next = block_id(allocate_dense(self.next_block)?);
         let when_true = self.edge(selected, Vec::new(), Vec::new())?;
@@ -2628,7 +2763,11 @@ impl Emission<'_, '_, '_> {
             when_true,
             when_false,
         });
-        *fallback = Some((next, self.values.clone()));
+        *fallback = Some(FallbackContinuation {
+            block: next,
+            values: self.values.clone(),
+            homes: self.evaluation.available_homes(),
+        });
         self.start(selected);
         Ok(())
     }
@@ -2686,10 +2825,11 @@ impl Emission<'_, '_, '_> {
 
     /// Resume the case-fallback arm's stashed value roster at its entry
     /// block, when one was recorded.
-    fn restore_fallback(&mut self, fallback: Option<(BlockId, Vec<ValueDeclaration>)>) {
-        if let Some((next, values)) = fallback {
-            self.start(next);
-            *self.values = values;
+    fn restore_fallback(&mut self, fallback: Option<FallbackContinuation>) {
+        if let Some(fallback) = fallback {
+            self.start(fallback.block);
+            *self.values = fallback.values;
+            self.evaluation.restore_available_homes(fallback.homes);
         }
     }
 
@@ -2781,6 +2921,8 @@ impl Emission<'_, '_, '_> {
             place,
             remaining_owners: self.owners.clone(),
             claim_destinations: Vec::new(),
+            destination_claims: self.completion_claims.clone(),
+            requires_claim_bindings: false,
             has_incoming_memberships: false,
         })
     }
@@ -2810,22 +2952,22 @@ impl Emission<'_, '_, '_> {
         // Publish before the source-owner early return: fresh alternatives
         // still have a result even when they have no residual input owners.
         self.arrival_claims
-            .push((continuation.place, self.completion_claims.clone()));
+            .push((continuation.place, continuation.destination_claims.clone()));
         // Each incoming arm owns its actual producer's claims. Bind them to
         // the checked result's destination names at the join, before later
         // consumers use that result. Reporting the destination roster alone
         // would leave the runtime holding an arm-local identity.
-        self.operations
-            .block_entry_claims
-            .extend(
-                self.completion_claims
-                    .iter()
-                    .map(|binding| terminal_psi::EntryClaim {
+        if continuation.requires_claim_bindings {
+            self.operations
+                .block_entry_claims
+                .extend(continuation.destination_claims.iter().map(|binding| {
+                    terminal_psi::EntryClaim {
                         claim: binding.claim,
                         input: continuation.place,
                         path: binding.path.clone(),
-                    }),
-            );
+                    }
+                }));
+        }
         if self.sources.is_empty() {
             return Ok(());
         }

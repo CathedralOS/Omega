@@ -389,14 +389,12 @@ pub fn normalized_expression_identity(
     program: &TypedTrees,
     expression: crate::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
-) -> String {
-    identity_context::normalize_index_expression(
+) -> Option<String> {
+    try_normalized_index_identity(
         program,
-        expression,
-        &TypeIdentityContext {
-            binders,
-            ..TypeIdentityContext::default()
-        },
+        IndexIdentityArgument::Expression(expression),
+        binders,
+        &[],
     )
 }
 

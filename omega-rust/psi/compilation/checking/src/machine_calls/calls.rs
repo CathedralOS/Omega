@@ -273,7 +273,8 @@ fn report_argument_reference_access(
         ),
         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access } => {
             let label = if access == language_semantics::ReferenceAccess::WriteOnly { "write-only" } else { "mutable" };
-            format!("{label} argument `{}` for state `{target_name}` is not writable in this state; the source cannot lend the requested exclusive access", program.symbols.name(root))
+            let source = facts::canonical_place_label_from_parts(program, root, &[]);
+            format!("{label} argument `{source}` for state `{target_name}` is not writable in this state; the source cannot lend the requested exclusive access")
         }
         ReferenceAccessRefusal::NamedPlaceRequired { access } => {
             let label = if access == language_semantics::ReferenceAccess::WriteOnly { "write-only" } else { "mutable" };

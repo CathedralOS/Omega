@@ -31,6 +31,10 @@ pub struct FlowOperandReferent {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandRetention {
     pub roots: HandleSpan<facts::PlaceRoot>,
+    /// Mutually exclusive completed profiles retained by a value join.
+    /// Their stored-value links preserve nested descriptor observations;
+    /// unioning backing roots alone would lose those completed contents.
+    pub alternatives: HandleSpan<FlowOperandRetention>,
     /// Lifetime relations at declared output paths. These are not evaluated
     /// child values and carry no expression, type or predicate observation.
     pub leaves: HandleSpan<FlowOperandRetainedLeaf>,
@@ -111,6 +115,10 @@ pub struct FlowValueObservationFact {
     pub expression: ExpressionHandle,
     pub evaluation: super::FlowPermissionEvaluation,
     pub receiver: Handle<FlowOperandFact>,
+    /// The completed value, when captured by its consumer. Its exact retained
+    /// lifetime frontier determines whether the observed home may die here.
+    /// Zero is unavailable evidence, not a reference-free result.
+    pub result: Handle<FlowOperandFact>,
     pub semantic_contexts: HandleSpan<super::FlowSemanticContextRef>,
     pub constraints: HandleSpan<FlowConstraintRef>,
 }

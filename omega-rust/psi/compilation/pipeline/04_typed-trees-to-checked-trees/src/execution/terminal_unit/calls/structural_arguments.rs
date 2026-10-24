@@ -764,13 +764,19 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
 fn borrow_access_spelling(
     machine: SymbolHandle,
     place: &validation::CanonicalPlace,
-) -> Option<(SymbolHandle, &[facts::PlaceSegment])> {
-    let root = place.root.as_symbol()?;
-    if root == machine
+) -> Option<(facts::PlaceRoot, &[facts::PlaceSegment])> {
+    let root = place.root;
+    if !matches!(
+        root,
+        facts::PlaceRoot::Symbol(_) | facts::PlaceRoot::Expression(_)
+    ) {
+        return None;
+    }
+    if root == facts::PlaceRoot::Symbol(machine)
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
     {
-        return Some((*symbol, remaining));
+        return Some((facts::PlaceRoot::Symbol(*symbol), remaining));
     }
     Some((root, place.segments.as_slice()))
 }
@@ -865,7 +871,7 @@ pub(crate) fn exact_structural_borrow_access(
     // while a place reaching that field through the attached machine roots at
     // the machine. Re-express the machine-rooted place in the borrow spelling
     // before matching.
-    let (root_symbol, segments) = borrow_access_spelling(machine, place)?;
+    let (root, segments) = borrow_access_spelling(machine, place)?;
     let borrow_state = borrow
         .states
         .iter()
@@ -894,7 +900,7 @@ pub(crate) fn exact_structural_borrow_access(
             // roster; it must not change this invocation's access classification.
             access.end_before_access.is_none()
                 && borrow.access_segments(access) == segments
-                && access.root == facts::PlaceRoot::Symbol(root_symbol)
+                && access.root == root
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
@@ -907,6 +913,7 @@ pub(crate) fn exact_structural_borrow_access(
     if target_access == CheckedStructuralAccess::MutableBorrow
         && **first == checked_trees::BorrowAccessKind::Read
         && segments.is_empty()
+        && let Some(root_symbol) = root.as_symbol()
         && reference_forwarding::preserves_mutable_referent(
             program,
             borrow,

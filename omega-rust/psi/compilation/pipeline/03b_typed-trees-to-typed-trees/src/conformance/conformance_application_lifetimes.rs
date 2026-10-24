@@ -419,6 +419,7 @@ fn collect_expression_elision_calls(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Call(call) => {
             calls.push(ElisionCall {
                 site: ElisionCallSite::Expression(expression),

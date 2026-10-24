@@ -241,8 +241,28 @@ fn value_calls(
         .collect::<Vec<_>>();
     let mut values = Vec::new();
     collect_reachable_nodes(checked, &roots, &mut values)?;
-    let mut calls = Vec::new();
+    // A standalone structural result need not be observed by a scalar node.
+    // Retained roots own private operand schedules, including the subject of
+    // a structural dispatch. Catalog discovery unions those dependencies;
+    // it must not import their private ordinals into the caller's schedule.
+    let plans = &checked.facts.values.structural_values;
+    for (_, root) in plans.roots.iter().filter(|(_, root)| {
+        root.machine == machine && state.is_none_or(|state| root.state == state)
+    }) {
+        if !values.contains(&root.root) {
+            values.push(root.root);
+        }
+    }
+    let mut dependencies = Vec::new();
     for value in values {
+        for dependency in structural_dependencies(checked, value)?.values {
+            if !dependencies.contains(&dependency) {
+                dependencies.push(dependency);
+            }
+        }
+    }
+    let mut calls = Vec::new();
+    for value in dependencies {
         calls.extend(
             checked
                 .facts
@@ -306,7 +326,14 @@ fn collect_reachable_nodes(
                 pending.push(*operand);
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                pending.push(*subject);
+                pending.extend(subject.scalar_operands());
+                let value = subject.structural_value();
+                if value.is_valid() {
+                    if !structural_roots.contains(&value) {
+                        structural_roots.push(value);
+                    }
+                    pending.extend(structural_dependencies(checked, value)?.scalars);
+                }
                 for arm in plans
                     .dispatch_arms
                     .span(*arms)
@@ -314,8 +341,7 @@ fn collect_reachable_nodes(
                         "scalar dispatch closure has stale arms",
                     ))?
                 {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
-                    {
+                    if let Some(pattern) = arm.pattern.computation() {
                         pending.push(pattern);
                     }
                     pending.push(arm.value);
@@ -488,7 +514,7 @@ pub(crate) fn structural_dependencies(
                 }
             }
             Value::Dispatch { subject, arms } => {
-                scalars.push(*subject);
+                scalars.extend(subject.scalar_operands());
                 for arm in plans
                     .dispatch_arms
                     .span(*arms)
@@ -496,8 +522,7 @@ pub(crate) fn structural_dependencies(
                         "structural computation has stale arms",
                     ))?
                 {
-                    if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern
-                    {
+                    if let Some(pattern) = arm.pattern.computation() {
                         scalars.push(pattern);
                     }
                 }
@@ -591,9 +616,14 @@ pub(crate) fn produced_value_root<'checked>(
     })?;
     let values = &checked.facts.values.structural_values;
     let root = values
-        .root_for_expression(state.state_symbol, statement, expression)
+        .completed_expression_dependency(
+            &checked.expression_table,
+            state.state_symbol,
+            Some(statement),
+            expression,
+        )
         .ok_or(LoweringError::Unsupported(
-            "computed structural operand lost its complete value root",
+            "computed structural operand has no unique authenticated value dependency",
         ))?;
     // The root keeps the declared value contract; the argument and catalog
     // name only its storage carrier's structural identity. Loan admission

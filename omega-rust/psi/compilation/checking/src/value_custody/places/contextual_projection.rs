@@ -20,6 +20,9 @@ pub fn contextual_canonical_place_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {
+            super::canonical_projection::canonical_place_from_expression(program, expression)
+        }
         ExpressionNode::Borrow(inner) => contextual_canonical_place_from_expression(
             program,
             state_symbol,

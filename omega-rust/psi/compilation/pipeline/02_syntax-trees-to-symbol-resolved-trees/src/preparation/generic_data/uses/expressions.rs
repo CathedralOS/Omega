@@ -281,11 +281,19 @@ pub(in crate::preparation::generic_data) fn collect_expression_handles(
         ExpressionNode::Match(dispatch) => {
             collect_expression_handles(syntax, dispatch.subject, handles);
             for arm in syntax.expressions.match_arms(dispatch.arms) {
-                if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in syntax.expressions.match_pattern_dependencies(arm.pattern) {
                     collect_expression_handles(syntax, pattern, handles);
                 }
                 collect_expression_handles(syntax, arm.value, handles);
             }
+        }
+        ExpressionNode::SavedSubject(saved) => {
+            collect_expression_handles(
+                syntax,
+                syntax.expressions.match_subject(saved.capture).subject,
+                handles,
+            );
+            collect_expression_handles(syntax, saved.pattern_head, handles);
         }
         ExpressionNode::ArrayLiteral(expressions) => {
             for expression in syntax.expressions.expression_handles(*expressions) {
@@ -365,7 +373,10 @@ impl ConstructorFrontier<'_> {
 
 /// Call-result input inventory. A selected call retains its whole receiver
 /// and argument subtree through ordinary lowering, so nested calls are not
-/// independently materialized a second time.
+/// independently materialized a second time. A lexical match capture is also
+/// indivisible: extracting an arm call would detach its saved-subject reads
+/// from the definition required to resolve them. Retain the enclosing match
+/// when it contains calls, without installing it as an executable body.
 pub(crate) fn statement_call_inputs(
     syntax: &SyntaxTrees,
     statement: syntax_trees::statement::StatementHandle,
@@ -376,10 +387,34 @@ pub(crate) fn statement_call_inputs(
     }
     impl ExpressionMarks for Calls<'_> {
         fn mark(&mut self, expression: ExpressionHandle) -> bool {
-            if matches!(
-                self.syntax.expressions.expression(expression),
-                ExpressionNode::Call(_)
-            ) {
+            let retain = match self.syntax.expressions.expression(expression) {
+                ExpressionNode::Call(_) => true,
+                ExpressionNode::Match(dispatch) if dispatch.capture.is_valid() => {
+                    // The ordinary dependency inventory already owns reach;
+                    // use its marked handles rather than a second child walk.
+                    struct CallSearch<'a> {
+                        syntax: &'a SyntaxTrees,
+                        found: bool,
+                    }
+                    impl ExpressionMarks for CallSearch<'_> {
+                        fn mark(&mut self, expression: ExpressionHandle) -> bool {
+                            self.found |= matches!(
+                                self.syntax.expressions.expression(expression),
+                                ExpressionNode::Call(_)
+                            );
+                            !self.found
+                        }
+                    }
+                    let mut search = CallSearch {
+                        syntax: self.syntax,
+                        found: false,
+                    };
+                    collect_expression_handles(self.syntax, expression, &mut search);
+                    search.found
+                }
+                _ => false,
+            };
+            if retain {
                 self.handles.push(expression);
                 false
             } else {

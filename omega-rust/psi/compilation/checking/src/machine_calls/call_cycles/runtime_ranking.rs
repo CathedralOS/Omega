@@ -886,7 +886,7 @@ fn expression_is_inert_or_calls(
             crate::value_custody::atomic_operations::atomic_once_operands(program, atomic).is_none()
                 && inert(atomic.value)
         }
-        typed_trees::literal_expression_pattern!() => true,
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => true,
         ExpressionNode::Member(member) => inert(member.receiver),
         ExpressionNode::Binary(binary) => {
             meaning::binary_is_inert(program, machine, state, expression, binary)

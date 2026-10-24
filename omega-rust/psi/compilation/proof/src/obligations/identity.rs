@@ -42,7 +42,20 @@ use typed_trees::typed_trees::StaticRequirementDispatch;
 
 /// Encoding version. Bump when the canonicalization itself changes so keys
 /// computed under a previous schema never alias current ones.
-pub const KEY_SCHEMA: u32 = 1;
+pub const KEY_SCHEMA: u32 = 2;
+
+struct IdentityContext<'program> {
+    program: &'program dyn validation::CheckingInput,
+    unavailable: &'program std::cell::Cell<bool>,
+    captures: &'program [arena::Handle<typed_trees::expression::MatchSubjectCapture>],
+}
+
+impl<'program> std::ops::Deref for IdentityContext<'program> {
+    type Target = dyn validation::CheckingInput + 'program;
+    fn deref(&self) -> &Self::Target {
+        self.program
+    }
+}
 
 /// Canonical semantic identity of one proof obligation. The string is the
 /// complete normalized content; equal obligations produce equal keys even
@@ -74,8 +87,14 @@ impl fmt::Display for ProofObligationKey {
 pub fn proof_obligation_key(
     proof_plan: &ProofPlan<'_>,
     obligation: &ProofObligation,
-) -> ProofObligationKey {
-    let program = proof_plan.program;
+) -> Option<ProofObligationKey> {
+    let unavailable = std::cell::Cell::new(false);
+    let context = IdentityContext {
+        program: proof_plan.program,
+        unavailable: &unavailable,
+        captures: &[],
+    };
+    let program = &context;
     let body = match obligation {
         ProofObligation::BoundedAssignment(obligation) => compound(
             "bounded-assignment",
@@ -238,14 +257,16 @@ pub fn proof_obligation_key(
             ],
         ),
     };
-    ProofObligationKey(compound(
-        "obligation",
-        [atom("schema", KEY_SCHEMA.to_string()), body],
-    ))
+    (!unavailable.get()).then(|| {
+        ProofObligationKey(compound(
+            "obligation",
+            [atom("schema", KEY_SCHEMA.to_string()), body],
+        ))
+    })
 }
 
 fn machine_state_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
 ) -> String {
@@ -258,10 +279,7 @@ fn machine_state_identity(
     )
 }
 
-fn owner_identity(
-    program: &dyn ::validation::CheckingInput,
-    owner: &ProofObligationOwner,
-) -> String {
+fn owner_identity(program: &IdentityContext<'_>, owner: &ProofObligationOwner) -> String {
     match owner {
         ProofObligationOwner::Unknown => "owner:unknown".to_owned(),
         ProofObligationOwner::MachineOwnedData {
@@ -384,7 +402,7 @@ fn owner_identity(
 /// identical literals in one statement can straddle an effectful operand.
 /// Encoding their position preserves that distinction across cache reuse.
 fn expression_occurrence_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
@@ -398,7 +416,7 @@ fn expression_occurrence_identity(
             .get(statement_index)?;
         let mut expressions = Vec::new();
         validation::expression_traversal::collect_statement_expression_trees(
-            program,
+            program.program,
             statement,
             &mut expressions,
         );
@@ -484,10 +502,7 @@ fn float_identity(literal: &FloatLiteral) -> String {
     format!("{:016x}", literal.value_f64().to_bits())
 }
 
-fn guard_identity(
-    program: &dyn ::validation::CheckingInput,
-    guard: &TransitionGuardNode,
-) -> String {
+fn guard_identity(program: &IdentityContext<'_>, guard: &TransitionGuardNode) -> String {
     match guard {
         TransitionGuardNode::Always => "guard:always".to_owned(),
         TransitionGuardNode::When(condition) => {
@@ -497,7 +512,7 @@ fn guard_identity(
 }
 
 fn binary_operands_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     operands: &Option<BinaryValueOperands>,
 ) -> String {
     match operands {
@@ -559,7 +574,7 @@ fn unary_operator_tag(operator: typed_trees::expression::UnaryOperator) -> &'sta
 /// Canonical identity of one resolved declaration: the hermetic package- or
 /// toolchain-qualified identity where provenance exists, the canonical
 /// declaration path otherwise, `unresolved` for an invalid handle.
-fn symbol_identity(program: &dyn ::validation::CheckingInput, symbol: SymbolHandle) -> String {
+fn symbol_identity(program: &IdentityContext<'_>, symbol: SymbolHandle) -> String {
     if !symbol.is_valid() {
         return "unresolved".to_owned();
     }
@@ -569,7 +584,7 @@ fn symbol_identity(program: &dyn ::validation::CheckingInput, symbol: SymbolHand
     program.symbols.display_path(symbol, "::")
 }
 
-fn name_path_identity(program: &dyn ::validation::CheckingInput, path: &TableNamePath) -> String {
+fn name_path_identity(program: &IdentityContext<'_>, path: &TableNamePath) -> String {
     if path.symbol.is_valid() {
         return atom("name", symbol_identity(program, path.symbol));
     }
@@ -594,39 +609,92 @@ fn name_path_identity(program: &dyn ::validation::CheckingInput, path: &TableNam
     atom("name-spelled", identity)
 }
 
-fn expression_identity(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> String {
+fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHandle) -> String {
     if !expression.is_valid() {
         return "expr:invalid".to_owned();
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(node) => compound(
-            "match",
-            [expression_identity(program, node.subject)]
-                .into_iter()
-                .chain(
-                    program
+        ExpressionNode::SavedSubject(saved) => {
+            if program
+                .expression_table
+                .saved_subject_source(saved)
+                .is_none()
+            {
+                program.unavailable.set(true);
+                return "unbound-capture".to_owned();
+            }
+            let Some(depth) = program
+                .captures
+                .iter()
+                .rev()
+                .position(|capture| *capture == saved.capture)
+            else {
+                // A subexpression obligation has no lexical binder here. It
+                // must use fresh proof search, not collide in a persistent key.
+                program.unavailable.set(true);
+                return "unbound-capture".to_owned();
+            };
+            compound(
+                "saved-subject",
+                [
+                    atom("depth", depth.to_string()),
+                    expression_identity(program, saved.pattern_head),
+                ],
+            )
+        }
+        ExpressionNode::Match(node) => {
+            let subject = expression_identity(program, node.subject);
+            let mut captures = program.captures.to_vec();
+            if node.capture.is_valid() {
+                if !program
+                    .expression_table
+                    .contains_match_subject(node.capture)
+                    || program
                         .expression_table
-                        .match_arms(node.arms)
-                        .iter()
-                        .map(|arm| {
-                            compound(
-                                "arm",
-                                [
-                                    match arm.pattern {
-                                        MatchPattern::Value(pattern) => {
-                                            expression_identity(program, pattern)
-                                        }
-                                        MatchPattern::Wildcard => "wildcard".to_owned(),
-                                    },
-                                    expression_identity(program, arm.value),
-                                ],
-                            )
-                        }),
-                ),
-        ),
+                        .match_subject(node.capture)
+                        .definition
+                        != expression
+                    || captures.contains(&node.capture)
+                {
+                    program.unavailable.set(true);
+                    return "invalid-capture".to_owned();
+                }
+                captures.push(node.capture);
+            }
+            let context = IdentityContext {
+                program: program.program,
+                unavailable: program.unavailable,
+                captures: &captures,
+            };
+            let nested = &context;
+            compound("match", std::iter::once(subject).chain(program.expression_table.match_arms(node.arms).iter().map(|arm| {
+                let pattern = match arm.pattern {
+                    MatchPattern::Value(pattern) => expression_identity(nested, pattern),
+                    MatchPattern::Wildcard => "wildcard".to_owned(),
+                    MatchPattern::Destructure(pattern) => {
+                        let fields = program.expression_table.match_fields(pattern.fields).iter().map(|field| {
+                            let action = match &field.action {
+                                typed_trees::expression::MatchFieldAction::Bind(_) => "bind".to_owned(),
+                                typed_trees::expression::MatchFieldAction::Equal(value) => compound("equal", [expression_identity(nested, *value)]),
+                                typed_trees::expression::MatchFieldAction::Waive => "waive".to_owned(),
+                            };
+                            compound("field", [symbol_identity(nested, field.field_symbol), action])
+                        });
+                        let selectors = program.expression_table.match_proof_selectors(pattern.proof_selectors).iter().enumerate().map(|(ordinal, selector)| {
+                            compound("proof-selector", [atom("output", selector.output_field.as_str()), ordinal.to_string()])
+                        });
+                        compound("destructure", [
+                            expression_identity(nested, pattern.head),
+                            compound("fields", fields),
+                            atom("rest", pattern.has_rest.to_string()),
+                            if pattern.guard.is_valid() { expression_identity(nested, pattern.guard) } else { "no-guard".to_owned() },
+                            compound("proof-selectors", selectors),
+                        ])
+                    }
+                };
+                compound("arm", [pattern, expression_identity(nested, arm.value)])
+            })))
+        }
         ExpressionNode::ArrayLiteral(elements) => compound(
             "array",
             program
@@ -766,7 +834,7 @@ fn expression_identity(
     }
 }
 
-fn call_identity(program: &dyn ::validation::CheckingInput, call: &TableCallExpression) -> String {
+fn call_identity(program: &IdentityContext<'_>, call: &TableCallExpression) -> String {
     compound(
         "call",
         [
@@ -808,7 +876,7 @@ fn call_identity(program: &dyn ::validation::CheckingInput, call: &TableCallExpr
 }
 
 fn requirement_dispatch_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     dispatch: Option<&StaticRequirementDispatch>,
 ) -> String {
     match dispatch {
@@ -843,7 +911,7 @@ fn requirement_dispatch_identity(
 }
 
 fn quotient_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     request: Option<&QuotientOperationRequest>,
 ) -> String {
     match request {
@@ -871,7 +939,7 @@ fn quotient_identity(
 }
 
 fn private_layout_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     request: &PrivateLayoutOperationRequest,
 ) -> String {
     compound(
@@ -881,7 +949,7 @@ fn private_layout_identity(
 }
 
 fn static_argument_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     argument: &StaticMachineArgument,
 ) -> String {
     compound(
@@ -927,7 +995,7 @@ fn static_argument_identity(
 }
 
 fn static_symbol_application_identity(
-    program: &dyn ::validation::CheckingInput,
+    program: &IdentityContext<'_>,
     application: &StaticSymbolApplication,
 ) -> String {
     compound(

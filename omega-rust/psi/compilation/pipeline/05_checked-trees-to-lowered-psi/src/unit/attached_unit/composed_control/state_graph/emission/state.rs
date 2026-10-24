@@ -163,6 +163,7 @@ impl StateGraphEmission<'_, '_> {
             )),
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {
+            completed_operand_scope: Vec::new(),
             shared_qualifications: self
                 .catalogs
                 .prepared_scalar_qualifications

@@ -80,8 +80,14 @@ impl Evaluator<'_> {
             self.program.expression_table.expression(expression).clone()
         {
             self.tick()?;
-            let selected = self.select_match_arm(expression, &dispatch, frame)?;
-            return self.eval_expression_at_type(selected, destination, frame);
+            return self.with_selected_match(
+                expression,
+                &dispatch,
+                frame,
+                |evaluator, selected, frame| {
+                    evaluator.eval_expression_at_type(selected, destination, frame)
+                },
+            );
         }
         if self.declared_type_is_reference(destination) {
             if let Some((source, storage)) =
@@ -187,8 +193,18 @@ impl Evaluator<'_> {
             self.program.expression_table.expression(expression).clone()
         {
             self.tick()?;
-            let selected = self.select_match_arm(expression, &dispatch, frame)?;
-            return self.eval_expression_with_destination_and_carrier(selected, destination, frame);
+            return self.with_selected_match(
+                expression,
+                &dispatch,
+                frame,
+                |evaluator, selected, frame| {
+                    evaluator.eval_expression_with_destination_and_carrier(
+                        selected,
+                        destination,
+                        frame,
+                    )
+                },
+            );
         }
         if let Some(value) = self.anonymous_integer_landing_value(expression, destination)? {
             return Ok((value, destination));

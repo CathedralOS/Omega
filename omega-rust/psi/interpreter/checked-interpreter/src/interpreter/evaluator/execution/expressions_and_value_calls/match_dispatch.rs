@@ -12,6 +12,21 @@ use checked_trees::CheckedOperatorOccurrence;
 use typed_trees::expression::{MatchPattern, TableMatchArm, TableMatchExpression};
 
 impl Evaluator<'_> {
+    pub(in crate::interpreter::evaluator) fn with_selected_match<ResultValue>(
+        &mut self,
+        expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        frame: &mut Frame,
+        evaluate: impl FnOnce(&mut Self, ExpressionHandle, &mut Frame) -> EvalResult<ResultValue>,
+    ) -> EvalResult<ResultValue> {
+        let outer_captures = frame.match_subjects.len();
+        let result = self
+            .select_match_arm(expression, dispatch, frame)
+            .and_then(|selected| evaluate(self, selected, frame));
+        frame.match_subjects.truncate(outer_captures);
+        result
+    }
+
     pub(in crate::interpreter::evaluator) fn select_match_arm(
         &mut self,
         expression: ExpressionHandle,
@@ -21,8 +36,42 @@ impl Evaluator<'_> {
         let destination = self
             .expression_scalar_type(dispatch.subject, frame)
             .map(|(primitive, _)| primitive);
-        let subject =
-            self.eval_expression_with_destination(dispatch.subject, destination, frame)?;
+        let subject = if dispatch.capture.is_valid() {
+            let cell = self.eval_read_cell(dispatch.subject, frame)?;
+            let reference = self
+                .program
+                .machine_by_symbol(frame.machine_symbol)
+                .and_then(|machine| {
+                    self.program
+                        .state_in_machine(machine, frame.state_symbol)
+                        .and_then(|state| {
+                            validation::expression_result_type_reference(
+                                self.program,
+                                machine,
+                                state,
+                                dispatch.subject,
+                            )
+                        })
+                });
+            let cell = if let Some(reference) = reference
+                && self.program.type_multiplicity(reference)
+                    == language_semantics::Multiplicity::Unrestricted
+            {
+                // A copied subject freezes its carrier before any guard can
+                // replace the source. Deep value capture preserves reference
+                // descriptors, not snapshots of their borrowed pointees.
+                let value = cell.borrow().clone();
+                let captured = self.capture_value_operand(value, reference)?;
+                self.allocate_cell(captured)?
+            } else {
+                cell
+            };
+            frame.match_subjects.push((dispatch.capture, cell.clone()));
+            let value = cell.borrow().clone();
+            self.observe_reference_value(value)?
+        } else {
+            self.eval_expression_with_destination(dispatch.subject, destination, frame)?
+        };
         for (ordinal, arm) in self
             .program
             .expression_table
@@ -31,6 +80,18 @@ impl Evaluator<'_> {
             .enumerate()
         {
             let matches = match arm.pattern {
+                MatchPattern::Destructure(pattern) => {
+                    // The normalized predicate retains selected equality and
+                    // ordinary short-circuit effects. Reconstructing it from
+                    // raw fields here would bypass those language operations.
+                    self.eval_expression(pattern.condition, frame)?
+                        .as_bool()
+                        .ok_or_else(|| {
+                            Halt::Unsupported(
+                                "structural pattern predicate is not Boolean".to_owned(),
+                            )
+                        })?
+                }
                 MatchPattern::Wildcard => true,
                 MatchPattern::Value(pattern) => {
                     let pattern =

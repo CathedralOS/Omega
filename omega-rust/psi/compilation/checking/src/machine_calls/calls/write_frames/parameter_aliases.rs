@@ -39,8 +39,10 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if visit(pattern))
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(visit)
                             || visit(arm.value)
                     })
         }
@@ -93,6 +95,6 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
             .iter()
             .any(|field| visit(field.value)),
         ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
-        typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }

@@ -57,7 +57,7 @@ pub fn derive_checked_semantic_dependencies(
 pub fn derive_authored_machine_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-) -> Vec<checked_trees::CrashRouteBucket> {
+) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     facts::derive_authored_machine_crash_buckets(program, machine)
 }
 
@@ -66,7 +66,7 @@ pub fn derive_authored_machine_crash_buckets(
 pub fn derive_authored_signature_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
-) -> Vec<checked_trees::CrashRouteBucket> {
+) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     facts::derive_authored_signature_crash_buckets(program, signature)
 }
 

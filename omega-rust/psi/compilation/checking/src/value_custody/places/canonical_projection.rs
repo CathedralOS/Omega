@@ -544,6 +544,20 @@ pub fn canonical_place_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => {
+            program.expression_table.saved_subject_source(saved)?;
+            let anchor = program
+                .expression_table
+                .match_subject(saved.capture)
+                .value_anchor;
+            if !program.expression_table.expression_is_valid(anchor) {
+                return None;
+            }
+            Some(CanonicalPlace {
+                root: facts::PlaceRoot::Expression(anchor),
+                segments: Vec::new(),
+            })
+        }
         ExpressionNode::Borrow(inner) => canonical_place_from_expression(program, inner.target),
         // A borrow recast re-views the operand's bytes at the same address:
         // the recast place is the operand's place. Value casts compute a new

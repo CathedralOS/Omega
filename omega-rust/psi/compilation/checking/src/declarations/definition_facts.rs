@@ -194,7 +194,10 @@ fn append_expression_dependency_places<D>(
                 leaf,
             );
         }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+        ExpressionNode::SavedSubject(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Indexed(_) => {
             dependencies.push(leaf(facts, expression));
         }
         ExpressionNode::Borrow(inner) => {

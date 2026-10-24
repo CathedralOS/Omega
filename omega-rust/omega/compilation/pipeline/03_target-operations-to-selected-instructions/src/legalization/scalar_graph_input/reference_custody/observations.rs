@@ -49,6 +49,17 @@ pub(super) fn observe(
     place: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<Observed> {
+    observe_following(function, custody, types, place, path, &mut Vec::new())
+}
+
+fn observe_following(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    active: &mut Vec<(PlaceId, Vec<StructuralPathSegment>)>,
+) -> Option<Observed> {
     if let Some(leaf) = custody.leaf(place, path) {
         return Some(Observed {
             root: leaf.root.clone(),
@@ -64,6 +75,16 @@ pub(super) fn observe(
     else {
         return None;
     };
+    let coordinate = (place, path.to_vec());
+    if active.contains(&coordinate) {
+        return None;
+    }
+    active.push(coordinate);
+    let resident = through_resident(function, custody, types, place, path, active);
+    active.pop();
+    if let Some(resident) = resident {
+        return (resident.referent == referent).then_some(resident);
+    }
     let location = descriptor_location(types, place, contract, path, None)?;
     let observation = custody
         .stored_calls
@@ -99,12 +120,17 @@ pub(super) fn observe(
         let origin = match source {
             DescriptorSourceOrigin::IncomingSlot(slot) => {
                 let parameter = function.structural_parameter(slot.root)?;
+                let slot_path = descriptor_path(types, parameter.structural_type, &slot.path)?;
                 if parameter.access == StructuralAccess::Owned {
                     // An owned ingress descriptor has a real resident
                     // occurrence; its absence cannot become external custody.
-                    return None;
+                    // A slot behind that descriptor is external storage, but
+                    // only the authenticated original incoming pointer may
+                    // supply its incoming contents at this observation epoch.
+                    authenticate_indirect_ingress(
+                        function, custody, types, place, path, slot.root, &slot_path,
+                    )?;
                 }
-                let slot_path = descriptor_path(types, parameter.structural_type, &slot.path)?;
                 if leaf_type(types, parameter.structural_type, &slot_path) != Some(carrier) {
                     return None;
                 }
@@ -137,4 +163,107 @@ pub(super) fn observe(
         parents: Vec::new(),
         resident: None,
     })
+}
+
+/// Follow the completed descriptor's actual storage origin before consulting
+/// symbolic incoming contents. This preserves the inner resident occurrence
+/// through owned joins without manufacturing custody from its backing type.
+fn through_resident(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    active: &mut Vec<(PlaceId, Vec<StructuralPathSegment>)>,
+) -> Option<Observed> {
+    let crossing = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)?;
+    let carrier = observe_following(function, custody, types, place, &path[..crossing], active)?;
+    // Retain the ordinary prefix permission/access check, including ancestor
+    // conflicts. Origin geometry alone does not authorize loading the slot.
+    super::call_paths::call_reference_custody(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place,
+            path: path[..=crossing].to_vec(),
+            access: StructuralAccess::SharedBorrow,
+        },
+    )
+    .ok()?;
+    let origins =
+        super::storage_origins(function, custody, types, &carrier.root, carrier.referent).ok()?;
+    let mut selected: Option<Observed> = None;
+    for origin in origins {
+        let target_operations::TargetReferenceOriginBase::Storage { root } = origin.base else {
+            return None;
+        };
+        let mut projected = origin.exact_path()?;
+        projected.extend_from_slice(&path[crossing + 1..]);
+        let observed = observe_following(function, custody, types, root, &projected, active)?;
+        if let Some(previous) = &selected {
+            // A scalar observation cannot collapse different permission
+            // occurrences merely because their referents have equal layout.
+            if previous.root != observed.root
+                || previous.referent != observed.referent
+                || previous.parents != observed.parents
+                || previous.resident != observed.resident
+            {
+                return None;
+            }
+        } else {
+            selected = Some(observed);
+        }
+    }
+    selected
+}
+
+/// Inline owned slots require resident custody above. An indirect ingress
+/// slot instead requires every earlier pointer crossing to retain its exact
+/// incoming provenance. The shared call walk checks readable access, current
+/// occurrences, ancestor conflicts and declaration geometry; recursion here
+/// strictly shortens the descriptor path at its last pointer crossing.
+fn authenticate_indirect_ingress(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    current_place: PlaceId,
+    current_path: &[StructuralPathSegment],
+    root: PlaceId,
+    incoming_path: &[StructuralPathSegment],
+) -> Option<()> {
+    let crossing = current_path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
+    let incoming_crossing = incoming_path
+        .iter()
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
+    let carrier_path = &incoming_path[..incoming_crossing];
+    let observed = super::call_paths::call_reference_custody(
+        function,
+        custody,
+        types,
+        &StructuralArgument {
+            place: current_place,
+            path: current_path[..=crossing].to_vec(),
+            access: StructuralAccess::SharedBorrow,
+        },
+    )
+    .ok()?;
+    let incoming = if carrier_path.contains(&StructuralPathSegment::Referent) {
+        Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
+            base: target_operations::TargetReferenceOriginBase::IncomingContents {
+                root,
+                slot: carrier_path.to_vec(),
+            },
+            path: Vec::new(),
+            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+        }])
+    } else {
+        Root::Ingress(root, carrier_path.to_vec())
+    };
+    (!observed.origins.is_empty() && observed.origins.iter().all(|origin| *origin == incoming))
+        .then_some(())
 }

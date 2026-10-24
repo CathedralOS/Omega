@@ -318,6 +318,7 @@ fn expression_contains_indexed(
     };
     let next = depth + 1;
     match node {
+        ExpressionNode::SavedSubject(_) => false,
         ExpressionNode::Indexed(_) => true,
         ExpressionNode::Match(dispatch) => {
             expression_contains_indexed(program, dispatch.subject, next)
@@ -327,6 +328,10 @@ fn expression_contains_indexed(
                     .iter()
                     .any(|arm| {
                         (match arm.pattern {
+                            MatchPattern::Destructure(_) => program
+                                .expression_table
+                                .match_pattern_operands(arm.pattern)
+                                .any(|operand| expression_contains_indexed(program, operand, next)),
                             MatchPattern::Value(pattern) => {
                                 expression_contains_indexed(program, pattern, next)
                             }

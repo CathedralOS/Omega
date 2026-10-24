@@ -17,6 +17,11 @@ pub(super) fn collect_dependency_paths_from_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => {
+            if let Some(source) = program.expression_table.saved_subject_source(saved) {
+                collect_dependency_paths_from_expression(program, source, domain, dependencies);
+            }
+        }
         ExpressionNode::Match(dispatch) => {
             collect_dependency_paths_from_expression(
                 program,
@@ -25,7 +30,7 @@ pub(super) fn collect_dependency_paths_from_expression(
                 dependencies,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     collect_dependency_paths_from_expression(
                         program,
                         pattern,

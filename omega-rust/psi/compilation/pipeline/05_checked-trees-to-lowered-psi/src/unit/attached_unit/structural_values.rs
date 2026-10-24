@@ -19,5 +19,5 @@ mod operand_claims;
 pub(crate) mod record;
 pub(crate) mod structural_case;
 
-pub(crate) use emission::{ValueProduction, emit};
+pub(crate) use emission::{ValueDestination, ValueProduction, emit};
 pub(super) use locals::bind_local;

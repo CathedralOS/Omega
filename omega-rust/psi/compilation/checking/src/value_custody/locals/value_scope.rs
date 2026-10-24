@@ -113,7 +113,8 @@ impl StateValueScope<'_, '_> {
                     self.expression(field.value, diagnostics);
                 }
             }
-            ExpressionNode::Boolean(_)
+            ExpressionNode::SavedSubject(_)
+            | ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)

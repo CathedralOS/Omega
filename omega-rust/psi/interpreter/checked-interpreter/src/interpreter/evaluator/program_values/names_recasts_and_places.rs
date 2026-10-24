@@ -663,6 +663,7 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Cell> {
         match self.program.expression_table.expression(handle).clone() {
+            ExpressionNode::SavedSubject(_) => self.eval_read_cell(handle, frame),
             ExpressionNode::Name(path) => self.resolve_name_place(&path, frame),
             ExpressionNode::Member(member) => {
                 let receiver = self.resolve_place(member.receiver, frame)?;

@@ -199,7 +199,7 @@ pub(super) fn lower_owned_operand_claims(
         .map_err(|_| LoweringError::Unsupported("structural return coordinate exceeds usize"))?;
     let expression =
         validation::ownership_source_expression(&checked.typed, state, statement, expression);
-    let place = validation::canonical_place_from_expression_in_state(
+    let place = validation::ownership_place_from_expression_in_state(
         &checked.typed,
         state,
         statement,

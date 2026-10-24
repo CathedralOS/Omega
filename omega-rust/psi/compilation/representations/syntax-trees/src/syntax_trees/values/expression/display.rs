@@ -19,6 +19,9 @@ impl ExpressionNode {
                             crate::expression::MatchPattern::Value(value) => {
                                 table.display_expression_name(value)
                             }
+                            crate::expression::MatchPattern::Destructure(pattern) => {
+                                display_destructure_pattern(table, pattern)
+                            }
                             crate::expression::MatchPattern::Wildcard => "_".to_owned(),
                         };
                         format!("{pattern} => {}", table.display_expression_name(arm.value))
@@ -29,6 +32,9 @@ impl ExpressionNode {
                     "match {} {{ {arms} }}",
                     table.display_expression_name(dispatch.subject)
                 )
+            }
+            Self::SavedSubject(saved) => {
+                format!("<saved subject #{}>", saved.capture.arena_index())
             }
             Self::ArrayLiteral(values) => bracketed_display_names(
                 table.expressions.expression_handles(*values).iter(),
@@ -110,6 +116,63 @@ impl ExpressionNode {
             Self::TypeExpression(_) => "<type expression>".to_owned(),
         }
     }
+}
+
+fn display_destructure_pattern(
+    table: &crate::SyntaxTrees,
+    pattern: crate::expression::TableDestructurePattern,
+) -> String {
+    use crate::expression::MatchFieldAction;
+    let mut fields = table
+        .expressions
+        .match_fields(pattern.fields)
+        .iter()
+        .map(|field| {
+            let member = field.member.as_str(table);
+            match &field.action {
+                MatchFieldAction::Bind(binding) if binding.as_str(table) == member => {
+                    member.to_owned()
+                }
+                MatchFieldAction::Bind(binding) => format!("{member} as {}", binding.as_str(table)),
+                MatchFieldAction::Equal(value) => {
+                    format!("{member}: {}", table.display_expression_name(*value))
+                }
+                MatchFieldAction::Waive => format!("{member} as _"),
+            }
+        })
+        .collect::<Vec<_>>();
+    if pattern.has_rest {
+        fields.push("..".to_owned());
+    }
+    let selectors = table
+        .statements
+        .outcome_proof_selectors(pattern.proof_selectors);
+    let proofs = if selectors.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "; {}",
+            selectors
+                .iter()
+                .map(|selector| format!(
+                    "{}: {}",
+                    selector.output_field.as_str(table),
+                    selector.binding.as_str(table)
+                ))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    let guard = if pattern.guard.is_valid() {
+        format!(" if {}", table.display_expression_name(pattern.guard))
+    } else {
+        String::new()
+    };
+    format!(
+        "{} {{ {}{proofs} }}{guard}",
+        table.display_expression_name(pattern.head),
+        fields.join(", ")
+    )
 }
 
 impl TableBinaryExpression {

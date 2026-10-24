@@ -184,7 +184,7 @@ fn storage_origins(
                         &origin.path,
                     )
                 })
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             if selected != referent {
                 if function.structural_parameter(root).is_none()
                     || origin.path.iter().any(|segment| {
@@ -270,7 +270,7 @@ impl Custody {
             .edge_exits
             .iter()
             .filter(|(candidate, block, _, _, _)| *candidate == edge && *block == target);
-        let (_, _, leaves, retired, borrowed_sources) = matching.next().ok_or_else(invalid)?;
+        let (_, _, leaves, retired, borrowed_sources) = matching.next().ok_or_else(|| invalid())?;
         if matching.next().is_some() {
             return Err(invalid());
         }
@@ -408,7 +408,7 @@ pub(in crate::legalization) fn window_backing_roots(
         .origins
         .iter()
         .flat_map(Root::origins)
-        .map(|origin| origin.base.root_place().ok_or_else(invalid))
+        .map(|origin| origin.base.root_place().ok_or_else(|| invalid()))
         .collect()
 }
 
@@ -441,9 +441,9 @@ pub(in crate::legalization) fn window_regions(
     let mut regions = Vec::new();
     for root in &observed.origins {
         for origin in storage_origins(function, custody, types, root, observed.referent)? {
-            let mut prefix = origin.exact_path().ok_or_else(invalid)?;
+            let mut prefix = origin.exact_path().ok_or_else(|| invalid())?;
             prefix.extend_from_slice(&path[crossing + 1..]);
-            let region = (origin.base.root_place().ok_or_else(invalid)?, prefix);
+            let region = (origin.base.root_place().ok_or_else(|| invalid())?, prefix);
             if !regions.contains(&region) {
                 regions.push(region);
             }
@@ -464,7 +464,7 @@ fn window_storage(
     if regions.len() != 1 {
         return Err(invalid());
     }
-    regions.pop().ok_or_else(invalid)
+    regions.pop().ok_or_else(|| invalid())
 }
 
 #[track_caller]
@@ -891,7 +891,7 @@ fn normalized_direct_source(
             source.place,
             carrier_path,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
         let mut candidates = Vec::with_capacity(observations.len());
         for observed in observations {
             if optimization_unit_semantics::structural_borrowed_storage_projection(
@@ -1476,7 +1476,7 @@ fn call_results(
                 StructuralTypeShape::Reference { access, .. } => Some(access),
                 _ => None,
             })
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         if mapping.sources.is_empty() {
             return Err(invalid());
         }
@@ -1753,7 +1753,7 @@ fn discard_subtree(
         .map(|(location, _)| location.clone())
         .collect();
     for location in released {
-        let leaf = custody.leaves.remove(&location).ok_or_else(invalid)?;
+        let leaf = custody.leaves.remove(&location).ok_or_else(|| invalid())?;
         custody.retire(leaf, event)?;
     }
     custody.prune_retired();
@@ -2016,14 +2016,14 @@ pub(in crate::legalization) fn apply(
                 .boundary_machines
                 .iter()
                 .find(|row| row.id == *boundary)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             let (path, interpretation) =
                 optimization_unit_semantics::placed_references::borrowed_view_formation(
                     &plan.structural_types,
                     declaration,
                     result,
                 )
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             let [source, _profile] = structural_arguments.as_slice() else {
                 return Err(invalid());
             };
@@ -2185,7 +2185,7 @@ pub(in crate::legalization) fn apply(
             source,
             correspondence,
         } => {
-            let referent = referent(types, result.structural_type).ok_or_else(invalid)?;
+            let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
             let mut selected = plan
                 .structural_types
                 .placed_views()
@@ -2195,7 +2195,7 @@ pub(in crate::legalization) fn apply(
                 return Err(invalid());
             };
             let actual =
-                reference_source_type(function, custody, types, source).ok_or_else(invalid)?;
+                reference_source_type(function, custody, types, source).ok_or_else(|| invalid())?;
             let matches_backing = optimization_unit_semantics::placed_references::validate_backing(
                 types,
                 plan.structural_types.placed_views(),
@@ -2317,7 +2317,7 @@ pub(in crate::legalization) fn apply(
                             referent,
                             storage.stored_scalar,
                         )
-                        .ok_or_else(invalid)?;
+                        .ok_or_else(|| invalid())?;
                         root = root.projected(&[StructuralPathSegment::RepresentationView {
                             structural_type: referent,
                             stored_scalar: storage.stored_scalar,
@@ -2596,8 +2596,8 @@ pub(in crate::legalization) fn apply(
                         .functions
                         .iter()
                         .find(|function| function.machine == *machine)
-                        .ok_or_else(invalid)?;
-                    let result = callee.result.structural().ok_or_else(invalid)?;
+                        .ok_or_else(|| invalid())?;
+                    let result = callee.result.structural().ok_or_else(|| invalid())?;
                     (
                         Some(callee),
                         terminal_semantics::ReferenceCallContract::Machine {
@@ -2674,7 +2674,7 @@ pub(in crate::legalization) fn apply(
                 .boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == *boundary)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             if !declaration.reference_outputs.is_empty()
                 && !matches!(super::normalized_foreign::row(native, function.machine, *psi_operation)?,
                     Some(target_operations::TargetUnitOperation::NormalizedForeignCall { boundary: selected, .. }) if selected == boundary)
@@ -2734,7 +2734,7 @@ fn transfer_return_custody(
                 StructuralTypeShape::Reference { access, .. } => Some(access),
                 _ => None,
             })
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let declared = |root: &Root| {
             root.origins().iter().all(|origin| {
                 if let target_operations::TargetReferenceOriginBase::Invocation { carrier_type, .. } = origin.base {
@@ -2900,7 +2900,7 @@ pub(in crate::legalization) fn apply_terminator(
         if let Some(target) = target {
             let mut exit = custody.clone();
             if let Some((target, bindings)) = owned_transfer {
-                let destination = function.block(target).ok_or_else(invalid)?;
+                let destination = function.block(target).ok_or_else(|| invalid())?;
                 for binding in bindings {
                     if binding
                         .argument
@@ -3134,11 +3134,11 @@ pub(in crate::legalization) fn block_entry_states(
         let parameter = function
             .structural_parameters
             .get(input.runtime_position as usize)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let (matched, _) = plan
             .structural_types
             .placed_parameter_demand(function.machine, input.runtime_position as usize, parameter)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         if matched != input
             || initial
                 .placed_formals
@@ -3160,7 +3160,7 @@ pub(in crate::legalization) fn block_entry_states(
     while let Some(position) = pending.pop_front() {
         queued[position] = false;
         let block = &blocks[position];
-        let mut custody = entries.get(&block.id).cloned().ok_or_else(invalid)?;
+        let mut custody = entries.get(&block.id).cloned().ok_or_else(|| invalid())?;
         for (node_index, node) in blocks[position].nodes.iter().enumerate() {
             custody.set_position(block.id, node_index)?;
             if matches!(
@@ -3179,10 +3179,10 @@ pub(in crate::legalization) fn block_entry_states(
                 })?;
             }
         }
-        let terminator = block.nodes.last().ok_or_else(invalid)?;
+        let terminator = block.nodes.last().ok_or_else(|| invalid())?;
         let mut arrivals = Vec::with_capacity(terminator.successors.len());
         for edge in &terminator.successors {
-            let target_position = *positions.get(&edge.target).ok_or_else(invalid)?;
+            let target_position = *positions.get(&edge.target).ok_or_else(|| invalid())?;
             if target_position == entry_position {
                 return Err(invalid());
             }
@@ -3235,7 +3235,7 @@ pub(in crate::legalization) fn block_entry_states(
                 .flatten()
                 .filter(|(_, candidate, _)| *candidate == target)
                 .map(|(_, _, arrival)| arrival.clone());
-            let target_position = *positions.get(&target).ok_or_else(invalid)?;
+            let target_position = *positions.get(&target).ok_or_else(|| invalid())?;
             let Some(complete) = resident_joins::merge(function, target, types, incoming)? else {
                 // Keep the previous state provisional while other predecessors
                 // propagate. Never replay a queued stale, nonselected roster.
@@ -3269,7 +3269,7 @@ pub(in crate::legalization) fn block_entry_states(
             .filter(|(_, target, _)| *target == block.id)
             .map(|(_, _, arrival)| arrival.clone());
         let complete =
-            resident_joins::merge(function, block.id, types, arrivals)?.ok_or_else(invalid)?;
+            resident_joins::merge(function, block.id, types, arrivals)?.ok_or_else(|| invalid())?;
         if entries.get(&block.id).is_none_or(|entry| {
             entry.leaves != complete.leaves
                 || entry.retired != complete.retired
@@ -3481,11 +3481,11 @@ pub(in crate::legalization) fn placed_call_custody(
         }
         let (input, plan) = catalog
             .placed_parameter_demand(callee.machine, runtime_position, parameter)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let argument = arguments
             .get(runtime_position)
             .filter(|argument| argument.access == parameter.access)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let association = match placed_source(custody, argument) {
             Some(target_operations::TargetPlacedInterpretation::Captured(captured)) => {
                 let observed =
@@ -3525,14 +3525,14 @@ pub(in crate::legalization) fn placed_call_custody(
                 let source_parameter = caller
                     .structural_parameters
                     .get(formal.runtime_position as usize)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid())?;
                 let (_, source_plan) = catalog
                     .placed_parameter_demand(
                         caller.machine,
                         formal.runtime_position as usize,
                         source_parameter,
                     )
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid())?;
                 if source_plan != plan {
                     return Err(invalid());
                 }

@@ -31,7 +31,7 @@ pub(crate) enum ReferenceAccessRefusal {
     WriteOnlyMayNotRead,
     MutableSourceRequired,
     ExclusiveBorrowSourceRequired {
-        root: symbols::SymbolHandle,
+        root: facts::PlaceRoot,
         access: language_semantics::ReferenceAccess,
     },
     /// An exclusive borrow of a value that names no place: a temporary has
@@ -392,7 +392,7 @@ fn source_place_root(
     current_state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
-) -> Option<(symbols::SymbolHandle, TypeReferenceHandle, bool)> {
+) -> Option<(facts::PlaceRoot, TypeReferenceHandle, bool)> {
     if !crate::value_custody::places::place_has_builtin_coordinates(
         program,
         current_machine,
@@ -407,6 +407,35 @@ fn source_place_root(
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(_) => break,
+            ExpressionNode::SavedSubject(saved) => {
+                let source = program.expression_table.saved_subject_source(saved)?;
+                let reference = if let Some(state) = current_state {
+                    super::expression_types::expression_result_type_reference(
+                        program,
+                        current_machine,
+                        state,
+                        source,
+                    )?
+                } else {
+                    crate::value_custody::places::declared_place_type_raw(
+                        program,
+                        current_machine,
+                        current_state,
+                        source,
+                    )?
+                };
+                let anchor = program
+                    .expression_table
+                    .match_subject(saved.capture)
+                    .value_anchor;
+                if !program.expression_table.expression_is_valid(anchor) {
+                    return None;
+                }
+                // The match owns completed subject storage. Its declared
+                // reference shells still attenuate every projected borrow;
+                // exact supplying loans are checked independently in flow.
+                return Some((facts::PlaceRoot::Expression(anchor), reference, true));
+            }
             _ => return None,
         };
         root = receiver;
@@ -438,9 +467,19 @@ fn source_place_root(
                 .any(|parameter| parameter.symbol == path.symbol && parameter.is_mutable),
             _ => false,
         };
-        return Some((path.symbol, binding_type, owned_root_is_writable));
+        return Some((
+            facts::PlaceRoot::Symbol(path.symbol),
+            binding_type,
+            owned_root_is_writable,
+        ));
     }
     program
         .machine_owned_data_by_symbol(current_machine, path.symbol)
-        .map(|owned| (path.symbol, owned.type_reference, true))
+        .map(|owned| {
+            (
+                facts::PlaceRoot::Symbol(path.symbol),
+                owned.type_reference,
+                true,
+            )
+        })
 }

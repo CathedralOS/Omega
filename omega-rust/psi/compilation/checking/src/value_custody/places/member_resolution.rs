@@ -575,6 +575,10 @@ pub(super) fn expression_type_position(
                 )
             }
         }
+        ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .and_then(|subject| expression_type_position(program, subject)),
         ExpressionNode::Match(dispatch) => match_result_position(program, dispatch),
         // The remaining leaves produce scalar values — literals, unary and
         // binary results, range operands — whose types own no declaration
@@ -769,6 +773,10 @@ pub(super) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
+    if let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(receiver) {
+        return saved_subject_member_symbol(program, saved, receiver_position, member)
+            .unwrap_or_else(SymbolHandle::invalid);
+    }
     if let Some(symbol) = closed_generic_member_symbol(
         program,
         receiver_position,
@@ -830,6 +838,65 @@ pub(super) fn effective_member_symbol_from_position(
     }
 
     SymbolHandle::invalid()
+}
+
+/// A selected pattern head supplies the payload namespace. The whole sum's
+/// type cannot choose between sibling cases with identically spelled fields.
+/// Applied case/field correspondence is retained; a stale foreign selector
+/// refuses instead of being repaired by a same-spelled declaration.
+fn saved_subject_member_symbol(
+    program: &dyn crate::CheckingInput,
+    saved: &typed_trees::expression::TableSavedSubject,
+    position: Option<MemberPosition>,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> Option<SymbolHandle> {
+    program.expression_table.saved_subject_source(saved)?;
+    let MemberPosition::Reference(reference) = position? else {
+        return None;
+    };
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    let data = super::data_definition_for_type(program, reference)?;
+    let head = program
+        .expression_table
+        .name_path_node(saved.pattern_head)?;
+    let selected = if head.symbol.is_valid()
+        && program.symbols.get(head.symbol).kind == symbols::SymbolKind::Variant
+    {
+        if program.closed_data_definition(reference).is_some() {
+            program
+                .closed_data_constructor_case(reference, head.symbol)?
+                .symbol
+        } else {
+            head.symbol
+        }
+    } else {
+        SymbolHandle::invalid()
+    };
+    let retained =
+        if member.member_symbol.is_valid() && program.closed_data_definition(reference).is_some() {
+            program
+                .closed_data_constructor_field(reference, data.symbol, member.member_symbol)?
+                .symbol
+        } else {
+            member.member_symbol
+        };
+    let mut fields = program
+        .data_members(data)
+        .iter()
+        .flat_map(|entry| match entry {
+            typed_trees::data::DataMember::Field(field) => std::slice::from_ref(field),
+            typed_trees::data::DataMember::Variant(variant) if variant.symbol == selected => {
+                program.data_payload_fields(variant)
+            }
+            _ => &[],
+        })
+        .filter(|field| {
+            field.name == member.member && (!retained.is_valid() || field.symbol == retained)
+        });
+    let field = fields.next()?;
+    fields.next().is_none().then_some(field.symbol)
 }
 
 /// A case-qualified member hop resolves inside the selected variant only:

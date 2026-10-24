@@ -97,13 +97,16 @@ pub(super) fn assign_expression_symbols(
         ExpressionNode::Match(dispatch) => {
             recurse!(dispatch.subject);
             for arm in expressions.match_arms(dispatch.arms).to_vec() {
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                for pattern in expressions
+                    .match_pattern_dependencies(arm.pattern)
+                    .collect::<Vec<_>>()
                 {
                     recurse!(pattern);
                 }
                 recurse!(arm.value);
             }
         }
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::ArrayLiteral(values) => assign_expression_span_symbols(
             expressions,
             child_type_references,

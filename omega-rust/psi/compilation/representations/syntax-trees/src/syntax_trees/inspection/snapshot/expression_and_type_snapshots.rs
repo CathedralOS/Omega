@@ -117,8 +117,31 @@ pub struct MatchArmSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MatchPatternSnapshot {
-    Value { value: Box<ExpressionSnapshot> },
+    Value {
+        value: Box<ExpressionSnapshot>,
+    },
+    Destructure {
+        head: Box<ExpressionSnapshot>,
+        fields: Vec<MatchFieldSnapshot>,
+        has_rest: bool,
+        guard: Option<Box<ExpressionSnapshot>>,
+        proof_selectors: Vec<(String, String)>,
+    },
     Wildcard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MatchFieldSnapshot {
+    pub member: IdentifierSnapshot,
+    pub action: MatchFieldActionSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MatchFieldActionSnapshot {
+    Bind { binding: IdentifierSnapshot },
+    Equal { value: Box<ExpressionSnapshot> },
+    Waive,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -126,7 +149,13 @@ pub enum MatchPatternSnapshot {
 pub enum ExpressionSnapshot {
     Match {
         subject: Box<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        capture: Option<(u32, u32)>,
         arms: Vec<MatchArmSnapshot>,
+    },
+    SavedSubject {
+        capture: (u32, u32),
+        pattern_head: Box<ExpressionSnapshot>,
     },
     ArrayLiteral {
         values: Vec<ExpressionSnapshot>,
@@ -368,6 +397,10 @@ pub(crate) fn snapshot_expression_handle(
     match syntax_trees.expressions.expression(handle) {
         ExpressionNode::Match(dispatch) => ExpressionSnapshot::Match {
             subject: Box::new(snapshot_expression_handle(syntax_trees, dispatch.subject)),
+            capture: dispatch.capture.is_valid().then_some((
+                dispatch.capture.arena_index(),
+                dispatch.capture.generation(),
+            )),
             arms: syntax_trees
                 .expressions
                 .match_arms(dispatch.arms)
@@ -382,11 +415,70 @@ pub(crate) fn snapshot_expression_handle(
                                 value: Box::new(snapshot_expression_handle(syntax_trees, value)),
                             }
                         }
+                        crate::expression::MatchPattern::Destructure(pattern) => {
+                            MatchPatternSnapshot::Destructure {
+                                head: Box::new(snapshot_expression_handle(
+                                    syntax_trees,
+                                    pattern.head,
+                                )),
+                                fields: syntax_trees
+                                    .expressions
+                                    .match_fields(pattern.fields)
+                                    .iter()
+                                    .map(|field| MatchFieldSnapshot {
+                                        member: snapshot_identifier(syntax_trees, &field.member),
+                                        action: match &field.action {
+                                            crate::expression::MatchFieldAction::Bind(binding) => {
+                                                MatchFieldActionSnapshot::Bind {
+                                                    binding: snapshot_identifier(
+                                                        syntax_trees,
+                                                        binding,
+                                                    ),
+                                                }
+                                            }
+                                            crate::expression::MatchFieldAction::Equal(value) => {
+                                                MatchFieldActionSnapshot::Equal {
+                                                    value: Box::new(snapshot_expression_handle(
+                                                        syntax_trees,
+                                                        *value,
+                                                    )),
+                                                }
+                                            }
+                                            crate::expression::MatchFieldAction::Waive => {
+                                                MatchFieldActionSnapshot::Waive
+                                            }
+                                        },
+                                    })
+                                    .collect(),
+                                has_rest: pattern.has_rest,
+                                guard: pattern.guard.is_valid().then(|| {
+                                    Box::new(snapshot_expression_handle(
+                                        syntax_trees,
+                                        pattern.guard,
+                                    ))
+                                }),
+                                proof_selectors: syntax_trees
+                                    .statements
+                                    .outcome_proof_selectors(pattern.proof_selectors)
+                                    .iter()
+                                    .map(|selector| {
+                                        (
+                                            selector.output_field.as_str(syntax_trees).to_owned(),
+                                            selector.binding.as_str(syntax_trees).to_owned(),
+                                        )
+                                    })
+                                    .collect(),
+                            }
+                        }
                         crate::expression::MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
                     },
                     value: snapshot_expression_handle(syntax_trees, arm.value),
                 })
                 .collect(),
+        },
+        ExpressionNode::SavedSubject(saved) => ExpressionSnapshot::SavedSubject {
+            capture: (saved.capture.arena_index(), saved.capture.generation()),
+            pattern_head: Box::new(snapshot_expression_handle(syntax_trees, saved.pattern_head)),
         },
         ExpressionNode::ArrayLiteral(values) => ExpressionSnapshot::ArrayLiteral {
             values: syntax_trees

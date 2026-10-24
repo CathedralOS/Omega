@@ -38,6 +38,7 @@ pub(super) fn collect_reads<'a, 'b>(
         return false;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => false,
         // Literal leaves read no caller storage: their bytes are immutable
         // compile-time content, not a place a write could mutate.
         ExpressionNode::Integer(_)
@@ -405,6 +406,23 @@ pub(super) fn collect_reads<'a, 'b>(
                 .expression_table
                 .match_arms_all(dispatch.arms, |arm_pattern, arm_value| {
                     (match arm_pattern {
+                        typed_trees::expression::MatchPattern::Destructure(_) => program
+                            .expression_table
+                            .match_pattern_operands(arm_pattern)
+                            .all(|operand| {
+                                collect_operand_reads(
+                                    program,
+                                    machine,
+                                    state,
+                                    statement_index,
+                                    operand,
+                                    calls,
+                                    operators,
+                                    reads,
+                                    depth,
+                                    bound_lookup,
+                                )
+                            }),
                         typed_trees::expression::MatchPattern::Value(pattern) => {
                             collect_operand_reads(
                                 program,

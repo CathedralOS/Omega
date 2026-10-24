@@ -855,6 +855,13 @@ fn operand_type_at_depth(
     // unresolved computed types remain wildcard candidates, never an assumed
     // copy of the other operand's carrier that could hide an overload.
     let reference = match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => {
+            // A bound capture keeps its producer's carrier. This query reads
+            // type identity only; value facts, storage epochs and access still
+            // come from the actual completed capture and ordinary loan checks.
+            let source = program.expression_table.saved_subject_source(saved)?;
+            operand_type_at_depth(program, machine, state, source, depth + 1)
+        }
         ExpressionNode::Boolean(_) => {
             builtin_type_reference(program, symbols::BuiltinTypeAtom::Bool)
         }

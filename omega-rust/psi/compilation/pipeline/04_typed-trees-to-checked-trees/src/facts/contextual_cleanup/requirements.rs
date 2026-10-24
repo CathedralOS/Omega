@@ -703,16 +703,83 @@ pub(crate) fn occurrence_contexts(
             .value_observations
             .span(statement.value_observations)?
             .iter()
-            .filter(|observation| observation.expression == disposition.completion);
-        let observation = matching.next()?;
-        if matching.next().is_some() {
-            return None;
+            .filter(|observation| {
+                observation.expression == disposition.completion
+                    && facts.flow.control.operands.is_valid(observation.receiver)
+                    && validation::canonical_place_from_expression_in_state(
+                        program,
+                        disposition.state,
+                        statement_index,
+                        facts
+                            .flow
+                            .control
+                            .operands
+                            .get(observation.receiver)
+                            .expression,
+                    )
+                    .is_some_and(|place| place.root == disposition.root)
+            });
+        if let Some(observation) = matching.next() {
+            if matching.next().is_some() {
+                return None;
+            }
+            return Some(vec![(
+                statement_index,
+                facts
+                    .flow
+                    .semantic_constraint_contexts(observation.constraints)
+                    .collect(),
+            )]);
         }
+        // A receiver may die on each result edge before a value join forgets
+        // its differing residual partitions. Use that actual alternative's
+        // completion epoch, never the joined observer or the statement entry.
+        let mut completed = None;
+        for observation in facts
+            .flow
+            .control
+            .value_observations
+            .span(statement.value_observations)?
+        {
+            if !facts.flow.control.operands.is_valid(observation.receiver)
+                || !facts.flow.control.operands.is_valid(observation.result)
+            {
+                continue;
+            }
+            let receiver = facts.flow.control.operands.get(observation.receiver);
+            if !validation::canonical_place_from_expression_in_state(
+                program,
+                disposition.state,
+                statement_index,
+                receiver.expression,
+            )
+            .is_some_and(|place| place.root == disposition.root)
+            {
+                continue;
+            }
+            for alternative in crate::flow::completed_values::terminal_alternatives(
+                &facts.flow.control,
+                observation.result,
+            )? {
+                let capture = facts.flow.control.operands.get(alternative);
+                if capture.expression != disposition.completion {
+                    continue;
+                }
+                if capture.state_symbol != disposition.state
+                    || capture.statement_index != statement_index
+                    || completed.is_some_and(|previous| previous != capture)
+                {
+                    return None;
+                }
+                completed = Some(capture);
+            }
+        }
+        let completed = completed?;
         return Some(vec![(
             statement_index,
             facts
                 .flow
-                .semantic_constraint_contexts(observation.constraints)
+                .semantic_constraint_contexts(completed.constraints)
                 .collect(),
         )]);
     }

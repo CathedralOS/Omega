@@ -402,6 +402,11 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                         .rev()
                         .map(|arm| arm.value),
                 );
+                // The subject has its own checked root and private operand
+                // namespace. Its producer is emitted before the arm scope;
+                // importing those call ordinals here would leave holes when
+                // that scope restores the enclosing bindings. Callable
+                // discovery follows both roots, independently of this schedule.
             }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {

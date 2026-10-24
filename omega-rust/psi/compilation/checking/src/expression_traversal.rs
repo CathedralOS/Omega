@@ -13,9 +13,7 @@
 //! match-derived place and returned-window proofs share that evidence query.
 
 use std::collections::HashSet;
-use typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
-};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Permit a call only when its caller supplies an exact no-write judgment.
@@ -167,7 +165,7 @@ pub(crate) fn expressions_before_occurrence(
                 captured,
             )?;
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     visit(
                         program,
                         pattern,
@@ -288,7 +286,7 @@ pub fn children(
                 child(field.value);
             }
         }
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }
 
@@ -471,11 +469,10 @@ pub(crate) fn match_children(
             .match_arms(dispatch.arms)
             .iter()
             .flat_map(|arm| {
-                let pattern = match arm.pattern {
-                    MatchPattern::Value(pattern) => Some(pattern),
-                    MatchPattern::Wildcard => None,
-                };
-                pattern.into_iter().chain(std::iter::once(arm.value))
+                program
+                    .expression_table
+                    .match_pattern_operands(arm.pattern)
+                    .chain(std::iter::once(arm.value))
             }),
     )
 }

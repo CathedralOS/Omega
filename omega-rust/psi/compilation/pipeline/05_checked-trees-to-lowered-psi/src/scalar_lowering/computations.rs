@@ -196,6 +196,21 @@ impl<'a> Expansion<'a> {
         self
     }
 
+    /// Seed only values already emitted in this operand frame. Reserved slots
+    /// are not completion evidence, and a missing captured home must not cause
+    /// a copyable producer's effects to run again in a fresh scalar expansion.
+    pub(crate) fn with_completed_values(
+        mut self,
+        completed: impl IntoIterator<Item = checked_trees::CheckedStructuralValueHandle>,
+    ) -> Self {
+        self.established_values.extend(
+            completed
+                .into_iter()
+                .map(|root| EstablishedValue::Produced { root }),
+        );
+        self
+    }
+
     pub(crate) fn with_source_carriers(
         mut self,
         carriers: Vec<(
@@ -616,6 +631,7 @@ impl<'a> Expansion<'a> {
         active.push(*handle);
         let plans = &self.checked.facts.values.scalar_computations;
         let node = plans.nodes.get(*handle).clone();
+        let completion_expression = node.completion_expression(&self.checked.facts.flow.control);
         let completion = self
             .checked
             .facts
@@ -626,7 +642,7 @@ impl<'a> Expansion<'a> {
                 self.machine,
                 site.state,
                 site.statement,
-                node.evaluated_expression(),
+                completion_expression,
             )
             .cloned();
         let completion_state = completion.as_ref().map(|_| {
@@ -641,7 +657,7 @@ impl<'a> Expansion<'a> {
                     machine: self.machine,
                     state: site.state,
                     statement: site.statement,
-                    expression: node.evaluated_expression(),
+                    expression: completion_expression,
                 }],
             ))
         });

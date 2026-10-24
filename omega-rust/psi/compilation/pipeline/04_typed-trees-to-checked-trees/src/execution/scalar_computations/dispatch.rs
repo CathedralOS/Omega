@@ -5,16 +5,13 @@ use super::{
 };
 use crate::values::operator_is_builtin;
 use crate::values::scalar::expression_facts::is_integer;
-use crate::values::scalar::structural_fields::structural_parameter_field_path;
 use crate::values::scalar_expression_type;
 use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarDispatchArm,
-    CheckedScalarDispatchPattern, CheckedStructuralAccess, CheckedStructuralPredicatePathSegment,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
+    CheckedScalarDispatchPattern, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
 use typed_trees::expression::{MatchPattern, TableMatchExpression};
-use validation::{MatchCaseDispatch, MatchCaseSubject};
 
 impl Builder<'_, '_> {
     /// Shared operand primitive when one use is an admitted selected
@@ -69,40 +66,20 @@ impl Builder<'_, '_> {
         {
             return self.expression(selected, result_type);
         }
-        let machine = self.program.machine_by_symbol(self.machine)?;
-        let state = self.program.state_in_machine(machine, self.state)?;
-        // A case-classified match on a payloadless-case sum subject is a
-        // discriminant dispatch: ordered case-membership selections, with the
-        // wildcard (or the last case arm) as the tail. No pattern value is
-        // ever evaluated, so the scalar subject gates below do not apply.
-        if let Some(case_dispatch) =
-            validation::match_case_dispatch(self.program, machine, state, dispatch)
-        {
-            return self.case_dispatch(
+        let subject = self.dispatch_subject(dispatch)?;
+        if matches!(
+            subject,
+            checked_trees::CheckedDispatchSubject::Structural { .. }
+        ) {
+            return self.structural_subject_dispatch(
                 source_expression,
-                machine,
-                state,
-                dispatch.subject,
-                &case_dispatch,
+                dispatch,
+                subject,
                 result_type,
             );
         }
-        let subject = if let Some(subject_type) =
-            validation::match_subject_primitive_type(self.program, dispatch)
-        {
-            if subject_type != PrimitiveType::Bool
-                && !is_integer(subject_type)
-                && !matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64)
-            {
-                return None;
-            }
-            self.expression(dispatch.subject, subject_type)?
-        } else if let Some(operand) = self.integer_operand(dispatch.subject, None)
-            && scalar_expression_type(&operand.value).is_some_and(is_integer)
-        {
-            self.materialize_integer(operand)?
-        } else {
-            self.expression(dispatch.subject, PrimitiveType::Bool)?
+        let checked_trees::CheckedDispatchSubject::Scalar(subject) = subject else {
+            return None;
         };
         let subject_type = self.plans.nodes.get(subject).primitive_type;
         let authored = self.program.expression_table.match_arms(dispatch.arms);
@@ -129,6 +106,7 @@ impl Builder<'_, '_> {
                 arena::Handle::invalid()
             };
             let pattern = match arm.pattern {
+                MatchPattern::Destructure(_) => return None,
                 MatchPattern::Wildcard => {
                     covered = true;
                     CheckedScalarDispatchPattern::Wildcard
@@ -163,168 +141,170 @@ impl Builder<'_, '_> {
             result_type,
             CheckedScalarComputationKind::Dispatch {
                 source_expression,
+                subject: checked_trees::CheckedDispatchSubject::Scalar(subject),
+                arms,
+            },
+        ))
+    }
+
+    /// Retain one ordinary evaluated value, independent of its authored place.
+    pub(super) fn dispatch_subject(
+        &mut self,
+        dispatch: &TableMatchExpression,
+    ) -> Option<checked_trees::CheckedDispatchSubject> {
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        if let Some(reference) =
+            validation::structural_match_subject_type(self.program, machine, state, dispatch)
+        {
+            // Dispatch always needs an evaluated subject node, including an
+            // existing place. Argument retention deliberately returns absence
+            // when direct storage transport needs no temporary; that is not a
+            // refusal to observe the same completed place in a match.
+            let value = self.structural_value(dispatch.subject, reference)?;
+            self.retained_argument_owner(value, reference)?;
+            self.retain_structural_value_root(value, reference)?;
+            let alias = if dispatch.capture.is_valid() {
+                self.program
+                    .expression_table
+                    .match_subject(dispatch.capture)
+                    .value_anchor
+            } else {
+                ExpressionHandle::invalid()
+            };
+            return Some(checked_trees::CheckedDispatchSubject::Structural {
+                value,
+                alias,
+                place: CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression: if alias.is_valid() {
+                            alias
+                        } else {
+                            dispatch.subject
+                        },
+                    },
+                    path: Vec::new(),
+                    type_identity: self.program.normalized_type_identity(reference),
+                    access: CheckedStructuralAccess::SharedBorrow,
+                },
+            });
+        }
+        let subject = if let Some(subject_type) =
+            validation::match_subject_primitive_type(self.program, dispatch)
+        {
+            if subject_type != PrimitiveType::Bool
+                && !is_integer(subject_type)
+                && !matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64)
+            {
+                return None;
+            }
+            self.expression(dispatch.subject, subject_type)?
+        } else if let Some(operand) = self.integer_operand(dispatch.subject, None)
+            && scalar_expression_type(&operand.value).is_some_and(is_integer)
+        {
+            self.materialize_integer(operand)?
+        } else {
+            self.expression(dispatch.subject, PrimitiveType::Bool)?
+        };
+        Some(checked_trees::CheckedDispatchSubject::Scalar(subject))
+    }
+
+    fn structural_subject_dispatch(
+        &mut self,
+        source_expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        subject: checked_trees::CheckedDispatchSubject,
+        result_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let authored = self
+            .program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .to_vec();
+        let mut arms = Vec::new();
+        for (ordinal, arm) in authored.iter().enumerate() {
+            let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
+            let pattern = self.structural_dispatch_pattern(
+                source_expression,
+                dispatch,
+                &subject,
+                arm.pattern,
+            )?;
+            let value = self.expression(arm.value, result_type)?;
+            arms.push(CheckedScalarDispatchArm {
+                equality_use: arena::Handle::invalid(),
+                source_arm,
+                pattern,
+                value,
+            });
+            if matches!(arm.pattern, MatchPattern::Wildcard) {
+                break;
+            }
+        }
+        let arms = self.plans.dispatch_arms.insert_many(arms);
+        Some(self.insert(
+            result_type,
+            CheckedScalarComputationKind::Dispatch {
+                source_expression,
                 subject,
                 arms,
             },
         ))
     }
 
-    /// Fold an admitted discriminant dispatch into nested scalar selections:
-    /// `match subject { C1 -> a, C2 -> b, _ -> rest }` becomes
-    /// `select (subject is C1) a (select (subject is C2) b rest)`. The first
-    /// wildcard arm supplies the fallback; authored arms after it stay
-    /// unreachable, matching scalar dispatch's covered-prefix rule.
-    fn case_dispatch(
+    /// Structural predicates use the same checked Boolean computation as
+    /// authored conjunctions. Normalization owns their tag/field/guard order;
+    /// this consumer does not reconstruct a second conditional schedule.
+    pub(super) fn structural_dispatch_pattern(
         &mut self,
-        source_expression: ExpressionHandle,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        subject: ExpressionHandle,
-        dispatch: &MatchCaseDispatch,
-        result_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        let mut cases = Vec::new();
-        let mut fallback = None;
-        for arm in &dispatch.arms {
-            let value = self.expression(arm.value, result_type)?;
-            match arm.case {
-                Some(case) => cases.push((case, value)),
-                None => {
-                    fallback = Some(value);
-                    break;
+        expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        subject: &checked_trees::CheckedDispatchSubject,
+        pattern: MatchPattern,
+    ) -> Option<CheckedScalarDispatchPattern> {
+        if matches!(pattern, MatchPattern::Wildcard) {
+            return Some(CheckedScalarDispatchPattern::Wildcard);
+        }
+        let checked_trees::CheckedDispatchSubject::Structural {
+            place,
+            value: receiver,
+            ..
+        } = subject
+        else {
+            return None;
+        };
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_in_machine(machine, self.state)?;
+        let case = validation::structural_match_pattern_case(
+            self.program,
+            machine,
+            state,
+            dispatch,
+            pattern,
+        )?;
+        let selected = match pattern {
+            MatchPattern::Destructure(pattern) => {
+                return Some(CheckedScalarDispatchPattern::Predicate(
+                    self.expression(pattern.condition, PrimitiveType::Bool)?,
+                ));
+            }
+            MatchPattern::Value(_) => {
+                if !case.is_valid() {
+                    return None;
                 }
-            }
-        }
-        // Exhaustive case coverage without a wildcard leaves no reachable
-        // tail; the validator's coverage rule requires the wildcard anyway,
-        // so a missing fallback is the unsupported shape.
-        let mut selected = fallback?;
-        for (case, value) in cases.iter().rev() {
-            let condition = self.case_dispatch_condition(
-                source_expression,
-                machine,
-                state,
-                &dispatch.subject,
-                subject,
-                *case,
-            )?;
-            selected = self.insert(
-                result_type,
-                CheckedScalarComputationKind::Select {
-                    source_expression,
-                    condition,
-                    when_true: *value,
-                    when_false: selected,
-                },
-            );
-        }
-        Some(selected)
-    }
-
-    /// The membership test for one discriminant-dispatch arm, routed by the
-    /// admitted subject's observable shape. Every form names the authored
-    /// match as its source so lowering custody pairs the selection chain with
-    /// the dispatch's classifier arms.
-    fn case_dispatch_condition(
-        &mut self,
-        source_expression: ExpressionHandle,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        subject: &MatchCaseSubject,
-        subject_expression: ExpressionHandle,
-        case: symbols::SymbolHandle,
-    ) -> Option<CheckedScalarComputationHandle> {
-        match subject {
-            MatchCaseSubject::ParameterField => {
-                let mut path = Vec::new();
-                let parameter_position = structural_parameter_field_path(
-                    self.program,
-                    self.authored_parameters,
-                    subject_expression,
-                    &mut path,
-                )?;
-                let parameter_index = self
-                    .dense_structural_parameter_index(usize::try_from(parameter_position).ok()?)?;
-                let path = path
-                    .into_iter()
-                    .map(|segment| match segment {
-                        CheckedStructuralPredicatePathSegment::Field(identity) => {
-                            Some(CheckedUnitStructuralPathSegment::Field(identity))
-                        }
-                        CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                            Some(CheckedUnitStructuralPathSegment::FixedIndex(index))
-                        }
-                        _ => None,
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let type_reference = validation::declared_place_type_raw(
-                    self.program,
-                    machine,
-                    Some(state),
-                    subject_expression,
-                )?;
-                let type_identity = self
-                    .program
-                    .normalized_type_identity(type_reference)
-                    .to_owned();
-                Some(self.insert(
+                self.insert(
                     PrimitiveType::Bool,
                     CheckedScalarComputationKind::CaseMembership {
-                        receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-                        source_expression,
-                        subject: CheckedScalarComputationStructuralArgument::Place(
-                            CheckedUnitStructuralArgumentPlan {
-                                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                    parameter_index,
-                                },
-                                path,
-                                type_identity,
-                                access: CheckedStructuralAccess::SharedBorrow,
-                            },
-                        ),
+                        source_expression: expression,
+                        completion_expression: ExpressionHandle::invalid(),
+                        receiver_value: *receiver,
+                        subject: CheckedScalarComputationStructuralArgument::Place(place.clone()),
                         case,
                     },
-                ))
+                )
             }
-            MatchCaseSubject::ImmutableLocal {
-                symbol,
-                type_reference,
-            } => {
-                let type_identity = self
-                    .program
-                    .normalized_type_identity(*type_reference)
-                    .to_owned();
-                Some(self.insert(
-                    PrimitiveType::Bool,
-                    CheckedScalarComputationKind::CaseMembership {
-                        receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-                        source_expression,
-                        subject: CheckedScalarComputationStructuralArgument::Place(
-                            CheckedUnitStructuralArgumentPlan {
-                                source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                                    symbol: *symbol,
-                                },
-                                path: Vec::new(),
-                                type_identity,
-                                access: CheckedStructuralAccess::SharedBorrow,
-                            },
-                        ),
-                        case,
-                    },
-                ))
-            }
-            MatchCaseSubject::Constructor => {
-                let constructor = self.case_construction(subject_expression)?;
-                Some(self.insert(
-                    PrimitiveType::Bool,
-                    CheckedScalarComputationKind::CaseMembership {
-                        receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
-                        source_expression,
-                        subject: CheckedScalarComputationStructuralArgument::Case(constructor),
-                        case,
-                    },
-                ))
-            }
-        }
+            MatchPattern::Wildcard => return None,
+        };
+        Some(CheckedScalarDispatchPattern::Predicate(selected))
     }
 }

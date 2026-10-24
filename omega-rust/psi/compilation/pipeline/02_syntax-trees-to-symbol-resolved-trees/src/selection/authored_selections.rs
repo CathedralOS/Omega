@@ -947,11 +947,18 @@ fn collect_expression_subtree(
             collect_expression_subtree(program, dispatch.subject, handles);
             for arm in expressions.match_arms(dispatch.arms) {
                 collect_expression_subtree(program, arm.value, handles);
-                if let symbol_resolved_trees::expression::MatchPattern::Value(pattern) = arm.pattern
-                {
+                for pattern in expressions.match_pattern_dependencies(arm.pattern) {
                     collect_expression_subtree(program, pattern, handles);
                 }
             }
+        }
+        ExpressionNode::SavedSubject(saved) => {
+            collect_expression_subtree(
+                program,
+                expressions.match_subject(saved.capture).subject,
+                handles,
+            );
+            collect_expression_subtree(program, saved.pattern_head, handles);
         }
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)

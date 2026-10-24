@@ -201,7 +201,7 @@ pub(super) fn collect_call_summaries(
                     summaries,
                     call_established,
                 );
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     collect_call_summaries(
                         program,
                         pattern,

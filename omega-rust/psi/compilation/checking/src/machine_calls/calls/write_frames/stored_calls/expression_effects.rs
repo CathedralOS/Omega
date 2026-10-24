@@ -117,7 +117,11 @@ impl Evaluation<'_, '_> {
                 let mut prefix_inference = inference.clone();
                 let mut alternatives = Vec::new();
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in self
+                        .program
+                        .expression_table
+                        .match_pattern_operands(arm.pattern)
+                    {
                         self.expression(
                             pattern,
                             &mut prefix_context,

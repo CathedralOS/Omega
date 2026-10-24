@@ -623,12 +623,29 @@ fn reference_leaf<'live>(
     place: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<std::borrow::Cow<'live, ReferenceStorage>> {
-    live.references
-        .get(&(place, path.to_vec()))
-        .map(std::borrow::Cow::Borrowed)
-        .or_else(|| {
-            observations::observe(function, live, types, place, path).map(std::borrow::Cow::Owned)
-        })
+    reference_leaf_following(function, live, types, place, path, &mut Vec::new())
+}
+
+fn reference_leaf_following<'live>(
+    function: &AbstractFunction,
+    live: &'live LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    active: &mut Vec<(PlaceId, Vec<StructuralPathSegment>)>,
+) -> Option<std::borrow::Cow<'live, ReferenceStorage>> {
+    let coordinate = (place, path.to_vec());
+    if let Some(resident) = live.references.get(&coordinate) {
+        return Some(std::borrow::Cow::Borrowed(resident));
+    }
+    if active.contains(&coordinate) {
+        return None;
+    }
+    active.push(coordinate);
+    let observed = observations::observe(function, live, types, place, path)
+        .or_else(|| observations::through_resident(function, live, types, place, path, active));
+    active.pop();
+    observed.map(std::borrow::Cow::Owned)
 }
 
 /// Preserve a captured interpretation only when the source crosses the exact
@@ -852,7 +869,12 @@ fn normalized_direct_source(
                     })
             }) {
                 Some(()) => Ok(ReferenceRoot::Ingress(source.place, carrier_path.to_vec())),
-                None => Err(LoweringError::unsupported_control_flow(function.machine)),
+                None => Err(LoweringError::ReferenceCarrierUnavailable {
+                    machine: function.machine,
+                    source: source.clone(),
+                    carrier,
+                    carrier_path: carrier_path.to_vec(),
+                }),
             };
         };
         // The runtime source stays the retained carrier. Custody is inherited

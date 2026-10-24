@@ -311,7 +311,6 @@ pub(crate) fn borrowed_storage_argument(
         ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let symbol = place.root.as_symbol()?;
     // A borrowed formal retains the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
@@ -325,88 +324,109 @@ pub(crate) fn borrowed_storage_argument(
     // admission. Primitive leaves and aggregates borrow the same original
     // home; declaration spelling is not an additional eligibility rule.
     let parameters = program.state_parameters(state);
-    let (reference, mut source) = if let Some(position) =
-        typed_trees::signature::state_parameter_position(parameters, symbol)
-    {
-        let parameter = &parameters[position];
-        if parameter.is_const {
-            return None;
-        }
-        let reference = match program.type_reference_table.type_reference(
-            validation::peel_declared_constraints(program, parameter.type_reference),
-        ) {
-            TypeReferenceNode::Reference {
-                access, referee, ..
-            } if borrowed_access_supplies(*access, target_shell.access) => *referee,
-            TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. } => parameter.type_reference,
-            _ => return None,
-        };
-        let source = if program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
-            if !place.segments.is_empty()
-                || (target_access != CheckedStructuralAccess::SharedBorrow && !parameter.is_mutable)
-            {
-                return None;
-            }
-            let parameter_index = u32::try_from(
-                parameters[..position]
-                    .iter()
-                    .filter(|parameter| {
-                        !parameter.is_const
-                            && strips_erased_parameter(parameter) != Some(true)
-                            && program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_some()
-                    })
-                    .count(),
-            )
-            .ok()?;
-            CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index }
-        } else {
-            let parameter_index = dense_structural_index(program, parameters, position)?;
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
-        };
-        (reference, source)
-    } else {
-        // A projection borrows the same established local home. Resolve its
-        // endpoint below while retaining the declaring local as the owner.
-        let (_, local) = program
-            .state_local_declaration(state, symbol)
-            .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
-        // Zero-initialized storage and later field writes use the same local
-        // home as an authored initializer. Source default-domain checks own
-        // establishment; the exact borrow event below owns access. Lowering
-        // separately requires this local's dominating published storage.
-        // An established shared-borrow local already loans the referent it was
-        // bound to; forwarding it hands that referent carrier to the callee,
-        // exactly as a shared-borrow parameter would. The retained symbol and
-        // recorded access stay the local's own — nothing unwraps or copies the
-        // referent into a fabricated place. A fixed-array local is the same
-        // kind of established home: its bounds come from the literal length
-        // when a segment projects inside it.
-        let reference = match program.type_reference_table.type_reference(
-            validation::peel_declared_constraints(program, local.type_reference),
-        ) {
-            TypeReferenceNode::Reference {
-                access, referee, ..
-            } if (target_access == CheckedStructuralAccess::SharedBorrow || !local.is_mutable)
-                && borrowed_access_supplies(*access, target_shell.access) =>
-            {
-                *referee
-            }
-            TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. } => local.type_reference,
-            _ => return None,
-        };
+    let (reference, mut source) = if let Some(expression) = place.root.as_expression() {
+        // A completed expression has an established home just as a local or
+        // parameter does. Keep its exact receiver; this neither evaluates its
+        // producer again nor turns a stored descriptor into a fresh owner.
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state.symbol,
+            call.statement_index,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?;
         (
             reference,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
         )
+    } else {
+        let symbol = place.root.as_symbol()?;
+        if let Some(position) = typed_trees::signature::state_parameter_position(parameters, symbol)
+        {
+            let parameter = &parameters[position];
+            if parameter.is_const {
+                return None;
+            }
+            let reference = match program.type_reference_table.type_reference(
+                validation::peel_declared_constraints(program, parameter.type_reference),
+            ) {
+                TypeReferenceNode::Reference {
+                    access, referee, ..
+                } if borrowed_access_supplies(*access, target_shell.access) => *referee,
+                TypeReferenceNode::Named { .. }
+                | TypeReferenceNode::Generic { .. }
+                | TypeReferenceNode::FixedArray { .. } => parameter.type_reference,
+                _ => return None,
+            };
+            let source = if program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+            {
+                if !place.segments.is_empty()
+                    || (target_access != CheckedStructuralAccess::SharedBorrow
+                        && !parameter.is_mutable)
+                {
+                    return None;
+                }
+                let parameter_index = u32::try_from(
+                    parameters[..position]
+                        .iter()
+                        .filter(|parameter| {
+                            !parameter.is_const
+                                && strips_erased_parameter(parameter) != Some(true)
+                                && program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_some()
+                        })
+                        .count(),
+                )
+                .ok()?;
+                CheckedUnitStructuralArgumentSourcePlan::ScalarParameter { parameter_index }
+            } else {
+                let parameter_index = dense_structural_index(program, parameters, position)?;
+                CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
+            };
+            (reference, source)
+        } else {
+            // A projection borrows the same established local home. Resolve its
+            // endpoint below while retaining the declaring local as the owner.
+            let (_, local) = program
+                .state_local_declaration(state, symbol)
+                .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
+            // Zero-initialized storage and later field writes use the same local
+            // home as an authored initializer. Source default-domain checks own
+            // establishment; the exact borrow event below owns access. Lowering
+            // separately requires this local's dominating published storage.
+            // An established shared-borrow local already loans the referent it was
+            // bound to; forwarding it hands that referent carrier to the callee,
+            // exactly as a shared-borrow parameter would. The retained symbol and
+            // recorded access stay the local's own — nothing unwraps or copies the
+            // referent into a fabricated place. A fixed-array local is the same
+            // kind of established home: its bounds come from the literal length
+            // when a segment projects inside it.
+            let reference = match program.type_reference_table.type_reference(
+                validation::peel_declared_constraints(program, local.type_reference),
+            ) {
+                TypeReferenceNode::Reference {
+                    access, referee, ..
+                } if (target_access == CheckedStructuralAccess::SharedBorrow
+                    || !local.is_mutable)
+                    && borrowed_access_supplies(*access, target_shell.access) =>
+                {
+                    *referee
+                }
+                TypeReferenceNode::Named { .. }
+                | TypeReferenceNode::Generic { .. }
+                | TypeReferenceNode::FixedArray { .. } => local.type_reference,
+                _ => return None,
+            };
+            (
+                reference,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            )
+        }
     };
     let whole_storage = place.segments.is_empty()
         || matches!(
@@ -507,7 +527,7 @@ pub(crate) fn borrowed_storage_argument(
     if !borrowed_referent {
         return None;
     }
-    if exact_structural_borrow_access(
+    let observed_access = exact_structural_borrow_access(
         program,
         borrow,
         machine,
@@ -516,8 +536,8 @@ pub(crate) fn borrowed_storage_argument(
         place,
         target_access,
         &[],
-    )? != target_access
-    {
+    );
+    if observed_access? != target_access {
         return None;
     }
     // Storage identity was checked against the exact referee above. The call

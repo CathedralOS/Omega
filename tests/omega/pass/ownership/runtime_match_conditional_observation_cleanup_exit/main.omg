@@ -1,0 +1,54 @@
+// Selected child moves and skipped arms preserve each anonymous residual death.
+// Expected exit: 0
+use omega::language::core::drop;
+
+data Counter { value: u32 in Wrapping; }
+data Token { counter: &mut Counter; }
+data Pair { left: Token; right: Token; }
+data Triple { left: Token; middle: Token; right: Token; }
+machine Token::drop(token: &mut Token) { token.counter.value = token.counter.value + 1; }
+
+machine conditional(choose: bool) -> bool {
+    let mut left: Counter = Counter { value: 0 };
+    let mut right: Counter = Counter { value: 0 };
+    let mut fallback: Counter = Counter { value: 0 };
+    let selected: Token = match (Pair {
+        left: Token { counter: &mut left }, right: Token { counter: &mut right }
+    }) {
+        Pair { left, right as _ } if choose -> left
+        _ -> Token { counter: &mut fallback }
+    };
+    drop(selected);
+    let fallback_count: u32 = match choose { true -> 0 false -> 1 };
+    (left.value as u32) == 1 && (right.value as u32) == 1
+        && (fallback.value as u32) == fallback_count
+}
+machine whole_move() -> bool {
+    let mut counter: Counter = Counter { value: 0 };
+    let token: Token = Token { counter: &mut counter };
+    let moved: Token = token;
+    drop(moved);
+    (counter.value as u32) == 1
+}
+machine two_children() -> bool {
+    let mut left: Counter = Counter { value: 0 };
+    let mut middle: Counter = Counter { value: 0 };
+    let mut right: Counter = Counter { value: 0 };
+    let selected: Pair = match (Triple {
+        left: Token { counter: &mut left },
+        middle: Token { counter: &mut middle },
+        right: Token { counter: &mut right }
+    }) {
+        Triple { left, middle, right as _ } -> Pair { left: left, right: middle }
+    };
+    drop(selected);
+    (left.value as u32) == 1 && (middle.value as u32) == 1 && (right.value as u32) == 1
+}
+machine main() crashes Trap {
+    transition conditional(true) && conditional(false) && whole_move() && two_children() {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

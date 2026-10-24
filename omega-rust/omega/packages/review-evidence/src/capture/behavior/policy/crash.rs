@@ -33,7 +33,8 @@ pub(crate) fn crash(
     let derived = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
         compilation.checking_input,
         machine,
-    );
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     validate_crash_publication(compilation, machine, plan, &derived)?;
     if envelope.machine != machine.symbol
         || compilation
@@ -153,7 +154,8 @@ fn validate_crash_publication(
     let original_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
         &**compilation.custody,
         original_machine,
-    );
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     if plan.crash != original_head.crash
         || plan.commitment != original_head.commitment
         || authored != original_authored
@@ -168,7 +170,8 @@ fn validate_crash_publication(
         let member_authored = typed_trees_to_checked_trees::derive_authored_machine_crash_buckets(
             compilation.checking_input,
             member,
-        );
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         if member_authored != checked.crash.published()
             || checked.crash != original.crash
             || checked.commitment != original.commitment

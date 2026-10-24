@@ -20,8 +20,33 @@ pub(super) fn lower(
     if root.state != site.state || root.statement_ordinal != site.statement {
         return unsupported("computed enum observation lost its source occurrence");
     }
-    if expansion.checked.type_multiplicity(root.type_reference)
-        != language_semantics::Multiplicity::Unrestricted
+    let established = expansion.established_values.iter().any(|value|
+        matches!(value, crate::scalar_lowering::computations::EstablishedValue::Produced { root } if *root == receiver_value));
+    if !established
+        && let checked_trees::CheckedScalarComputationKind::CaseMembership {
+            subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
+            ..
+        } = &expansion
+            .checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(observation)
+            .kind
+        && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            expression,
+        } = subject.source
+        && matches!(
+            expansion.checked.expression_table.expression(expression),
+            checked_trees::expression::ExpressionNode::SavedSubject(_)
+        )
+    {
+        return unsupported("saved case observation has no completed receiver");
+    }
+    if !established
+        && expansion.checked.type_multiplicity(root.type_reference)
+            != language_semantics::Multiplicity::Unrestricted
     {
         return unsupported("computed enum membership requires unrestricted receiver custody");
     }
@@ -52,6 +77,9 @@ pub(super) fn lower(
         bindings: Vec::new(),
         terminator: super::LoweredScalarBranchTerminator::jump(target, arguments),
     });
+    if established {
+        return Ok(observe);
+    }
     Ok(
         crate::scalar_lowering::branch_states::structural_values::ValueRequest {
             value: receiver_value,

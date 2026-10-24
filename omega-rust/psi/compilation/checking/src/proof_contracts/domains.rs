@@ -334,7 +334,13 @@ fn validate_repeated_normalized_domain_identities(
         {
             continue;
         }
-        let normalized_facts = normalized_domain_facts(program, fact_plan, domain.symbol);
+        let normalized_facts = match normalized_domain_facts(program, fact_plan, domain.symbol) {
+            Ok(facts) => facts,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         let mut peers = domains
             .iter()
             .skip(domain_index + 1)
@@ -345,7 +351,13 @@ fn validate_repeated_normalized_domain_identities(
                 || peer.classification != domain.classification
                 || peer.semantic_roles != domain.semantic_roles
                 || peer.establishment_routes != domain.establishment_routes
-                || normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts
+                || match normalized_domain_facts(program, fact_plan, peer.symbol) {
+                    Ok(facts) => facts != normalized_facts,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        false
+                    }
+                }
         }) {
             diagnostics.push(Diagnostic::error(format!(
                 "domain `{}` is declared more than once with different normalized semantics; repeated capacity specializations may share a name only when their semantic identities are equal",
@@ -386,7 +398,13 @@ fn validate_capacity_normalized_domain_agreement(
         {
             continue;
         }
-        let normalized_facts = normalized_domain_facts(program, fact_plan, domain.symbol);
+        let normalized_facts = match normalized_domain_facts(program, fact_plan, domain.symbol) {
+            Ok(facts) => facts,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         if domains
             .iter()
             .skip(domain_index + 1)
@@ -395,9 +413,15 @@ fn validate_capacity_normalized_domain_agreement(
                     && domain_target_normalizes_its_capacity(program, peer)
                     && !same_normalized_domain_owner(program, peer, domain)
             })
-            .any(|peer| {
-                normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts
-            })
+            .any(
+                |peer| match normalized_domain_facts(program, fact_plan, peer.symbol) {
+                    Ok(facts) => facts != normalized_facts,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        false
+                    }
+                },
+            )
         {
             diagnostics.push(Diagnostic::error(format!(
                 "domain `{}` is declared over different bounded carriers with different normalized facts; capacity specializations of one name must agree",
@@ -435,7 +459,7 @@ fn normalized_domain_facts(
     program: &dyn crate::CheckingInput,
     fact_plan: &FactPlan,
     domain_symbol: SymbolHandle,
-) -> Vec<String> {
+) -> Result<Vec<String>, Diagnostic> {
     let binders = domain_definition_by_symbol(program, domain_symbol)
         .map(|domain| {
             program
@@ -452,12 +476,13 @@ fn normalized_domain_facts(
         .unwrap_or_default();
     let expression_identity = |expression| {
         typed_trees::type_identity::normalized_expression_identity(program, expression, &binders)
+            .ok_or_else(|| Diagnostic::error(format!("domain `{}` has a fact with no complete normalized expression identity; an unbound captured subject cannot establish domain agreement", program.symbols.name(domain_symbol))))
     };
-    let mut facts = fact_plan
-        .facts_for_symbol(domain_symbol)
-        .filter_map(|fact| match fact.payload {
+    let mut normalized = Vec::new();
+    for fact in fact_plan.facts_for_symbol(domain_symbol) {
+        let identity = match fact.payload {
             facts::FactPayload::BooleanExpression(expression) => {
-                Some(format!("bool:{}", expression_identity(expression)))
+                Some(format!("bool:{}", expression_identity(expression)?))
             }
             facts::FactPayload::DomainMembership {
                 value,
@@ -474,15 +499,18 @@ fn normalized_domain_facts(
                 };
                 Some(format!(
                     "membership:{}:{semantic_id:?}",
-                    expression_identity(value)
+                    expression_identity(value)?
                 ))
             }
             _ => None,
-        })
-        .collect::<Vec<_>>();
-    facts.sort_unstable();
-    facts.dedup();
-    facts
+        };
+        if let Some(identity) = identity {
+            normalized.push(identity);
+        }
+    }
+    normalized.sort_unstable();
+    normalized.dedup();
+    Ok(normalized)
 }
 
 fn validate_domain_membership_targets(

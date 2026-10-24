@@ -68,6 +68,9 @@ struct ExpressionSpanStorage {
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
     match_arms: Arena<TableMatchArm>,
+    match_fields: Arena<TableMatchField>,
+    match_subjects: Arena<MatchSubjectCapture>,
+    match_proof_selectors: Arena<crate::statement::OutcomeProofSelector>,
     authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
 }
 
@@ -90,6 +93,79 @@ impl ExpressionTable {
         self.spans.match_arms.span_or_empty(arms)
     }
 
+    pub fn insert_match_fields(
+        &mut self,
+        fields: impl IntoIterator<Item = TableMatchField>,
+    ) -> HandleSpan<TableMatchField> {
+        self.spans.match_fields.insert_many(fields)
+    }
+
+    pub fn match_fields(&self, fields: HandleSpan<TableMatchField>) -> &[TableMatchField] {
+        self.spans.match_fields.span_or_empty(fields)
+    }
+
+    /// Semantic dependencies only. Consumers deciding runtime effects must
+    /// distinguish case heads from selected equality operands and guards.
+    pub fn match_pattern_dependencies(
+        &self,
+        pattern: MatchPattern,
+    ) -> impl Iterator<Item = ExpressionHandle> + '_ {
+        let (head, fields, guard) = match pattern {
+            MatchPattern::Value(value) => (value, HandleSpan::empty(), ExpressionHandle::invalid()),
+            MatchPattern::Destructure(pattern) => {
+                (pattern.head, HandleSpan::empty(), pattern.condition)
+            }
+            MatchPattern::Wildcard => (
+                ExpressionHandle::invalid(),
+                HandleSpan::empty(),
+                ExpressionHandle::invalid(),
+            ),
+        };
+        head.is_valid()
+            .then_some(head)
+            .into_iter()
+            .chain(
+                self.match_fields(fields)
+                    .iter()
+                    .filter_map(|field| match &field.action {
+                        MatchFieldAction::Equal(value) => Some(*value),
+                        _ => None,
+                    }),
+            )
+            .chain(guard.is_valid().then_some(guard))
+    }
+
+    pub fn match_field_mut(&mut self, field: Handle<TableMatchField>) -> &mut TableMatchField {
+        self.spans.match_fields.get_mut(field)
+    }
+
+    pub fn insert_match_subject(
+        &mut self,
+        subject: ExpressionHandle,
+    ) -> Handle<MatchSubjectCapture> {
+        self.spans
+            .match_subjects
+            .insert(MatchSubjectCapture { subject })
+    }
+
+    pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
+        self.spans.match_subjects.get(capture)
+    }
+
+    pub fn insert_match_proof_selectors(
+        &mut self,
+        selectors: impl IntoIterator<Item = crate::statement::OutcomeProofSelector>,
+    ) -> HandleSpan<crate::statement::OutcomeProofSelector> {
+        self.spans.match_proof_selectors.insert_many(selectors)
+    }
+
+    pub fn match_proof_selectors(
+        &self,
+        selectors: HandleSpan<crate::statement::OutcomeProofSelector>,
+    ) -> &[crate::statement::OutcomeProofSelector] {
+        self.spans.match_proof_selectors.span_or_empty(selectors)
+    }
+
     pub fn new() -> Self {
         Self {
             nodes: ExpressionNodeStorage {
@@ -105,6 +181,9 @@ impl ExpressionTable {
                 name_path_member_symbols: Arena::new(),
                 struct_fields: Arena::new(),
                 match_arms: Arena::new(),
+                match_fields: Arena::new(),
+                match_subjects: Arena::new(),
+                match_proof_selectors: Arena::new(),
                 authored_selection_occurrence_ids: Arena::new(),
             },
         }
@@ -121,6 +200,9 @@ impl ExpressionTable {
         self.spans.name_path_member_symbols.reset_retain_capacity();
         self.spans.struct_fields.reset_retain_capacity();
         self.spans.match_arms.reset_retain_capacity();
+        self.spans.match_fields.reset_retain_capacity();
+        self.spans.match_subjects.reset_retain_capacity();
+        self.spans.match_proof_selectors.reset_retain_capacity();
         self.spans
             .authored_selection_occurrence_ids
             .reset_retain_capacity();
@@ -558,6 +640,9 @@ impl Default for ExpressionTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
+    /// Read one enclosing dispatch's completed subject, without evaluating
+    /// its source again or introducing a second owning declaration.
+    SavedSubject(TableSavedSubject),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
@@ -824,7 +909,19 @@ pub enum UnaryOperator {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
+    pub capture: Handle<MatchSubjectCapture>,
     pub arms: HandleSpan<TableMatchArm>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MatchSubjectCapture {
+    pub subject: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableSavedSubject {
+    pub capture: Handle<MatchSubjectCapture>,
+    pub pattern_head: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -837,6 +934,34 @@ pub struct TableMatchArm {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum MatchPattern {
     Value(ExpressionHandle),
+    Destructure(TableDestructurePattern),
     #[default]
     Wildcard,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableDestructurePattern {
+    pub head: ExpressionHandle,
+    pub fields: HandleSpan<TableMatchField>,
+    pub has_rest: bool,
+    pub guard: ExpressionHandle,
+    /// Ordinary projected equalities followed by the authored guard. Typed
+    /// lowering adds the exact tag observation before this Boolean condition.
+    pub condition: ExpressionHandle,
+    pub proof_selectors: HandleSpan<crate::statement::OutcomeProofSelector>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TableMatchField {
+    pub member: DiagnosticName,
+    pub field_symbol: SymbolHandle,
+    pub action: MatchFieldAction,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum MatchFieldAction {
+    Bind(DiagnosticName),
+    Equal(ExpressionHandle),
+    #[default]
+    Waive,
 }

@@ -226,11 +226,11 @@ pub use proof::{
 pub use service_parameter::{CheckedServiceParameterCarrier, CheckedServiceParameterError};
 pub use values::{
     CheckedArrayConstructionSource, CheckedBooleanExpression, CheckedByteSequenceOperand,
-    CheckedElementViewRegion, CheckedErasedProofParameterPlan, CheckedIeeeFloatComparisonKind,
-    CheckedIntegerBinaryKind, CheckedIntegerComparisonKind, CheckedIntegerMathExpression,
-    CheckedIntegerMathTerm, CheckedIntegerRange, CheckedLocatedProofTerm,
-    CheckedLocatedScalarExpression, CheckedMathematicalArgument, CheckedProofTerm,
-    CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
+    CheckedDispatchSubject, CheckedElementViewRegion, CheckedErasedProofParameterPlan,
+    CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
+    CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedIntegerRange,
+    CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedMathematicalArgument,
+    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedProofTerms,
     CheckedQuotientAdaptationLicense, CheckedScalarCallee, CheckedScalarCaseComputationField,
     CheckedScalarCaseConstruction, CheckedScalarComputation, CheckedScalarComputationHandle,
     CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarComputationRoot,

@@ -332,7 +332,7 @@ fn collect_root_mentions(
         ExpressionNode::Match(dispatch) => {
             recurse(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     recurse(pattern);
                 }
                 recurse(arm.value);
@@ -354,6 +354,11 @@ fn collect_root_mentions(
                 recurse(field.value);
             }
         }
+        ExpressionNode::SavedSubject(saved) => {
+            if let Some(source) = program.expression_table.saved_subject_source(saved) {
+                recurse(source);
+            }
+        }
         typed_trees::spelled_literal_expression_pattern!() => {}
     }
 }
@@ -372,7 +377,9 @@ fn expression_contains(
     }
     let recurse = |child| expression_contains(program, child, needle);
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) | typed_trees::spelled_literal_expression_pattern!() => false,
+        ExpressionNode::SavedSubject(_)
+        | ExpressionNode::Name(_)
+        | typed_trees::spelled_literal_expression_pattern!() => false,
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),

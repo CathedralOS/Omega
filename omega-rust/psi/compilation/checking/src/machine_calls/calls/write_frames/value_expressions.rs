@@ -84,7 +84,7 @@ pub(super) fn push_value_children(
                 .rev()
             {
                 pending.push((arm.value, position));
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     pending.push((pattern, comparison));
                 }
             }

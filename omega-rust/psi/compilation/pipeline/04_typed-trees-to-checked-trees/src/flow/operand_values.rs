@@ -46,84 +46,115 @@ pub(crate) struct CapturedValuePlace {
 /// Select lifetime evidence through completed copies, independently of address
 /// projection. The stored-value links point to earlier captures, never to a
 /// source initializer or storage reread at the consuming call.
-pub(crate) fn captured_retention_at_path<'capture>(
+pub(crate) fn captured_retention_profiles_at_path(
     program: &dyn validation::CheckingInput,
-    control: &'capture FlowControlFacts,
-    mut operand: &'capture FlowOperandFact,
+    control: &FlowControlFacts,
+    operand: &FlowOperandFact,
     path: &[PlaceSegment],
-) -> arena::Handle<checked_trees::FlowOperandRetention> {
-    let mut visited = Vec::new();
-    let mut path = path.to_vec();
-    loop {
-        if path.is_empty()
-            && (!control.operand_retentions.is_valid(operand.retention)
-                || control
-                    .operand_retentions
-                    .get(operand.retention)
-                    .stored_projection
-                    .is_empty())
-        {
-            return operand.retention;
-        }
+) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
+    fn operand_profiles(
+        program: &dyn validation::CheckingInput,
+        control: &FlowControlFacts,
+        operand: &FlowOperandFact,
+        path: &[PlaceSegment],
+        active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
+    ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
         let mut selected_child = None;
         for child in control.operand_children.span_or_empty(operand.children) {
             let destination = control.operand_child_paths.span_or_empty(child.path);
             if destination.is_empty() {
-                return arena::Handle::invalid();
+                return None;
             }
             if destination.len() <= path.len()
-                && destination.iter().zip(&path).all(|(left, right)| {
+                && destination.iter().zip(path).all(|(left, right)| {
                     super::canonical_place_segments_equal(program, *left, *right)
                 })
             {
                 if selected_child.is_some() || !control.operands.is_valid(child.value) {
-                    return arena::Handle::invalid();
+                    return None;
                 }
                 selected_child = Some((child.value, destination.len()));
             }
         }
         if let Some((child, length)) = selected_child {
-            operand = control.operands.get(child);
-            path.drain(..length);
-            continue;
+            return operand_profiles(
+                program,
+                control,
+                control.operands.get(child),
+                &path[length..],
+                active,
+            );
         }
-        if !control.operand_retentions.is_valid(operand.retention) {
-            return arena::Handle::invalid();
-        }
-        let profile = control.operand_retentions.get(operand.retention);
-        let mut selected = control
-            .operand_retained_leaves
-            .span_or_empty(profile.leaves)
-            .iter()
-            .filter(|leaf| {
-                let candidate = control.operand_retained_paths.span_or_empty(leaf.path);
-                candidate.len() == path.len()
-                    && candidate.iter().zip(&path).all(|(left, right)| {
-                        super::canonical_place_segments_equal(program, *left, *right)
-                    })
-            });
-        if let Some(leaf) = selected.next() {
-            return if selected.next().is_none() {
-                leaf.retention
-            } else {
-                arena::Handle::invalid()
-            };
-        }
-        let stored = profile.stored_value;
-        if !control.operands.is_valid(stored) || visited.contains(&stored) {
-            return arena::Handle::invalid();
-        }
-        visited.push(stored);
-        let prefix = control
-            .operand_retained_paths
-            .span_or_empty(profile.stored_projection);
-        if !prefix.is_empty() {
-            let mut selected = prefix.to_vec();
-            selected.extend_from_slice(&path);
-            path = selected;
-        }
-        operand = control.operands.get(stored);
+        profile_at_path(program, control, operand.retention, path, active)
     }
+
+    fn profile_at_path(
+        program: &dyn validation::CheckingInput,
+        control: &FlowControlFacts,
+        retention: arena::Handle<checked_trees::FlowOperandRetention>,
+        path: &[PlaceSegment],
+        active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
+    ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
+        if !control.operand_retentions.is_valid(retention) || active.contains(&retention) {
+            return None;
+        }
+        let profile = control.operand_retentions.get(retention);
+        if path.is_empty() && profile.stored_projection.is_empty() {
+            return Some(vec![retention]);
+        }
+        active.push(retention);
+        let selected = (|| {
+            let mut selected = control
+                .operand_retained_leaves
+                .span_or_empty(profile.leaves)
+                .iter()
+                .filter(|leaf| {
+                    let candidate = control.operand_retained_paths.span_or_empty(leaf.path);
+                    !candidate.is_empty()
+                        && candidate.len() <= path.len()
+                        && candidate.iter().zip(path).all(|(left, right)| {
+                            super::canonical_place_segments_equal(program, *left, *right)
+                        })
+                });
+            if let Some(leaf) = selected.next() {
+                if selected.next().is_some() {
+                    return None;
+                }
+                let length = leaf.path.len();
+                return profile_at_path(program, control, leaf.retention, &path[length..], active);
+            }
+            if !profile.alternatives.is_empty() {
+                let mut profiles = Vec::new();
+                for alternative in profile.alternatives.handles() {
+                    for selected in profile_at_path(program, control, alternative, path, active)? {
+                        if !profiles.contains(&selected) {
+                            profiles.push(selected);
+                        }
+                    }
+                }
+                return (!profiles.is_empty()).then_some(profiles);
+            }
+            let stored = profile.stored_value;
+            if !control.operands.is_valid(stored) {
+                return None;
+            }
+            let prefix = control
+                .operand_retained_paths
+                .span_or_empty(profile.stored_projection);
+            let mut selected = prefix.to_vec();
+            selected.extend_from_slice(path);
+            operand_profiles(
+                program,
+                control,
+                control.operands.get(stored),
+                &selected,
+                active,
+            )
+        })();
+        active.pop();
+        selected
+    }
+    operand_profiles(program, control, operand, path, &mut Vec::new())
 }
 
 /// A complete lifetime frontier for this value's declared reference leaves.
@@ -139,10 +170,11 @@ pub(crate) fn captured_lifetime_roots(
     let mut roots = Vec::new();
     for path in paths {
         let path = crate::borrow::owner_place_segments(&path);
-        let leaf = captured_retention_at_path(program, control, operand, &path);
-        for root in control.retained_roots(leaf)? {
-            if !roots.contains(root) {
-                roots.push(*root);
+        for leaf in captured_retention_profiles_at_path(program, control, operand, &path)? {
+            for root in control.retained_roots(leaf)? {
+                if !roots.contains(root) {
+                    roots.push(*root);
+                }
             }
         }
     }

@@ -457,7 +457,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                     prefix += self.pattern(&arm.pattern);
                     prefix + self.constructed(arm.value, calls, consumes_whole)
                 });
-                self.computation(*subject) + alternatives.min().unwrap_or(0)
+                self.dispatch_subject(subject) + alternatives.min().unwrap_or(0)
             }
             CheckedStructuralValueKind::Reference {
                 source,
@@ -508,8 +508,28 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
 
     fn pattern(&self, pattern: &CheckedScalarDispatchPattern) -> usize {
         match pattern {
-            CheckedScalarDispatchPattern::Value(value) => self.computation(*value),
+            CheckedScalarDispatchPattern::Value(value)
+            | CheckedScalarDispatchPattern::Predicate(value) => self.computation(*value),
             CheckedScalarDispatchPattern::Wildcard => 0,
+        }
+    }
+
+    fn dispatch_subject(&self, subject: &crate::CheckedDispatchSubject) -> usize {
+        match subject {
+            crate::CheckedDispatchSubject::Scalar(value) => self.computation(*value),
+            crate::CheckedDispatchSubject::Structural { value, place, .. } => {
+                if value.is_valid() {
+                    let calls = self
+                        .values
+                        .structural_values
+                        .call_schedule(*value)
+                        .map(|(_, calls)| calls)
+                        .unwrap_or(&[]);
+                    self.constructed(*value, calls, false)
+                } else {
+                    self.argument_evaluation(place)
+                }
+            }
         }
     }
 
@@ -569,7 +589,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                     prefix += self.pattern(&arm.pattern);
                     prefix + self.computation(arm.value)
                 });
-                self.computation(*subject) + alternatives.min().unwrap_or(0)
+                self.dispatch_subject(subject) + alternatives.min().unwrap_or(0)
             }
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 self.computation(*left) + self.computation(*right)
@@ -689,7 +709,7 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                     prefix += self.pattern(&arm.pattern);
                     prefix + self.structural(arm.value, calls)
                 });
-                self.computation(*subject) + alternatives.min().unwrap_or(0)
+                self.dispatch_subject(subject) + alternatives.min().unwrap_or(0)
             }
             CheckedStructuralValueKind::BorrowedSliceView { source, region }
             | CheckedStructuralValueKind::MutableSliceView { source, region } => {

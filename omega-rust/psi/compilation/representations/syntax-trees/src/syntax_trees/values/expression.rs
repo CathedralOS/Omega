@@ -19,6 +19,8 @@ pub struct ExpressionTable {
     identifier_path_members: Arena<Identifier>,
     struct_fields: Arena<TableStructLiteralField>,
     match_arms: Arena<TableMatchArm>,
+    match_fields: Arena<TableMatchField>,
+    match_subjects: Arena<MatchSubjectCapture>,
 }
 
 pub(crate) struct ExpressionTableAppendCheckpoint {
@@ -28,6 +30,8 @@ pub(crate) struct ExpressionTableAppendCheckpoint {
     identifier_path_members: arena::PagedArenaFrontier<Identifier>,
     struct_fields: arena::PagedArenaFrontier<TableStructLiteralField>,
     match_arms: arena::PagedArenaFrontier<TableMatchArm>,
+    match_fields: arena::PagedArenaFrontier<TableMatchField>,
+    match_subjects: arena::PagedArenaFrontier<MatchSubjectCapture>,
 }
 
 impl ExpressionTable {
@@ -39,6 +43,8 @@ impl ExpressionTable {
             identifier_path_members: self.identifier_path_members.frontier(),
             struct_fields: self.struct_fields.frontier(),
             match_arms: self.match_arms.frontier(),
+            match_fields: self.match_fields.frontier(),
+            match_subjects: self.match_subjects.frontier(),
         }
     }
 
@@ -51,6 +57,9 @@ impl ExpressionTable {
             .rewind_appended(checkpoint.identifier_path_members);
         self.struct_fields.rewind_appended(checkpoint.struct_fields);
         self.match_arms.rewind_appended(checkpoint.match_arms);
+        self.match_fields.rewind_appended(checkpoint.match_fields);
+        self.match_subjects
+            .rewind_appended(checkpoint.match_subjects);
     }
 
     pub(crate) fn share_pages(&mut self) {
@@ -60,6 +69,8 @@ impl ExpressionTable {
         self.identifier_path_members.share_pages();
         self.struct_fields.share_pages();
         self.match_arms.share_pages();
+        self.match_fields.share_pages();
+        self.match_subjects.share_pages();
     }
 
     pub fn insert_match_arms(
@@ -71,6 +82,57 @@ impl ExpressionTable {
 
     pub fn match_arms(&self, arms: HandleSpan<TableMatchArm>) -> &[TableMatchArm] {
         self.match_arms.span_or_empty(arms)
+    }
+
+    pub fn insert_match_fields(
+        &mut self,
+        fields: impl IntoIterator<Item = TableMatchField>,
+    ) -> HandleSpan<TableMatchField> {
+        self.match_fields.insert_many(fields)
+    }
+
+    pub fn match_fields(&self, fields: HandleSpan<TableMatchField>) -> &[TableMatchField] {
+        self.match_fields.span_or_empty(fields)
+    }
+
+    /// Semantic dependencies, not an execution schedule. Case heads are
+    /// declaration uses; equality operands and guards execute selectively.
+    pub fn match_pattern_dependencies(
+        &self,
+        pattern: MatchPattern,
+    ) -> impl Iterator<Item = ExpressionHandle> + '_ {
+        let (head, fields, guard) = match pattern {
+            MatchPattern::Value(value) => (value, HandleSpan::empty(), ExpressionHandle::invalid()),
+            MatchPattern::Destructure(pattern) => (pattern.head, pattern.fields, pattern.guard),
+            MatchPattern::Wildcard => (
+                ExpressionHandle::invalid(),
+                HandleSpan::empty(),
+                ExpressionHandle::invalid(),
+            ),
+        };
+        head.is_valid()
+            .then_some(head)
+            .into_iter()
+            .chain(
+                self.match_fields(fields)
+                    .iter()
+                    .filter_map(|field| match &field.action {
+                        MatchFieldAction::Equal(value) => Some(*value),
+                        _ => None,
+                    }),
+            )
+            .chain(guard.is_valid().then_some(guard))
+    }
+
+    pub fn insert_match_subject(
+        &mut self,
+        subject: ExpressionHandle,
+    ) -> Handle<MatchSubjectCapture> {
+        self.match_subjects.insert(MatchSubjectCapture { subject })
+    }
+
+    pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
+        self.match_subjects.get(capture)
     }
 
     pub fn new() -> Self {
@@ -85,6 +147,8 @@ impl ExpressionTable {
             identifier_path_members: Arena::with_generation(generation),
             struct_fields: Arena::with_generation(generation),
             match_arms: Arena::with_generation(generation),
+            match_fields: Arena::with_generation(generation),
+            match_subjects: Arena::with_generation(generation),
         }
     }
 
@@ -112,6 +176,8 @@ impl ExpressionTable {
             .adopt(other.identifier_path_members);
         self.struct_fields.adopt(other.struct_fields);
         self.match_arms.adopt(other.match_arms);
+        self.match_fields.adopt(other.match_fields);
+        self.match_subjects.adopt(other.match_subjects);
     }
 
     pub(crate) fn begin_page(&mut self, generation: u32) {
@@ -121,6 +187,8 @@ impl ExpressionTable {
         self.identifier_path_members.begin_page(generation);
         self.struct_fields.begin_page(generation);
         self.match_arms.begin_page(generation);
+        self.match_fields.begin_page(generation);
+        self.match_subjects.begin_page(generation);
     }
 
     pub fn append_expression_handle(
@@ -248,6 +316,9 @@ impl Default for ExpressionTable {
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent)]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
+    /// An arm-local alias of an enclosing dispatch's completed subject. This
+    /// is a dependency on a capture, not another evaluation of its initializer.
+    SavedSubject(TableSavedSubject),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
@@ -484,7 +555,30 @@ pub enum UnaryOperator {
 )]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
+    /// Defined once by this dispatch. A scalar dispatch without aliases need
+    /// not allocate a row; saved-subject reads always require a real capture.
+    pub capture: Handle<MatchSubjectCapture>,
     pub arms: HandleSpan<TableMatchArm>,
+}
+
+/// A distinct definition per dispatch, even when two subjects happen to share
+/// a source expression. Copying a dispatch remaps this row and all arm reads
+/// together; source equality never identifies a runtime evaluation.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+)]
+pub struct MatchSubjectCapture {
+    pub subject: ExpressionHandle,
+}
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, syntax_trees_derive::PlainSyntaxEquivalent,
+)]
+pub struct TableSavedSubject {
+    pub capture: Handle<MatchSubjectCapture>,
+    /// Exact head of the selected structural pattern. Member resolution uses
+    /// its declaration identity, not the last component of a spelled path.
+    pub pattern_head: ExpressionHandle,
 }
 
 #[derive(
@@ -499,6 +593,33 @@ pub struct TableMatchArm {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum MatchPattern {
     Value(ExpressionHandle),
+    Destructure(TableDestructurePattern),
     #[default]
     Wildcard,
+}
+
+/// Retain the authored shape rather than encoding field completeness in a
+/// generated local's name. Bindings read the dispatch's saved subject; their
+/// spelling does not create another value owner or grant reference access.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableDestructurePattern {
+    pub head: ExpressionHandle,
+    pub fields: HandleSpan<TableMatchField>,
+    pub has_rest: bool,
+    pub guard: ExpressionHandle,
+    pub proof_selectors: HandleSpan<crate::statement::TableOutcomeProofSelector>,
+}
+
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+pub struct TableMatchField {
+    pub member: Identifier,
+    pub action: MatchFieldAction,
+}
+
+#[derive(Debug, Clone, Default, syntax_trees_derive::SyntaxEquivalent)]
+pub enum MatchFieldAction {
+    Bind(Identifier),
+    Equal(ExpressionHandle),
+    #[default]
+    Waive,
 }

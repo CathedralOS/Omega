@@ -20,6 +20,8 @@ use language_semantics::declaration_selection::CollectionMeasure;
 use symbol_resolved_trees as resolved;
 use typed_trees as typed;
 
+mod match_dispatch;
+
 #[derive(Clone)]
 struct NullaryErasedInitializer {
     field_name: resolved::name::DiagnosticName,
@@ -44,6 +46,10 @@ pub(super) struct ExpressionTableLowerer<'program, 'target, 'scope> {
         bool,
         typed::expression::ExpressionHandle,
     )>,
+    match_captures: Vec<(
+        arena::Handle<resolved::expression::MatchSubjectCapture>,
+        arena::Handle<typed::expression::MatchSubjectCapture>,
+    )>,
 }
 
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
@@ -62,6 +68,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             equality_scope,
             fact_position: false,
             lowered_expressions: Vec::new(),
+            match_captures: Vec::new(),
         }
     }
 
@@ -135,6 +142,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         &mut self,
         expression: resolved::expression::ExpressionHandle,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        if !expression.is_valid() {
+            return Ok(typed::expression::ExpressionHandle::invalid());
+        }
         if let Some((_, _, lowered)) =
             self.lowered_expressions
                 .iter()
@@ -256,31 +266,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         node: &resolved::expression::ExpressionNode,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
         match node {
-            resolved::expression::ExpressionNode::Match(dispatch) => {
-                let subject = self.lower_value(dispatch.subject)?;
-                let mut arms = Vec::new();
-                for arm in self.source.match_arms(dispatch.arms) {
-                    let pattern = match arm.pattern {
-                        resolved::expression::MatchPattern::Value(pattern) => {
-                            typed::expression::MatchPattern::Value(self.lower_value(pattern)?)
-                        }
-                        resolved::expression::MatchPattern::Wildcard => {
-                            typed::expression::MatchPattern::Wildcard
-                        }
-                    };
-                    let value = self.lower(arm.value)?;
-                    arms.push(typed::expression::TableMatchArm {
-                        pattern,
-                        value,
-                        source_span: arm.source_span,
-                    });
-                }
-                let arms = self.target().insert_match_arms(arms);
-                Ok(self
-                    .target()
-                    .insert(typed::expression::ExpressionNode::Match(
-                        typed::expression::TableMatchExpression { subject, arms },
-                    )))
+            resolved::expression::ExpressionNode::Match(dispatch) => self.lower_match(*dispatch),
+            resolved::expression::ExpressionNode::SavedSubject(saved) => {
+                self.lower_saved_subject(*saved)
             }
             resolved::expression::ExpressionNode::ArrayLiteral(values) => {
                 let values = self.lower_expression_handle_span(*values)?;

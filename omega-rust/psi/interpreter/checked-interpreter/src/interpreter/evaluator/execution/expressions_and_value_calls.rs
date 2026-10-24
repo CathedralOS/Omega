@@ -163,8 +163,24 @@ impl<'program> Evaluator<'program> {
         }
         match node {
             ExpressionNode::Match(dispatch) => {
-                let selected = self.select_match_arm(handle, &dispatch, frame)?;
-                self.eval_expression(selected, frame)
+                self.with_selected_match(handle, &dispatch, frame, |evaluator, selected, frame| {
+                    evaluator.eval_expression(selected, frame)
+                })
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                let cell = frame
+                    .match_subjects
+                    .iter()
+                    .rev()
+                    .find(|(capture, _)| *capture == saved.capture)
+                    .map(|(_, cell)| cell.clone())
+                    .ok_or_else(|| {
+                        Halt::Unsupported(
+                            "saved subject has no active evaluated capture".to_owned(),
+                        )
+                    })?;
+                let value = cell.borrow().clone();
+                self.observe_reference_value(value)
             }
             ExpressionNode::Atomic(atomic) => {
                 if atomic.result_custody.has_structural_result() {
@@ -209,7 +225,7 @@ impl<'program> Evaluator<'program> {
                 ) {
                     return self.eval_expression(inner.target, frame);
                 }
-                let cell = self.resolve_place(inner.target, frame)?;
+                let cell = self.eval_read_cell(inner.target, frame)?;
                 // Re-borrow collapse: see eval_argument's Mutable arm.
                 let target = match &*cell.borrow() {
                     Value::Ref(target) => target.clone(),

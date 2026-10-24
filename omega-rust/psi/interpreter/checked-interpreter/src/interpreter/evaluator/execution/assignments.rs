@@ -33,15 +33,37 @@ impl Evaluator<'_> {
     pub(in crate::interpreter::evaluator) fn assign(
         &mut self,
         statement_index: usize,
-        target: ExpressionHandle,
-        replacement: ExpressionHandle,
+        assignment: &typed_trees::statement::TableAssignment,
         frame: &mut Frame,
     ) -> EvalResult<()> {
+        let target = assignment.target;
+        let replacement = assignment.value;
         // Type queries must not execute a receiver or selector. Both coercion
         // and value-copy policy refer to the declared slot, not its old value.
-        let declared_type = self.expression_type_reference(target, frame);
-        let coercion = self.assignment_target_coercion(target, frame);
-        let destination = self.capture_assignment_destination(target, frame)?;
+        let receiving = self
+            .program
+            .machine_by_symbol(frame.machine_symbol)
+            .and_then(|machine| {
+                self.program
+                    .state_in_machine(machine, frame.state_symbol)
+                    .and_then(|state| {
+                        validation::assignment_stored_value_type(
+                            self.program,
+                            machine,
+                            state,
+                            assignment,
+                        )
+                    })
+            })
+            .ok_or_else(|| {
+                Halt::Unsupported("assignment has no selected receiving type".to_owned())
+            })?;
+        let coercion = if validation::reference_shell(self.program, receiving).is_none() {
+            self.assignment_target_coercion(target, frame)
+        } else {
+            None
+        };
+        let destination = self.capture_assignment_destination(target, receiving, frame)?;
         let cleanup = self.capture_replacement_cleanup(
             statement_index,
             match &destination {
@@ -86,7 +108,7 @@ impl Evaluator<'_> {
         let value_type = self
             .program
             .type_reference_table
-            .peeled_type_reference(declared_type.unwrap_or_default());
+            .peeled_type_reference(receiving);
         let value = match &destination {
             AssignmentDestination::ArrayWindow { element_type, .. } => {
                 if matches!(
@@ -100,10 +122,8 @@ impl Evaluator<'_> {
             }
             _ => self.eval_expression_at_type(replacement, value_type, frame)?,
         };
-        let copy_array = matches!(value, Value::Array(_))
-            && declared_type
-                .map(|target| self.declared_type_is_fixed_array(target))
-                .unwrap_or(false);
+        let copy_array =
+            matches!(value, Value::Array(_)) && self.declared_type_is_fixed_array(receiving);
         let value = if matches!(value, Value::Struct { .. })
             || copy_array
             || matches!(destination, AssignmentDestination::ArrayWindow { .. })
@@ -187,6 +207,7 @@ impl Evaluator<'_> {
     fn capture_assignment_destination(
         &mut self,
         target: ExpressionHandle,
+        receiving: typed_trees::types::TypeReferenceHandle,
         frame: &mut Frame,
     ) -> EvalResult<AssignmentDestination> {
         if let Some((carrier, start, end, element_type)) =
@@ -218,6 +239,52 @@ impl Evaluator<'_> {
         } else {
             self.resolve_place(target, frame)?
         };
+        if validation::reference_shell(self.program, receiving).is_some() {
+            // Store a descriptor in its selected home, not through the old
+            // descriptor into its former pointee. A borrowed parameter can
+            // itself reach a descriptor home: cross only the declared outer
+            // references until the selected receiving type is reached.
+            let mut cell = cell;
+            let mut declared = self
+                .program
+                .machine_by_symbol(frame.machine_symbol)
+                .and_then(|machine| {
+                    self.program
+                        .state_in_machine(machine, frame.state_symbol)
+                        .and_then(|state| {
+                            validation::declared_place_type_raw(
+                                self.program,
+                                machine,
+                                Some(state),
+                                target,
+                            )
+                        })
+                })
+                .ok_or_else(|| {
+                    Halt::Unsupported(
+                        "reference replacement has no declared destination type".to_owned(),
+                    )
+                })?;
+            while self.program.normalized_type_identity(declared)
+                != self.program.normalized_type_identity(receiving)
+            {
+                let shell =
+                    validation::reference_shell(self.program, declared).ok_or_else(|| {
+                        Halt::Unsupported(
+                            "reference replacement lost its destination projection".to_owned(),
+                        )
+                    })?;
+                let value = cell.borrow().clone();
+                let Value::Ref(reference) = value else {
+                    return Err(Halt::Unsupported(
+                        "reference destination has no retained outer borrow".to_owned(),
+                    ));
+                };
+                cell = reference.cell;
+                declared = shell.referee;
+            }
+            return Ok(AssignmentDestination::Cell(cell));
+        }
         if let Value::Ref(reference) = cell.borrow().clone()
             && let Some(storage) = reference.storage
         {

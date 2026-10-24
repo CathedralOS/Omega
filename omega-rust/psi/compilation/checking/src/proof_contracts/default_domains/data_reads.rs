@@ -591,7 +591,7 @@ fn scan_expression_use(
                     inherited_windows,
                     diagnostics,
                 );
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     scan_expression_reads(
                         program,
                         machine,

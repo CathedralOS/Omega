@@ -827,7 +827,7 @@ impl Query<'_> {
                 }
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
-                output.append(self.computation(*subject)?);
+                output.append(self.dispatch_subject(subject)?);
                 let alternatives = values
                     .dispatch_arms
                     .span(*arms)?

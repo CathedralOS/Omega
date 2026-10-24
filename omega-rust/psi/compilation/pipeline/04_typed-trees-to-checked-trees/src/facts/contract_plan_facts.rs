@@ -181,7 +181,8 @@ pub(crate) fn build_contract_plans(
                     true,
                 )
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|diagnostic| vec![diagnostic])?;
         callables.sort();
         // Positional parameter normalization: a contract fact naming the
         // machine's Nth parameter encodes as P<N>, so RENAMES never change
@@ -205,6 +206,7 @@ pub(crate) fn build_contract_plans(
             operators,
             exact_integer_casts,
         )
+        .map_err(|diagnostic| vec![diagnostic])?
         .with_trapping_sites(trapping_index.sites_for_machine(program, machine)?);
         let binders = program
             .machine_states(machine)
@@ -219,7 +221,8 @@ pub(crate) fn build_contract_plans(
                 &binders,
                 &content_conservation,
                 true,
-            ),
+            )
+            .map_err(|diagnostic| vec![diagnostic])?,
         };
         let published_termination = declared_termination(program, &termination.interface, &binders);
         let closed_scalar_values =
@@ -293,7 +296,8 @@ pub(crate) fn build_contract_plans(
             "selected operator crash invocation has no owning machine contract",
         )]);
     }
-    let crash_capsules = build_crash_contract_capsules(program, &content_conservation, operators);
+    let crash_capsules = build_crash_contract_capsules(program, &content_conservation, operators)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let summary_graph = crash_calls::prepare_crash_summary_graph(
         program,
         operators,
@@ -999,10 +1003,10 @@ fn computation_contains_trapping_operation(
             | Kind::BooleanToInteger { operand, .. }
             | Kind::AuthoredCast { operand, .. } => pending.push(*operand),
             Kind::Dispatch { subject, arms, .. } => {
-                pending.push(*subject);
+                pending.extend(subject.scalar_operands());
                 for arm in plans.dispatch_arms.span_or_empty(*arms) {
                     pending.push(arm.value);
-                    if let Pattern::Value(value) = arm.pattern {
+                    if let Some(value) = arm.pattern.computation() {
                         pending.push(value);
                     }
                 }

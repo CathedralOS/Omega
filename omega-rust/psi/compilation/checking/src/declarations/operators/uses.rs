@@ -207,6 +207,8 @@ fn collect_expression_operator_use(
                             checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
                         uses.append(equality);
                     }
+                }
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     collect_expression_operator_use(
                         program, pattern, origin, seen, uses, named_uses, candidates,
                     );
@@ -390,7 +392,7 @@ fn collect_expression_operator_use(
                 );
             }
         }
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }
 

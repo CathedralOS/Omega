@@ -113,22 +113,53 @@ pub(crate) fn requires_custody(
         }
         ExpressionNode::Binary(binary) => child(binary.left) || child(binary.right),
         ExpressionNode::Unary(unary) => child(unary.operand),
-        ExpressionNode::Match(dispatch) => child(dispatch.subject)
-            || program.expression_table.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern) if child(pattern))
-                    || child(arm.value)
-            }),
-        ExpressionNode::Call(call) => child(call.receiver)
-            || program.expression_table.expression_handles(call.arguments).iter().copied().any(child),
+        ExpressionNode::Match(dispatch) => {
+            child(dispatch.subject)
+                || program
+                    .expression_table
+                    .match_arms(dispatch.arms)
+                    .iter()
+                    .any(|arm| {
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(child)
+                            || child(arm.value)
+                    })
+        }
+        ExpressionNode::Call(call) => {
+            child(call.receiver)
+                || program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(child)
+        }
         ExpressionNode::Member(member) => child(member.receiver),
         ExpressionNode::Indexed(indexed) => child(indexed.collection) || child(indexed.index),
         ExpressionNode::Borrow(borrow) => child(borrow.target),
         ExpressionNode::Atomic(atomic) => child(atomic.value) || child(atomic.result),
         ExpressionNode::Range(range) => child(range.start) || child(range.end),
-        ExpressionNode::ArrayLiteral(elements) => program.expression_table.expression_handles(*elements).iter().copied().any(child),
-        ExpressionNode::StructLiteral(literal) => program.expression_table.struct_fields(literal.fields).iter().any(|field| child(field.value)),
-        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Name(_) | ExpressionNode::String(_) | ExpressionNode::ZeroValue(_) => false,
+        ExpressionNode::ArrayLiteral(elements) => program
+            .expression_table
+            .expression_handles(*elements)
+            .iter()
+            .copied()
+            .any(child),
+        ExpressionNode::StructLiteral(literal) => program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .any(|field| child(field.value)),
+        ExpressionNode::SavedSubject(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => false,
     }
 }
 

@@ -97,7 +97,7 @@ pub(crate) fn build(
         }
         let content_conservation = content_conservation
             .get_or_insert_with(|| validation::content_conservation_plans(program));
-        let (published, surviving) = retained_operator_crash_routes(
+        let routes = retained_operator_crash_routes(
             program,
             operators,
             flow,
@@ -115,6 +115,13 @@ pub(crate) fn build(
             statement_index,
             content_conservation,
         );
+        let (published, surviving) = match routes {
+            Ok(routes) => routes,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         sites.push((
             machine_symbol,
             CheckedCrashOperatorSite {
@@ -174,7 +181,7 @@ pub(crate) fn build(
         };
         let content_conservation = content_conservation
             .get_or_insert_with(|| validation::content_conservation_plans(program));
-        let (published, surviving) = retained_operator_crash_routes(
+        let routes = retained_operator_crash_routes(
             program,
             operators,
             flow,
@@ -190,6 +197,13 @@ pub(crate) fn build(
             statement_index,
             content_conservation,
         );
+        let (published, surviving) = match routes {
+            Ok(routes) => routes,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         sites.push((
             machine_symbol,
             CheckedCrashOperatorSite {
@@ -273,13 +287,13 @@ fn retained_operator_crash_routes(
     state_symbol: SymbolHandle,
     statement_index: usize,
     content_conservation: &[validation::ContentConservationSourcePlan],
-) -> (Vec<CrashRouteBucket>, Vec<CrashRouteBucket>) {
+) -> Result<(Vec<CrashRouteBucket>, Vec<CrashRouteBucket>), Diagnostic> {
     let published = super::derive_authored_operator_crash_buckets(
         program,
         operator,
         operators,
         content_conservation,
-    );
+    )?;
     let parameter_names = parameters
         .iter()
         .map(|parameter| parameter.name.as_str().to_owned())
@@ -386,7 +400,7 @@ fn retained_operator_crash_routes(
             surviving.push(bucket);
         }
     }
-    (published, surviving)
+    Ok((published, surviving))
 }
 
 /// A named call's exact operands in operator-parameter order. Named resolution

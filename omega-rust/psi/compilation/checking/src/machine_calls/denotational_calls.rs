@@ -315,7 +315,9 @@ fn expression_is_fact_observation_free(
             crate::expression_traversal::match_children(program, *dispatch)
                 .all(|child| expression_is_fact_observation_free(program, child))
         }
-        ExpressionNode::Atomic(_) | ExpressionNode::Borrow(_) => false,
+        ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) | ExpressionNode::Borrow(_) => {
+            false
+        }
         ExpressionNode::Binary(binary) => {
             expression_is_fact_observation_free(program, binary.left)
                 && expression_is_fact_observation_free(program, binary.right)

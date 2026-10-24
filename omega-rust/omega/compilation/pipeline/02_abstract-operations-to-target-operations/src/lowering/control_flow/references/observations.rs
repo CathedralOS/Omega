@@ -9,6 +9,43 @@ use terminal_semantics::descriptor_lifetimes::{
 };
 use terminal_semantics::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
 
+/// An owned join can relocate a descriptor while its pointee stays in the
+/// same live home. Follow the retained resident's exact possible storage to
+/// observe a nested descriptor there. This transports metadata only: emitted
+/// addressing still loads the pointer through the authored carrier, and no
+/// origin or matching type grants access. Every possible backing must resolve
+/// to current compatible contents; an opaque or retired home stays unknown.
+pub(super) fn through_resident(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    active: &mut Vec<(PlaceId, Vec<StructuralPathSegment>)>,
+) -> Option<ReferenceStorage> {
+    let crossing = path
+        .iter()
+        .position(|segment| *segment == StructuralPathSegment::Referent)?;
+    let carrier =
+        super::reference_leaf_following(function, live, types, place, &path[..crossing], active)?;
+    let expected = leaf_type(types, source_contract(function, live, place)?, path)?;
+    let mut candidates = Vec::new();
+    for origin in carrier.root.origins() {
+        let target_operations::TargetReferenceOriginBase::Storage { root } = origin.base else {
+            return None;
+        };
+        let mut selected = origin.exact_path()?;
+        selected.extend_from_slice(&path[crossing + 1..]);
+        let resident =
+            super::reference_leaf_following(function, live, types, root, &selected, active)?;
+        if resident.carrier_type != expected {
+            return None;
+        }
+        candidates.push(resident.into_owned());
+    }
+    combine_alternatives(function, candidates).ok()
+}
+
 pub(super) fn observe(
     function: &AbstractFunction,
     live: &LiveDefinitions,

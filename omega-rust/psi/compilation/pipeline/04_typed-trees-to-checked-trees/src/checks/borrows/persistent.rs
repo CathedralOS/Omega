@@ -1074,6 +1074,12 @@ pub(super) fn is_state_independent_borrow_source(
     resolving: &mut Vec<SymbolHandle>,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .is_some_and(|source| {
+                is_state_independent_borrow_source(program, state, source, resolving)
+            }),
         typed_trees::expression::ExpressionNode::String(_) => true,
         typed_trees::expression::ExpressionNode::Cast(cast) => {
             is_state_independent_borrow_source(program, state, cast.value, resolving)

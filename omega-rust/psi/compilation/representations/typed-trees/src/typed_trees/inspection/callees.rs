@@ -120,7 +120,7 @@ fn collect_expression_callees(
     visited: &mut Vec<crate::expression::ExpressionHandle>,
     called: &mut Vec<symbols::SymbolHandle>,
 ) {
-    use crate::expression::{ExpressionNode, MatchPattern};
+    use crate::expression::ExpressionNode;
     if !expression.is_valid() || visited.contains(&expression) {
         return;
     }
@@ -136,12 +136,16 @@ fn collect_expression_callees(
         ExpressionNode::Match(dispatch) => {
             collect_expression_callees(typed, dispatch.subject, visited, called);
             for arm in typed.expression_table.match_arms(dispatch.arms) {
-                if let MatchPattern::Value(value) = arm.pattern {
+                for value in typed
+                    .expression_table
+                    .match_pattern_dependencies(arm.pattern)
+                {
                     collect_expression_callees(typed, value, visited, called);
                 }
                 collect_expression_callees(typed, arm.value, visited, called);
             }
         }
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::ArrayLiteral(values) => {
             for value in typed.expression_table.expression_handles(*values) {
                 collect_expression_callees(typed, *value, visited, called);

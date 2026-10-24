@@ -205,7 +205,7 @@ fn captured_claims(
     if frontier.is_empty() {
         return Ok(Vec::new());
     }
-    let mut claims = match validation::canonical_place_from_expression_in_state(
+    let mut claims = match validation::ownership_place_from_expression_in_state(
         program,
         operand.state_symbol,
         operand.statement_index,

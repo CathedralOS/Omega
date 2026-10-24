@@ -111,6 +111,7 @@ impl ExpressionTable {
                 self.insert(ExpressionNode::Match(TableMatchExpression {
                     subject,
                     arms,
+                    ..Default::default()
                 }))
             }
             Expression::ArrayLiteral(values) => {

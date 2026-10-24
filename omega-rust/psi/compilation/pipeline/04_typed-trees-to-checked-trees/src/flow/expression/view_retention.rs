@@ -13,6 +13,68 @@ use typed_trees::expression::ExpressionHandle;
 use validation::CanonicalPlace;
 
 impl Execution<'_, '_, '_> {
+    /// Keep every completed descriptor profile at a selection. The joined
+    /// roots answer lifetime-only queries; alternatives retain the actual
+    /// stored contents needed by a later projection through a descriptor.
+    fn captured_retention_at_path(
+        &mut self,
+        capture: &FlowOperandFact,
+        path: &[PlaceSegment],
+    ) -> Handle<FlowOperandRetention> {
+        let Some(profiles) = super::super::operand_values::captured_retention_profiles_at_path(
+            self.program,
+            &self.context.control,
+            capture,
+            path,
+        ) else {
+            return Handle::invalid();
+        };
+        self.join_retention_profiles(&profiles)
+    }
+
+    fn join_retention_profiles(
+        &mut self,
+        profiles: &[Handle<FlowOperandRetention>],
+    ) -> Handle<FlowOperandRetention> {
+        if let [profile] = profiles {
+            return *profile;
+        }
+        if profiles.is_empty() {
+            return Handle::invalid();
+        }
+        let mut roots = Vec::new();
+        let mut alternatives = Vec::new();
+        for profile in profiles {
+            let Some(retained) = self.context.control.retained_roots(*profile) else {
+                return Handle::invalid();
+            };
+            for root in retained {
+                if !roots.contains(root) {
+                    roots.push(*root);
+                }
+            }
+            alternatives.push(*self.context.control.operand_retentions.get(*profile));
+        }
+        let roots = self
+            .context
+            .control
+            .operand_retained_roots
+            .insert_many(roots);
+        let alternatives = self
+            .context
+            .control
+            .operand_retentions
+            .insert_many(alternatives);
+        self.context
+            .control
+            .operand_retentions
+            .insert(FlowOperandRetention {
+                roots,
+                alternatives,
+                ..Default::default()
+            })
+    }
+
     /// Every possible result must cover each declared lifetime leaf at its
     /// own completion. Joining dependencies never joins address geometry or
     /// turns mutually exclusive values into simultaneous product children.
@@ -60,26 +122,19 @@ impl Execution<'_, '_, '_> {
         let mut leaves = Vec::new();
         for path in paths {
             let path = crate::borrow::owner_place_segments(&path);
-            let mut roots = Vec::new();
+            let mut profiles = Vec::new();
             for (capture, prefix) in selections {
                 let mut selected_path = prefix.clone();
                 selected_path.extend_from_slice(&path);
-                let leaf = super::super::operand_values::captured_retention_at_path(
-                    self.program,
-                    &self.context.control,
-                    capture,
-                    &selected_path,
-                );
-                let Some(retained) = self.context.control.retained_roots(leaf) else {
+                let leaf = self.captured_retention_at_path(capture, &selected_path);
+                if self.context.control.retained_roots(leaf).is_none() {
                     return Handle::invalid();
-                };
-                for root in retained {
-                    if !roots.contains(root) {
-                        roots.push(*root);
-                    }
+                }
+                if !profiles.contains(&leaf) {
+                    profiles.push(leaf);
                 }
             }
-            let retention = self.append_retention(&roots);
+            let retention = self.join_retention_profiles(&profiles);
             if path.is_empty() {
                 return retention;
             }
@@ -100,6 +155,7 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .insert(FlowOperandRetention {
                 roots: HandleSpan::empty(),
+                alternatives: HandleSpan::empty(),
                 leaves,
                 stored_value: Handle::invalid(),
                 stored_projection: HandleSpan::empty(),
@@ -117,6 +173,7 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .insert(FlowOperandRetention {
                 roots,
+                alternatives: HandleSpan::empty(),
                 leaves: HandleSpan::empty(),
                 stored_value: Handle::invalid(),
                 stored_projection: HandleSpan::empty(),
@@ -163,6 +220,7 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .insert(FlowOperandRetention {
                 roots: HandleSpan::empty(),
+                alternatives: HandleSpan::empty(),
                 leaves: HandleSpan::empty(),
                 stored_value,
                 stored_projection,
@@ -194,12 +252,10 @@ impl Execution<'_, '_, '_> {
                 capture,
                 projection,
                 ..
-            } => super::super::operand_values::captured_retention_at_path(
-                self.program,
-                &self.context.control,
-                self.context.control.operands.get(capture),
-                &projection,
-            ),
+            } => {
+                let capture = *self.context.control.operands.get(capture);
+                self.captured_retention_at_path(&capture, &projection)
+            }
         })
     }
 
@@ -265,12 +321,10 @@ impl Execution<'_, '_, '_> {
                     capture,
                     projection,
                     ..
-                }) => super::super::operand_values::captured_retention_at_path(
-                    self.program,
-                    &self.context.control,
-                    self.context.control.operands.get(capture),
-                    &projection,
-                ),
+                }) => {
+                    let capture = *self.context.control.operands.get(capture);
+                    self.captured_retention_at_path(&capture, &projection)
+                }
                 Some(super::super::stored_values::StoredOperand::Unavailable) => Handle::invalid(),
                 None => self.append_retention(&[source.root]),
             };
@@ -299,6 +353,7 @@ impl Execution<'_, '_, '_> {
                 .operand_retentions
                 .insert(FlowOperandRetention {
                     roots: HandleSpan::empty(),
+                    alternatives: HandleSpan::empty(),
                     leaves,
                     stored_value: Handle::invalid(),
                     stored_projection: HandleSpan::empty(),
@@ -435,6 +490,7 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .insert(FlowOperandRetention {
                 roots,
+                alternatives: HandleSpan::empty(),
                 leaves: HandleSpan::empty(),
                 stored_value,
                 stored_projection: HandleSpan::empty(),
@@ -520,6 +576,7 @@ impl Execution<'_, '_, '_> {
             .operand_retentions
             .insert(FlowOperandRetention {
                 roots,
+                alternatives: HandleSpan::empty(),
                 leaves: HandleSpan::empty(),
                 stored_value,
                 stored_projection: HandleSpan::empty(),
@@ -541,12 +598,7 @@ impl Execution<'_, '_, '_> {
             path.push(PlaceSegment::Case { variant });
         }
         path.push(PlaceSegment::Field { symbol });
-        let captured = super::super::operand_values::captured_retention_at_path(
-            self.program,
-            &self.context.control,
-            receiver,
-            &path,
-        );
+        let captured = self.captured_retention_at_path(receiver, &path);
         if captured.is_valid() {
             return Some(captured);
         }
@@ -563,6 +615,7 @@ impl Execution<'_, '_, '_> {
                         .operand_retentions
                         .get(receiver.retention);
                     !profile.leaves.is_empty()
+                        || !profile.alternatives.is_empty()
                         || self.context.control.operands.is_valid(profile.stored_value)
                         || self
                             .context
@@ -625,13 +678,8 @@ impl Execution<'_, '_, '_> {
             if !self.context.control.operands.is_valid(storage) {
                 return None;
             }
-            let capture = self.context.control.operands.get(storage);
-            let capture = super::super::operand_values::captured_retention_at_path(
-                self.program,
-                &self.context.control,
-                capture,
-                path,
-            );
+            let capture = *self.context.control.operands.get(storage);
+            let capture = self.captured_retention_at_path(&capture, path);
             return self
                 .context
                 .control
@@ -639,12 +687,7 @@ impl Execution<'_, '_, '_> {
                 .map(<[_]>::to_vec);
         }
         if !stored || !self.is_view_type(actual.type_reference) || !path.is_empty() {
-            let capture = super::super::operand_values::captured_retention_at_path(
-                self.program,
-                &self.context.control,
-                actual,
-                path,
-            );
+            let capture = self.captured_retention_at_path(actual, path);
             return self
                 .context
                 .control
@@ -697,12 +740,7 @@ impl Execution<'_, '_, '_> {
         if let Some(index) = self.captured_coordinate(index) {
             // Preserve an aggregate element's declared lifetime leaves too.
             let path = [PlaceSegment::FixedIndex { index }];
-            let captured = super::super::operand_values::captured_retention_at_path(
-                self.program,
-                &self.context.control,
-                collection,
-                &path,
-            );
+            let captured = self.captured_retention_at_path(collection, &path);
             return if captured.is_valid() {
                 captured
             } else {
@@ -874,6 +912,7 @@ impl Execution<'_, '_, '_> {
             *retention = Some(self.context.control.operand_retentions.insert(
                 FlowOperandRetention {
                     roots,
+                    alternatives: HandleSpan::empty(),
                     leaves,
                     stored_value: Handle::invalid(),
                     stored_projection: HandleSpan::empty(),

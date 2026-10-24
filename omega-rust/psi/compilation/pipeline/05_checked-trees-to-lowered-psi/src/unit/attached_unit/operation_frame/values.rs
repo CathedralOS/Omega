@@ -73,6 +73,7 @@ impl OperationFrame<'_, '_> {
             structural_values::ValueProduction {
                 value: *value,
                 owner,
+                destination: structural_values::ValueDestination::Binding,
                 statement: result.statement_index,
                 structural_type: lookup_type_id(type_ids, &result.type_identity)?,
                 multiplicity: result.multiplicity,
@@ -196,6 +197,7 @@ impl OperationEnvironment<'_> {
                 structural_values::ValueProduction {
                     value,
                     owner: facts::PlaceRoot::Expression(node.expression),
+                    destination: structural_values::ValueDestination::Operand,
                     statement: node.statement_index,
                     structural_type,
                     multiplicity: crate::reference_custody::result_multiplicity(

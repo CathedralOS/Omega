@@ -173,6 +173,10 @@ fn result_type(
     }
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .and_then(|subject| result_type(program, owner, subject, active)),
         ExpressionNode::Atomic(atomic) => {
             let operand = result_type(program, owner, atomic.value, active);
             if crate::atomic_load_carrier(program, expression).is_some() {

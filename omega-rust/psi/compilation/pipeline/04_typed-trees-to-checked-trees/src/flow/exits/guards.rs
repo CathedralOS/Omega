@@ -746,6 +746,64 @@ pub(in crate::flow) fn append_match_pattern_context(
 ) {
     if let FactPayload::MatchPattern {
         expression,
+        arm,
+        matched: true,
+    } = payload
+        && let Some(dispatch) = program.expression_table.match_node(expression)
+        && let Some((machine_position, state_position)) =
+            build.state_location(program, state_symbol)
+        && let Some(source_arm) = program
+            .expression_table
+            .match_arms(dispatch.arms)
+            .iter()
+            .enumerate()
+            .find_map(|(ordinal, row)| {
+                (u32::try_from(ordinal)
+                    .ok()
+                    .is_some_and(|ordinal| dispatch.arms.handle_at(ordinal) == arm))
+                .then_some(row)
+            })
+    {
+        let machine = &program.machines()[machine_position];
+        let state = &program.machine_states(machine)[state_position];
+        if let Some(case) = validation::structural_match_pattern_case(
+            program,
+            machine,
+            state,
+            dispatch,
+            source_arm.pattern,
+        ) && case.is_valid()
+        {
+            let alias = if dispatch.capture.is_valid() {
+                program
+                    .expression_table
+                    .match_subject(dispatch.capture)
+                    .value_anchor
+            } else {
+                ExpressionHandle::invalid()
+            };
+            let subject = if alias.is_valid() {
+                alias
+            } else {
+                dispatch.subject
+            };
+            append_observation_context(
+                program,
+                semantic,
+                build,
+                state_symbol,
+                statement_index,
+                &[subject],
+                FactPayload::AssignedCase { variant: case },
+                point,
+                FactOrigin::TransitionGuard,
+                active_contexts,
+                active_constraints,
+            );
+        }
+    }
+    if let FactPayload::MatchPattern {
+        expression,
         matched,
         ..
     } = payload

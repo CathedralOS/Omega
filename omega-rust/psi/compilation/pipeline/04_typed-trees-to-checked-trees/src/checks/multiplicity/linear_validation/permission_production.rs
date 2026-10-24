@@ -28,6 +28,7 @@ use language_semantics::{
 use symbols::SymbolHandle;
 use typed_trees::statement::StatementNode;
 
+mod observed_completions;
 mod projected_scopes;
 use projected_scopes::ProjectedScopes;
 
@@ -186,7 +187,7 @@ pub(crate) fn evaluate_statement_permissions(
     let mut storage_establishments = Vec::new();
     let mut transfers = Vec::new();
     let mut observations = Vec::new();
-    let copy_completions = copy_source_completions(
+    let mut source_completions = copy_source_completions(
         program,
         facts,
         machine_symbol,
@@ -194,6 +195,18 @@ pub(crate) fn evaluate_statement_permissions(
         statement_index,
         occurrences,
         temporary_owners,
+    );
+    observed_completions::append(
+        program,
+        facts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        evaluation,
+        moves,
+        occurrences,
+        temporary_owners,
+        &mut source_completions,
     );
     let mut checked_through = event_start;
     let mut custody = (places.to_vec(), remaining.clone());
@@ -207,7 +220,7 @@ pub(crate) fn evaluate_statement_permissions(
     };
     // Calls are completion facts, not a second ordering authority. Grouping
     // them before construction moves delays anonymous custody past joins.
-    for occurrence in occurrences {
+    for (occurrence_ordinal, occurrence) in occurrences.iter().enumerate() {
         match occurrence.step {
             StatementStep::Observe {
                 ref place,
@@ -348,6 +361,20 @@ pub(crate) fn evaluate_statement_permissions(
                         &permission_events[transfer_start..],
                         &facts.flow.ownership.segments,
                     );
+                    observed_completions::complete_at(
+                        program,
+                        facts,
+                        &source_completions,
+                        occurrences,
+                        moves,
+                        temporary_owners,
+                        occurrence_ordinal,
+                        selection_site,
+                        places,
+                        remaining,
+                        permission_events,
+                        cleanup_dispositions,
+                    )?;
                     continue;
                 }
                 let event_path = facts
@@ -365,6 +392,20 @@ pub(crate) fn evaluate_statement_permissions(
                         &event_path,
                     )
                 }) {
+                    observed_completions::complete_at(
+                        program,
+                        facts,
+                        &source_completions,
+                        occurrences,
+                        moves,
+                        temporary_owners,
+                        occurrence_ordinal,
+                        selection_site,
+                        places,
+                        remaining,
+                        permission_events,
+                        cleanup_dispositions,
+                    )?;
                     continue;
                 }
                 let matching = places
@@ -408,9 +449,6 @@ pub(crate) fn evaluate_statement_permissions(
                     &permission_events[projected_start..],
                     &facts.flow.ownership.segments,
                 );
-                if matching.is_empty() {
-                    continue;
-                }
                 let kind = PermissionEventKind::Transfer;
                 for index in matching {
                     let claim_path = places[index].path.clone();
@@ -465,6 +503,20 @@ pub(crate) fn evaluate_statement_permissions(
                 }
                 transfers[transfer_snapshot].events.end = permission_events.len() - event_start;
                 remaining.transfer_storage(event.root, &event_path);
+                observed_completions::complete_at(
+                    program,
+                    facts,
+                    &source_completions,
+                    occurrences,
+                    moves,
+                    temporary_owners,
+                    occurrence_ordinal,
+                    selection_site,
+                    places,
+                    remaining,
+                    permission_events,
+                    cleanup_dispositions,
+                )?;
             }
 
             StatementStep::Complete(expression) => {
@@ -658,113 +710,20 @@ pub(crate) fn evaluate_statement_permissions(
                         cleanup_dispositions,
                     );
                 }
-                for completion in copy_completions
-                    .iter()
-                    .filter(|completion| completion.expression == expression)
-                {
-                    let root = completion.root;
-                    if !remaining.is_present(root, &[])
-                        || !places
-                            .iter()
-                            .any(|place| place.root == root && place.ever_established)
-                    {
-                        continue;
-                    }
-                    let completion_start = permission_events.len();
-                    super::affine_cleanup::append_owned_region_cleanup_permission_events(
-                        program,
-                        completion.type_reference,
-                        root,
-                        &[],
-                        places,
-                        remaining,
-                        FlowPermissionEventFact {
-                            expression,
-                            evaluation,
-                            machine_symbol,
-                            state_symbol,
-                            source: statement_source,
-                            kind: PermissionEventKind::AffineDrop,
-                            multiplicity: Multiplicity::Affine,
-                            access: PermissionAccess::Owned,
-                            claim_identity: PermissionClaimIdentity::Unknown,
-                            provenance: PermissionProvenance::Unknown,
-                            root,
-                            segments: Default::default(),
-                            obligation_live: false,
-                        },
-                        &mut facts.flow.ownership.segments,
-                        permission_events,
-                    );
-                    if permission_events.len() == completion_start {
-                        return Err(diagnostics::Diagnostic::error(
-                            "copied temporary source has no eligible owned completion",
-                        )
-                        .with_source_span(program.expression_table.source_span(expression)));
-                    }
-                    let disposition_start = cleanup_dispositions.dispositions.len();
-                    remaining.observe_ordinary(
-                        program,
-                        &permission_events[completion_start..],
-                        &facts.flow.ownership.segments,
-                        cleanup_dispositions,
-                        checked_trees::FlowClaimJoinExit::default(),
-                        &[],
-                        false,
-                    );
-                    let mut disposition_ordinal = 0;
-                    cleanup_dispositions
-                        .dispositions
-                        .for_each_mut(|_, disposition| {
-                            if disposition_ordinal >= disposition_start {
-                                disposition.completion = expression;
-                            }
-                            disposition_ordinal += 1;
-                        });
-                    for place in places.iter_mut().filter(|place| place.root == root) {
-                        place.live = false;
-                    }
-                    remaining.retire_storage(
-                        root,
-                        machine_symbol,
-                        state_symbol,
-                        statement_source,
-                        cleanup_dispositions,
-                    );
-                }
-                let completion_start = permission_events.len();
-                let retired = temporary_results::append_continuation_cleanup(
+                observed_completions::complete_at(
                     program,
                     facts,
-                    machine_symbol,
-                    state_symbol,
-                    statement_source,
-                    expression,
-                    evaluation,
+                    &source_completions,
+                    occurrences,
+                    moves,
                     temporary_owners,
+                    occurrence_ordinal,
+                    selection_site,
                     places,
                     remaining,
                     permission_events,
                     cleanup_dispositions,
                 )?;
-                remaining.observe_ordinary(
-                    program,
-                    &permission_events[completion_start..],
-                    &facts.flow.ownership.segments,
-                    cleanup_dispositions,
-                    checked_trees::FlowClaimJoinExit::default(),
-                    &[],
-                    false,
-                );
-                for root in retired {
-                    remaining.retire_storage(
-                        root,
-                        machine_symbol,
-                        state_symbol,
-                        statement_source,
-                        cleanup_dispositions,
-                    );
-                }
             }
         }
     }
@@ -1042,7 +1001,8 @@ fn complete_body_custody(
     );
 }
 
-struct CopySourceCompletion {
+struct SourceCompletion {
+    occurrence: usize,
     expression: typed_trees::expression::ExpressionHandle,
     root: facts::PlaceRoot,
     type_reference: typed_trees::types::TypeReferenceHandle,
@@ -1061,7 +1021,7 @@ fn copy_source_completions(
     statement_index: usize,
     occurrences: &[crate::checks::ownership_occurrences::StatementOccurrence],
     temporary_owners: &[temporary_results::TemporaryOwner],
-) -> Vec<CopySourceCompletion> {
+) -> Vec<SourceCompletion> {
     let mut completions = Vec::new();
     for (observation_ordinal, observation) in occurrences.iter().enumerate() {
         let StatementStep::Observe { place, expression } = &observation.step else {
@@ -1085,7 +1045,7 @@ fn copy_source_completions(
                 .any(|owner| owner.expression == source)
             || completions
                 .iter()
-                .any(|completion: &CopySourceCompletion| completion.root == place.root)
+                .any(|completion: &SourceCompletion| completion.root == place.root)
         {
             continue;
         }
@@ -1165,7 +1125,8 @@ fn copy_source_completions(
         {
             continue;
         }
-        completions.push(CopySourceCompletion {
+        completions.push(SourceCompletion {
+            occurrence: ordinal,
             expression,
             root: place.root,
             type_reference: reference,

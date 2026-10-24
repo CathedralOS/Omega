@@ -1,6 +1,6 @@
 use super::type_references::{OperatorResultOwnership, classify_operator_result_ownership};
 use crate::flow::FlowOwnershipEventSource;
-use validation::canonical_place_from_expression_in_state;
+use validation::ownership_place_from_expression_in_state;
 use validation::symbol_type_symbol;
 
 use crate::flow::canonical_place_from_symbol;
@@ -50,25 +50,29 @@ pub(super) fn append_move_events_for_expression(
     expected_type: typed_trees::types::TypeReferenceHandle,
     source: FlowOwnershipEventSource,
 ) {
-    // A case-membership test observes a saved place; it does not extract the
-    // nominal value whose tag is read. Restrict this to static symbol paths so
-    // calls and computed indexes still expose their owned argument transfers.
-    if let Some((subject, _)) = crate::proof::exact_outcome_case_test(program, expression)
+    // A checked tag operation observes its operand, wherever that completed
+    // value lives. The ordinary observation walk still evaluates computed
+    // receivers and selectors and records their real operand transfers.
+    if let Some(binary) = program.expression_table.binary_node(expression)
+        && validation::applied_case_membership_variant(
+            program,
+            sink.machine,
+            Some(sink.state),
+            expression,
+            binary,
+        )
+        .is_some()
         && observations::selected_operator(sink, state_symbol, statement_index, expression)
             .is_none()
-        && canonical_place_from_expression_in_state(program, state_symbol, statement_index, subject)
-            .is_some_and(|place| {
-                matches!(place.root, facts::PlaceRoot::Symbol(_))
-                    && place.segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::Case { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    })
-            })
     {
+        observations::append(
+            program,
+            sink,
+            state_symbol,
+            statement_index,
+            binary.left,
+            source,
+        );
         return;
     }
 
@@ -118,7 +122,7 @@ pub(super) fn append_move_events_for_expression(
             .map(|reference| type_requires_ownership(program, reference))
             .unwrap_or(true)
     {
-        if let Some(place) = canonical_place_from_expression_in_state(
+        if let Some(place) = ownership_place_from_expression_in_state(
             program,
             state_symbol,
             statement_index,
@@ -160,15 +164,20 @@ pub(super) fn append_move_events_for_expression(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => {
             // A discriminant dispatch reads only the subject's case tag, like
             // the membership-test exemption above: the observed place is not
             // extracted. Subjects are parameter field paths, immutable locals,
             // or fresh constructions, none of which move owned operands out of
             // the tag read.
-            let tag_observed =
-                validation::match_case_dispatch(program, sink.machine, sink.state, dispatch)
-                    .is_some();
+            let tag_observed = validation::structural_match_subject_type(
+                program,
+                sink.machine,
+                sink.state,
+                dispatch,
+            )
+            .is_some();
             if !tag_observed {
                 append_move_events_for_expression(
                     program,
@@ -186,7 +195,7 @@ pub(super) fn append_move_events_for_expression(
                 .iter()
                 .enumerate()
             {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     append_move_events_for_expression(
                         program,
                         sink,

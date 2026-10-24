@@ -589,6 +589,7 @@ fn rewrite_match_equality(
         remainder = Some(program.expression_table.insert(ExpressionNode::Match(
             TableMatchExpression {
                 subject: call,
+                capture: Default::default(),
                 arms,
             },
         )));

@@ -385,7 +385,7 @@ fn collect_expression_dependency_symbols(
         ExpressionNode::Match(dispatch) => {
             collect_expression_dependency_symbols(program, dispatch.subject, symbols);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     collect_expression_dependency_symbols(program, pattern, symbols);
                 }
                 collect_expression_dependency_symbols(program, arm.value, symbols);
@@ -445,7 +445,7 @@ fn collect_expression_dependency_symbols(
                 collect_expression_dependency_symbols(program, field.value, symbols);
             }
         }
-        typed_trees::literal_expression_pattern!() => {}
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => {}
     }
 }
 

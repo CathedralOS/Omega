@@ -594,7 +594,7 @@ pub(super) fn stage(
                             _ => None,
                         })
                         .collect::<Option<Vec<_>>>()
-                        .ok_or_else(invalid)?;
+                        .ok_or_else(|| invalid())?;
                     if leaf_type(types, *promised, &path) != Some(referent)
                         || *promised_access != access
                     {
@@ -631,15 +631,16 @@ pub(super) fn stage(
                                     &source.path,
                                     StructuralAccess::SharedBorrow,
                                 )?;
-                                let leaf =
-                                    custody.leaf(location.0, &location.1).ok_or_else(invalid)?;
+                                let leaf = custody
+                                    .leaf(location.0, &location.1)
+                                    .ok_or_else(|| invalid())?;
                                 let reference_type = leaf_type(
                                     types,
                                     leaf.contract.structural_type(),
                                     &leaf.identity.path,
                                 )
                                 .and_then(|ty| find_structural_type(types, ty))
-                                .ok_or_else(invalid)?;
+                                .ok_or_else(|| invalid())?;
                                 let StructuralTypeShape::Reference {
                                     access: available, ..
                                 } = reference_type.shape

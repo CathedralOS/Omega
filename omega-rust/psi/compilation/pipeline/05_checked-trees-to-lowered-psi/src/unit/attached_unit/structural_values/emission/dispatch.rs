@@ -15,7 +15,23 @@ impl Emission<'_, '_, '_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: checked_trees::expression::ExpressionHandle,
-        subject: checked_trees::CheckedScalarComputationHandle,
+        subject: checked_trees::CheckedDispatchSubject,
+        arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
+        continuation: Option<&mut ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let completed_prefix = self.evaluation.completed_operand_scope.len();
+        let result = self.dispatch_value(identities, expression, subject, arms, continuation);
+        self.evaluation
+            .completed_operand_scope
+            .truncate(completed_prefix);
+        result
+    }
+
+    fn dispatch_value(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: checked_trees::expression::ExpressionHandle,
+        subject: checked_trees::CheckedDispatchSubject,
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
@@ -31,13 +47,38 @@ impl Emission<'_, '_, '_> {
             ))?
             .to_vec();
         let source_count = self.values.len();
-        let subject = self.scalar(
-            identities,
-            CheckedScalarExpressionRole::StructuralValueSubject { expression },
-            subject,
-            source_count,
-        )?;
-        self.values.push(subject);
+        match subject {
+            checked_trees::CheckedDispatchSubject::Scalar(subject) => {
+                let value = self.scalar(
+                    identities,
+                    CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                    subject,
+                    source_count,
+                )?;
+                self.values.push(value);
+            }
+            checked_trees::CheckedDispatchSubject::Structural { value, alias, .. } => {
+                let request = crate::scalar_lowering::branch_states::structural_values::ValueRequest::prepare(identities, self.checked, value, self.structural_types)?;
+                self.environment.produce_value(
+                    identities,
+                    value,
+                    request.structural_type,
+                    self.evaluation,
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.calls,
+                    self.operations,
+                )?;
+                self.evaluation
+                    .bind_completed_value_alias(value, alias, self.operations)?;
+                // The actual producer above dominates every predicate and
+                // selected arm. Carry that dependency into their fresh scalar
+                // expansions, not every historical entry in computed_values.
+                self.evaluation.completed_operand_scope.push(value);
+            }
+        }
         let mut owned_continuation;
         let is_root = continuation.is_none();
         let continuation = if let Some(continuation) = continuation {
@@ -60,6 +101,22 @@ impl Emission<'_, '_, '_> {
         let route_prefix = self.selection_route.len();
         for (position, arm) in arms.iter().enumerate() {
             let mut fallback = None;
+            if let checked_trees::CheckedScalarDispatchPattern::Predicate(predicate) = arm.pattern {
+                let predicate = self.scalar(
+                    identities,
+                    CheckedScalarExpressionRole::StructuralValuePattern {
+                        source_arm: arm.source_arm,
+                    },
+                    predicate,
+                    source_count,
+                )?;
+                if predicate.scalar_type != ScalarType::Boolean {
+                    return unsupported("structural dispatch predicate is not Boolean");
+                }
+                if position + 1 < arms.len() {
+                    self.boolean_value_split(predicate.id, &mut fallback)?;
+                }
+            }
             if let checked_trees::CheckedScalarDispatchPattern::Value(pattern) = arm.pattern {
                 let pattern = self.scalar(
                     identities,

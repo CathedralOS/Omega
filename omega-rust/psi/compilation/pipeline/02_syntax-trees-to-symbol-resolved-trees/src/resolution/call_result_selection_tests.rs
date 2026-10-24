@@ -99,6 +99,23 @@ fn call_results_keep_nested_calls_and_preceding_locals_without_runtime_body_rows
 }
 
 #[test]
+fn call_results_retain_match_capture_around_selected_payload_calls() {
+    compare(
+        r#"
+        data Cell { value: i32; }
+        data Envelope { case Active(cell: &mut Cell); case Empty; }
+        machine store(cell: &mut Cell) -> bool { cell.value == 41 }
+        machine caller(envelope: Envelope) -> bool {
+            match envelope {
+                Envelope::Active { cell } -> store(&mut cell)
+                Envelope::Empty -> false
+            }
+        }
+    "#,
+    );
+}
+
+#[test]
 fn call_results_keep_each_target_body_selected_declaration() {
     compare(
         r#"

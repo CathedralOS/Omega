@@ -310,7 +310,7 @@ impl Emission<'_, '_, '_> {
             }
             let completed =
                 self.capture_operand(identities, source, expression, first_new_place)?;
-            let source = completed.argument;
+            let source = &completed.argument;
             let (whole, projected) =
                 self.completed_memberships(source.place)
                     .ok_or(LoweringError::Unsupported(
@@ -332,42 +332,11 @@ impl Emission<'_, '_, '_> {
                 projected_qualifications.sort();
                 projected_qualifications.dedup();
             }
-            let place = super::place_id(super::allocate_dense(self.environment.next_place)?);
-            let operation = self.operations.allocate();
-            self.operations.push(terminal_psi::Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: terminal_psi::OperationResult::Structural(
-                    terminal_psi::StructuralOperationResult {
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: self.multiplicity,
-                        qualifications,
-                        projected_qualifications,
-                        qualification_establishments: Vec::new(),
-                        claims: completed.claims,
-                    },
-                ),
-                kind: terminal_psi::OperationKind::MoveStructuralValue { source },
-            });
-            self.environment
-                .private_places
-                .push(super::operation_result_declaration(
-                    place,
-                    operation,
-                    self.structural_type,
-                ));
-            self.operations.register_structural_materialization(
-                place,
-                self.state,
-                self.statement,
-            )?;
-            return Ok(StructuralArgument {
-                place,
-                path: Vec::new(),
-                access: StructuralAccess::Owned,
-            });
+            return self.move_completed_operand(
+                completed,
+                qualifications,
+                projected_qualifications,
+            );
         }
         self.copied_leaf_place(&source, decisions, None)
             .map(|place| StructuralArgument {
@@ -375,6 +344,57 @@ impl Emission<'_, '_, '_> {
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             })
+    }
+
+    /// Transfer the captured occurrence and its exact claims to a fresh home.
+    /// Projection results and membership transport use the same owned operation;
+    /// the original owner's unselected complement retains its checked death.
+    pub(super) fn move_completed_operand(
+        &mut self,
+        completed: super::super::operand_claims::CompletedOperand,
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+        projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    ) -> Result<StructuralArgument, LoweringError> {
+        if completed.argument.access != StructuralAccess::Owned
+            || self.multiplicity == StructuralMultiplicity::Unrestricted
+        {
+            return unsupported("value transfer requires restricted owned custody");
+        }
+        let place = super::place_id(super::allocate_dense(self.environment.next_place)?);
+        let operation = self.operations.allocate();
+        self.operations.push(terminal_psi::Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation,
+            result: terminal_psi::OperationResult::Structural(
+                terminal_psi::StructuralOperationResult {
+                    place,
+                    structural_type: self.structural_type,
+                    multiplicity: self.multiplicity,
+                    qualifications,
+                    projected_qualifications,
+                    qualification_establishments: Vec::new(),
+                    claims: completed.claims,
+                },
+            ),
+            kind: terminal_psi::OperationKind::MoveStructuralValue {
+                source: completed.argument,
+            },
+        });
+        self.environment
+            .private_places
+            .push(super::operation_result_declaration(
+                place,
+                operation,
+                self.structural_type,
+            ));
+        self.operations
+            .register_structural_materialization(place, self.state, self.statement)?;
+        Ok(StructuralArgument {
+            place,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        })
     }
 }
 

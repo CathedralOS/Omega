@@ -111,6 +111,7 @@ impl EvaluationTraversal<'_, '_> {
             return;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 self.visit_expression(dispatch.subject);
                 let mut selected_reached = false;
@@ -119,11 +120,17 @@ impl EvaluationTraversal<'_, '_> {
                     let mut covered =
                         matches!(arm.pattern, typed_trees::expression::MatchPattern::Wildcard);
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        self.visit_expression(pattern);
                         if let Some(value) = self.program.expression_table.boolean_node(pattern) {
                             covered_booleans[usize::from(*value)] = true;
                             covered = covered_booleans.iter().all(|value| *value);
                         }
+                    }
+                    for pattern in self
+                        .program
+                        .expression_table
+                        .match_pattern_operands(arm.pattern)
+                    {
+                        self.visit_expression(pattern);
                     }
                     let fallthrough_reached = self.target_reached;
                     self.visit_expression(arm.value);

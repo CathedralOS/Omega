@@ -23,6 +23,10 @@ use std::ops::{Deref, DerefMut};
 pub(super) struct SyntaxCopy<'destination> {
     destination: &'destination mut SyntaxTrees,
     pub(super) expression_copies: Vec<(ExpressionHandle, ExpressionHandle)>,
+    pub(super) match_subject_copies: Vec<(
+        Handle<crate::expression::MatchSubjectCapture>,
+        Handle<crate::expression::MatchSubjectCapture>,
+    )>,
 }
 
 impl<'destination> SyntaxCopy<'destination> {
@@ -31,6 +35,7 @@ impl<'destination> SyntaxCopy<'destination> {
         Self {
             destination,
             expression_copies: Vec::new(),
+            match_subject_copies: Vec::new(),
         }
     }
 }

@@ -45,6 +45,13 @@ impl Builder<'_, '_> {
             if !unequal {
                 return Some(membership);
             }
+            if let CheckedScalarComputationKind::CaseMembership {
+                completion_expression,
+                ..
+            } = &mut self.plans.nodes.get_mut(membership).kind
+            {
+                *completion_expression = ExpressionHandle::invalid();
+            }
             return Some(self.boolean_negation(membership, expression));
         }
         let (left_type, left) = self.enum_operand(binary.left)?;
@@ -96,6 +103,11 @@ impl Builder<'_, '_> {
                 CheckedScalarComputationKind::CaseMembership {
                     receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                     source_expression: expression,
+                    completion_expression: if unequal {
+                        ExpressionHandle::invalid()
+                    } else {
+                        expression
+                    },
                     subject,
                     case,
                 },
@@ -129,7 +141,7 @@ impl Builder<'_, '_> {
             chain = Some(self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::Apply {
-                    source_expression: expression,
+                    source_expression: ExpressionHandle::invalid(),
                     expression: CheckedScalarExpression::Boolean(Box::new(template)),
                     operands,
                 },
@@ -137,6 +149,12 @@ impl Builder<'_, '_> {
         }
         let equal = chain?;
         if !unequal {
+            if let CheckedScalarComputationKind::Apply {
+                source_expression, ..
+            } = &mut self.plans.nodes.get_mut(equal).kind
+            {
+                *source_expression = expression;
+            }
             return Some(equal);
         }
         let operands = self.plans.operands.insert_many([equal]);
@@ -171,6 +189,7 @@ impl Builder<'_, '_> {
                 CheckedScalarComputationKind::CaseMembership {
                     receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                     source_expression: expression,
+                    completion_expression: ExpressionHandle::invalid(),
                     subject: subject.clone(),
                     case,
                 },
@@ -256,6 +275,7 @@ impl Builder<'_, '_> {
         let receiver_value = self.retain_structural_argument(expression, returned)?;
         Some(self.insert(PrimitiveType::Bool, CheckedScalarComputationKind::CaseMembership {
             source_expression,
+            completion_expression: source_expression,
             receiver_value,
             subject: CheckedScalarComputationStructuralArgument::Place(checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },

@@ -69,6 +69,9 @@ pub(crate) fn project_contract_expression_with_substitutions(
     };
     let node = compilation.expression_table.expression(expression);
     match node {
+        ExpressionNode::SavedSubject(_) => Err(vec![Diagnostic::error(
+            "package contract projection requires a scoped structural-match capture representation; a saved runtime subject is not a free denotational value",
+        )]),
         ExpressionNode::UndeterminedNaN(_) => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contains a semantic NaN leaf without a supported canonical package-review contract expression",
             context.subject_kind, context.subject_name
@@ -78,6 +81,11 @@ pub(crate) fn project_contract_expression_with_substitutions(
             let mut arms = Vec::new();
             for arm in compilation.expression_table.match_arms(dispatch.arms) {
                 let pattern = match arm.pattern {
+                    typed_trees::expression::MatchPattern::Destructure(_) => {
+                        return Err(vec![Diagnostic::error(
+                            "package contract projection has no canonical structural-pattern record; refusing to erase payload bindings or guard obligations",
+                        )]);
+                    }
                     typed_trees::expression::MatchPattern::Value(pattern) => Some(child(pattern)?),
                     typed_trees::expression::MatchPattern::Wildcard => None,
                 };

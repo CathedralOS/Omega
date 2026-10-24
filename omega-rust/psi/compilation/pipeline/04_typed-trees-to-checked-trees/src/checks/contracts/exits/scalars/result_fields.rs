@@ -597,9 +597,11 @@ impl ExitScalars<'_, '_> {
             let mut lengths = Vec::new();
             let mut patterns = Vec::new();
             for arm in arms {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    patterns.push(pattern);
-                }
+                patterns.extend(
+                    self.program
+                        .expression_table
+                        .match_pattern_operands(arm.pattern),
+                );
                 let mut arm_matched = matched.to_vec();
                 if let Some((subject, value)) =
                     self.matched_arm_integer(dispatch.subject, arm.pattern)

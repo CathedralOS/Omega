@@ -59,8 +59,10 @@ fn reaches(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        (matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if reaches(program, pattern, target, visited)))
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|pattern| reaches(program, pattern, target, visited))
                             || reaches(program, arm.value, target, visited)
                     })
         }
@@ -99,6 +101,6 @@ fn reaches(
             .iter()
             .any(|field| reaches(program, field.value, target, visited)),
         ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
-        typed_trees::literal_expression_pattern!() => false,
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => false,
     }
 }

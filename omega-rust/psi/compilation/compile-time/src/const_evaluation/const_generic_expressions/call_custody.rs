@@ -8,7 +8,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::{SyntaxTrees, types::ConstArgumentOrigin};
 use typed_trees::{
     TypedTrees,
-    expression::{ExpressionHandle, ExpressionNode, MatchPattern},
+    expression::{ExpressionHandle, ExpressionNode},
     machine::Machine,
     state::State,
     statement::{StatementNode, TransitionGuardNode, TransitionTargetNode},
@@ -142,6 +142,7 @@ fn expression_children(
     }
     let mut children = Vec::new();
     match table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
                 children.push(call.receiver);
@@ -190,9 +191,7 @@ fn expression_children(
             }
             children.push(dispatch.subject);
             for arm in arms {
-                if let MatchPattern::Value(pattern) = arm.pattern {
-                    children.push(pattern);
-                }
+                children.extend(table.match_pattern_dependencies(arm.pattern));
                 children.push(arm.value);
             }
         }

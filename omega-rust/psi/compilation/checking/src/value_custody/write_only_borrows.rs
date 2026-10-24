@@ -1448,7 +1448,7 @@ fn validate_received_value(
             diagnostics,
         );
         for arm in program.expression_table.match_arms(dispatch.arms) {
-            if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+            for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                 validate_expression(program, machine, state, pattern, roots, diagnostics);
             }
             validate_received_value(
@@ -1685,13 +1685,13 @@ fn validate_expression(
                 diagnostics,
             );
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     validate_expression(program, machine, state, pattern, roots, diagnostics);
                 }
                 validate_expression(program, machine, state, arm.value, roots, diagnostics);
             }
         }
-        ExpressionNode::Name(_) => {}
+        ExpressionNode::SavedSubject(_) | ExpressionNode::Name(_) => {}
         ExpressionNode::Borrow(borrow) => match borrow.access {
             ReferenceAccess::WriteOnly => {
                 if let Some(binding) =
@@ -2053,6 +2053,10 @@ fn expression_mentions_root(
     root: &WriteOnlyRoot,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .is_some_and(|subject| expression_mentions_root(program, subject, root)),
         ExpressionNode::Match(dispatch) => {
             expression_mentions_root(program, dispatch.subject, root)
                 || program
@@ -2060,8 +2064,10 @@ fn expression_mentions_root(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_mentions_root(program, pattern, root))
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|pattern| expression_mentions_root(program, pattern, root))
                             || expression_mentions_root(program, arm.value, root)
                     })
         }

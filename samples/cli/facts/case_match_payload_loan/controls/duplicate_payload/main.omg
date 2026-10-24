@@ -1,0 +1,24 @@
+// Two simultaneous exclusive arguments cannot name the same selected payload.
+// Expected rejection: overlapping exclusive access.
+data Cell { value: i32; }
+data Message { body: &mut Cell; }
+data Envelope { case Active(message: &mut Message); case Empty; }
+machine clash(first: &mut Cell, second: &mut Cell) -> bool {
+    first.value = 41;
+    second.value = 42;
+    first.value == 42
+}
+machine exercise() -> bool {
+    let mut backing: Cell = Cell { value: 17 };
+    let mut message: Message = Message { body: &mut backing };
+    let envelope: Envelope = Envelope::Active { message: &mut message };
+    match envelope {
+        Envelope::Active { message } -> clash(&mut message.body, &mut message.body)
+        Envelope::Empty -> false
+    }
+}
+machine main() crashes Trap {
+    transition exercise() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

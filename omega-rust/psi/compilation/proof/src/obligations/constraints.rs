@@ -41,7 +41,7 @@ pub(crate) fn expression_constraints(
     match program.expression_table.expression(expression) {
         // Arm-local constraints require a checked join; no individual arm's
         // refinement is an unconditional fact about the dispatch result.
-        ExpressionNode::Match(_) => ConstraintBuffer::new(),
+        ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => ConstraintBuffer::new(),
         ExpressionNode::Atomic(atomic) => {
             expression_constraints(program, machine, state, atomic.value)
         }

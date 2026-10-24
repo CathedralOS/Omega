@@ -6,6 +6,10 @@ pub(super) fn expression_uses_local_name(
     local_name: &str,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .is_some_and(|source| expression_uses_local_name(program, source, local_name)),
         typed_trees::expression::ExpressionNode::Match(dispatch) => {
             expression_uses_local_name(program, dispatch.subject, local_name)
                 || program
@@ -13,8 +17,10 @@ pub(super) fn expression_uses_local_name(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_uses_local_name(program, pattern, local_name))
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|pattern| expression_uses_local_name(program, pattern, local_name))
                             || expression_uses_local_name(program, arm.value, local_name)
                     })
         }

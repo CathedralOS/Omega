@@ -22,7 +22,7 @@ impl<'program> Evaluator<'program> {
                 "root binding requires its executed statement identity".to_owned(),
             )),
             StatementNode::Assignment(assignment) => {
-                self.assign(statement_index, assignment.target, assignment.value, frame)
+                self.assign(statement_index, assignment, frame)
             }
             StatementNode::LocalData(local) => {
                 // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
@@ -545,7 +545,7 @@ impl<'program> Evaluator<'program> {
                 // param binding holds a `Ref`, so a later forward of that param (as a bare
                 // name) can detect it is a reference and keep aliasing -- otherwise a
                 // mutable text carrier passed down a call chain detaches after the first hop.
-                let cell = self.resolve_place(inner.target, frame)?;
+                let cell = self.eval_read_cell(inner.target, frame)?;
                 // A RE-BORROW (`&mut t` where `t` is itself a `&mut` param)
                 // aliases the SAME target: forward the inner Ref instead of
                 // nesting Ref-to-Ref, which downstream single-level derefs

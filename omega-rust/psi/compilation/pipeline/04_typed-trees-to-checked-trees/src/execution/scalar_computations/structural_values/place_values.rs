@@ -323,6 +323,39 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+        if let ExpressionNode::SavedSubject(saved) =
+            self.program.expression_table.expression(expression)
+        {
+            let source = self.program.expression_table.saved_subject_source(saved)?;
+            let machine = self.program.machine_by_symbol(self.machine)?;
+            let state = self.program.state_in_machine(machine, self.state)?;
+            let actual =
+                validation::expression_result_type_reference(self.program, machine, state, source)?;
+            if self.program.normalized_type_identity(actual)
+                != self.program.normalized_type_identity(expected)
+            {
+                return None;
+            }
+            let anchor = self
+                .program
+                .expression_table
+                .match_subject(saved.capture)
+                .value_anchor;
+            return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+                source:
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                        expression: anchor,
+                    },
+                path: Vec::new(),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    expected,
+                    &[],
+                    &[],
+                ),
+                access: checked_trees::CheckedStructuralAccess::Owned,
+            });
+        }
         let Some(name) = self.program.expression_table.name_path_node(expression) else {
             return None;
         };

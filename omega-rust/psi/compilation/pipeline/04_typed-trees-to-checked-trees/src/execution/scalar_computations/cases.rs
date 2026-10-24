@@ -28,11 +28,28 @@ impl Builder<'_, '_> {
             binary,
         )?;
         if let Some((_, subject)) = self.readable_case_subject(binary.left, self.statement_index) {
+            let receiver_value = if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression: anchor } = subject.source {
+                let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                    self.program.expression_table.expression(anchor)
+                else {
+                    return None;
+                };
+                let source = self.program.expression_table.saved_subject_source(saved)?;
+                let reference = validation::expression_result_type_reference(
+                    self.program, machine, state, source,
+                )?;
+                let value = self.structural_value(source, reference)?;
+                self.retain_structural_value_root(value, reference)?;
+                value
+            } else {
+                checked_trees::CheckedStructuralValueHandle::invalid()
+            };
             return Some(self.insert(
                 PrimitiveType::Bool,
                 CheckedScalarComputationKind::CaseMembership {
-                    receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
+                    receiver_value,
                     source_expression: expression,
+                    completion_expression: expression,
                     subject: CheckedScalarComputationStructuralArgument::Place(subject),
                     case,
                 },
@@ -54,6 +71,7 @@ impl Builder<'_, '_> {
             CheckedScalarComputationKind::CaseMembership {
                 receiver_value: checked_trees::CheckedStructuralValueHandle::invalid(),
                 source_expression: expression,
+                completion_expression: expression,
                 subject: CheckedScalarComputationStructuralArgument::Case(constructor),
                 case,
             },
@@ -77,34 +95,51 @@ impl Builder<'_, '_> {
             statement_index,
             subject,
         )?;
-        let root = place.root.as_symbol()?;
-        let parameter = self.authored_parameters.iter().find(|parameter| {
-            (facts::PlaceRoot::Symbol(parameter.symbol)) == facts::PlaceRoot::Symbol(root)
-        });
-        let symbol = if let Some(parameter) = parameter {
-            parameter.symbol
-        } else {
-            let machine = self.program.machine_by_symbol(self.machine)?;
-            let state = self.program.state_in_machine(machine, self.state)?;
-            let (_, local) = self
-                .program
-                .state_local_declaration(state, root)
-                .filter(|(ordinal, _)| *ordinal < statement_index)?;
-            let inspected =
-                validation::unwrapped_type_reference(self.program, local.type_reference)?;
-            // A discriminant read borrows the established owner in place. Its
-            // payload need not be copyable or predicate-free; source custody
-            // checks the tag observation and the later selected extraction.
-            // Owned-value classifiers incorrectly rejected routed payloads.
-            if !validation::has_contents(
-                self.program,
-                inspected,
-                &[],
-                validation::ContentsRequirement::BorrowedStorage,
-            ) {
+        let source = if let Some(expression) = place.root.as_expression() {
+            // A saved subject denotes the dispatch's already completed value,
+            // not its producer. Read that home without evaluating the producer
+            // again or transferring the saved owner's custody into a tag test.
+            let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                self.program.expression_table.expression(expression)
+            else {
                 return None;
+            };
+            self.program.expression_table.saved_subject_source(saved)?;
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression,
             }
-            local.symbol
+        } else {
+            let root = place.root.as_symbol()?;
+            let parameter = self
+                .authored_parameters
+                .iter()
+                .find(|parameter| parameter.symbol == root);
+            let symbol = if let Some(parameter) = parameter {
+                parameter.symbol
+            } else {
+                let machine = self.program.machine_by_symbol(self.machine)?;
+                let state = self.program.state_in_machine(machine, self.state)?;
+                let (_, local) = self
+                    .program
+                    .state_local_declaration(state, root)
+                    .filter(|(ordinal, _)| *ordinal < statement_index)?;
+                let inspected =
+                    validation::unwrapped_type_reference(self.program, local.type_reference)?;
+                // A discriminant read borrows the established owner in place. Its
+                // payload need not be copyable or predicate-free; source custody
+                // checks the tag observation and the later selected extraction.
+                // Owned-value classifiers incorrectly rejected routed payloads.
+                if !validation::has_contents(
+                    self.program,
+                    inspected,
+                    &[],
+                    validation::ContentsRequirement::BorrowedStorage,
+                ) {
+                    return None;
+                }
+                local.symbol
+            };
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         };
         let (projected, path) = crate::execution::terminal_unit::calls::projected_observed_path(
             self.program,
@@ -118,9 +153,7 @@ impl Builder<'_, '_> {
             projected,
             checked_trees::CheckedUnitStructuralArgumentPlan {
                 // Keep storage identity until the receiver resolves its roster.
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol,
-                },
+                source,
                 path,
                 type_identity: self.program.normalized_type_identity(projected).to_owned(),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,

@@ -4,7 +4,7 @@ use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarge
 use source::SourceSpan;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
-    expression::{ExpressionHandle, ExpressionNode, MatchPattern},
+    expression::{ExpressionHandle, ExpressionNode},
     machine::MachineBodyStatus,
 };
 use symbols::{SymbolHandle, SymbolKind};
@@ -496,11 +496,16 @@ impl<'program> Collector<'program> {
                 }
                 for arm in arms.iter().rev() {
                     self.expressions.push(arm.value);
-                    if let MatchPattern::Value(pattern) = arm.pattern {
-                        self.expressions.push(pattern);
-                    }
+                    self.expressions
+                        .extend(table.match_pattern_dependencies(arm.pattern));
                 }
                 self.expressions.push(dispatch.subject);
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                self.expressions.extend([
+                    table.match_subject(saved.capture).subject,
+                    saved.pattern_head,
+                ]);
             }
             ExpressionNode::Name(_) => {
                 if let Some((reference, selected)) =

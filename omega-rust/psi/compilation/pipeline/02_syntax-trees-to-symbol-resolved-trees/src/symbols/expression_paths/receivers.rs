@@ -17,6 +17,39 @@ const RECEIVER_MEMBER_KINDS: &[SymbolKind] = &[
     SymbolKind::Variant,
 ];
 
+/// A structural head selects its common fields and this case's payload.
+/// Sibling payload namespaces never participate, and duplicate spellings do
+/// not become declaration-order selection.
+pub(in crate::symbols) fn pattern_field_symbol(
+    symbols: &SymbolTable,
+    head: SymbolHandle,
+    spelling: &str,
+) -> SymbolHandle {
+    if !head.is_valid() {
+        return SymbolHandle::invalid();
+    }
+    let parent = if symbols.get(head).kind == SymbolKind::Variant {
+        symbols.get(head).parent
+    } else {
+        SymbolHandle::invalid()
+    };
+    let mut fields = [head, parent]
+        .into_iter()
+        .filter(|owner| owner.is_valid())
+        .flat_map(|owner| symbols.child_handles(owner).into_iter().flatten())
+        .filter(|field| {
+            symbols.get(*field).kind == SymbolKind::Field && symbols.name(*field) == spelling
+        });
+    let Some(field) = fields.next() else {
+        return SymbolHandle::invalid();
+    };
+    if fields.next().is_some() {
+        SymbolHandle::invalid()
+    } else {
+        field
+    }
+}
+
 pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
@@ -25,6 +58,15 @@ pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     receiver: symbol_resolved_trees::expression::ExpressionHandle,
     member: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
+    if let symbol_resolved_trees::expression::ExpressionNode::SavedSubject(saved) =
+        expression_table.expression(receiver)
+    {
+        let head = expression_table
+            .name_path_node(saved.pattern_head)
+            .map(|path| path.symbol)
+            .unwrap_or_default();
+        return pattern_field_symbol(symbols, head, member.as_str());
+    }
     let receiver_symbol = resolve_expression_table_receiver_symbol(
         symbols,
         machine_symbol,
@@ -52,6 +94,15 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
     receiver: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> (SymbolHandle, SymbolHandle) {
     match expression_table.expression(receiver) {
+        symbol_resolved_trees::expression::ExpressionNode::SavedSubject(saved) => {
+            resolve_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                saved.pattern_head,
+            )
+        }
         symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             resolve_state_scoped_table_path(
                 symbols,
@@ -72,12 +123,19 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
             if !receiver_symbol.is_valid() {
                 return invalid_symbol_pair();
             }
-            let member_symbol = child_or_attached_data_child_symbol_by_kinds(
-                symbols,
-                receiver_symbol,
-                RECEIVER_MEMBER_KINDS,
-                member.member.as_str(),
-            );
+            let member_symbol = if matches!(
+                expression_table.expression(member.receiver),
+                symbol_resolved_trees::expression::ExpressionNode::SavedSubject(_)
+            ) {
+                pattern_field_symbol(symbols, receiver_symbol, member.member.as_str())
+            } else {
+                child_or_attached_data_child_symbol_by_kinds(
+                    symbols,
+                    receiver_symbol,
+                    RECEIVER_MEMBER_KINDS,
+                    member.member.as_str(),
+                )
+            };
 
             if member_symbol.is_valid() {
                 (head_symbol, member_symbol)
@@ -184,6 +242,15 @@ pub(in crate::symbols::expression_paths) fn resolve_expression_table_receiver_sy
     receiver: symbol_resolved_trees::expression::ExpressionHandle,
 ) -> SymbolHandle {
     match expression_table.expression(receiver) {
+        symbol_resolved_trees::expression::ExpressionNode::SavedSubject(saved) => {
+            resolve_expression_table_receiver_symbol(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                saved.pattern_head,
+            )
+        }
         symbol_resolved_trees::expression::ExpressionNode::Name(path) => {
             let (_, symbol) = resolve_state_scoped_table_path(
                 symbols,

@@ -183,10 +183,15 @@ impl GuardContext<'_> {
             }
             seen.push(expression);
             match self.program.expression_table.expression(expression) {
+                ExpressionNode::SavedSubject(_) => return false,
                 ExpressionNode::Match(dispatch) => {
                     pending.push(dispatch.subject);
                     for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                        if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        for pattern in self
+                            .program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                        {
                             pending.push(pattern);
                         }
                         pending.push(arm.value);

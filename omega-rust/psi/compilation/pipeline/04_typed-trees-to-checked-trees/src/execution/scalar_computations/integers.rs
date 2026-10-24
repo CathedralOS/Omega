@@ -245,6 +245,7 @@ impl Builder<'_, '_> {
                         contextual_results.push(arm.value);
                     }
                     match arm.pattern {
+                        typed_trees::expression::MatchPattern::Destructure(_) => {}
                         typed_trees::expression::MatchPattern::Wildcard => break,
                         typed_trees::expression::MatchPattern::Value(pattern) => {
                             if let Some(value) = self.program.expression_table.boolean_node(pattern)

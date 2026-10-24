@@ -57,6 +57,23 @@ impl ValueRequest {
         target: usize,
         expansion: &mut Expansion<'_>,
     ) -> usize {
+        self.finish_with_alias(
+            typed_trees::expression::ExpressionHandle::invalid(),
+            source_types,
+            target,
+            expansion,
+        )
+    }
+
+    /// Bind a lexical saved-subject name only after its real value completes.
+    /// The alias names the same home; it creates no storage, loan or owner.
+    pub(crate) fn finish_with_alias(
+        self,
+        alias: typed_trees::expression::ExpressionHandle,
+        source_types: &[semantic_vocabulary::QualifiedScalarType],
+        target: usize,
+        expansion: &mut Expansion<'_>,
+    ) -> usize {
         expansion.push(LoweredScalarBranchState::jumping(
             target,
             Vec::new(),
@@ -65,6 +82,7 @@ impl ValueRequest {
             vec![LoweredScalarEffect::ProduceStructuralValue {
                 value: self.value,
                 structural_type: self.structural_type,
+                alias,
             }],
         ))
     }

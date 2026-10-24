@@ -582,6 +582,12 @@ fn evaluate_expression(
                     .get(ordinal)
                     .ok_or("constant Match has no selected arm")?;
                 match arm.pattern {
+                    typed_trees::expression::MatchPattern::Destructure(_) => {
+                        return Err(
+                            "structural constant Match requires saved-subject value interpretation"
+                                .into(),
+                        );
+                    }
                     typed_trees::expression::MatchPattern::Wildcard => {
                         selected_arms.push((expression, arm.value));
                         pending.push(Step::MatchResult(expression));

@@ -28,6 +28,7 @@ impl SymbolResolvedTrees {
             program: self,
             substitutions,
             types: Vec::new(),
+            visited_payloads: Vec::new(),
         }
         .expression(source)
     }
@@ -45,6 +46,7 @@ impl SymbolResolvedTrees {
             program: self,
             substitutions,
             types: Vec::new(),
+            visited_payloads: Vec::new(),
         }
         .proof_fact(source)
     }
@@ -54,6 +56,7 @@ struct SymbolCopy<'program, 'substitutions> {
     program: &'program mut SymbolResolvedTrees,
     substitutions: &'substitutions [(SymbolHandle, SymbolHandle)],
     types: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
+    visited_payloads: Vec<ExpressionHandle>,
 }
 
 impl SymbolCopy<'_, '_> {
@@ -122,6 +125,15 @@ impl SymbolCopy<'_, '_> {
         if !copied.is_valid() {
             return;
         }
+        let position = copied.arena_index() as usize;
+        if self.visited_payloads.get(position) == Some(&copied) {
+            return;
+        }
+        if self.visited_payloads.len() <= position {
+            self.visited_payloads
+                .resize(position + 1, Handle::invalid());
+        }
+        self.visited_payloads[position] = copied;
         let mut node = self
             .program
             .tables
@@ -143,10 +155,37 @@ impl SymbolCopy<'_, '_> {
                     match arm.pattern {
                         MatchPattern::Value(pattern) => self.expression_payloads(pattern),
                         MatchPattern::Wildcard => {}
+                        MatchPattern::Destructure(pattern) => {
+                            self.expression_payloads(pattern.head);
+                            self.expression_payloads(pattern.guard);
+                            let fields = self
+                                .program
+                                .tables
+                                .bodies
+                                .expressions
+                                .match_fields(pattern.fields)
+                                .to_vec();
+                            for (ordinal, mut field) in fields.into_iter().enumerate() {
+                                field.field_symbol = self.symbol(field.field_symbol);
+                                if let super::MatchFieldAction::Equal(value) = field.action {
+                                    self.expression_payloads(value);
+                                }
+                                *self
+                                    .program
+                                    .tables
+                                    .bodies
+                                    .expressions
+                                    .match_field_mut(pattern.fields.handle_at(ordinal as u32)) =
+                                    field;
+                            }
+                        }
                     }
                     self.expression_payloads(arm.value);
                 }
             }
+            // The containing Match owns definition rebasing. An alias-only
+            // clone must never mutate its ambient subject or pattern head.
+            ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::ArrayLiteral(elements) => self.expression_span_payloads(*elements),
             ExpressionNode::Atomic(atomic) => {
                 self.expression_payloads(atomic.value);

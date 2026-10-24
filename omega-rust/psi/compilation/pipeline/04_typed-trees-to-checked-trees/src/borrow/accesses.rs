@@ -161,7 +161,7 @@ fn collect_formal_argument_accesses(
     if let ExpressionNode::Match(dispatch) = program.expression_table.expression(argument) {
         collect_read_accesses(collection, dispatch.subject);
         for arm in program.expression_table.match_arms(dispatch.arms) {
-            if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+            for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                 collect_read_accesses(collection, pattern);
             }
             collect_formal_argument_accesses(

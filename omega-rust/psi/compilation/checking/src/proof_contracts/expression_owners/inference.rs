@@ -163,6 +163,10 @@ pub(super) fn infer_expression_type(
     }
     visited.push(expression);
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .and_then(|subject| infer_expression_type(program, subject, environment, visited)),
         ExpressionNode::Match(dispatch) => {
             let mut result = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {

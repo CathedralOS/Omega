@@ -1037,6 +1037,7 @@ fn push_expected_call(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Name(_)
+        | ExpressionNode::SavedSubject(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)
         | ExpressionNode::String(_)

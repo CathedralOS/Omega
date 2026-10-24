@@ -3,7 +3,7 @@
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
 
-/// Pushes a `Match`'s owned children: the subject, each `Value` arm pattern,
+/// Pushes a `Match`'s owned children: the subject, each executable arm predicate,
 /// and each arm body. `push_expression_children` leaves `Match` to its
 /// callers, so every walk that descends through dispatches shares this arm.
 pub(crate) fn push_match_children(
@@ -13,7 +13,7 @@ pub(crate) fn push_match_children(
 ) {
     pending.push(dispatch.subject);
     for arm in program.expression_table.match_arms(dispatch.arms) {
-        if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+        for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
             pending.push(pattern);
         }
         pending.push(arm.value);
@@ -29,6 +29,7 @@ pub(crate) fn push_expression_children(
     pending: &mut Vec<ExpressionHandle>,
 ) {
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Binary(binary) => {
             pending.push(binary.left);
             pending.push(binary.right);
@@ -71,6 +72,7 @@ pub(crate) fn push_every_expression_child(
     pending: &mut Vec<ExpressionHandle>,
 ) {
     match node {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => push_match_children(program, dispatch, pending),
         ExpressionNode::ArrayLiteral(values) => {
             pending.extend(

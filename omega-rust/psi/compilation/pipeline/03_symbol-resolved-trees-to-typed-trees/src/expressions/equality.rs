@@ -175,6 +175,7 @@ fn scan_expression(
 
     let expressions = &program.tables.bodies.expressions;
     match expressions.expression(expression) {
+        ExpressionNode::SavedSubject(_) => Ok(()),
         ExpressionNode::Match(dispatch) => {
             scan_expression(program, dispatch.subject, false)?;
             for arm in expressions.match_arms(dispatch.arms) {

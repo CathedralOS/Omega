@@ -10,7 +10,7 @@ pub(crate) fn build_crash_contract_capsules(
     program: &dyn ::validation::CheckingInput,
     content_conservation: &[validation::ContentConservationSourcePlan],
     operators: &checked_trees::CheckedOperatorFacts,
-) -> Vec<checked_trees::CrashContractCapsule> {
+) -> Result<Vec<checked_trees::CrashContractCapsule>, diagnostics::Diagnostic> {
     let mut signatures = Vec::new();
     for machine in program.machines() {
         for (owner_symbol, target_state, signature) in
@@ -78,7 +78,7 @@ pub(crate) fn build_crash_contract_capsules(
                 CrashContractOwner::Signature(signature),
                 Some(operators),
                 &[],
-            );
+            )?;
             let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
 
             let published_service_names = program
@@ -112,7 +112,7 @@ pub(crate) fn build_crash_contract_capsules(
                     &generics,
                     content_conservation,
                     true,
-                )],
+                )?],
                 clauses: Vec::new(),
             };
             let termination = language_semantics::TerminationInterface::Published(
@@ -140,7 +140,7 @@ pub(crate) fn build_crash_contract_capsules(
                     table,
                 )
             });
-            checked_trees::CrashContractCapsule::new_with_commitment(
+            Ok(checked_trees::CrashContractCapsule::new_with_commitment(
                 target_machine,
                 target_state,
                 identity.report_fingerprint,
@@ -153,9 +153,9 @@ pub(crate) fn build_crash_contract_capsules(
                 signature.suspends,
                 signature.blocks,
                 signature.termination_guarantee.clone(),
-            )
+            ))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, diagnostics::Diagnostic>>()?;
     // Legacy declarations own their entire callable contract. Token-bearing
     // machine signature views are deliberately absent: those keep the ordinary
     // machine contract and its authored operational interfaces.
@@ -170,7 +170,8 @@ pub(crate) fn build_crash_contract_capsules(
                     content_conservation,
                     operators,
                 )
-            }),
+            })
+            .collect::<Result<Vec<_>, _>>()?,
     );
     capsules.sort_by_key(|capsule| {
         (
@@ -181,7 +182,7 @@ pub(crate) fn build_crash_contract_capsules(
         )
     });
     capsules.dedup();
-    capsules
+    Ok(capsules)
 }
 
 fn build_operator_crash_contract_capsule(
@@ -189,7 +190,7 @@ fn build_operator_crash_contract_capsule(
     operator: &typed_trees::operator::OperatorDefinition,
     content_conservation: &[validation::ContentConservationSourcePlan],
     operators: &checked_trees::CheckedOperatorFacts,
-) -> checked_trees::CrashContractCapsule {
+) -> Result<checked_trees::CrashContractCapsule, diagnostics::Diagnostic> {
     let parameters = program.operator_parameters(operator);
     let generics = generic_binders(program.operator_type_parameters(operator));
     let declaration = checked_trees::DeclaredContractStructure {
@@ -201,11 +202,11 @@ fn build_operator_crash_contract_capsule(
             &generics,
             content_conservation,
             true,
-        )],
+        )?],
         clauses: Vec::new(),
     };
     let published =
-        derive_authored_operator_crash_buckets(program, operator, operators, content_conservation);
+        derive_authored_operator_crash_buckets(program, operator, operators, content_conservation)?;
     let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
 
     // Legacy operator syntax has requires/ensures/crashes, but no services,
@@ -230,14 +231,14 @@ fn build_operator_crash_contract_capsule(
             table,
         )
     });
-    checked_trees::CrashContractCapsule::new_with_commitment(
+    Ok(checked_trees::CrashContractCapsule::new_with_commitment(
         operator.symbol,
         operator.symbol,
         identity.report_fingerprint,
         identity.commitment,
         published,
     )
-    .with_operational_envelope(Vec::new(), Vec::new(), false, false, termination)
+    .with_operational_envelope(Vec::new(), Vec::new(), false, false, termination))
 }
 
 pub(crate) fn build_published_crash_plan(
@@ -247,7 +248,7 @@ pub(crate) fn build_published_crash_plan(
     content_conservation: &[validation::ContentConservationSourcePlan],
     operators: &checked_trees::CheckedOperatorFacts,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> checked_trees::CrashPlan {
+) -> Result<checked_trees::CrashPlan, diagnostics::Diagnostic> {
     let mut runtime_membership_subjects = Vec::new();
     let structural_runtime_requirements = build_structural_runtime_requirements(
         program,
@@ -266,7 +267,7 @@ pub(crate) fn build_published_crash_plan(
         CrashContractOwner::Machine(machine),
         Some(operators),
         exact_integer_casts,
-    );
+    )?;
     let plan = (if program.machine_publishes_crash_ceiling(machine) {
         checked_trees::CrashPlan::published_ceiling(published)
     } else {
@@ -276,8 +277,11 @@ pub(crate) fn build_published_crash_plan(
     .with_runtime_membership_subjects(runtime_membership_subjects)
     .with_structural_runtime_guarantees(structural_runtime_guarantees);
     let checked_sites = build_checked_crash_sites(program, machine, &plan);
-    plan.with_checked_sites(checked_sites)
-        .expect("one checked crash cause occupies each transition site")
+    plan.with_checked_sites(checked_sites).ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "checked crash publication has conflicting causes at one transition site",
+        )
+    })
 }
 
 fn build_structural_runtime_requirements(
@@ -414,7 +418,7 @@ pub(crate) fn machine_entry_parameter_names(
 pub(crate) fn derive_authored_machine_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
-) -> Vec<checked_trees::CrashRouteBucket> {
+) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     let parameter_names = machine_entry_parameter_names(program, machine);
     let conservation = validation::content_conservation_plans(program);
     build_published_crash_buckets(
@@ -431,7 +435,7 @@ pub(crate) fn derive_authored_machine_crash_buckets(
 pub(crate) fn derive_authored_signature_crash_buckets(
     program: &dyn ::validation::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
-) -> Vec<checked_trees::CrashRouteBucket> {
+) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     let parameter_names = program
         .state_signature_parameters(signature)
         .iter()
@@ -459,7 +463,7 @@ pub(crate) fn derive_authored_operator_crash_buckets(
     operator: &typed_trees::operator::OperatorDefinition,
     operators: &checked_trees::CheckedOperatorFacts,
     content_conservation: &[validation::ContentConservationSourcePlan],
-) -> Vec<checked_trees::CrashRouteBucket> {
+) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     let parameter_names = program
         .operator_parameters(operator)
         .iter()
@@ -492,7 +496,7 @@ fn build_published_crash_buckets(
     owner: CrashContractOwner<'_>,
     operators: Option<&checked_trees::CheckedOperatorFacts>,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> Vec<checked_trees::CrashRouteBucket> {
+) -> Result<Vec<checked_trees::CrashRouteBucket>, diagnostics::Diagnostic> {
     pub(crate) use std::collections::BTreeMap;
 
     #[derive(Default)]
@@ -587,7 +591,7 @@ fn build_published_crash_buckets(
                     }
                 }
                 _ => {
-                    let declaration = declared_fact(program, fact, &binders, content_conservation);
+                    let declaration = declared_fact(program, fact, &binders, content_conservation)?;
                     program.type_identities.with(|table| {
                         checked_trees::CrashPredicateIdentity::from_declared_fact(
                             &declaration,
@@ -614,8 +618,11 @@ fn build_published_crash_buckets(
                     .map(checked_trees::CrashRouteGuard::Predicate)
                     .collect()
             };
-            checked_trees::CrashRouteBucket::new(cause, alternative_guards)
-                .expect("an authored crash bucket has a canonical nonempty route set")
+            checked_trees::CrashRouteBucket::new(cause, alternative_guards).ok_or_else(|| {
+                diagnostics::Diagnostic::error(
+                    "authored crash publication has no canonical nonempty route set",
+                )
+            })
         })
         .collect()
 }

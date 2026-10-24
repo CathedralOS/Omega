@@ -314,6 +314,7 @@ pub(super) fn expression_may_rebind_mutable_alias(
         ExpressionNode::Borrow(_) => true,
         ExpressionNode::Call(_)
         | ExpressionNode::Name(_)
+        | ExpressionNode::SavedSubject(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Cast(_) => crate::value_custody::places::expression_result_is_reference(

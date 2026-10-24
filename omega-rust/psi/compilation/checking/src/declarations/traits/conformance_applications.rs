@@ -891,7 +891,7 @@ fn application_identity(
             })
         {
             let signature_bytes =
-                crate::contract_identities::canonical_state_signature_bytes(program, signature);
+                crate::contract_identities::canonical_state_signature_bytes(program, signature)?;
             bytes.push(1);
             bytes.extend((signature_bytes.len() as u64).to_le_bytes());
             bytes.extend(signature_bytes);

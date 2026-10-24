@@ -258,7 +258,7 @@ pub(super) fn merge_arrivals(
                     .find(|parameter| parameter.place == key.0)
             })
             .filter(|parameter| parameter.access == StructuralAccess::Owned)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         if !key
             .1
             .iter()

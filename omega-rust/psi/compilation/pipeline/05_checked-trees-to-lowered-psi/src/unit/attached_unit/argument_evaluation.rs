@@ -76,6 +76,10 @@ pub(crate) struct Evaluation {
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals:
         Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    /// Lexically enclosing completed operands dominate fresh scalar expansions.
+    /// Unlike the physical-home inventory, this scope never merges sibling
+    /// producers or retains a captured dependency beyond its consuming body.
+    pub(crate) completed_operand_scope: Vec<checked_trees::CheckedStructuralValueHandle>,
     /// The view family of each established immutable view local, so scalar
     /// observations rooted at one pick its length and read operations.
     pub(crate) view_locals:
@@ -165,7 +169,62 @@ pub(crate) struct StructuralValueOwner {
     pub(crate) value: terminal_psi::StructuralOperationResult,
 }
 
+/// The source homes available before choosing a private predecessor. Ending a
+/// home while emitting one arm cannot remove its binding from a sibling arm.
+/// This is lexical lookup state; emitted ownership evidence remains on edges.
+pub(crate) struct AvailableHomes {
+    owners: Vec<StructuralValueOwner>,
+    locals: Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
+    views: Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
+}
+
 impl Evaluation {
+    pub(crate) fn available_homes(&self) -> AvailableHomes {
+        AvailableHomes {
+            owners: self.structural_value_owners.clone(),
+            locals: self.structural_locals.clone(),
+            views: self.view_locals.clone(),
+        }
+    }
+
+    pub(crate) fn restore_available_homes(&mut self, homes: AvailableHomes) {
+        self.structural_value_owners = homes.owners;
+        self.structural_locals = homes.locals;
+        self.view_locals = homes.views;
+    }
+
+    /// An alias is published from an actual completed value, never a reserved
+    /// home. Both roots name precisely the same custody and physical place.
+    pub(crate) fn bind_completed_value_alias(
+        &mut self,
+        value: checked_trees::CheckedStructuralValueHandle,
+        alias: typed_trees::expression::ExpressionHandle,
+        operations: &OperationBuffer,
+    ) -> Result<(), LoweringError> {
+        if !alias.is_valid() {
+            return Ok(());
+        }
+        let completed = operations
+            .computed_values
+            .iter()
+            .rev()
+            .find(|(candidate, _)| *candidate == value)
+            .map(|(_, binding)| binding.clone())
+            .ok_or(LoweringError::Unsupported(
+                "saved subject has no completed producer home",
+            ))?;
+        crate::expression_preparation::bindings::retain_completed_structural_homes(
+            &mut self.structural_locals,
+            &[
+                crate::expression_preparation::bindings::StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root: facts::PlaceRoot::Expression(alias),
+                    argument: completed.argument,
+                    structural_type: completed.structural_type,
+                },
+            ],
+        )
+    }
     /// The evaluation's scalar bindings extended with the storage, local,
     /// parameter and observation context every lowering walker needs.
     pub(crate) fn contextual_bindings(
@@ -222,6 +281,7 @@ impl Evaluation {
         )
         .with_structural_types(&self.structural_types)
         .with_produced_values(&self.produced_values)
+        .with_completed_values(self.completed_operand_scope.iter().copied())
         .with_literals(&self.literals)
         .with_copies(&self.copies)
         .with_call_views(&self.call_views)
@@ -428,6 +488,7 @@ impl Evaluation {
             structural_value_owners: self.structural_value_owners.clone(),
             selection_cleanups: self.selection_cleanups.clone(),
             structural_locals: self.structural_locals.clone(),
+            completed_operand_scope: self.completed_operand_scope.clone(),
             view_locals: self.view_locals.clone(),
             element_views: self.element_views.clone(),
             produced_values: self.produced_values.clone(),
@@ -738,6 +799,7 @@ impl Evaluation {
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
+            completed_operand_scope: Vec::new(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             produced_values: Vec::new(),

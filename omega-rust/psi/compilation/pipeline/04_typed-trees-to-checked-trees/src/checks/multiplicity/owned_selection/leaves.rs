@@ -75,7 +75,7 @@ pub(super) fn projected_leaf_source(
     ) {
         return None;
     }
-    let place = validation::canonical_place_from_expression_in_state(
+    let place = validation::ownership_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

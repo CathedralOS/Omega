@@ -1,6 +1,81 @@
 use super::ExpressionNode;
 
 #[test]
+fn subtree_copy_rejoins_saved_subject_aliases_without_merging_dispatches() {
+    use super::{
+        MatchPattern, TableDestructurePattern, TableMatchArm, TableMatchExpression,
+        TableSavedSubject,
+    };
+    let mut source = crate::SyntaxTrees::default();
+    let subject = source.expressions.insert(ExpressionNode::Boolean(true));
+    let head = source.expressions.insert(ExpressionNode::Boolean(false));
+    let capture = source.expressions.insert_match_subject(subject);
+    let alias = source
+        .expressions
+        .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+            capture,
+            pattern_head: head,
+        }));
+    let arms = source.expressions.insert_match_arms([
+        TableMatchArm {
+            pattern: MatchPattern::Destructure(TableDestructurePattern {
+                head,
+                ..Default::default()
+            }),
+            value: alias,
+            ..Default::default()
+        },
+        TableMatchArm {
+            pattern: MatchPattern::Wildcard,
+            value: alias,
+            ..Default::default()
+        },
+    ]);
+    let root = source
+        .expressions
+        .insert(ExpressionNode::Match(TableMatchExpression {
+            subject,
+            capture,
+            arms,
+        }));
+    let mut destination = crate::SyntaxTrees::default();
+    let first = destination.copy_expression_from(&source, root);
+    let second = destination.copy_expression_from(&source, root);
+    let mut captures = Vec::new();
+    for copied in [first, second] {
+        let ExpressionNode::Match(dispatch) = destination.expressions.expression(copied) else {
+            panic!("copied dispatch");
+        };
+        assert_eq!(
+            destination
+                .expressions
+                .match_subject(dispatch.capture)
+                .subject,
+            dispatch.subject
+        );
+        let arms = destination.expressions.match_arms(dispatch.arms);
+        assert_eq!(
+            arms[0].value, arms[1].value,
+            "one source occurrence stays one copied occurrence"
+        );
+        let MatchPattern::Destructure(pattern) = arms[0].pattern else {
+            panic!("copied pattern");
+        };
+        let ExpressionNode::SavedSubject(saved) = destination.expressions.expression(arms[0].value)
+        else {
+            panic!("copied saved read");
+        };
+        assert_eq!(saved.capture, dispatch.capture);
+        assert_eq!(saved.pattern_head, pattern.head);
+        captures.push(dispatch.capture);
+    }
+    assert_ne!(
+        captures[0], captures[1],
+        "independent copy invocations define independent captures"
+    );
+}
+
+#[test]
 fn match_arms_preserve_order_source_and_nonnumeric_values() {
     use super::{MatchPattern, TableMatchArm, TableMatchExpression};
     let mut syntax = crate::SyntaxTrees::default();
@@ -25,6 +100,7 @@ fn match_arms_preserve_order_source_and_nonnumeric_values() {
     let expression = table.insert(ExpressionNode::Match(TableMatchExpression {
         subject,
         arms,
+        ..Default::default()
     }));
     table.set_source_span(expression, source_span);
     assert_eq!(

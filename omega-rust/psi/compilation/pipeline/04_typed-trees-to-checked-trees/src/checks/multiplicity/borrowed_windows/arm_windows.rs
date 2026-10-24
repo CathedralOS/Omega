@@ -9,7 +9,7 @@ use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 pub(super) type ArmHandle = arena::Handle<typed_trees::expression::TableMatchArm>;
@@ -655,6 +655,7 @@ impl<'facts> ArmWindowPlan<'facts> {
             self.edge_conditional.insert(expression_key(expression));
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 self.frames.push(MatchWindowFrame {
                     expression,
@@ -684,7 +685,7 @@ impl<'facts> ArmWindowPlan<'facts> {
                     .enumerate()
                 {
                     let arm_handle = dispatch.arms.handle_at(ordinal as u32);
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                         self.collect_frames(
                             program,
                             pattern,

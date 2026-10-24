@@ -1465,6 +1465,17 @@ pub fn visit_expression(
                 visit_match_arm(program, retained, arm);
             }
         }
+        ExpressionNode::SavedSubject(saved) => {
+            visit_expression(
+                program,
+                retained,
+                program
+                    .expression_table
+                    .match_subject(saved.capture)
+                    .subject,
+            );
+            visit_expression(program, retained, saved.pattern_head);
+        }
         ExpressionNode::ArrayLiteral(elements) => {
             for element in program.expression_table.expression_handles(*elements) {
                 visit_expression(program, retained, *element);
@@ -1536,8 +1547,16 @@ pub fn visit_expression(
 
 /// Retain machines referenced by one match arm pattern and value.
 fn visit_match_arm(program: &TypedTrees, retained: &mut impl TypedReferences, arm: &TableMatchArm) {
-    if let crate::expression::MatchPattern::Value(pattern) = &arm.pattern {
-        visit_expression(program, retained, *pattern);
+    for pattern in program
+        .expression_table
+        .match_pattern_dependencies(arm.pattern)
+    {
+        visit_expression(program, retained, pattern);
+    }
+    if let crate::expression::MatchPattern::Destructure(pattern) = arm.pattern {
+        for field in program.expression_table.match_fields(pattern.fields) {
+            visit_symbol(retained, field.field_symbol);
+        }
     }
     visit_expression(program, retained, arm.value);
 }

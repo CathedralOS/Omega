@@ -114,11 +114,10 @@ fn nested_initializer_match_retains_expression_local_dispatch() {
 }
 
 #[test]
-fn value_match_rejects_empty_and_unimplemented_binding_patterns() {
+fn value_match_rejects_empty_dispatch_and_duplicate_bindings() {
     for source in [
         "match value {}",
-        "match value { Record { field } -> field, _ -> 0 }",
-        "match value { Record { field, .. } -> field, _ -> 0 }",
+        "match value { Record { first as same, second as same } -> same, _ -> 0 }",
     ] {
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let mut trees = syntax_trees::SyntaxTrees::new(source::SourceId::default());
@@ -132,9 +131,58 @@ fn value_match_rejects_empty_and_unimplemented_binding_patterns() {
         let error =
             crate::expressions::parse_expression::parse_expression_handle(&mut trees, input)
                 .err()
-                .expect("empty match and destructure arms reject");
-        if source.contains("Record") {
-            super::expect_error(&error, "`transition`");
-        }
+                .expect("empty dispatch or duplicate bindings reject");
+        super::expect_error(
+            &error,
+            if source.contains("Record") {
+                "introduced more than once"
+            } else {
+                "at least one arm"
+            },
+        );
+    }
+}
+
+#[test]
+fn structural_match_bindings_read_their_exact_saved_subject() {
+    for source in [
+        "match value { Record { field } -> field, _ -> 0 }",
+        "match value { Record { field, .. } -> field, _ -> 0 }",
+    ] {
+        let source_id = source::SourceId::default();
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mut trees = syntax_trees::SyntaxTrees::new(source_id);
+        let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
+        let input = crate::input::token_cursor::Input::new(
+            source_id,
+            &tokens,
+            &retained_source,
+            &mut trees,
+        );
+        let (expression, rest) =
+            crate::expressions::parse_expression::parse_expression_handle(&mut trees, input)
+                .expect("structural match");
+        assert!(rest.tokens.is_empty());
+        let ExpressionNode::Match(dispatch) = trees.expressions.expression(expression) else {
+            panic!("match")
+        };
+        assert!(dispatch.capture.is_valid());
+        assert_eq!(
+            trees.expressions.match_subject(dispatch.capture).subject,
+            dispatch.subject
+        );
+        let arm = &trees.expressions.match_arms(dispatch.arms)[0];
+        let MatchPattern::Destructure(pattern) = arm.pattern else {
+            panic!("structural pattern")
+        };
+        let ExpressionNode::Member(member) = trees.expressions.expression(arm.value) else {
+            panic!("payload projection")
+        };
+        let ExpressionNode::SavedSubject(saved) = trees.expressions.expression(member.receiver)
+        else {
+            panic!("saved subject")
+        };
+        assert_eq!(saved.capture, dispatch.capture);
+        assert_eq!(saved.pattern_head, pattern.head);
     }
 }

@@ -116,9 +116,13 @@ pub(crate) fn finalize_execution(
             &mut construction_shapes,
         )
         .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "cannot retain constructed value storage shapes",
-            )]
+            vec![Diagnostic::error(format!(
+                "cannot retain constructed value storage shapes for state `{}` of machine `{}`",
+                program.symbols.name(state),
+                validation::find_state(program, state)
+                    .map(|(machine, _)| machine.name.as_str())
+                    .unwrap_or("<unknown>"),
+            ))]
         })?;
     }
     if let Err(identity) = terminal_unit_effects.adopt_structural_types(construction_shapes) {

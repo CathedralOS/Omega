@@ -1,0 +1,51 @@
+// A computed projected subject keeps its producer home and disposes its residual.
+// Expected exit: 0
+use omega::language::core::drop;
+
+data Counter { value: u32 in Wrapping; }
+data Note<'storage> { counter: &'storage mut Counter; }
+data Receipt [linear] { value: i32; }
+data Bundle<'storage> { receipt: Receipt; note: Note<'storage>; }
+data Outer<'storage> { bundle: Bundle<'storage>; spare: i32; }
+
+machine append(counter: &mut Counter, digit: u32 in Wrapping) {
+    counter.value = counter.value * 10 + digit;
+}
+machine Note::drop(note: &mut Note) { append(note.counter, 4); }
+machine Receipt::drop(receipt: &mut Receipt) {}
+machine issue<'storage>(counter: &'storage mut Counter) -> Outer<'storage> {
+    append(counter, 1);
+    Outer {
+        bundle: Bundle { receipt: Receipt { value: 41 }, note: Note { counter: counter } },
+        spare: 19
+    }
+}
+machine consume(receipt: Receipt, counter: &mut Counter) -> bool {
+    append(counter, 8);
+    let value: i32 = receipt.value;
+    drop(receipt);
+    value == 41 && (counter.value as u32) == 148
+}
+machine computed_subject() -> bool {
+    let mut counter: Counter = Counter { value: 0 };
+    let receipt: Receipt = match issue(&mut counter).bundle {
+        Bundle { receipt, note as _ } -> receipt
+    };
+    consume(receipt, &mut counter)
+}
+machine binding_subject() -> bool {
+    let mut counter: Counter = Counter { value: 0 };
+    let bundle: Bundle = issue(&mut counter).bundle;
+    let receipt: Receipt = match bundle {
+        Bundle { receipt, note as _ } -> receipt
+    };
+    consume(receipt, &mut counter)
+}
+machine main() crashes Trap {
+    transition computed_subject() && binding_subject() {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

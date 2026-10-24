@@ -94,7 +94,7 @@ pub fn canonical_template_contract_bytes(
     let mut state_shapes = Vec::new();
     for state in program.machine_states(machine) {
         let mut shape = Vec::new();
-        encode_state_shape(program, state, &binders, &content_conservation, &mut shape);
+        encode_state_shape(program, state, &binders, &content_conservation, &mut shape)?;
         state_shapes.push(shape);
     }
     state_shapes.sort();
@@ -164,7 +164,7 @@ pub fn canonical_template_contract_bytes(
         &contract_binders,
         &content_conservation,
         true,
-    );
+    )?;
     bytes.extend(
         program
             .type_identities
@@ -704,7 +704,7 @@ fn encode_generic_parameter_contract(
             })? {
             typed_trees::data::MachineParameterContractView::Structural(signature) => {
                 bytes.push(1);
-                encode_state_signature(program, signature, binders, content_conservation, bytes);
+                encode_state_signature(program, signature, binders, content_conservation, bytes)?;
             }
             typed_trees::data::MachineParameterContractView::Nominal {
                 trait_definition,
@@ -744,7 +744,7 @@ fn encode_generic_parameter_contract(
                     &requirement_binders,
                     content_conservation,
                     bytes,
-                );
+                )?;
             }
         },
         TypeParameterKind::Proposition { contract } => {
@@ -825,7 +825,7 @@ fn encode_state_signature(
     binders: &[(SymbolHandle, String)],
     content_conservation: &[crate::ContentConservationSourcePlan],
     output: &mut Vec<u8>,
-) {
+) -> Result<(), Diagnostic> {
     let generic_binders =
         type_parameter_binders(program.state_signature_type_parameters(signature), binders);
     let parameters = program.state_signature_parameters(signature);
@@ -861,7 +861,7 @@ fn encode_state_signature(
         &contract_binders,
         content_conservation,
         true,
-    );
+    )?;
     output.extend(
         program
             .type_identities
@@ -876,13 +876,14 @@ fn encode_state_signature(
         &contract_binders,
     );
     output.extend(checked_trees::declared_termination_commitment(&termination).as_bytes());
+    Ok(())
 }
 
 /// Encode a retained signature with its enclosing trait's positional binders.
 pub fn canonical_state_signature_bytes(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, Diagnostic> {
     let binders = program
         .traits()
         .iter()
@@ -902,8 +903,8 @@ pub fn canonical_state_signature_bytes(
         &binders,
         &content_conservation,
         &mut bytes,
-    );
-    bytes
+    )?;
+    Ok(bytes)
 }
 
 /// Complete original callable schema, independent of closed applications.
@@ -916,7 +917,7 @@ pub fn canonical_requirement_schema_bytes(
     let binders = crate::contract_structure::signature_generic_binders(program, signature);
     let content = crate::content_conservation_plans(program);
     let mut bytes = b"omega.requirement-schema.v1\0".to_vec();
-    let signature_bytes = canonical_state_signature_bytes(program, signature);
+    let signature_bytes = canonical_state_signature_bytes(program, signature)?;
     bytes.extend((signature_bytes.len() as u64).to_le_bytes());
     bytes.extend(signature_bytes);
     bytes.extend((signature.lifetime_parameters.len() as u64).to_le_bytes());
@@ -940,13 +941,15 @@ pub fn canonical_requirement_schema_bytes(
         .proof_facts
         .span_or_empty(signature.where_facts)
         .iter()
-        .map(|fact| checked_trees::DeclaredContractClause {
-            kind: checked_trees::DeclaredContractKind::Requires,
-            fact: Some(crate::contract_structure::declared_fact(
-                program, fact, &binders, &content,
-            )),
+        .map(|fact| {
+            Ok(checked_trees::DeclaredContractClause {
+                kind: checked_trees::DeclaredContractKind::Requires,
+                fact: Some(crate::contract_structure::declared_fact(
+                    program, fact, &binders, &content,
+                )?),
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
     bytes.extend(
         program
             .type_identities
@@ -962,7 +965,7 @@ fn encode_state_shape(
     binders: &[(SymbolHandle, String)],
     content_conservation: &[crate::ContentConservationSourcePlan],
     output: &mut Vec<u8>,
-) {
+) -> Result<(), Diagnostic> {
     let parameters = program.state_parameters(state);
     let contract_binders = formal_parameter_binders(parameters, binders);
     output.extend((parameters.len() as u64).to_le_bytes());
@@ -982,13 +985,14 @@ fn encode_state_shape(
         &contract_binders,
         content_conservation,
         true,
-    );
+    )?;
     output.extend(
         program
             .type_identities
             .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
             .as_bytes(),
     );
+    Ok(())
 }
 
 fn encode_parameter(

@@ -60,6 +60,10 @@ pub(crate) fn expression_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
+        typed_trees::expression::ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .is_some_and(|subject| expression_uses_symbol(program, subject, symbol)),
         typed_trees::expression::ExpressionNode::Match(dispatch) => {
             expression_uses_symbol(program, dispatch.subject, symbol)
                 || program
@@ -67,8 +71,10 @@ pub(crate) fn expression_uses_symbol(
                     .match_arms(dispatch.arms)
                     .iter()
                     .any(|arm| {
-                        (matches!(arm.pattern, typed_trees::expression::MatchPattern::Value(pattern)
-                        if expression_uses_symbol(program, pattern, symbol)))
+                        program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                            .any(|pattern| expression_uses_symbol(program, pattern, symbol))
                             || expression_uses_symbol(program, arm.value, symbol)
                     })
         }

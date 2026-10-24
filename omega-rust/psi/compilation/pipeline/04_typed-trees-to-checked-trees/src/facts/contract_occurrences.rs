@@ -61,10 +61,11 @@ fn append_occurrences(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => {
             append_occurrences(program, dispatch.subject, state, occurrences);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     append_occurrences(program, pattern, state, occurrences);
                 }
                 append_occurrences(program, arm.value, state, occurrences);

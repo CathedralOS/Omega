@@ -114,6 +114,7 @@ impl ExpressionTransfer<'_, '_> {
             return;
         }
         match self.program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 self.transfer(facts, dispatch.subject, sink);
                 let mut remaining = facts.clone();
@@ -135,12 +136,18 @@ impl ExpressionTransfer<'_, '_> {
                 let mut boolean_coverage = [false; 2];
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
                     let mut outcome = None;
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in self
+                        .program
+                        .expression_table
+                        .match_pattern_operands(arm.pattern)
+                    {
                         self.transfer(&mut remaining, pattern, sink);
+                        stable_subject &= self.is_read_only(pattern);
+                    }
+                    if let MatchPattern::Value(pattern) = arm.pattern {
                         // The comparison uses the captured subject. A pattern
                         // write must not turn its old truth into a fresh fact
                         // about storage the arm will read.
-                        stable_subject &= self.is_read_only(pattern);
                         if let Some(value) = self.program.expression_table.boolean_node(pattern) {
                             outcome = Some(*value);
                             if builtin_comparison {

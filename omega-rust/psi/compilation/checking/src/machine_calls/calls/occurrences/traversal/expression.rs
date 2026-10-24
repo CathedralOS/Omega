@@ -13,11 +13,16 @@ pub(super) fn find_call_site_in_expression<'program>(
                 return Some(site);
             }
             for arm in traversal.program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
-                    && let Some(site) = traversal
-                        .selected(|traversal| find_call_site_in_expression(traversal, pattern))
+                for pattern in traversal
+                    .program
+                    .expression_table
+                    .match_pattern_operands(arm.pattern)
                 {
-                    return Some(site);
+                    if let Some(site) = traversal
+                        .selected(|traversal| find_call_site_in_expression(traversal, pattern))
+                    {
+                        return Some(site);
+                    }
                 }
                 if let Some(site) = traversal
                     .selected(|traversal| find_call_site_in_expression(traversal, arm.value))
@@ -149,6 +154,6 @@ pub(super) fn find_call_site_in_expression<'program>(
             }
             None
         }
-        typed_trees::literal_expression_pattern!() => None,
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => None,
     }
 }

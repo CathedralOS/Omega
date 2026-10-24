@@ -25,7 +25,7 @@ mod shape;
 mod table_copies;
 mod tree_conversion;
 
-pub use display::{display_call_label, display_name_path};
+pub use display::{display_call_label, display_match_pattern, display_name_path};
 pub use index_authority::{
     IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
 };
@@ -111,6 +111,9 @@ pub struct ExpressionTable {
     name_path_member_symbols: Arena<SymbolHandle>,
     struct_fields: Arena<TableStructLiteralField>,
     match_arms: Arena<TableMatchArm>,
+    match_fields: Arena<TableMatchField>,
+    match_subjects: Arena<MatchSubjectCapture>,
+    match_proof_selectors: Arena<crate::statement::OutcomeProofSelector>,
     static_machine_applications: Arena<StaticMachineApplication>,
     static_machine_arguments: Arena<StaticMachineArgument>,
     static_machine_bindings: Arena<StaticMachineBinding>,
@@ -126,6 +129,9 @@ pub struct ExpressionTableCapacity {
     pub name_path_member_symbols: usize,
     pub struct_fields: usize,
     pub match_arms: usize,
+    pub match_fields: usize,
+    pub match_subjects: usize,
+    pub match_proof_selectors: usize,
 }
 
 impl ExpressionTableCapacity {}
@@ -141,6 +147,9 @@ impl ExpressionTable {
             name_path_member_symbols,
             struct_fields,
             match_arms,
+            match_fields,
+            match_subjects,
+            match_proof_selectors,
             source_spans,
             constructed_value_types,
             constructed_value_type_handles,
@@ -206,6 +215,18 @@ impl ExpressionTable {
                 match_arms,
                 &self.match_arms,
             )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                match_fields,
+                &self.match_fields,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                match_subjects,
+                &self.match_subjects,
+            )
+            && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
+                match_proof_selectors,
+                &self.match_proof_selectors,
+            )
             && self.source_spans.starts_with(source_spans)
             && crate::typed_trees::retained_prefix::arena_is_exact_prefix(
                 constructed_value_types,
@@ -237,6 +258,123 @@ impl ExpressionTable {
         self.match_arms.span_or_empty(arms)
     }
 
+    pub fn insert_match_fields(
+        &mut self,
+        fields: impl IntoIterator<Item = TableMatchField>,
+    ) -> HandleSpan<TableMatchField> {
+        self.match_fields.insert_many(fields)
+    }
+
+    pub fn match_fields(&self, fields: HandleSpan<TableMatchField>) -> &[TableMatchField] {
+        self.match_fields.span_or_empty(fields)
+    }
+
+    pub fn match_field_mut(&mut self, field: Handle<TableMatchField>) -> &mut TableMatchField {
+        self.match_fields.get_mut(field)
+    }
+
+    pub fn insert_match_subject(
+        &mut self,
+        subject: ExpressionHandle,
+    ) -> Handle<MatchSubjectCapture> {
+        self.match_subjects.insert(MatchSubjectCapture {
+            subject,
+            definition: ExpressionHandle::invalid(),
+            value_anchor: ExpressionHandle::invalid(),
+        })
+    }
+
+    pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
+        self.match_subjects.get(capture)
+    }
+
+    pub fn contains_match_subject(&self, capture: Handle<MatchSubjectCapture>) -> bool {
+        self.match_subjects.is_valid(capture)
+    }
+
+    /// The definition supplying this alias. This is a dependency/type query,
+    /// never an executable child edge or permission to evaluate the source.
+    pub fn saved_subject_source(&self, saved: &TableSavedSubject) -> Option<ExpressionHandle> {
+        if !self.contains_match_subject(saved.capture) {
+            return None;
+        }
+        let capture = self.match_subject(saved.capture);
+        if !self.expression_is_valid(capture.definition) {
+            return None;
+        }
+        let ExpressionNode::Match(dispatch) = self.expression(capture.definition) else {
+            return None;
+        };
+        (dispatch.capture == saved.capture
+            && dispatch.subject == capture.subject
+            && self.expression_is_valid(capture.subject)
+            && self.match_arms(dispatch.arms).iter().any(|arm| {
+                matches!(arm.pattern, MatchPattern::Destructure(pattern)
+                    if pattern.head == saved.pattern_head)
+            }))
+        .then_some(capture.subject)
+    }
+
+    pub fn insert_match_proof_selectors(
+        &mut self,
+        selectors: impl IntoIterator<Item = crate::statement::OutcomeProofSelector>,
+    ) -> HandleSpan<crate::statement::OutcomeProofSelector> {
+        self.match_proof_selectors.insert_many(selectors)
+    }
+
+    pub fn match_proof_selectors(
+        &self,
+        selectors: HandleSpan<crate::statement::OutcomeProofSelector>,
+    ) -> &[crate::statement::OutcomeProofSelector] {
+        self.match_proof_selectors.span_or_empty(selectors)
+    }
+
+    /// Source dependencies, not selected execution edges. A case head selects
+    /// a declaration; its equality operands and guard remain conditional.
+    pub fn match_pattern_dependencies(
+        &self,
+        pattern: MatchPattern,
+    ) -> impl Iterator<Item = ExpressionHandle> + '_ {
+        let (head, fields, guard) = match pattern {
+            MatchPattern::Value(value) => (value, HandleSpan::empty(), ExpressionHandle::invalid()),
+            MatchPattern::Destructure(pattern) => {
+                (pattern.head, HandleSpan::empty(), pattern.condition)
+            }
+            MatchPattern::Wildcard => (
+                ExpressionHandle::invalid(),
+                HandleSpan::empty(),
+                ExpressionHandle::invalid(),
+            ),
+        };
+        head.is_valid()
+            .then_some(head)
+            .into_iter()
+            .chain(
+                self.match_fields(fields)
+                    .iter()
+                    .filter_map(|field| match &field.action {
+                        MatchFieldAction::Equal(value) => Some(*value),
+                        _ => None,
+                    }),
+            )
+            .chain(guard.is_valid().then_some(guard))
+    }
+
+    /// Conditional executable operands in authored order. A structural head
+    /// selects a declaration and bindings/waivers themselves evaluate nothing.
+    /// Consumers must establish membership before evaluating payload operands.
+    pub fn match_pattern_operands(
+        &self,
+        pattern: MatchPattern,
+    ) -> impl Iterator<Item = ExpressionHandle> + '_ {
+        let value = match pattern {
+            MatchPattern::Value(value) => value,
+            MatchPattern::Destructure(pattern) => pattern.condition,
+            MatchPattern::Wildcard => ExpressionHandle::invalid(),
+        };
+        value.is_valid().then_some(value).into_iter()
+    }
+
     /// Every arm's value passes `visit`, with wildcard patterns visiting no
     /// pattern handle.
     pub fn match_arms_all(
@@ -258,7 +396,7 @@ impl ExpressionTable {
     ) -> bool {
         visit(dispatch.subject)
             && self.match_arms_all(dispatch.arms, |pattern, value| {
-                !matches!(pattern, MatchPattern::Value(pattern) if !visit(pattern)) && visit(value)
+                self.match_pattern_dependencies(pattern).all(&mut visit) && visit(value)
             })
     }
 
@@ -271,8 +409,7 @@ impl ExpressionTable {
     ) -> bool {
         visit(dispatch.subject)
             || self.match_arms(dispatch.arms).iter().any(|arm| {
-                matches!(arm.pattern, MatchPattern::Value(pattern) if visit(pattern))
-                    || visit(arm.value)
+                self.match_pattern_dependencies(arm.pattern).any(&mut visit) || visit(arm.value)
             })
     }
 
@@ -283,9 +420,7 @@ impl ExpressionTable {
         let mut pending = Vec::new();
         for arm in self.match_arms(dispatch.arms).iter().rev() {
             pending.push(arm.value);
-            if let MatchPattern::Value(pattern) = arm.pattern {
-                pending.push(pattern);
-            }
+            pending.extend(self.match_pattern_dependencies(arm.pattern));
         }
         pending.push(dispatch.subject);
         pending
@@ -311,6 +446,9 @@ impl ExpressionTable {
             .wrapping_add(self.name_path_member_symbols.revision())
             .wrapping_add(self.struct_fields.revision())
             .wrapping_add(self.match_arms.revision())
+            .wrapping_add(self.match_fields.revision())
+            .wrapping_add(self.match_subjects.revision())
+            .wrapping_add(self.match_proof_selectors.revision())
             .wrapping_add(self.static_machine_applications.revision())
             .wrapping_add(self.static_machine_arguments.revision())
             .wrapping_add(self.constructed_value_types.revision())
@@ -356,6 +494,9 @@ impl ExpressionTable {
             name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
             struct_fields: Arena::with_capacity(capacity.struct_fields),
             match_arms: Arena::with_capacity(capacity.match_arms),
+            match_fields: Arena::with_capacity(capacity.match_fields),
+            match_subjects: Arena::with_capacity(capacity.match_subjects),
+            match_proof_selectors: Arena::with_capacity(capacity.match_proof_selectors),
             static_machine_applications: Arena::default(),
             static_machine_arguments: Arena::default(),
             static_machine_bindings: Arena::default(),
@@ -381,6 +522,9 @@ impl ExpressionTable {
         self.name_path_member_symbols.reset_retain_capacity();
         self.struct_fields.reset_retain_capacity();
         self.match_arms.reset_retain_capacity();
+        self.match_fields.reset_retain_capacity();
+        self.match_subjects.reset_retain_capacity();
+        self.match_proof_selectors.reset_retain_capacity();
         self.static_machine_applications.reset_retain_capacity();
         self.static_machine_arguments.reset_retain_capacity();
         self.static_machine_bindings.reset_retain_capacity();
@@ -572,7 +716,29 @@ impl ExpressionTable {
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
+        let capture = match &expression {
+            ExpressionNode::Match(dispatch) => dispatch.capture,
+            _ => Handle::invalid(),
+        };
+        let alias_capture = match &expression {
+            ExpressionNode::SavedSubject(saved) => saved.capture,
+            _ => Handle::invalid(),
+        };
         let handle = self.expressions.insert(expression);
+        if self.match_subjects.is_valid(alias_capture) {
+            let capture = self.match_subjects.get_mut(alias_capture);
+            if !capture.value_anchor.is_valid() {
+                capture.value_anchor = handle;
+            }
+        }
+        if self.match_subjects.is_valid(capture) {
+            let subject = self.match_subjects.get_mut(capture);
+            // A second definition never steals the first one's identity.
+            // Formation/normalization can diagnose the conflicting owner.
+            if !subject.definition.is_valid() {
+                subject.definition = handle;
+            }
+        }
         self.expression_roots.insert(handle);
         self.source_spans.push(SourceSpan::default());
         self.authored_selection_occurrences
@@ -1160,7 +1326,8 @@ impl ExpressionTable {
             (ExpressionNode::Match(x), ExpressionNode::Match(y)) => {
                 let x_arms = self.match_arms(x.arms);
                 let y_arms = self.match_arms(y.arms);
-                self.expressions_structurally_equal(x.subject, y.subject)
+                x.capture == y.capture
+                    && self.expressions_structurally_equal(x.subject, y.subject)
                     && x_arms.len() == y_arms.len()
                     && x_arms.iter().zip(y_arms).all(|(x, y)| {
                         let patterns_equal = match (x.pattern, y.pattern) {
@@ -1168,10 +1335,17 @@ impl ExpressionTable {
                                 self.expressions_structurally_equal(x, y)
                             }
                             (MatchPattern::Wildcard, MatchPattern::Wildcard) => true,
+                            (MatchPattern::Destructure(left), MatchPattern::Destructure(right)) => {
+                                left == right
+                            }
                             _ => false,
                         };
                         patterns_equal && self.expressions_structurally_equal(x.value, y.value)
                     })
+            }
+            (ExpressionNode::SavedSubject(left), ExpressionNode::SavedSubject(right)) => {
+                left.capture == right.capture
+                    && self.expressions_structurally_equal(left.pattern_head, right.pattern_head)
             }
             (ExpressionNode::Integer(x), ExpressionNode::Integer(y)) => x == y,
             (ExpressionNode::Boolean(x), ExpressionNode::Boolean(y)) => x == y,
@@ -1344,6 +1518,9 @@ impl Default for ExpressionTable {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
+    /// Read the exact completed subject of an enclosing dispatch. Type
+    /// dependencies do not imply reevaluating the captured source at runtime.
+    SavedSubject(TableSavedSubject),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Atomic(TableAtomicExpression),
     Binary(TableBinaryExpression),
@@ -2061,7 +2238,23 @@ pub struct StructLiteralField {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
+    pub capture: Handle<MatchSubjectCapture>,
     pub arms: HandleSpan<TableMatchArm>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MatchSubjectCapture {
+    pub subject: ExpressionHandle,
+    pub definition: ExpressionHandle,
+    /// One non-executable alias anchors this completed value's canonical
+    /// identity. It is distinct from later reads of the supplying storage.
+    pub value_anchor: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableSavedSubject {
+    pub capture: Handle<MatchSubjectCapture>,
+    pub pattern_head: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2074,8 +2267,37 @@ pub struct TableMatchArm {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum MatchPattern {
     Value(ExpressionHandle),
+    Destructure(TableDestructurePattern),
     #[default]
     Wildcard,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableDestructurePattern {
+    pub head: ExpressionHandle,
+    pub fields: HandleSpan<TableMatchField>,
+    pub has_rest: bool,
+    pub guard: ExpressionHandle,
+    /// Executable tag/equality/guard sequence, normalized to ordinary Boolean
+    /// short-circuit operations. Authored fields and guard remain above for
+    /// coverage, drift checking and source contract identity.
+    pub condition: ExpressionHandle,
+    pub proof_selectors: HandleSpan<crate::statement::OutcomeProofSelector>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TableMatchField {
+    pub member: Identifier,
+    pub field_symbol: SymbolHandle,
+    pub action: MatchFieldAction,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum MatchFieldAction {
+    Bind(Identifier),
+    Equal(ExpressionHandle),
+    #[default]
+    Waive,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

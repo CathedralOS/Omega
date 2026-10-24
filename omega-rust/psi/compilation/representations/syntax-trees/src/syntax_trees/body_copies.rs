@@ -533,6 +533,71 @@ impl SyntaxCopy<'_> {
         )
     }
 
+    fn copy_match_subject(
+        &mut self,
+        other: &SyntaxTrees,
+        capture: Handle<crate::expression::MatchSubjectCapture>,
+    ) -> Handle<crate::expression::MatchSubjectCapture> {
+        if !capture.is_valid() {
+            return Handle::invalid();
+        }
+        let position = capture.arena_index() as usize;
+        if let Some((source, copied)) = self.match_subject_copies.get(position)
+            && *source == capture
+        {
+            return *copied;
+        }
+        let subject =
+            self.copy_expression_handle(other, other.expressions.match_subject(capture).subject);
+        let copied = self.expressions.insert_match_subject(subject);
+        if self.match_subject_copies.len() <= position {
+            self.match_subject_copies
+                .resize(position + 1, (Handle::invalid(), Handle::invalid()));
+        }
+        self.match_subject_copies[position] = (capture, copied);
+        copied
+    }
+
+    fn copy_destructure_pattern(
+        &mut self,
+        other: &SyntaxTrees,
+        pattern: crate::expression::TableDestructurePattern,
+    ) -> crate::expression::TableDestructurePattern {
+        use crate::expression::{MatchFieldAction, TableMatchField};
+        let head = self.copy_expression_handle(other, pattern.head);
+        let fields = other
+            .expressions
+            .match_fields(pattern.fields)
+            .iter()
+            .map(|field| TableMatchField {
+                member: field.member.clone(),
+                action: match &field.action {
+                    MatchFieldAction::Bind(binding) => MatchFieldAction::Bind(binding.clone()),
+                    MatchFieldAction::Equal(value) => {
+                        MatchFieldAction::Equal(self.copy_expression_handle(other, *value))
+                    }
+                    MatchFieldAction::Waive => MatchFieldAction::Waive,
+                },
+            })
+            .collect::<Vec<_>>();
+        let fields = self.expressions.insert_match_fields(fields);
+        let guard = self.copy_expression_handle(other, pattern.guard);
+        let proof_selectors = self.statements.insert_outcome_proof_selectors(
+            other
+                .statements
+                .outcome_proof_selectors(pattern.proof_selectors)
+                .iter()
+                .cloned(),
+        );
+        crate::expression::TableDestructurePattern {
+            head,
+            fields,
+            has_rest: pattern.has_rest,
+            guard,
+            proof_selectors,
+        }
+    }
+
     pub(crate) fn copy_expression_handle(
         &mut self,
         other: &SyntaxTrees,
@@ -552,6 +617,7 @@ impl SyntaxCopy<'_> {
         let expression = match other.expressions.expression(handle) {
             ExpressionNode::Match(dispatch) => {
                 let subject = self.copy_expression_handle(other, dispatch.subject);
+                let capture = self.copy_match_subject(other, dispatch.capture);
                 let mut arms =
                     Vec::with_capacity(other.expressions.match_arms(dispatch.arms).len());
                 for arm in other.expressions.match_arms(dispatch.arms) {
@@ -564,6 +630,11 @@ impl SyntaxCopy<'_> {
                         crate::expression::MatchPattern::Wildcard => {
                             crate::expression::MatchPattern::Wildcard
                         }
+                        crate::expression::MatchPattern::Destructure(pattern) => {
+                            crate::expression::MatchPattern::Destructure(
+                                self.copy_destructure_pattern(other, pattern),
+                            )
+                        }
                     };
                     let value = self.copy_expression_handle(other, arm.value);
                     arms.push(crate::expression::TableMatchArm {
@@ -573,7 +644,17 @@ impl SyntaxCopy<'_> {
                     });
                 }
                 let arms = self.expressions.insert_match_arms(arms);
-                ExpressionNode::Match(crate::expression::TableMatchExpression { subject, arms })
+                ExpressionNode::Match(crate::expression::TableMatchExpression {
+                    subject,
+                    capture,
+                    arms,
+                })
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                ExpressionNode::SavedSubject(crate::expression::TableSavedSubject {
+                    capture: self.copy_match_subject(other, saved.capture),
+                    pattern_head: self.copy_expression_handle(other, saved.pattern_head),
+                })
             }
             ExpressionNode::ArrayLiteral(values) => {
                 ExpressionNode::ArrayLiteral(self.copy_expression_handle_list(other, *values))

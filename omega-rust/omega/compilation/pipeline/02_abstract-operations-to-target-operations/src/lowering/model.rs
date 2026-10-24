@@ -10,6 +10,12 @@ pub use terminal_psi_to_abstract_operations::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    ReferenceCarrierUnavailable {
+        machine: MachineId,
+        source: terminal_psi::StructuralArgument,
+        carrier: StructuralTypeId,
+        carrier_path: Vec<terminal_psi::StructuralPathSegment>,
+    },
     BorrowedSourceProjectionMismatch {
         machine: MachineId,
         source: terminal_psi::StructuralArgument,

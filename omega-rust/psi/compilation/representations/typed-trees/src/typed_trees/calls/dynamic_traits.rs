@@ -1,6 +1,6 @@
 use crate::TypedTrees;
 use crate::domain::ProofFact;
-use crate::expression::{ExpressionHandle, ExpressionNode, MatchPattern, StaticMachineArgument};
+use crate::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use crate::name::Identifier;
 use crate::signature::StateSignature;
 use crate::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
@@ -232,11 +232,21 @@ impl TypedTrees {
             ExpressionNode::Match(dispatch) => {
                 self.collect_expression_symbols(dispatch.subject, symbols);
                 for arm in self.expression_table.match_arms(dispatch.arms) {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in self
+                        .expression_table
+                        .match_pattern_dependencies(arm.pattern)
+                    {
                         self.collect_expression_symbols(pattern, symbols);
                     }
                     self.collect_expression_symbols(arm.value, symbols);
                 }
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                self.collect_expression_symbols(
+                    self.expression_table.match_subject(saved.capture).subject,
+                    symbols,
+                );
+                self.collect_expression_symbols(saved.pattern_head, symbols);
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for value in self.expression_table.expression_handles(*values) {

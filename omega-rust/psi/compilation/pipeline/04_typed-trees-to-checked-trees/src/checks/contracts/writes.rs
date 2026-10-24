@@ -492,6 +492,7 @@ fn scan_construction_field_domains(
         return;
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Atomic(atomic) => scan_construction_field_domains(
             program,
             facts,
@@ -522,7 +523,7 @@ fn scan_construction_field_domains(
             let mut joined_contexts: Option<Vec<facts::FactContextHandle>> = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {
                 let mut arm_contexts = contexts.clone();
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     scan_construction_field_domains(
                         program,
                         facts,

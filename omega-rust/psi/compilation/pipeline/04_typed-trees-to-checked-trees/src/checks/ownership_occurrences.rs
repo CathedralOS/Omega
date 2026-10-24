@@ -3,7 +3,7 @@
 
 use validation::CanonicalPlace;
 
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 /// One binary decision in an expression. Match patterns carry the failed
@@ -410,6 +410,17 @@ impl StatementOrder<'_> {
         {
             return;
         }
+        if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::SavedSubject(_)
+        ) {
+            // This is a read of an established capture, not another value
+            // completion. Recording Complete(alias) would let a projected
+            // observation invent a second anonymous owner and cleanup debt.
+            // Real consuming uses still complete their ordinary move events.
+            self.complete_moves(expression, conditional);
+            return;
+        }
         // Later guards and payload receivers name the dispatch's saved
         // result. They neither invoke the producer nor observe its consumed
         // operands again; its canonical occurrence keeps the ordinary walk.
@@ -438,7 +449,7 @@ impl StatementOrder<'_> {
                 // not every enclosing owner. Computed receivers and selectors
                 // still execute before that observation.
                 self.selectors(expression, conditional);
-                if let Some(place) = validation::canonical_place_from_expression_in_state(
+                if let Some(place) = validation::ownership_place_from_expression_in_state(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
@@ -460,10 +471,29 @@ impl StatementOrder<'_> {
             }
             ExpressionNode::Match(dispatch) => {
                 self.expression(dispatch.subject, conditional);
+                // Completing a computed subject establishes its anonymous
+                // home before dispatch observes it. Publish that observation
+                // through the same owner inventory as member/index reads;
+                // saved payload aliases do not evaluate the producer again.
+                if let Some(place) = validation::ownership_place_from_expression_in_state(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    dispatch.subject,
+                ) {
+                    self.push(StatementStep::Observe {
+                        place,
+                        expression: dispatch.subject,
+                    });
+                }
                 let prefix = self.route.len();
                 let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
                 for (decision, (_, arm)) in arms.iter().enumerate() {
-                    if let MatchPattern::Value(pattern) = arm.pattern {
+                    for pattern in self
+                        .program
+                        .expression_table
+                        .match_pattern_operands(arm.pattern)
+                    {
                         self.expression(pattern, conditional || decision != 0);
                     }
                     // Exhaustiveness is checked before ownership. The last
@@ -562,7 +592,7 @@ impl StatementOrder<'_> {
         // observation of a completed value. Named subjects already observe
         // their existing storage above.
         if saved_subject.is_some()
-            && let Some(place) = validation::canonical_place_from_expression_in_state(
+            && let Some(place) = validation::ownership_place_from_expression_in_state(
                 self.program,
                 self.state.symbol,
                 self.statement_index,

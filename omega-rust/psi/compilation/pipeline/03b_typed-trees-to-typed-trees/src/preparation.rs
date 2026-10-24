@@ -447,6 +447,7 @@ fn specialize_machine_calls(
     program: &mut typed_trees::TypedTrees,
     enforce_complete_concrete_selections: bool,
 ) -> Result<typed_trees::references::DeclarationSelection, Vec<diagnostics::Diagnostic>> {
+    data_applications::retain_declared_field_scopes(program)?;
     crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
         program,
     )?;

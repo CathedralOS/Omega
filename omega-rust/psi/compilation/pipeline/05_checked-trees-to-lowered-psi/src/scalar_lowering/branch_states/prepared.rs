@@ -318,6 +318,7 @@ pub(crate) enum LoweredScalarEffect {
     ProduceStructuralValue {
         value: checked_trees::CheckedStructuralValueHandle,
         structural_type: StructuralTypeId,
+        alias: typed_trees::expression::ExpressionHandle,
     },
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),
     EstablishScalarCase(computations::cases::Construction),

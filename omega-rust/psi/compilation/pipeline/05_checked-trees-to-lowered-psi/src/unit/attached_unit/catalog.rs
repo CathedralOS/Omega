@@ -148,7 +148,18 @@ pub(crate) fn collect_value_roots(
                 collect_value_roots(checked, *element, roots)?;
             }
         }
-        checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
+        checked_trees::CheckedStructuralValueKind::Dispatch { subject, arms } => {
+            let captured = subject.structural_value();
+            if captured.is_valid() {
+                let source = checked.facts.values.structural_values.nodes.get(captured);
+                roots.push(validation::stored_structural_type_identity(
+                    &checked.typed,
+                    source.type_reference,
+                    &[],
+                    &[],
+                ));
+                collect_value_roots(checked, captured, roots)?;
+            }
             for arm in checked
                 .facts
                 .values

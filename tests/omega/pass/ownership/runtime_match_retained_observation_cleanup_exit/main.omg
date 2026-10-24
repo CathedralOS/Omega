@@ -1,0 +1,23 @@
+// A returned field loan keeps its anonymous owner through the receiving call.
+// Expected exit: 0
+data Counter { value: u32 in Wrapping; }
+data Note { counter: &mut Counter; value: i32; }
+machine Note::drop(note: &mut Note) { note.counter.value = note.counter.value + 1; }
+machine issue(counter: &mut Counter) -> Note { Note { counter: counter, value: 41 } }
+machine read(value: &i32) -> i32 { value }
+machine retained(counter: &mut Counter) -> bool {
+    let observed: i32 = read(match issue(counter) {
+        Note { counter as _, value } -> &value
+    });
+    observed == 41
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { value: 0 };
+    let observed: bool = retained(&mut counter);
+    transition observed && (counter.value as u32) == 1 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

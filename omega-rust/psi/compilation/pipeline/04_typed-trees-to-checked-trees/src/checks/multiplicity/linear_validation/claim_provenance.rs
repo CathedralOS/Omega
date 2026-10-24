@@ -96,7 +96,7 @@ pub(crate) fn written_linear_targets(
             )
         }
         StatementNode::Assignment(assignment) => {
-            let Some(place) = validation::canonical_place_from_expression_in_state(
+            let Some(place) = validation::ownership_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -125,7 +125,7 @@ pub(crate) fn written_linear_targets(
             else {
                 return Vec::new();
             };
-            let Some(place) = validation::canonical_place_from_expression_in_state(
+            let Some(place) = validation::ownership_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -169,7 +169,7 @@ pub(crate) fn written_owner_targets(
                 return None;
             }
             let relative_path = &tracked.path[target.segments.len()..];
-            let source_place = validation::canonical_place_from_expression_in_state(
+            let source_place = validation::ownership_place_from_expression_in_state(
                 program,
                 state_symbol,
                 statement_index,
@@ -341,7 +341,7 @@ fn expression_permission_claim_scan<X>(
         return None;
     }
 
-    let source = validation::canonical_place_from_expression_in_state(
+    let source = validation::ownership_place_from_expression_in_state(
         program,
         state_symbol,
         statement_index,

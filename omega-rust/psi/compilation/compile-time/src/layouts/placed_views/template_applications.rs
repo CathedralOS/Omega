@@ -512,11 +512,12 @@ fn visit_expression(
         return;
     }
     match syntax.expressions.expression(expression) {
+        ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Match(dispatch) => {
             visit_expression(syntax, dispatch.subject, binders, deferred);
             for arm in syntax.expressions.match_arms(dispatch.arms) {
-                if let syntax_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    visit_expression(syntax, pattern, binders, deferred);
+                for dependency in syntax.expressions.match_pattern_dependencies(arm.pattern) {
+                    visit_expression(syntax, dependency, binders, deferred);
                 }
                 visit_expression(syntax, arm.value, binders, deferred);
             }

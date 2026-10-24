@@ -44,6 +44,12 @@ fn expression_type_reference_in_state(
     }
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => program
+            .expression_table
+            .saved_subject_source(saved)
+            .and_then(|subject| {
+                expression_type_reference_in_state(program, state_symbol, statement_index, subject)
+            }),
         ExpressionNode::Match(dispatch) => program
             .expression_table
             .match_arms(dispatch.arms)

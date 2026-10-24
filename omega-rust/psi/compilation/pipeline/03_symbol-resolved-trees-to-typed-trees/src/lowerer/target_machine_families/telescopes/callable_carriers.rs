@@ -104,7 +104,7 @@ fn compatible(
             return false;
         }
     }
-    declared_callable(
+    let required = declared_callable(
         program,
         program.state_signature_parameters(required),
         required.return_type,
@@ -112,7 +112,8 @@ fn compatible(
         &required_binders,
         &[],
         false,
-    ) == declared_callable(
+    );
+    let actual = declared_callable(
         program,
         program.state_signature_parameters(actual),
         actual.return_type,
@@ -120,7 +121,8 @@ fn compatible(
         &actual_binders,
         &[],
         false,
-    )
+    );
+    matches!((required, actual), (Ok(required), Ok(actual)) if required == actual)
 }
 
 /// Native callbacks occupy ABI positions and select declaration-local machine

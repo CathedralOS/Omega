@@ -37,9 +37,9 @@ pub use facts::{
 
 mod computations;
 pub use computations::{
-    CheckedScalarCallee, CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
-    CheckedScalarComputation, CheckedScalarComputationHandle, CheckedScalarComputationKind,
-    CheckedScalarComputationPlans, CheckedScalarComputationRoot,
+    CheckedDispatchSubject, CheckedScalarCallee, CheckedScalarCaseComputationField,
+    CheckedScalarCaseConstruction, CheckedScalarComputation, CheckedScalarComputationHandle,
+    CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedScalarComputationRoot,
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
     CheckedScalarDispatchArm, CheckedScalarDispatchPattern,
 };

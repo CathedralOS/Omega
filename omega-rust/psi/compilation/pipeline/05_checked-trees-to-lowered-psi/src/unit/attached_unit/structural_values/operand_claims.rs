@@ -11,6 +11,22 @@ pub(super) struct CompletedOperand {
     pub(super) claims: Vec<terminal_psi::StructuralResultClaimBinding>,
 }
 
+impl CompletedOperand {
+    fn checked(
+        argument: terminal_psi::StructuralArgument,
+        claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    ) -> Result<Self, LoweringError> {
+        if claims.iter().enumerate().any(|(index, claim)| {
+            claims[..index]
+                .iter()
+                .any(|prior| prior.claim == claim.claim || prior.path == claim.path)
+        }) {
+            return unsupported("completed operand repeats a claim or path");
+        }
+        Ok(Self { argument, claims })
+    }
+}
+
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn capture_operand(
         &self,
@@ -19,9 +35,12 @@ impl emission::Emission<'_, '_, '_> {
         expression: typed_trees::expression::ExpressionHandle,
         first_new_place: u64,
     ) -> Result<CompletedOperand, LoweringError> {
+        if argument.place.get() >= first_new_place {
+            return self.published_operand(argument);
+        }
         let claims = if self.multiplicity == StructuralMultiplicity::Unrestricted {
             Vec::new()
-        } else if argument.place.get() < first_new_place {
+        } else {
             super::super::claims::lower_owned_operand_claims(
                 identities,
                 self.checked,
@@ -35,6 +54,18 @@ impl emission::Emission<'_, '_, '_> {
                 self.structural_type,
                 self.structural_types,
             )?
+        };
+        CompletedOperand::checked(argument, claims)
+    }
+
+    /// An actual producer or completed join publishes its current result
+    /// roster. This entrance requires no source-expression reconstruction.
+    pub(super) fn published_operand(
+        &self,
+        argument: terminal_psi::StructuralArgument,
+    ) -> Result<CompletedOperand, LoweringError> {
+        let claims = if self.multiplicity == StructuralMultiplicity::Unrestricted {
+            Vec::new()
         } else {
             let claims = self
                 .operations
@@ -70,13 +101,6 @@ impl emission::Emission<'_, '_, '_> {
             }
             selected
         };
-        if claims.iter().enumerate().any(|(index, claim)| {
-            claims[..index]
-                .iter()
-                .any(|prior| prior.claim == claim.claim || prior.path == claim.path)
-        }) {
-            return unsupported("completed constructor operand repeats a claim or path");
-        }
-        Ok(CompletedOperand { argument, claims })
+        CompletedOperand::checked(argument, claims)
     }
 }

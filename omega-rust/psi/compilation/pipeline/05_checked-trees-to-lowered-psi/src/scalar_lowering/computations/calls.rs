@@ -310,6 +310,13 @@ impl Expansion<'_> {
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;
+                    if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } = argument.source
+                        && matches!(self.checked.expression_table.expression(expression), typed_trees::expression::ExpressionNode::SavedSubject(_))
+                        && !self.established_values.iter().any(|value| matches!(value,
+                            EstablishedValue::Produced { root } if *root == slot.root))
+                    {
+                        return unsupported("saved call operand has no dominating completed subject");
+                    }
                     operands.push(Operand::Produced(slot.clone()));
                 }
                 if let CheckedScalarComputationStructuralArgument::Place(argument) = argument
@@ -800,12 +807,19 @@ impl Expansion<'_> {
                     ),
                 }),
                 Operand::Produced(slot) => {
-                    let arrival =
-                        crate::scalar_lowering::branch_states::structural_values::ValueRequest {
-                            value: slot.root,
-                            structural_type: slot.structural_type,
-                        };
-                    arrival.finish(prefix, continuation, self)
+                    if self.established_values.iter().any(|value| {
+                        matches!(value,
+                        EstablishedValue::Produced { root } if *root == slot.root)
+                    }) {
+                        continuation
+                    } else {
+                        let arrival =
+                            crate::scalar_lowering::branch_states::structural_values::ValueRequest {
+                                value: slot.root,
+                                structural_type: slot.structural_type,
+                            };
+                        arrival.finish(prefix, continuation, self)
+                    }
                 }
             };
             self.established_values.truncate(established_prefix);

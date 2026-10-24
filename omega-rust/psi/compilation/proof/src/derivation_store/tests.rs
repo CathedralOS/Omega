@@ -27,6 +27,7 @@ fn key_for(
             arena::HandleSpan::empty(),
         ),
     )
+    .expect("formed bounded obligation has a canonical key")
 }
 
 #[test]
@@ -48,7 +49,8 @@ fn lookup_uses_semantic_identity_not_spelling() {
     );
     let id = store
         .store_for(&plan, &obligation, "derivation")
-        .expect("unbounded store accepts");
+        .expect("unbounded store accepts")
+        .expect("formed obligation is indexable");
 
     // A display rename beside the same resolved symbols is the same
     // obligation, so its candidates include the retained derivation.
@@ -152,7 +154,8 @@ fn clear_drops_everything() {
             ),
             1,
         )
-        .expect("stored");
+        .expect("stored")
+        .expect("formed obligation is indexable");
     store.clear();
     assert!(store.is_empty());
     assert_eq!(store.key_count(), 0);

@@ -138,41 +138,16 @@ impl Emission<'_, '_, '_> {
                 // parameter's signature place; both arrive under
                 // `StructuralLocal`/`Parameter` source plans that
                 // `parameter_source` and the local namespace resolve exactly.
-                let place = match &argument.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                        symbol,
-                    } => match crate::expression_preparation::bindings::structural_local_by_root(
-                        &self.evaluation.structural_locals,
-                        facts::PlaceRoot::Symbol(*symbol),
-                    )
-                    .map(|local| &local.argument)
-                    {
-                        // A root that is itself a projected alias contributes
-                        // its own path: the composed walk names the leaf under
-                        // the place that actually holds the storage. Every
-                        // other established local occupies its whole place and
-                        // contributes nothing here.
-                        Some(source) => {
-                            root_alias_path = source.path.clone();
-                            source.place
-                        }
-                        None => {
-                            self.parameter_source(&argument)?
-                                .ok_or(LoweringError::Unsupported(
-                                    "projected selection root place missing",
-                                ))?
-                        }
-                    },
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        ..
-                    } => self
-                        .parameter_source(&argument)?
-                        .ok_or(LoweringError::Unsupported(
-                            "projected selection root place missing",
-                        ))?,
-                    _ => {
-                        return unsupported("projected selection root is not a structural local");
-                    }
+                let place = if let Some(place) = self.parameter_source(&argument)? {
+                    place
+                } else {
+                    // All completed roots share this storage judgment,
+                    // including expression captures and projected aliases.
+                    // Retain their exact physical prefix instead of another
+                    // source-family roster or a reconstructed initializer.
+                    let source = self.structural_bindings().owned_argument_home(&argument)?;
+                    root_alias_path = source.path;
+                    source.place
                 };
                 (place, argument.type_identity, root_source)
             }

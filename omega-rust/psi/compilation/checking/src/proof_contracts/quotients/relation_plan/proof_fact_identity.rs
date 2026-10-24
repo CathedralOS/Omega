@@ -344,8 +344,10 @@ pub(super) fn proof_facts_match(
     right_context: ProofFactIdentityContext<'_>,
 ) -> bool {
     let expression_matches = |left, right| {
-        proof_expression_identity(program, left, left_context.values)
-            == proof_expression_identity(program, right, right_context.values)
+        matches!((
+            proof_expression_identity(program, left, left_context.values),
+            proof_expression_identity(program, right, right_context.values)
+        ), (Some(left), Some(right)) if left == right)
     };
     match (left, right) {
         (ProofFact::Expression(left), ProofFact::Expression(right)) => {
@@ -447,15 +449,31 @@ fn proof_expression_identity(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     values: &[ProofValueSubstitution],
-) -> (String, String) {
+) -> Option<(String, String)> {
+    // This legacy substitution key cannot encode lexical capture binders.
+    // The scoped normalizer authenticates those binders, but its unsubstituted
+    // key cannot replace the value-substituted key below. Until this entrance
+    // consumes a scoped, substituted identity, decline captures entirely:
+    // diagnostic arena labels must never become semantic correspondence.
+    typed_trees::type_identity::normalized_expression_identity(program, expression, &[])?;
+    let mut expressions = Vec::new();
+    crate::expression_traversal::collect_expression_tree(program, expression, &mut expressions);
+    if expressions.iter().any(|expression| {
+        matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::SavedSubject(_)
+        )
+    }) {
+        return None;
+    }
     let rendered_values = values
         .iter()
         .map(|value| (value.symbol, value.rendered.clone()))
         .collect::<Vec<_>>();
-    (
+    Some((
         program.render_proof_expression(expression, ProofSubstitutions::BySymbol(&rendered_values)),
         expression_symbol_trace(program, expression, values),
-    )
+    ))
 }
 
 fn expression_symbol_trace(
@@ -465,6 +483,9 @@ fn expression_symbol_trace(
 ) -> String {
     let trace = |expression| expression_symbol_trace(program, expression, values);
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => {
+            format!("saved-subject:{}", trace(saved.pattern_head))
+        }
         ExpressionNode::Match(dispatch) => {
             let arms = program
                 .expression_table
@@ -476,6 +497,17 @@ fn expression_symbol_trace(
                             format!("value:{}", trace(pattern))
                         }
                         typed_trees::expression::MatchPattern::Wildcard => "wildcard".to_owned(),
+                        typed_trees::expression::MatchPattern::Destructure(pattern) => format!(
+                            "destructure:[{}]",
+                            program
+                                .expression_table
+                                .match_pattern_dependencies(
+                                    typed_trees::expression::MatchPattern::Destructure(pattern)
+                                )
+                                .map(trace)
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        ),
                     };
                     format!("({pattern}=>{})", trace(arm.value))
                 })

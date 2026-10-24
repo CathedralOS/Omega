@@ -41,6 +41,7 @@ mod contracts;
 mod declarations;
 mod expressions;
 mod parameters;
+mod patterns;
 mod type_syntax;
 
 // Beneath the grammar: what every module above reads through and reports to.

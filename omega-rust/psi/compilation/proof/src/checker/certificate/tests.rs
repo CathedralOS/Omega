@@ -581,7 +581,7 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
             .expect("certificate");
     DerivationConsultation::new(&plan, &total, &mut cache).retain(neighbor);
 
-    let stale_key = proof_obligation_key(&plan, &count);
+    let stale_key = proof_obligation_key(&plan, &count).expect("formed count obligation key");
     assert_eq!(cache.invalidate(&stale_key), 1);
     assert_eq!(cache.len(), 1);
     assert_eq!(cache.key_count(), 1);
@@ -608,7 +608,11 @@ fn dependency_change_misses_and_invalidate_reclaims_the_stale_row() {
         base,
         arena::HandleSpan::empty(),
     );
-    assert_eq!(cache.invalidate(&proof_obligation_key(&plan, &ghost)), 0);
+    assert_eq!(
+        cache
+            .invalidate(&proof_obligation_key(&plan, &ghost).expect("formed ghost obligation key")),
+        0
+    );
 
     let report = cache.report();
     assert_eq!(report.consultations, 3);

@@ -230,8 +230,30 @@ impl SelectedCleanup {
                 && !before_transfer.is_present(event.root, &path)
             {
                 let message = "owned region is unavailable at this selected transfer: it was already transferred or has not been established";
-                return Err(diagnostics::Diagnostic::error(message)
-                    .with_source_span(source_gap(program, event, message).source_span));
+                let Some((machine, state)) = program
+                    .machine_by_symbol(event.machine_symbol)
+                    .zip(program.state_by_symbol(event.state_symbol))
+                else {
+                    return Err(unsupported(program, event, message));
+                };
+                let spelling = super::borrowed_windows::place_spelling(
+                    program, machine, state, event.root, &path,
+                );
+                let reason = if reserved {
+                    format!(
+                        "cannot use `{spelling}`: this selected region was transferred or has not been established"
+                    )
+                } else {
+                    format!(
+                        "cannot use `{spelling}` after `{spelling}` was transferred or consumed"
+                    )
+                };
+                return Err(diagnostics::Diagnostic::error(format!(
+                    "{reason} in machine `{}` state `{}`",
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                ))
+                .with_source_span(source_gap(program, event, message).source_span));
             }
             if established.is_empty()
                 || !(established.iter().any(|place| place.ever_established) || reserved)

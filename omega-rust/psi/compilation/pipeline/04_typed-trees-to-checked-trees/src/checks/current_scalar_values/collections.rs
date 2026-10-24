@@ -303,7 +303,7 @@ impl CurrentScalarValues<'_> {
         for arm in arms {
             let replacement = match arm.pattern {
                 MatchPattern::Value(pattern) => self.pattern_integer(pattern),
-                MatchPattern::Wildcard => None,
+                MatchPattern::Destructure(_) | MatchPattern::Wildcard => None,
             };
             lengths.push(self.arm_length(
                 arm.value,

@@ -142,8 +142,31 @@ pub struct MatchArmSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MatchPatternSnapshot {
-    Value { value: Box<ExpressionSnapshot> },
+    Value {
+        value: Box<ExpressionSnapshot>,
+    },
+    Destructure {
+        head: Box<ExpressionSnapshot>,
+        fields: Vec<MatchFieldSnapshot>,
+        has_rest: bool,
+        guard: Option<Box<ExpressionSnapshot>>,
+        proof_selectors: Vec<(String, String)>,
+    },
     Wildcard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MatchFieldSnapshot {
+    pub member: String,
+    pub action: MatchFieldActionSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MatchFieldActionSnapshot {
+    Bind { binding: String },
+    Equal { value: Box<ExpressionSnapshot> },
+    Waive,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -151,7 +174,13 @@ pub enum MatchPatternSnapshot {
 pub enum ExpressionSnapshot {
     Match {
         subject: Box<ExpressionSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        capture: Option<(u32, u32)>,
         arms: Vec<MatchArmSnapshot>,
+    },
+    SavedSubject {
+        capture: (u32, u32),
+        pattern_head: Box<ExpressionSnapshot>,
     },
     ArrayLiteral {
         values: Vec<ExpressionSnapshot>,
@@ -459,6 +488,10 @@ pub(crate) fn expression_snapshot(
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => ExpressionSnapshot::Match {
             subject: Box::new(expression_snapshot(program, dispatch.subject)),
+            capture: dispatch.capture.is_valid().then_some((
+                dispatch.capture.arena_index(),
+                dispatch.capture.generation(),
+            )),
             arms: program
                 .expression_table
                 .match_arms(dispatch.arms)
@@ -473,11 +506,61 @@ pub(crate) fn expression_snapshot(
                                 value: Box::new(expression_snapshot(program, value)),
                             }
                         }
+                        crate::expression::MatchPattern::Destructure(pattern) => {
+                            MatchPatternSnapshot::Destructure {
+                                head: Box::new(expression_snapshot(program, pattern.head)),
+                                fields: program
+                                    .expression_table
+                                    .match_fields(pattern.fields)
+                                    .iter()
+                                    .map(|field| MatchFieldSnapshot {
+                                        member: field.member.as_str().to_owned(),
+                                        action: match &field.action {
+                                            crate::expression::MatchFieldAction::Bind(binding) => {
+                                                MatchFieldActionSnapshot::Bind {
+                                                    binding: binding.as_str().to_owned(),
+                                                }
+                                            }
+                                            crate::expression::MatchFieldAction::Equal(value) => {
+                                                MatchFieldActionSnapshot::Equal {
+                                                    value: Box::new(expression_snapshot(
+                                                        program, *value,
+                                                    )),
+                                                }
+                                            }
+                                            crate::expression::MatchFieldAction::Waive => {
+                                                MatchFieldActionSnapshot::Waive
+                                            }
+                                        },
+                                    })
+                                    .collect(),
+                                has_rest: pattern.has_rest,
+                                guard: pattern
+                                    .guard
+                                    .is_valid()
+                                    .then(|| Box::new(expression_snapshot(program, pattern.guard))),
+                                proof_selectors: program
+                                    .expression_table
+                                    .match_proof_selectors(pattern.proof_selectors)
+                                    .iter()
+                                    .map(|selector| {
+                                        (
+                                            selector.output_field.as_str().to_owned(),
+                                            selector.binding.as_str().to_owned(),
+                                        )
+                                    })
+                                    .collect(),
+                            }
+                        }
                         crate::expression::MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
                     },
                     value: expression_snapshot(program, arm.value),
                 })
                 .collect(),
+        },
+        ExpressionNode::SavedSubject(saved) => ExpressionSnapshot::SavedSubject {
+            capture: (saved.capture.arena_index(), saved.capture.generation()),
+            pattern_head: Box::new(expression_snapshot(program, saved.pattern_head)),
         },
         ExpressionNode::ArrayLiteral(values) => ExpressionSnapshot::ArrayLiteral {
             values: expression_span_snapshot(program, *values),

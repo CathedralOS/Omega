@@ -11,6 +11,42 @@ use terminal_psi::{
     ClosedReachParameter, TargetMachineCallable, TerminalIdentityIndex, TerminalModule,
 };
 
+/// A wholly checked family returns actual body custody, never opaque host
+/// outputs. Authenticate the independent contract and every retained member;
+/// a selected checked tag cannot waive another tag's opaque obligations.
+pub fn is_checked_body_family_contract(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> bool {
+    let head = TargetMachineCallable::Boundary(boundary.id);
+    let Some(family) = module
+        .target_machine_families
+        .iter()
+        .find(|family| family.canonical == head)
+    else {
+        return false;
+    };
+    boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Machine
+        && boundary.role == terminal_psi::BoundaryDeclarationRole::Callable
+        && family.head_contract != [0; 32]
+        && boundary
+            .declaration
+            .as_ref()
+            .is_some_and(|declaration| declaration.source.contract == family.head_contract)
+        && validate_boundary_callable(module, boundary).is_ok()
+        && !family.members.is_empty()
+        && family.members.iter().all(|member| match member.callable {
+            TargetMachineCallable::Machine(machine) => {
+                matches!(
+                    member.supply,
+                    terminal_psi::TargetMachineSupply::CheckedBody
+                        | terminal_psi::TargetMachineSupply::Boundary
+                ) && module.machine(machine).is_some()
+            }
+            TargetMachineCallable::Boundary(_) => false,
+        })
+}
+
 /// An opaque signature retains its own checked machine or trait declaration,
 /// not its provider's. Legacy operators and synthetic evidence can have no
 /// such source. A portable family additionally authenticates its independent

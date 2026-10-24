@@ -483,7 +483,8 @@ fn validate_package_index_expression(
                 builtin_exposure,
             )
         }
-        ExpressionNode::Match(_)
+        ExpressionNode::SavedSubject(_)
+        | ExpressionNode::Match(_)
         | ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Atomic(_)
         | ExpressionNode::Boolean(_)

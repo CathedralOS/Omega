@@ -17,7 +17,7 @@ pub(super) fn recurse_shared_children(
         ExpressionNode::Match(dispatch) => {
             visit(dispatch.subject);
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     visit(pattern);
                 }
                 visit(arm.value);

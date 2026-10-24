@@ -1,7 +1,7 @@
 //! Identity tests: normalized spellings, resolved-symbol stability,
 //! constraint and payload sensitivity, and schema marking.
 
-use super::proof_obligation_key;
+use super::proof_obligation_key as try_proof_obligation_key;
 use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, GuardedTransitionObligation, IntegerRange,
     ProofConstraint, ProofObligation, ProofPlan,
@@ -17,6 +17,14 @@ use typed_trees::expression::{
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
 use typed_trees::types::TypeReferenceNode;
+
+/// Every equality in this suite compares formed keys, never two missing keys.
+fn proof_obligation_key(
+    plan: &ProofPlan<'_>,
+    obligation: &ProofObligation,
+) -> crate::obligations::ProofObligationKey {
+    try_proof_obligation_key(plan, obligation).expect("formed obligation has a canonical key")
+}
 
 struct Program {
     typed_trees: TypedTrees,

@@ -8,13 +8,18 @@
 
 use super::expression_result_type_reference as declared_value_type;
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchPattern, TableMatchExpression,
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::PrimitiveType;
+
+mod structural_patterns;
+pub use structural_patterns::{
+    structural_match_cases_are_covered, structural_match_pattern_case,
+    structural_match_subject_type,
+};
 
 /// Find a retained subject carrier or an already-typed value-pattern peer.
 /// Anonymous patterns never choose a default width.
@@ -84,7 +89,8 @@ pub fn validate_match_dispatch(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let arms = program.expression_table.match_arms(dispatch.arms);
-    let case_dispatch = match_case_dispatch(program, machine, state, dispatch);
+    let structural = structural_match_subject_type(program, machine, state, dispatch);
+    let mut covered_cases = Vec::new();
     let mut wildcard = false;
     let mut boolean_values = [false; 2];
     let subject_type = declared_value_type(program, machine, state, dispatch.subject);
@@ -105,10 +111,28 @@ pub fn validate_match_dispatch(
     for arm in arms {
         match arm.pattern {
             MatchPattern::Wildcard => wildcard = true,
-            MatchPattern::Value(pattern) => {
-                if case_dispatch.is_some() {
-                    continue;
+            MatchPattern::Destructure(_) | MatchPattern::Value(_) if structural.is_some() => {
+                if let Some((case, total)) = structural_patterns::validate(
+                    program,
+                    machine,
+                    state,
+                    dispatch,
+                    arm.pattern,
+                    arm.source_span,
+                    diagnostics,
+                ) && total
+                    && !covered_cases.contains(&case)
+                {
+                    covered_cases.push(case);
                 }
+            }
+            MatchPattern::Destructure(_) => diagnostics.push(
+                Diagnostic::error(
+                    "structural match pattern requires a record or case-bearing subject",
+                )
+                .with_source_span(arm.source_span),
+            ),
+            MatchPattern::Value(pattern) => {
                 if matches!(
                     program.expression_table.expression(pattern),
                     ExpressionNode::ArrayLiteral(_)
@@ -144,9 +168,14 @@ pub fn validate_match_dispatch(
             }
         }
     }
-    if !wildcard && !(subject_boolean && boolean_values == [true, true]) {
+    if !wildcard
+        && !(subject_boolean && boolean_values == [true, true])
+        && !structural.is_some_and(|reference| {
+            structural_match_cases_are_covered(program, reference, &covered_cases)
+        })
+    {
         diagnostics.push(Diagnostic::error(
-            "match does not cover its subject; add a wildcard arm or both Boolean value alternatives",
+            "match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm",
         ).with_source_span(program.expression_table.source_span(expression)));
     }
     if arms.is_empty() {
@@ -216,269 +245,6 @@ fn is_scalar_value(
             crate::has_builtin_bound_expression_meaning(program, machine, Some(state), expression)
         }
         _ => false,
-    }
-}
-
-/// A discriminant dispatch over a scalar-payload sum subject: every arm is
-/// either a wildcard or a case name classifier (`UnitResult::Ok`,
-/// `UnitResult::Error`) whose owner is the subject's declared sum type. A case
-/// classifier tests the tag only, like `x in UnitResult::Error`; its payload,
-/// when one exists, is never bound or evaluated. Value dispatch lowers the
-/// shape to ordered case-membership selections.
-#[derive(Debug)]
-pub struct MatchCaseDispatch {
-    /// The checked expression carrying the subject's discriminant.
-    pub subject: MatchCaseSubject,
-    /// Ordered arms. `None` marks the wildcard fallback.
-    pub arms: Vec<MatchCaseDispatchArm>,
-}
-
-/// One arm of a [`MatchCaseDispatch`].
-#[derive(Debug)]
-pub struct MatchCaseDispatchArm {
-    /// The admitted case symbol, or `None` for the wildcard fallback arm.
-    pub case: Option<SymbolHandle>,
-    /// The arm's scalar result expression.
-    pub value: ExpressionHandle,
-}
-
-/// The observable shape carrying a discriminant dispatch's subject.
-#[derive(Debug)]
-pub enum MatchCaseSubject {
-    /// A self field, non-self parameter, or a field/fixed-index path into one.
-    ParameterField,
-    /// An immutable local holding the matched sum.
-    ImmutableLocal {
-        /// The local's declared symbol.
-        symbol: SymbolHandle,
-        /// Its declared type reference.
-        type_reference: TypeReferenceHandle,
-    },
-    /// A fresh payloadless case construction matched whole.
-    Constructor,
-}
-
-/// Classify `dispatch` as a discriminant dispatch over a scalar-payload sum
-/// subject, or `None` when any requirement fails:
-///
-/// - every arm is a wildcard or a name-form pattern resolving to a case of
-///   the subject's declared sum type;
-/// - every arm value is a scalar (discriminant dispatch emits scalar
-///   selections; structural results stay unsupported);
-/// - the subject resolves to a place the pipeline can read a discriminant
-///   from: a parameter field path, an immutable local, or a fresh case
-///   construction.
-///
-/// Admission here is shared with checked-tree construction: a `None` result
-/// means value dispatch's scalar gates still apply.
-pub fn match_case_dispatch(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    dispatch: &TableMatchExpression,
-) -> Option<MatchCaseDispatch> {
-    let arms = program.expression_table.match_arms(dispatch.arms);
-    if arms.is_empty() {
-        return None;
-    }
-    let mut pattern_arms = 0usize;
-    let mut dispatch_arms = Vec::with_capacity(arms.len());
-    for arm in arms {
-        match arm.pattern {
-            MatchPattern::Wildcard => {
-                dispatch_arms.push(MatchCaseDispatchArm {
-                    case: None,
-                    value: arm.value,
-                });
-            }
-            MatchPattern::Value(pattern) => {
-                let (owner_reference, selected) = case_pattern(program, pattern)?;
-                let subject_reference =
-                    declared_value_type(program, machine, state, dispatch.subject)
-                        .map(|reference| {
-                            crate::value_custody::places::assignment_value_type(program, reference)
-                        })
-                        .filter(|reference| reference.is_valid())?;
-                if program.normalized_type_identity(subject_reference)
-                    != program.normalized_type_identity(owner_reference)
-                {
-                    return None;
-                }
-                pattern_arms += 1;
-                dispatch_arms.push(MatchCaseDispatchArm {
-                    case: Some(selected),
-                    value: arm.value,
-                });
-            }
-        }
-    }
-    if pattern_arms == 0 {
-        return None;
-    }
-    if arms
-        .iter()
-        .any(|arm| !is_scalar_value(program, machine, state, arm.value))
-    {
-        return None;
-    }
-    let subject = case_dispatch_subject(program, machine, state, dispatch.subject)?;
-    Some(MatchCaseDispatch {
-        subject,
-        arms: dispatch_arms,
-    })
-}
-
-/// Resolve a name-form match pattern to its owner type reference and case
-/// symbol, or `None`. The owner's admission walls mirror
-/// `scalar_case_constructor`: a closed, non-generic pure sum whose contents
-/// stay within plain owned numeric-constraint shape.
-fn case_pattern(
-    program: &dyn crate::CheckingInput,
-    pattern: ExpressionHandle,
-) -> Option<(TypeReferenceHandle, SymbolHandle)> {
-    // A bare case name and a fieldless case literal both spell the same
-    // classifier: only the tag is tested, exactly like `in` membership.
-    let (owner_symbol, selected) = match program.expression_table.expression(pattern) {
-        ExpressionNode::Name(name) => (program.symbols.get(name.symbol).parent, name.symbol),
-        ExpressionNode::StructLiteral(literal) => {
-            if !program
-                .expression_table
-                .struct_fields(literal.fields)
-                .is_empty()
-            {
-                return None;
-            }
-            (literal.type_symbol, literal.case_symbol?)
-        }
-        _ => return None,
-    };
-    let owner =
-        crate::declarations::data_queries::data_definition_by_symbol(program, owner_symbol)?;
-    let reference = program
-        .type_reference_table
-        .find_named_type_reference(owner.symbol)?;
-    if !owner.type_parameters.is_empty()
-        || !crate::has_contents(
-            program,
-            reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        )
-        || program
-            .data_members(owner)
-            .iter()
-            .any(|member| matches!(member, typed_trees::data::DataMember::Field(_)))
-    {
-        return None;
-    }
-    let case = program
-        .data_members(owner)
-        .iter()
-        .find_map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) if case.symbol == selected => {
-                Some(case.symbol)
-            }
-            _ => None,
-        })?;
-    Some((reference, case))
-}
-
-/// Resolve the place a discriminant dispatch reads its subject's case from.
-/// Parameter-field paths reuse the transition-guard admission family; locals
-/// reuse the case-membership place plan; fresh constructions carry their own
-/// discriminant.
-fn case_dispatch_subject(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    subject: ExpressionHandle,
-) -> Option<MatchCaseSubject> {
-    if parameter_case_subject(program, machine, state, subject).is_some() {
-        return Some(MatchCaseSubject::ParameterField);
-    }
-    if let Some(path) = program.expression_table.name_path_node(subject)
-        && path.head_symbol == path.symbol
-        && program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            == 1
-        && let Some((_, local)) = program.state_local_declaration(state, path.symbol)
-        && !local.is_mutable
-        && local.type_reference.is_valid()
-        && crate::has_contents(
-            program,
-            local.type_reference,
-            &[],
-            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
-        )
-    {
-        return Some(MatchCaseSubject::ImmutableLocal {
-            symbol: local.symbol,
-            type_reference: local.type_reference,
-        });
-    }
-    if crate::value_custody::scalar_case_constructor::scalar_case_constructor(program, subject)
-        .is_some()
-    {
-        return Some(MatchCaseSubject::Constructor);
-    }
-    None
-}
-
-/// Admit a subject rooted at a parameter place: a bare parameter name, a
-/// self-field projection of the enclosing machine's attached data, or a
-/// field/fixed-index path into either. Member segments must name declared
-/// fields or payload cases; array indexing requires retained builtin meaning
-/// and a constant index.
-fn parameter_case_subject(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    subject: ExpressionHandle,
-) -> Option<()> {
-    match program.expression_table.expression(subject) {
-        ExpressionNode::Name(path) => {
-            if program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.symbol == path.symbol && path.head_symbol == path.symbol)
-            {
-                return Some(());
-            }
-            None
-        }
-        ExpressionNode::Member(member) => {
-            // The binder already resolved the member: a case payload member
-            // carries `case_variant`; a field member carries its field symbol.
-            if member.case_variant.is_none() && !member.member_symbol.is_valid() {
-                return None;
-            }
-            if matches!(
-                program.expression_table.expression(member.receiver),
-                ExpressionNode::Name(receiver) if receiver.symbol == machine.symbol
-            ) {
-                // A self-receiver member must be a real field of the
-                // machine's attached data so a case path never skips the
-                // field's own walls.
-                crate::value_custody::places::exact_self_field(program, machine, subject)?;
-                return Some(());
-            }
-            parameter_case_subject(program, machine, state, member.receiver)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            if !crate::value_custody::places::has_retained_builtin_index_meaning(program, subject) {
-                return None;
-            }
-            let index = program
-                .expression_table
-                .constant_integer_value(indexed.index)?;
-            if index < 0 {
-                return None;
-            }
-            parameter_case_subject(program, machine, state, indexed.collection)
-        }
-        _ => None,
     }
 }
 

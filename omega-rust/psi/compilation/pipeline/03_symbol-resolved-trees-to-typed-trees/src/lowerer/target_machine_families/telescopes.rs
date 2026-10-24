@@ -71,7 +71,7 @@ pub(super) fn validate(
     let Some(actual_state) = program.machine_states(member).first() else {
         return Err(incompatible(member, "member entry signature"));
     };
-    if declared_callable(
+    let required_callable = declared_callable(
         program,
         program.state_parameters(required_state),
         required_state.return_type,
@@ -79,7 +79,8 @@ pub(super) fn validate(
         &required_binders,
         &[],
         false,
-    ) != declared_callable(
+    )?;
+    let actual_callable = declared_callable(
         program,
         program.state_parameters(actual_state),
         actual_state.return_type,
@@ -87,7 +88,8 @@ pub(super) fn validate(
         &actual_binders,
         &[],
         false,
-    ) {
+    )?;
+    if required_callable != actual_callable {
         return Err(incompatible(
             member,
             "ordinary parameter relevance/calling shape or result",

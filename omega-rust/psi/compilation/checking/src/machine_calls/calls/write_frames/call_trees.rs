@@ -226,8 +226,8 @@ fn complete_expression_tree(
                                 ValuePosition::IndexOperand,
                             ));
                             for arm in program.expression_table.match_arms(dispatch.arms).iter() {
-                                if let typed_trees::expression::MatchPattern::Value(pattern) =
-                                    arm.pattern
+                                for pattern in
+                                    program.expression_table.match_pattern_operands(arm.pattern)
                                 {
                                     pending.push(PendingNode::Expression(
                                         pattern,

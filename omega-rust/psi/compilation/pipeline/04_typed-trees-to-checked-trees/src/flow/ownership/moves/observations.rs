@@ -19,7 +19,7 @@ pub(in crate::flow::ownership) fn append(
     source: FlowOwnershipEventSource,
 ) {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => {}
+        ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Member(member) => {
             append(program, sink, state, statement, member.receiver, source)
         }

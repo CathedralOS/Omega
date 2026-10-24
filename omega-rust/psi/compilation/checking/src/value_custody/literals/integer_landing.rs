@@ -137,6 +137,7 @@ pub fn select_anonymous_numeric_match_arm(
     }
     for arm in arms {
         match arm.pattern {
+            typed_trees::expression::MatchPattern::Destructure(_) => return None,
             typed_trees::expression::MatchPattern::Wildcard => return Some(arm.value),
             typed_trees::expression::MatchPattern::Value(pattern) => {
                 let pattern = anonymous_numeric_value(program, pattern, &mut builtin)?;

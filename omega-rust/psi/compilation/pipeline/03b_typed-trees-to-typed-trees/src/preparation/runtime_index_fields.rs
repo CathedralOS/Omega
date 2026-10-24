@@ -247,7 +247,7 @@ fn fill(
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
             let mut prior = earlier_effects || !effects.inert(program, dispatch.subject);
             for arm in arms {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                for pattern in program.expression_table.match_pattern_operands(arm.pattern) {
                     prior |= !effects.inert(program, pattern);
                 }
                 fill(

@@ -24,6 +24,11 @@ pub(crate) fn instantiate_operator_contract_expression_label(
     };
 
     match program.expression_table.expression(expression) {
+        ExpressionNode::SavedSubject(saved) => format!(
+            "$saved-subject#{}:{}",
+            saved.capture.arena_index(),
+            saved.capture.generation()
+        ),
         ExpressionNode::Match(dispatch) => {
             let arms = program
                 .expression_table
@@ -35,6 +40,13 @@ pub(crate) fn instantiate_operator_contract_expression_label(
                             instantiate(pattern)
                         }
                         typed_trees::expression::MatchPattern::Wildcard => "_".to_owned(),
+                        typed_trees::expression::MatchPattern::Destructure(_) => {
+                            typed_trees::expression::display_match_pattern(
+                                &program.expression_table,
+                                arm.pattern,
+                                &instantiate,
+                            )
+                        }
                     };
                     format!("{pattern} -> {}", instantiate(arm.value))
                 })

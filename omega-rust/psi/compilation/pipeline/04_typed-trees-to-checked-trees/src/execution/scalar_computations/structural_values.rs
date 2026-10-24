@@ -136,6 +136,20 @@ impl Builder<'_, '_> {
         // place can require that occurrence to retain its receiving contract
         // even when it needs no new storage. Do not reclassify it as absent
         // merely because its physical home already exists.
+        self.retain_structural_value_root(owner, owner_reference)?;
+        Some((expression, owner_reference, path))
+    }
+
+    /// Publish the exact completed value independently of its containing home.
+    /// A projected observer needs both associations: the whole owner supplies
+    /// custody, while the selected value supplies its own shape and type.
+    pub(super) fn retain_structural_value_root(
+        &mut self,
+        value: CheckedStructuralValueHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<()> {
+        let node = self.structural_values.nodes.get(value);
+        let expression = node.expression;
         let statement = u32::try_from(self.statement_index).ok()?;
         if let Some(retained) = self
             .structural_values
@@ -145,7 +159,8 @@ impl Builder<'_, '_> {
                 || self
                     .program
                     .normalized_type_identity(retained.type_reference)
-                    != self.program.normalized_type_identity(owner_reference)
+                    != self.program.normalized_type_identity(reference)
+                || retained.root != value
             {
                 return None;
             }
@@ -157,11 +172,11 @@ impl Builder<'_, '_> {
                     state: self.state,
                     statement_ordinal: statement,
                     expression,
-                    type_reference: owner_reference,
-                    root: owner,
+                    type_reference: reference,
+                    root: value,
                 });
         }
-        Some((expression, owner_reference, path))
+        Some(())
     }
 
     /// Retain the value established by an argument, independent of how the
@@ -286,7 +301,6 @@ impl Builder<'_, '_> {
         let retained = self
             .structural_values
             .root_for_expression(self.state, statement, expression);
-        let already_retained = retained.is_some();
         let root = if let Some(root) = retained {
             if root.machine != self.machine
                 || self.program.normalized_type_identity(root.type_reference)
@@ -349,18 +363,7 @@ impl Builder<'_, '_> {
                 return None;
             }
         }
-        if !already_retained {
-            self.structural_values
-                .roots
-                .append(checked_trees::CheckedStructuralValueRoot {
-                    machine: self.machine,
-                    state: self.state,
-                    statement_ordinal: statement,
-                    expression,
-                    type_reference: expected,
-                    root,
-                });
-        }
+        self.retain_structural_value_root(root, expected)?;
         Some(root)
     }
 
@@ -745,7 +748,7 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::Call { source_call }
         } else if matches!(
             self.program.expression_table.expression(expression),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_)
         ) && validation::scalar_case_constructor(self.program, expression).is_none()
             && let Some(argument) = self.owned_structural_place(expression, expected)
         {
@@ -820,23 +823,17 @@ impl Builder<'_, '_> {
             else {
                 return None;
             };
-            let machine = self.program.machine_by_symbol(self.machine)?;
-            let state = self.program.state_in_machine(machine, self.state)?;
-            let subject_type = validation::expression_result_type_reference(
-                self.program,
-                machine,
-                state,
-                dispatch.subject,
-            )
-            .and_then(|reference| validation::unwrapped_type_reference(self.program, reference))
-            .and_then(|reference| self.program.primitive_type_reference(reference))
-            .or_else(|| validation::match_subject_primitive_type(self.program, &dispatch))?;
-            let subject = self.expression(dispatch.subject, subject_type)?;
-            self.plans.nodes.get_mut(subject).authored_root = dispatch.subject;
-            self.push_scalar_root(
-                CheckedScalarExpressionRole::StructuralValueSubject { expression },
-                subject,
-            )?;
+            let subject = self.dispatch_subject(&dispatch)?;
+            let subject_type = match subject {
+                checked_trees::CheckedDispatchSubject::Scalar(value) => {
+                    self.push_scalar_root(
+                        CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                        value,
+                    )?;
+                    Some(self.plans.nodes.get(value).primitive_type)
+                }
+                checked_trees::CheckedDispatchSubject::Structural { .. } => None,
+            };
             let authored = self
                 .program
                 .expression_table
@@ -846,56 +843,54 @@ impl Builder<'_, '_> {
             let mut covered = false;
             let mut boolean_coverage = [false; 2];
             for (ordinal, arm) in authored.iter().enumerate() {
-                // First-match semantics make a repeated literal Boolean arm
-                // unreachable. It cannot transfer an owner or evaluate fields.
-                if subject_type == PrimitiveType::Bool
-                    && let MatchPattern::Value(pattern) = arm.pattern
-                    && let ExpressionNode::Boolean(value) =
-                        self.program.expression_table.expression(pattern)
-                    && boolean_coverage[usize::from(*value)]
-                {
-                    continue;
-                }
-                let source_arm = arena::Handle::from_parts(
-                    dispatch
-                        .arms
-                        .start()
-                        .arena_index()
-                        .checked_add(u32::try_from(ordinal).ok()?)?,
-                    dispatch.arms.start().generation(),
-                );
-                let equality_use = if matches!(arm.pattern, MatchPattern::Value(_))
-                    && matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64)
-                {
-                    self.comparison_use(
-                        expression,
-                        checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm },
-                    )?
-                } else {
-                    arena::Handle::invalid()
-                };
-                let pattern = match arm.pattern {
-                    MatchPattern::Wildcard => {
-                        covered = true;
-                        checked_trees::CheckedScalarDispatchPattern::Wildcard
-                    }
-                    MatchPattern::Value(pattern) => {
-                        if subject_type == PrimitiveType::Bool
-                            && let ExpressionNode::Boolean(value) =
-                                self.program.expression_table.expression(pattern)
-                        {
-                            boolean_coverage[usize::from(*value)] = true;
-                            covered = boolean_coverage.iter().all(|value| *value);
+                let source_arm = dispatch.arms.handle_at(u32::try_from(ordinal).ok()?);
+                let mut equality_use = arena::Handle::invalid();
+                let pattern = if let Some(subject_type) = subject_type {
+                    match arm.pattern {
+                        MatchPattern::Wildcard => {
+                            covered = true;
+                            checked_trees::CheckedScalarDispatchPattern::Wildcard
                         }
-                        let computation = self.expression(pattern, subject_type)?;
-                        self.plans.nodes.get_mut(computation).authored_root = pattern;
-                        self.push_scalar_root(
-                            CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                            computation,
-                        )?;
-                        checked_trees::CheckedScalarDispatchPattern::Value(computation)
+                        MatchPattern::Value(pattern) => {
+                            if subject_type == PrimitiveType::Bool
+                                && let Some(value) =
+                                    self.program.expression_table.boolean_node(pattern)
+                            {
+                                if boolean_coverage[usize::from(*value)] {
+                                    continue;
+                                }
+                                boolean_coverage[usize::from(*value)] = true;
+                                covered = boolean_coverage == [true, true];
+                            }
+                            if matches!(subject_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                                equality_use = self.comparison_use(
+                                    expression,
+                                    checked_trees::CheckedOperatorOccurrence::MatchEquality {
+                                        source_arm,
+                                    },
+                                )?;
+                            }
+                            let computation = self.expression(pattern, subject_type)?;
+                            self.plans.nodes.get_mut(computation).authored_root = pattern;
+                            self.push_scalar_root(
+                                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                                computation,
+                            )?;
+                            checked_trees::CheckedScalarDispatchPattern::Value(computation)
+                        }
+                        MatchPattern::Destructure(_) => return None,
                     }
+                } else {
+                    self.structural_dispatch_pattern(expression, &dispatch, &subject, arm.pattern)?
                 };
+                if let Some(computation) = pattern.computation()
+                    && subject_type.is_none()
+                {
+                    self.push_scalar_root(
+                        CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
+                        computation,
+                    )?;
+                }
                 let value = self.structural_value(arm.value, expected)?;
                 arms.push(CheckedStructuralDispatchArm {
                     source_arm,
@@ -903,11 +898,13 @@ impl Builder<'_, '_> {
                     pattern,
                     value,
                 });
-                if covered {
+                if matches!(arm.pattern, MatchPattern::Wildcard) || covered {
                     break;
                 }
             }
-            if !covered {
+            // Structural coverage was established by the common pattern
+            // checker, including case completeness and guarded-arm limits.
+            if (!covered && subject_type.is_some()) || arms.is_empty() {
                 return None;
             }
             CheckedStructuralValueKind::Dispatch {

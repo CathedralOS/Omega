@@ -510,7 +510,7 @@ fn abstract_trait_self_member_in_expression(
         ExpressionNode::Unary(unary) => {
             abstract_trait_self_member_in_expression(program, unary.operand, visited)
         }
-        typed_trees::literal_expression_pattern!() => None,
+        ExpressionNode::SavedSubject(_) | typed_trees::literal_expression_pattern!() => None,
     }
 }
 
@@ -682,7 +682,7 @@ fn is_boolean_fact_expression(
     expression: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(_) => false,
+        ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => false,
         ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
         ExpressionNode::Binary(binary) => match binary.operator {
             BinaryOperator::CaseMembership => true,
