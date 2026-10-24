@@ -24,6 +24,8 @@ use terminal_psi::{
 mod carrier_arrivals;
 mod custody_flow;
 mod projected_transfers;
+#[cfg(test)]
+mod tests;
 
 pub(crate) use projected_transfers::{
     copied_operand_roots, operands as structural_operands, owned_extractions, partitioned_roots,
@@ -203,14 +205,15 @@ fn complete_carriers(
     // A selected whole death is already source-authorized. Track its actual
     // home in the same frontier equations so a completed move can withdraw
     // that receipt. This is not permission to schedule another death: these
-    // homes remain outside the disposal capability roster.
+    // homes remain outside the disposal capability roster. A restored regional
+    // move does not change that lifetime; projected completion still narrows
+    // any receipt which remains live.
     let disposal_capability = managed.clone();
     let mut tracked_disposals = scheduled
         .iter()
         .copied()
         .filter(|place| {
             !managed.contains(place)
-                && !partial_transfers.contains(place)
                 && carrier_arrivals::owned_affine_type(
                     entry_parameters,
                     local_places,
