@@ -11204,6 +11204,27 @@ fail/facts/twentyfour_arg_stack_calling_plan_through_target_body_rejected reject
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 1067ms expected @c2e06b875ba2+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_const_name_rejected rejected 1071ms expected @c2e06b875ba2+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_field_rejected rejected 1043ms expected @c2e06b875ba2+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_local_rejected rejected 1038ms expected @c2e06b875ba2+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_match_join_rejected rejected 1030ms expected @c2e06b875ba2+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_other_machine_rejected rejected 1050ms expected @c2e06b875ba2+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejected 1030ms expected @c2e06b875ba2+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1033ms expected @c2e06b875ba2+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 1019ms expected @c2e06b875ba2+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unsigned_16bit_bitwise_and_mask_bound_through_call_result_rejected rejected 13460ms expected @e9ba6b59ba84+wt
 	exact arithmetic in machine `compute_call` state `entry` local `headroom` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_16bit_bitwise_and_mask_bound_through_const_name_rejected rejected 10907ms expected @e9ba6b59ba84+wt
@@ -20486,6 +20507,15 @@ pass/facts/twentyfour_arg_stack_calling_plan_through_other_machine_exit checked 
 pass/facts/twentyfour_arg_stack_calling_plan_through_other_state_exit checked 145772ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/twentyfour_arg_stack_calling_plan_through_parameter_exit checked 141593ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/twentyfour_arg_stack_calling_plan_through_target_body_exit checked 328705ms check-target:macos_arm64 @9b001b8f6afa+wt
+pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 1705ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 1703ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_field_exit checked 1718ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_local_exit checked 1708ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 1711ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 1697ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 1673ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 1668ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 1681ms check-target:macos_arm64 @c2e06b875ba2+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_call_result_exit checked 39435ms check-target:macos_arm64 @e9ba6b59ba84+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_const_name_exit checked 39388ms check-target:macos_arm64 @e9ba6b59ba84+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_field_exit checked 34323ms check-target:macos_arm64 @e9ba6b59ba84+wt

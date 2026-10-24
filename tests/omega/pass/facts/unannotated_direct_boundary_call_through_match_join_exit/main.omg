@@ -1,0 +1,17 @@
+// An unannotated direct call of Mark::read returns 7.
+// Expected exit: 0
+public boundary trait Mark {
+    machine read() -> u64
+        reaches Mark;
+}
+MarkerMark satisfies Mark {
+    machine read() -> u64 { 7 }
+}
+machine take(flag: bool) -> u64 {
+    match flag { true -> Mark::read(), false -> Mark::read() }
+}
+machine main() crashes Trap {
+    transition take(true) == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

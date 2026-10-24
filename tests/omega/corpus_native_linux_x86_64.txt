@@ -1786,6 +1786,15 @@ pass/facts/structural_issuer_forwarding_other_machine built 3518ms exit:0 @d6cf5
 pass/facts/structural_issuer_forwarding_other_state built 4356ms exit:0 @d6cf554fd1cb+wt
 pass/facts/structural_issuer_forwarding_parameter built 3193ms exit:0 @d6cf554fd1cb+wt
 pass/facts/structural_issuer_forwarding_target_body built 2890ms exit:0 @d6cf554fd1cb+wt
+pass/facts/unannotated_direct_boundary_call_through_call_result_exit built 1808ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_const_name_exit built 1803ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_field_exit built 1777ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_local_exit built 1677ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_match_join_exit built 1733ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_other_machine_exit built 1744ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_other_state_exit built 1757ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_parameter_exit built 2190ms exit:0 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_target_body_exit built 1745ms exit:0 @c2e06b875ba2+wt
 pass/filesystem/cross_linux_value_syscalls checked 16309ms @aebe0714a499+wt
 pass/filesystem/dir_walk_wrappers_exit built 20631ms exit:70 @7c847bad15b6+wt
 pass/filesystem/native_canonicalize built 25277ms exit:0 stdout:match @c9eefa9130a0+wt

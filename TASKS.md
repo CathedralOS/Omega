@@ -135,25 +135,18 @@ helper that passes does not close an item.
 
 - **OPTIONAL-REACH-CEILINGS.** Implement the ratified
   [optional reach contract](wiki/spec/language/effects.md#declarations).
-  Infer reach for every checked body, including direct boundary calls, public
-  library APIs, implementation members and program entries, when no clause is
-  written. A present clause bounds the complete derived transitive row rather
-  than adding members to it; distinguish absent from explicitly empty through
-  parsing, checking, generic substitution, joins, recursive summaries, Terminal
-  production and package comparison. Boundary-trait machine requirements must
-  explicitly publish a ceiling, including empty; realizers inherit that contract
-  without duplicate clauses. Migrate every affected library, sample and fixture
-  in the same repair, preserving authored runtime oracles. Acceptance: unannotated
-  direct and transitive boundary calls run; empty permits service-free code and
-  rejects hidden direct/transitive services; `A + B` accepts `A` and rejects
-  `C`; injected, generic, dynamic and target-specific implementations refine
-  the pinned requirement without selection silently narrowing callers. Audit
-  retains inferred reach and declared slack, exact critical/custom identities
-  and acceptance-visible policy changes. Manifest/provider authority, foreign
-  trust, blocking, suspension and crashes remain separate. Exercise actual
-  applications and fact-sensitive invalid controls through source checking,
-  Terminal/native agreement and affected package-review round trips. Do not
-  count removing source annotations alone as compiler acceptance.
+  Established by `samples/cli/facts/unannotated_direct_boundary_call`: one
+  unannotated direct boundary call runs across the nine places, and an empty
+  ceiling rejects that hidden direct service. Remaining: unannotated transitive
+  calls; a pinned service-free empty ceiling and rejection of hidden transitive
+  services; a present clause as a bound on the complete derived row rather than
+  an additive union; `A + B` accepts `A` and rejects `C`; injected, generic,
+  dynamic, and target-specific refinement without selection narrowing callers;
+  public bodies, implementation members, and entries that omit `reaches`;
+  boundary-trait requirements that omit their ceiling; audit slack and
+  package-review round trips. Manifest/provider authority, foreign trust,
+  blocking, suspension, and crashes remain separate. Do not count removing
+  source annotations alone as compiler acceptance.
 
 - **EXPLICIT-ENTRY-STORAGE.** Retire automatic provisioned ZII entry contexts
   under [entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).

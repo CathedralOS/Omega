@@ -75,19 +75,29 @@ fn validate_service_reach_ceilings(
         let declared = program
             .service_reach_rows
             .services(machine.service_reach_row);
-        let required = if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        // A written `reaches` clause is a ceiling, and a bare `reaches` with
+        // no members is the empty ceiling. Direct boundary calls contribute
+        // their requirement's published row, which must fit that ceiling.
+        // Omission is not an empty ceiling: the derived row, including that
+        // direct contribution, is the published reach. Keyword occurrences
+        // are the distinction; an empty service row alone is both shapes.
+        let ceiling_present = program
+            .authored_service_reach_rows_for(machine.symbol)
+            .next()
+            .is_some();
+        let required = if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         {
-            // Ordinary calls propagate automatically, but direct boundary use
-            // still requires an authored declaration, even in a private body.
+            service_reaches
+                .services(summary.inferred_transitive)
+                .to_vec()
+        } else if ceiling_present {
             crate::machine_calls::effect_inference::required_boundary_services(
                 program,
                 operational,
                 machine.symbol,
             )
         } else {
-            service_reaches
-                .services(summary.inferred_transitive)
-                .to_vec()
+            Vec::new()
         };
         let missing = required
             .iter()
