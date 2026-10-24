@@ -1420,26 +1420,41 @@ defines the complete product bar.
   - Live reads alias captured-current values and mark failure-default reads
     present; keep the seven-result delete/list oracle and add distinct
     recent-read presence/value.
-  - The candidate application commit `248a79e66025` carries unpublished
-    source-lifetime repairs and its remote denies writes: do not advance the
-    gitlink.
 
-  Integration frontier:
-  - The published gitlink `43d56a7` and application remote main `964ea1c`
-    contain the same source tree, including retired Build receiver calls.
-    With compiler `fd8672848bf`, ordinary fresh offline
-    `omega update --project samples/apps/squalr/squalr-tests --target
-    linux_x86_64` rejects dependency requests before application checking:
-    they must use a static Build call with the root machine's first parameter
-    as the first operand. Preserve the historical lock before fresh review;
-    its text Git content/tree mismatch is not repaired by editing the lock.
-    The unpublished checkpoint's 105 Build-call migrations in 28 files still
-    need publication, followed by machine/state declarations and calls under
-    **STATIC-MACHINE-MIGRATION**. Keep the 17-package/37-edge layout, never
-    enable implicit receivers or transplant approvals. The available account
-    has read but no push access to Squalr; application publication requires
-    repository write access before updating the gitlink. Source checking is
-    not native acceptance.
+  Integration frontier (2026-10-24):
+  - Application remote main `cef5cb7` checks as one program through
+    `squalr-cli/main.omg` on the current compiler (`omega --check --target
+    linux_x86_64`, about 1,300 s under load), every nested package reaches
+    checked compilation, and `squalr-tests/omega.lock` carries accepted sections
+    for `linux_x86_64` and `windows_x86_64` from ordinary package review (17
+    packages each). With that lock, `omega run --both squalr-tests/main.omg`
+    prints `Squalr geometry: PASS` and exits 0 on the Windows x86-64 host with
+    Terminal Psi agreement, and the Linux x86-64 ELF compiled on Windows
+    prints the same and exits 0 under WSL Ubuntu. The 17-package layout and
+    explicit Build calls are preserved; no implicit receivers or transplanted
+    approvals. The acceptance run through `verify.py native` on a Linux host
+    with a Linux compiler binary is still owed, as are the restored checks
+    above.
+  - Compiler repairs this needed are landed: component-wise difference-matrix
+    closure (one whole-roster cubic closure ran 7 minutes per exact-fit
+    judgment on the engine's records), dense active-context probing in flow
+    projection, range views typed by their collection in the carrier exposure
+    fence (`pass/calls/subslice_argument_keeps_unrelated_facts`,
+    `fail/calls/subslice_argument_unrelated_fact_missing`), arrival analysis
+    without formation obligations, the range test before the state signature
+    rebuild, a `dyn` trait's generic arguments in canonical type identities,
+    and a lock identity-node ceiling that follows the lock's byte ceiling. The
+    whole-program check went from unfinished after 50 minutes to 805 s unloaded.
+  - Spelling the checker still requires of the application: a machine whose
+    body dispatches `dyn` kernels has no stored-reference summary, so a caller
+    must not lend it a reference-carrying local by `&mut` (the collected level
+    and the pull drivers are moved in by value), and a call result bundling
+    views cannot back a stored-reference relation (arena fields are borrowed
+    directly). A scalar cast where a one-field record result is declared
+    checked but did not lower; the readers now construct their record, and the
+    checker repair that rejects the mismatch is pending its corpus gate.
+  - `squalr-cli` has no `windows_x86_64` binding until the Windows host
+    surface is ported; its Linux lock review is in progress.
   - Unverified: the earlier result-store stop in stage 04
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_results.rs`
     (`EnginePrivilegedState` task slots holding `Binding<WaitWake>`); retire
