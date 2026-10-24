@@ -697,8 +697,11 @@ impl Implication<'_> {
             if path.comparisons.contains(literal) {
                 return true;
             }
+            // A literal's negation is its comparison complement; an operator
+            // with no complement stands as itself, so a non-comparison
+            // literal never gains a negation it does not have.
             let negation = compare(
-                negate(literal.operator),
+                literal.operator.complement().unwrap_or(literal.operator),
                 literal.left.clone(),
                 literal.right.clone(),
             );
@@ -1608,18 +1611,6 @@ fn compare(operator: BinaryOperator, left: Integer, right: Integer) -> Compariso
     }
 }
 
-fn negate(operator: BinaryOperator) -> BinaryOperator {
-    match operator {
-        BinaryOperator::Equal => BinaryOperator::NotEqual,
-        BinaryOperator::NotEqual => BinaryOperator::Equal,
-        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-        _ => operator,
-    }
-}
-
 fn contains(value: &Integer, sought: &Integer) -> bool {
     value == sought
         || matches!(value, Integer::IntegerOperation { left, right, .. } if contains(left, sought) || contains(right, sought))
@@ -1711,7 +1702,10 @@ fn clauses(value: &Boolean, holds: bool) -> Option<Vec<Clause>> {
             if holds {
                 comparison.operator
             } else {
-                negate(comparison.operator)
+                comparison
+                    .operator
+                    .complement()
+                    .unwrap_or(comparison.operator)
             },
             comparison.left.clone(),
             comparison.right.clone(),

@@ -243,7 +243,7 @@ impl Engine<'_> {
             (PreparedConstantMeaning::Negation, [proposition]) => {
                 let (operator, left, right) =
                     self.term_comparison(view, *proposition, captures, depth + 1)?;
-                Some((negate_comparison(operator)?, left, right))
+                Some((operator.complement()?, left, right))
             }
             _ => None,
         }
@@ -353,17 +353,6 @@ fn same_term(
     }
 }
 
-fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
-    Some(match operator {
-        BinaryOperator::Equal => BinaryOperator::NotEqual,
-        BinaryOperator::NotEqual => BinaryOperator::Equal,
-        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-        _ => return None,
-    })
-}
 fn unknown() -> Judgment {
     Judgment::Unknown {
         goal_in_language: false,

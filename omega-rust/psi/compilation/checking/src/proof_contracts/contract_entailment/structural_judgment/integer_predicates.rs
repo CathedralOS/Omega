@@ -279,7 +279,7 @@ impl StructuralJudge<'_> {
         };
         if holds(operator) {
             StructuralJudgment::Proven
-        } else if holds(negate(operator)) {
+        } else if holds(operator.complement().unwrap_or(operator)) {
             StructuralJudgment::Refuted
         } else {
             StructuralJudgment::Unknown
@@ -326,7 +326,15 @@ impl StructuralJudge<'_> {
                 continue;
             };
             comparisons.push((
-                (if holds { operator } else { negate(operator) }, left, right),
+                (
+                    if holds {
+                        operator
+                    } else {
+                        operator.complement().unwrap_or(operator)
+                    },
+                    left,
+                    right,
+                ),
                 start..observations.operations.len(),
             ));
         }
@@ -437,22 +445,14 @@ impl StructuralJudge<'_> {
             right,
         } = predicate.semantic_value()
         {
-            if !matches!(
-                operator,
-                BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) {
+            if !operator.is_comparison() {
                 return None;
             }
             return Some((
                 if positive {
                     *operator
                 } else {
-                    negate(*operator)
+                    operator.complement().unwrap_or(*operator)
                 },
                 self.mathematical_value(left, observations, 0)?,
                 self.mathematical_value(right, observations, 0)?,
@@ -468,17 +468,10 @@ impl StructuralJudge<'_> {
         else {
             return None;
         };
-        if !matches!(
-            operator,
-            BinaryOperator::Equal
-                | BinaryOperator::NotEqual
-                | BinaryOperator::Less
-                | BinaryOperator::LessOrEqual
-                | BinaryOperator::Greater
-                | BinaryOperator::GreaterOrEqual
-        ) || meaning
-            .iter()
-            .any(|(primitive, _)| !primitive.accepts_integer_literal())
+        if !operator.is_comparison()
+            || meaning
+                .iter()
+                .any(|(primitive, _)| !primitive.accepts_integer_literal())
         {
             return None;
         }
@@ -500,7 +493,7 @@ impl StructuralJudge<'_> {
             if positive {
                 *operator
             } else {
-                negate(*operator)
+                operator.complement().unwrap_or(*operator)
             },
             self.integer_value(&left, meaning[0].0, observations, 0)?,
             self.integer_value(&right, meaning[1].0, observations, 0)?,
@@ -659,16 +652,4 @@ impl StructuralJudge<'_> {
 
 fn atom_name(position: usize) -> String {
     format!("\0captured-integer:{position}")
-}
-
-fn negate(operator: BinaryOperator) -> BinaryOperator {
-    match operator {
-        BinaryOperator::Equal => BinaryOperator::NotEqual,
-        BinaryOperator::NotEqual => BinaryOperator::Equal,
-        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
-        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
-        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
-        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
-        _ => unreachable!(),
-    }
 }

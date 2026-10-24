@@ -852,7 +852,7 @@ fn compare(operator: BinaryOperator, left: Value, right: Value) -> Result<Value,
                 return refine(operator, left, left_atom, bound);
             }
             if let Some(bound) = left.single_value() {
-                return refine(mirrored(operator), right, right_atom, bound);
+                return refine(operator.mirrored(), right, right_atom, bound);
             }
             decided_by_bounds(operator, &left, &right)
                 .map(Value::Boolean)
@@ -885,10 +885,6 @@ fn refine(
         atom,
         parts: [fails, holds],
     })
-}
-
-fn mirrored(operator: BinaryOperator) -> BinaryOperator {
-    operator.mirrored()
 }
 
 fn decided_by_bounds(
