@@ -419,18 +419,11 @@ impl TerminalExecution<'_> {
                 continue;
             }
             if let Some(root) = self.scalar_array_values.get(&argument.place) {
-                let source_matches =
-                    self.owned_block_source(argument.place)
-                        .is_some_and(|source| {
-                            source.structural_type == root.structural_type
-                                && source.access == StructuralAccess::Owned
-                                && source.multiplicity == StructuralMultiplicity::Unrestricted
-                        })
-                        || self.owned_result_source(
-                            argument.place,
-                            root.structural_type,
-                            StructuralMultiplicity::Unrestricted,
-                        );
+                let source_matches = self.owned_source_for(
+                    argument.place,
+                    root.structural_type,
+                    StructuralMultiplicity::Unrestricted,
+                );
                 let value = crate::record::storage::ConstructorValue::resolve(self, argument)?;
                 if !self.block_parameter_is_declared(target, parameter)
                     || !source_matches
@@ -480,18 +473,11 @@ impl TerminalExecution<'_> {
                             parameter.structural_type,
                             parameter.multiplicity,
                         )?;
-                        let source_matches =
-                            self.owned_block_source(argument.place)
-                                .is_some_and(|source| {
-                                    source.structural_type == value.structural_type
-                                        && source.multiplicity == parameter.multiplicity
-                                        && source.access == StructuralAccess::Owned
-                                })
-                                || self.owned_result_source(
-                                    argument.place,
-                                    value.structural_type,
-                                    parameter.multiplicity,
-                                );
+                        let source_matches = self.owned_source_for(
+                            argument.place,
+                            value.structural_type,
+                            parameter.multiplicity,
+                        );
                         if !source_matches {
                             return Err(malformed());
                         }
@@ -552,18 +538,11 @@ impl TerminalExecution<'_> {
                                 actual: view.structural_type,
                             });
                         }
-                        let source_matches =
-                            self.owned_block_source(argument.place)
-                                .is_some_and(|source| {
-                                    source.structural_type == root.structural_type
-                                        && source.multiplicity == StructuralMultiplicity::Affine
-                                        && source.access == StructuralAccess::Owned
-                                })
-                                || self.owned_result_source(
-                                    argument.place,
-                                    root.structural_type,
-                                    StructuralMultiplicity::Affine,
-                                );
+                        let source_matches = self.owned_source_for(
+                            argument.place,
+                            root.structural_type,
+                            StructuralMultiplicity::Affine,
+                        );
                         if !source_matches
                             || !matches!(
                                 parameter.multiplicity,
@@ -618,24 +597,11 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    let (view, backing) =
-                        self.present_structural_argument(argument, parameter.structural_type)?;
-                    if let Some(backing) = backing {
-                        if aggregate_backings
-                            .insert(parameter.place, backing)
-                            .is_some()
-                        {
-                            return Err(malformed());
-                        }
-                    }
-                    if view.structural_type != parameter.structural_type {
-                        return Err(TerminalInterpretError::StructuralArgumentType {
-                            place: parameter.place,
-                            expected: parameter.structural_type,
-                            actual: view.structural_type,
-                        });
-                    }
-                    projected_value = Some(view);
+                    projected_value = Some(self.install_presented_descriptor(
+                        argument,
+                        parameter,
+                        &mut aggregate_backings,
+                    )?);
                 }
                 // A loan moves no custody, so it may present any aggregate,
                 // including one holding service bindings or claims, as the
@@ -676,24 +642,11 @@ impl TerminalExecution<'_> {
                     // primitive-scalar leaf. The loan moves no custody —
                     // the selected carrier remains live, including a residual
                     // subtree after another descriptor has been consumed.
-                    let (view, backing) =
-                        self.present_structural_argument(argument, parameter.structural_type)?;
-                    if let Some(backing) = backing {
-                        if aggregate_backings
-                            .insert(parameter.place, backing)
-                            .is_some()
-                        {
-                            return Err(malformed());
-                        }
-                    }
-                    if view.structural_type != parameter.structural_type {
-                        return Err(TerminalInterpretError::StructuralArgumentType {
-                            place: parameter.place,
-                            expected: parameter.structural_type,
-                            actual: view.structural_type,
-                        });
-                    }
-                    projected_value = Some(view);
+                    projected_value = Some(self.install_presented_descriptor(
+                        argument,
+                        parameter,
+                        &mut aggregate_backings,
+                    )?);
                 }
                 StructuralAccess::SharedBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
@@ -986,13 +939,13 @@ impl TerminalExecution<'_> {
                 return false;
             }
             source.multiplicity
-        } else if self.owned_result_source(
+        } else if self.owned_source_for(
             place,
             value.structural_type,
             StructuralMultiplicity::Affine,
         ) {
             StructuralMultiplicity::Affine
-        } else if self.owned_result_source(
+        } else if self.owned_source_for(
             place,
             value.structural_type,
             StructuralMultiplicity::Unrestricted,
@@ -1035,12 +988,53 @@ impl TerminalExecution<'_> {
                 })
     }
 
-    pub(crate) fn owned_result_matches(
+    /// Whether this runtime place is an admitted owned source of
+    /// `structural_type` at `multiplicity`: the exact current block parameter
+    /// or parameter declaration, or an independently admitted owned operation
+    /// result. Every access arm asks this one question of its own argument —
+    /// the current parameter, the owned arm and the borrowed arm all read the
+    /// same predicate instead of re-deriving the owner from the place's
+    /// declaration shape.
+    pub(crate) fn owned_source_for(
         &self,
         place: PlaceId,
-        parameter: &StructuralParameterDeclaration,
+        structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
     ) -> bool {
-        self.owned_result_source(place, parameter.structural_type, parameter.multiplicity)
+        self.owned_block_source(place).is_some_and(|source| {
+            source.structural_type == structural_type
+                && source.access == StructuralAccess::Owned
+                && source.multiplicity == multiplicity
+        }) || self.owned_result_source(place, structural_type, multiplicity)
+    }
+
+    /// Admit one arm's descriptor argument: present the exact selected view at
+    /// the declared referent type, install the aggregate backing it lends, and
+    /// require the presented type to be the declared one. Ownership, frontier
+    /// and claim evidence stay with the arm that selected the argument.
+    fn install_presented_descriptor(
+        &self,
+        argument: &StructuralArgument,
+        parameter: &StructuralParameterDeclaration,
+        aggregate_backings: &mut BTreeMap<PlaceId, crate::reference::AggregateBacking>,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        let (view, backing) =
+            self.present_structural_argument(argument, parameter.structural_type)?;
+        if let Some(backing) = backing
+            && aggregate_backings
+                .insert(parameter.place, backing)
+                .is_some()
+        {
+            return Err(malformed());
+        }
+        if view.structural_type != parameter.structural_type {
+            return Err(TerminalInterpretError::StructuralArgumentType {
+                place: parameter.place,
+                expected: parameter.structural_type,
+                actual: view.structural_type,
+            });
+        }
+        Ok(view)
     }
 
     /// A projected argument's source is checked against the root's declared

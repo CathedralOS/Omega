@@ -636,20 +636,11 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let owned_source = self
-            .owned_block_source(argument.place)
-            .is_some_and(|source| {
-                source.access == StructuralAccess::Owned
-                    && source.structural_type == selected.structural_type
-                    && source.multiplicity == parameter.multiplicity
-            })
-            || self.owned_result_matches(
-                argument.place,
-                &terminal_psi::StructuralParameterDeclaration {
-                    structural_type: selected.structural_type,
-                    ..parameter.clone()
-                },
-            );
+        let owned_source = self.owned_source_for(
+            argument.place,
+            selected.structural_type,
+            parameter.multiplicity,
+        );
         let binding = self.byte_descriptor_binding(argument, &selected)?;
         let activation_claim = parameter.multiplicity == StructuralMultiplicity::Linear
             && self.is_live_activation_descriptor(&binding, &selected);
