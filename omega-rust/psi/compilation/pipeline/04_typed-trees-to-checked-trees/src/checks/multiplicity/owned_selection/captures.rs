@@ -186,6 +186,15 @@ impl SelectionProduction {
         };
         let mut sources = Vec::new();
         for owner in &self.owners {
+            if validation::reference_result_custody::source_value_is_copied(
+                program,
+                owner.type_reference,
+            ) {
+                // A reusable read keeps its own storage/death owner. It is not
+                // a residual cleanup source for the selected receiving value.
+                continue;
+            }
+
             let Some(symbol) = owner.source.root.as_symbol() else {
                 continue;
             };
@@ -196,7 +205,13 @@ impl SelectionProduction {
                 continue;
             }
             if !super::source_outputs_are_attributed(
-                program, facts, machine, state, statement, symbol, call_frames,
+                program,
+                facts,
+                machine,
+                state,
+                statement,
+                symbol,
+                call_frames,
             ) {
                 return Err(Diagnostic::error(
                     "selected source has an incompletely attributed retained output",
@@ -244,21 +259,28 @@ impl SelectionProduction {
         let sources = facts.flow.ownership.selection_sources.insert_many(sources);
         let mut transfers = Vec::new();
         for owner in &self.owners {
-            let source = owner
-                .source
-                .root
-                .as_symbol()
-                .and_then(|symbol| {
-                    facts
-                        .flow
-                        .ownership
-                        .selection_sources
-                        .span_or_empty(sources)
-                        .iter()
-                        .position(|source| source.symbol == symbol)
-                })
-                .map(|position| sources.handle_at(position as u32))
-                .unwrap_or_default();
+            let source = if validation::reference_result_custody::source_value_is_copied(
+                program,
+                owner.type_reference,
+            ) {
+                Handle::invalid()
+            } else {
+                owner
+                    .source
+                    .root
+                    .as_symbol()
+                    .and_then(|symbol| {
+                        facts
+                            .flow
+                            .ownership
+                            .selection_sources
+                            .span_or_empty(sources)
+                            .iter()
+                            .position(|source| source.symbol == symbol)
+                    })
+                    .map(|position| sources.handle_at(position as u32))
+                    .unwrap_or_default()
+            };
             let evaluated_places = if owner.source.root.as_symbol().is_some() {
                 let (places, _, _) = evaluated_source_custody(
                     &facts.flow.ownership,
@@ -379,6 +401,30 @@ impl SelectionProduction {
                     })
                     .unwrap_or(PermissionProvenance::Unknown);
                 (provenance, PermissionClaimIdentity::Unknown)
+            } else if validation::reference_result_custody::source_value_is_copied(
+                program,
+                owner.type_reference,
+            ) {
+                // Source use is reusable even when a local containing its
+                // descriptor has affine disposal custody. Any recorded source
+                // frontier must still be available at this exact read cut.
+                if evaluated_places.is_some_and(|places| {
+                    places.iter().any(|place| {
+                        super::source_frontier_matches(
+                            place,
+                            owner.source.root,
+                            &owner.source.segments,
+                        ) && (!place.live || !place.ever_established || place.case_excluded)
+                    })
+                }) {
+                    return Err(Diagnostic::error(
+                        "selected copy has no live evaluated source custody",
+                    ));
+                }
+                (
+                    PermissionProvenance::Unknown,
+                    PermissionClaimIdentity::Unknown,
+                )
             } else if let Some(places) = evaluated_places {
                 let depth = places
                     .iter()
@@ -454,6 +500,7 @@ impl SelectionProduction {
                 ));
             }
             transfers.push(FlowOwnedSelectionTransfer {
+                source_type_reference: owner.type_reference,
                 root: owner.source.root,
                 destination_path: facts
                     .flow

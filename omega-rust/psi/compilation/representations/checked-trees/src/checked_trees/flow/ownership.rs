@@ -144,6 +144,9 @@ pub struct FlowOwnedSelectionSource {
 /// existing authored/structural selection graph, not a product of path states.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowOwnedSelectionTransfer {
+    /// Exact type of this evaluated source value, independent of the affine
+    /// disposal multiplicity of its materialized receiving carrier.
+    pub source_type_reference: typed_trees::types::TypeReferenceHandle,
     /// Exact captured source root; expression roots are real completed owners,
     /// not pre-existing candidates for residual cleanup.
     pub root: facts::PlaceRoot,
@@ -151,6 +154,8 @@ pub struct FlowOwnedSelectionTransfer {
     pub destination_path: HandleSpan<facts::PlaceSegment>,
     pub expression: typed_trees::expression::ExpressionHandle,
     pub source_arm: arena::Handle<typed_trees::expression::TableMatchArm>,
+    /// Residual cleanup home for a consumed source. A reusable Source copy
+    /// keeps its real root/path below but lends no home to selection cleanup.
     pub source: arena::Handle<FlowOwnedSelectionSource>,
     /// The evaluated occurrence, not an invariant of the named home. These
     /// rows preserve plain affine/descriptor custody even with no child claims.

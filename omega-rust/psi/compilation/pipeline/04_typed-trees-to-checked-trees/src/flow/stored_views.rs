@@ -66,9 +66,13 @@ pub(crate) fn reference_places_at_snapshot(
     snapshot: Handle<FlowStorageSnapshot>,
     mut incoming_is_admitted: impl FnMut(&CanonicalPlace) -> bool,
 ) -> Option<Vec<super::CapturedReferencePlace>> {
-    let stored = super::operand_values::reference_captures_at_path(
+    // Preserve a wholly incoming namespace just as a mixed frontier does.
+    // Returning None here would make a saved owned subject retry its anchor
+    // as storage, discarding the actual entry slot already resolved by the
+    // completed graph. The admission callback below remains mandatory.
+    let stored = validation::completed_storage::reference_sources_at_path(
         program, control, capture, path, snapshot,
-    )?;
+    );
     let mut pending = vec![stored];
     let mut places = Vec::new();
     while let Some(descriptor) = pending.pop() {

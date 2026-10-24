@@ -30,6 +30,32 @@ pub fn reference_captures_at_path(
     path: &[PlaceSegment],
     current: Handle<FlowStorageSnapshot>,
 ) -> Option<StoredOperand> {
+    let sources = reference_sources_at_path(program, control, value, path, current);
+    // This captures-only projection retains its existing unchanged-ingress
+    // contract. Physical source consumers use the lossless frontier below.
+    fn incoming_only(source: &StoredOperand) -> bool {
+        match source {
+            StoredOperand::Incoming(_) => true,
+            StoredOperand::Alternatives(sources) => {
+                !sources.is_empty() && sources.iter().all(incoming_only)
+            }
+            StoredOperand::Unavailable | StoredOperand::Value { .. } => false,
+        }
+    }
+    (!incoming_only(&sources)).then_some(sources)
+}
+
+/// Resolve the complete descriptor source frontier at this same observation
+/// cut. An incoming slot remains explicit even when there is no produced
+/// capture; it is neither a pointee address nor new permission. Consumers must
+/// authenticate that exact incoming namespace independently.
+pub fn reference_sources_at_path(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    value: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+    current: Handle<FlowStorageSnapshot>,
+) -> StoredOperand {
     let mut resolver = Resolver {
         program,
         control,
@@ -40,13 +66,8 @@ pub fn reference_captures_at_path(
         profile_memo: Vec::new(),
     };
     let Selection::Sources { incoming, values } = resolver.select(value, path) else {
-        return Some(StoredOperand::Unavailable);
+        return StoredOperand::Unavailable;
     };
-    // Preserve the existing wholly incoming result. A mixed frontier retains
-    // each entry slot explicitly; no capture or pointee address is invented.
-    if values.is_empty() {
-        return None;
-    }
     let mut alternatives = incoming
         .into_iter()
         .map(StoredOperand::Incoming)
@@ -57,9 +78,9 @@ pub fn reference_captures_at_path(
         projection: value.projection,
     }));
     match alternatives.len() {
-        0 => Some(StoredOperand::Unavailable),
-        1 => alternatives.pop(),
-        _ => Some(StoredOperand::Alternatives(alternatives)),
+        0 => StoredOperand::Unavailable,
+        1 => alternatives.pop().unwrap_or(StoredOperand::Unavailable),
+        _ => StoredOperand::Alternatives(alternatives),
     }
 }
 

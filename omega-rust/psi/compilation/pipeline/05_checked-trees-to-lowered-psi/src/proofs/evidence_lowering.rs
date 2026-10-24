@@ -153,8 +153,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
     lowered.semantic_module.evidence_contract_lanes = evidence_contract_lanes;
     lowered.semantic_module.proof_output_calls = proof_output_calls;
-    terminal_semantics::validate_runtime_evidence_inputs(&lowered.semantic_module)
-        .map_err(LoweringError::Unsupported)?;
     Ok(())
 }
 

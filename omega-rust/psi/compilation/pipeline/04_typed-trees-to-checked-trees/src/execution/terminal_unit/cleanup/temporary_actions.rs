@@ -322,19 +322,27 @@ fn sequence_actions(
                 ..
             } => {
                 let prior = sequence.prefix(operation_index)?;
-                let local = (0..prior.len()).rev().find_map(|position| {
-                    prior
-                        .get(position)
-                        .filter(|operation| operation.invocation_coordinate() == Some(*coordinate))
-                });
-                let (consumer, producers) = if let Some(consumer) = local {
-                    (consumer, prior)
-                } else {
-                    let (consumer, producers) = completion?;
-                    if consumer.invocation_coordinate() != Some(*coordinate) {
-                        return None;
+                // Retained nested calls keep their own invocation identities.
+                // The dependency inventory locates a source; it does not turn
+                // an arm-local producer into an unconditional live occurrence.
+                let mut local = None;
+                for position in 0..prior.len() {
+                    for candidate in prior.get(position)?.with_value_calls() {
+                        if candidate.invocation_coordinate() != Some(*coordinate) {
+                            continue;
+                        }
+                        if local.replace(candidate).is_some() {
+                            return None;
+                        }
                     }
-                    (consumer, producers)
+                }
+                let enclosing = completion
+                    .filter(|(consumer, _)| consumer.invocation_coordinate() == Some(*coordinate));
+                let (consumer, producers) = match (local, enclosing) {
+                    (Some(_), Some(_)) => return None,
+                    (Some(consumer), None) => (consumer, prior),
+                    (None, Some(completion)) => completion,
+                    (None, None) => return None,
                 };
                 let actions = call_actions(
                     program,
@@ -444,17 +452,24 @@ fn call_actions(
         }
         let root = match *source {
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                let mut candidates = (0..producers.len()).filter_map(|position| {
-                    let producer = producers.get(position)?;
-                    producer
-                        .structural_result_binding()
-                        .is_some_and(|result| result.binding_ordinal == binding_ordinal)
-                        .then_some(producer)
-                });
-                let producer = candidates.next()?;
-                if candidates.next().is_some() {
-                    return None;
+                // Rejoin the same exact binding selected at normal completion,
+                // including calls retained inside an earlier value operation.
+                // Missing schedule entries and duplicate producers both refuse.
+                let mut producer = None;
+                for position in 0..producers.len() {
+                    for candidate in producers.get(position)?.with_value_calls() {
+                        if !candidate
+                            .structural_result_binding()
+                            .is_some_and(|result| result.binding_ordinal == binding_ordinal)
+                        {
+                            continue;
+                        }
+                        if producer.replace(candidate).is_some() {
+                            return None;
+                        }
+                    }
                 }
+                let producer = producer?;
                 // Independent statement results may have no expression home.
                 // Contextual retirement below still requires an exact root.
                 super::normal_edges::producer_root(facts, state, producer)

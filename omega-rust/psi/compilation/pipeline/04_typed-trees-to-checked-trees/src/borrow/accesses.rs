@@ -361,17 +361,7 @@ pub(crate) fn is_copyable_value_type(
     program: &dyn validation::CheckingInput,
     reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::StoredValue,
-    ) && validation::type_satisfies_declared_property(
-        program,
-        &[],
-        reference,
-        validation::DeclaredPropertyRequirement::Copy,
-    )
+    validation::reference_result_custody::is_copyable_stored_value(program, reference)
 }
 
 /// A detached owned copy releases its source home, independently of its

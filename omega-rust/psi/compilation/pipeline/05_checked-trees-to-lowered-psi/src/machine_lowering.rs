@@ -120,6 +120,10 @@ pub fn lower_machine(
     )
     .map_err(LoweringError::Unsupported)?;
     lowered.semantic_module.identities = identities.build();
+    // Declaration and evidence producers intern beyond the body snapshot.
+    // Validate against their complete module-owned table before publication.
+    terminal_semantics::validate_runtime_evidence_inputs(&lowered.semantic_module)
+        .map_err(LoweringError::Unsupported)?;
     // Debug identity binds the whole semantic module, including retained
     // boundary/callback applications and the final interned identity table.
     // Construct it only after those producers finish; stamping the body's

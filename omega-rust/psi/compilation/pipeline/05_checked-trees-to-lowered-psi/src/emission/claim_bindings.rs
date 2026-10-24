@@ -1047,7 +1047,27 @@ pub(crate) fn lower_owned_operand_claims(
                 return unsupported("selected custody names another operand source");
             }
         } else if !matches!(root, facts::PlaceRoot::Expression(_)) {
-            return unsupported("selected owned operand has no named source custody");
+            let source_type = validation::project_type_reference_from_segments(
+                &checked.typed,
+                root_type,
+                ownership.segments.span_or_empty(transfer.path),
+            )
+            .ok_or(LoweringError::Unsupported(
+                "selected copy has no typed source path",
+            ))?;
+            if !transfer.claims.is_empty()
+                || !evaluated_transfers.is_empty()
+                || !validation::reference_result_custody::source_value_is_copied(
+                    &checked.typed,
+                    source_type,
+                )
+                || !validation::reference_result_custody::source_value_is_copied(
+                    &checked.typed,
+                    transfer.source_type_reference,
+                )
+            {
+                return unsupported("selected owned operand has no named source custody");
+            }
         }
         let selected = ownership
             .selection_transfer_claims

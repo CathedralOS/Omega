@@ -6,7 +6,7 @@ use checked_trees::{FlowOwnedSelectionReceipt, FlowOwnershipFacts};
 use language_semantics::{Multiplicity, PermissionClaimIdentity, PermissionProvenance};
 
 pub(in crate::checks::multiplicity) fn apply_availability(
-    _program: &dyn validation::CheckingInput,
+    program: &dyn validation::CheckingInput,
     ownership: &checked_trees::FlowOwnershipFacts,
     receipt: &FlowOwnedSelectionReceipt,
     places: &mut [LinearPlace],
@@ -15,6 +15,16 @@ pub(in crate::checks::multiplicity) fn apply_availability(
         .selection_transfers
         .span_or_empty(receipt.transfers);
     for transfer in transfers {
+        if transfer.claims.is_empty()
+            && validation::reference_result_custody::source_value_is_copied(
+                program,
+                transfer.source_type_reference,
+            )
+        {
+            // The receiving carrier owns its cleanup; its reusable source
+            // remains live, including an affine materialized ancestor home.
+            continue;
+        }
         let path = ownership.segments.span_or_empty(transfer.path);
         for place in places
             .iter_mut()

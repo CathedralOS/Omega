@@ -2213,6 +2213,37 @@ pub fn path_has_nominal_receiver(
     })
 }
 
+/// A stored value read can duplicate descriptor bytes without acquiring the
+/// referee. Owning/copying that value remains separate from result disposal.
+pub fn is_copyable_stored_value(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    reference.is_valid()
+        && crate::has_contents(
+            program,
+            reference,
+            &[],
+            crate::ContentsRequirement::StoredValue,
+        )
+        && crate::type_satisfies_declared_property(
+            program,
+            &[],
+            reference,
+            crate::DeclaredPropertyRequirement::Copy,
+        )
+}
+
+/// Reusable Source copies do not consume the source's custody. A materialized
+/// result can still have affine descriptor cleanup via result_multiplicity.
+pub fn source_value_is_copied(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> bool {
+    is_copyable_stored_value(program, reference)
+        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
+}
+
 /// Custody of a structural binding that denotes the referent directly.
 /// Shared aliases remain unrestricted observations; exclusive aliases retain
 /// affine loan custody. A stored reference value instead uses
