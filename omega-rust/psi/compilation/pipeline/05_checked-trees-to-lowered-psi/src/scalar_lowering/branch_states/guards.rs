@@ -11,41 +11,6 @@ use crate::scalar_lowering::branch_states::prepared::{
 };
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn lower(
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement: u32,
-    bindings: &storage::ScalarBindings,
-    source_types: &[QualifiedScalarType],
-    when_true: (
-        usize,
-        Vec<LoweredDirectExpression>,
-        Vec<LoweredDirectExpression>,
-        Vec<LoweredProofTerm>,
-    ),
-    when_false: (
-        usize,
-        Vec<LoweredDirectExpression>,
-        Vec<LoweredDirectExpression>,
-        Vec<LoweredProofTerm>,
-    ),
-    computations: &mut computations::Expansion<'_>,
-) -> Result<LoweredScalarBranchTerminator, LoweringError> {
-    evaluate(
-        identities,
-        checked,
-        state,
-        statement,
-        bindings,
-        source_types,
-        when_true,
-        when_false,
-        computations,
-    )
-}
-
 /// Whether the guard at `statement` replays a checked computation root (a
 /// selected IEEE or boundary comparison) rather than a pure expression. A
 /// computed guard has no pure guard expression to inspect; `evaluate` binds
@@ -59,13 +24,9 @@ pub(crate) fn is_computed(
         .facts
         .values
         .scalar_computations
-        .roots
-        .iter()
-        .any(|(_, root)| {
-            root.state == state
-                && root.statement_ordinal == statement
-                && root.role == CheckedScalarExpressionRole::Guard
-        })
+        .roots_for_statement_role(state, statement, CheckedScalarExpressionRole::Guard)
+        .next()
+        .is_some()
 }
 
 /// The caller has reconstructed its complete dispatch (binary or ordered).

@@ -28,14 +28,7 @@ impl Expansion<'_> {
             .facts
             .values
             .scalar_computations
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| {
-                root.state == exit.state_symbol
-                    && root.statement_ordinal == statement
-                    && root.role == role
-            });
+            .roots_for_statement_role(exit.state_symbol, statement, role);
         let argument = if let Some(root) = roots.next() {
             if roots.next().is_some() {
                 return unsupported("scalar computation root custody is duplicated or mismatched");

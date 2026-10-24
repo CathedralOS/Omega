@@ -98,11 +98,7 @@ fn source_checked_computation_targets(
     machine: symbols::SymbolHandle,
 ) -> Result<Vec<symbols::SymbolHandle>, LoweringError> {
     let plans = &checked.facts.values.scalar_computations;
-    for (_, root) in plans
-        .roots
-        .iter()
-        .filter(|(_, root)| root.machine == machine)
-    {
+    for root in plans.machine_roots(&[machine]) {
         if plans.root_at(root.state, root.statement_ordinal, root.role) != Some(root)
             || !plans.nodes.is_valid(root.root)
         {

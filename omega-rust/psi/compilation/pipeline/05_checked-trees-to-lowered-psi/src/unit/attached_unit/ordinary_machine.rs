@@ -1141,13 +1141,6 @@ pub(super) fn emit(
     )?;
     // Argument-time view producers interleave with reserved call results.
     // Declaration order is canonical identity order, not execution order.
-    // The computation scan also encounters subslices whose ordinary call
-    // or edge already owns a declaration. Reuse only that exact declaration;
-    // a reused identity with different provenance remains an error.
-    crate::scalar_lowering::computations::subslices::merge_declarations(
-        evaluation.blocks.iter(),
-        &mut structural_places,
-    )?;
     structural_places.sort_by_key(|place| place.id);
     if let TerminalMachineResult::Structural(result) = &declared_result {
         structural_places.push(StructuralPlaceDeclaration {
