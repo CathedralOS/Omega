@@ -5,6 +5,7 @@ use selected_instructions::{SelectedFunction, VirtualRegisterId};
 mod addresses;
 mod construction;
 mod descriptors;
+mod emission;
 mod scalar_references;
 pub(super) use construction::prepare;
 

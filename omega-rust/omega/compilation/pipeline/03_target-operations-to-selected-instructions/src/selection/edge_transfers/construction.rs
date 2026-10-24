@@ -1,4 +1,5 @@
 //! Snapshot edge inputs before writing any destination-associated transfer value.
+use super::emission::Emission;
 use super::{
     SelectedBlockOrigin, SelectedFunction, SelectedSuccessorRole, SelectedValueTransport,
     VirtualRegisterId,
@@ -183,29 +184,25 @@ pub(in crate::selection) fn prepare(
             let mut scalar_references = Vec::new();
             for phase in 0..2 {
                 if phase == 1 {
-                    descriptors = super::descriptors::snapshot(
-                        function_index,
-                        &mut function.virtual_registers,
-                        &mut function.memory_accesses,
-                        &mut function.local_storage_slots,
-                        &mut instructions,
-                        &mut next_instruction,
-                        psi_edge,
-                        &successor.structural_bindings,
+                    let mut emission = Emission {
+                        function: function_index,
+                        registers: &mut function.virtual_registers,
+                        memory: &mut function.memory_accesses,
+                        instructions: &mut instructions,
+                        next_instruction: &mut next_instruction,
+                        edge: psi_edge,
+                        environment,
                         constraints,
                         catalog,
-                        environment,
+                    };
+                    descriptors = super::descriptors::snapshot(
+                        &mut emission,
+                        &mut function.local_storage_slots,
+                        &successor.structural_bindings,
                     )?;
                     scalar_references = super::scalar_references::snapshot(
-                        function_index,
-                        &mut function.virtual_registers,
-                        &mut function.memory_accesses,
-                        &mut instructions,
-                        &mut next_instruction,
-                        psi_edge,
+                        &mut emission,
                         &successor.structural_bindings,
-                        constraints,
-                        catalog,
                     )?;
                     // All outgoing values are now snapshots. Hooks can clobber
                     // registers but cannot observe partially installed bindings.
@@ -259,41 +256,26 @@ pub(in crate::selection) fn prepare(
                     }
                 }
             }
-            super::descriptors::store(
-                function_index,
-                &mut function.virtual_registers,
-                &mut function.memory_accesses,
-                &mut instructions,
-                &mut next_instruction,
-                psi_edge,
-                &successor.structural_bindings,
-                &descriptors,
-                constraints,
-                catalog,
-                environment,
-            )?;
-            super::scalar_references::store(
-                function_index,
-                &mut function.virtual_registers,
-                &mut function.memory_accesses,
-                &mut instructions,
-                &mut next_instruction,
-                psi_edge,
-                &scalar_references,
-                constraints,
-                catalog,
-            )?;
-            super::addresses::store(
-                function_index,
-                &mut function.virtual_registers,
-                &mut function.memory_accesses,
-                &mut instructions,
-                &mut next_instruction,
-                psi_edge,
-                &successor.structural_bindings,
-                constraints,
-                catalog,
-            )?;
+            {
+                let mut emission = Emission {
+                    function: function_index,
+                    registers: &mut function.virtual_registers,
+                    memory: &mut function.memory_accesses,
+                    instructions: &mut instructions,
+                    next_instruction: &mut next_instruction,
+                    edge: psi_edge,
+                    environment,
+                    constraints,
+                    catalog,
+                };
+                super::descriptors::store(
+                    &mut emission,
+                    &successor.structural_bindings,
+                    &descriptors,
+                )?;
+                super::scalar_references::store(&mut emission, &scalar_references)?;
+                super::addresses::store(&mut emission, &successor.structural_bindings)?;
+            }
             let mut position = 0;
             for binding in &mut continuation.bindings {
                 if let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport {
