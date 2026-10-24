@@ -7,7 +7,7 @@
 
 use super::Error;
 use crate::ObjectFunction;
-use machine_code::{ImageAddressFields, PlacedImageAddress};
+use machine_code::PlacedImageAddress;
 use object_file::{
     ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
     RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
@@ -121,7 +121,10 @@ pub(super) fn publish_relocations(
     Ok(())
 }
 
-fn records(
+/// The pool's complete relocation roster: one 8-byte callable row per occupied
+/// slot plus one row per observation address. Publication appends exactly
+/// these rows and replay compares the plan against them.
+pub(super) fn records(
     pool: &ObjectImplementationTablePool,
     functions: &[ObjectFunction],
 ) -> Result<Vec<RelocationRecord>, Error> {
@@ -186,24 +189,6 @@ fn records_for_symbols(
         )?);
     }
     Ok(records)
-}
-
-pub(super) fn relocation_count(pool: Option<&ObjectImplementationTablePool>) -> usize {
-    pool.map_or(0, |pool| {
-        pool.catalog
-            .tables
-            .iter()
-            .map(|table| table.rows.iter().flatten().count())
-            .sum::<usize>()
-            + pool
-                .addresses
-                .iter()
-                .map(|address| match address.fields {
-                    ImageAddressFields::X86_64Relative32 { .. } => 1,
-                    ImageAddressFields::Aarch64PageAddress { .. } => 2,
-                })
-                .sum::<usize>()
-    })
 }
 
 pub(super) fn validate(
@@ -295,20 +280,10 @@ pub(super) fn validate(
             return Err(Error::Mismatch("implementation table symbol changed"));
         }
     }
-    let actual = artifact
-        .relocations
-        .records()
-        .filter(|(_, record)| {
-            pool.tables.iter().any(|table| {
-                record.symbol_handle == table.symbol
-                    || record.origin
-                        == RelocationOrigin::Materialization {
-                            object_symbol_handle: table.symbol,
-                        }
-            })
-        })
-        .map(|(_, record)| record.clone())
-        .collect::<Vec<_>>();
+    let actual = super::image_addresses::rows_for_symbols(
+        &artifact.relocations,
+        pool.tables.iter().map(|table| table.symbol),
+    );
     if actual != records(pool, &artifact.functions)? {
         return Err(Error::Mismatch("implementation table relocations changed"));
     }
@@ -465,7 +440,12 @@ mod tests {
                     && record.section == SectionKind::Data
                     && record.byte_width == 8)
         );
-        assert_eq!(relocation_count(Some(&pool)), 2);
+        assert_eq!(
+            records_for_symbols(&pool, |selected| (selected == machine).then_some(symbol))
+                .unwrap()
+                .len(),
+            2
+        );
         let relocation_plan = |rows: &[RelocationRecord]| {
             let mut plan = RelocationPlan::with_target(object.target);
             for row in rows {

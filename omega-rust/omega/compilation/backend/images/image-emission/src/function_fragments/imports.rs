@@ -193,17 +193,27 @@ pub(super) fn validate(
                 CallbackAddressEncoding::Aarch64PageAddress { .. } => 2,
             })
             .sum::<usize>();
-    // Byte-literal records trail the import rows; their own replay owns them.
-    let expected_records = expected_records
-        + super::image_residence::relocation_count(
-            &source.source().text_section().unresolved_image_addresses,
-        )
-        + super::byte_literals::relocation_count(artifact.byte_literal_pool.as_ref())
-        + super::implementation_tables::relocation_count(
-            artifact.implementation_table_pool.as_ref(),
-        );
-    let expected_records = expected_records
-        + super::native_code_layouts::relocation_count(artifact.native_code_layout_pool.as_ref());
+    // Observation rows trail the import rows. Each pool owns its complete
+    // roster; the plan's expected total is that sum, never a parallel count
+    // that could drift from the rows each pool actually publishes.
+    let mut observation_records = super::image_residence::records(
+        &source.source().text_section().unresolved_image_addresses,
+        artifact.retained_entry_storage,
+        &artifact.functions,
+    )?
+    .len();
+    if let Some(pool) = &artifact.byte_literal_pool {
+        observation_records += super::byte_literals::records(pool, &artifact.functions)?.len();
+    }
+    if let Some(pool) = &artifact.implementation_table_pool {
+        observation_records +=
+            super::implementation_tables::records(pool, &artifact.functions)?.len();
+    }
+    if let Some(pool) = &artifact.native_code_layout_pool {
+        observation_records +=
+            super::native_code_layouts::records(pool, &artifact.functions)?.len();
+    }
+    let expected_records = expected_records + observation_records;
     if artifact.foreign_calls != calls
         || artifact.relocations.record_count() != expected_records
         || fields.len() != import_calls.len()

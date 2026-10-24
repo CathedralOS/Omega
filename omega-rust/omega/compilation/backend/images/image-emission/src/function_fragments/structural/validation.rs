@@ -627,31 +627,7 @@ fn validate_settlement_position(
     if blocks.next().is_some() {
         return Err(invalid());
     }
-    let position = usize::try_from(located.instruction_index).map_err(|_| Error::Overflow)?;
-    let anchor = match block.instructions.get(position) {
-        Some(instruction) => instruction.id,
-        None if position == block.instructions.len() => match &block.terminator {
-            selected_instructions::SelectedTerminator::Return { instruction, .. }
-            | selected_instructions::SelectedTerminator::Crash { instruction, .. }
-            | selected_instructions::SelectedTerminator::OperationTrap { instruction, .. }
-            | selected_instructions::SelectedTerminator::HostedExitProcess {
-                instruction, ..
-            }
-            | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-            | selected_instructions::SelectedTerminator::ConditionalBranch {
-                instruction, ..
-            }
-            | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
-                instruction,
-                ..
-            }
-            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
-                instruction,
-                ..
-            } => instruction.id,
-        },
-        None => return Err(invalid()),
-    };
+    let anchor = super::settlement_instruction(block, located.instruction_index)?.id;
     let mut spans = fragment
         .blocks
         .iter()

@@ -228,23 +228,6 @@ pub(super) fn publish_relocations(
     Ok(())
 }
 
-pub(crate) fn relocation_count(pool: Option<&NativeCodeLayoutPool>) -> usize {
-    pool.map_or(0, |pool| {
-        pool.layouts
-            .iter()
-            .map(|row| 2 + row.layout.regions.len())
-            .sum::<usize>()
-            + pool
-                .addresses
-                .iter()
-                .map(|row| match row.fields {
-                    ImageAddressFields::X86_64Relative32 { .. } => 1,
-                    ImageAddressFields::Aarch64PageAddress { .. } => 2,
-                })
-                .sum::<usize>()
-    })
-}
-
 /// Replay the finalized attribution and exact relocation roster for retained
 /// readers. Source and query identity remain independent of descriptor bytes.
 pub(super) fn validate(
@@ -329,20 +312,10 @@ pub(super) fn validate(
     if section.size != data.len() || section.alignment != 8 {
         return Err(Error::Mismatch("native metadata data geometry changed"));
     }
-    let actual = artifact
-        .relocations
-        .records()
-        .filter(|(_, row)| {
-            pool.layouts.iter().any(|descriptor| {
-                row.symbol_handle == descriptor.symbol
-                    || row.origin
-                        == RelocationOrigin::Materialization {
-                            object_symbol_handle: descriptor.symbol,
-                        }
-            })
-        })
-        .map(|(_, row)| row.clone())
-        .collect::<Vec<_>>();
+    let actual = super::image_addresses::rows_for_symbols(
+        &artifact.relocations,
+        pool.layouts.iter().map(|descriptor| descriptor.symbol),
+    );
     if actual != records(pool, &artifact.functions)? {
         return Err(Error::Mismatch("native metadata relocation roster changed"));
     }

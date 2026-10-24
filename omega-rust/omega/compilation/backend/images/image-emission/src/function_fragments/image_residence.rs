@@ -66,7 +66,10 @@ pub(super) fn publish_relocations(
     Ok(())
 }
 
-fn records(
+/// The residence observation roster's complete relocation roster: one row per
+/// observing address. Publication appends exactly these rows and replay
+/// compares the plan against them.
+pub(super) fn records(
     addresses: &[PlacedImageAddress],
     destination: ObjectSymbolHandle,
     functions: &[crate::ObjectFunction],
@@ -101,19 +104,12 @@ fn records(
     Ok(records)
 }
 
-pub(super) fn relocation_count(addresses: &[PlacedImageAddress]) -> usize {
-    addresses
-        .iter()
-        .filter(|address| observes_residence(address))
-        .count()
-}
-
 pub(super) fn validate(
     source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
     artifact: &crate::ObjectArtifact,
 ) -> Result<(), Error> {
     let addresses = &source.source().text_section().unresolved_image_addresses;
-    let present = relocation_count(addresses) != 0;
+    let present = addresses.iter().any(observes_residence);
     if present != artifact.retained_entry_storage.is_valid() {
         return Err(Error::Mismatch(
             "image residence observation roster changed",
@@ -143,12 +139,10 @@ pub(super) fn validate(
         artifact.retained_entry_storage,
         &artifact.functions,
     )?;
-    let actual = artifact
-        .relocations
-        .records()
-        .filter(|(_, record)| record.symbol_handle == artifact.retained_entry_storage)
-        .map(|(_, record)| record.clone())
-        .collect::<Vec<_>>();
+    let actual = super::image_addresses::rows_for_symbols(
+        &artifact.relocations,
+        [artifact.retained_entry_storage],
+    );
     if actual != expected {
         return Err(Error::Mismatch("image residence relocations changed"));
     }

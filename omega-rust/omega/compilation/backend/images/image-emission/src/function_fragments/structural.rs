@@ -311,6 +311,26 @@ fn copy_extent(
     }
     Ok((start, end - start))
 }
+
+/// The selected instruction a settlement's `(block, instruction_index)`
+/// position names: the indexed instruction, or the block's own terminator
+/// instruction when the position is the block's end. Publication and replay
+/// share this projection instead of destructuring every terminator by hand.
+pub(super) fn settlement_instruction(
+    block: &selected_instructions::SelectedBlock,
+    instruction_index: u32,
+) -> Result<&selected_instructions::SelectedInstruction, Error> {
+    let index = usize::try_from(instruction_index).map_err(|_| Error::Overflow)?;
+    block
+        .instructions
+        .get(index)
+        .or_else(|| {
+            (index == block.instructions.len())
+                .then(|| selected_instructions::terminator_instruction(&block.terminator))
+        })
+        .ok_or(Error::Mismatch("settlement position is outside block"))
+}
+
 fn settlement_offset(
     function: &SelectedFunction,
     fragment: &machine_code::FunctionFragment,
@@ -319,33 +339,7 @@ fn settlement_offset(
     let block = function
         .block(row.block)
         .ok_or(Error::Mismatch("settlement has no block"))?;
-    let index = usize::try_from(row.instruction_index).map_err(|_| Error::Overflow)?;
-    let instruction = if let Some(instruction) = block.instructions.get(index) {
-        instruction
-    } else if index == block.instructions.len() {
-        match &block.terminator {
-            selected_instructions::SelectedTerminator::Return { instruction, .. }
-            | selected_instructions::SelectedTerminator::Crash { instruction, .. }
-            | selected_instructions::SelectedTerminator::OperationTrap { instruction, .. }
-            | selected_instructions::SelectedTerminator::HostedExitProcess {
-                instruction, ..
-            }
-            | selected_instructions::SelectedTerminator::Jump { instruction, .. }
-            | selected_instructions::SelectedTerminator::ConditionalBranch {
-                instruction, ..
-            }
-            | selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
-                instruction,
-                ..
-            }
-            | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
-                instruction,
-                ..
-            } => instruction,
-        }
-    } else {
-        return Err(Error::Mismatch("settlement position is outside block"));
-    };
+    let instruction = settlement_instruction(block, row.instruction_index)?;
     fragment
         .instruction_span(instruction.id)
         .ok_or(Error::Mismatch("settlement has no physical anchor"))

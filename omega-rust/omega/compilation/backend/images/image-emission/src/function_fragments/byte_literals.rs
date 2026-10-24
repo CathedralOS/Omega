@@ -16,7 +16,7 @@
 use super::{Error, source};
 use crate::{ObjectArtifact, ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectFunction};
 use abstract_operations::AbstractOperation;
-use machine_code::{ImageAddressFields, PlacedImageAddress};
+use machine_code::PlacedImageAddress;
 use object_file::{
     ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     StagedOptimizedRelocationFreeObjectContainer, SymbolKind, SymbolPlan, SymbolSection,
@@ -72,12 +72,24 @@ pub(super) fn publish_relocations(
     let Some(pool) = pool else {
         return Ok(());
     };
-    for address in &pool.addresses {
-        for record in expected_records(pool, address, functions)? {
-            relocations.push_record(record);
-        }
+    for record in records(pool, functions)? {
+        relocations.push_record(record);
     }
     Ok(())
+}
+
+/// The pool's complete relocation roster, in text order. Publication appends
+/// exactly these rows and replay compares the plan against them; no parallel
+/// count exists to disagree with this derivation.
+pub(super) fn records(
+    pool: &ObjectByteLiteralPool,
+    functions: &[ObjectFunction],
+) -> Result<Vec<RelocationRecord>, Error> {
+    let mut rows = Vec::new();
+    for address in &pool.addresses {
+        rows.extend(expected_records(pool, address, functions)?);
+    }
+    Ok(rows)
 }
 
 /// Exact replay of the pool: bytes after the code, its one symbol, the
@@ -119,39 +131,14 @@ pub(super) fn validate(
             "byte-literal pool differs from its literals",
         ));
     }
-    let expected_records = pool
-        .addresses
-        .iter()
-        .map(|address| expected_records(pool, address, &artifact.functions))
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    let actual = artifact
-        .relocations
-        .records()
-        .filter(|(_, record)| record.symbol_handle == pool.symbol)
-        .map(|(_, record)| record.clone())
-        .collect::<Vec<_>>();
+    let expected_records = records(pool, &artifact.functions)?;
+    let actual = super::image_addresses::rows_for_symbols(&artifact.relocations, [pool.symbol]);
     if actual != expected_records {
         return Err(Error::Mismatch(
             "byte-literal relocation differs from its placed address",
         ));
     }
     Ok(())
-}
-
-/// The number of relocation records the pool contributes.
-pub(super) fn relocation_count(pool: Option<&ObjectByteLiteralPool>) -> usize {
-    pool.map_or(0, |pool| {
-        pool.addresses
-            .iter()
-            .map(|address| match address.fields {
-                ImageAddressFields::X86_64Relative32 { .. } => 1,
-                ImageAddressFields::Aarch64PageAddress { .. } => 2,
-            })
-            .sum()
-    })
 }
 
 fn expected_records(
