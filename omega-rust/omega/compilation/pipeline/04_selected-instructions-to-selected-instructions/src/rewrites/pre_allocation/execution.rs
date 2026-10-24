@@ -14,6 +14,14 @@
 //! catalog. Budget/overflow failures are never cached as legality declines.
 //! Iterations count discovery sweeps; evaluation and commit axes charge actual
 //! work. Independent replay remains available at untrusted/test boundaries.
+//!
+//! One catalog row owns one family's admission. `PreAllocationRuleCatalogEntry`
+//! payloads carry a `PreAllocationRuleAdmission` — the source-bound candidate
+//! surface the frontier scans and the site attempt the driver runs — so a
+//! family's enable/order declaration, candidate surface and attempt are one
+//! declaration rather than three tables keyed on the same `Optimization`. Only
+//! the shared protocol (audit charge, decline versus abort, committed-step
+//! restaging) is authored here.
 use crate::{StoredLoadForwardingError, forward_selected_stored_load};
 use std::collections::BTreeSet;
 
@@ -56,7 +64,7 @@ use crate::rewrites::{
     remove_selected_redundant_extension,
 };
 use optimization_core::{
-    Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     PreAllocationOptimizationCompletionIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
@@ -70,10 +78,12 @@ use super::PRE_ALLOCATION_RULE_CATALOG;
 
 /// One fresh site's admission. Most families evaluate one proposal; a copied
 /// call may try several current producers before committing or declining.
-enum CandidateAttempt {
+/// `evaluated` counts the proposals this site evaluated, this commit
+/// included, and `declined` the refusals among them.
+pub(crate) enum CandidateAttempt {
     Clean {
-        candidates: usize,
         declined: usize,
+        evaluated: usize,
         validation_steps: u64,
     },
     Applied {
@@ -84,16 +94,46 @@ enum CandidateAttempt {
     },
 }
 
+impl CandidateAttempt {
+    /// A site whose proposals all declined: the refusals among `evaluated`
+    /// proposals and the audit steps charged before each.
+    pub(crate) fn clean(declined: usize, evaluated: usize, validation_steps: u64) -> Self {
+        Self::Clean {
+            declined,
+            evaluated,
+            validation_steps,
+        }
+    }
+
+    /// A committed proposal: the family's transformation and the audit steps
+    /// charged for admission and for the commit's independent validation.
+    pub(crate) fn applied(
+        transformation: ValidatedPreAllocationTransformation,
+        declined: usize,
+        evaluated: usize,
+        validation_steps: u64,
+    ) -> Self {
+        Self::Applied {
+            transformation,
+            declined,
+            evaluated,
+            validation_steps,
+        }
+    }
+}
+
 /// Sites describe construction scratch, not durable instruction identities.
 /// Deletion renumbers those identities; body positions are remapped at commit.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum CandidatePosition {
+pub(crate) enum CandidatePosition {
     Body(usize),
     Terminator,
 }
 
+/// One candidate instruction's position in the current plan. Construction
+/// scratch; the row's attempt reads the family's rewrites through it.
 #[derive(Clone, Copy)]
-struct CandidateSite {
+pub(crate) struct CandidateSite {
     function_index: usize,
     block_index: usize,
     position: CandidatePosition,
@@ -115,6 +155,106 @@ impl CandidateSite {
                 .get(position)
                 .ok_or(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch),
             CandidatePosition::Terminator => Ok(terminator_instruction(&block.terminator)),
+        }
+    }
+}
+
+/// The source-bound candidate surface a family considers, scanned in
+/// plan/function/block/instruction order before admission decides. Its
+/// predicate reads only the instruction kind: admission, not this surface,
+/// decides whether the candidate's relationship holds.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PreAllocationCandidateSurface {
+    /// A body-position predicate: any body instruction it admits is a site.
+    Body(fn(SelectedInstructionKind) -> bool),
+    /// A terminator predicate: the block's terminator is a site when admitted.
+    Terminator(fn(SelectedInstructionKind) -> bool),
+}
+
+impl PreAllocationCandidateSurface {
+    pub(crate) const fn body(predicate: fn(SelectedInstructionKind) -> bool) -> Self {
+        Self::Body(predicate)
+    }
+
+    pub(crate) const fn terminator(predicate: fn(SelectedInstructionKind) -> bool) -> Self {
+        Self::Terminator(predicate)
+    }
+
+    /// Whether the site at `position` holds an instruction kind this surface
+    /// covers.
+    fn admits(self, position: CandidatePosition, instruction: &SelectedInstruction) -> bool {
+        match (self, position) {
+            (Self::Body(predicate), CandidatePosition::Body(_)) => predicate(instruction.kind),
+            (Self::Terminator(predicate), CandidatePosition::Terminator) => {
+                predicate(instruction.kind)
+            }
+            _ => false,
+        }
+    }
+}
+
+/// One catalog row's admission mechanism: the candidate surface the frontier
+/// scans and the site attempt the fixed-point driver runs. Both live in the
+/// row beside the family's exact policy, so a family joins the slice by
+/// declaring its row rather than by editing a second dispatch site.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PreAllocationRuleAdmission {
+    surface: PreAllocationCandidateSurface,
+    attempt: PreAllocationSiteAttempt,
+}
+
+/// One family's whole site admission: evaluate the family's audit, run its
+/// rewrite at the site, and classify the outcome — an admitted proposal, a
+/// decline, or a budget/identity/replay failure that aborts the run under the
+/// family's own error.
+pub(crate) type PreAllocationSiteAttempt =
+    fn(
+        SelectedProgramRef<'_>,
+        CandidateSite,
+        &PreAllocationAdmissionContext<'_>,
+    ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError>;
+
+impl PreAllocationRuleAdmission {
+    pub(crate) const fn new(
+        surface: PreAllocationCandidateSurface,
+        attempt: PreAllocationSiteAttempt,
+    ) -> Self {
+        Self { surface, attempt }
+    }
+
+    /// Whether the row's candidate surface covers `instruction` at `position`.
+    pub(crate) fn admits(
+        &self,
+        position: CandidatePosition,
+        instruction: &SelectedInstruction,
+    ) -> bool {
+        self.surface.admits(position, instruction)
+    }
+
+    pub(crate) fn attempt(&self) -> PreAllocationSiteAttempt {
+        self.attempt
+    }
+}
+
+/// The per-run facts every site attempt shares: the admitted target
+/// environment and the per-pass budget. The machine-effect catalog the
+/// descriptor families resolve their declarations in is a pure function of the
+/// target and its constraint catalog, so each family builds it — through its
+/// own already-cached [`validated_machine_effect_catalog`] lookup — where it
+/// binds its declarations rather than through a second cache here.
+pub(crate) struct PreAllocationAdmissionContext<'environment> {
+    pub(crate) environment: &'environment ValidatedTargetRegisterEnvironment,
+    pub(crate) budget: OptimizationWorkBudget,
+}
+
+impl<'environment> PreAllocationAdmissionContext<'environment> {
+    pub(crate) const fn new(
+        environment: &'environment ValidatedTargetRegisterEnvironment,
+        budget: OptimizationWorkBudget,
+    ) -> Self {
+        Self {
+            environment,
+            budget,
         }
     }
 }
@@ -168,6 +308,7 @@ impl CandidateFrontier {
             if !policy.contains(row.payload().policy()) {
                 continue;
             }
+            let admission = row.payload().admission();
             for (function_index, function) in plan.functions.iter().enumerate() {
                 for (block_index, block) in function.blocks.iter().enumerate() {
                     for (position, instruction) in block.instructions.iter().enumerate() {
@@ -176,7 +317,7 @@ impl CandidateFrontier {
                             block_index,
                             position: CandidatePosition::Body(position),
                         };
-                        if is_family_candidate(row.optimization(), site.position, instruction) {
+                        if admission.admits(site.position, instruction) {
                             frontier.pending.push(PendingCandidate {
                                 family_index,
                                 site,
@@ -189,11 +330,7 @@ impl CandidateFrontier {
                         block_index,
                         position: CandidatePosition::Terminator,
                     };
-                    if is_family_candidate(
-                        row.optimization(),
-                        site.position,
-                        terminator_instruction(&block.terminator),
-                    ) {
+                    if admission.admits(site.position, terminator_instruction(&block.terminator)) {
                         frontier.pending.push(PendingCandidate {
                             family_index,
                             site,
@@ -258,11 +395,11 @@ impl CandidateFrontier {
                     }
                 }
             }
-            if !is_family_candidate(
-                PRE_ALLOCATION_RULE_CATALOG[candidate.family_index].optimization(),
-                candidate.site.position,
-                candidate.site.instruction(plan)?,
-            ) {
+            let admitted = PRE_ALLOCATION_RULE_CATALOG[candidate.family_index]
+                .payload()
+                .admission()
+                .admits(candidate.site.position, candidate.site.instruction(plan)?);
+            if !admitted {
                 candidate.disposition = CandidateDisposition::Retired;
             }
         }
@@ -274,7 +411,7 @@ impl CandidateFrontier {
             let instruction = site.instruction(plan)?;
             for (family_index, row) in PRE_ALLOCATION_RULE_CATALOG.iter().enumerate() {
                 if !self.policy.contains(row.payload().policy())
-                    || !is_family_candidate(row.optimization(), site.position, instruction)
+                    || !row.payload().admission().admits(site.position, instruction)
                 {
                     continue;
                 }
@@ -303,45 +440,30 @@ macro_rules! retryable_candidate_error {
     };
 }
 
-fn is_family_candidate(
-    optimization: Optimization,
-    position: CandidatePosition,
-    instruction: &SelectedInstruction,
-) -> bool {
-    if matches!(position, CandidatePosition::Terminator) {
-        return optimization == Optimization::SelectedConstantBranchFoldV1
-            && is_branch_reader(instruction.kind);
-    }
-    match optimization {
-        Optimization::SelectedSameBlockCopyI64RemovalV1 => {
-            instruction.kind == SelectedInstructionKind::CopyI64
-        }
-        Optimization::SelectedRedundantExtensionRemovalV1 => {
-            is_extension_candidate(instruction.kind)
-        }
-        Optimization::SelectedAddressOffsetFoldV1 => is_fold_consumer(instruction.kind),
-        Optimization::SelectedConstantBooleanFoldV1 => is_boolean_reader(instruction.kind),
-        Optimization::SelectedDeadCompareRemovalV1
-        | Optimization::SelectedRedundantCompareRemovalV1
-        | Optimization::SelectedEquivalentCompareRemovalV1 => {
-            is_compare_publisher(instruction.kind)
-        }
-        Optimization::SelectedCopiedCallOperandFoldV1 => is_call_consumer(instruction),
-        Optimization::SelectedStoredLoadForwardingV1 => matches!(
-            instruction.kind,
-            SelectedInstructionKind::Load64 { .. }
-                | selected_instructions::load_width_triple_pattern!(..)
-                | SelectedInstructionKind::Load8Indexed
-        ),
-        _ => false,
-    }
+/// Whether the instruction kind is one of the same-block copy removals'
+/// source surface: `CopyI64`. Admission decides removability; this is only
+/// the source-bound candidate surface, scanned in plan order.
+pub(crate) fn is_copy_i64(kind: SelectedInstructionKind) -> bool {
+    kind == SelectedInstructionKind::CopyI64
+}
+
+/// Whether the instruction kind is one of the retained-store forwarding
+/// family's referent loads. Admission decides the byte-exact pair; this is
+/// only the source-bound candidate surface, scanned in plan order.
+pub(crate) fn is_load_candidate(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::Load64 { .. }
+            | selected_instructions::load_width_triple_pattern!(..)
+            | SelectedInstructionKind::Load8Indexed
+    )
 }
 
 /// Whether the instruction kind is one of the carrier extensions the
 /// redundant-extension family considers: `ZeroExtend*`/`SignExtend*`.
 /// Admission decides redundancy; this is only the source-bound candidate
 /// surface, scanned in plan order.
-fn is_extension_candidate(kind: SelectedInstructionKind) -> bool {
+pub(crate) fn is_extension_candidate(kind: SelectedInstructionKind) -> bool {
     matches!(
         kind,
         SelectedInstructionKind::ZeroExtendU8
@@ -358,7 +480,7 @@ fn is_extension_candidate(kind: SelectedInstructionKind) -> bool {
 /// byte-addressable referent `Store` widths, and `AddressOffset` itself.
 /// Admission decides foldability; this is only the source-bound candidate
 /// surface, scanned in plan order.
-fn is_fold_consumer(kind: SelectedInstructionKind) -> bool {
+pub(crate) fn is_fold_consumer(kind: SelectedInstructionKind) -> bool {
     match kind {
         selected_instructions::load_width_triple_pattern!(..)
         | SelectedInstructionKind::Load64 { .. }
@@ -373,7 +495,7 @@ fn is_fold_consumer(kind: SelectedInstructionKind) -> bool {
 /// Whether the instruction kind is a flag-reading `MaterializeBoolean*`
 /// the constant-boolean family considers. Admission decides foldability;
 /// this is only the source-bound candidate surface, scanned in plan order.
-fn is_boolean_reader(kind: SelectedInstructionKind) -> bool {
+pub(crate) fn is_boolean_reader(kind: SelectedInstructionKind) -> bool {
     matches!(
         kind,
         SelectedInstructionKind::MaterializeBooleanEqual
@@ -389,7 +511,7 @@ fn is_boolean_reader(kind: SelectedInstructionKind) -> bool {
 /// decides foldability — the terminator/kind pairing, the zero-operand
 /// shape, and the flag partition; this is only the source-bound candidate
 /// surface, scanned in function/block order.
-fn is_branch_reader(kind: SelectedInstructionKind) -> bool {
+pub(crate) fn is_branch_reader(kind: SelectedInstructionKind) -> bool {
     matches!(
         kind,
         SelectedInstructionKind::ConditionalBranchNonZero
@@ -405,7 +527,7 @@ fn is_branch_reader(kind: SelectedInstructionKind) -> bool {
 /// surface, the unit-wise audits, and the roster exclusions; this is only
 /// the source-bound candidate surface, scanned in function/block/
 /// instruction order.
-fn is_compare_publisher(kind: SelectedInstructionKind) -> bool {
+pub(crate) fn is_compare_publisher(kind: SelectedInstructionKind) -> bool {
     matches!(
         kind,
         SelectedInstructionKind::CompareI64
@@ -468,9 +590,9 @@ fn operand_chain_length(
 /// `CallAggregate`, whose leading `Use` operands carry the argument
 /// roster. Admission decides the pair; this is only the source-bound
 /// candidate surface and the joint measure's call term.
-fn is_call_consumer(instruction: &SelectedInstruction) -> bool {
+pub(crate) fn is_call_consumer(kind: SelectedInstructionKind) -> bool {
     matches!(
-        instruction.kind,
+        kind,
         selected_instructions::selected_call_triple_pattern!(..)
     )
 }
@@ -511,7 +633,7 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
                 if is_fold_consumer(instruction.kind) {
                     total += operand_chain_length(&block.instructions, index, 0);
                 }
-                if is_call_consumer(instruction) {
+                if is_call_consumer(instruction.kind) {
                     for operand_index in 0..instruction.operands.len() {
                         total += operand_chain_length(&block.instructions, index, operand_index);
                     }
@@ -548,174 +670,115 @@ fn candidate_context<'a>(
     Ok((function_index, function, instruction))
 }
 
-fn copy_removal_candidate(
+pub(crate) fn copy_removal_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-
     let audit_cost = copy_removal_measured_steps(current.selected_plan(), function)
         .map_err(OptimizedPreAllocationCustodyError::CopyRemoval)?;
-
-    evaluated += 1;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match remove_selected_copy(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(removal) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::CopyRemoval(removal),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(removal) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::CopyRemoval(removal),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(CopyRemovalError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::CopyRemoval(error));
+            Err(OptimizedPreAllocationCustodyError::CopyRemoval(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current extension under its own measured-step contract.
-fn extension_removal_candidate(
+pub(crate) fn extension_removal_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-
     let audit_cost = redundant_extension_measured_steps(current.selected_plan(), function)
         .map_err(OptimizedPreAllocationCustodyError::RedundantExtension)?;
-
-    evaluated += 1;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match remove_selected_redundant_extension(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(removal) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::RedundantExtension(removal),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
-        Err(retryable_candidate_error!(RedundantExtensionError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::RedundantExtension(
-                error,
-            ));
-        }
-        Err(_) => declined += 1,
+        Ok(removal) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::RedundantExtension(removal),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
+        Err(retryable_candidate_error!(RedundantExtensionError, error)) => Err(
+            OptimizedPreAllocationCustodyError::RedundantExtension(error),
+        ),
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current displacement-carrying consumer.
-fn address_fold_candidate(
+pub(crate) fn address_fold_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-
     let audit_cost = address_fold_measured_steps(current.selected_plan(), function)
         .map_err(OptimizedPreAllocationCustodyError::AddressFold)?;
-
-    evaluated += 1;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match fold_selected_address(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(fold) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::AddressFold(fold),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(removal) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::AddressFold(removal),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(AddressFoldError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::AddressFold(error));
+            Err(OptimizedPreAllocationCustodyError::AddressFold(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current flag reader. The target flag universe bounds the reached
 /// compare's definitions in the pre-admission work charge.
-fn constant_boolean_candidate(
+pub(crate) fn constant_boolean_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-    let (flag_universe, materialize_surface) = constant_boolean_surface_sizes(environment)
+    let (flag_universe, materialize_surface) = constant_boolean_surface_sizes(context.environment)
         .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
-    // The condition-materialization pair descriptors admit the fold
-    // through the environment's own validated catalog — a pure function of
-    // the target and the constraint catalog, so the custody replay
-    // re-running this pass binds the same declarations.
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints())
-            .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-
+    // The condition-materialization pair descriptors admit the fold through
+    // the environment's own validated catalog — a pure function of the target
+    // and the constraint catalog, so the custody replay re-running this pass
+    // binds the same declarations.
+    let effect_catalog = validated_machine_effect_catalog(
+        context.environment.target(),
+        context.environment.constraints(),
+    )
+    .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
     let (successors, _) = adjacency(function);
-
-    evaluated += 1;
     let audit_cost = constant_boolean_measured_steps(
         current.selected_plan(),
         function,
@@ -726,62 +789,47 @@ fn constant_boolean_candidate(
         flag_universe,
     )
     .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match fold_selected_constant_boolean(
         &current,
         function_index,
         instruction.id,
-        environment,
+        context.environment,
         &effect_catalog,
-        budget,
+        context.budget,
     ) {
-        Ok(fold) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::ConstantBoolean(fold),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(fold) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::ConstantBoolean(fold),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(ConstantBooleanError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error));
+            Err(OptimizedPreAllocationCustodyError::ConstantBoolean(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current branch terminator with the target flag-universe bound.
-fn constant_branch_candidate(
+pub(crate) fn constant_branch_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-    let (flag_universe, jump_surface) = constant_branch_surface_sizes(environment)
+    let (flag_universe, jump_surface) = constant_branch_surface_sizes(context.environment)
         .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
-    // The decided-branch pair descriptors admit the control-flow
-    // relationship through the environment's own validated catalog — a
-    // pure function of the target and the constraint catalog, so the
-    // custody replay re-running this pass binds the same declarations.
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints())
-            .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-
+    // The decided-branch pair descriptors admit the control-flow relationship
+    // through the environment's own validated catalog — a pure function of
+    // the target and the constraint catalog, so the custody replay re-running
+    // this pass binds the same declarations.
+    let effect_catalog = validated_machine_effect_catalog(
+        context.environment.target(),
+        context.environment.constraints(),
+    )
+    .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
     let (successors, _) = adjacency(function);
-
-    evaluated += 1;
     let audit_cost = constant_branch_measured_steps(
         current.selected_plan(),
         function,
@@ -792,103 +840,70 @@ fn constant_branch_candidate(
         flag_universe,
     )
     .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match fold_selected_constant_branch(
         &current,
         function_index,
         instruction.id,
-        environment,
+        context.environment,
         &effect_catalog,
-        budget,
+        context.budget,
     ) {
-        Ok(fold) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::ConstantBranch(fold),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(fold) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::ConstantBranch(fold),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(ConstantBranchError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::ConstantBranch(error));
+            Err(OptimizedPreAllocationCustodyError::ConstantBranch(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current dead-compare proposal, charging its published flag units.
-fn dead_compare_candidate(
+pub(crate) fn dead_compare_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-
-    evaluated += 1;
     let audit_cost = dead_compare_measured_steps(
         current.selected_plan(),
         function,
         published_flag_units(instruction),
     )
     .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match remove_dead_compare(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(removal) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::DeadCompare(removal),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(removal) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::DeadCompare(removal),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(DeadCompareError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::DeadCompare(error));
+            Err(OptimizedPreAllocationCustodyError::DeadCompare(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current redundant-compare proposal.
-fn redundant_compare_candidate(
+pub(crate) fn redundant_compare_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-
     let (successors, _) = adjacency(function);
-
-    evaluated += 1;
     let audit_cost = redundant_compare_measured_steps(
         current.selected_plan(),
         function,
@@ -896,52 +911,35 @@ fn redundant_compare_candidate(
         published_flag_units(instruction),
     )
     .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match remove_redundant_compare(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(removal) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::RedundantCompare(removal),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(removal) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::RedundantCompare(removal),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(RedundantCompareError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::RedundantCompare(error));
+            Err(OptimizedPreAllocationCustodyError::RedundantCompare(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// Admit the current equivalent-compare proposal.
-fn equivalent_compare_candidate(
+pub(crate) fn equivalent_compare_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let (function_index, function, instruction) = candidate_context(&current, site)?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
-
     let (successors, _) = adjacency(function);
-
-    evaluated += 1;
     let audit_cost = equivalent_compare_measured_steps(
         current.selected_plan(),
         function,
@@ -949,34 +947,25 @@ fn equivalent_compare_candidate(
         published_flag_units(instruction),
     )
     .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?;
-    validation_steps = charge(validation_steps, audit_cost)?;
+    let charged = charge(0, audit_cost)?;
     match remove_equivalent_compare(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(removal) => {
-            validation_steps = charge(validation_steps, audit_cost)?;
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::EquivalentCompare(removal),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
+        Ok(removal) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::EquivalentCompare(removal),
+            0,
+            1,
+            charge(charged, audit_cost)?,
+        )),
         Err(retryable_candidate_error!(EquivalentCompareError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error));
+            Err(OptimizedPreAllocationCustodyError::EquivalentCompare(error))
         }
-        Err(_) => declined += 1,
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
 /// One measured-step charge against the per-pass budget: every
@@ -991,7 +980,6 @@ fn charge(left: u64, right: u64) -> Result<u64, OptimizedPreAllocationCustodyErr
 /// measured-step cost each admit — and, for a commit, the independent
 /// validate — charged against the per-pass budget.
 fn pass_usage(
-    candidates: usize,
     evaluated: usize,
     validation_steps: u64,
     commits: usize,
@@ -999,9 +987,10 @@ fn pass_usage(
     let count = |value: usize| {
         u64::try_from(value).map_err(|_| OptimizedPreAllocationCustodyError::WorkOverflow)
     };
+    let counted = count(evaluated)?;
     Ok(OptimizationWorkUsage {
-        rule_evaluations: count(evaluated)?,
-        candidates: count(candidates)?,
+        rule_evaluations: counted,
+        candidates: counted,
         validation_steps,
         commits: count(commits)?,
         iterations: 0,
@@ -1080,20 +1069,15 @@ fn complete_transformation(
 /// The position of the last in-block definition of `register` ahead of
 use super::super::operand_probes::last_definition_before;
 
-/// Admit the current load. Memory-audit work remains charged against the current
-/// plan; no accepted proposal survives a commit.
-fn stored_load_forwarding_candidate(
+/// Admit the current load. Memory-audit work remains charged against the
+/// current plan; no accepted proposal survives a commit.
+pub(crate) fn stored_load_forwarding_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let function_index = site.function_index;
     let instruction = site.instruction(current.selected_plan())?;
-
-    let mut evaluated = 0usize;
-    let mut declined = 0usize;
-    let mut validation_steps = 0u64;
     let surface = current
         .selected_plan()
         .functions
@@ -1115,10 +1099,8 @@ fn stored_load_forwarding_candidate(
         .and_then(|value| value.checked_mul(surface))
         .and_then(|value| value.checked_mul(2))
         .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
-
-    evaluated += 1;
-    validation_steps = charge(validation_steps, audit_cost)?;
-    if validation_steps > budget.validation_steps() {
+    let charged = charge(0, audit_cost)?;
+    if charged > context.budget.validation_steps() {
         return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
             StoredLoadForwardingError::WorkBudgetExceeded,
         ));
@@ -1127,41 +1109,29 @@ fn stored_load_forwarding_candidate(
         &current,
         function_index,
         instruction.id,
-        environment,
-        budget,
+        context.environment,
+        context.budget,
     ) {
-        Ok(forwarding) => {
-            return Ok(CandidateAttempt::Applied {
-                transformation: ValidatedPreAllocationTransformation::StoredLoadForwarding(
-                    forwarding,
-                ),
-                declined,
-                evaluated,
-                validation_steps,
-            });
-        }
-        Err(retryable_candidate_error!(StoredLoadForwardingError, error)) => {
-            return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
-                error,
-            ));
-        }
-        Err(_) => declined += 1,
+        Ok(forwarding) => Ok(CandidateAttempt::applied(
+            ValidatedPreAllocationTransformation::StoredLoadForwarding(forwarding),
+            0,
+            1,
+            charged,
+        )),
+        Err(retryable_candidate_error!(StoredLoadForwardingError, error)) => Err(
+            OptimizedPreAllocationCustodyError::StoredLoadForwarding(error),
+        ),
+        Err(_) => Ok(CandidateAttempt::clean(1, 1, charged)),
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
-        declined,
-        validation_steps,
-    })
 }
 
-/// Try current producer/call pairs in operand order, once per distinct producer.
-/// Renumbered dense identities are obtained from this attempt's plan only.
-fn copied_call_operand_candidate(
+/// Try current producer/call pairs in operand order, once per distinct
+/// producer. Renumbered dense identities are obtained from this attempt's
+/// plan only.
+pub(crate) fn copied_call_operand_candidate(
     current: SelectedProgramRef<'_>,
     site: CandidateSite,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
+    context: &PreAllocationAdmissionContext<'_>,
 ) -> Result<CandidateAttempt, OptimizedPreAllocationCustodyError> {
     let function_index = site.function_index;
     let function = &current.selected_plan().functions[function_index];
@@ -1170,21 +1140,20 @@ fn copied_call_operand_candidate(
     let CandidatePosition::Body(position) = site.position else {
         return Err(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch);
     };
-
+    // The copied-call-operand pair descriptors admit the retained-call
+    // relationship through the environment's own validated catalog — a pure
+    // function of the target and the constraint catalog, so the custody
+    // replay re-running this pass binds the same declarations.
+    let effect_catalog = validated_machine_effect_catalog(
+        context.environment.target(),
+        context.environment.constraints(),
+    )
+    .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
+    let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), function, block)
+        .map_err(OptimizedPreAllocationCustodyError::CopiedCallOperand)?;
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
-    // The copied-call-operand pair descriptors admit the retained-call
-    // relationship through the environment's own validated catalog — a
-    // pure function of the target and the constraint catalog, so the
-    // custody replay re-running this pass binds the same declarations.
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints())
-            .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
-
-    let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), function, block)
-        .map_err(OptimizedPreAllocationCustodyError::CopiedCallOperand)?;
-
     let mut tried = BTreeSet::new();
     for operand in instruction
         .operands
@@ -1207,20 +1176,18 @@ fn copied_call_operand_candidate(
             function_index,
             producer.id,
             instruction.id,
-            environment,
+            context.environment,
             &effect_catalog,
-            budget,
+            context.budget,
         ) {
             Ok(reroute) => {
                 validation_steps = charge(validation_steps, audit_cost)?;
-                return Ok(CandidateAttempt::Applied {
-                    transformation: ValidatedPreAllocationTransformation::CopiedCallOperand(
-                        reroute,
-                    ),
+                return Ok(CandidateAttempt::applied(
+                    ValidatedPreAllocationTransformation::CopiedCallOperand(reroute),
                     declined,
                     evaluated,
                     validation_steps,
-                });
+                ));
             }
             Err(retryable_candidate_error!(CopiedCallOperandError, error)) => {
                 return Err(OptimizedPreAllocationCustodyError::CopiedCallOperand(error));
@@ -1230,12 +1197,11 @@ fn copied_call_operand_candidate(
             }
         }
     }
-
-    Ok(CandidateAttempt::Clean {
-        candidates: evaluated,
+    Ok(CandidateAttempt::clean(
         declined,
+        evaluated,
         validation_steps,
-    })
+    ))
 }
 
 /// Reach the canonical joint fixed point from one discovery frontier. Executor
@@ -1253,7 +1219,7 @@ fn run_passes(
     OptimizedPreAllocationCustodyError,
 > {
     let budget = source.budget_per_pass();
-    let environment = source.register_environment();
+    let context = PreAllocationAdmissionContext::new(source.register_environment(), budget);
     // Iterations meter discovery sweeps. Candidate evaluation and commit work
     // have their own axes; changing a site does not rediscover the whole plan.
     let mut usage = OptimizationWorkUsage {
@@ -1268,64 +1234,25 @@ fn run_passes(
     while let Some(position) = frontier.next() {
         let pending = &frontier.pending[position];
         let site = pending.site;
-        let optimization = PRE_ALLOCATION_RULE_CATALOG[pending.family_index].optimization();
         let previous_body_count = current.selected_plan().functions[site.function_index].blocks
             [site.block_index]
             .instructions
             .len();
-        let attempt = match optimization {
-            Optimization::SelectedSameBlockCopyI64RemovalV1 => {
-                copy_removal_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedRedundantExtensionRemovalV1 => {
-                extension_removal_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedAddressOffsetFoldV1 => {
-                address_fold_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedConstantBooleanFoldV1 => {
-                constant_boolean_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedConstantBranchFoldV1 => {
-                constant_branch_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedDeadCompareRemovalV1 => {
-                dead_compare_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedRedundantCompareRemovalV1 => {
-                redundant_compare_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedEquivalentCompareRemovalV1 => {
-                equivalent_compare_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedCopiedCallOperandFoldV1 => {
-                copied_call_operand_candidate(current, site, environment, budget)?
-            }
-            Optimization::SelectedStoredLoadForwardingV1 => {
-                stored_load_forwarding_candidate(current, site, environment, budget)?
-            }
-            _ => {
-                return Err(
-                    OptimizedPreAllocationCustodyError::UnsupportedPreAllocationOptimization(
-                        optimization,
-                    ),
-                );
-            }
-        };
+        let admission = PRE_ALLOCATION_RULE_CATALOG[pending.family_index]
+            .payload()
+            .admission();
+        let attempt = (admission.attempt())(current, site, &context)?;
         match attempt {
             CandidateAttempt::Clean {
-                candidates,
                 declined,
+                evaluated,
                 validation_steps,
             } => {
-                usage = add_usage(
-                    usage,
-                    pass_usage(candidates, candidates, validation_steps, 0)?,
-                )?;
+                usage = add_usage(usage, pass_usage(evaluated, validation_steps, 0)?)?;
                 ensure_pre_allocation_budget(usage, budget)?;
                 frontier.pending[position].disposition = CandidateDisposition::Declined {
                     revision: frontier.function_revisions[site.function_index],
-                    candidates,
+                    candidates: evaluated,
                     declined,
                 };
             }
@@ -1342,10 +1269,7 @@ fn run_passes(
                         },
                     );
                 }
-                usage = add_usage(
-                    usage,
-                    pass_usage(evaluated, evaluated, validation_steps, 1)?,
-                )?;
+                usage = add_usage(usage, pass_usage(evaluated, validation_steps, 1)?)?;
                 ensure_pre_allocation_budget(usage, budget)?;
                 let step = complete_transformation(transformation, declined, evaluated, source)?;
                 let current_measure = measure(
