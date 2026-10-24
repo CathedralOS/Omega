@@ -513,18 +513,9 @@ fn literal_fields<'program>(
     fields.into_iter()
 }
 
+/// The field `symbol` names, resolved through the typed trees' owned
+/// declaration index — one lookup per query regardless of the program's
+/// mutability, because the index is revision-aware rather than a re-scan.
 fn field_by_symbol(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<&DataField> {
-    // A frozen program answers every field symbol from one table pass; any
-    // other program rescans, since one query costs less than the index.
-    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
-        return memos
-            .data_fields
-            .get_or_init(|| {
-                std::sync::Arc::new(crate::declarations::data_queries::DataFieldIndex::of(
-                    program,
-                ))
-            })
-            .field(program, symbol);
-    }
     program.any_field_owner(symbol).map(|(_, field)| field)
 }

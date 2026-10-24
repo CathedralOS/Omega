@@ -6,7 +6,6 @@
 //! bare TypedTrees remain one-shot, so mutation passes cannot borrow frozen
 //! evidence accidentally. Memos are not durable IR or semantic identity.
 
-use crate::declarations::data_queries::DataFieldIndex;
 use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
 use crate::machine_calls::effect_inference::PreparedEffectPlans;
@@ -571,7 +570,6 @@ pub struct CheckingMemos {
             SelectedCarrierVerdict,
         >,
     >,
-    pub(crate) data_fields: OnceLock<Arc<DataFieldIndex>>,
     pub(crate) contract_occurrences:
         OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
     pub(crate) bound_maps:
@@ -610,7 +608,6 @@ impl CheckingMemos {
             case_reference_owners: self.case_reference_owners,
             nominal_cleanup_owners: self.nominal_cleanup_owners,
             nominal_cleanup_machine_index: self.nominal_cleanup_machine_index,
-            data_fields: self.data_fields,
             contract_occurrences: self.contract_occurrences,
             bound_maps: self.bound_maps,
             ..Self::default()
@@ -637,7 +634,6 @@ impl CheckingMemos {
                     .unwrap_or_default(),
             ),
             nominal_cleanup_machine_index: self.nominal_cleanup_machine_index.clone(),
-            data_fields: self.data_fields.clone(),
             contract_occurrences: self.contract_occurrences.clone(),
             bound_maps: self.bound_maps.clone(),
             ..Self::default()
