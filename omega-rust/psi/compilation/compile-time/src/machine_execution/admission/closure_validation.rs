@@ -97,11 +97,12 @@ pub(super) fn closure_requires_are_root_parameter_domains(
     .is_none()
 }
 
-/// The call-edge-closure walk both premise checks share: a DFS from `root`
-/// through `call_edges` where each visited machine first answers `machine`
-/// (Some = the walk's outcome) and each non-machine callable edge target
-/// answers `callable`. An unmeasured terminal recursion edge keeps its
-/// machine symbol; anything else goes through `callable`.
+/// The call-edge-closure walk both premise checks share, over the single
+/// [`super::BuildTimeCallEdge::target_machine`] classification: each visited
+/// machine first answers `machine` (Some = the walk's outcome) and each
+/// non-machine callable edge target answers `callable`. An unmeasured
+/// terminal recursion edge keeps its machine symbol and so reaches `machine`;
+/// anything else goes through `callable`.
 fn each_closure_machine(
     call_edges: &[BuildTimeCallEdge],
     program: &TypedTrees,
@@ -109,43 +110,17 @@ fn each_closure_machine(
     mut machine: impl FnMut(&Machine) -> Option<()>,
     mut callable: impl FnMut(SymbolHandle) -> Option<()>,
 ) -> Option<()> {
-    let mut pending = vec![root];
-    let mut visited = Vec::new();
-    while let Some(machine_symbol) = pending.pop() {
-        if visited.contains(&machine_symbol) {
-            continue;
-        }
-        visited.push(machine_symbol);
-        let Some(found) = program.machine(machine_symbol) else {
-            continue;
-        };
+    super::walk_call_closure(call_edges, program, root, |found| {
         if machine(found).is_some() {
             return Some(());
         }
-        for call in call_edges
+        call_edges
             .iter()
-            .filter(|call| call.source_machine_symbol == machine_symbol)
-        {
-            let target_machine_symbol = if call.target_machine_symbol.is_valid() {
-                Some(call.target_machine_symbol)
-            } else if call.target_state_symbol.is_valid()
-                && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine
-            {
-                Some(call.target_state_symbol)
-            } else {
-                None
-            };
-            match target_machine_symbol {
-                Some(target) => pending.push(target),
-                None => {
-                    if callable(call.target_state_symbol).is_some() {
-                        return Some(());
-                    }
-                }
-            }
-        }
-    }
-    None
+            .filter(|call| call.source_machine_symbol == found.symbol)
+            .filter(|call| call.target_machine(program).is_none())
+            .any(|call| callable(call.target_state_symbol).is_some())
+            .then_some(())
+    })
 }
 
 /// A generated (keyword-less, unbound) premise whose every fact is the
@@ -306,20 +281,7 @@ fn machine_termination_violation(
         .iter()
         .filter(|call| call.source_machine_symbol == machine_symbol)
     {
-        let target_machine_symbol = if call.target_machine_symbol.is_valid() {
-            Some(call.target_machine_symbol)
-        } else if call.target_state_symbol.is_valid()
-            && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine
-        {
-            // Unmeasured terminal recursion deliberately remains a
-            // machine-symbol call until validation can diagnose the
-            // missing measure. Semantic evaluation runs earlier,
-            // so its admission closure must retain that edge too.
-            Some(call.target_state_symbol)
-        } else {
-            None
-        };
-        if let Some(target_machine_symbol) = target_machine_symbol {
+        if let Some(target_machine_symbol) = call.target_machine(program) {
             if let Some(violation) = machine_termination_violation(
                 call_edges,
                 program,

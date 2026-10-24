@@ -66,57 +66,51 @@ pub(super) fn selection_authority_violation(
         }
     }
 
-    let mut completed = Vec::new();
-    let mut pending = vec![root.symbol];
-    while let Some(source_machine) = pending.pop() {
-        if completed.contains(&source_machine) {
-            continue;
-        }
-        completed.push(source_machine);
+    super::walk_call_closure(call_edges, program, root.symbol, |source_machine| {
         if let Some(violation) =
-            machine_selection_violation(input, source_machine, authority, selected)
+            machine_selection_violation(input, source_machine.symbol, authority, selected)
         {
             return Some(violation);
         }
         for call in call_edges
             .iter()
-            .filter(|call| call.source_machine_symbol == source_machine)
+            .filter(|call| call.source_machine_symbol == source_machine.symbol)
         {
-            let Some(target_machine) = target_machine_symbol(program, call) else {
+            let Some(target_machine) = call.target_machine(program) else {
                 let Some(authority) = authority else {
                     continue;
                 };
-                if let Some(operator) = target_operator_symbol(program, call) {
-                    let context = format!(
-                        "build-time named operator call `{}` -> `{}`",
-                        program.symbols.display_path(source_machine, "::"),
-                        program.symbols.display_path(operator, "::")
-                    );
-                    if let Some(violation) = require_selection(
-                        program,
-                        package_for_symbol(program, source_machine),
-                        package_for_symbol(program, operator),
-                        authority,
-                        &context,
-                    ) {
-                        return Some(SelectionViolation::unlocated(violation));
-                    }
-                    continue;
+                let Some(operator) = target_operator_symbol(program, call) else {
+                    return Some(SelectionViolation::unlocated(format!(
+                        "build-time call from `{}` has no exact target-machine identity",
+                        program.symbols.display_path(source_machine.symbol, "::")
+                    )));
+                };
+                let context = format!(
+                    "build-time named operator call `{}` -> `{}`",
+                    program.symbols.display_path(source_machine.symbol, "::"),
+                    program.symbols.display_path(operator, "::")
+                );
+                if let Some(violation) = require_selection(
+                    program,
+                    package_for_symbol(program, source_machine.symbol),
+                    package_for_symbol(program, operator),
+                    authority,
+                    &context,
+                ) {
+                    return Some(SelectionViolation::unlocated(violation));
                 }
-                return Some(SelectionViolation::unlocated(format!(
-                    "build-time call from `{}` has no exact target-machine identity",
-                    program.symbols.display_path(source_machine, "::")
-                )));
+                continue;
             };
             let context = format!(
                 "build-time call `{}` -> `{}`",
-                program.symbols.display_path(source_machine, "::"),
+                program.symbols.display_path(source_machine.symbol, "::"),
                 program.symbols.display_path(target_machine, "::")
             );
             if let Some(authority) = authority
                 && let Some(violation) = require_selection(
                     program,
-                    package_for_symbol(program, source_machine),
+                    package_for_symbol(program, source_machine.symbol),
                     package_for_symbol(program, target_machine),
                     authority,
                     &context,
@@ -124,10 +118,9 @@ pub(super) fn selection_authority_violation(
             {
                 return Some(SelectionViolation::unlocated(violation));
             }
-            pending.push(target_machine);
         }
-    }
-    None
+        None
+    })
 }
 
 fn machine_selection_violation(
@@ -693,15 +686,6 @@ fn late_bound_selection_symbol(
         _ => SymbolHandle::invalid(),
     };
     selected.is_valid().then_some(selected)
-}
-
-fn target_machine_symbol(program: &TypedTrees, call: &BuildTimeCallEdge) -> Option<SymbolHandle> {
-    if call.target_machine_symbol.is_valid() {
-        return Some(call.target_machine_symbol);
-    }
-    (call.target_state_symbol.is_valid()
-        && program.symbols.get(call.target_state_symbol).kind == SymbolKind::Machine)
-        .then_some(call.target_state_symbol)
 }
 
 fn target_operator_symbol(program: &TypedTrees, call: &BuildTimeCallEdge) -> Option<SymbolHandle> {

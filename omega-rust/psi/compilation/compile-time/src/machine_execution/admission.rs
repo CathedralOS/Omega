@@ -154,6 +154,57 @@ struct BuildTimeCallEdge {
     target_operator_symbol: SymbolHandle,
 }
 
+impl BuildTimeCallEdge {
+    /// The exact machine this call edge reaches: the settled machine symbol
+    /// when the producer filled one, else the state-lane symbol only when it
+    /// is itself a machine. Unmeasured terminal recursion deliberately keeps
+    /// its machine symbol in the state lane until validation can diagnose the
+    /// missing measure, so the walk must retain that edge too.
+    fn target_machine(&self, program: &TypedTrees) -> Option<SymbolHandle> {
+        if self.target_machine_symbol.is_valid() {
+            return Some(self.target_machine_symbol);
+        }
+        (self.target_state_symbol.is_valid()
+            && program.symbols.get(self.target_state_symbol).kind == symbols::SymbolKind::Machine)
+            .then_some(self.target_state_symbol)
+    }
+}
+
+/// Walk the build-time call closure from `root` over the single
+/// [`BuildTimeCallEdge::target_machine`] classification: every machine is
+/// visited once in depth-first discovery order, and `visit` decides the walk —
+/// `Some(outcome)` ends it with that outcome, `None` continues. A consumer
+/// whose obligation differs on an unsettled edge lanes that check at the edge
+/// rather than re-deriving the closure.
+fn walk_call_closure<Outcome>(
+    call_edges: &[BuildTimeCallEdge],
+    program: &TypedTrees,
+    root: SymbolHandle,
+    mut visit: impl FnMut(&Machine) -> Option<Outcome>,
+) -> Option<Outcome> {
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(symbol) = pending.pop() {
+        if visited.contains(&symbol) {
+            continue;
+        }
+        visited.push(symbol);
+        let Some(machine) = program.machine(symbol) else {
+            continue;
+        };
+        if let Some(outcome) = visit(machine) {
+            return Some(outcome);
+        }
+        pending.extend(
+            call_edges
+                .iter()
+                .filter(|call| call.source_machine_symbol == symbol)
+                .filter_map(|call| call.target_machine(program)),
+        );
+    }
+    None
+}
+
 impl BuildTimeAdmissionPlan {
     pub fn infer(
         program: &TypedTrees,
@@ -181,43 +232,21 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         root: SymbolHandle,
     ) -> Result<(), String> {
-        let mut pending = vec![root];
-        let mut visited = Vec::new();
-        while let Some(symbol) = pending.pop() {
-            if visited.contains(&symbol) {
-                continue;
-            }
-            visited.push(symbol);
-            let Some(machine) = program.machine(symbol) else {
-                continue;
-            };
+        walk_call_closure(&self.call_edges, program, root, |machine| {
             if machine.structural_type_equations_pending {
-                return Err(format!(
+                return Some(format!(
                     "machine `{}` retains an undischarged structural type equation",
                     machine.name
                 ));
             }
-            if !machine.type_parameters.is_empty() {
-                return Err(format!(
+            (!machine.type_parameters.is_empty()).then(|| {
+                format!(
                     "machine `{}` retains an unspecialized static application",
                     machine.name
-                ));
-            }
-            for edge in self
-                .call_edges
-                .iter()
-                .filter(|edge| edge.source_machine_symbol == symbol)
-            {
-                if edge.target_machine_symbol.is_valid() {
-                    pending.push(edge.target_machine_symbol);
-                } else if program.symbols.get(edge.target_state_symbol).kind
-                    == symbols::SymbolKind::Machine
-                {
-                    pending.push(edge.target_state_symbol);
-                }
-            }
-        }
-        Ok(())
+                )
+            })
+        })
+        .map_or(Ok(()), Err)
     }
 
     /// The realization owner supplies exact retained bodies, without giving
@@ -254,31 +283,18 @@ impl BuildTimeAdmissionPlan {
         Ok(self)
     }
 
+    /// The machines in `root`'s call-edge closure, root first: the floor
+    /// summarizes exactly the closure the shared walk admits.
     fn closure_machine_symbols(
         &self,
         program: &TypedTrees,
         root: SymbolHandle,
     ) -> Vec<SymbolHandle> {
-        let mut closure = vec![root];
-        let mut position = 0;
-        while position < closure.len() {
-            let source = closure[position];
-            for edge in self
-                .call_edges
-                .iter()
-                .filter(|edge| edge.source_machine_symbol == source)
-            {
-                let target = if edge.target_machine_symbol.is_valid() {
-                    edge.target_machine_symbol
-                } else {
-                    edge.target_state_symbol
-                };
-                if program.machine(target).is_some() && !closure.contains(&target) {
-                    closure.push(target);
-                }
-            }
-            position += 1;
-        }
+        let mut closure = Vec::new();
+        let _ = walk_call_closure(&self.call_edges, program, root, |machine| {
+            closure.push(machine.symbol);
+            None::<()>
+        });
         closure
     }
 
