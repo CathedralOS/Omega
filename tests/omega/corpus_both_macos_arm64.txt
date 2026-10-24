@@ -93,11 +93,13 @@ pass/borrows/owned_byte_value_call_exit built 5365ms exit:70 interpreter-exit:70
 pass/borrows/owned_reference_arrival_projection_exit built 4953ms exit:0 interpreter-exit:0 interpreter:agrees @ea7b63644a0a+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit built 1879ms exit:70 interpreter-exit:70 interpreter:agrees @fef76bc46fc7+wt
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit built 2508ms exit:0 interpreter-exit:0 interpreter:agrees @89af21767c32+wt
+pass/borrows/predicate_reference_field_retarget_exit built 973ms exit:0 interpreter-exit:0 interpreter:agrees @85a91d4c22f6+wt
 pass/borrows/projected_claim_owner_shared_observation_exit built 1729ms exit:70 interpreter-exit:70 interpreter:agrees @5889f8b8208f+wt
 pass/borrows/projected_reference_record_argument_exit built 10962ms exit:29 interpreter-exit:29 interpreter:agrees @2001bffe7901+wt
 pass/borrows/projected_reference_record_residual_exit built 10890ms exit:29 interpreter-exit:29 interpreter:agrees @2001bffe7901+wt
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 1835ms exit:70 interpreter-exit:70 interpreter:agrees @006fa124be2c
 pass/borrows/qualified_owner_state_loan_exit built 5562ms exit:0 interpreter-exit:0 interpreter:agrees @2ef2ab353498+wt
+pass/borrows/qualified_reference_field_retarget_exit built 978ms exit:0 interpreter-exit:0 interpreter:agrees @85a91d4c22f6+wt
 pass/borrows/returned_owned_byte_field_snapshot_exit built 1779ms exit:70 interpreter-exit:70 interpreter:agrees @d633d9554974+wt
 pass/borrows/returned_primitive_reference_assignment_capture_exit built 3039ms exit:0 interpreter-exit:0 interpreter:agrees @c69e20ea61aa+wt
 pass/borrows/returned_record_byte_field_store_exit built 5929ms exit:70 interpreter-exit:70 interpreter:agrees @4eedaeefe771+wt

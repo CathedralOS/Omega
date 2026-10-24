@@ -586,6 +586,8 @@ fail/borrows/placed_shared_write_rejected rejected 332ms expected @fc1821419662
 	mutable argument `view` for state `write` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/plain_read_during_live_exclusive_loan rejected 1820ms expected @a9ae30e1c334+wt
 fail/borrows/predicate_named_call_keeps_installed_loan rejected 999ms expected @4491cf553993+wt
+fail/borrows/predicate_reference_retarget_requires_membership rejected 823ms expected @85a91d4c22f6+wt
+	cannot prove the value assigned to `protected.cell` in observed_exit is in domain `Cell::Controlled`; a place declared `in Cell::Controlled` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/borrows/primitive_aggregate_live_owner_read rejected 1701ms expected @a9ae30e1c334+wt
 fail/borrows/projected_descriptor_retains_backing_loan rejected 1869ms expected @a9ae30e1c334+wt
 fail/borrows/projected_fixed_array_shared_source_mutable_local rejected 178ms expected @77acc22653d9
@@ -15146,6 +15148,7 @@ pass/borrows/owned_nested_record_copy_exit checked 11044ms check-target:macos_ar
 pass/borrows/owned_reference_arrival_projection_exit checked 3581ms check-target:macos_arm64 @ea7b63644a0a+wt
 pass/borrows/owner_byte_read_during_shared_record_loan_exit checked 11145ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/plain_read_after_exclusive_loan_last_use_exit checked 10441ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/predicate_reference_field_retarget_exit checked 973ms check-target:macos_arm64 @85a91d4c22f6+wt
 pass/borrows/projected_claim_owner_shared_observation_exit checked 11079ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/projected_copy_parent_custody_exit checked 8130ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/borrows/projected_indexed_member_loan checked 11042ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -15159,6 +15162,7 @@ pass/borrows/qualified_byte_owner_exclusive_call_exit checked 10895ms check-targ
 pass/borrows/qualified_byte_owner_shared_call_exit checked 6413ms check-target:macos_arm64 @9dd545defbc0
 pass/borrows/qualified_owner_state_loan_exit checked 5010ms check-target:macos_arm64 @2ef2ab353498+wt
 pass/borrows/qualified_record_view_call_exit checked 11199ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/qualified_reference_field_retarget_exit checked 973ms check-target:macos_arm64 @85a91d4c22f6+wt
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 10923ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/reference_parameter_field_store_exit checked 15020ms check-target:macos_arm64 @8df1d091a810
 pass/borrows/region_stored_reference_occurrences_exit checked 3615ms check-target:macos_arm64 @3ea0aec65b44+wt

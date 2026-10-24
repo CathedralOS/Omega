@@ -18,7 +18,7 @@ different reference to 31 during the RHS, then returns the reference to 41;
 omitting the outer store must fail its oracle. These are runtime identity and
 carrier-lifecycle requirements, not permission to turn type shape into loans.
 
-Current optimized baseline `0dce4dc599e2596206d3ae5ce209729ec3800b6b`
+The original optimized baseline `0dce4dc599e2596206d3ae5ce209729ec3800b6b`
 checks the original source but refuses native publication:
 
     replace::entry, statement 0:
@@ -72,6 +72,22 @@ Controls challenge the operation rather than its spelling:
   copy permission. This is an authority control, not a nested-byte-read test. The
   `fail/borrows/exclusive_reference_array_copy` fixture cannot export an
   exclusive array through shared input.
+- [Qualified referent](controls/qualified_retarget/main.omg): replacing a local
+  record's shared reference retires its old descriptor, not either backing.
+  The original program observes 73 from the old backing after the replacement
+  and retains the call through the new descriptor. Optimized clean main
+  `7a7f0a6cd808` checked this unchanged source but refused publication at
+  `observed_exit::entry` with `sequence cleanup actions`; diagnostic-only tracing
+  on `85a91d4c22f6` isolated a comparison of qualified custody identity with
+  unqualified referent storage identity. The join must authenticate both through
+  the exact assigned declaration, preserving access and the Referent path.
+- [Predicate-qualified replacement](controls/qualified_predicate/main.omg):
+  the same layout/custody join also works when the referent has a real predicate.
+  Its [invalid control](controls/qualified_predicate/invalid/main.omg) changes
+  only the replacement's value from 11 to 1 and must fail the field's required
+  `Cell::Controlled` membership. Equal layouts do not discharge that obligation.
+  These controls are pinned by `pass/borrows/{qualified,predicate}_reference_field_retarget_exit`
+  and `fail/borrows/predicate_reference_retarget_requires_membership`.
 
 Requirement evidence and boundaries:
 

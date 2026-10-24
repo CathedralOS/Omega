@@ -106,44 +106,48 @@ pub(super) fn actions(
     );
     let carrier_discard = if let Some(carrier) = carrier_death {
         let declaration = shapes.types.get(&destination.type_identity)?;
-        // Loan provenance names the full source type; stored views use the
-        // shared storage identity with access on their occurrence. Rejoin both
-        // identities through the exact assigned declaration, not a catalog
-        // search for a same-shaped descriptor.
-        let view_matches = || {
-            let reference = validation::canonical_place_type_reference(
-                program,
-                state,
-                *statement_index as usize,
-                replaced_place.as_ref()?,
-            )?;
-            let shell = validation::reference_shell(program, reference)?;
-            Some(
-                program.normalized_type_identity(reference) == carrier.source.type_identity
-                    && checked_trees::CheckedStructuralAccess::from(shell.access)
-                        == carrier.source.access
-                    && validation::stored_structural_type_identity(program, reference, &[], &[])
-                        == destination.type_identity
-                    && carrier.source.path == destination.path,
-            )
-        };
-        let carrier_matches = match declaration.shape {
-            checked_trees::CheckedUnitStructuralTypeShape::Reference {
-                referent_identity,
-                access,
-            } => {
-                referent_identity == carrier.source.type_identity && access == carrier.source.access
-            }
-            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                view_matches() == Some(true)
-            }
-            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
-                if bytes.is_borrowed() =>
-            {
-                view_matches() == Some(true)
-            }
-            _ => false,
-        };
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state,
+            *statement_index as usize,
+            replaced_place.as_ref()?,
+        )?;
+        let shell = validation::reference_shell(program, reference)?;
+        // Custody retains the qualified source type; executable shapes name
+        // storage. Rejoin both through this exact assigned declaration, never
+        // by treating equal layouts as authority to retire another descriptor.
+        // Pointer custody crosses a Referent edge; view custody names the
+        // descriptor itself. Neither disposition owns the borrowed backing.
+        let source_matches =
+            match declaration.shape {
+                checked_trees::CheckedUnitStructuralTypeShape::Reference {
+                    referent_identity,
+                    access,
+                } => {
+                    program.normalized_type_identity(shell.referee) == carrier.source.type_identity
+                        && validation::structural_type_identity(program, shell.referee, &[], &[])
+                            == referent_identity
+                        && access == carrier.source.access
+                        && carrier.source.path.strip_suffix(&[
+                            checked_trees::CheckedUnitStructuralPathSegment::Referent,
+                        ]) == Some(destination.path.as_slice())
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                    program.normalized_type_identity(reference) == carrier.source.type_identity
+                        && carrier.source.path == destination.path
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
+                    if bytes.is_borrowed() =>
+                {
+                    program.normalized_type_identity(reference) == carrier.source.type_identity
+                        && carrier.source.path == destination.path
+                }
+                _ => false,
+            };
+        let carrier_matches = source_matches
+            && checked_trees::CheckedStructuralAccess::from(shell.access) == carrier.source.access
+            && validation::stored_structural_type_identity(program, reference, &[], &[])
+                == destination.type_identity;
         if !carrier_matches
             || !declaration.descriptor_cleanup
             || old_value.type_identity != destination.type_identity

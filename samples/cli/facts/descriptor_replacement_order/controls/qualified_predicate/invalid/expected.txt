@@ -1,0 +1,2 @@
+cannot prove the value assigned to `protected.cell`
+is in domain `Cell::Controlled`
