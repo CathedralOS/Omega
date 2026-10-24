@@ -7,18 +7,49 @@
 
 use std::fmt;
 
-pub mod catalog;
-pub use catalog::PRETERMINAL_PSI_PASS_CATALOG;
-
 const ENCODING_MAGIC: &[u8; 8] = b"PSIOPT\0\0";
 const ENCODING_VERSION: u32 = 1;
 const IDENTITY_DOMAIN: &[u8] = b"psi.optimization-selections.v1\0";
 
-/// One exact target-neutral optimization that executes before Terminal Psi is
-/// published.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(u8)]
-pub enum PsiOptimization {
+/// Declares the target-neutral Psi optimization vocabulary once: each member's
+/// stable wire tag and declaration identifier, from which canonical order,
+/// tag resolution and the diagnostic name are generated together. The
+/// Omega-side vocabulary is declared the same way, so neither side maintains a
+/// second list of names or an order to reconcile with its own enum.
+macro_rules! psi_optimization_vocabulary {
+    ($count:literal; $( $(#[$attribute:meta])* $variant:ident = $tag:literal ),+ $(,)?) => {
+        /// One exact optimization in Psi's closed target-neutral vocabulary. A
+        /// member with no pre-Terminal rule is recorded by the pre-Terminal
+        /// stage and executes in the post-Terminal stage instead.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[repr(u8)]
+        pub enum PsiOptimization {
+            $( $(#[$attribute])* $variant = $tag ),+
+        }
+
+        impl PsiOptimization {
+            /// Every member, in canonical ascending-tag order.
+            pub const ALL: [Self; $count] = [$(Self::$variant),+];
+
+            /// The diagnostic name reports and refusals print.
+            pub const fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => stringify!($variant)),+
+                }
+            }
+
+            fn from_tag(tag: u8) -> Result<Self, PsiOptimizationSelectionDecodeError> {
+                Self::ALL
+                    .into_iter()
+                    .find(|optimization| *optimization as u8 == tag)
+                    .ok_or(PsiOptimizationSelectionDecodeError::UnknownTag(tag))
+            }
+        }
+    };
+}
+
+psi_optimization_vocabulary! {
+    9;
     ControlFlowCleanup = 1,
     SparseConditionalConstantPropagation = 2,
     CopyPropagation = 3,
@@ -31,31 +62,6 @@ pub enum PsiOptimization {
     /// specialization passes it executes after Terminal Psi seals — the
     /// pre-Terminal stage records the selection but runs no rule for it.
     LoopInvariantScalarMotion = 9,
-}
-
-impl PsiOptimization {
-    pub const ALL: [Self; 9] = crate::PRETERMINAL_PSI_PASS_CATALOG;
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::ControlFlowCleanup => "ControlFlowCleanup",
-            Self::SparseConditionalConstantPropagation => "SparseConditionalConstantPropagation",
-            Self::CopyPropagation => "CopyPropagation",
-            Self::GlobalValueNumbering => "GlobalValueNumbering",
-            Self::DeadPureScalarElimination => "DeadPureScalarElimination",
-            Self::ProofCheckElision => "ProofCheckElision",
-            Self::StateSpecialization => "StateSpecialization",
-            Self::RepresentationSpecialization => "RepresentationSpecialization",
-            Self::LoopInvariantScalarMotion => "LoopInvariantScalarMotion",
-        }
-    }
-
-    fn from_tag(tag: u8) -> Result<Self, PsiOptimizationSelectionDecodeError> {
-        Self::ALL
-            .into_iter()
-            .find(|optimization| *optimization as u8 == tag)
-            .ok_or(PsiOptimizationSelectionDecodeError::UnknownTag(tag))
-    }
 }
 
 /// Canonical duplicate-free target-neutral Psi optimization selection.
@@ -202,14 +208,11 @@ mod tests {
         DuplicatePsiOptimization, PsiOptimization, PsiOptimizationSelectionDecodeError,
         PsiOptimizationSelections,
     };
-    use std::collections::BTreeSet;
 
     #[test]
-    fn vocabulary_has_stable_contiguous_tags_and_unique_names() {
-        let mut names = BTreeSet::new();
+    fn vocabulary_declares_stable_contiguous_tags() {
         for (index, optimization) in PsiOptimization::ALL.into_iter().enumerate() {
             assert_eq!(usize::from(optimization as u8), index + 1);
-            assert!(names.insert(optimization.name()));
         }
     }
 

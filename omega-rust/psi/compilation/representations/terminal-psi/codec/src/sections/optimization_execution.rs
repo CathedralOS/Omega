@@ -70,10 +70,6 @@ impl PsiOptimizationExecutionRecord {
         self.selections.identity()
     }
 
-    pub fn selection(&self) -> PsiOptimizationSelectionIdentity {
-        self.selection_identity()
-    }
-
     pub const fn input_semantic(&self) -> TerminalPsiIdentity {
         self.input_semantic
     }

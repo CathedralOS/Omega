@@ -3,8 +3,9 @@
 //! Optimizer module role: crate map.
 //!
 //! Target-neutral Psi optimization vocabulary and canonical selections. Psi
-//! owns this catalog because every entry executes before Terminal publication;
-//! target and physical optimization identities remain Omega-owned.
+//! owns this closed set because it is exactly what a build selection can
+//! project onto Psi; target and physical optimization identities remain
+//! Omega-owned.
 
 pub mod codec_bytes;
 pub mod cursor;
@@ -14,7 +15,6 @@ pub mod optimization_selections;
 pub mod variant_accessors;
 
 pub use optimization_selections::{
-    DuplicatePsiOptimization, PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization,
-    PsiOptimizationSelectionDecodeError, PsiOptimizationSelectionIdentity,
-    PsiOptimizationSelections, catalog,
+    DuplicatePsiOptimization, PsiOptimization, PsiOptimizationSelectionDecodeError,
+    PsiOptimizationSelectionIdentity, PsiOptimizationSelections,
 };
