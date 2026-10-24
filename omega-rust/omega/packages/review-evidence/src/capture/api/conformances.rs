@@ -9,11 +9,13 @@ use crate::capture::source::ProjectedReviewRow;
 use crate::record::{PackageReviewConformanceShape, PackageReviewEvidenceInterface};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees::trait_definition::Conformance;
 
-pub(crate) fn project_public_conformances(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_conformances<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewConformanceShape>>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewConformanceShape, Conformance>>, Vec<Diagnostic>>
+{
     let mut projected = Vec::new();
     for conformance in compilation.conformances().iter().filter(|conformance| {
         conformance.is_public
@@ -168,7 +170,7 @@ pub(crate) fn project_public_conformances(
                 type_parameters,
                 interface,
             },
-            declaration: conformance.symbol,
+            declaration: conformance,
         });
     }
     projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

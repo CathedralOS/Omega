@@ -17,10 +17,11 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
 
 pub(crate) fn project_data_invariant_facts(
     compilation: &PackageReviewInput<'_>,
-    definition: &typed_trees::data::DataDefinition,
+    definition: &DataDefinition,
     identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
 ) -> Result<Vec<PackageReviewContractFact>, Vec<Diagnostic>> {
@@ -88,10 +89,10 @@ pub(crate) fn require_exact_checked_data_fact(
     )
 }
 
-pub(crate) fn project_public_data(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_data<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewDataShape>>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewDataShape, DataDefinition>>, Vec<Diagnostic>> {
     require_rederived_data_definition_facts(compilation)?;
     let quotient_formations = validation::validate_quotient_formations(compilation.checking_input)?;
     let mut rows = Vec::new();
@@ -212,7 +213,7 @@ pub(crate) fn project_public_data(
                 retired_identities,
                 members,
             },
-            declaration: definition.symbol,
+            declaration: definition,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

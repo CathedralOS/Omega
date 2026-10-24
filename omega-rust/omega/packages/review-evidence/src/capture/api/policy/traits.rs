@@ -6,7 +6,6 @@ use crate::capture::api;
 use crate::capture::contracts::facts::{
     ContractProjectionContext, project_trait_requirement_contracts,
 };
-use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::SignatureProjection;
 use crate::capture::semantics::signatures::policy_crashes;
 use crate::capture::semantics::types::signature_type_identity;
@@ -26,14 +25,7 @@ pub(super) fn project(
     api::traits::project_public_traits(compilation, package)?
         .into_iter()
         .map(|projected| {
-            let source = exactly_one(
-                compilation
-                    .traits()
-                    .iter()
-                    .filter(|definition| definition.symbol == projected.declaration),
-                "public trait policy",
-                "trait declaration",
-            )?;
+            let source = projected.declaration;
             let row = projected.row;
             let parameters = compilation.trait_type_parameters(source);
             let (mut binders, type_parameters) = signatures::parameters(

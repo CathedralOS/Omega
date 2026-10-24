@@ -3,7 +3,6 @@
 use super::{signatures, values};
 use crate::capture::PackageReviewInput;
 use crate::capture::api;
-use crate::capture::semantics::facts::exactly_one;
 use crate::capture::semantics::signatures::SignatureProjection;
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
@@ -20,14 +19,7 @@ pub(super) fn data(
     api::data::projection::project_public_data(compilation, package)?
         .into_iter()
         .map(|projected| {
-            let source = exactly_one(
-                compilation
-                    .data_definitions()
-                    .iter()
-                    .filter(|definition| definition.symbol == projected.declaration),
-                "public data policy",
-                "data declaration",
-            )?;
+            let source = projected.declaration;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
                 &mut signatures,
@@ -61,14 +53,7 @@ pub(super) fn domains(
     api::domains::projection::project_public_domains(compilation, package)?
         .into_iter()
         .map(|projected| {
-            let source = exactly_one(
-                compilation
-                    .domain_definitions()
-                    .iter()
-                    .filter(|definition| definition.symbol == projected.declaration),
-                "public domain policy",
-                "domain declaration",
-            )?;
+            let source = projected.declaration;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
                 &mut signatures,
@@ -102,14 +87,7 @@ pub(crate) fn conformances(
     api::conformances::project_public_conformances(compilation, package)?
         .into_iter()
         .map(|projected| {
-            let source = exactly_one(
-                compilation
-                    .conformances()
-                    .iter()
-                    .filter(|definition| definition.symbol == projected.declaration),
-                "public conformance policy",
-                "conformance declaration",
-            )?;
+            let source = projected.declaration;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
                 &mut signatures,
@@ -137,20 +115,7 @@ pub(super) fn operators(
     api::operators::project_public_operators(compilation, package)?
         .into_iter()
         .map(|projected| {
-            let source = exactly_one(
-                compilation
-                    .operators()
-                    .iter()
-                    .chain(
-                        compilation
-                            .domain_definitions()
-                            .iter()
-                            .flat_map(|domain| compilation.domain_operators(domain)),
-                    )
-                    .filter(|definition| definition.symbol == projected.declaration),
-                "public operator policy",
-                "operator declaration",
-            )?;
+            let source = projected.declaration;
             let row = projected.row;
             let (_, type_parameters) = signatures::parameters(
                 &mut signatures,

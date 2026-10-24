@@ -23,11 +23,13 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
+use typed_trees::trait_definition::TraitDefinition;
 
-pub(crate) fn project_public_traits(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_traits<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewTraitShape>>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewTraitShape, TraitDefinition>>, Vec<Diagnostic>>
+{
     let mut rows = Vec::new();
     for definition in compilation.traits().iter().filter(|row| {
         row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)
@@ -89,7 +91,7 @@ pub(crate) fn project_public_traits(
                 parents,
                 requirements,
             },
-            declaration: definition.symbol,
+            declaration: definition,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

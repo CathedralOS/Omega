@@ -13,11 +13,13 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees::domain::DomainDefinition;
 
-pub(crate) fn project_public_domains(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_domains<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewDomainShape>>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewDomainShape, DomainDefinition>>, Vec<Diagnostic>>
+{
     let mut rows = Vec::new();
     for definition in compilation.domain_definitions().iter().filter(|row| {
         row.is_public && is_product_scope_instance(&compilation.typed.symbols, row.symbol)
@@ -74,7 +76,7 @@ pub(crate) fn project_public_domains(
                 semantic_roles,
                 establishment_routes,
             },
-            declaration: definition.symbol,
+            declaration: definition,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -82,7 +84,7 @@ pub(crate) fn project_public_domains(
 }
 
 pub(crate) fn project_domain_semantic_roles(
-    definition: &typed_trees::domain::DomainDefinition,
+    definition: &DomainDefinition,
     identity: &PackageReviewNominalIdentity,
 ) -> Result<Vec<PackageReviewDomainSemanticRole>, Vec<Diagnostic>> {
     let mut roles = Vec::new();

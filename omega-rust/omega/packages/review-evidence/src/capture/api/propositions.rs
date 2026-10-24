@@ -13,11 +13,15 @@ use crate::record::{
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees::proposition::PropositionDefinition;
 
-pub(crate) fn project_public_propositions(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_propositions<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewPropositionShape>>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<ProjectedReviewRow<'a, PackageReviewPropositionShape, PropositionDefinition>>,
+    Vec<Diagnostic>,
+> {
     use typed_trees::proposition::{PropositionBody, PropositionFormula};
 
     let mut rows = Vec::new();
@@ -131,7 +135,7 @@ pub(crate) fn project_public_propositions(
                 parameter_types,
                 body,
             },
-            declaration: declaration.symbol,
+            declaration,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

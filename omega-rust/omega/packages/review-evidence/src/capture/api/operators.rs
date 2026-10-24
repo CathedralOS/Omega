@@ -15,10 +15,11 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
+use typed_trees::operator::OperatorDefinition;
 
 pub(crate) fn project_operator_coordinate(
     compilation: &PackageReviewInput<'_>,
-    declaration: &typed_trees::operator::OperatorDefinition,
+    declaration: &OperatorDefinition,
 ) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
     let identity = nominal_identity(compilation, declaration.symbol)?;
     let overload = compilation.operator_callable_identity(declaration);
@@ -40,10 +41,13 @@ pub(crate) fn project_operator_coordinate(
     })
 }
 
-pub(crate) fn project_public_operators(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_operators<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewOperatorShape>>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<ProjectedReviewRow<'a, PackageReviewOperatorShape, OperatorDefinition>>,
+    Vec<Diagnostic>,
+> {
     let derived = validation::derive_checked_operator_crash_contracts(compilation.checking_input);
     if derived != compilation.facts.operators.operator_crash_contracts {
         return Err(vec![Diagnostic::error(format!(
@@ -147,7 +151,7 @@ pub(crate) fn project_public_operators(
                 contracts,
                 published_crash,
             },
-            declaration: declaration.symbol,
+            declaration,
         });
     }
     rows.sort_by(|left, right| left.row.coordinate.cmp(&right.row.coordinate));

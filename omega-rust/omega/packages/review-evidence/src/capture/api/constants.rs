@@ -7,11 +7,13 @@ use crate::capture::source::ProjectedReviewRow;
 use crate::record::PackageReviewConstShape;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use typed_trees::constant::ConstDeclaration;
 
-pub(crate) fn project_public_consts(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn project_public_consts<'a>(
+    compilation: &'a PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<Vec<ProjectedReviewRow<PackageReviewConstShape>>, Vec<Diagnostic>> {
+) -> Result<Vec<ProjectedReviewRow<'a, PackageReviewConstShape, ConstDeclaration>>, Vec<Diagnostic>>
+{
     let mut rows = Vec::new();
     for declaration in compilation
         .const_declarations()
@@ -49,7 +51,7 @@ pub(crate) fn project_public_consts(
                 )?,
                 canonical_value_encoding,
             },
-            declaration: declaration.symbol,
+            declaration,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
