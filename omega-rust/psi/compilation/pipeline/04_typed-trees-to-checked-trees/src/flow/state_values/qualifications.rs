@@ -24,8 +24,13 @@ pub(in crate::flow) struct QualifiedInput {
     evidence: QualificationEvidence,
 }
 
+/// The finite transportable predicate lattice: a declared domain membership or
+/// a normalized IEEE observation. One implementation serves both the exact
+/// state-argument carriers and the match-result predicate join; the two
+/// variants compare and combine identically, and only the published row
+/// differs in whether it names an evaluated value or an authored domain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CarriedPredicate {
+pub(in crate::flow) enum CarriedPredicate {
     Domain {
         domain: HandleSpan<Identifier>,
         domain_symbol: SymbolHandle,
@@ -54,7 +59,7 @@ impl CarriedPredicate {
         }
     }
 
-    fn implies(self, other: Self) -> bool {
+    pub(in crate::flow) fn implies(self, other: Self) -> bool {
         match (self, other) {
             (
                 Self::Domain {
@@ -73,7 +78,7 @@ impl CarriedPredicate {
         }
     }
 
-    fn common_consequence(self, other: Self) -> Option<Self> {
+    pub(in crate::flow) fn common_consequence(self, other: Self) -> Option<Self> {
         match (self, other) {
             (Self::Float(left), Self::Float(right)) => {
                 left.common_consequence(right).map(Self::Float)
@@ -82,14 +87,18 @@ impl CarriedPredicate {
         }
     }
 
-    fn payload(self) -> FactPayload {
+    /// The published fact row. `value` names the evaluated expression whose
+    /// place is observed when the predicate was derived from a value; a
+    /// predicate captured from a fact row keeps that row's authored domain
+    /// spelling and publishes no value.
+    pub(in crate::flow) fn payload(self, value: ExpressionHandle) -> FactPayload {
         match self {
             Self::Domain {
                 domain,
                 domain_symbol,
                 semantic_domain,
             } => FactPayload::DomainMembership {
-                value: ExpressionHandle::invalid(),
+                value,
                 domain,
                 domain_symbol,
                 semantic_domain,
@@ -508,7 +517,7 @@ pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: 
             point,
             origin: FactOrigin::StatementTransfer,
             evidence: input.evidence,
-            payload: input.predicate.payload(),
+            payload: input.predicate.payload(ExpressionHandle::invalid()),
         });
         let mut references = HandleSpan::empty();
         semantic.append_ref(&mut references, fact);

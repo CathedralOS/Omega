@@ -12,6 +12,7 @@
 //! result. Routed domains keep their authorized provenance and are not joined
 //! here; this publication is transport, not a new establishment.
 use crate::flow::expression::Execution;
+use crate::flow::state_values::qualifications::CarriedPredicate;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{FlowConstraintRef, FlowSemanticContextRef};
@@ -58,7 +59,7 @@ impl Execution<'_, '_, '_> {
         let mut completed_writes = Vec::new();
         let mut boolean_coverage = [false; 2];
         let mut case_coverage = Vec::new();
-        let mut shared_predicates: Option<Vec<JoinedPredicate>> = None;
+        let mut shared_predicates: Option<Vec<CarriedPredicate>> = None;
         let mut shared_scalar: Option<Option<facts::ScalarValue>> = None;
         let mut shared_members: Option<Vec<_>> = None;
         let mut value_coverage = false;
@@ -340,7 +341,7 @@ impl Execution<'_, '_, '_> {
         &self,
         value: ExpressionHandle,
         contexts: &HandleSpan<FlowSemanticContextRef>,
-    ) -> Vec<JoinedPredicate> {
+    ) -> Vec<CarriedPredicate> {
         let Some(source) = validation::canonical_place_from_expression_in_state(
             self.program,
             self.state.symbol,
@@ -352,7 +353,7 @@ impl Execution<'_, '_, '_> {
         let mut predicates = Vec::new();
         for fact in crate::flow::active_context_facts(self.context, self.semantic, *contexts) {
             let predicate = if let FactPayload::FloatPredicate { predicate } = fact.payload {
-                JoinedPredicate::Float(predicate)
+                CarriedPredicate::Float(predicate)
             } else if let Some((_, _, domain_symbol, semantic_domain)) =
                 fact.payload.domain_membership()
             {
@@ -368,7 +369,10 @@ impl Execution<'_, '_, '_> {
                 if !domain.predicate_body.is_present() || domain.alias.is_some() {
                     continue;
                 }
-                JoinedPredicate::Domain {
+                CarriedPredicate::Domain {
+                    // The joined row names the expression as its value; the
+                    // authored domain spelling belongs to the captured carrier.
+                    domain: HandleSpan::empty(),
                     domain_symbol,
                     semantic_domain,
                 }
@@ -398,7 +402,7 @@ impl Execution<'_, '_, '_> {
     fn publish_joined_values(
         &mut self,
         expression: ExpressionHandle,
-        domains: &[JoinedPredicate],
+        domains: &[CarriedPredicate],
         scalar: Option<facts::ScalarValue>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
@@ -451,47 +455,5 @@ impl Execution<'_, '_, '_> {
             constraints,
             checked_trees::FlowConstraintKind::SemanticContext { context },
         );
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum JoinedPredicate {
-    Domain {
-        domain_symbol: symbols::SymbolHandle,
-        semantic_domain: language_semantics::SemanticDomainId,
-    },
-    Float(facts::FloatPredicate),
-}
-
-impl JoinedPredicate {
-    fn implies(self, other: Self) -> bool {
-        match (self, other) {
-            (Self::Float(left), Self::Float(right)) => left.implies(right),
-            _ => self == other,
-        }
-    }
-
-    fn common_consequence(self, other: Self) -> Option<Self> {
-        match (self, other) {
-            (Self::Float(left), Self::Float(right)) => {
-                left.common_consequence(right).map(Self::Float)
-            }
-            _ => (self == other).then_some(self),
-        }
-    }
-
-    fn payload(self, expression: ExpressionHandle) -> FactPayload {
-        match self {
-            Self::Domain {
-                domain_symbol,
-                semantic_domain,
-            } => FactPayload::DomainMembership {
-                value: expression,
-                domain: HandleSpan::empty(),
-                domain_symbol,
-                semantic_domain,
-            },
-            Self::Float(predicate) => FactPayload::FloatPredicate { predicate },
-        }
     }
 }
