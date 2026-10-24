@@ -514,9 +514,15 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         return Err(diagnostics);
     }
     for &(site, owner, target) in &invocations {
-        let template = program
+        let mut template = program
             .closed_requirement_application(target)
             .map_or(target, |closed| closed.template);
+        if program.trait_machine_signature(template).is_none()
+            && let Some((requirement, _)) =
+                source_scope(program, owner, target, None, TypeReferenceHandle::invalid())?
+        {
+            template = requirement;
+        }
         let Some((_, signature)) = program.trait_machine_signature(template) else {
             continue;
         };
@@ -579,12 +585,55 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         let Some(call) = program.expression_table.call_node(expression).cloned() else {
             continue;
         };
+        let selected_scope = if let Some(dispatch) = &call.static_requirement_dispatch {
+            let applications = program.selected_conformance_applications(
+                owner,
+                dispatch.selection_application,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            let [application] = applications.as_slice() else {
+                continue;
+            };
+            application
+                .trait_scope
+                .scope(program)
+                .map(|scope| (dispatch.requirement, scope))
+        } else {
+            source_scope(
+                program,
+                owner,
+                call.target_symbol,
+                None,
+                call.requirement_application,
+            )?
+        };
+        let Some((template, scope)) = selected_scope else {
+            continue;
+        };
+        let Some((declaration, declared)) = program.trait_machine_signature(template) else {
+            continue;
+        };
+        let Some(scope) = scope.declaring_scope(program, declaration.symbol) else {
+            continue;
+        };
+        let Some(selected) = program
+            .applied_callable_signature(&scope, template)
+            .or_else(|| {
+                (scope.substitutions.is_empty() && declaration.lifetime_parameters.is_empty())
+                    .then_some(declared)
+            })
+            .cloned()
+        else {
+            continue;
+        };
         let Some(bindings) = invocation_binding_views::public_bindings(program, owner, &call)?
         else {
             continue;
         };
         if let Some(signature) = program
-            .prepare_requirement_invocation(owner, &call, &bindings)
+            .prepare_requirement_invocation(owner, &call, &bindings, &selected)
             .map_err(|message| vec![Diagnostic::error(message)])?
         {
             let references =

@@ -1209,8 +1209,9 @@ pub(super) fn bound_term(
             }
             let carrier =
                 crate::value_custody::places::unwrapped_type_reference(program, reference)?;
-            let owner = crate::value_custody::type_shapes::head_data_symbol(program, carrier)?;
-            let data = program.data_definition_by_symbol(owner)?;
+            // The applied contract's fields belong to its selected data
+            // application, not a same-named field on the generic base.
+            let data = crate::value_custody::places::data_definition_for_type(program, carrier)?;
             let field = crate::value_custody::places::exact_data_member_field(
                 program,
                 data,

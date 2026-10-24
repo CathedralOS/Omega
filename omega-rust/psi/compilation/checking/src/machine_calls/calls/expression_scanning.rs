@@ -186,6 +186,7 @@ impl ValueCallSite<'_> {
             callee.state,
             self.executes,
             diagnostics,
+            self.expression,
             self.call,
         );
     }

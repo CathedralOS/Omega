@@ -126,29 +126,34 @@ fn constructor_congruence_keeps_effectful_occurrences_and_generations() {
         relation(right.clone(), left.clone(), 0),
     ];
     let mut comparison = ValueComparison::new(&relations);
-    let call = |argument: Operand, occurrence| Operand::Call {
+    let call = |argument: Operand| Operand::Call {
         target: symbols::SymbolHandle::from_arena_index(3),
-        occurrence,
         arguments: vec![argument],
     };
-    let repeated_left = call(
-        left.clone(),
-        typed_trees::expression::ExpressionHandle::invalid(),
-    );
-    let repeated_right = call(
-        right.clone(),
-        typed_trees::expression::ExpressionHandle::invalid(),
-    );
+    let repeated_left = call(left.clone());
+    let repeated_right = call(right.clone());
     assert!(comparison.same_value(&repeated_left, &repeated_right));
-    let first_event = call(
-        left.clone(),
-        typed_trees::expression::ExpressionHandle::from_parts(4, 1),
-    );
-    let second_event = call(
-        right.clone(),
-        typed_trees::expression::ExpressionHandle::from_parts(4, 2),
-    );
+    let first_event = Operand::CompletedCall {
+        target: symbols::SymbolHandle::from_arena_index(3),
+        occurrence: typed_trees::expression::ExpressionHandle::from_parts(4, 1),
+    };
+    let second_event = Operand::CompletedCall {
+        target: symbols::SymbolHandle::from_arena_index(3),
+        occurrence: typed_trees::expression::ExpressionHandle::from_parts(4, 2),
+    };
     assert!(!comparison.same_value(&first_event, &second_event));
+    let another_event = Operand::CompletedCall {
+        target: symbols::SymbolHandle::from_arena_index(3),
+        occurrence: typed_trees::expression::ExpressionHandle::from_parts(5, 1),
+    };
+    assert!(!comparison.same_value(&first_event, &another_event));
+    assert!(first_event.survives(&[]));
+    assert!(!first_event.survives(&["unrelated".into()]));
+    assert!(
+        first_event
+            .rebound(&[(left.clone(), right.clone())])
+            .is_empty()
+    );
     assert!(!comparison.same_value(&first_event, &repeated_left));
     let stale = Operand::Place {
         root: symbols::SymbolHandle::from_parts(1, 2),

@@ -142,8 +142,10 @@ pub(super) enum ConstantValue {
     Boolean(bool),
 }
 
-/// A static binder is immutable across every state and effect in an invocation.
-/// Only its exact lexical declaration can create its mathematical atom.
+/// A Const or Value binder is immutable across every state and effect in an
+/// invocation, even when a Value actual was supplied at runtime. Only its exact
+/// lexical declaration can create its mathematical atom; a later assignment to
+/// the caller's original storage cannot retag this captured argument.
 /// Immutable data parameters are equally fixed for the invocation: each one
 /// contributes a shared private atom so an ordinary runtime subject bound to
 /// it can prove a fact the caller's Requires already establishes about that
@@ -164,7 +166,9 @@ fn immutable_caller_requires(
     let mut symbols = Vec::new();
     let mut bindings = Vec::new();
     for parameter in program.machine_type_parameters(machine) {
-        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+        let (TypeParameterKind::Const { type_reference }
+        | TypeParameterKind::Value { type_reference }) = parameter.kind
+        else {
             continue;
         };
         if !parameter.symbol.is_valid() || symbols.contains(&parameter.symbol) {

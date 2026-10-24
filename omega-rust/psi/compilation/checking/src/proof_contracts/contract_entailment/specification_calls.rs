@@ -477,13 +477,13 @@ pub(crate) fn selected_call_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &TableCallExpression,
 ) -> Option<SelectedCallContract<'program>> {
-    if let Some(dispatch) = &call.static_requirement_dispatch {
-        return selected_requirement_contract(program, dispatch);
-    }
-    selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
-        typed_trees::operator::resolve_named_expression_call(program, call)
-            .map(SelectedCallContract::Operator)
-    })
+    selected_call_site_contract(
+        program,
+        crate::CallSite::Expression {
+            expression: Default::default(),
+            call,
+        },
+    )
 }
 
 /// Statement and expression completion consume the same selected public owner.
@@ -492,12 +492,33 @@ pub(super) fn selected_call_site_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     site: crate::CallSite<'_>,
 ) -> Option<SelectedCallContract<'program>> {
+    let application = match site {
+        crate::CallSite::Expression { call, .. } => call.authored_machine_application,
+        crate::CallSite::Statement(call) => call.authored_machine_application,
+        crate::CallSite::TransitionNamed { .. } => return None,
+    };
+    if application.is_valid() {
+        let caller = program
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner;
+        if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site)
+        {
+            return Some(SelectedCallContract::Signature(signature));
+        }
+    }
+    if site.static_requirement_dispatch().is_some() {
+        // A selected body cannot replace a lost occurrence-local public view.
+        return None;
+    }
     match site {
-        crate::CallSite::Expression { call, .. } => selected_call_contract(program, call),
+        crate::CallSite::Expression { call, .. } => {
+            selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map(SelectedCallContract::Operator)
+            })
+        }
         crate::CallSite::Statement(call) => {
-            if let Some(dispatch) = site.static_requirement_dispatch() {
-                return selected_requirement_contract(program, dispatch);
-            }
             selected_contract_by_symbol(program, call.target_symbol).or_else(|| {
                 let candidates =
                     typed_trees::operator::named_statement_call_candidates(program, call);
@@ -509,16 +530,6 @@ pub(super) fn selected_call_site_contract<'program>(
         }
         crate::CallSite::TransitionNamed { .. } => None,
     }
-}
-
-fn selected_requirement_contract<'program>(
-    program: &'program dyn crate::CheckingInput,
-    dispatch: &typed_trees::typed_trees::StaticRequirementDispatch,
-) -> Option<SelectedCallContract<'program>> {
-    let definition = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
-    program
-        .trait_machine_signature_by_symbol(definition, dispatch.contract_symbol())
-        .map(SelectedCallContract::Signature)
 }
 
 /// Resolve an already retained public callable identity. No spelling or
@@ -653,9 +664,15 @@ pub(super) fn owner_parameter_scope<'program>(
 
 pub(super) fn call_parameter_scope<'program>(
     program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
     owner: &SelectedCallContract<'program>,
     site: crate::CallSite<'program>,
 ) -> Option<std::borrow::Cow<'program, [StateParameter]>> {
+    if site.static_requirement_dispatch().is_some() {
+        // Preconditions, completed guarantees and receiving carriers share
+        // the same exact ordinary/public and realized-Value correspondence.
+        return crate::machine_calls::calls::executable_parameters(program, caller, &site).ok();
+    }
     let declared = owner_parameter_scope(program, owner)?;
     let (application, arguments) = match site {
         crate::CallSite::Expression { call, .. } => (
@@ -848,10 +865,13 @@ pub(super) fn call_scalar_substitution(
     owner: &SelectedCallContract<'_>,
     arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
-    let SelectedCallContract::Concrete(machine, _) = owner else {
-        return arguments.is_empty().then(Vec::new);
+    let parameters = match owner {
+        SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
+        SelectedCallContract::Signature(signature) if !arguments.is_empty() => {
+            program.state_signature_type_parameters(signature)
+        }
+        _ => return arguments.is_empty().then(Vec::new),
     };
-    let parameters = program.machine_type_parameters(machine);
     if parameters.len() != arguments.len() {
         return None;
     }

@@ -89,11 +89,8 @@ impl CapturedValue<'_> {
                     crate::slice_view_shell(program, reference, &[]).is_some()
                 }),
             Operand::Binary { operands, .. } => operands.iter().all(survives),
-            Operand::Call {
-                occurrence,
-                arguments,
-                ..
-            } => !occurrence.is_valid() && arguments.iter().all(survives),
+            Operand::Call { arguments, .. } => arguments.iter().all(survives),
+            Operand::CompletedCall { .. } => false,
             Operand::Place { .. } | Operand::Integer(..) => false,
         }
     }

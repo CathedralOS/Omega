@@ -1,0 +1,26 @@
+// Reject an out-of-bound selected member even without a partial consumer.
+data Cell { value: u32; }
+data Selection<Value> { item: Value; left: u32; right: u32; }
+trait Choose<Value> {
+    machine choose<Left: u32, Right: u32>(first: Value, second: Value) -> Selection<Value>
+    requires Right <= 10
+    ensures result.right == Right;
+}
+Second<Value> satisfies Choose<Value> {
+    machine choose<Left: u32, Right: u32>(first: Value, second: Value) -> Selection<Value>
+    requires Right <= 10
+    ensures result.right == Right
+    { Selection { item: second, left: Left, right: Right } }
+}
+machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
+    first: Cell, second: Cell
+) -> Selection<Cell>
+requires Index <= 10
+ensures result.right == Index
+{ Implementation::choose<7u32, Index>(first, second) }
+machine main() {
+    let index: u32 = 11;
+    let answer: Selection<Cell> = selected<index, Second<Cell>>(
+        Cell { value: 73 }, Cell { value: 41 }
+    );
+}

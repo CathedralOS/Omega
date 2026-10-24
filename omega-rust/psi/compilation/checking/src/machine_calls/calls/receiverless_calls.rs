@@ -182,7 +182,7 @@ fn validate_resolved_receiverless_call(
         target_name,
         callee_machine,
         state,
-        &call.machine_arguments,
+        call,
         writable_roots,
         diagnostics,
     );

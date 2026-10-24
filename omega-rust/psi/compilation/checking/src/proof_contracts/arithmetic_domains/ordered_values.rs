@@ -58,11 +58,14 @@ pub(super) enum Operand {
     ),
     Call {
         target: SymbolHandle,
-        /// A valid handle names one operation in this evaluation. Only the
-        /// repeatable denotation route leaves this invalid and uses argument
-        /// congruence across distinct source calls.
-        occurrence: ExpressionHandle,
+        /// Only admitted repeatable denotations use argument congruence.
         arguments: Vec<Operand>,
+    },
+    /// One completed runtime event, not a denotation reconstructed from its
+    /// operands. Its inputs need not themselves be arithmetic observations.
+    CompletedCall {
+        target: SymbolHandle,
+        occurrence: ExpressionHandle,
     },
     CollectionLength(Box<Operand>),
     Indexed {
@@ -196,16 +199,10 @@ impl Operand {
                     immutable && program.primitive_type_reference(reference).is_some()
                 }) && declarations.next().is_none()
             }
-            Self::Call {
-                occurrence,
-                arguments,
-                ..
-            } => {
-                !occurrence.is_valid()
-                    && arguments
-                        .iter()
-                        .all(|value| value.is_immutable_snapshot(program, state))
-            }
+            Self::Call { arguments, .. } => arguments
+                .iter()
+                .all(|value| value.is_immutable_snapshot(program, state)),
+            Self::CompletedCall { .. } => false,
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.is_immutable_snapshot(program, state)),
@@ -230,11 +227,7 @@ impl Operand {
             Self::Binary { operands, .. } => operands
                 .iter()
                 .all(|value| value.survives_storage_writes(program, state, written)),
-            Self::Call {
-                occurrence,
-                arguments,
-                ..
-            } if !occurrence.is_valid() => arguments
+            Self::Call { arguments, .. } => arguments
                 .iter()
                 .all(|value| value.survives_storage_writes(program, state, written)),
             _ => false,
@@ -255,14 +248,10 @@ impl Operand {
                 },
             ),
             Self::Integer(..) => true,
-            Self::Call {
-                occurrence,
-                arguments,
-                ..
-            } => {
-                (!occurrence.is_valid() || written.is_empty())
-                    && arguments.iter().all(|value| value.survives_paths(written))
+            Self::Call { arguments, .. } => {
+                arguments.iter().all(|value| value.survives_paths(written))
             }
+            Self::CompletedCall { .. } => written.is_empty(),
             Self::CollectionLength(collection) => collection.survives(written),
             Self::Indexed {
                 collection, index, ..
@@ -326,7 +315,7 @@ impl Operand {
             // A raw runtime event is local to this evaluation. Only an exact
             // direct binding above can carry its completed value across a state
             // edge; argument rebinding cannot recreate another invocation.
-            Self::Call { occurrence, .. } if occurrence.is_valid() => Vec::new(),
+            Self::CompletedCall { .. } => Vec::new(),
             Self::Call {
                 target, arguments, ..
             } => {
@@ -348,7 +337,6 @@ impl Operand {
                     .into_iter()
                     .map(|arguments| Self::Call {
                         target: *target,
-                        occurrence: ExpressionHandle::invalid(),
                         arguments,
                     })
                     .collect()
@@ -587,7 +575,6 @@ fn build_operand(
             }
             Some(Operand::Call {
                 target: call.target_symbol,
-                occurrence: ExpressionHandle::invalid(),
                 arguments: arguments
                     .iter()
                     .map(|argument| {
@@ -1105,9 +1092,8 @@ pub(super) fn subtract_floor_limited(
     {
         return Some(0);
     }
-    let left_operand = left_named.or_else(|| ensured_call_operand(program, machine, state, left));
-    let right_operand =
-        right_named.or_else(|| ensured_call_operand(program, machine, state, right));
+    let left_operand = left_named.or_else(|| ensured_call_operand(program, left));
+    let right_operand = right_named.or_else(|| ensured_call_operand(program, right));
     let (Some(left_operand), Some(right_operand)) = (left_operand, right_operand) else {
         return None;
     };
@@ -1300,7 +1286,7 @@ fn operand_carrier_bound(
         Operand::Indexed { primitive, .. } | Operand::Field { primitive, .. } => {
             primitive.and_then(primitive_range).map(|range| range.high)
         }
-        Operand::Call { .. } => None,
+        Operand::Call { .. } | Operand::CompletedCall { .. } => None,
     }
 }
 

@@ -44,10 +44,10 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    call_target_has_checked_body_contract, call_type_arguments,
+    SelectedCallArgument, call_target_has_checked_body_contract, call_type_arguments,
     closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
-    requirement_contract_signature, result_initializer_call_is_admitted,
+    requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
     selected_requirement_signature, unit_result_initializer_call_is_admitted,
     unit_return_call_is_admitted, unit_statement_call_is_admitted,
 };

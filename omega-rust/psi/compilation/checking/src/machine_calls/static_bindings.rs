@@ -82,13 +82,28 @@ fn is_declared_open_tuple(
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
     requirement_application: TypeReferenceHandle,
+    target: SymbolHandle,
 ) -> bool {
-    let Some((declaring_trait, _)) =
+    let Some((declaring_trait, signature)) =
         program.trait_machine_signature(application.binding_declaration)
     else {
         return false;
     };
-    let mut open = false;
+    let bound = program
+        .machine_by_symbol(application.lexical_owner)
+        .and_then(|machine| {
+            super::calls::named_conformance_target_requirement(program, machine, target)
+                .ok()
+                .flatten()
+        });
+    if target != application.binding_declaration
+        && bound
+            .as_ref()
+            .is_none_or(|bound| bound.signature.symbol != application.binding_declaration)
+    {
+        return false;
+    }
+    let mut open = bound.is_some();
     if requirement_application.is_valid() {
         let Some(scope) = program
             .applied_requirement_scope(application.lexical_owner, requirement_application)
@@ -96,10 +111,28 @@ fn is_declared_open_tuple(
         else {
             return false;
         };
+        if let Some(bound) = &bound
+            && bound
+                .application
+                .declaring_scope(program, declaring_trait.symbol)
+                .is_none_or(|declared| !declared.same_application(program, &scope))
+        {
+            return false;
+        }
         if program.require_declared_trait_operands(&scope).is_err() {
             return false;
         }
         open |= program.require_receiving_trait_operands(&scope).is_err();
+    } else if let Some(bound) = &bound {
+        let Some(scope) = bound
+            .application
+            .declaring_scope(program, declaring_trait.symbol)
+        else {
+            return false;
+        };
+        if program.require_declared_trait_operands(&scope).is_err() {
+            return false;
+        }
     } else if !program.trait_type_parameters(declaring_trait).is_empty()
         || !declaring_trait.lifetime_parameters.is_empty()
     {
@@ -129,6 +162,27 @@ fn is_declared_open_tuple(
     };
     for binding in bindings {
         match &binding.value {
+            StaticMachineBindingValue::RuntimeValue {
+                subject,
+                expression,
+                ..
+            } => {
+                // A runtime Value operand does not close a static instance.
+                // Its carrier, bounds and exact source subject remain ordinary
+                // call obligations; this is only source-schema classification.
+                if (!subject.is_valid() && !expression.is_valid())
+                    || !program
+                        .state_signature_type_parameters(signature)
+                        .iter()
+                        .any(|parameter| {
+                            parameter.symbol == binding.parameter
+                                && matches!(parameter.kind, TypeParameterKind::Value { .. })
+                        })
+                {
+                    return false;
+                }
+                open = true;
+            }
             StaticMachineBindingValue::Machine(argument)
                 if argument.symbol.is_valid()
                     && program.symbols.get(argument.symbol).kind
@@ -311,16 +365,16 @@ pub fn validate_static_machine_bindings(
                     // A live universal call keeps its exact authored declaration
                     // until its own operands close. It still owes every ordinary
                     // lifetime, bound, const and forwarded-evidence check below.
-                    if *target == application.binding_declaration
-                        && !selected.is_some_and(|previous| previous != *target)
+                    if !selected.is_some_and(|previous| previous != application.binding_declaration)
                         && is_declared_open_tuple(
                             program,
                             application,
                             bindings,
                             *requirement_application,
+                            *target,
                         )
                     {
-                        selected = Some(*target);
+                        selected = Some(application.binding_declaration);
                         continue;
                     }
                     valid = false;
@@ -336,7 +390,9 @@ pub fn validate_static_machine_bindings(
             }
             let Some(selected) = selected.filter(|_| valid) else {
                 diagnostics.push(Diagnostic::error(
-                    "retained requirement tuple lost its exact source call application",
+                    format!("retained requirement tuple lost its exact source call application: call `{}` in `{}` binds declaration {:?}, but its retained targets are {:?}", application.target,
+                        program.symbols.name(application.lexical_owner), application.binding_declaration,
+                        call_targets.iter().filter(|(source, _, _)| *source == handle).map(|(_, target, requirement)| (*target, *requirement)).collect::<Vec<_>>()),
                 ));
                 continue;
             };

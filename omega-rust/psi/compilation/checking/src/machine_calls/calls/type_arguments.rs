@@ -218,17 +218,44 @@ pub(super) fn validate_resolved_call_arguments(
     target: &str,
     callee: &Machine,
     entry: &State,
-    selected: &[StaticMachineArgument],
+    call: &typed_trees::statement::TableCall,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(bindings) =
-        call_type_arguments(program, caller, state, callee, entry, selected, arguments)
-    else {
-        diagnostics.push(Diagnostic::error(format!(
-            "call `{target}` has an invalid static type argument correspondence"
-        )));
-        return;
+    let site = super::CallSite::Statement(call);
+    let parameters = match super::argument_correspondence::executable_parameters(
+        program,
+        caller.symbol,
+        &site,
+    ) {
+        Ok(parameters) => parameters,
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{target}` has an invalid argument correspondence: {reason}"
+            )));
+            return;
+        }
+    };
+    // Selected formals already carry the complete public application. Private
+    // realization binders cannot infer another substitution for those formals.
+    let bindings = if call.static_requirement_dispatch.is_some() {
+        Vec::new()
+    } else {
+        let Some(bindings) = call_type_arguments(
+            program,
+            caller,
+            state,
+            callee,
+            entry,
+            &call.machine_arguments,
+            arguments,
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{target}` has an invalid static type argument correspondence"
+            )));
+            return;
+        };
+        bindings
     };
     validate_call_arguments(
         program,
@@ -238,7 +265,7 @@ pub(super) fn validate_resolved_call_arguments(
         arguments,
         target,
         target,
-        program.state_parameters(entry),
+        &parameters,
         writable_roots.statements,
         selected_float_operation_retains_argument_policy(program, callee.symbol),
         &[],

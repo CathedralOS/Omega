@@ -1920,6 +1920,27 @@ impl<'program> StructuralJudge<'program> {
                 {
                     return Some(StructuralTerm::BoundValue(path.symbol));
                 }
+                // An open Value binder is an immutable application subject,
+                // not a fresh unknown on each read. Keep its resolved identity
+                // through constructor operands as contracts do. Membership in
+                // this exact machine telescope excludes same-spelled locals
+                // and unrelated type/proof parameters.
+                if scope.is_some_and(|(machine, _, _)| {
+                    program
+                        .machine_type_parameters(machine)
+                        .iter()
+                        .any(|parameter| {
+                            parameter.symbol.is_valid()
+                                && parameter.symbol == path.symbol
+                                && matches!(
+                                    parameter.kind,
+                                    typed_trees::data::TypeParameterKind::Value { .. }
+                                        | typed_trees::data::TypeParameterKind::Const { .. }
+                                )
+                        })
+                }) {
+                    return Some(StructuralTerm::BoundValue(path.symbol));
+                }
                 let members = program.expression_table.name_path_members(path.members);
                 match members {
                     [single] => environment

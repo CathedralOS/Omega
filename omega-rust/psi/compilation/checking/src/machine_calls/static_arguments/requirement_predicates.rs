@@ -99,10 +99,15 @@ pub(super) fn validate(
     arguments: &[StaticMachineArgument],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let target = call.registration_operation(program);
-    let Some((owner, source)) = program.trait_machine_signature(target) else {
-        return;
+    let (owner, source, declared_scope) = match super::source_requirement(program, call) {
+        Ok(Some(source)) => source,
+        Ok(None) => return,
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(reason));
+            return;
+        }
     };
+    let target = source.symbol;
     if source.where_facts.is_empty() {
         return;
     }
@@ -110,7 +115,9 @@ pub(super) fn validate(
         StaticArgumentCall::Expression(_, call) => call.target_symbol,
         StaticArgumentCall::Statement(call) => call.target_symbol,
     };
-    let scope = if let Some(application) = program.closed_requirement_application(executable) {
+    let scope = if let Some(scope) = declared_scope {
+        Some((scope, false))
+    } else if let Some(application) = program.closed_requirement_application(executable) {
         AppliedTraitScope::new(
             program,
             owner,

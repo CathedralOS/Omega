@@ -8,7 +8,7 @@
 
 use diagnostics::Diagnostic;
 use numerics::literals::LandedIntegerType;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolKind;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::references::StaticArgumentCall;
@@ -35,9 +35,13 @@ pub fn validate_source_const_recipes(
         let Some(caller) = program.machine_holding_state(state.symbol) else {
             return;
         };
-        let Some((_, parameters)) = source_telescope(program, call.registration_operation(program))
-        else {
-            return;
+        let parameters = match source_telescope(program, call) {
+            Ok(Some((_, parameters))) => parameters,
+            Ok(None) => return,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason));
+                return;
+            }
         };
         crate::value_custody::const_expressions::validate_argument_recipes(
             program,
@@ -169,24 +173,75 @@ pub fn validate_authored_static_arguments(
 /// A static application names the authored callable telescope, whether its
 /// declaration owns a body or is a trait requirement signature. Executable
 /// instance identity cannot substitute for that source admission boundary.
-fn source_telescope(
-    program: &dyn crate::CheckingInput,
-    target: SymbolHandle,
-) -> Option<(&str, &[typed_trees::data::TypeParameter])> {
+fn source_telescope<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Result<Option<(&'program str, &'program [typed_trees::data::TypeParameter])>, String> {
+    let target = call.registration_operation(program);
     if let Some(machine) = program
         .machine_by_symbol(target)
         .or_else(|| program.machine_holding_state(target))
     {
-        return Some((
+        return Ok(Some((
             machine.name.as_str(),
             program.machine_type_parameters(machine),
-        ));
+        )));
     }
-    let (_, requirement) = program.trait_machine_signature(target)?;
-    Some((
+    let Some((_, source, scope)) = source_requirement(program, call)? else {
+        return Ok(None);
+    };
+    let requirement = match scope {
+        Some(scope) => program
+            .applied_callable_signature(&scope, source.symbol)
+            .or_else(|| {
+                (scope.substitutions.is_empty() && scope.declaration.lifetime_parameters.is_empty())
+                    .then_some(source)
+            })
+            .ok_or_else(|| {
+                format!(
+                    "source application of requirement `{}` lost its exact outer trait telescope",
+                    source.name,
+                )
+            })?,
+        None => source,
+    };
+    Ok(Some((
         requirement.name.as_str(),
         program.state_signature_type_parameters(requirement),
-    ))
+    )))
+}
+
+/// Preserve the occurrence's registration identity while rejoining its exact
+/// declaring bound. Admission reads the outer trait substitution only: the
+/// invocation's supplied operands must not substitute away their own checks.
+fn source_requirement<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> Result<
+    Option<(
+        &'program typed_trees::trait_definition::TraitDefinition,
+        &'program typed_trees::signature::StateSignature,
+        Option<typed_trees::trait_definition::AppliedTraitScope<'program>>,
+    )>,
+    String,
+> {
+    let target = call.registration_operation(program);
+    if let Some((owner, signature)) = program.trait_machine_signature(target) {
+        return Ok(Some((owner, signature, None)));
+    }
+    let Some(machine) = program.machine_by_symbol(call.lexical_owner(program)) else {
+        return Ok(None);
+    };
+    let Some(requirement) =
+        super::calls::named_conformance_target_requirement(program, machine, target)?
+    else {
+        return Ok(None);
+    };
+    Ok(Some((
+        requirement.application.declaration,
+        requirement.signature,
+        Some(requirement.application),
+    )))
 }
 
 fn expression_call_states<'program>(
@@ -281,8 +336,14 @@ fn validate_call(
     if arguments.is_empty() {
         return;
     }
-    if let Some((name, parameters)) =
-        source_telescope(program, call.registration_operation(program))
+    let telescope = match source_telescope(program, call) {
+        Ok(telescope) => telescope,
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(reason));
+            return;
+        }
+    };
+    if let Some((name, parameters)) = telescope
         && !parameters.is_empty()
     {
         let state = call_state(call, context, expression_states);
@@ -468,6 +529,18 @@ fn validate_arguments(
         // binders and retained expressions: a kind-specific cursor silently
         // accepts permutations when their carriers happen to match.
         let parameter = parameters.get(ordinal);
+        if let Some(parameter) = parameter
+            && matches!(parameter.kind, TypeParameterKind::Const { .. })
+            && program
+                .data_type_parameter_by_symbol(argument.symbol)
+                .is_some_and(|source| matches!(source.kind, TypeParameterKind::Value { .. }))
+        {
+            return Err(Diagnostic::error(format!(
+                "const parameter `{}` of `{name}` cannot accept runtime-capable Value binder `{}`",
+                parameter.name,
+                argument.display_name(),
+            )));
+        }
         let named_type = argument.symbol.is_valid()
             && (matches!(
                 program.symbols.get(argument.symbol).kind,

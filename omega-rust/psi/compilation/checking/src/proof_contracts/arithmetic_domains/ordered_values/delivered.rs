@@ -70,7 +70,7 @@ pub(super) fn call_result_orderings(
     ) {
         return Vec::new();
     }
-    let Some(call_value) = ensured_call_operand(program, machine, state, expression) else {
+    let Some(call_value) = ensured_call_operand(program, expression) else {
         return Vec::new();
     };
     let parameters = program.state_parameters(entry);
@@ -169,22 +169,18 @@ fn ordered_result_call<'program>(
 /// and this operand is not reused as proof that two such calls are equal.
 pub(super) fn ensured_call_operand(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
     expression: ExpressionHandle,
 ) -> Option<Operand> {
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
     ordered_result_call(program, call)?;
-    let arguments = program.expression_table.expression_handles(call.arguments);
-    Some(Operand::Call {
+    // Exact completion identity must not require reconstructing every actual
+    // as an arithmetic term. Contracts translate only the inputs they observe;
+    // ordinary call admission still checks the complete actual roster.
+    Some(Operand::CompletedCall {
         target: call.target_symbol,
         occurrence: expression,
-        arguments: arguments
-            .iter()
-            .map(|argument| operand(program, machine, state, *argument, None))
-            .collect::<Option<Vec<_>>>()?,
     })
 }
 
@@ -196,7 +192,7 @@ fn rebound_call_orderings(
     destination: &Operand,
     written: &[String],
 ) -> Vec<Relation> {
-    let Some(call_value) = ensured_call_operand(program, machine, state, expression) else {
+    let Some(call_value) = ensured_call_operand(program, expression) else {
         return Vec::new();
     };
     call_result_orderings(program, machine, state, expression)
@@ -515,13 +511,8 @@ fn replace_operand(operand: Operand, call_value: &Operand, destination: &Operand
             domain,
             operands: operands.into_iter().map(replace).collect(),
         },
-        Operand::Call {
+        Operand::Call { target, arguments } => Operand::Call {
             target,
-            occurrence,
-            arguments,
-        } => Operand::Call {
-            target,
-            occurrence,
             arguments: arguments.into_iter().map(replace).collect(),
         },
         operand => operand,

@@ -11,8 +11,8 @@ mod operand_types;
 mod owned_arguments;
 
 use super::super::specification_calls::{
-    SelectedCallContract, owner_contracts, owner_leading_operands, owner_parameter_scope,
-    owner_return_type, owner_symbol, selected_call_contract,
+    SelectedCallContract, owner_contracts, owner_leading_operands, owner_return_type, owner_symbol,
+    selected_call_contract,
 };
 use super::selected_contracts::bound_term;
 use super::value_predicates::boolean_term;
@@ -1638,9 +1638,12 @@ impl<'program> StructuralJudge<'program> {
             &owner,
             &call.machine_arguments,
         )?;
-        let Some(parameter_scope) = owner_parameter_scope(program, &owner) else {
-            return None;
-        };
+        let parameter_scope = super::super::specification_calls::call_parameter_scope(
+            program,
+            scope.0.symbol,
+            &owner,
+            crate::CallSite::Expression { expression, call },
+        )?;
         let parameters = parameter_scope.as_ref();
         if super::super::struct_trace() {
             eprintln!(

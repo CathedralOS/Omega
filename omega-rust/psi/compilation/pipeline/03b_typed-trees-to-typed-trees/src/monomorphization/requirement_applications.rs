@@ -217,7 +217,21 @@ fn invocation_bindings(
                         // The subject shape alone also fits an unresolved
                         // spelling such as a boolean atom, so require that no
                         // canonical const identity closes this operand.
-                        if super::const_arguments::is_runtime_value_subject(program, argument)
+                        let forwarded_value = argument.symbol.is_valid()
+                            && program
+                                .data_type_parameter_by_symbol(argument.symbol)
+                                .is_some_and(|source| {
+                                    matches!(
+                                        source.kind,
+                                        typed_trees::data::TypeParameterKind::Value { .. }
+                                    )
+                                });
+                        if matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Value { .. }
+                        ) && (super::const_arguments::is_runtime_value_subject(
+                            program, argument,
+                        ) || forwarded_value)
                             && program.static_const_argument_identity(argument).is_none()
                         {
                             StaticMachineBindingValue::RuntimeValue {

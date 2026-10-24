@@ -5686,8 +5686,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     `data Index<Limit: u32> [copy] where value < Limit, { value: u32; }`, an
     `Index<9>` holding 8 cannot pass as an `Index<7>` argument or field.
     Reassignment cannot retag; equality admits only what it proves.
-  - Forwarding: a forwarded generic result type still exposes an unsubstituted
-    callee type in the caller's inferred hoist. Domain/index qualification
+  - Forwarding beyond the selected machine/member Value application row
+    (`samples/cli/facts/selected_value_application`): a forwarded value-indexed
+    data result can still expose an unsubstituted callee type in the caller's
+    inferred hoist. Domain/index qualification
     forwarding needs live/stale guard controls. Legacy range-shell fixtures
     migrate through **CANONICALIZE-SCALAR-RANGE-CONTRACTS**; module-owned forms
     through **MODULE-NAMESPACE-RESOLUTION**. Runtime inline-array extents and

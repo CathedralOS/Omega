@@ -439,9 +439,22 @@ impl TypedTrees {
     /// A selected map can supply captures only to its own exact authored row.
     pub fn realization_entry_template(
         &self,
-        mut entry: symbols::SymbolHandle,
+        entry: symbols::SymbolHandle,
         application: &super::ClosedConformanceApplication,
     ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
+        self.realization_entry_lineage(entry, application)?
+            .last()
+            .copied()
+    }
+
+    /// Validated executable-to-authored entry frames, including independent
+    /// invocation and capture copies. Parameter provenance composes through
+    /// these same frames; equal names or carriers do not establish identity.
+    pub fn realization_entry_lineage(
+        &self,
+        mut entry: symbols::SymbolHandle,
+        application: &super::ClosedConformanceApplication,
+    ) -> Option<Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>> {
         let mut visited = Vec::new();
         loop {
             let machine = self.machines().iter().find(|machine| {
@@ -449,10 +462,10 @@ impl TypedTrees {
                     .iter()
                     .any(|state| state.symbol == entry)
             })?;
-            if visited.contains(&machine.symbol) {
+            if visited.iter().any(|(symbol, _)| *symbol == machine.symbol) {
                 return None;
             }
-            visited.push(machine.symbol);
+            visited.push((machine.symbol, entry));
             let invocations = self
                 .machine_specializations
                 .iter()
@@ -495,7 +508,7 @@ impl TypedTrees {
                 entry = template;
                 continue;
             }
-            return Some((machine.symbol, entry));
+            return Some(visited);
         }
     }
 

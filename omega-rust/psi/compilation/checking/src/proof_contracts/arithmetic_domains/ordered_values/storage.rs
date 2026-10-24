@@ -53,7 +53,7 @@ impl Operand {
         }
         match self {
             Self::Integer(..) => true,
-            Self::Call { occurrence, .. } if occurrence.is_valid() => false,
+            Self::CompletedCall { .. } => false,
             Self::Call { arguments, .. }
             | Self::Binary {
                 operands: arguments,

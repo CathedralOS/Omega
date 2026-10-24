@@ -102,18 +102,15 @@ impl<'relations> ValueComparison<'relations> {
             (
                 Operand::Call {
                     target: left_target,
-                    occurrence: left_occurrence,
                     arguments: left,
                 },
                 Operand::Call {
                     target: right_target,
-                    occurrence: right_occurrence,
                     arguments: right,
                 },
             ) => {
                 left_target.is_valid()
                     && left_target == right_target
-                    && left_occurrence == right_occurrence
                     && self.same_children(left, right, depth)
             }
             (

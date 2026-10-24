@@ -1,0 +1,36 @@
+// A selected member preserves runtime index 9 below bound 10, so exact 10 - right yields 1, while returning the second Cell and closed left 7.
+// Expected exit: 0
+data Cell { value: u32; }
+data Selection<Value> { item: Value; left: u32; right: u32; }
+trait Choose<Value> {
+    machine choose<Left: u32, Right: u32>(first: Value, second: Value) -> Selection<Value>
+    requires Right <= 10
+    ensures result.right == Right;
+}
+Second<Value> satisfies Choose<Value> {
+    machine choose<Left: u32, Right: u32>(first: Value, second: Value) -> Selection<Value>
+    requires Right <= 10
+    ensures result.right == Right
+    { Selection { item: second, left: Left, right: Right } }
+}
+machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
+    first: Cell, second: Cell
+) -> Selection<Cell>
+requires Index <= 10
+ensures result.right == Index
+{ Implementation::choose<7u32, Index>(first, second) }
+machine exercise(choice: bool) crashes Trap {
+    let incoming: u32 = 9;
+    let copy: u32 = incoming;
+    let index: u32 = match choice { true -> incoming, false -> copy };
+    let answer: Selection<Cell> = selected<index, Second<Cell>>(
+        Cell { value: 73 }, Cell { value: 41 }
+    );
+    let difference: u32 = 10u32 - answer.right;
+    transition difference == 1 && answer.item.value == 41 && answer.left == 7 {
+        true -> done() _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine main() crashes Trap { exercise(true); exercise(false); }

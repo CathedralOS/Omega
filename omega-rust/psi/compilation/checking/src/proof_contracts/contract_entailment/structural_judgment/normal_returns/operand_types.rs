@@ -50,6 +50,7 @@ pub(super) fn receiving_types(
             }
             let parameters = call_parameter_scope(
                 program,
+                caller.symbol,
                 &owner,
                 crate::CallSite::Expression { expression, call },
             )?;

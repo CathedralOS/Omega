@@ -704,6 +704,7 @@ fn validate_value_call_arguments(
     callee_state: &State,
     executes: bool,
     diagnostics: &mut Vec<Diagnostic>,
+    expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) {
     // (The void-callee-in-value-position check lives in report_void_value_callee:
@@ -713,22 +714,21 @@ fn validate_value_call_arguments(
 
     // Reject incomplete bindings before type substitution or precondition
     // instantiation can zip arguments against the declared parameters.
-    let selected_signature = if call.static_requirement_dispatch.is_some() {
-        let Some(signature) = program.requirement_call_signature(current_machine.symbol, call)
-        else {
-            diagnostics.push(Diagnostic::error(
-                "selected implementation call lost its exact public signature",
-            ));
+    let site = CallSite::Expression { expression, call };
+    let parameters = match argument_correspondence::executable_parameters(
+        program,
+        current_machine.symbol,
+        &site,
+    ) {
+        Ok(parameters) => parameters,
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{}` has an invalid argument correspondence: {reason}",
+                callee_state.name,
+            )));
             return;
-        };
-        Some(signature)
-    } else {
-        None
+        }
     };
-    let parameters = selected_signature.map_or_else(
-        || program.state_parameters(callee_state),
-        |signature| program.state_signature_parameters(signature),
-    );
     if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
         && program
             .typed_program()
@@ -760,24 +760,26 @@ fn validate_value_call_arguments(
     // The selected public view already applies the map's captured telescope
     // and the member invocation. Re-inferring against an open private body
     // would compare unrelated binders with identical diagnostic names.
-    let Some(mut type_bindings) = type_arguments::call_type_arguments(
-        program,
-        current_machine,
-        Some(current_state),
-        callee_machine,
-        callee_state,
-        &call.machine_arguments,
-        arguments,
-    ) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "call `{}` has an invalid static type argument correspondence",
-            callee_state.name
-        )));
-        return;
+    let type_bindings = if call.static_requirement_dispatch.is_some() {
+        Vec::new()
+    } else {
+        let Some(bindings) = type_arguments::call_type_arguments(
+            program,
+            current_machine,
+            Some(current_state),
+            callee_machine,
+            callee_state,
+            &call.machine_arguments,
+            arguments,
+        ) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{}` has an invalid static type argument correspondence",
+                callee_state.name
+            )));
+            return;
+        };
+        bindings
     };
-    if selected_signature.is_some() {
-        type_bindings.clear();
-    }
     // Short-circuit operands remain statically checked, but an invocation
     // that cannot execute has no runtime precondition obligation.
     if executes {
@@ -799,7 +801,7 @@ fn validate_value_call_arguments(
         arguments,
         callee_state.name.as_str(),
         &format!("{}::{}", callee_machine.name, callee_state.name),
-        parameters,
+        &parameters,
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
@@ -833,7 +835,10 @@ pub use receiver_topology::{
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, trait_machine_signature_symbol,
 };
+mod argument_correspondence;
+pub(crate) use argument_correspondence::executable_parameters;
 mod occurrences;
+pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,

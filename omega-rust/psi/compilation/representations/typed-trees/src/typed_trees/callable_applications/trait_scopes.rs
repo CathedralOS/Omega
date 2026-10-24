@@ -65,12 +65,6 @@ impl TypedTrees {
             }
             return Some(closed.signature);
         }
-        let outer = self.requirement_outer_signature(
-            lexical_owner,
-            target,
-            dispatch,
-            requirement_application,
-        )?;
         if let Some(signature) =
             self.applied_callable_signatures
                 .iter()
@@ -82,12 +76,24 @@ impl TypedTrees {
             } if application == authored_application
                 && application.is_valid()
                 && owner == lexical_owner
-                && prepared.signature.symbol == target)
+                && (prepared.signature.symbol == target
+                    || {
+                        let source = self.expression_table.static_machine_application(application);
+                        source.lexical_owner == lexical_owner
+                            && source.registration_operation == target
+                            && source.binding_declaration == prepared.signature.symbol
+                    }))
                     .then_some(&prepared.signature)
                 })
         {
             return Some(signature);
         }
+        let outer = self.requirement_outer_signature(
+            lexical_owner,
+            target,
+            dispatch,
+            requirement_application,
+        )?;
         (dispatch.is_none() || outer.type_parameters.is_empty()).then_some(outer)
     }
 
@@ -144,6 +150,7 @@ impl TypedTrees {
         lexical_owner: SymbolHandle,
         call: &crate::expression::TableCallExpression,
         bindings: &[crate::static_applications::StaticMachineBinding],
+        selected: &signature::StateSignature,
     ) -> Result<Option<signature::StateSignature>, &'static str> {
         let target = call
             .static_requirement_dispatch
@@ -154,7 +161,7 @@ impl TypedTrees {
         {
             return Ok(None);
         }
-        let Some((declaration, declared)) = self.trait_machine_signature(target) else {
+        let Some((declaration, declared)) = self.trait_machine_signature(selected.symbol) else {
             return Ok(None);
         };
         if declared.type_parameters.is_empty() {
@@ -162,26 +169,16 @@ impl TypedTrees {
         }
         let declaration = declaration.symbol;
         let declared = declared.clone();
-        // Preparation revisits mutable applications. Derive from the canonical
-        // outer view, never a previously substituted invocation output.
-        let Some(selected) = self
-            .requirement_outer_signature(
-                lexical_owner,
-                target,
-                call.static_requirement_dispatch.as_ref(),
-                call.requirement_application,
-            )
-            .cloned()
-        else {
-            return Ok(None);
-        };
+        // The producer supplies the canonical outer view, including an open
+        // evidence-child's exact authored bound. A previous invocation output
+        // cannot be the basis of another round of substitution.
         let mut application = CallableApplication {
             region_scope: lexical_owner,
             ..CallableApplication::default()
         };
         for binding in bindings {
             let Some(parameter) =
-                self.applied_signature_parameter(&declared, &selected, binding.parameter)
+                self.applied_signature_parameter(&declared, selected, binding.parameter)
             else {
                 return Err("requirement invocation lost its prepared member binder");
             };
@@ -203,7 +200,7 @@ impl TypedTrees {
                 }
             }
         }
-        let signature = application.signature(self, &selected)?;
+        let signature = application.signature(self, selected)?;
         let owner = AppliedCallableOwner::RequirementInvocation {
             declaration,
             application: call.authored_machine_application,

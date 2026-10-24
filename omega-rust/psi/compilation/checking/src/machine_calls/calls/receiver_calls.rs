@@ -197,7 +197,7 @@ fn validate_resolved_receiver_call(
             state.name.as_str(),
             callee_machine,
             state,
-            &call.machine_arguments,
+            call,
             writable_roots,
             diagnostics,
         );

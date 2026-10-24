@@ -135,7 +135,7 @@ pub fn selected_value_call_requirement_entailed(
         _ => None,
     };
     let Some(parameter_scope) =
-        super::specification_calls::call_parameter_scope(program, &owner, site)
+        super::specification_calls::call_parameter_scope(program, machine.symbol, &owner, site)
     else {
         return false;
     };
