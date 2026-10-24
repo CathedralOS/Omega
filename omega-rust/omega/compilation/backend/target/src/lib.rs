@@ -43,6 +43,7 @@ pub use target_profile::{
     Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat, ProgramEntryCallingConvention,
     ProgramEntryPhysicalContractPackage, ProgramEntryReceiverProvisioning, ProgramEntrySchema,
     ProgramEntrySlotDeclaration, ProgramEntryVisibleParameters, TargetProfile,
+    TargetWireIdentityError,
 };
 pub use target_semantics::{
     SymbolicTargetObservationApplication, TargetEntryStackGuarantee, TargetSemantics, UefiX86_64,

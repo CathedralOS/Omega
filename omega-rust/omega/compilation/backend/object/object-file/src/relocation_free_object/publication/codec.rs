@@ -1,11 +1,11 @@
 //! Canonical version-1 publication encoding, not admission against a source.
 use super::{
-    Architecture, FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
+    FuelScheduleIdentity, FunctionFragmentObjectContainerManifest,
     FunctionFragmentObjectContainerManifestDecodeError,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentObjectContainerStage,
     FunctionFragmentObjectContainerStatistics, FunctionFragmentObjectContainerUnavailableData,
-    FunctionFragmentTextSectionManifestIdentity, MachineId, NativeTarget, ObjectFormat,
-    ObjectLocalSymbolId, OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
+    FunctionFragmentTextSectionManifestIdentity, MachineId, NativeTarget, ObjectLocalSymbolId,
+    OptimizationSelectionIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity, RelocationFreeObjectRelocationRequirements,
     RelocationFreeObjectSymbolPolicy, SelectedInstructionPlanIdentity, SemanticFingerprint,
     TerminalPsiIdentity, TerminalRelocationFreeTextSectionIdentity, VocabularyMarker,
@@ -64,7 +64,7 @@ impl FunctionFragmentObjectContainerManifest {
             .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidFuelSchedule)?;
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
-        let target = decode_target(&mut cursor)?;
+        let target = NativeTarget::from_wire_identity_bytes(&cursor.array()?)?;
         let semantic_entry = MachineId::new(cursor.u64()?)
             .ok_or(FunctionFragmentObjectContainerManifestDecodeError::InvalidSemanticEntry)?;
         let semantic_entry_symbol = ObjectLocalSymbolId::new(cursor.u64()?)
@@ -171,38 +171,4 @@ pub(super) fn encode_manifest_content(record: &FunctionFragmentObjectContainerMa
     );
     bytes.extend_from_slice(&[1; 4]);
     bytes
-}
-
-pub(super) fn decode_target(
-    cursor: &mut Cursor<'_>,
-) -> Result<NativeTarget, FunctionFragmentObjectContainerManifestDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => {
-            return Err(
-                FunctionFragmentObjectContainerManifestDecodeError::UnknownArchitecture(tag),
-            );
-        }
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => {
-            return Err(
-                FunctionFragmentObjectContainerManifestDecodeError::UnknownObjectFormat(tag),
-            );
-        }
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| FunctionFragmentObjectContainerManifestDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| FunctionFragmentObjectContainerManifestDecodeError::TargetLayoutOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
-    })
 }

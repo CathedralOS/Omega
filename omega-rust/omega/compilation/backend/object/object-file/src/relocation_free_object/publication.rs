@@ -15,7 +15,7 @@ use optimization_core::{
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub(crate) use statistics::relocation_free_object_statistics;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,3 +84,15 @@ pub enum FunctionFragmentObjectContainerManifestDecodeError {
 }
 
 optimization_core::truncated_from_adapter!(FunctionFragmentObjectContainerManifestDecodeError);
+
+/// The canonical target wire identity's three failures in this manifest's own
+/// vocabulary; the shared table moved to `target` without renaming them.
+impl From<TargetWireIdentityError> for FunctionFragmentObjectContainerManifestDecodeError {
+    fn from(error: TargetWireIdentityError) -> Self {
+        match error {
+            TargetWireIdentityError::UnknownArchitecture(tag) => Self::UnknownArchitecture(tag),
+            TargetWireIdentityError::UnknownObjectFormat(tag) => Self::UnknownObjectFormat(tag),
+            TargetWireIdentityError::LayoutOverflow => Self::TargetLayoutOverflow,
+        }
+    }
+}

@@ -102,8 +102,11 @@
 //! test `omgtro_version_2_covers_normalized_foreign_imports` pins it.
 
 pub(crate) use optimization_core::codec_bytes;
+/// The foundation's bounded byte cursor, re-exported as this crate's decoder
+/// primitive: it already carries every read the wire codecs perform, and
+/// `From<Truncated>` reaches each format's own error enum.
+pub(crate) use optimization_core::cursor;
 mod artifact_custody;
-pub(crate) mod cursor;
 mod fragment_container;
 mod names;
 mod object_plan;

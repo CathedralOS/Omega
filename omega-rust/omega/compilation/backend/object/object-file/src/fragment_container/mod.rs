@@ -75,7 +75,6 @@ impl ValidatedFunctionFragmentObjectContainerManifest {
     pub fn record(&self) -> &FunctionFragmentObjectContainerManifest {
         &self.record
     }
-
 }
 
 #[derive(Debug)]

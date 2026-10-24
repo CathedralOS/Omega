@@ -653,6 +653,15 @@ pub struct NativeTarget {
     pub pointer_alignment: usize,
 }
 
+/// A wire identity that is not a target's: an unassigned architecture or
+/// object-format discriminant, or a pointer field this host cannot represent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetWireIdentityError {
+    UnknownArchitecture(u8),
+    UnknownObjectFormat(u8),
+    LayoutOverflow,
+}
+
 impl NativeTarget {
     /// The canonical identity bytes this target contributes to an
     /// identity encoding: architecture, object format, pointer size and
@@ -698,6 +707,42 @@ impl NativeTarget {
             (self.pointer_alignment as u64).to_le_bytes(),
         );
         bytes
+    }
+
+    /// The inverse of [`Self::wire_identity_bytes`]: the same table that
+    /// spells a target's wire identity reads it back. The reader lives beside
+    /// the writer so the two cannot drift, and a decoder for a persisted
+    /// identity cannot accept a field group the writer never produces.
+    ///
+    /// This decodes shape, not admission: a decoded pointer contract is not
+    /// thereby a canonical deployment pointer, which the admitting validator
+    /// decides separately.
+    pub fn from_wire_identity_bytes(encoded: &[u8; 18]) -> Result<Self, TargetWireIdentityError> {
+        let architecture = match encoded[0] {
+            1 => Architecture::Aarch64,
+            2 => Architecture::X86_64,
+            tag => return Err(TargetWireIdentityError::UnknownArchitecture(tag)),
+        };
+        let object_format = match encoded[1] {
+            1 => ObjectFormat::Elf,
+            2 => ObjectFormat::MachO,
+            3 => ObjectFormat::Coff,
+            tag => return Err(TargetWireIdentityError::UnknownObjectFormat(tag)),
+        };
+        let pointer_size = usize::try_from(u64::from_le_bytes(
+            encoded[2..10].try_into().expect("a 64-bit pointer field"),
+        ))
+        .map_err(|_| TargetWireIdentityError::LayoutOverflow)?;
+        let pointer_alignment = usize::try_from(u64::from_le_bytes(
+            encoded[10..18].try_into().expect("a 64-bit pointer field"),
+        ))
+        .map_err(|_| TargetWireIdentityError::LayoutOverflow)?;
+        Ok(Self {
+            architecture,
+            object_format,
+            pointer_size,
+            pointer_alignment,
+        })
     }
 
     /// The canonical identity bytes this target contributes to an
@@ -840,9 +885,9 @@ fn host_object_format() -> ObjectFormat {
 #[cfg(test)]
 mod tests {
     use super::{
-        HostedIntrinsicBundle, NativeTarget, ProgramEntryPhysicalContractPackage,
-        ProgramEntrySchema, ProgramEntryVisibleParameters, TargetProfile,
-        TargetRequiredRootSlotDeclaration,
+        Architecture, HostedIntrinsicBundle, NativeTarget, ObjectFormat,
+        ProgramEntryPhysicalContractPackage, ProgramEntrySchema, ProgramEntryVisibleParameters,
+        TargetProfile, TargetRequiredRootSlotDeclaration, TargetWireIdentityError,
     };
 
     #[test]
@@ -1219,5 +1264,49 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn wire_identity_round_trips_through_its_single_table() {
+        // The reader is the writer's inverse for every declared target, and a
+        // pointer contract with distinct widths pins the field order: a
+        // reader that transposed size and alignment would still round-trip
+        // the 8/8 targets, so the 8/4 probe is what makes the order real.
+        for target in [
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::linux_x64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::windows_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget {
+                architecture: Architecture::Aarch64,
+                object_format: ObjectFormat::Elf,
+                pointer_size: 8,
+                pointer_alignment: 4,
+            },
+        ] {
+            assert_eq!(
+                NativeTarget::from_wire_identity_bytes(&target.wire_identity_bytes()),
+                Ok(target)
+            );
+        }
+        assert_eq!(
+            NativeTarget::from_wire_identity_bytes(&[
+                9, 1, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            Err(TargetWireIdentityError::UnknownArchitecture(9))
+        );
+        assert_eq!(
+            NativeTarget::from_wire_identity_bytes(&[
+                1, 9, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0,
+            ]),
+            Err(TargetWireIdentityError::UnknownObjectFormat(9))
+        );
+        // Zero is unassigned in both one-based tables and is not a wildcard.
+        assert_eq!(
+            NativeTarget::from_wire_identity_bytes(&[0; 18]),
+            Err(TargetWireIdentityError::UnknownArchitecture(0))
+        );
     }
 }

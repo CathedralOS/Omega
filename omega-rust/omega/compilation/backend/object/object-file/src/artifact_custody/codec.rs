@@ -1,9 +1,9 @@
 //! Canonical object-artifact and manifest wire encoding.
 
 use super::{
-    Architecture, FunctionFragmentEmissionManifestIdentity,
-    FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
-    FunctionRelativeOptimizationRealizationManifestIdentity, MachineId, NativeTarget, ObjectFormat,
+    FunctionFragmentEmissionManifestIdentity, FunctionFragmentObjectContainerManifestIdentity,
+    FunctionFragmentTextSectionManifestIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, MachineId, NativeTarget,
     OptimizationSelectionIdentity, OptimizedObjectArtifactIdentity,
     OptimizedObjectArtifactManifest, OptimizedObjectArtifactRecord,
     OptimizedObjectArtifactRecordDecodeError, OptimizedObjectArtifactStatistics,
@@ -42,7 +42,7 @@ pub(super) fn decode_artifact_content(
         psi: decode_psi(cursor)?,
         debug_section: decode_optional_array(cursor)?,
         selections: OptimizationSelectionIdentity::from_bytes(cursor.array()?),
-        target: decode_target(cursor)?,
+        target: NativeTarget::from_wire_identity_bytes(&cursor.array()?)?,
         semantic_entry: decode_machine(cursor)?,
         pre_physical_manifest: PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes(
@@ -111,36 +111,6 @@ pub(super) fn decode_psi(
             OptimizedObjectArtifactRecordDecodeError::UnknownVocabulary(marker),
         )?,
         program_fingerprint: SemanticFingerprint::from_bytes(cursor.array()?),
-    })
-}
-
-pub(super) fn decode_target(
-    cursor: &mut Cursor<'_>,
-) -> Result<NativeTarget, OptimizedObjectArtifactRecordDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => {
-            return Err(OptimizedObjectArtifactRecordDecodeError::UnknownArchitecture(tag));
-        }
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => {
-            return Err(OptimizedObjectArtifactRecordDecodeError::UnknownObjectFormat(tag));
-        }
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| OptimizedObjectArtifactRecordDecodeError::TargetLayoutOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| OptimizedObjectArtifactRecordDecodeError::TargetLayoutOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
     })
 }
 

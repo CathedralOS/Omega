@@ -21,7 +21,7 @@ use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
 };
 use semantic_vocabulary::{BoundaryMachineId, FuelScheduleIdentity, MachineId, OperationId};
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{NativeTarget, TargetWireIdentityError};
 use target_operations::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -242,6 +242,21 @@ pub enum RelocationFreeObjectDecodeError {
 }
 
 optimization_core::truncated_from_adapter!(RelocationFreeObjectDecodeError);
+
+/// The canonical target wire identity's three failures, each keeping this
+/// format's own spelling: the object layer's error vocabulary never changes
+/// because the table moved to its owner.
+impl From<TargetWireIdentityError> for RelocationFreeObjectDecodeError {
+    fn from(error: TargetWireIdentityError) -> Self {
+        match error {
+            TargetWireIdentityError::UnknownArchitecture(tag) => {
+                Self::UnknownTargetArchitecture(tag)
+            }
+            TargetWireIdentityError::UnknownObjectFormat(tag) => Self::UnknownObjectFormat(tag),
+            TargetWireIdentityError::LayoutOverflow => Self::LengthOverflow,
+        }
+    }
+}
 
 pub fn canonical_private_machine_symbol_name(machine: MachineId) -> String {
     format!("__omega_terminal_machine_{}", machine.get())
@@ -536,7 +551,7 @@ fn encode_plan_content(
     crate::codec_bytes::push_encoded(&mut output, object.fuel_schedule.marker().to_le_bytes());
     output.extend_from_slice(&object.selected.bytes());
     output.extend_from_slice(&object.selections.bytes());
-    encode_target(&mut output, object.target);
+    output.extend_from_slice(&object.target.wire_identity_bytes());
     encode_string(&mut output, &object.text_section.name)?;
     crate::codec_bytes::push_encoded(&mut output, object.text_section.alignment.to_le_bytes());
     crate::codec_bytes::push_encoded(&mut output, object.text_section.byte_count.to_le_bytes());
@@ -794,7 +809,7 @@ fn decode_plan_content(
         .ok_or(RelocationFreeObjectDecodeError::InvalidFuelSchedule)?;
     let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
     let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-    let target = decode_target(cursor)?;
+    let target = NativeTarget::from_wire_identity_bytes(&cursor.array()?)?;
     let text_section = RelocationFreeObjectTextSection {
         name: cursor_string(cursor)?,
         alignment: cursor.u64()?,
@@ -1051,48 +1066,6 @@ fn decode_placed_callback_materializations(
     Ok(materializations)
 }
 
-fn encode_target(output: &mut Vec<u8>, target: NativeTarget) {
-    output.push(match target.architecture {
-        Architecture::Aarch64 => 1,
-        Architecture::X86_64 => 2,
-    });
-    output.push(match target.object_format {
-        ObjectFormat::Elf => 1,
-        ObjectFormat::MachO => 2,
-        ObjectFormat::Coff => 3,
-    });
-    crate::codec_bytes::push_encoded(output, (target.pointer_size as u64).to_le_bytes());
-    crate::codec_bytes::push_encoded(output, (target.pointer_alignment as u64).to_le_bytes());
-}
-
-fn decode_target(cursor: &mut Cursor<'_>) -> Result<NativeTarget, RelocationFreeObjectDecodeError> {
-    let architecture = match cursor.byte()? {
-        1 => Architecture::Aarch64,
-        2 => Architecture::X86_64,
-        tag => {
-            return Err(RelocationFreeObjectDecodeError::UnknownTargetArchitecture(
-                tag,
-            ));
-        }
-    };
-    let object_format = match cursor.byte()? {
-        1 => ObjectFormat::Elf,
-        2 => ObjectFormat::MachO,
-        3 => ObjectFormat::Coff,
-        tag => return Err(RelocationFreeObjectDecodeError::UnknownObjectFormat(tag)),
-    };
-    let pointer_size = usize::try_from(cursor.u64()?)
-        .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)?;
-    let pointer_alignment = usize::try_from(cursor.u64()?)
-        .map_err(|_| RelocationFreeObjectDecodeError::LengthOverflow)?;
-    Ok(NativeTarget {
-        architecture,
-        object_format,
-        pointer_size,
-        pointer_alignment,
-    })
-}
-
 fn encode_string(output: &mut Vec<u8>, value: &str) -> Result<(), RelocationFreeObjectError> {
     encode_bytes(output, value.as_bytes())
 }
@@ -1124,9 +1097,9 @@ fn cursor_string(cursor: &mut Cursor) -> Result<String, RelocationFreeObjectDeco
 #[cfg(test)]
 mod tests {
     use super::{
-        Architecture, BoundaryMachineId, CONTAINER_VERSION, FuelScheduleIdentity, MachineId,
-        NativeTarget, NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
-        ObjectFormat, ObjectLocalSymbolId, OperationId, OptimizationSelectionIdentity,
+        BoundaryMachineId, CONTAINER_VERSION, FuelScheduleIdentity, MachineId, NativeTarget,
+        NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
+        ObjectLocalSymbolId, OperationId, OptimizationSelectionIdentity,
         PlacedNormalizedForeignCallResolution, RelocationFreeFunctionSymbol,
         RelocationFreeObjectContainerIdentity, RelocationFreeObjectDecodeError,
         RelocationFreeObjectError, RelocationFreeObjectNormalizedImport, RelocationFreeObjectPlan,
@@ -1140,6 +1113,7 @@ mod tests {
         decode_relocation_free_object, encode_relocation_free_object,
         validate_relocation_free_object,
     };
+    use target::{Architecture, ObjectFormat};
 
     fn plan() -> RelocationFreeObjectPlan {
         let machine = MachineId::new(7).unwrap();

@@ -14,13 +14,13 @@ use optimization_core::{
     RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
 };
 use semantic_vocabulary::MachineId;
-use target::{Architecture, NativeTarget, ObjectFormat};
+use target::{NativeTarget, TargetWireIdentityError};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::cursor::Cursor;
 use crate::{RelocationFreeObjectContainerError, StagedOptimizedRelocationFreeObjectContainer};
 use codec::{
-    decode_artifact_content, decode_machine, decode_psi, decode_statistics, decode_target,
+    decode_artifact_content, decode_machine, decode_psi, decode_statistics,
     encode_artifact_content, encode_manifest_content,
 };
 
@@ -194,8 +194,9 @@ impl OptimizedObjectArtifactManifest {
         let psi = decode_psi(&mut cursor)
             .map_err(OptimizedObjectArtifactManifestDecodeError::Artifact)?;
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-        let target = decode_target(&mut cursor)
-            .map_err(OptimizedObjectArtifactManifestDecodeError::Artifact)?;
+        let target = NativeTarget::from_wire_identity_bytes(&cursor.array()?)
+            .map_err(OptimizedObjectArtifactRecordDecodeError::from)
+            .map_err(OptimizedObjectArtifactManifestDecodeError::from)?;
         let semantic_entry = decode_machine(&mut cursor)
             .map_err(OptimizedObjectArtifactManifestDecodeError::Artifact)?;
         let object_container_manifest =
@@ -368,6 +369,18 @@ pub enum OptimizedObjectArtifactRecordDecodeError {
 }
 
 optimization_core::truncated_from_adapter!(OptimizedObjectArtifactRecordDecodeError);
+
+/// The canonical target wire identity's three failures in this record's own
+/// vocabulary; the shared table moved to `target` without renaming them.
+impl From<TargetWireIdentityError> for OptimizedObjectArtifactRecordDecodeError {
+    fn from(error: TargetWireIdentityError) -> Self {
+        match error {
+            TargetWireIdentityError::UnknownArchitecture(tag) => Self::UnknownArchitecture(tag),
+            TargetWireIdentityError::UnknownObjectFormat(tag) => Self::UnknownObjectFormat(tag),
+            TargetWireIdentityError::LayoutOverflow => Self::TargetLayoutOverflow,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedObjectArtifactManifestDecodeError {
