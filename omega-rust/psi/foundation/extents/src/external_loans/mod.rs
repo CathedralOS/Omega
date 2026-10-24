@@ -2,12 +2,11 @@
 //! grant, the reach receipt that confines the borrower, the linear loan token,
 //! and the completion receipt that releases it.
 
-use std::collections::BTreeSet;
-
 use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 use crate::identities::normalized_extent_identity;
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+    NormalizedIdentitySet,
 };
 use crate::loans::{ExtentLoan, LoanPolarity};
 
@@ -94,20 +93,9 @@ impl ExternalReachReceipt {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CompletionObligations(BTreeSet<ExternalCompletionFactId>);
-
-impl CompletionObligations {
-    pub fn from_normalized_facts(
-        facts: impl IntoIterator<Item = ExternalCompletionFactId>,
-    ) -> Self {
-        Self(facts.into_iter().collect())
-    }
-
-    pub fn facts(&self) -> impl Iterator<Item = ExternalCompletionFactId> + '_ {
-        self.0.iter().copied()
-    }
-}
+/// The completion facts one admitted external-loan grant demands before the
+/// held borrow is released. See [`NormalizedIdentitySet`].
+pub type CompletionObligations = NormalizedIdentitySet<ExternalCompletionFactId>;
 
 /// Reusable admitted policy for lending matching extents to one external
 /// borrower. The per-transfer `ExternalLoanId` distinguishes completions.
@@ -211,7 +199,7 @@ impl<'extent> ExternalLoan<'extent> {
             Some("completion receipt names a different lent extent range")
         } else if !receipt.borrow_released {
             Some("completion receipt does not establish external-borrow release")
-        } else if !self.completion.0.is_subset(&receipt.established_facts) {
+        } else if !receipt.established_facts.contains(&self.completion) {
             Some("completion receipt lacks facts required by the external-loan grant")
         } else {
             None
@@ -337,7 +325,7 @@ pub struct ExternalCompletionReceipt {
     base: u64,
     length: u64,
     borrow_released: bool,
-    established_facts: BTreeSet<ExternalCompletionFactId>,
+    established_facts: CompletionObligations,
 }
 
 impl ExternalCompletionReceipt {
@@ -361,7 +349,7 @@ impl ExternalCompletionReceipt {
             base: loan.loan.base(),
             length: loan.loan.length(),
             borrow_released,
-            established_facts: established_facts.into_iter().collect(),
+            established_facts: CompletionObligations::from_normalized_identities(established_facts),
         }
     }
 }

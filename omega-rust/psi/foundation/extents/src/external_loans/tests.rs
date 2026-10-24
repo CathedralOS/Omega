@@ -50,7 +50,10 @@ fn external_read_loan_requires_completion_facts_before_releasing_borrow() {
     let loan = extent.loan(0, 32).expect("shared DMA source");
     let grant = external_grant(
         ExternalLoanDirection::DeviceReads,
-        CompletionObligations::from_normalized_facts([completion_fact(700), completion_fact(701)]),
+        CompletionObligations::from_normalized_identities([
+            completion_fact(700),
+            completion_fact(701),
+        ]),
     );
     let reach = reach_receipt(
         loan_id(600),

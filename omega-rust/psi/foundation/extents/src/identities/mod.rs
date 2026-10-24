@@ -165,32 +165,45 @@ normalized_extent_identity! {
 
     ExtentRightId, "extent-right"
 }
-/// An open, normalized set of grant-established rights.
+/// An open set of normalized identity values: the grant-established rights a
+/// claim carries, or the facts one admitted obligation family demands.
 ///
-/// The compiler does not bless a READ/WRITE/EXECUTE enumeration here. Target
-/// and provider packages define right identities; admission controls which
-/// sets may enter a root grant.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ExtentRights(BTreeSet<ExtentRightId>);
+/// One representation serves every such carrier, so the coverage rule — every
+/// required identity is present in the establishing set — is written once
+/// here. The compiler does not bless a READ/WRITE/EXECUTE enumeration: target
+/// and provider packages define right and fact identities, and admission
+/// controls which sets may enter a root grant or a provider receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NormalizedIdentitySet<Id>(BTreeSet<Id>);
 
-impl ExtentRights {
+impl<Id> Default for NormalizedIdentitySet<Id> {
+    fn default() -> Self {
+        Self(BTreeSet::new())
+    }
+}
+
+impl<Id: Copy + Ord> NormalizedIdentitySet<Id> {
     pub const fn none() -> Self {
         Self(BTreeSet::new())
     }
 
-    pub fn from_normalized_identities(rights: impl IntoIterator<Item = ExtentRightId>) -> Self {
-        Self(rights.into_iter().collect())
+    pub fn from_normalized_identities(identities: impl IntoIterator<Item = Id>) -> Self {
+        Self(identities.into_iter().collect())
     }
 
     pub fn union(&self, other: &Self) -> Self {
         Self(self.0.union(&other.0).copied().collect())
     }
 
+    /// Whether every identity in `required` is present in this set.
     pub fn contains(&self, required: &Self) -> bool {
         required.0.is_subset(&self.0)
     }
 
-    pub fn identities(&self) -> impl Iterator<Item = ExtentRightId> + '_ {
+    pub fn identities(&self) -> impl Iterator<Item = Id> + '_ {
         self.0.iter().copied()
     }
 }
+
+/// The rights one claim carries. See [`NormalizedIdentitySet`].
+pub type ExtentRights = NormalizedIdentitySet<ExtentRightId>;

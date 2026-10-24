@@ -3,11 +3,11 @@ use crate::extent::diagnostic::{ExtentDiagnostic, nonzero_identity};
 use crate::identities::normalized_extent_identity;
 use crate::identities::{
     AddressSpaceId, ExtentLineageId, ExtentProvenanceId, ExtentRights, MappingEraId,
+    NormalizedIdentitySet,
 };
 use crate::loans::{ExtentLoan, LoanPolarity};
 use crate::roots::root_grants::ValidatedExtentGeometry;
 use crate::roots::root_origins::ExtentRootOrigin;
-use std::collections::BTreeSet;
 
 normalized_extent_identity! {
 
@@ -28,39 +28,18 @@ normalized_extent_identity! {
 
     TranslationActivationFactId, "translation-activation-fact"
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TranslationInstallObligations(BTreeSet<TranslationActivationFactId>);
-
-impl TranslationInstallObligations {
-    pub fn from_normalized_facts(
-        facts: impl IntoIterator<Item = TranslationActivationFactId>,
-    ) -> Self {
-        Self(facts.into_iter().collect())
-    }
-
-    pub fn facts(&self) -> impl Iterator<Item = TranslationActivationFactId> + '_ {
-        self.0.iter().copied()
-    }
-}
+/// The translation-activation facts one admitted mapping grant obliges an
+/// activation receipt to establish. See [`NormalizedIdentitySet`].
+pub type TranslationInstallObligations = NormalizedIdentitySet<TranslationActivationFactId>;
 
 normalized_extent_identity! {
 
     TranslationCompletionFactId, "translation-completion-fact"
 }
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TranslationReleaseObligations(BTreeSet<TranslationCompletionFactId>);
-
-impl TranslationReleaseObligations {
-    pub fn from_normalized_facts(
-        facts: impl IntoIterator<Item = TranslationCompletionFactId>,
-    ) -> Self {
-        Self(facts.into_iter().collect())
-    }
-
-    pub fn facts(&self) -> impl Iterator<Item = TranslationCompletionFactId> + '_ {
-        self.0.iter().copied()
-    }
-}
+/// The translation-completion facts one admitted mapping grant obliges a
+/// release receipt to establish before either side's authority becomes
+/// reusable. See [`NormalizedIdentitySet`].
+pub type TranslationReleaseObligations = NormalizedIdentitySet<TranslationCompletionFactId>;
 
 normalized_extent_identity! {
 
@@ -69,21 +48,8 @@ normalized_extent_identity! {
 /// The provider-established facts a shared-custody mapping's revocation
 /// receipt must show before its payload may be read zero-copy: the hostile
 /// peer's write permission was revoked or remapped away and the resulting
-/// cross-core invalidation completed.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PeerWriteRevocationObligations(BTreeSet<PeerWriteRevocationFactId>);
-
-impl PeerWriteRevocationObligations {
-    pub fn from_normalized_facts(
-        facts: impl IntoIterator<Item = PeerWriteRevocationFactId>,
-    ) -> Self {
-        Self(facts.into_iter().collect())
-    }
-
-    pub fn facts(&self) -> impl Iterator<Item = PeerWriteRevocationFactId> + '_ {
-        self.0.iter().copied()
-    }
-}
+/// cross-core invalidation completed. See [`NormalizedIdentitySet`].
+pub type PeerWriteRevocationObligations = NormalizedIdentitySet<PeerWriteRevocationFactId>;
 
 /// Reusable provider-admitted mapping policy.
 ///
@@ -303,6 +269,113 @@ impl MappingReceiptContext {
     }
 }
 
+/// One provider receipt covering one mapping transition: it binds the exact
+/// structural evidence of the mapping it concerns, asserts the transition it
+/// names is established, and lists the facts that transition established.
+///
+/// The three admitted transition families — translation installation,
+/// peer-write revocation, and translation release — share this carrier. Their
+/// fact identities keep them distinct types, so a receipt for one transition
+/// cannot complete another.
+#[derive(Debug, PartialEq, Eq)]
+pub struct MappingTransitionReceipt<FactId> {
+    mapping: MappingEvidence,
+    established: bool,
+    established_facts: NormalizedIdentitySet<FactId>,
+}
+
+impl<FactId: Copy + Ord> MappingTransitionReceipt<FactId> {
+    pub fn from_admitted_provider(
+        context: &MappingReceiptContext,
+        established: bool,
+        established_facts: impl IntoIterator<Item = FactId>,
+    ) -> Self {
+        Self {
+            mapping: context.0.clone(),
+            established,
+            established_facts: NormalizedIdentitySet::from_normalized_identities(established_facts),
+        }
+    }
+
+    /// The one checked transition rule: the receipt binds the pending state's
+    /// exact mapping evidence, establishes the transition it names, and
+    /// covers every fact the admitted grant demanded of that transition.
+    /// Refusal wording stays per-transition policy; the precedence is fixed
+    /// here.
+    fn verify(
+        &self,
+        mapping: &MappingEvidence,
+        obligations: &NormalizedIdentitySet<FactId>,
+        wording: &TransitionWording,
+    ) -> Result<(), ExtentDiagnostic> {
+        let refusal = if &self.mapping != mapping {
+            format!(
+                "{} receipt does not bind the exact {} mapping",
+                wording.transition, wording.state
+            )
+        } else if !self.established {
+            format!(
+                "{} receipt does not {}",
+                wording.transition, wording.establishes
+            )
+        } else if !self.established_facts.contains(obligations) {
+            format!(
+                "{} receipt lacks required {} facts",
+                wording.transition, wording.facts
+            )
+        } else {
+            return Ok(());
+        };
+        Err(ExtentDiagnostic(refusal))
+    }
+}
+
+/// How one admitted transition family words a refused receipt: its name, the
+/// pending state's adjective, what its transition establishes, and the fact
+/// family the admitted grant demands.
+struct TransitionWording {
+    transition: &'static str,
+    state: &'static str,
+    establishes: &'static str,
+    facts: &'static str,
+}
+
+const ACTIVATION_WORDING: TransitionWording = TransitionWording {
+    transition: "translation-activation",
+    state: "pending",
+    establishes: "establish installed translations",
+    facts: "installation",
+};
+
+const REVOCATION_WORDING: TransitionWording = TransitionWording {
+    transition: "peer-write-revocation",
+    state: "active",
+    establishes: "establish the revoked write permission",
+    facts: "invalidation",
+};
+
+const RELEASE_WORDING: TransitionWording = TransitionWording {
+    transition: "translation-release",
+    state: "pending",
+    establishes: "release stale translations",
+    facts: "completion",
+};
+
+/// Provider receipt that turns one pending mapping into an active one: bound
+/// to the exact pending mapping, it establishes installed translations and
+/// the activation facts the admitted grant demanded.
+pub type TranslationActivationReceipt = MappingTransitionReceipt<TranslationActivationFactId>;
+
+/// Provider receipt asserting that for one exact active shared mapping the
+/// hostile peer's write permission was revoked or remapped away and the
+/// required cross-core invalidation completed. A receipt naming only a
+/// compact identity cannot claim the transition.
+pub type PeerWriteRevocationReceipt = MappingTransitionReceipt<PeerWriteRevocationFactId>;
+
+/// Provider receipt that releases stale translations for one pending unmap,
+/// after which both sides' authority is reusable.
+pub type TranslationReleaseReceipt = MappingTransitionReceipt<TranslationCompletionFactId>;
+
 /// Opaque provider context binding one exact mapped subrange to the complete
 /// structural evidence for its active mapping.
 ///
@@ -317,15 +390,17 @@ pub struct MappedRangeReceiptContext {
 
 /// One active mapping. It owns the destination virtual-range authority and
 /// either owns or borrow-carries its source as declared by the grant.
+///
+/// `evidence` is the one retained description of this mapping: its identity,
+/// the admitted grant with that grant's obligations, the source and mapped
+/// facts, and the destination authority a release restores. The live `mapped`
+/// and `source` carriers below it are the only copies of the authority
+/// itself, so no second field can drift from the description receipts bind.
 #[derive(Debug)]
 pub struct MappedExtent<'source> {
-    identity: MappingId,
-    grant: MappingGrantId,
     evidence: MappingEvidence,
     mapped: Extent,
     source: MappingSource<'source>,
-    destination: DestinationRestoration,
-    unmap_obligations: TranslationReleaseObligations,
     /// Whether a peer-write-revocation receipt completed for a shared-custody
     /// source. Irrelevant for owned/exclusive sources; gates `stable_loan`.
     peer_write_revoked: bool,
@@ -349,16 +424,15 @@ impl Eq for MappedExtent<'_> {}
 #[derive(Debug)]
 pub struct PendingMap<'source> {
     mapping: MappedExtent<'source>,
-    map_obligations: TranslationInstallObligations,
 }
 
 impl<'source> PendingMap<'source> {
     pub const fn mapping(&self) -> MappingId {
-        self.mapping.identity
+        self.mapping.identity()
     }
 
     pub const fn grant(&self) -> MappingGrantId {
-        self.mapping.grant
+        self.mapping.grant()
     }
 
     pub fn receipt_context(&self) -> MappingReceiptContext {
@@ -369,7 +443,7 @@ impl<'source> PendingMap<'source> {
     /// receipt must establish. A provider holding only the pending carrier
     /// reads the admitted fact set here; the obligations carry no authority.
     pub const fn install_obligations(&self) -> &TranslationInstallObligations {
-        &self.map_obligations
+        self.mapping.evidence.grant.install_obligations()
     }
 
     /// Provider-side source address data for deriving target translation
@@ -422,31 +496,15 @@ impl<'source> PendingMap<'source> {
         self.mapping.mapped.era()
     }
 
-    pub(crate) fn validate_activation_receipt(
-        &self,
-        receipt: &TranslationActivationReceipt,
-    ) -> Result<(), ExtentDiagnostic> {
-        let mismatch = if receipt.mapping != self.mapping.evidence {
-            Some("translation-activation receipt does not bind the exact pending mapping")
-        } else if !receipt.translations_installed {
-            Some("translation-activation receipt does not establish installed translations")
-        } else if !self.map_obligations.0.is_subset(&receipt.established_facts) {
-            Some("translation-activation receipt lacks required installation facts")
-        } else {
-            None
-        };
-
-        match mismatch {
-            Some(message) => Err(ExtentDiagnostic(message.into())),
-            None => Ok(()),
-        }
-    }
-
     pub fn complete(
         self,
         receipt: TranslationActivationReceipt,
     ) -> Result<MappedExtent<'source>, Box<MapActivationError<'source>>> {
-        if let Err(diagnostic) = self.validate_activation_receipt(&receipt) {
+        if let Err(diagnostic) = receipt.verify(
+            &self.mapping.evidence,
+            self.install_obligations(),
+            &ACTIVATION_WORDING,
+        ) {
             return Err(Box::new(MapActivationError {
                 pending: self,
                 receipt,
@@ -455,27 +513,6 @@ impl<'source> PendingMap<'source> {
         }
 
         Ok(self.mapping)
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct TranslationActivationReceipt {
-    mapping: MappingEvidence,
-    translations_installed: bool,
-    established_facts: BTreeSet<TranslationActivationFactId>,
-}
-
-impl TranslationActivationReceipt {
-    pub fn from_admitted_provider(
-        context: &MappingReceiptContext,
-        translations_installed: bool,
-        established_facts: impl IntoIterator<Item = TranslationActivationFactId>,
-    ) -> Self {
-        Self {
-            mapping: context.0.clone(),
-            translations_installed,
-            established_facts: established_facts.into_iter().collect(),
-        }
     }
 }
 
@@ -498,11 +535,11 @@ impl<'source> MapActivationError<'source> {
 
 impl<'source> MappedExtent<'source> {
     pub const fn identity(&self) -> MappingId {
-        self.identity
+        self.evidence.identity
     }
 
     pub const fn grant(&self) -> MappingGrantId {
-        self.grant
+        self.evidence.grant.identity()
     }
 
     pub const fn base(&self) -> u64 {
@@ -622,7 +659,7 @@ impl<'source> MappedExtent<'source> {
     /// receipt must establish. Reading them while the mapping is installed
     /// lets a provider assemble teardown evidence before consuming it.
     pub const fn release_obligations(&self) -> &TranslationReleaseObligations {
-        &self.unmap_obligations
+        self.evidence.grant.release_obligations()
     }
 
     /// Consume this mapping into a pending peer-write revocation carrying
@@ -641,11 +678,7 @@ impl<'source> MappedExtent<'source> {
                 ),
             }));
         }
-        let obligations = self.evidence.grant.peer_revocation_obligations.clone();
-        Ok(PendingPeerWriteRevocation {
-            mapping: self,
-            obligations,
-        })
+        Ok(PendingPeerWriteRevocation { mapping: self })
     }
 
     pub fn begin_unmap(self) -> PendingUnmap<'source> {
@@ -660,16 +693,15 @@ impl<'source> MappedExtent<'source> {
 #[derive(Debug)]
 pub struct PendingPeerWriteRevocation<'source> {
     mapping: MappedExtent<'source>,
-    obligations: PeerWriteRevocationObligations,
 }
 
 impl<'source> PendingPeerWriteRevocation<'source> {
     pub const fn mapping(&self) -> MappingId {
-        self.mapping.identity
+        self.mapping.identity()
     }
 
     pub const fn grant(&self) -> MappingGrantId {
-        self.mapping.grant
+        self.mapping.grant()
     }
 
     /// The inert evidence a revocation receipt must bind: this exact active
@@ -678,62 +710,31 @@ impl<'source> PendingPeerWriteRevocation<'source> {
         self.mapping.receipt_context()
     }
 
-    /// The exact revocation facts the completing receipt must establish.
-    /// They carry no authority; a provider holding only this pending carrier
-    /// reads the demanded fact set here.
+    /// The exact revocation facts the completing receipt must establish. They
+    /// carry no authority; a provider holding only this pending carrier reads
+    /// the admitted grant's demanded fact set here.
     pub const fn revocation_obligations(&self) -> &PeerWriteRevocationObligations {
-        &self.obligations
+        self.mapping.evidence.grant.peer_revocation_obligations()
     }
 
     pub fn complete(
         self,
         receipt: PeerWriteRevocationReceipt,
     ) -> Result<MappedExtent<'source>, Box<PeerWriteRevocationError<'source>>> {
-        let diagnostic = if receipt.mapping != self.mapping.evidence {
-            Some("peer-write-revocation receipt does not bind the exact active mapping")
-        } else if !receipt.peer_write_revoked {
-            Some("peer-write-revocation receipt does not establish the revoked write permission")
-        } else if !self.obligations.0.is_subset(&receipt.established_facts) {
-            Some("peer-write-revocation receipt lacks required invalidation facts")
-        } else {
-            None
-        };
-        if let Some(message) = diagnostic {
+        if let Err(diagnostic) = receipt.verify(
+            &self.mapping.evidence,
+            self.revocation_obligations(),
+            &REVOCATION_WORDING,
+        ) {
             return Err(Box::new(PeerWriteRevocationError {
                 pending: self,
                 receipt,
-                diagnostic: ExtentDiagnostic(message.into()),
+                diagnostic,
             }));
         }
         let mut mapping = self.mapping;
         mapping.peer_write_revoked = true;
         Ok(mapping)
-    }
-}
-
-/// Provider receipt asserting that for one exact active shared mapping the
-/// hostile peer's write permission was revoked or remapped away and the
-/// required cross-core invalidation completed. Like every provider receipt
-/// here it binds complete mapping evidence; a receipt naming only a compact
-/// identity cannot claim the transition.
-#[derive(Debug, PartialEq, Eq)]
-pub struct PeerWriteRevocationReceipt {
-    mapping: MappingEvidence,
-    peer_write_revoked: bool,
-    established_facts: BTreeSet<PeerWriteRevocationFactId>,
-}
-
-impl PeerWriteRevocationReceipt {
-    pub fn from_admitted_provider(
-        context: &MappingReceiptContext,
-        peer_write_revoked: bool,
-        established_facts: impl IntoIterator<Item = PeerWriteRevocationFactId>,
-    ) -> Self {
-        Self {
-            mapping: context.0.clone(),
-            peer_write_revoked,
-            established_facts: established_facts.into_iter().collect(),
-        }
     }
 }
 
@@ -902,20 +903,15 @@ fn map_with_source<'source>(
         mapped_era: mapped.era(),
         mapped_origin: mapped.origin(),
         mapped_lineage: mapped.lineage_root(),
-        destination: destination_restoration.clone(),
+        destination: destination_restoration,
     };
     Ok(PendingMap {
         mapping: MappedExtent {
-            identity,
-            grant: grant.identity,
             evidence,
             mapped,
             source,
-            destination: destination_restoration,
-            unmap_obligations: grant.unmap_obligations.clone(),
             peer_write_revoked: false,
         },
-        map_obligations: grant.map_obligations.clone(),
     })
 }
 
@@ -970,7 +966,7 @@ pub struct PendingUnmap<'source> {
 
 impl<'source> PendingUnmap<'source> {
     pub const fn mapping(&self) -> MappingId {
-        self.mapping.identity
+        self.mapping.identity()
     }
 
     pub fn receipt_context(&self) -> MappingReceiptContext {
@@ -983,36 +979,15 @@ impl<'source> PendingUnmap<'source> {
         self.mapping.release_obligations()
     }
 
-    pub(crate) fn validate_release_receipt(
-        &self,
-        receipt: &TranslationReleaseReceipt,
-    ) -> Result<(), ExtentDiagnostic> {
-        let mismatch = if receipt.mapping != self.mapping.evidence {
-            Some("translation-release receipt does not bind the exact pending mapping")
-        } else if !receipt.translations_released {
-            Some("translation-release receipt does not release stale translations")
-        } else if !self
-            .mapping
-            .unmap_obligations
-            .0
-            .is_subset(&receipt.established_facts)
-        {
-            Some("translation-release receipt lacks required completion facts")
-        } else {
-            None
-        };
-
-        match mismatch {
-            Some(message) => Err(ExtentDiagnostic(message.into())),
-            None => Ok(()),
-        }
-    }
-
     pub fn complete(
         self,
         receipt: TranslationReleaseReceipt,
     ) -> Result<UnmappedExtents, Box<UnmapCompletionError<'source>>> {
-        if let Err(diagnostic) = self.validate_release_receipt(&receipt) {
+        if let Err(diagnostic) = receipt.verify(
+            &self.mapping.evidence,
+            self.release_obligations(),
+            &RELEASE_WORDING,
+        ) {
             return Err(Box::new(UnmapCompletionError {
                 pending: self,
                 receipt,
@@ -1021,15 +996,15 @@ impl<'source> PendingUnmap<'source> {
         }
 
         let MappedExtent {
+            evidence,
             mapped,
             source,
-            destination,
             ..
         } = self.mapping;
         let destination = Extent {
-            rights: destination.rights,
-            provenance: destination.provenance,
-            era: destination.era,
+            rights: evidence.destination.rights,
+            provenance: evidence.destination.provenance,
+            era: evidence.destination.era,
             ..mapped
         };
         let owned_source = match source {
@@ -1040,27 +1015,6 @@ impl<'source> PendingUnmap<'source> {
             destination,
             owned_source,
         })
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct TranslationReleaseReceipt {
-    mapping: MappingEvidence,
-    translations_released: bool,
-    established_facts: BTreeSet<TranslationCompletionFactId>,
-}
-
-impl TranslationReleaseReceipt {
-    pub fn from_admitted_provider(
-        context: &MappingReceiptContext,
-        translations_released: bool,
-        established_facts: impl IntoIterator<Item = TranslationCompletionFactId>,
-    ) -> Self {
-        Self {
-            mapping: context.0.clone(),
-            translations_released,
-            established_facts: established_facts.into_iter().collect(),
-        }
     }
 }
 

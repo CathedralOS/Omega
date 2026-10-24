@@ -89,8 +89,8 @@ fn mapping_grant_with_revocation(
         rights(&[300]),
         id(21, ExtentProvenanceId::from_normalized_identity),
         id(31, MappingEraId::from_normalized_identity),
-        TranslationInstallObligations::from_normalized_facts([activation_fact(600)]),
-        TranslationReleaseObligations::from_normalized_facts([translation_fact(700)]),
+        TranslationInstallObligations::from_normalized_identities([activation_fact(600)]),
+        TranslationReleaseObligations::from_normalized_identities([translation_fact(700)]),
         peer_revocation_obligations,
     )
 }
@@ -109,7 +109,7 @@ fn release(pending: &PendingUnmap<'_>) -> TranslationReleaseReceipt {
     TranslationReleaseReceipt::from_admitted_provider(
         &pending.receipt_context(),
         true,
-        pending.release_obligations().facts(),
+        pending.release_obligations().identities(),
     )
 }
 
@@ -117,7 +117,7 @@ fn activate(pending: &PendingMap<'_>) -> TranslationActivationReceipt {
     TranslationActivationReceipt::from_admitted_provider(
         &pending.receipt_context(),
         true,
-        pending.install_obligations().facts(),
+        pending.install_obligations().identities(),
     )
 }
 
@@ -255,8 +255,9 @@ fn owned_mapping_round_trips_program_local_origins() {
 
 #[test]
 fn provider_reads_obligations_from_grant_and_mapping_carriers() {
-    let install = TranslationInstallObligations::from_normalized_facts([activation_fact(600)]);
-    let release_set = TranslationReleaseObligations::from_normalized_facts([translation_fact(700)]);
+    let install = TranslationInstallObligations::from_normalized_identities([activation_fact(600)]);
+    let release_set =
+        TranslationReleaseObligations::from_normalized_identities([translation_fact(700)]);
     let grant = mapping_grant(MappingSourceMode::BorrowedShared);
     assert_eq!(grant.install_obligations(), &install);
     assert_eq!(grant.release_obligations(), &release_set);
@@ -376,7 +377,7 @@ fn failed_mapping_returns_source_and_destination_authority() {
 }
 
 fn revocation_obligations() -> PeerWriteRevocationObligations {
-    PeerWriteRevocationObligations::from_normalized_facts([
+    PeerWriteRevocationObligations::from_normalized_identities([
         id(61, PeerWriteRevocationFactId::from_normalized_identity),
         id(62, PeerWriteRevocationFactId::from_normalized_identity),
     ])
@@ -416,7 +417,7 @@ fn activated_shared_mapping_with_grant(grant: &MappingGrant) -> super::MappedExt
 fn peer_write_revocation_demands_the_admitted_grants_fact_set() {
     let grant = mapping_grant_with_revocation(
         MappingSourceMode::BorrowedShared,
-        PeerWriteRevocationObligations::from_normalized_facts([
+        PeerWriteRevocationObligations::from_normalized_identities([
             id(61, PeerWriteRevocationFactId::from_normalized_identity),
             id(62, PeerWriteRevocationFactId::from_normalized_identity),
             id(63, PeerWriteRevocationFactId::from_normalized_identity),
@@ -427,7 +428,7 @@ fn peer_write_revocation_demands_the_admitted_grants_fact_set() {
         .begin_peer_write_revocation()
         .expect("shared custody may revoke the peer write");
     assert_eq!(
-        pending.revocation_obligations().facts().count(),
+        pending.revocation_obligations().identities().count(),
         3,
         "the demanded set rides the admitted grant, not the caller"
     );
@@ -449,7 +450,7 @@ fn peer_write_revocation_demands_the_admitted_grants_fact_set() {
     let receipt = PeerWriteRevocationReceipt::from_admitted_provider(
         &pending.receipt_context(),
         true,
-        grant.peer_revocation_obligations().facts(),
+        grant.peer_revocation_obligations().identities(),
     );
     pending
         .complete(receipt)
@@ -469,7 +470,7 @@ fn shared_mapping_stable_loan_requires_completed_peer_write_revocation() {
         .begin_peer_write_revocation()
         .expect("shared custody may revoke the peer write");
     assert_eq!(
-        pending.revocation_obligations().facts().count(),
+        pending.revocation_obligations().identities().count(),
         2,
         "pending carrier exposes the grant-demanded fact set"
     );

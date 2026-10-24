@@ -12,7 +12,8 @@
 //!
 //! Start at `extent.rs`: the authority carrier, its conserved operations and
 //! the diagnostic every operation reports. `identities` holds the normalized
-//! identities and rights, `roots` the two ways a fresh root enters,
+//! identities and the open identity sets that carry rights and demanded facts,
+//! `roots` the two ways a fresh root enters,
 //! `loans` the borrow-carrying subranges, `external_loans` lending to
 //! borrowers the checker cannot see, `ordering_events` the role-bound
 //! ordering records a device boundary exchanges, `mapping` translation
@@ -54,18 +55,18 @@ pub use identities::{
     ExtentIssuanceId, ExtentLineageId, ExtentLiveIssuancePremiseId, ExtentProvenanceId,
     ExtentProviderCorrespondenceId, ExtentProviderId, ExtentProviderInvocationId,
     ExtentProviderPlanId, ExtentQualificationId, ExtentRightId, ExtentRights,
-    ExtentTrustProvenanceId, MappingEraId, ResidentClaimId,
+    ExtentTrustProvenanceId, MappingEraId, NormalizedIdentitySet, ResidentClaimId,
 };
 pub use loans::{ExtentLoan, LoanPolarity};
 pub use mapping::{
     BorrowedMappingError, MapActivationError, MappedExtent, MappedRangeReceiptContext,
     MappingGrant, MappingGrantId, MappingId, MappingReceiptContext, MappingSourceMode,
-    OwnedMappingError, PeerWriteRevocationError, PeerWriteRevocationFactId,
-    PeerWriteRevocationObligations, PeerWriteRevocationReceipt, PeerWriteRevocationStartError,
-    PendingMap, PendingPeerWriteRevocation, PendingUnmap, TranslationActivationFactId,
-    TranslationActivationReceipt, TranslationCompletionFactId, TranslationInstallObligations,
-    TranslationReleaseObligations, TranslationReleaseReceipt, UnmapCompletionError,
-    UnmappedExtents, map_borrowed, map_owned,
+    MappingTransitionReceipt, OwnedMappingError, PeerWriteRevocationError,
+    PeerWriteRevocationFactId, PeerWriteRevocationObligations, PeerWriteRevocationReceipt,
+    PeerWriteRevocationStartError, PendingMap, PendingPeerWriteRevocation, PendingUnmap,
+    TranslationActivationFactId, TranslationActivationReceipt, TranslationCompletionFactId,
+    TranslationInstallObligations, TranslationReleaseObligations, TranslationReleaseReceipt,
+    UnmapCompletionError, UnmappedExtents, map_borrowed, map_owned,
 };
 pub use ordering_events::{
     DeviceInstanceId, DeviceOrderingRole, OrderingAuthority, OrderingCoordinateKind,
