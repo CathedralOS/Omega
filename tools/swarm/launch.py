@@ -12,7 +12,7 @@ The swarm adds nothing to the boards themselves.
 Sessions are either Devin Cloud agents (host "linux"; plan/launch/status/report)
 or local agents on this machine (host "local"; the `local` subcommand). A local
 session runs the identical claim/land/release protocol in a Git worktree under
-.codex/worktrees/; `local` renders its prompts, optionally creates the
+.agents/worktree/; `local` renders its prompts, optionally creates the
 worktrees, and prints the launch table for the coordinator to spawn from.
 Local waves have no session receipts, so status/report remain cloud-only —
 tools/swarm/worktree_status.py is the local equivalent.
@@ -54,6 +54,7 @@ import corpus_scoreboard
 import sample_native_gate
 import typesafe_key
 import qualification
+import worktree_status
 
 DEFAULT_BASE_URL = "https://api.devin.ai/v3"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
@@ -814,8 +815,15 @@ def local_host_block():
 
 
 def local_session_state(repository, wave, session):
-    worktree = repository / ".codex" / "worktrees" / f"{wave}-{session['name']}"
+    worktree = repository / ".agents" / "worktree" / f"{wave}-{session['name']}"
     branch = f"swarm/{wave}-{session['name']}"
+    try:
+        for entry in worktree_status.list_worktrees(repository):
+            if entry.get("branch") == f"refs/heads/{branch}":
+                worktree = Path(entry["worktree"])
+                break
+    except worktree_status.StatusError as error:
+        raise SwarmError(str(error)) from error
     try:
         git(repository, "rev-parse", "--verify", f"refs/heads/{branch}")
         ahead = int(git(repository, "rev-list", "--count",
@@ -935,7 +943,7 @@ def command_local(arguments, repository):
             handle.write(prompt)
         if arguments.create_worktrees and state["state"] in (
                 "absent", "resumable_no_worktree"):
-            worktree_arg = state["worktree"].relative_to(repository).as_posix()
+            worktree_arg = str(state["worktree"])
             if state["branch_exists"]:
                 git(repository, "worktree", "add", worktree_arg,
                     state["branch"])
@@ -948,7 +956,9 @@ def command_local(arguments, repository):
             "item": session["item"],
             "board": session["board"],
             "prompt": str(prompt_path.relative_to(repository)),
-            "worktree": str(state["worktree"].relative_to(repository)),
+            "worktree": str(state["worktree"].relative_to(repository)
+                            if state["worktree"].is_relative_to(repository)
+                            else state["worktree"]),
             "branch": state["branch"],
             "worktree_state": state["state"],
             "owner_label":
@@ -1459,7 +1469,7 @@ def main(argv=None):
                       "the coordinator spawns the agents itself")
     local.add_argument("--manifest", required=True)
     local.add_argument("--create-worktrees", action="store_true",
-                       help="create .codex/worktrees/<wave>-<name> and "
+                       help="create .agents/worktree/<wave>-<name> and "
                             "swarm/<wave>-<name> branches before spawning")
     local.add_argument("--layer", type=int,
                        help="only render sessions at this dependency layer "

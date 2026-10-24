@@ -139,7 +139,7 @@ or cleanup action. Reconcile first; a stale `slots.json` flag is not live-proces
 evidence. The existing fill ledger now uses atomic file replacement as well.
 
 Cloud `status`/`report` only see Devin sessions through their receipts. Local
-waves run in plain git worktrees (for example `.codex/worktrees/<wave>-<task>`)
+waves run in plain git worktrees (for example `.agents/worktree/<wave>-<task>`)
 and produce no receipts, so `worktree_status.py` gives them the same
 visibility: each worktree's branch, uncommitted churn, ahead/behind against
 `origin/main`, whether its head already landed, the live claims-registry
@@ -171,7 +171,7 @@ keeps changing); treat claim presence alone as "assigned", not "running".
 ## Local waves
 
 A local wave runs the same protocol from one machine without Devin sessions:
-the coordinator spawns one agent per `.codex/worktrees/<wave>-<task>` worktree
+the coordinator spawns one agent per `.agents/worktree/<wave>-<task>` worktree
 and each authorized end-to-end owner claims, works, lands, and releases exactly
 like a cloud session. Contributor and read-only assignments retain their narrower
 scope: the integration DRI lands contributor work, and review/scouting does not
@@ -208,7 +208,7 @@ prints the launch table: name, item, prompt path, worktree, branch, and owner
 label per row. The coordinator then spawns one agent per row with that
 prompt.
 
-`--create-worktrees` pre-creates `.codex/worktrees/<wave>-<name>` on
+`--create-worktrees` pre-creates `.agents/worktree/<wave>-<name>` on
 `swarm/<wave>-<name>` from `origin/main`; without it agents create their own.
 When the branch already carries unpublished commits the rendered prompt marks
 the slot a continuation and instructs the agent to resume that work — the

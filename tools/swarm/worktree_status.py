@@ -3,7 +3,7 @@
 
 launch.py's status and report subcommands cover Devin Cloud sessions through
 their receipts under build/swarm/; local waves run in plain git worktrees
-(for example .codex/worktrees/<wave>-<task>) and produce no receipts, so the
+(for example .agents/worktree/<wave>-<task>) and produce no receipts, so the
 cloud path cannot see them. This script gives local worktrees the same
 visibility: branch and uncommitted churn, ahead/behind against the
 integration base, whether the worktree head already landed on it, the live

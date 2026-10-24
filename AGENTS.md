@@ -120,6 +120,18 @@ landing that only rewrites the failing place is not acceptance. Exact
 subtraction, alias transfer, and dependent subtract are examples of that
 repair path.
 
+When a place fails because the producing layer dropped a requirement, that
+requirement is the fact. The sentence names every requirement that layer
+records on the value it emits: the saved scalars, the write set, the crash
+routes, the domain facts, or the selected body this layer owes. The consuming
+operation is written against that recorded list. Every place transports the
+value and copies the sentence. The reject twin removes one requirement from
+the list, and the diagnostic is the missing requirement. A compiler edit that
+recognizes one production and rebuilds one requirement for it leaves the fact
+open. The next witness is another production of that same layer, in this
+folder, copying the same sentence. A separate fact folder for that production
+does not count.
+
 The nine places carry each language construct end to end—from source checking
 and proof through Terminal Psi semantics to native realization and execution
 (`omega run --both`)—as one row per construct, never a combinatorial matrix or
@@ -164,9 +176,11 @@ calls, foreign bindings, private callbacks, process exit, and checked `asm`
 [storage](wiki/spec/resources/storage.md),
 [checked assembly](wiki/spec/language/assembly.md)). Once a row proves a
 mechanism across the nine places, repeating that same mechanism at a larger
-count teaches the compiler nothing new; a new row is meaningful only when it
-exercises a different compiler code path or crosses a real physical boundary
-where representation, ABI placement, or instruction encoding changes (such as
+count teaches the compiler nothing new. Another production that drops the same
+requirements is that same row: the repair records the requirements on the value
+the layer emits, and the next layer reads that list. A new row is a different
+requirement, a different layer, or a real physical boundary where
+representation, ABI placement, or instruction encoding changes (such as
 crossing from register arguments into stack slots, widening a discriminant tag,
 or relaxing a short branch into a near displacement). When a repair adds or
 changes a construct, carrier, access mode, cleanup disposition, or target rule,
@@ -469,6 +483,7 @@ stages or the application crate; the owner rejected that consolidation on
 
 The rules that touch every edit:
 
+- Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
 - Data and code are independent: named implementations satisfy traits; data
   does not. Trait data types are ordinary explicit parameters. There is no
   conformance subject, `Self` type binding, or implicit `self` value. `dyn`
@@ -611,7 +626,8 @@ are byte-sensitive.
 Before launching a new swarm or creating a new worker, successfully fetch remote
 `main` and record its exact commit. Fast-forward a clean checkout on `main`;
 preserve dirty or non-main checkouts and create new worktrees from the fetched
-commit. Read `AGENTS.md` and the matching skills from that updated source before
+commit. New worktrees go in `<repository>/.agents/worktree/<short-name>`.
+That directory is gitignored local state. An existing checkout stays where it is. Read `AGENTS.md` and the matching skills from that updated source before
 selecting or dispatching work. A failed fetch stops the new launch; a cached
 `origin/main` is never a fallback. Each independent cloud executor repeats this
 preflight before implementation. Existing outcomes retain their worktrees and
@@ -731,7 +747,7 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
   distinctions. Optional optimization specialization requires a correct general
   path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
-  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, another state, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts).
+  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, another state, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay

@@ -17,6 +17,9 @@ a code explanation, and an edit to this skill must not independently select boar
 work or authorize publication. Use the assertions as outcome criteria, not required
 wording. Existing AGENTS.md requirements are controls, not evidence of a skill win.
 
+Scenario 24 holds a dropped requirement to one fact: the sentence names the
+requirements the producing layer records on the emitted value, the consumer
+uses that list, and the next production of that layer stays in the same folder.
 Scenarios 18–23 exercise capability-directed selection: priority versus sample
 size, continuity after a witness lands, missing witnesses, already-satisfied
 acceptance, explicit sample scope, and drawing a new fact from the board rather
@@ -56,7 +59,7 @@ git -C <new-trial-checkout> remote get-url --all --push origin
 Use a short path on Windows and measure actual path or command-line failures;
 historical checkout-length thresholds are not portable limits. Do not reuse or
 recursively clear an existing directory as setup. Trial worktrees stay within
-the trial checkout under `.codex/worktrees/`.
+the trial checkout under `.agents/worktree/`.
 
 Stage the entire skill directory, including references, at
 `.agents/skills/advance` in the trial clone. Record a committed base before the

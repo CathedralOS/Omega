@@ -63,7 +63,7 @@ python3 tools/swarm/recovery.py --state build/swarm/recovery/host-a.json --revis
 Minimal `lane.json` (replace symbolic commit IDs with real full IDs):
 
 ```json
-{"id":"atomic","assignment":"atomic-leg1","worktree":"/executor-local/Omega/.codex/worktrees/atomic","branch":"swarm/atomic","base":"BASE_SHA","head":"HEAD_SHA","reviewed_main":"BASE_SHA","worker_handle":"runtime-handle","mode":"implementation","checkpoint":{"status":"incomplete","summary":"source preserved; two checks failed; native unrun"},"resources":{"target":"/executor-local/atomic-target","cache":"shared; preserve"}}
+{"id":"atomic","assignment":"atomic-leg1","worktree":"/executor-local/Omega/.agents/worktree/atomic","branch":"swarm/atomic","base":"BASE_SHA","head":"HEAD_SHA","reviewed_main":"BASE_SHA","worker_handle":"runtime-handle","mode":"implementation","checkpoint":{"status":"incomplete","summary":"source preserved; two checks failed; native unrun"},"resources":{"target":"/executor-local/atomic-target","cache":"shared; preserve"}}
 ```
 
 Checkpoint before long commands, blocked waits, or any remote mutation. Record

@@ -718,7 +718,12 @@ optimizations with a correct general path, not as the only way to compile an
 ordinary combination.
 
 When a customer exposes this pattern, identify the general operation or join that
-is missing and remove the superseded special path as that repair lands. Before
+is missing and remove the superseded special path as that repair lands. When the
+missing relationship is a requirement the producer dropped, record the
+requirements still open on the value that layer emits and have the next layer
+read that list. Saved scalars, write sets, crash routes, domain facts, and the
+selected body are entries on that list. A recognizer that rebuilds one of them
+for one production is the superseded path. Before
 propagating a new representation or lowering mechanism across stages, choose a
 small valid variation that challenges its assumptions and a relevant invalid
 control. Check that the design supports the valid case and rejects the invalid

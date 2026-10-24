@@ -947,7 +947,7 @@ class SwarmTests(unittest.TestCase):
             with self.assertRaisesRegex(self.module.SwarmError, "fetch"):
                 self.run_local(self.local_manifest())
         probes.assert_not_called()
-        self.assertFalse((self.repository / ".codex" / "worktrees"
+        self.assertFalse((self.repository / ".agents" / "worktree"
                           / "w9-alpha").exists())
         self.assertFalse(self.module.build_directory(self.repository, "w9").exists())
 
@@ -985,7 +985,7 @@ class SwarmTests(unittest.TestCase):
         record = self.run_local(self.local_manifest())
         self.assertEqual(record["base"],
                          self.git(self.repository, "rev-parse", "origin/main"))
-        self.assertTrue((self.repository / ".codex" / "worktrees"
+        self.assertTrue((self.repository / ".agents" / "worktree"
                          / "w9-alpha").is_dir())
 
     def test_local_new_worker_uses_remote_main_and_preserves_dirty_checkout(self):
@@ -1018,7 +1018,7 @@ class SwarmTests(unittest.TestCase):
 
         with mock.patch.object(self.module, "local_session_state", side_effect=move_tracking_ref):
             record = self.run_local(self.local_manifest())
-        worker = self.repository / ".codex" / "worktrees" / "w9-alpha"
+        worker = self.repository / ".agents" / "worktree" / "w9-alpha"
         self.assertEqual(record["base"], fresh_head)
         self.assertEqual(self.git(worker, "rev-parse", "HEAD"), fresh_head)
         prompt = (self.repository / record["sessions"][0]["prompt"]).read_text()
@@ -1026,6 +1026,36 @@ class SwarmTests(unittest.TestCase):
         self.assertEqual((worker / "latest.txt").read_text(), "new main instructions\n")
         self.assertEqual(self.git(self.repository, "rev-parse", "HEAD"), old_head)
         self.assertEqual(dirty.read_text(), "// unpublished work\n")
+
+    def assert_existing_worker_is_preserved(self, worker):
+        base = self.git(self.repository, "rev-parse", "HEAD")
+        self.git(self.repository, "update-ref", "refs/remotes/origin/main", base)
+        self.git(self.repository, "worktree", "add", str(worker), "-b",
+                 "swarm/w9-alpha", base)
+        source = worker / "src" / "one" / "code.rs"
+        source.write_text("// retained commit\n", encoding="utf-8")
+        self.git(worker, "add", "src/one/code.rs")
+        self.git(worker, "commit", "-m", "repo: retain worker progress")
+        retained_head = self.git(worker, "rev-parse", "HEAD")
+        source.write_text("// retained dirty work\n", encoding="utf-8")
+        with mock.patch.object(self.module, "fetch_launch_base", return_value=base):
+            record = self.run_local(self.local_manifest())
+        session = record["sessions"][0]
+        self.assertEqual((self.repository / session["worktree"]).resolve(),
+                         worker.resolve())
+        self.assertEqual(session["worktree_state"], "resumable")
+        self.assertEqual(self.git(worker, "rev-parse", "HEAD"), retained_head)
+        self.assertEqual(source.read_text(), "// retained dirty work\n")
+        prompt = (self.repository / session["prompt"]).read_text()
+        self.assertIn(str(worker), prompt)
+        self.assertIn("Continuation slot", prompt)
+
+    def test_local_preserves_registered_legacy_worktree(self):
+        self.assert_existing_worker_is_preserved(
+            self.repository / ".codex" / "worktrees" / "w9-alpha")
+
+    def test_local_preserves_registered_external_worktree(self):
+        self.assert_existing_worker_is_preserved(self.root / "retained-worker")
 
 
 class OwnershipPathTests(unittest.TestCase):

@@ -77,7 +77,13 @@ Copy this into every worker prompt:
 > filled row that met this bar. A fact folder is done only when the same fact
 > survives all nine places. One sentence names the fact and the operation, and
 > every place copies that sentence. Changing the fact, the bound, or the
-> operation so a place passes is a different fact and does not count. A red
+> operation so a place passes is a different fact and does not count. When the
+> failure is a requirement the producing layer dropped, the sentence names the
+> requirements that layer records on the value it emits, and the consuming
+> operation uses that recorded list. A repair that recognizes one production
+> and rebuilds one requirement leaves the fact open. The next production of
+> that layer stays in this folder. A separate fact folder for that production
+> does not count. A red
 > place is a checking repair: keep the program the same shape, and record the
 > diagnostic before editing the compiler. Each place needs a reject twin that
 > breaks only that fact and still rejects. A place with no twin does not count.

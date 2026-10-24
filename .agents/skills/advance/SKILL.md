@@ -37,7 +37,15 @@ selection and may stay broken while this layer is in progress.
 A fact folder is done only when the same fact survives all nine places. One
 sentence names the fact and the operation, and every place copies that
 sentence. Changing the fact, the bound, or the operation so a place passes
-is a different fact and does not count. Every positive place (and root
+is a different fact and does not count. When a place fails because the
+producing layer dropped a requirement, that requirement is the fact. The
+sentence names every requirement that layer records on the value it emits
+(saved scalars, write set, crash routes, domain facts, or the selected body),
+and the consuming operation uses that recorded list. A compiler edit that
+recognizes one production and rebuilds one requirement for it leaves the fact
+open. The next witness is another production of that same layer, in this
+folder, copying the same sentence. A separate fact folder for that production
+does not count. Every positive place (and root
 `main.omg` when present) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares
 `Expected exit: 0`, and passes `omega run --both` (Terminal Psi and native
@@ -72,10 +80,12 @@ register and stack slots, live-across-call preservation, disjoint stack-frame
 homes, boundary/provider calls, foreign bindings, private callbacks, process
 exit, and checked `asm`.
 Once a row proves a mechanism across the nine places, repeating that same
-mechanism at a larger count adds no new evidence about the compiler; a new row
-is meaningful only when it exercises a different compiler code path or crosses
-a real physical boundary where representation, ABI placement, or instruction
-encoding changes. When a repair adds or changes a construct, carrier, access
+mechanism at a larger count adds no new evidence about the compiler. Another
+production that drops the same requirements is that same row: the repair
+records the requirements on the value the layer emits, and the next layer reads
+that list. A new row is a different requirement, a different layer, or a real
+physical boundary where representation, ABI placement, or instruction encoding
+changes. When a repair adds or changes a construct, carrier, access
 mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
@@ -256,7 +266,11 @@ focused probe locate the first failure.
 
 The language and architecture govern the solution. An example exposes a missing
 capability; the design defines its limits. Implement the smallest capability
-consistent with the design so that the general case runs, not the one spelling.
+consistent with the design so that the general case runs. When the failure is
+a requirement the producing layer dropped, the sample sentence is the list
+that layer records on the value it emits, and the edit records that list for
+the next layer to read. One production's recognizer leaves the fact open.
+Follow [the sample loop](../../../AGENTS.md#the-sample-loop).
 
 Witness the failure before editing. Read existing diagnostics before
 instrumenting compiler code. Report the observed boundary, and report a
@@ -308,7 +322,7 @@ authored.
 
 ## Implement and validate
 
-Use an isolated worktree under `<repository>/.codex/worktrees/<short-name>`
+Use an isolated worktree under `<repository>/.agents/worktree/<short-name>`
 created from the fetched `origin/main`, not from the starting checkout's HEAD
 or local `main`: a checkout that could not fast-forward leaves local `main`
 behind, and a stale base rereads landed work and lengthens the landing rebase.

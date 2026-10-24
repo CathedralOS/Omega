@@ -379,6 +379,21 @@
         "Names the TASKS.md item and exact requirement the new fact discharges",
         "Verifies the requirement's gap against a fresh current-main compiler before writing the fact"
       ]
+    },
+    {
+      "id": 24,
+      "name": "dropped-requirement-stays-one-fact",
+      "prompt": "Advance the compiler. A fact place fails because the producing layer dropped a requirement on the value it emitted. A one-production recognizer would make this place pass. Another production of that same layer drops the same requirements.",
+      "status": "Not run against this revision",
+      "expected_output": "The fact sentence names the requirements the producing layer records on the emitted value. The consuming operation uses that list. The compiler records the list for the next layer to read. The next production stays in the same fact folder.",
+      "files": [],
+      "assertions": [
+        "The fact sentence names the recorded requirements, and every place copies that sentence",
+        "The reject twin removes one requirement from the list and the diagnostic is that missing requirement",
+        "The compiler edit records the requirement list on the emitted value instead of recognizing one production",
+        "The next production of that layer stays in the same fact folder",
+        "Does not open a separate fact folder for the next production of the same dropped requirements"
+      ]
     }
   ]
 }
