@@ -28,6 +28,25 @@ impl BigIntInterval {
         }
     }
 
+    /// Tightest interval contained in both. An absent end is unbounded and
+    /// defers to the other side, the same lattice meet as `Interval::intersect`.
+    /// A finite end outside `i64` stays exact: it is not clamped to a machine
+    /// extreme.
+    pub fn intersect(&self, other: &Self) -> Self {
+        Self {
+            low: match (&self.low, &other.low) {
+                (Some(left), Some(right)) => Some(left.clone().max(right.clone())),
+                (Some(value), None) | (None, Some(value)) => Some(value.clone()),
+                (None, None) => None,
+            },
+            high: match (&self.high, &other.high) {
+                (Some(left), Some(right)) => Some(left.clone().min(right.clone())),
+                (Some(value), None) | (None, Some(value)) => Some(value.clone()),
+                (None, None) => None,
+            },
+        }
+    }
+
     pub fn add(&self, other: &Self) -> Self {
         Self {
             low: match (&self.low, &other.low) {

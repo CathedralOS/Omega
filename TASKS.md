@@ -3608,10 +3608,14 @@ check-corpus verdict and diagnostic family unchanged unless the item says
 otherwise. Paths below are relative to the stage 04 `src/` (written `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`) or
 the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unless spelled in full.
 
-- **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) At least nine separate engines
-  answer "what range can this integer take":
+- **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) Separate engines still
+  answer "what range can this integer take". Stage 04
+  `checks/contracts/intervals.rs` is a client of
+  `validation::BigIntInterval`: it keeps only the guard-label reader the
+  label routes use, meets `&&` on that lattice, and no longer owns a
+  sentinel `(BigInt, BigInt)` interval. Remaining private engines:
   - stage 04: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges/facts` (`RangeFacts`),
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/intervals.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evaluator`,
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/evaluator`,
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking`
     ranges (`Bounds`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows/overlap/indexes.rs`
     (`NormalizedBound`), `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges` `MergedBound` and the loop
@@ -3633,8 +3637,7 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   (`validation::ExpressionInterval`). The stage 04 index checker consumes it
   for fixed-length reads, and the call checks consume it for
   parameter-versus-literal requirements and call-argument domain membership.
-  `checks/contracts/intervals.rs` keeps only the guard-label reader the
-  label routes use. Name-keyed proofs and unknown-length slice bounds remain
+  Name-keyed proofs and unknown-length slice bounds remain
   private. Float intervals
   (`omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/float_arithmetic.rs`) stay
   separate. This is large: land it per client, each commit deleting that

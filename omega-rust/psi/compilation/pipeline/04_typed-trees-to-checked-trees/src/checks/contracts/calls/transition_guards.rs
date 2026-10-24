@@ -203,12 +203,19 @@ pub(super) fn transition_guard_proves_requires(
         // without the guard being rewritten to match the predicate.
         || super::predicate_domains::predicate_only_domain_interval(program, facts, fact).is_some_and(
             |(subject_label, required_low, required_high)| {
-                let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
-                    low >= required_low && high <= required_high
-                };
                 matching_guards.iter().any(|guard| {
-                    super::super::intervals::guard_interval_for_label(program, *guard, &subject_label)
-                        .is_some_and(contains)
+                    super::super::intervals::guard_interval_for_label(
+                        program,
+                        *guard,
+                        &subject_label,
+                    )
+                    .is_some_and(|interval| {
+                        super::super::intervals::establishes_closed_requirement(
+                            &interval,
+                            &required_low,
+                            &required_high,
+                        )
+                    })
                 })
             },
         );

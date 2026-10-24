@@ -190,22 +190,14 @@ fn prove(
                 ),
                 (bounds, None) | (None, bounds) => bounds?,
             };
-            if let Some((guard_low, guard_high)) = guard.and_then(|guard| {
+            if let Some(guard_interval) = guard.and_then(|guard| {
                 super::intervals::guard_interval_for_label(
                     program,
                     guard,
                     &program.expression_table.display_name(argument),
                 )
             }) {
-                // This existing closed-interval reader uses signed extrema as
-                // missing-endpoint sentinels. Keep them open here: a u64's
-                // unconstrained ceiling does not become i64::MAX.
-                if let Some(bound) = guard_low.to_i64().filter(|bound| *bound > i64::MIN) {
-                    low = Some(low.map_or(bound, |low| low.max(bound)));
-                }
-                if let Some(bound) = guard_high.to_i64().filter(|bound| *bound < i64::MAX) {
-                    high = Some(high.map_or(bound, |high| high.min(bound)));
-                }
+                (low, high) = super::intervals::narrow_i64_bounds(low, high, &guard_interval);
             }
             Some(((low, high), Some(parameter.type_reference)))
         }
@@ -347,19 +339,12 @@ fn guarded_update_bounds(
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
             let (mut lower, mut upper) =
                 validation::stored_integer_bounds(program, machine, state, expression)?;
-            if let Some((guard_lower, guard_upper)) = super::intervals::guard_interval_for_label(
+            if let Some(guard_interval) = super::intervals::guard_interval_for_label(
                 program,
                 guard,
                 &program.expression_table.display_name(expression),
             ) {
-                // The legacy guard reader uses signed extrema for absent
-                // endpoints; neither sentinel is a finite u64 bound.
-                if let Some(bound) = guard_lower.to_i64().filter(|bound| *bound > i64::MIN) {
-                    lower = Some(lower.map_or(bound, |lower| lower.max(bound)));
-                }
-                if let Some(bound) = guard_upper.to_i64().filter(|bound| *bound < i64::MAX) {
-                    upper = Some(upper.map_or(bound, |upper| upper.min(bound)));
-                }
+                (lower, upper) = super::intervals::narrow_i64_bounds(lower, upper, &guard_interval);
             }
             Some((lower, upper))
         }
