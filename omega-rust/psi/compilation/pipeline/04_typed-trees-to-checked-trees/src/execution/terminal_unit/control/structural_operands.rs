@@ -408,6 +408,15 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 // that scope restores the enclosing bindings. Callable
                 // discovery follows both roots, independently of this schedule.
             }
+            checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+                let child = plans.nodes.get(*source);
+                shapes.add_stored_type(
+                    child.type_reference,
+                    &machine_binders(program, machine),
+                    &[],
+                )?;
+                pending.push(*source);
+            }
             checked_trees::CheckedStructuralValueKind::Projection { source, .. }
             | checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push(*source);

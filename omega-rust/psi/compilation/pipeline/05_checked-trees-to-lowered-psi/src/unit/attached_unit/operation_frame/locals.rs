@@ -691,7 +691,7 @@ impl OperationFrame<'_, '_> {
         let site = ViewRangeSite {
             state: self.state,
             statement: result.statement_index,
-            range,
+            range: range.endpoints(),
         };
         let result_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let storage = super::super::view_ranges::storage(

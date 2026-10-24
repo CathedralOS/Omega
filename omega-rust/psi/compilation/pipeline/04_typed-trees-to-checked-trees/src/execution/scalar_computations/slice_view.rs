@@ -251,6 +251,92 @@ impl Builder<'_, '_> {
         })
     }
 
+    /// An established descriptor is an ordinary value producer, including a
+    /// literal, call or selected expression. Its backing is not another home
+    /// to rediscover after endpoint evaluation.
+    pub(super) fn subslice_view(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        use crate::execution::terminal_unit::calls::view_subslice;
+        let operation =
+            view_subslice::builtin_range_operation(self.program, self.operators, expression)?;
+        let machine = self.program.machine_by_symbol(self.machine)?;
+        let state = self.program.state_by_symbol(self.state)?;
+        let indexed = self.program.expression_table.indexed_node(operation)?;
+        // An existing collection lends its admitted place. A computed value
+        // instead completes its own descriptor before endpoint evaluation.
+        // A refused place admission never falls back to an owned value move.
+        if validation::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            indexed.collection,
+        )
+        .is_some_and(|place| place.root.as_symbol().is_some())
+        {
+            return self.subslice_view_place(expression, expected);
+        }
+        let target = validation::slice_view_shell(self.program, expected, &[])?;
+        // Anonymous constructors receive their contextual carrier; their own
+        // value producer still proves formation and qualifications independently.
+        let source_type = validation::expression_result_type_reference(
+            self.program,
+            machine,
+            state,
+            indexed.collection,
+        )
+        .unwrap_or(expected);
+        if !validation::indexed_operation_has_builtin_meaning(
+            self.program,
+            machine,
+            Some(state),
+            operation,
+            Some(source_type),
+        ) {
+            return None;
+        }
+        let source_view = validation::slice_view_shell(self.program, source_type, &[])?;
+        if source_view.access == language_core::ReferenceAccess::WriteOnly
+            || target.access == language_core::ReferenceAccess::WriteOnly
+            || (target.access == language_core::ReferenceAccess::Mutable
+                && source_view.access != language_core::ReferenceAccess::Mutable)
+            || self.program.normalized_type_identity(target.element)
+                != self.program.normalized_type_identity(source_view.element)
+        {
+            return None;
+        }
+        let site = match self
+            .program
+            .statement_table
+            .statement_at(state, self.statement_index)
+        {
+            Some(StatementNode::LocalData(local)) if local.initial_value == expression => {
+                checked_trees::CheckedSubsliceSite::LocalBinding
+            }
+            _ => checked_trees::CheckedSubsliceSite::Expression { expression },
+        };
+        let (start, end, end_inclusive) = view_subslice::retained_endpoints(
+            self.program,
+            self.pure,
+            self.plans,
+            self.machine,
+            self.state,
+            self.statement_index,
+            expression,
+            site,
+        )?;
+        let source = self.structural_value(indexed.collection, source_type)?;
+        Some(CheckedStructuralValueKind::ViewSubslice {
+            source,
+            start,
+            end,
+            end_inclusive,
+            site,
+        })
+    }
+
     /// Structural values use the same range admission as call operands and
     /// local bindings. The source carrier decides whether storage first lends
     /// a descriptor; endpoint computations do not select another producer.

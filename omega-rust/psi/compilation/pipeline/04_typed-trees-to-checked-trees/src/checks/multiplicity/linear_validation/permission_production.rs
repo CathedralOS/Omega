@@ -307,6 +307,13 @@ pub(crate) fn evaluate_statement_permissions(
                 ) {
                     continue;
                 }
+                let transfers_custody = projected_affine::transfers_value_custody(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    event,
+                    path,
+                );
                 // Arm-local moves follow the same retained decision route as
                 // their completions. Skipping them leaves the source live at
                 // the join even when every arm transfers it. The route joins
@@ -333,6 +340,26 @@ pub(crate) fn evaluate_statement_permissions(
                     },
                 )?;
                 let (places, remaining) = &mut custody;
+                // The occurrence inventory includes copied observations. They
+                // still complete their evaluations, but transfer neither the
+                // source carrier nor its contained claims or projected scope.
+                if !transfers_custody {
+                    observed_completions::complete_at(
+                        program,
+                        facts,
+                        &source_completions,
+                        occurrences,
+                        moves,
+                        temporary_owners,
+                        occurrence_ordinal,
+                        selection_site,
+                        places,
+                        remaining,
+                        permission_events,
+                        cleanup_dispositions,
+                    )?;
+                    continue;
+                }
                 // A transition's selected exit owns its residual schedule.
                 // Ordinary consumers close anonymous scopes before each join;
                 // call-held projections retain their exact call continuation.

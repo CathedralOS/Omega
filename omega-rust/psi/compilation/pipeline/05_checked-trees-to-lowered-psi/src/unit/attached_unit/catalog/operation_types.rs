@@ -12,6 +12,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
     for argument in operation.structural_operands() {
         roots.push(argument.type_identity);
         roots.extend(argument.borrowed_root_type_identity());
+        roots.extend(argument.subslice_root_type_identity());
         if let Some(storage) = argument.subslice_storage_type_identity()
             && storage.is_valid()
         {
@@ -50,6 +51,7 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         }
         CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } => {
             roots.push(result.type_identity);
+            roots.extend(source.subslice_root_type_identity());
             if let Some(storage) = source.subslice_storage_type_identity()
                 && storage.is_valid()
             {

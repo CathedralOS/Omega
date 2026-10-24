@@ -1,0 +1,29 @@
+// Expected exit: 0
+data Cell { value: u64; }
+data Holder<'storage> [copy] { cell: &'storage Cell; }
+data Payload<'storage> [copy] { bytes: &'storage [u8]; holder: &'storage Holder<'storage>; }
+machine make<'storage>(bytes: &'storage [u8], holder: &'storage Holder<'storage>) -> Payload<'storage> {
+    Payload { bytes: bytes, holder: holder }
+}
+machine main() crashes Trap {
+    let cell: Cell = Cell { value: 41 };
+    let holder: Holder = Holder { cell: &cell };
+    let payload: Payload = make("AZ", &holder);
+    transition payload.bytes.len == 2 {
+        true -> inspect(payload)
+        false -> bad()
+    }
+    state inspect(payload: Payload) {
+        transition payload.bytes.len == 2 && payload.holder.cell.value == 41 {
+            true -> read(payload)
+            false -> bad()
+        }
+    }
+    state read(payload: Payload) requires payload.bytes.len == 2 {
+        transition payload.bytes[0] == 65 && payload.bytes[1] == 90 && payload.holder.cell.value == 41 {
+            true -> done() false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

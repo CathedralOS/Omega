@@ -1,0 +1,11 @@
+// Expected exit: 0
+domain [u8; 2]::Ascii(bytes) requires ascii_only(bytes);
+data View { bytes: [u8; 2] in Ascii; }
+machine receive(view: View) -> u64 { view.bytes.len }
+machine main() crashes Trap {
+    let view: View = View { bytes: "ok" };
+    let result: u64 = receive(view);
+    transition result == 2 {true -> done() false -> bad()}
+    state done() {}
+    state bad() { crash Trap; }
+}

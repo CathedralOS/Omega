@@ -711,6 +711,16 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 });
                 self.dispatch_subject(subject) + alternatives.min().unwrap_or(0)
             }
+            CheckedStructuralValueKind::ViewSubslice {
+                source, start, end, ..
+            } => {
+                self.structural(*source, calls)
+                    + start
+                        .iter()
+                        .chain(end.iter())
+                        .map(|value| self.scalar(value))
+                        .sum::<usize>()
+            }
             CheckedStructuralValueKind::BorrowedSliceView { source, region }
             | CheckedStructuralValueKind::MutableSliceView { source, region } => {
                 self.argument_evaluation(source)

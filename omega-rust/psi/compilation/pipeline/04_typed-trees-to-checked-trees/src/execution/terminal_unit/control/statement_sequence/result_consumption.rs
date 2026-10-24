@@ -1603,6 +1603,9 @@ pub(in crate::execution::terminal_unit) fn consume_value_places(
                     projected || !path.is_empty() || *copies_selected_value,
                 ));
             }
+            checked_trees::CheckedStructuralValueKind::ViewSubslice { source, .. } => {
+                pending.push((*source, true));
+            }
             checked_trees::CheckedStructuralValueKind::QuotientAdaptation { source, .. } => {
                 pending.push((*source, projected));
             }

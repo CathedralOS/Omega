@@ -20,10 +20,7 @@ use crate::emission::operation_emission::expressions::{
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::ExpressionHandle;
-use checked_trees::{
-    CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedSubsliceSite,
-    CheckedUnitStructuralPathSegment,
-};
+use checked_trees::{CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedSubsliceSite};
 use checked_trees::{
     CheckedStorageRoot, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
@@ -43,6 +40,26 @@ pub(crate) struct Range<'a> {
     pub(crate) site: CheckedSubsliceSite,
 }
 
+/// Operand metadata shared by ranges over named storage and evaluated values.
+#[derive(Clone, Copy)]
+pub(crate) struct RangeEndpoints<'a> {
+    pub(crate) start: &'a Option<CheckedCallScalarArgument>,
+    pub(crate) end: &'a Option<CheckedCallScalarArgument>,
+    pub(crate) end_inclusive: bool,
+    pub(crate) site: CheckedSubsliceSite,
+}
+
+impl<'a> Range<'a> {
+    pub(crate) fn endpoints(self) -> RangeEndpoints<'a> {
+        RangeEndpoints {
+            start: self.start,
+            end: self.end,
+            end_inclusive: self.end_inclusive,
+            site: self.site,
+        }
+    }
+}
+
 /// The range `argument` narrows, of either view family.
 pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Range<'_>> {
     let (root, family, expression, start, end, end_inclusive, site) = match &argument.source {
@@ -54,6 +71,7 @@ pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Rang
             end_inclusive,
             site,
             storage_type_identity: _,
+            root_type_identity: _,
         } => (
             *root,
             ViewFamily::Bytes,
@@ -71,6 +89,7 @@ pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Rang
             end_inclusive,
             site,
             storage_type_identity: _,
+            root_type_identity: _,
         } => (
             *root,
             ViewFamily::Elements,
@@ -95,8 +114,7 @@ pub(crate) fn range(argument: &CheckedUnitStructuralArgumentPlan) -> Option<Rang
 
 #[derive(Clone)]
 pub(crate) struct RangeStorage {
-    symbol: symbols::SymbolHandle,
-    collection: Vec<CheckedUnitStructuralPathSegment>,
+    source: CheckedUnitStructuralArgumentPlan,
     structural_type: StructuralTypeId,
     family: ViewFamily,
     collection_element: Option<StructuralTypeId>,
@@ -172,32 +190,44 @@ impl RangeStorage {
         declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
         let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-        let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                symbol: self.symbol,
-            },
-            path: self.collection.clone(),
-            access: self.access,
-            type_identity: Default::default(),
-        };
+        let argument = &self.source;
         let source =
-            bindings.borrowed_structural_home(&argument, checked.state_parameters(authored))?;
+            bindings.borrowed_structural_home(argument, checked.state_parameters(authored))?;
         let root = bindings
             .structural_argument_type(&source)
             .ok_or(LoweringError::Unsupported(
                 "range source lost its published storage type",
             ))?;
+        let prepared =
+            crate::expression_preparation::bindings::structural_paths::prepare_observation_path(
+                identities,
+                checked,
+                &argument.path,
+                root,
+                argument
+                    .subslice_root_type_identity()
+                    .ok_or(LoweringError::Unsupported(
+                        "range source lost its logical root",
+                    ))?,
+                argument
+                    .subslice_storage_type_identity()
+                    .ok_or(LoweringError::Unsupported(
+                        "range source lost its collection declaration",
+                    ))?,
+                crate::expression_preparation::bindings::structural_paths::terminal_access(
+                    argument.access,
+                ),
+                declarations,
+            )?;
         let path = source
             .path
             .into_iter()
             .map(LoweredElementPathSegment::Static)
             .chain(collection_path(
                 identities,
-                &self.collection,
+                prepared,
                 bindings,
                 source.place,
-                root,
-                declarations,
             )?)
             .collect::<Vec<_>>();
         let (place, path, establishment) = if let Some(element) = self.collection_element {
@@ -245,19 +275,16 @@ impl RangeStorage {
 /// selected case payloads lower alike.
 fn collection_path(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-    path: &[CheckedUnitStructuralPathSegment],
+    path: Vec<
+        crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment,
+    >,
     bindings: &ScalarBindings,
     source: PlaceId,
-    root: semantic_vocabulary::StructuralTypeId,
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<Vec<LoweredElementPathSegment>, LoweringError> {
-    use crate::expression_preparation::bindings::structural_paths::{
-        PreparedStructuralPathSegment, prepare_argument_path,
-    };
+    use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
     let mut runtime_indices = 0;
     let mut dynamic_extent = false;
-    prepare_argument_path(identities, path, root, declarations)?
-        .into_iter()
+    path.into_iter()
         .map(|segment| match segment {
             PreparedStructuralPathSegment::Static(segment) => {
                 if dynamic_extent
@@ -331,7 +358,7 @@ fn collection_path(
 pub(crate) fn storage(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
+    _state: symbols::SymbolHandle,
     _statement: u32,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
@@ -346,7 +373,6 @@ pub(crate) fn storage(
     ) {
         return unsupported("range storage requires a readable loan");
     }
-    let (_machine, authored) = crate::declarations::state_declaration(checked, state)?;
     let (checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
         storage_type_identity,
         ..
@@ -361,24 +387,6 @@ pub(crate) fn storage(
     let identity = checked
         .type_identity_text(*storage_type_identity)
         .unwrap_or_default();
-    let symbol = match range.root {
-        checked_trees::CheckedStorageRoot::Parameter { index } => checked
-            .state_parameters(authored)
-            .iter()
-            .filter(|parameter| {
-                !parameter.relevance.is_erased()
-                    && checked
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
-            .nth(index as usize)
-            .map(|parameter| parameter.symbol)
-            .ok_or(LoweringError::Unsupported(
-                "range storage lost its parameter",
-            ))?,
-        checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
-        | checked_trees::CheckedStorageRoot::ViewLocal { symbol } => symbol,
-    };
     let collection =
         terminal_psi::structural_type_by_identity(declarations, identities.intern(&identity))
             .ok_or(LoweringError::Unsupported(
@@ -425,8 +433,7 @@ pub(crate) fn storage(
         _ => return unsupported("range collection is neither backing nor its exact descriptor"),
     };
     Ok(RangeStorage {
-        symbol,
-        collection: argument.path.clone(),
+        source: argument.clone(),
         structural_type: view.id,
         family: range.family,
         collection_element,
@@ -560,7 +567,7 @@ pub(crate) struct ViewRangeSite<'a> {
     /// The checked plan's state, whose scalar facts key the endpoints.
     pub(crate) state: symbols::SymbolHandle,
     pub(crate) statement: u32,
-    pub(crate) range: Range<'a>,
+    pub(crate) range: RangeEndpoints<'a>,
 }
 
 /// Complete the selected collection path before evaluating authored endpoints,

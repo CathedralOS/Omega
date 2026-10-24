@@ -251,6 +251,32 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
                     checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                         pending.extend(plans.dispatch_arms.span(arms)?.iter().map(|arm| arm.value));
                     }
+                    checked_trees::CheckedStructuralValueKind::ViewSubslice {
+                        source,
+                        ref start,
+                        ref end,
+                        ..
+                    } => {
+                        pending.push(source);
+                        let mut visits = Vec::new();
+                        for value in start.iter().chain(end.iter()) {
+                            if let checked_trees::CheckedCallScalarArgument::Computation(root) =
+                                value
+                            {
+                                super::collecting::collect(
+                                    program,
+                                    facts,
+                                    state.symbol,
+                                    statement_index,
+                                    *root,
+                                    calls,
+                                    0,
+                                    &mut visits,
+                                    &mut consumed,
+                                )?;
+                            }
+                        }
+                    }
                     checked_trees::CheckedStructuralValueKind::Projection { source, .. }
                     | checked_trees::CheckedStructuralValueKind::QuotientAdaptation {
                         source,

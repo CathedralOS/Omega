@@ -203,6 +203,27 @@ impl CallableApplication {
                 // Elision retains those exact arguments, not the data's formal
                 // names. Repeated and permuted arguments keep their relation.
                 let nominal_owner = self.symbol(base_symbol);
+                // Uninferred result regions still belong to the declaration.
+                // Retaining that scope lets inference reach ordinary argument
+                // checking even for a mismatched operand. An explicit actual,
+                // including a same-spelled one, cannot acquire this ownership.
+                if !applied_owner.is_valid()
+                    && !lifetime_arguments.is_empty()
+                    && lifetime_arguments.iter().all(|lifetime| {
+                        !self
+                            .lifetimes
+                            .iter()
+                            .any(|binding| binding.parameter == *lifetime)
+                            && crate::type_identity::lifetime_parameter_identity(
+                                program,
+                                self.region_scope,
+                                lifetime.as_str(),
+                            )
+                            .is_some()
+                    })
+                {
+                    applied_owner = self.region_scope;
+                }
                 if !applied_owner.is_valid()
                     && lifetime_arguments
                         .iter()

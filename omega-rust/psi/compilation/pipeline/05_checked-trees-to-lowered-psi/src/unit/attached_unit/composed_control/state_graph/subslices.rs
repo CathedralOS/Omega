@@ -95,7 +95,7 @@ pub(super) fn emit(
     let site = ViewRangeSite {
         state: state.state,
         statement: statement_ordinal,
-        range,
+        range: range.endpoints(),
     };
 
     let source_value_count = values.len();

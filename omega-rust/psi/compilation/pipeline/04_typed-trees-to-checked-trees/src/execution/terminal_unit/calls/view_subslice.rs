@@ -55,6 +55,7 @@ enum ViewStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::execution) struct ViewRange {
     pub(in crate::execution) root: CheckedStorageRoot,
+    pub(in crate::execution) root_type_identity: typed_trees::type_identity::TypeIdentityId,
     storage: ViewStorage,
     /// Exact ordered projection to the collection or established descriptor.
     /// Storage kind comes from the selected declaration, never path length.
@@ -123,6 +124,7 @@ impl ViewSubslice {
             source: match range.kind {
                 ViewKind::Bytes => CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                     root: range.root,
+                    root_type_identity: range.root_type_identity,
                     expression,
                     start,
                     end,
@@ -133,6 +135,7 @@ impl ViewSubslice {
                 ViewKind::Elements => {
                     CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
                         root: range.root,
+                        root_type_identity: range.root_type_identity,
                         expression,
                         start,
                         end,
@@ -211,20 +214,7 @@ pub(crate) fn admit_resolved(
     statement_index: usize,
     site: CheckedSubsliceSite,
 ) -> Option<ViewSubslice> {
-    let operation = validation::subslice_expression(program, expression)?;
-    let spelling = language_core::OperatorSpelling::Range;
-    if operators.expression_use(operation).is_some_and(|selected| {
-        selected.spelling != spelling
-            || selected.selected_operator_symbol.is_valid()
-            || selected.candidate_count != 0
-            || !matches!(
-                selected.status,
-                checked_trees::CheckedOperatorResolutionStatus::Missing
-                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-            )
-    }) {
-        return None;
-    }
+    builtin_range_operation(program, operators, expression)?;
     let subslice = admit_replayed(
         program,
         expressions,
@@ -276,6 +266,30 @@ pub(crate) fn admit_resolved(
         },
     };
     established.then_some(subslice)
+}
+
+/// Join a range occurrence to the selected builtin operator, independently of
+/// whether its collection already has a named storage home.
+pub(crate) fn builtin_range_operation(
+    program: &dyn ::validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let operation = validation::subslice_expression(program, expression)?;
+    let spelling = language_core::OperatorSpelling::Range;
+    if operators.expression_use(operation).is_some_and(|selected| {
+        selected.spelling != spelling
+            || selected.selected_operator_symbol.is_valid()
+            || selected.candidate_count != 0
+            || !matches!(
+                selected.status,
+                checked_trees::CheckedOperatorResolutionStatus::Missing
+                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            )
+    }) {
+        return None;
+    }
+    Some(operation)
 }
 
 /// Whether checked borrow admission recorded the `let` at `statement_index`
@@ -372,6 +386,42 @@ pub(in crate::execution) fn admit_replayed(
         expression,
         statement_index,
     )?;
+    let (start, end, end_inclusive) = retained_endpoints(
+        program,
+        expressions,
+        computations,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        expression,
+        site,
+    )?;
+    Some(ViewSubslice {
+        range,
+        expression,
+        start,
+        end,
+        end_inclusive,
+        site,
+    })
+}
+
+/// Exact endpoint bindings shared by named collection ranges and value ranges.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn retained_endpoints(
+    program: &dyn ::validation::CheckingInput,
+    expressions: &CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    site: CheckedSubsliceSite,
+) -> Option<(
+    Option<checked_trees::CheckedCallScalarArgument>,
+    Option<checked_trees::CheckedCallScalarArgument>,
+    bool,
+)> {
     let operation = validation::subslice_expression(program, expression)?;
     let indexed = program.expression_table.indexed_node(operation)?;
     let authored = program.expression_table.range_node(indexed.index)?;
@@ -380,24 +430,23 @@ pub(in crate::execution) fn admit_replayed(
         if !endpoint.is_valid() {
             return Some(None);
         }
-        if let Some(root) = computations.root_at(state.symbol, statement_ordinal, role) {
+        if let Some(root) = computations.root_at(state, statement_ordinal, role) {
             if !computations.nodes.is_valid(root.root)
                 || expressions
-                    .expression_at(state.symbol, statement_ordinal, role)
+                    .expression_at(state, statement_ordinal, role)
                     .is_some()
             {
                 return None;
             }
             let value = computations.nodes.get(root.root);
-            return (root.machine == machine.symbol
+            return (root.machine == machine
                 && value.authored_root == endpoint
                 && value.primitive_type.integer_sign_bits().is_some())
             .then_some(Some(checked_trees::CheckedCallScalarArgument::Computation(
                 root.root,
             )));
         }
-        let (binding, value) =
-            expressions.bound_expression_at(state.symbol, statement_ordinal, role)?;
+        let (binding, value) = expressions.bound_expression_at(state, statement_ordinal, role)?;
         (binding.expression == endpoint
             && !binding.destination.is_valid()
             && value
@@ -417,14 +466,7 @@ pub(in crate::execution) fn admit_replayed(
         authored.end,
         CheckedScalarExpressionRole::SubsliceEnd { site },
     )?;
-    Some(ViewSubslice {
-        range,
-        expression,
-        start,
-        end,
-        end_inclusive: authored.end_inclusive,
-        site,
-    })
+    Some((start, end, authored.end_inclusive))
 }
 
 /// Range admission without endpoints: the target is an exact readable
@@ -473,7 +515,7 @@ fn shape_of_kind(
     let expression = validation::subslice_expression(program, expression)?;
     let indexed = program.expression_table.indexed_node(expression)?;
     let type_identity = view_identity(program, kind, target)?;
-    let (root, collection, storage, storage_kind) = collection_storage(
+    let (root, root_type_identity, collection, storage, storage_kind) = collection_storage(
         program,
         machine,
         state,
@@ -485,6 +527,7 @@ fn shape_of_kind(
     validation::has_builtin_subslice_meaning(program, machine, Some(state), expression).then_some(
         ViewRange {
             root,
+            root_type_identity,
             storage: storage_kind,
             collection,
             storage_type_identity: validation::structural_type_identity(program, storage, &[], &[]),
@@ -511,6 +554,7 @@ fn collection_storage(
     statement_index: usize,
 ) -> Option<(
     CheckedStorageRoot,
+    typed_trees::type_identity::TypeIdentityId,
     Vec<CheckedUnitStructuralPathSegment>,
     TypeReferenceHandle,
     ViewStorage,
@@ -526,7 +570,7 @@ fn collection_storage(
     )?;
 
     let symbol = place.root.as_symbol()?;
-    let root = if let Some(position) =
+    let (root, root_type_identity) = if let Some(position) =
         typed_trees::signature::state_parameter_position(program.state_parameters(state), symbol)
     {
         let parameter_index = parameters
@@ -545,9 +589,12 @@ fn collection_storage(
         if mutable && parameters[parameter_index].access == CheckedStructuralAccess::SharedBorrow {
             return None;
         }
-        CheckedStorageRoot::Parameter {
-            index: u32::try_from(parameter_index).ok()?,
-        }
+        (
+            CheckedStorageRoot::Parameter {
+                index: u32::try_from(parameter_index).ok()?,
+            },
+            parameters[parameter_index].type_identity,
+        )
     } else {
         let (_, local) = program
             .state_local_declaration(state, symbol)
@@ -562,11 +609,14 @@ fn collection_storage(
         {
             return None;
         }
-        if source_access == CheckedStructuralAccess::Owned {
-            CheckedStorageRoot::OwnedLocal { symbol }
-        } else {
-            CheckedStorageRoot::ViewLocal { symbol }
-        }
+        (
+            if source_access == CheckedStructuralAccess::Owned {
+                CheckedStorageRoot::OwnedLocal { symbol }
+            } else {
+                CheckedStorageRoot::ViewLocal { symbol }
+            },
+            validation::structural_type_identity(program, local.type_reference, &[], &[]),
+        )
     };
     // Forming a view lends its selected collection; it does not move an
     // array element. Reuse the borrowed projection's runtime selector and
@@ -586,7 +636,13 @@ fn collection_storage(
         {
             return None;
         }
-        return Some((root, path, projected, ViewStorage::Established));
+        return Some((
+            root,
+            root_type_identity,
+            path,
+            projected,
+            ViewStorage::Established,
+        ));
     }
     // The declared reference shell stays on the storage handle: byte
     // carriers enroll in the checked type table under that shell's spelling
@@ -618,7 +674,13 @@ fn collection_storage(
         }
     };
     (program.normalized_type_identity(array_element) == program.normalized_type_identity(element))
-        .then_some((root, path, storage, ViewStorage::FixedArray))
+        .then_some((
+            root,
+            root_type_identity,
+            path,
+            storage,
+            ViewStorage::FixedArray,
+        ))
 }
 
 /// The whole-extent spelling of the same range: `let v: &T = coll` lends
@@ -639,7 +701,7 @@ pub(in crate::execution) fn whole_extent(
     })?;
     let access = borrowed_view_access(program, target, expression)?;
     let type_identity = view_identity(program, kind, target)?;
-    let (root, collection, storage, storage_kind) = collection_storage(
+    let (root, root_type_identity, collection, storage, storage_kind) = collection_storage(
         program,
         machine,
         state,
@@ -655,6 +717,7 @@ pub(in crate::execution) fn whole_extent(
         ViewSubslice {
             range: ViewRange {
                 root,
+                root_type_identity,
                 storage: ViewStorage::FixedArray,
                 collection,
                 // The collection's storage carrier, as the structural type
