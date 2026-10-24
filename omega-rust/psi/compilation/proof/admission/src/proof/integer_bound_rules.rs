@@ -71,42 +71,6 @@ pub(crate) fn affine_bound_relation(
     Ok(cited)
 }
 
-pub(super) fn check_integer_affine_bound(
-    scope: &RuleScope<'_>,
-    proof: &ProofNode,
-    acceptance: &mut AcceptanceBuilder,
-) -> Result<(), ProofError> {
-    let ProofRule::IntegerAffineBound {
-        root_bound,
-        witness,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_affine_bound")
-    };
-    let RuleScope {
-        context,
-        semantic_axioms,
-        ..
-    } = *scope;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerAffineBound);
-    let cited = affine_bound_relation(
-        context,
-        semantic_axioms,
-        &root_bound.conclusion,
-        witness,
-        &proof.conclusion,
-    )?;
-    for index in cited {
-        let proposition = semantic_axioms
-            .get(index)
-            .expect("the relation bounds-checked every cited index");
-        acceptance.record_semantic_axiom(index, proposition);
-    }
-    Ok(())
-}
-
 /// The exact operation a definition-bound rule maps its two operand bounds
 /// through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -312,23 +276,23 @@ pub(super) fn check_integer_exact_definition_bound(
         &proof.conclusion,
         operation,
     )?;
-    let definition = semantic_axioms
-        .get(*definition_axiom)
-        .expect("the relation bounds-checked the cited definition");
-    acceptance.record_semantic_axiom(*definition_axiom, definition);
+    record_cited_axioms(acceptance, semantic_axioms, [*definition_axiom]);
     Ok(())
 }
 
 /// The `IntegerCastBound` premise/conclusion relation: the checked cast
 /// chain mapped over the root bound must produce the normalized
-/// conclusion. The cited semantic axioms are `witness.definition_axioms`.
+/// conclusion. Returns the semantic-axiom indices the witness cites, in
+/// recording order, beside the checked chain the denotation layer replays —
+/// the same citation shape `affine_bound_relation` reports, so one
+/// orchestration records both rules' citations.
 pub(crate) fn cast_bound_relation(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
     root_bound: &Proposition,
     witness: &crate::IntegerCastChainWitness,
     conclusion: &Proposition,
-) -> Result<CheckedIntegerCastChain, ProofError> {
+) -> Result<(Vec<usize>, CheckedIntegerCastChain), ProofError> {
     let chain = check_integer_cast_chain_witness(context, semantic_axioms, witness)
         .map_err(ProofError::IntegerCastChainWitness)?;
     let normalized_conclusion =
@@ -345,46 +309,80 @@ pub(crate) fn cast_bound_relation(
         check_integer_cast_bound_conversion(&chain, root_bound, &normalized_conclusion)
             .map_err(ProofError::IntegerCastBoundConversion)?;
     }
+    let mut cited = Vec::with_capacity(witness.definition_axioms.len());
     for &index in &witness.definition_axioms {
         if index >= semantic_axioms.len() {
             return Err(ProofError::UnknownSemanticAxiom(index));
         }
+        cited.push(index);
     }
-    Ok(chain)
+    Ok((cited, chain))
 }
 
-pub(super) fn check_integer_cast_bound(
+/// Check a cited-bound node: `IntegerAffineBound` and `IntegerCastBound` ask
+/// one orchestration of their own relation — the checked witness must
+/// produce the conclusion, and every axiom it cites is recorded as a premise
+/// of the accepted rule.
+pub(super) fn check_integer_cited_bound(
     scope: &RuleScope<'_>,
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerCastBound {
-        root_bound,
-        witness,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_cast_bound")
-    };
     let RuleScope {
         context,
         semantic_axioms,
         ..
     } = *scope;
-    acceptance.rules.insert(AcceptedProofRule::IntegerCastBound);
-    cast_bound_relation(
-        context,
-        semantic_axioms,
-        &root_bound.conclusion,
-        witness,
-        &proof.conclusion,
-    )?;
-    for &index in &witness.definition_axioms {
+    let conclusion = &proof.conclusion;
+    let cited = match &proof.rule {
+        ProofRule::IntegerAffineBound {
+            root_bound,
+            witness,
+        } => {
+            acceptance
+                .rules
+                .insert(AcceptedProofRule::IntegerAffineBound);
+            affine_bound_relation(
+                context,
+                semantic_axioms,
+                &root_bound.conclusion,
+                witness,
+                conclusion,
+            )?
+        }
+        ProofRule::IntegerCastBound {
+            root_bound,
+            witness,
+        } => {
+            acceptance.rules.insert(AcceptedProofRule::IntegerCastBound);
+            let (cited, _chain) = cast_bound_relation(
+                context,
+                semantic_axioms,
+                &root_bound.conclusion,
+                witness,
+                conclusion,
+            )?;
+            cited
+        }
+        _ => unreachable!("dispatched check_integer_cited_bound"),
+    };
+    record_cited_axioms(acceptance, semantic_axioms, cited);
+    Ok(())
+}
+
+/// Record every semantic axiom a bound relation bounds-checked, in the order
+/// its witness cites them.
+fn record_cited_axioms(
+    acceptance: &mut AcceptanceBuilder,
+    semantic_axioms: &[Proposition],
+    cited: impl IntoIterator<Item = usize>,
+) {
+    for index in cited {
         let proposition = semantic_axioms
             .get(index)
             .expect("the relation bounds-checked every cited index");
         acceptance.record_semantic_axiom(index, proposition);
     }
-    Ok(())
 }
 
 /// The roster citations a checked `IntegerCorrelatedForbiddenRoots`
@@ -481,12 +479,7 @@ pub(super) fn check_integer_correlated_forbidden_roots(
         witness,
         &proof.conclusion,
     )?;
-    for index in citations.semantic_axioms {
-        let proposition = semantic_axioms
-            .get(index)
-            .expect("the relation bounds-checked every cited index");
-        acceptance.record_semantic_axiom(index, proposition);
-    }
+    record_cited_axioms(acceptance, semantic_axioms, citations.semantic_axioms);
     for index in citations.assumptions {
         let proposition = assumptions
             .get(index)

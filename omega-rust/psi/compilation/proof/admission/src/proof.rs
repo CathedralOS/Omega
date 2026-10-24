@@ -442,15 +442,12 @@ fn check_node_locally(
         ProofRule::IntegerMathOrderTranslation { .. } => {
             integer_order_rules::check_integer_math_order_translation(proof, acceptance)
         }
-        ProofRule::IntegerAffineBound { .. } => {
-            integer_bound_rules::check_integer_affine_bound(&scope, proof, acceptance)
+        ProofRule::IntegerAffineBound { .. } | ProofRule::IntegerCastBound { .. } => {
+            integer_bound_rules::check_integer_cited_bound(&scope, proof, acceptance)
         }
         ProofRule::IntegerExactAddDefinitionBound { .. }
         | ProofRule::IntegerExactSubtractDefinitionBound { .. } => {
             integer_bound_rules::check_integer_exact_definition_bound(&scope, proof, acceptance)
-        }
-        ProofRule::IntegerCastBound { .. } => {
-            integer_bound_rules::check_integer_cast_bound(&scope, proof, acceptance)
         }
         ProofRule::IntegerCorrelatedForbiddenRoots { .. } => {
             integer_bound_rules::check_integer_correlated_forbidden_roots(&scope, proof, acceptance)

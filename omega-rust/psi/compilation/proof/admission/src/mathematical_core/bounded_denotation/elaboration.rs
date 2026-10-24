@@ -879,7 +879,7 @@ impl<'a> Elaboration<'a> {
                 witness,
             } => {
                 let root = self.node(root_bound)?;
-                let chain = integer_bound_rules::cast_bound_relation(
+                let (citations, chain) = integer_bound_rules::cast_bound_relation(
                     self.context,
                     self.axioms,
                     &root_bound.conclusion,
@@ -887,11 +887,11 @@ impl<'a> Elaboration<'a> {
                     &proof.conclusion,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
-                let mut premises = Vec::with_capacity(witness.definition_axioms.len() + 1);
-                let mut evidence = Vec::with_capacity(witness.definition_axioms.len() + 1);
+                let mut premises = Vec::with_capacity(citations.len() + 1);
+                let mut evidence = Vec::with_capacity(citations.len() + 1);
                 premises.push(root_bound.conclusion.clone());
                 evidence.push(root);
-                for &index in &witness.definition_axioms {
+                for &index in &citations {
                     let (proposition, variable) = self.cited_axiom(index)?;
                     premises.push(proposition);
                     evidence.push(variable);
