@@ -11,6 +11,7 @@ use crate::selection::signature_free_requirements::{
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::data::{MachineParameterContract, TypeParameterKind};
+use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::types::TypeReference;
 
 /// Resolve every authored nominal machine-parameter requirement only after
@@ -113,13 +114,14 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
                 }) {
                 *symbol
             } else {
-                resolve_rendered_requirement(program, rendered, name.source_span()).map_err(
-                    |reason| {
+                resolve_signature_free_requirement(program, &requirement_argument_path(name))
+                    .map(|exact| exact.requirement.symbol)
+                    .map_err(|error| {
                         Diagnostic::error(format!(
-                            "trait machine requirement argument `{rendered}` {reason}"
+                            "trait machine requirement argument `{rendered}` {}",
+                            requirement_resolution_reason(error)
                         ))
-                    },
-                )?
+                    })?
             };
             let handle = arena::Handle::from_parts(
                 conformance
@@ -148,42 +150,28 @@ pub(crate) fn normalize_trait_machine_requirement_arguments(
     Ok(())
 }
 
-fn resolve_rendered_requirement(
-    program: &SymbolResolvedTrees,
-    rendered: &str,
-    use_span: source::SourceSpan,
-) -> Result<symbols::SymbolHandle, &'static str> {
-    let members = rendered.split("::").collect::<Vec<_>>();
-    let [trait_path @ .., requirement_name] = members.as_slice() else {
-        return Err("expected one exact `Trait::requirement` path");
-    };
-    if trait_path.is_empty() {
-        return Err("expected one exact `Trait::requirement` path");
+/// A `TypeReference::Named` argument retains one rendered `Trait::requirement`
+/// spelling; splitting it back into exact name segments (each carrying the
+/// whole spelling's span) lets the shared signature-free law resolve it
+/// instead of a second copy of that law.
+fn requirement_argument_path(name: &DiagnosticName) -> Vec<DiagnosticName> {
+    name.as_str()
+        .split("::")
+        .map(|segment| DiagnosticName::from_str(segment, name.source_span()))
+        .collect()
+}
+
+/// The diagnostic sentences for the shared resolution law's error variants.
+fn requirement_resolution_reason(error: SignatureFreeRequirementResolutionError) -> &'static str {
+    match error {
+        SignatureFreeRequirementResolutionError::InvalidPath => {
+            "expected one exact `Trait::requirement` path"
+        }
+        SignatureFreeRequirementResolutionError::TraitNotUnique => {
+            "path does not resolve to one exact trait"
+        }
+        SignatureFreeRequirementResolutionError::RequirementNotUnique => {
+            "path does not resolve to one exact trait requirement; signature-free references reject overloads"
+        }
     }
-    let trait_name = trait_path.join("::");
-    let matching_traits =
-        crate::selection::signature_free_requirements::signature_free_trait_candidates(
-            program,
-            &trait_name,
-            use_span,
-        );
-    let [trait_definition] = matching_traits.as_slice() else {
-        return Err("path does not resolve to one exact trait");
-    };
-    let matching_requirements = program
-        .trait_machine_signatures(trait_definition.machines)
-        .iter()
-        .filter(|signature| {
-            signature.name.as_str() == *requirement_name
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(use_span, signature.symbol)
-        })
-        .collect::<Vec<_>>();
-    let [requirement] = matching_requirements.as_slice() else {
-        return Err(
-            "path does not resolve to one exact trait requirement; signature-free references reject overloads",
-        );
-    };
-    Ok(requirement.symbol)
 }
