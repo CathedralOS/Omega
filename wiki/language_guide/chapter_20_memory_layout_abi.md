@@ -404,6 +404,20 @@ public data Extent [linear] {
 }
 ```
 
+This is core-library data, not a special language type. The compiler supports
+general linearity, domain authority, loans, mathematical contracts and the
+explicit `Content` conservation interface. Core uses those mechanisms to define
+extent operations; other libraries can use the same mechanisms for their own
+resources.
+
+Split and merge are ordinary machines with checked contracts. A merge must
+consume its inputs, conserve their content and establish its result's authority.
+Any required relationship between inputs belongs in their declared types,
+domains or contracts; common ancestry is not an automatic compiler restriction.
+Adjacency alone does not establish backing or permission, and different issuance
+calls alone do not forbid combination. See
+[library resources and language mechanisms](../spec/resources/content_custody.md#library-resources-and-language-mechanisms).
+
 Placement needs the exact source qualified as `Extent in Granted`. Reconstructing
 numeric fields does not reconstruct the grant. A caller-authored profile is not
 an admission receipt: the selected provider binds its normalized profile to that

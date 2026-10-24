@@ -14,14 +14,25 @@ Constructing identical fields produces unqualified data, not a usable resource.
 Zero-filled storage establishes neither `Granted` nor a linear debt;
 `ExtentSlot { Empty | Live(Extent) }` supplies a debt-free empty state.
 
+`Extent` is a core-library customer of the
+[general resource mechanisms](content_custody.md#library-resources-and-language-mechanisms),
+not a language primitive. This document states the contracts extent APIs must
+express and establish; it does not grant extra semantics from the carrier's
+name. Library split, merge and compatibility policy use ordinary declarations
+and checked contracts. OS mapping, allocation and reclamation policy stays with
+the owning library or provider.
+
 The transparent geometry obligation is the proposition
 `embed(base) + embed(length) <= addr::Bound`, using unbounded proof `Int` and
 the sealed selected-target bound. It is not wrapping address arithmetic or an
 executable Boolean validator. Its proof cannot establish routed authority.
 See [counts and addresses](../language/counts_and_addresses.md).
 
-Every claim retains its address space, rights, stable backing identity, minting
-provenance, parent/root lineage, lifetime or mapping era, and ownership.
+An extent API must express and retain the address-space, rights, backing,
+provenance and lifetime relationships its operations require through its
+qualifications, contracts and boundary evidence, together with ordinary
+ownership and loan obligations. A bare `Granted` spelling or carrier name does
+not silently supply undeclared relationships.
 Physical, virtual, I/O-port, and provider-defined spaces use the same range
 algebra but are not interchangeable. Rights are independently established facts.
 These facts need not occupy runtime bits while evidence survives every required
@@ -55,12 +66,15 @@ parent content = separate(all child content)
 ```
 
 Split consumes the parent and returns disjoint children covering it exactly.
-Containment of each child or a scalar length sum is insufficient. Merge proves
-the reverse equation over compatible common root lineage; literal siblinghood
-is not required. Numeric adjacency alone proves neither compatible rights nor
-provenance or era. Joining unrelated grants requires an explicit provider
-operation establishing new combined authority. Failed consuming operations
-return every input authority.
+Containment of each child or a scalar length sum is insufficient. Merge consumes
+the input claims and proves the reverse conservation equation together with
+the result's declared qualifications and all applicable custody/loan obligations.
+Numeric adjacency alone proves neither compatible rights nor backing or lifetime
+relationships. Such restrictions must be expressed by the API's types, domains
+and contracts; the compiler does not add an Extent-specific common-root test.
+A checked operation may combine compatible existing claims without new provider
+issuance. Different origins alone are not a rejection reason, and equal geometry
+alone is not authority. Failed consuming operations return every input authority.
 
 Attenuation preserves content while permanently discarding rights. Merge cannot
 recreate discarded write permission. Authority intended to return remains in a
@@ -75,9 +89,11 @@ placed fields, and allocator-private free-list geometry do not split owned
 authority. A subrange leaving its parent's ownership domain does require a
 conserved owned split. [Allocation](allocation.md) remains package behavior.
 
-Exclusive claims over the same stable backing descend from one custody root.
-That root delegates separated ranges or explicitly authorizes shared aliases.
-Independent provider-local ledgers do not prove cross-provider exclusivity.
+Exclusive issuance over shared backing requires consistent custody evidence:
+delegations separate ranges or explicitly authorize shared aliases. Independent
+provider-local ledgers do not prove cross-provider exclusivity. This general
+issuance obligation is not a blanket common-ancestor restriction on checked
+transformations of existing claims.
 
 Boot handoff appends classified custody-succession edges without rewriting
 backing identity or history. Preserved delegations remain honored by the

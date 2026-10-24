@@ -235,8 +235,12 @@ hardware, or an OS. Only an owner-authorized selected invocation may import it;
 derived obligations cannot be admitted by disguising them as root claims.
 Verification rechecks downstream consequences and retains the premise for
 receiving-policy acceptance. Checked partitions of already-owned storage need
-no new admitted seam. [Content custody](content_custody.md) owns conservation;
-[extents](extents.md) owns range-specific backing and succession rules.
+no new admitted seam. Checked combination of existing claims likewise needs no
+fresh issuance solely because it has several inputs; it must prove the output
+authority under the [general resource rules](content_custody.md#library-resources-and-language-mechanisms).
+[Content custody](content_custody.md) owns conservation; [extents](extents.md)
+describes library range contracts over those mechanisms, not compiler-owned
+split/merge policy.
 
 ## Evidence identity and reports
 

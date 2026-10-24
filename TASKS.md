@@ -575,7 +575,7 @@ helper that passes does not close an item.
     custody, non-callable hook boundary and operational guarantees. Do not
     replace it with ambient conformance discovery or delete automatic cleanup.
     The replacement authored nominal-disposition authorization is
-    **OWNER-BLOCKED** on [Q2](OWNER_QUESTIONS.md#q2-how-does-a-type-owner-authorize-an-independent-nominal-cleanup-operation);
+    **OWNER-BLOCKED** on [Q1](OWNER_QUESTIONS.md#q1-how-does-a-type-owner-authorize-an-independent-nominal-cleanup-operation);
     ordinary static-machine migration and existing cleanup repairs continue.
     **EXPLICIT-ENTRY-STORAGE** owns retiring the separate automatic entry-context
     allocation path; preserve actual platform handoff and storage authority.
@@ -4208,6 +4208,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   theorem propagation under
   [content conservation](wiki/spec/resources/content_custody.md), using canonical
   `source/library/core/content.omg` identities.
+  - Carry general n-to-m claim transformations through separately checked
+    calls, result correspondence and Terminal execution. Several consumed input
+    claims may justify one output under an explicit conservation/authority
+    contract; a representation limited to one ancestry anchor is not a language
+    restriction. Preserve each input's obligations and reject missing or
+    substituted authority. **EXTENT-LIBRARY-TRANSFORMS** is the concrete library
+    customer; repair the common mechanism, not an Extent-name path. New lineage
+    predicates or algebras are not presumed prerequisites.
   - Wrapper composition through a value join proves and exports the authored
     conservation guarantee: a match-selected completed partition call retains
     each reachable arm's completed value, exact invocation and current returned
@@ -5161,6 +5169,48 @@ wait for Cathedral's instruction coverage. The interpreter is
   insufficient, and simulation establishes modeled behavior only.
 
 ## P5 - Cathedral over general Omega primitives
+
+- **EXTENT-LIBRARY-TRANSFORMS.** Implement usable core split and merge operations
+  under [library resources and language mechanisms](wiki/spec/resources/content_custody.md#library-resources-and-language-mechanisms),
+  then use them to return Cathedral's retired vacant storage to allocator
+  custody. `source/library/core/extent.omg` declares `split_vacant_extent` and
+  the `Granted`/`Vacant` content projections, but no merge machine. The
+  `samples/cli/facts/content_interval_adjacency` row forwards two intact claims;
+  it proves geometry, not an n-to-one authority transformation.
+
+  Build the actual library contracts with existing domains, mathematics,
+  linearity, loans and `Content` conservation. Make required backing, rights,
+  space and lifetime relationships explicit in the API's types/contracts or
+  supplied evidence; do not assume the compiler privately fills in missing
+  policy. Split and merge consume and account for all inputs, preserve vacancy
+  independently of the backing grant, and return all authority on rejection.
+  A merge must establish its complete result, not merely reconstruct adjacent
+  fields. Do not impose common ancestry or fresh provider issuance merely
+  because multiple existing claims combine. A library may explicitly constrain
+  compatibility; different issuance calls alone do not establish incompatibility.
+
+  Carry the same operation through separately checked helpers and wrappers to
+  caller use, Terminal Psi and native execution. Repair its general compiler
+  prerequisites inside this outcome, including
+  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**; external backing follows
+  **BOUNDARY-ISSUANCE**, not a fresh admission for each local transformation.
+  Capture a current-main failing witness before implementation. Only a concrete
+  obligation inexpressible under existing contracts warrants a new owner
+  question; a missing check/lowering or an unimplemented merge is engineering.
+
+  Acceptance: a fact row for the actual split/recombine transformation runs
+  with its authored result under `omega run --both` across all nine transport
+  places, with fact-sensitive reject twins pinned in the corpus. Include
+  multi-input composition and a non-Extent library resource using the same
+  conservation mechanism, not another name recognizer. Demonstrate compatible
+  separately issued inputs when the API contract permits them, and reject
+  incompatible inputs under an explicit contract rather than an implicit
+  same-root fence. Reject overlap, missing content, fabricated or widened
+  authority, wrong space/lifetime, duplicated consumption, live conflicting
+  loans and treating live residents as vacant. Then run Cathedral's real
+  retirement/recomposition path over retained backing with readback and exact
+  custody accounting; retain its boot oracle. Geometry-only forwarding or an
+  empty entry does not close this outcome.
 
 - **BUMP-ALLOCATOR-CANARY.** Deliver an executable package allocator over
   qualified `Extent` under [allocation](wiki/spec/resources/allocation.md),

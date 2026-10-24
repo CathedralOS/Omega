@@ -71,41 +71,7 @@ Proposed solutions below are recommendations, not owner rulings. The owner
 removes an entry once it is answered; unfinished implementation stays on its
 owning task.
 
-### Q1. How does a checked callable require compatible extent lineage?
-
-Cathedral now retains two children of its initial-storage root after firmware
-exit. Returning retired storage to an ordinary allocator needs a separately
-checked merge operation. Its interval theorem proves coverage and separation,
-but two formal `Extent in Granted & Vacant` parameters could also be unrelated
-adjacent grants.
-
-[Extent conservation](wiki/spec/resources/extents.md#conservation-and-loans)
-requires compatible common root lineage, rights, provenance and era; it expressly
-rejects numeric adjacency as that evidence. [Content custody](wiki/spec/resources/content_custody.md#independent-and-related-content)
-likewise says equal denominators do not unite unrelated roots. [External roots](wiki/spec/resources/authority.md#external-roots-and-issuance)
-retain provider lineage without a source-visible receipt binder, and
-[call results](wiki/spec/terminal-psi/calls_and_outcomes.md#normal-results)
-preserve returned claim correspondence. None defines the proposition a checked
-merge may assume about two independent formal inputs, or how callers discharge it.
-
-What source contract expresses that compatibility: an ordinary compiler-known
-relational proposition in `requires`, an explicit evidence argument, or a
-published inferred custody constraint? Recommendation: an explicit relational
-proposition over the qualified inputs, proved from retained ancestry and
-compatible rights/era, never from equal addresses or provider names. It must
-survive identity-preserving transfer, attenuate with rights, and be invalidated
-by replacement; it need not introduce a runtime token or expose receipt IDs.
-
-Audit: core has no such relation. Current checking traces local derivations to
-one anchor but treats separate formal claims as distinct opaque roots; Terminal
-also rejects multi-claim reunion. A local root-to-split-to-reunion can acquire
-implementation support without deciding this modular contract. Neither the
-generic adjacent-input merge nor an empty protected wrapper supplies the missing
-relation. Keep those fences intact while the independent arithmetic and
-lineage-transport implementation proceeds. This gates modular recomposition,
-not the already-working boot handoff or all Cathedral work.
-
-### Q2. How does a type owner authorize an independent nominal cleanup operation?
+### Q1. How does a type owner authorize an independent nominal cleanup operation?
 
 The accepted `no-data-code-attachment` decision retires `machine T::drop`.
 [Ownership](wiki/spec/language/ownership.md#consumers-and-cleanup) requires one

@@ -4,8 +4,8 @@ Adjacent intervals preserve separated content when forwarded. The callable
 requires `embed(left.base) + embed(left.length) == embed(right.base)` and
 returns both owned claims beneath a pair; its postcondition conserves their
 separated interval content. This is the numeric prerequisite exposed by
-Cathedral's vacant-memory accounting, not a grant of physical storage or
-permission to merge unrelated roots.
+Cathedral's vacant-memory accounting, not a grant of physical storage or a
+checked merge of the two claims.
 
 Every place copies that sentence and performs the same forwarding call with the
 same content equation and the same runtime oracle: all four returned fields are
@@ -307,7 +307,7 @@ native rows as well as the retained `interpreter:agrees` evidence at
    under `tests/omega/fail/ownership/selected_constructor_*`. Returns through a
    wrapper and two simultaneously live results check that caller-local
    identities do not alias callee-local births. Physical storage, Stable access
-   and the source-level compatible-lineage merge are not modelled here.
+   and an actual multi-input claim transformation are not modelled here.
 5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the checked ownership
    transfers and erased proof facts lower into canonical target-neutral Terminal
    Psi (`PSITERM\0`), and the interpreter replays the product that native
@@ -335,10 +335,13 @@ native rows as well as the retained `interpreter:agrees` evidence at
 
 Cathedral's verified handoff retains its image/context and two vacant children.
 Stable access, resident initialization, readback, retirement and an allocator
-remain unfinished. A separately checked generic merge additionally needs the
-source-level compatible-lineage contract raised in
-[OWNER_QUESTIONS Q1](../../../../OWNER_QUESTIONS.md#q1-how-does-a-checked-callable-require-compatible-extent-lineage).
-Numeric adjacency alone must never authorize that merge.
+remain outside this row's evidence. A separately checked merge is implementation
+work under [library resources and language mechanisms](../../../../wiki/spec/resources/content_custody.md#library-resources-and-language-mechanisms),
+tracked by **EXTENT-LIBRARY-TRANSFORMS** in [TASKS.md](../../../../TASKS.md).
+Build its explicit contracts using existing general mechanisms; a new lineage
+primitive is not an owner-decision prerequisite. Numeric adjacency alone does
+not establish the required result authority, and different roots alone do not
+forbid a checked combination.
 
 The owning item's wider acceptance stays open: checked wrapper theorem
 propagation (a wrapper returning a match-selected completed partition call

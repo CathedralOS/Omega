@@ -9,6 +9,38 @@ These contracts are not a claim of complete source/native integration;
 [production limits](../../../omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs)
 remain beside the implementation.
 
+## Library resources and language mechanisms
+
+`Extent` and other library resources are ordinary data governed by declared
+multiplicity, domains, loans and contracts. Their names do not install additional
+compiler rules. The general language mechanisms include authorized qualification
+establishment and the explicit `Content` projection/conservation interface below;
+that interface is compiler-supported, not an unrecognized ordinary trait. It
+applies uniformly to any resource meeting its requirements.
+
+Splitting and merging are ordinary checked machines. A transformation consumes
+its input claims and proves the required output qualifications, conservation and
+loan obligations. Linearity alone does not prove resource conservation, and an
+equation over carrier fields alone does not establish authority. Compatibility
+requirements belong in the library's parameter types, domains, contracts or
+explicit evidence. A relationship required across a call must be available to
+checking that contract, not imposed by an invisible resource-specific rule.
+Internal provenance identities may remain erased and private; they implement
+the general evidence rules, not additional library policy.
+
+Common ancestry is not a universal prerequisite for combining claims. Different
+issuance occurrences or roots alone neither authorize nor forbid a combination:
+the operation must justify the complete resulting authority without inventing
+backing, widening rights, invalidating live loans or losing obligations. A
+library may explicitly require common ancestry when its operation needs it.
+Combining already-established authority is a checked transformation, not fresh
+external issuance merely because several inputs become one output. Any genuinely
+new backing or external authority still needs its authorized boundary evidence.
+
+This boundary introduces no new lineage predicate, runtime token or content
+algebra. It does not assert that every library contract is already expressible
+or implemented by the current compiler.
+
 ## Content terms
 
 Structural content terms distinguish entry and current versions. This is not a
@@ -174,9 +206,11 @@ correspondence rejects until that algebra is specified; it cannot enumerate
 pages as a substitute for the required compact model.
 
 Algebra values and denominators are pure proof data, not authority. Equal
-denominators allow arithmetic but do not unite qualifications or unrelated root
-lineages. A local budget relates to external capacity only through separate
-admitted unit/backing correspondence; the checker derives known containment.
+denominators allow arithmetic but do not by themselves establish compatible
+authority or justify a claim transformation. Combination follows the declared
+contract and the general conservation and custody rules, not a blanket
+same-root requirement. A local budget relates to external capacity only through
+separate admitted unit/backing correspondence; the checker derives known containment.
 Pools spending one hardware capacity must split or lease from its common
 provider-issued root. Independently installed local pools cannot each discharge
 the same hardware bound.
