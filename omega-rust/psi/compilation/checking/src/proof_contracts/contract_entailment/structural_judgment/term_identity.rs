@@ -11,6 +11,78 @@
 use super::StructuralTerm;
 
 impl StructuralTerm {
+    /// Visit every immediate child subterm of `self` once, in declaration
+    /// order: a constructor's fields, an application's arguments, and the one
+    /// or two operand terms the observation variants carry. A shell's observed
+    /// value and descriptor are edges; a consumer that compares semantic
+    /// identity strips the shell with `semantic_value` first, and a visited
+    /// child may itself be a shell whose consumer looks through it.
+    ///
+    /// This is the single owner of the term's child-edge relation. The
+    /// occurrence search, the application collectors, the law-shape checks,
+    /// the containment probe and the uncertified-projection walk used to
+    /// re-enumerate the same variant table in each copy, so every added
+    /// variant or edge had to be mirrored in all of them; they now walk the
+    /// term through this one.
+    pub(in crate::proof_contracts::contract_entailment) fn for_each_child<'term>(
+        &'term self,
+        mut visit: impl FnMut(&'term StructuralTerm),
+    ) {
+        self.visit_children(&mut |child| {
+            visit(child);
+            false
+        });
+    }
+
+    /// Whether any immediate child satisfies `predicate`, stopping at the
+    /// first match.
+    pub(in crate::proof_contracts::contract_entailment) fn any_child<'term>(
+        &'term self,
+        mut predicate: impl FnMut(&'term StructuralTerm) -> bool,
+    ) -> bool {
+        self.visit_children(&mut predicate)
+    }
+
+    /// The one child-edge table. Its variants are the ones every earlier walk
+    /// already descended: a constructor's fields, an application's arguments,
+    /// indexed values, measures, projections, embeddings, binary operators and
+    /// a shell's observed value plus descriptor; leaves carry none. A caller
+    /// that must ignore observation identity strips the shell with
+    /// [`Self::semantic_value`] first, exactly as the identity relation does.
+    fn visit_children<'term>(
+        &'term self,
+        visit: &mut impl FnMut(&'term StructuralTerm) -> bool,
+    ) -> bool {
+        match self {
+            Self::ObservedValue {
+                value, descriptor, ..
+            } => {
+                visit(value)
+                    || descriptor
+                        .as_ref()
+                        .is_some_and(|descriptor| visit(descriptor))
+            }
+            self_ => match self_.semantic_value() {
+                Self::Constructor { fields, .. } => fields.iter().any(|(_, value)| visit(value)),
+                Self::Application { arguments, .. } | Self::CallProjection { arguments, .. } => {
+                    arguments.iter().any(|argument| visit(argument))
+                }
+                Self::IndexedValue {
+                    collection, index, ..
+                } => visit(collection) || visit(index),
+                Self::CollectionMeasure {
+                    collection: subject,
+                    ..
+                }
+                | Self::Projection { subject, .. }
+                | Self::IntegerEmbedding { value: subject, .. } => visit(subject),
+                Self::ScalarBinary { left, right, .. }
+                | Self::MathematicalBinary { left, right, .. } => visit(left) || visit(right),
+                _ => false,
+            },
+        }
+    }
+
     /// Stable key of an already authenticated completed value observation.
     /// Reuse this owner's semantic formatting, also used by polynomial keys:
     /// it erases observation-only shells exactly as semantic equality does.
@@ -23,30 +95,18 @@ impl StructuralTerm {
             if depth >= 64 {
                 return false;
             }
-            match value {
-                StructuralTerm::Opaque(_) => false,
-                StructuralTerm::ObservedValue { value, .. } => available(value, depth + 1),
-                StructuralTerm::Projection { subject, .. } => available(subject, depth + 1),
-                StructuralTerm::CollectionMeasure { collection, .. } => {
-                    available(collection, depth + 1)
+            // A shell costs one depth step, as the per-variant recursion did.
+            let mut value = value;
+            let mut depth = depth;
+            while let StructuralTerm::ObservedValue { value: inner, .. } = value {
+                depth += 1;
+                if depth >= 64 {
+                    return false;
                 }
-                StructuralTerm::Constructor { fields, .. } => {
-                    fields.iter().all(|(_, value)| available(value, depth + 1))
-                }
-                StructuralTerm::Application { arguments, .. }
-                | StructuralTerm::CallProjection { arguments, .. } => {
-                    arguments.iter().all(|value| available(value, depth + 1))
-                }
-                StructuralTerm::IndexedValue {
-                    collection, index, ..
-                } => available(collection, depth + 1) && available(index, depth + 1),
-                StructuralTerm::IntegerEmbedding { value, .. } => available(value, depth + 1),
-                StructuralTerm::ScalarBinary { left, right, .. }
-                | StructuralTerm::MathematicalBinary { left, right, .. } => {
-                    available(left, depth + 1) && available(right, depth + 1)
-                }
-                _ => true,
+                value = inner;
             }
+            !matches!(value, StructuralTerm::Opaque(_))
+                && !value.any_child(|child| !available(child, depth + 1))
         }
         available(self, 0).then(|| format!("{:?}", self.semantic_value()))
     }

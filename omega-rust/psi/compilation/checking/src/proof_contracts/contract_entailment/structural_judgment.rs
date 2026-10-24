@@ -2459,52 +2459,12 @@ impl<'program> StructuralJudge<'program> {
         found: &mut Vec<&'term StructuralTerm>,
     ) {
         let term = term.semantic_value();
-        match term {
-            StructuralTerm::IndexedValue {
-                collection, index, ..
-            } => {
-                Self::self_applications(collection, selected_target, found);
-                Self::self_applications(index, selected_target, found);
-            }
-            StructuralTerm::CollectionMeasure {
-                collection: subject,
-                ..
-            }
-            | StructuralTerm::Projection { subject, .. }
-            | StructuralTerm::IntegerEmbedding { value: subject, .. } => {
-                Self::self_applications(subject, selected_target, found)
-            }
-            StructuralTerm::ScalarBinary { left, right, .. }
-            | StructuralTerm::MathematicalBinary { left, right, .. } => {
-                Self::self_applications(left, selected_target, found);
-                Self::self_applications(right, selected_target, found);
-            }
-            StructuralTerm::Application {
-                result_type: _,
-                target,
-                selections: _,
-                machine: _,
-                arguments,
-            } => {
-                if *target == selected_target {
-                    found.push(term);
-                }
-                for argument in arguments {
-                    Self::self_applications(argument, selected_target, found);
-                }
-            }
-            StructuralTerm::CallProjection { arguments, .. } => {
-                for argument in arguments {
-                    Self::self_applications(argument, selected_target, found);
-                }
-            }
-            StructuralTerm::Constructor { fields, .. } => {
-                for (_, value) in fields {
-                    Self::self_applications(value, selected_target, found);
-                }
-            }
-            _ => {}
+        if let StructuralTerm::Application { target, .. } = term
+            && *target == selected_target
+        {
+            found.push(term);
         }
+        term.for_each_child(|child| Self::self_applications(child, selected_target, found));
     }
 
     pub(super) fn judge(
