@@ -118,7 +118,10 @@ impl Execution<'_, '_, '_> {
         );
         self.invoke(
             InvocationSite::Transition(target),
-            &captured_operands,
+            super::InvocationInputs {
+                operands: &captured_operands,
+                arguments: &captured_operands,
+            },
             contexts,
             constraints,
         );

@@ -381,6 +381,36 @@ pub(super) fn assignment_storage_origins(
             ),
         });
     }
+    if crate::reference_shell(program, receiving).is_some() {
+        let source =
+            super::stored_origins::binding_source(program, assignment.target, &evidence.aliases)?;
+        if !source.root.is_valid() || !source.builtin_coordinates {
+            return None;
+        }
+        let (path, precision) = super::place_paths::coordinate_storage_path(
+            program,
+            program.symbols.name(source.root),
+            &source.segments,
+        );
+        return Some(AssignmentStorageOrigins {
+            destinations: vec![LocalWriteSource {
+                is_image_storage: source.is_static(),
+                recasts: source.recasts,
+                representation: source.representation,
+                path,
+                collection_coarse: precision == FramePathPrecision::CollectionCoarse,
+                root: source.root,
+                segments: source.segments,
+            }],
+            references: prefix_reference_origins(
+                program,
+                Some((state, index)),
+                &evidence.stored,
+                &evidence.aliases,
+                &evidence.divergent,
+            ),
+        });
+    }
     let origins = super::alias_origins::stable_alias_initializer_origins(
         program,
         machine,
@@ -721,33 +751,10 @@ impl CallOriginContext<'_> {
                     true,
                     self.stored,
                 );
-                // A reference operand transports its captured referent, not
-                // the carrier slot selected by the expression. Resolve that
-                // boundary against this prefix before another invocation
-                // substitutes its writes; unknown leaves remain unknown.
-                // Owned operands retain their storage coordinate and separate
-                // per-leaf inventory, not an unlabelled union of referents.
-                let origins = if argument_types.get(index).is_some_and(|reference| {
-                    super::type_reference_is_reference(program, *reference)
-                }) {
-                    origins.and_then(|origins| {
-                        let mut captured = Vec::new();
-                        for origin in origins {
-                            for origin in super::reference_subjects::captured_value_origins(
-                                program,
-                                *argument,
-                                &origin,
-                                self.aliases,
-                                self.stored,
-                            ) {
-                                super::place_paths::push_unique_origin(&mut captured, origin?);
-                            }
-                        }
-                        (!captured.is_empty()).then_some(captured)
-                    })
-                } else {
-                    origins
-                };
+                // The initializer owner has already captured reference
+                // contents at this exact prefix. Resolving them again can
+                // load a replacement slot twice or reject an already-resolved
+                // backing merely because it differs from its alias's home.
                 if origins.is_none()
                     && self.mentions_divergent(program, *argument)
                     && !argument_types.get(index).is_some_and(|reference| {
@@ -801,9 +808,19 @@ pub(super) fn with_caller_origin_context<T>(
     >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
 ) -> Option<T> {
-    let (state, statement, index) = caller_statement_owner(program, machine, site)?;
+    let (state, _statement, index) = caller_statement_owner(program, machine, site)?;
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
-    let evidence = captured_prefix_evidence(program, machine, state, statement, symbols, prefix)?;
+    // These consumers capture invocation inputs, before this invocation's
+    // writes. Each rejects effects preceding/during its operand through the
+    // chronological capture owner. The whole-statement exposure fence would
+    // instead apply the future callee store before capturing its arguments.
+    let evidence = CallerPrefixEvidence {
+        state: Some(state),
+        isolated_locals: prefix.isolated_locals,
+        aliases: prefix.aliases,
+        divergent: prefix.divergent,
+        stored: prefix.stored,
+    };
     with_retained_origin_context(program, machine, site, evidence, resolve)
 }
 

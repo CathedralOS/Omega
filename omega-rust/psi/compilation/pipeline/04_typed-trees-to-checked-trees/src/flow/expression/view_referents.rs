@@ -36,6 +36,36 @@ impl Execution<'_, '_, '_> {
             path.push(PlaceSegment::Case { variant });
         }
         path.push(PlaceSegment::Field { symbol });
+        if is_view {
+            let value = self.context.control.operands.insert(*receiver);
+            if let Some(selected) = super::super::operand_values::reference_captures_at_path(
+                self.program,
+                &self.context.control,
+                value,
+                &path,
+                self.storage_snapshot,
+            ) {
+                let Some(descriptors) = selected.captures() else {
+                    return HandleSpan::empty();
+                };
+                let mut places = Vec::new();
+                for descriptor in descriptors {
+                    if !descriptor.projection.is_empty() {
+                        return HandleSpan::empty();
+                    }
+                    let capture = self.context.control.operands.get(descriptor.capture);
+                    if capture.referents.is_empty() {
+                        return HandleSpan::empty();
+                    }
+                    for place in self.captured_referent_places(capture.referents) {
+                        if !places.contains(&place) {
+                            places.push(place);
+                        }
+                    }
+                }
+                return self.append_referent_places(&places);
+            }
+        }
         let places = self
             .context
             .control
@@ -97,19 +127,11 @@ impl Execution<'_, '_, '_> {
         &mut self,
         source: &CanonicalPlace,
     ) -> Option<HandleSpan<FlowOperandReferent>> {
-        let statements = super::super::reference_spans::appended_span_since(
-            &self.context.control.statements,
-            self.context.state_statements_start,
-        );
-        let places = super::super::stored_views::before_statement(
+        let places = super::super::stored_views::before_snapshot(
             self.program,
-            self.semantic,
             &self.context.control,
             self.state,
-            statements,
-            self.statement_index,
-            self.entry_origin_writes,
-            self.entry_origin_unknown_write,
+            self.storage_snapshot,
             source,
         )?;
         Some(self.append_referent_places(&places))

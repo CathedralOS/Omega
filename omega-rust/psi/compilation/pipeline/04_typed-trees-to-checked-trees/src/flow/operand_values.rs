@@ -6,23 +6,14 @@
 use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use typed_trees::types::TypeReferenceHandle;
+pub(crate) use validation::completed_storage::{
+    captured_operand_child_at_path, captured_retention_profiles_at_path, operand_child_type,
+    project_captured_view_place, reference_captures_at_path,
+};
 
 /// Contextual construction uses the bound destination declaration. A source
 /// declaration is retained only when that destination cannot be projected.
 /// Neither path infers a type from a sibling's expression handle.
-pub(super) fn operand_child_type(
-    program: &dyn ::validation::CheckingInput,
-    parent: TypeReferenceHandle,
-    destination: &[PlaceSegment],
-    declared: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    parent
-        .is_valid()
-        .then(|| validation::project_type_reference_from_segments(program, parent, destination))
-        .flatten()
-        .or_else(|| declared.is_valid().then_some(declared))
-}
-
 pub(crate) struct CapturedValue<'capture> {
     /// The actual storage observation and its live qualification namespace.
     /// A reaching value origin cannot erase evidence attached to this copy.
@@ -46,117 +37,6 @@ pub(crate) struct CapturedValuePlace {
 /// Select lifetime evidence through completed copies, independently of address
 /// projection. The stored-value links point to earlier captures, never to a
 /// source initializer or storage reread at the consuming call.
-pub(crate) fn captured_retention_profiles_at_path(
-    program: &dyn validation::CheckingInput,
-    control: &FlowControlFacts,
-    operand: &FlowOperandFact,
-    path: &[PlaceSegment],
-) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
-    fn operand_profiles(
-        program: &dyn validation::CheckingInput,
-        control: &FlowControlFacts,
-        operand: &FlowOperandFact,
-        path: &[PlaceSegment],
-        active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
-    ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
-        let mut selected_child = None;
-        for child in control.operand_children.span_or_empty(operand.children) {
-            let destination = control.operand_child_paths.span_or_empty(child.path);
-            if destination.is_empty() {
-                return None;
-            }
-            if destination.len() <= path.len()
-                && destination.iter().zip(path).all(|(left, right)| {
-                    super::canonical_place_segments_equal(program, *left, *right)
-                })
-            {
-                if selected_child.is_some() || !control.operands.is_valid(child.value) {
-                    return None;
-                }
-                selected_child = Some((child.value, destination.len()));
-            }
-        }
-        if let Some((child, length)) = selected_child {
-            return operand_profiles(
-                program,
-                control,
-                control.operands.get(child),
-                &path[length..],
-                active,
-            );
-        }
-        profile_at_path(program, control, operand.retention, path, active)
-    }
-
-    fn profile_at_path(
-        program: &dyn validation::CheckingInput,
-        control: &FlowControlFacts,
-        retention: arena::Handle<checked_trees::FlowOperandRetention>,
-        path: &[PlaceSegment],
-        active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
-    ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
-        if !control.operand_retentions.is_valid(retention) || active.contains(&retention) {
-            return None;
-        }
-        let profile = control.operand_retentions.get(retention);
-        if path.is_empty() && profile.stored_projection.is_empty() {
-            return Some(vec![retention]);
-        }
-        active.push(retention);
-        let selected = (|| {
-            let mut selected = control
-                .operand_retained_leaves
-                .span_or_empty(profile.leaves)
-                .iter()
-                .filter(|leaf| {
-                    let candidate = control.operand_retained_paths.span_or_empty(leaf.path);
-                    !candidate.is_empty()
-                        && candidate.len() <= path.len()
-                        && candidate.iter().zip(path).all(|(left, right)| {
-                            super::canonical_place_segments_equal(program, *left, *right)
-                        })
-                });
-            if let Some(leaf) = selected.next() {
-                if selected.next().is_some() {
-                    return None;
-                }
-                let length = leaf.path.len();
-                return profile_at_path(program, control, leaf.retention, &path[length..], active);
-            }
-            if !profile.alternatives.is_empty() {
-                let mut profiles = Vec::new();
-                for alternative in profile.alternatives.handles() {
-                    for selected in profile_at_path(program, control, alternative, path, active)? {
-                        if !profiles.contains(&selected) {
-                            profiles.push(selected);
-                        }
-                    }
-                }
-                return (!profiles.is_empty()).then_some(profiles);
-            }
-            let stored = profile.stored_value;
-            if !control.operands.is_valid(stored) {
-                return None;
-            }
-            let prefix = control
-                .operand_retained_paths
-                .span_or_empty(profile.stored_projection);
-            let mut selected = prefix.to_vec();
-            selected.extend_from_slice(path);
-            operand_profiles(
-                program,
-                control,
-                control.operands.get(stored),
-                &selected,
-                active,
-            )
-        })();
-        active.pop();
-        selected
-    }
-    operand_profiles(program, control, operand, path, &mut Vec::new())
-}
-
 /// A complete lifetime frontier for this value's declared reference leaves.
 /// Known view-free values produce an empty set. A missing reference leaf is
 /// unresolved coverage, not evidence that an earlier backing can die.
@@ -261,14 +141,6 @@ fn captured_places(
 
 /// Project once across the captured address/value boundary. The later path
 /// dimensions are pointwise nested data, not additional address windows.
-pub(crate) fn project_captured_view_place(
-    mut place: validation::CanonicalPlace,
-    path: &[PlaceSegment],
-) -> Option<validation::CanonicalPlace> {
-    place.segments = facts::project_captured_view_segments(&place.segments, path)?;
-    Some(place)
-}
-
 /// A dynamic selector can produce several candidates. Consumers must prove
 /// each independently; combining their contexts would invent a capture epoch.
 pub(crate) fn captured_operand_values<'capture>(
@@ -374,7 +246,7 @@ pub(crate) fn observe_captured_values<'capture>(
 
 /// A stored copy retains the completed RHS, not a fresh interpretation of its
 /// initializer. Walk produced stores and writes backwards; each successful hop
-/// strictly decreases the statement frontier. Unknown writes stop provenance,
+/// selects a capture preceding its store on the immutable storage timeline. Unknown writes stop provenance,
 /// leaving the current storage observation and its own contexts intact.
 fn reaching_store_values<'capture>(
     program: &dyn ::validation::CheckingInput,
@@ -410,50 +282,47 @@ fn reaching_store_values<'capture>(
     if !matches!(source.root, PlaceRoot::Symbol(_)) {
         return None;
     }
-    let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let super::stored_values::StoredOperand::Value {
-        capture,
-        reference,
-        projection,
-    } = super::stored_values::before_statement(
+    program.state_by_symbol(state.state_symbol)?;
+    let captures = super::stored_values::at_snapshot(
         program,
-        semantic,
         &flow.control,
-        typed_state,
-        state.statements,
-        operand.statement_index,
-        operand.entry_origin_writes,
-        operand.entry_origin_unknown_write,
+        operand.storage_snapshot,
         source,
         super::stored_values::StoredObservation::Contents,
     )?
-    else {
-        return None;
-    };
-    let stored = flow.control.operands.get(capture);
-    // Zero formation has no evaluated RHS. Its establishment facts belong to
-    // the observed storage, not an invalid completed producer. Copyability is
-    // this proof consumer's obligation, not the storage association's policy.
-    if !program
-        .expression_table
-        .expression_is_valid(stored.expression)
-        || !reference.is_valid()
-        || !validation::project_type_reference_from_segments(program, reference, &projection)
+    .captures()?;
+    let mut values = Vec::new();
+    for selected in captures {
+        let stored = flow.control.operands.get(selected.capture);
+        // Zero formation has no evaluated RHS. Its establishment belongs to
+        // the observed storage, not an invalid completed producer. Every
+        // predecessor must support the requested detached copy.
+        if !program
+            .expression_table
+            .expression_is_valid(stored.expression)
+            || !selected.reference.is_valid()
+            || !validation::project_type_reference_from_segments(
+                program,
+                selected.reference,
+                &selected.projection,
+            )
             .is_some_and(|projected| {
                 super::operand_contexts::operand_binds_stable_copy(program, projected)
             })
-    {
-        return None;
+        {
+            return None;
+        }
+        values.extend(captured_operand_values(
+            program,
+            flow,
+            semantic,
+            state,
+            stored,
+            selected.reference,
+            &selected.projection,
+        )?);
     }
-    captured_operand_values(
-        program,
-        flow,
-        semantic,
-        state,
-        stored,
-        reference,
-        &projection,
-    )
+    Some(values)
 }
 
 pub(crate) fn captured_operand_at_path<'capture>(
@@ -491,39 +360,4 @@ fn projected_capture<'capture>(
     type_reference
         .is_valid()
         .then_some((operand, type_reference, selected_handle))
-}
-
-/// Follow one captured assembly edge, retaining the unconsumed projection.
-/// A child may itself be an opaque call result: its remaining fields belong
-/// to that completed value, not to the containing constructor's namespace.
-pub(crate) fn captured_operand_child_at_path(
-    program: &dyn ::validation::CheckingInput,
-    control: &FlowControlFacts,
-    operand: &FlowOperandFact,
-    reference: TypeReferenceHandle,
-    path: &[PlaceSegment],
-) -> Option<(arena::Handle<FlowOperandFact>, TypeReferenceHandle, usize)> {
-    let mut selected = None;
-    for child in control.operand_children.span(operand.children)? {
-        let destination = control.operand_child_paths.span(child.path)?;
-        if destination.is_empty() {
-            return None;
-        }
-        if destination.len() <= path.len()
-            && destination
-                .iter()
-                .zip(path)
-                .all(|(left, right)| super::canonical_place_segments_equal(program, *left, *right))
-        {
-            if selected.is_some() || !control.operands.is_valid(child.value) {
-                return None;
-            }
-            selected = Some((
-                child.value,
-                operand_child_type(program, reference, destination, child.type_reference)?,
-                destination.len(),
-            ));
-        }
-    }
-    selected
 }

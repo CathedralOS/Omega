@@ -28,6 +28,7 @@
 
 pub(crate) mod binding_observations;
 mod captured_ownership;
+pub mod storage_path_relations;
 pub use captured_ownership::ownership_place_from_expression_in_state;
 pub mod collection_operations;
 mod declaration_types;

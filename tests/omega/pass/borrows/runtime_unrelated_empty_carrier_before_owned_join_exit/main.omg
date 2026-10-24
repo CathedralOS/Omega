@@ -1,0 +1,12 @@
+// Expected exit: 0
+data Token { value: i32; }
+data Holder<'storage> { case Some(view: &'storage Token); case None; }
+machine choose() -> bool { true }
+machine main() crashes Trap {
+    let empty: Holder = Holder::None;
+    let owner: Token = Token { value: 17 };
+    let selected: Token = match choose() { true -> owner false -> owner };
+    transition selected.value == 17 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -57,6 +57,7 @@ impl Execution<'_, '_, '_> {
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
+        let mut completed_storage = Vec::new();
         let mut boolean_coverage = [false; 2];
         let mut case_coverage = Vec::new();
         let mut shared_predicates: Option<Vec<CarriedPredicate>> = None;
@@ -191,6 +192,7 @@ impl Execution<'_, '_, '_> {
                     );
                 }
             }
+            let fallthrough_storage = self.storage_snapshot;
             let branch_writes = self.operand_writes.len();
             let completed = self.evaluated_operand_as(
                 arm.value,
@@ -230,6 +232,8 @@ impl Execution<'_, '_, '_> {
                 }),
                 None => shared_predicates = Some(yielded),
             }
+            completed_storage.push(self.storage_snapshot);
+            self.storage_snapshot = fallthrough_storage;
             completed_writes.extend(self.operand_writes.drain(branch_writes..));
             if let Some((previous_contexts, previous_constraints)) = joined {
                 self.meet(
@@ -245,6 +249,11 @@ impl Execution<'_, '_, '_> {
                 break;
             }
         }
+        if !value_coverage {
+            completed_storage.push(self.storage_snapshot);
+        }
+        self.storage_snapshot =
+            super::super::stored_values::join(&mut self.context.control, &completed_storage);
         self.operand_writes.extend(completed_writes);
         self.match_subjects.truncate(outer_captures);
         if let Some((joined_contexts, joined_constraints)) = joined {

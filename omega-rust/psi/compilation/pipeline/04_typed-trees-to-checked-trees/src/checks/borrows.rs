@@ -23,6 +23,8 @@ mod completed_custody;
 pub(crate) use completed_custody::require_unborrowed_completion;
 pub(crate) mod calls;
 mod moves;
+mod retained_outputs;
+pub(crate) use retained_outputs::retained_outputs_are_attributed;
 mod reads;
 mod resources;
 mod statements;

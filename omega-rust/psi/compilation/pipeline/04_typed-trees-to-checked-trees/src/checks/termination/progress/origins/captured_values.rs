@@ -38,7 +38,7 @@ pub(super) fn at_call(
     place: &CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CapturedOrigins {
-    let Some(typed_state) = program.state_by_symbol(state.state_symbol) else {
+    let Some(_) = program.state_by_symbol(state.state_symbol) else {
         return CapturedOrigins::Unavailable;
     };
     let Some((operands, _)) = flow::captured_call_operands(program, flow, state, call) else {
@@ -55,20 +55,45 @@ pub(super) fn at_call(
     )
     .filter(|reference| validation::reference_shell(program, *reference).is_some())
     .map_or(StoredObservation::Contents, |_| StoredObservation::Binding);
-    match flow::stored_values::before_statement(
+    match flow::stored_values::at_snapshot(
         program,
-        semantic,
         &flow.control,
-        typed_state,
-        state.statements,
-        call.statement_index,
-        epoch.entry_origin_writes,
-        epoch.entry_origin_unknown_write,
+        epoch.storage_snapshot,
         place,
         observation,
     ) {
         None => CapturedOrigins::Incoming,
         Some(StoredOperand::Unavailable) => CapturedOrigins::Unavailable,
+        Some(stored @ StoredOperand::Alternatives(_)) => {
+            let Some(captures) = stored.captures() else {
+                return CapturedOrigins::Unavailable;
+            };
+            let mut joined = Vec::new();
+            for selected in captures {
+                if !selected.reference.is_valid() {
+                    return CapturedOrigins::Unavailable;
+                }
+                let Some(subjects) = resolve_captures(
+                    program,
+                    flow,
+                    semantic,
+                    machine,
+                    state,
+                    call,
+                    selected.capture,
+                    selected.projection,
+                    call_frames,
+                ) else {
+                    return CapturedOrigins::Unavailable;
+                };
+                for subject in subjects {
+                    if !joined.contains(&subject) {
+                        joined.push(subject);
+                    }
+                }
+            }
+            CapturedOrigins::Exact(joined)
+        }
         Some(StoredOperand::Value {
             capture,
             reference,

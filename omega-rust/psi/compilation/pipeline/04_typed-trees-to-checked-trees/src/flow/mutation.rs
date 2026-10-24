@@ -19,6 +19,7 @@ use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;
 mod ceiling;
 mod local_origins;
+pub(in crate::flow) use local_origins::captured_alias_projection;
 mod operand_coordinates;
 mod receiver;
 mod regions;

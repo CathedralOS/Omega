@@ -426,6 +426,7 @@ pub(crate) fn prepare_permission_events(
                                 places,
                                 &evaluated.observations,
                                 &mut claim_identities,
+                                shared_call_frames,
                             ) {
                                 selection_diagnostics.push(diagnostic);
                                 return;

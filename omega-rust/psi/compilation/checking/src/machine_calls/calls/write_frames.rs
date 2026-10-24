@@ -76,6 +76,7 @@ pub use demand::CallFrameTables;
 pub(crate) use demand::statement_value_expression_roots;
 pub(crate) use demand::{CallFrameCaches, InvocationReferenceSubject};
 pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
+pub use isolation::aggregate_storage_types_match as storage_origin_types_match;
 pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::{frame_coordinate_path, frame_length_coordinate_path};
 pub use reference_subjects::assignment_stored_value_type;

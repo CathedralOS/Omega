@@ -25,6 +25,7 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 mod coordinates;
+pub(in crate::flow) use coordinates::alias_projection as captured_alias_projection;
 pub(super) use coordinates::write_source_region;
 pub(crate) use coordinates::{OriginPrecision, origin_place, sole_local_referent_origin};
 
@@ -205,6 +206,44 @@ pub(super) fn assignment_storage_regions(
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
     let target = resolver.assignment_write_target(machine, statement);
+    if matches!(
+        target,
+        Some(validation::AssignmentWriteTarget::LocalBindingReplacement { .. })
+    ) {
+        return direct.map(|place| vec![StorageRegion::Declared(place)]);
+    }
+    if validation::assignment_stored_value_type(program, machine, state, assignment)
+        .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+    {
+        let captured = resolver.assignment_storage_origins(machine, statement)?;
+        let mut regions = Vec::new();
+        for source in captured.destinations {
+            let StorageRegion::Declared(place) =
+                coordinates::write_source_region(program, state, statement_index, &source, &[])?
+            else {
+                return None;
+            };
+            let reference = validation::canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &place,
+            )?;
+            validation::reference_shell(program, reference)?;
+            for region in rebase_descriptor_slot_regions(
+                program,
+                state_symbol,
+                statement_index,
+                place,
+                call_frames,
+            )? {
+                if !regions.contains(&region) {
+                    regions.push(region);
+                }
+            }
+        }
+        return Some(regions);
+    }
     let Some(target) = target else {
         // The resolver cannot classify a write through a reference local it
         // has no origin for; a local of finite candidate origins still names
@@ -384,12 +423,69 @@ pub(super) fn rebase_storage_region(
     }
 }
 
+/// A checked receiving reference field names its cell, not its old pointee.
+/// No descriptor load is needed for a path entirely inside owned storage.
+pub(super) fn rebase_descriptor_slot_regions(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    let mut inline = true;
+    for length in 0..place.segments.len() {
+        let prefix = CanonicalPlace {
+            root: place.root,
+            segments: place.segments[..length].to_vec(),
+        };
+        let reference = validation::canonical_place_type_reference(
+            program,
+            state_symbol,
+            statement_index,
+            &prefix,
+        )?;
+        if validation::reference_shell(program, reference).is_some() {
+            inline = false;
+            break;
+        }
+    }
+    if inline {
+        return Some(vec![StorageRegion::Declared(place)]);
+    }
+    rebase_write_regions(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        call_frames,
+        true,
+    )
+}
+
 pub(super) fn rebase_local_write_regions(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    rebase_write_regions(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        call_frames,
+        false,
+    )
+}
+
+fn rebase_write_regions(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    descriptor_slot: bool,
 ) -> Option<Vec<StorageRegion>> {
     // Evaluation identity is not backing identity. In particular, an inline
     // reference-producing call may return a descriptor for caller storage.
@@ -444,6 +540,9 @@ pub(super) fn rebase_local_write_regions(
                     &origin.local_segments,
                 )
             {
+                continue;
+            }
+            if descriptor_slot && place.segments.len() == origin.local_segments.len() {
                 continue;
             }
             let descriptor = CanonicalPlace {

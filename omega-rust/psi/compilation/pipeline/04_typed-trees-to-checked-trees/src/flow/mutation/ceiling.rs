@@ -76,7 +76,7 @@ pub(crate) fn signature_ceiling_regions(
         let actual = {
             let argument = arguments[argument_index];
             argument_index += 1;
-            for region in resident_parameter_regions(
+            let residents = resident_parameter_regions(
                 program,
                 machine,
                 state,
@@ -85,7 +85,8 @@ pub(crate) fn signature_ceiling_regions(
                 argument_index - 1,
                 parameter.type_reference,
                 resolver,
-            )? {
+            );
+            for region in residents? {
                 if !places.contains(&region) {
                     places.push(region);
                 }
@@ -162,6 +163,7 @@ pub(crate) fn signature_ceiling_regions(
             argument_index - 1,
             parameter.type_reference,
             &[],
+            super::summary::WriteDestination::Referent,
             resolver,
         );
         let storage = captured.or_else(|| {
@@ -233,6 +235,7 @@ fn resident_parameter_regions(
             position,
             reference,
             &path,
+            super::summary::WriteDestination::Referent,
             frames,
         )
         .or_else(|| {

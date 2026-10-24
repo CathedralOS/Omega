@@ -377,7 +377,7 @@ pub(crate) fn stable_alias_initializer_origins(
             )
         }
         ExpressionNode::Member(member) => {
-            let Some(receivers) = stable_alias_initializer_origins(
+            let receivers = stable_alias_initializer_origins(
                 program,
                 current_machine,
                 machine_symbols,
@@ -390,19 +390,21 @@ pub(crate) fn stable_alias_initializer_origins(
                 symbols,
                 allow_isolated_local,
                 stored,
-            ) else {
+            );
+            if let Some(receivers) = receivers {
+                projected_member_origins(program, receivers, expression, member)
+            } else {
                 // A member projection off a transparent aggregate call result
                 // has no carrier storage to alias; a reference leaf selected
                 // there aliases its resolved referents instead.
-                return super::reference_origins::projected_carrier_reference_origins(
+                super::reference_origins::projected_carrier_reference_origins(
                     program,
                     current_machine,
                     expression,
                     symbols,
                     inference,
-                );
-            };
-            projected_member_origins(program, receivers, expression, member)
+                )?
+            }
         }
         ExpressionNode::Match(dispatch) => {
             // Every producing arm contributes its own candidates; divergent

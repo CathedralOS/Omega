@@ -51,3 +51,5 @@ pub(crate) mod type_references;
 pub(crate) mod type_shapes;
 pub(crate) mod wire;
 pub(crate) mod write_only_borrows;
+
+pub mod completed_storage;

@@ -75,8 +75,19 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             execution_order,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
+        let previous_statements = super::reference_spans::appended_span_since(
+            &build.control.statements,
+            build.state_statements_start,
+        );
+        let storage_snapshot = build
+            .control
+            .statements
+            .span_or_empty(previous_statements)
+            .last()
+            .map_or_else(Handle::invalid, |statement| statement.storage_snapshot);
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
+            storage_snapshot,
             value_observations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
@@ -142,6 +153,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_constraints,
             );
             let retained = build.control.statements.get_mut(statement_fact);
+            retained.storage_snapshot = writes.storage_snapshot;
             retained.completed_writes = writes.writes;
             retained.completed_unknown_write = writes.unknown;
             fallthrough_contexts = *active_contexts;
@@ -166,6 +178,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 active_constraints,
             );
             let retained = build.control.statements.get_mut(statement_fact);
+            retained.storage_snapshot = evaluated.writes.storage_snapshot;
             retained.stored_value = evaluated.stored_value;
             retained.store_target = evaluated.store_target;
             retained.completed_writes = evaluated.writes.writes;
@@ -360,6 +373,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 )
                 .map(|places| (*places).clone())
         };
+        let final_storage_writes = storage_writes.clone();
         let operand_writes = build
             .control
             .statements
@@ -483,6 +497,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         completed.completed_content_writes = completed_contents;
         completed.completed_content_unknown_write =
             completed.completed_unknown_write || content_writes.is_none();
+        let final_content_writes = content_writes.clone();
         let storage_writes = content_writes;
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
@@ -600,6 +615,80 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             active_contexts,
             active_constraints,
         );
+        // Calls have already published their ordered writes and replacements.
+        // Only the enclosing statement's own store follows RHS evaluation.
+        let final_write = match statement {
+            StatementNode::Assignment(_) | StatementNode::Assembly(_) => Some((
+                final_storage_writes.as_deref(),
+                final_content_writes.as_deref(),
+            )),
+            StatementNode::LocalData(local) => {
+                let destination = validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(local.symbol),
+                    segments: Vec::new(),
+                };
+                let snapshot = build
+                    .control
+                    .statements
+                    .get(statement_fact)
+                    .storage_snapshot;
+                let snapshot = super::stored_values::append_place_writes(
+                    &mut build.control,
+                    snapshot,
+                    Some(std::slice::from_ref(&destination)),
+                    Some(std::slice::from_ref(&destination)),
+                );
+                build
+                    .control
+                    .statements
+                    .get_mut(statement_fact)
+                    .storage_snapshot = snapshot;
+                None
+            }
+            _ => None,
+        };
+        if let Some((bindings, contents)) = final_write {
+            let snapshot = build
+                .control
+                .statements
+                .get(statement_fact)
+                .storage_snapshot;
+            let snapshot = super::stored_values::append_place_writes(
+                &mut build.control,
+                snapshot,
+                bindings,
+                contents,
+            );
+            build
+                .control
+                .statements
+                .get_mut(statement_fact)
+                .storage_snapshot = snapshot;
+        }
+        let completed = build.control.statements.get(statement_fact);
+        if semantic.places.is_valid(completed.stored_destination)
+            && build.control.operands.is_valid(completed.stored_value)
+            && let Some(destination) = super::canonical_place_from_semantic_place(
+                program,
+                semantic,
+                semantic.places.get(completed.stored_destination),
+            )
+        {
+            let snapshot = completed.storage_snapshot;
+            let value = completed.stored_value;
+            let snapshot = super::stored_values::append_store(
+                &mut build.control,
+                snapshot,
+                &destination,
+                value,
+                &[],
+            );
+            build
+                .control
+                .statements
+                .get_mut(statement_fact)
+                .storage_snapshot = snapshot;
+        }
         super::atomic_effects::append(
             program,
             semantic,

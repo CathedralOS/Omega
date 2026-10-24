@@ -208,24 +208,19 @@ fn place_matches(
     expected: &Snapshot,
     traversal: &mut SnapshotTraversal,
 ) -> Result<bool, &'static str> {
-    let Some(state) = program.state_by_symbol(at.state_symbol) else {
+    let Some(_) = program.state_by_symbol(at.state_symbol) else {
         return Ok(false);
     };
     let Some(machine) = program.machine_holding_state(at.state_symbol) else {
         return Ok(false);
     };
-    let Some(state_flow) = facts.flow.control.state(machine.symbol, at.state_symbol) else {
+    let Some(_) = facts.flow.control.state(machine.symbol, at.state_symbol) else {
         return Ok(false);
     };
-    match crate::flow::stored_values::before_statement(
+    match crate::flow::stored_values::at_snapshot(
         program,
-        &facts.semantic,
         &facts.flow.control,
-        state,
-        state_flow.statements,
-        at.statement_index,
-        at.entry_origin_writes,
-        at.entry_origin_unknown_write,
+        at.storage_snapshot,
         place,
         crate::flow::stored_values::StoredObservation::Contents,
     ) {
@@ -234,6 +229,24 @@ fn place_matches(
             projection,
             ..
         }) => capture_matches(program, facts, capture, &projection, expected, traversal),
+        Some(stored @ crate::flow::stored_values::StoredOperand::Alternatives(_)) => {
+            let Some(captures) = stored.captures() else {
+                return Ok(false);
+            };
+            for selected in captures {
+                if !capture_matches(
+                    program,
+                    facts,
+                    selected.capture,
+                    &selected.projection,
+                    expected,
+                    traversal,
+                )? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
         Some(crate::flow::stored_values::StoredOperand::Unavailable) => Ok(false),
         None => Ok(matches!(expected, Snapshot::Entry(entry) if entry == place)),
     }

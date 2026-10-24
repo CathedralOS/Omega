@@ -102,11 +102,22 @@ pub(super) fn frame_place_path(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<FramePlaceOrigin> {
-    let (path, precision) = raw_frame_place_path(program, expression)?;
+    let source = FrameSourcePlace::from_expression(program, expression);
+    let raw_root =
+        crate::canonical_place_from_expression(program, expression).map(|place| place.root);
+    // Symbolic namespace receivers can have frame paths without executable
+    // storage coordinates. Only a recovered physical root needs remapping.
+    let (path, precision) = if source.root.is_valid()
+        && raw_root.is_some_and(|root| root.as_symbol() != Some(source.root))
+    {
+        coordinate_storage_path(program, program.symbols.name(source.root), &source.segments)
+    } else {
+        raw_frame_place_path(program, expression)?
+    };
     Some(FramePlaceOrigin {
         path,
         precision,
-        source: FrameSourcePlace::from_expression(program, expression),
+        source,
     })
 }
 

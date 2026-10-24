@@ -241,23 +241,32 @@ pub(crate) fn entry_origin_is_stable(
     entry_origin_is_stable_when(program, control, writes, unknown, place, contents_overlap)
 }
 
-fn contents_overlap(
-    program: &dyn ::validation::CheckingInput,
+/// A case observation names only its discriminator. A resolved descendant
+/// write cannot replace it; unresolved, equal, and ancestor writes still can.
+pub(super) fn case_overwrite(
+    program: &dyn validation::CheckingInput,
     place: &validation::CanonicalPlace,
     segments: &[facts::PlaceSegment],
 ) -> bool {
-    crate::flow::canonical_place_segments_may_overlap(program, &place.segments, segments)
+    !(segments.len() > place.segments.len()
+        && segments
+            .iter()
+            .chain(&place.segments)
+            .all(|segment| !super::place_segment_has_unresolved_identity(*segment)))
+        && contents_overlap(program, place, segments)
 }
 
-pub(super) fn binding_overwrite(
-    program: &dyn ::validation::CheckingInput,
+pub(super) fn case_origin_is_stable(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    unknown: bool,
     place: &validation::CanonicalPlace,
-    segments: &[facts::PlaceSegment],
 ) -> bool {
-    // A write replacing this binding or an enclosing owner changes its stored
-    // descriptor/pointer. A descendant referent write changes contents only.
-    segments.len() <= place.segments.len() && contents_overlap(program, place, segments)
+    entry_origin_is_stable_when(program, control, writes, unknown, place, case_overwrite)
 }
+
+pub(super) use validation::storage_path_relations::{binding_overwrite, contents_overlap};
 
 /// A stored view's descriptor survives writes to its referent's descendants.
 /// Unknown writes and replacement of the descriptor or its enclosing owner

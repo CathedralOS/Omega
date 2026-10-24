@@ -30,6 +30,10 @@ pub struct FlowOperandReferent {
 /// An invalid retention handle means that dependency was unavailable.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FlowOperandRetention {
+    /// Body-derived association to a completed returned descriptor. This is
+    /// a post-call observation, not an evaluated child, loan authority, scalar
+    /// equality or a snapshot of the referent. Zero withholds exact geometry.
+    pub descriptor: Handle<FlowOperandFact>,
     pub roots: HandleSpan<facts::PlaceRoot>,
     /// Mutually exclusive completed profiles retained by a value join.
     /// Their stored-value links preserve nested descriptor observations;
@@ -78,10 +82,17 @@ pub struct FlowOperandFact {
     /// requested reference leaf; one resolved arm cannot cover another arm.
     /// These are alternatives, never simultaneously installed product children.
     pub alternatives: HandleSpan<FlowOperandFact>,
+    /// Earlier completed whole value supplying an identity-preserving read,
+    /// independently of physical backing and pointee contents. This is not
+    /// an owned completion or a new custody/cleanup alternative.
+    pub value_source: arena::Handle<FlowOperandFact>,
     /// Writes already evaluated in this statement when the operand completed.
     /// Later writes cannot change this prefix or its invocation-entry origin.
     pub entry_origin_writes: HandleSpan<FlowOperandReferent>,
     pub entry_origin_unknown_write: bool,
+    /// Exact storage history at this completed observation. Later writes or
+    /// sibling branches cannot change the predecessor this handle names.
+    pub storage_snapshot: arena::Handle<super::FlowStorageSnapshot>,
     pub constraints: HandleSpan<FlowConstraintRef>,
     /// Exact referent storage when the operand is a view carrier. Empty for
     /// detached carriers and for referents the resolver cannot place exactly.

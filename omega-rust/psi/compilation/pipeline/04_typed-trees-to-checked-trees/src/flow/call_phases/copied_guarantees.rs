@@ -3,6 +3,8 @@
 //! the captured contents. Borrowed formals instead describe live referents, so
 //! their own postconditions remain publishable after writes through the call.
 
+mod captured_aliases;
+
 use validation::CanonicalPlace;
 
 use super::super::FlowBuildContext;

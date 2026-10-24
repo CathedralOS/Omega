@@ -647,7 +647,7 @@ pub(in crate::flow) fn append_predicate_context(
                     binary.left,
                 )
                 .is_some_and(|subject| {
-                    crate::flow::entry_origin_is_stable(
+                    crate::flow::operand_contexts::case_origin_is_stable(
                         program,
                         &build.control,
                         entry_writes,

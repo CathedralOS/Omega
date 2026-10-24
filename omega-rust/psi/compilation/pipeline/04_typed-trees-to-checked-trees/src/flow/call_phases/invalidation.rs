@@ -21,6 +21,7 @@ pub(in crate::flow) struct CallInvalidationResult {
 /// One immutable invocation footprint supplies both overlap invalidation and
 /// attributed handback. Retaining them together avoids recomputing the same
 /// alias closure while preserving which parameter contributed each write.
+#[derive(Clone)]
 pub(in crate::flow) struct CallStorageWrites {
     /// Conservative dependencies of observations, not writable descriptor
     /// storage. A resident content write includes its owner here because an
@@ -29,9 +30,36 @@ pub(in crate::flow) struct CallStorageWrites {
     pub(in crate::flow) contributions: Vec<ObservedCallMutation>,
 }
 
+#[derive(Clone)]
 pub(in crate::flow) struct ObservedCallMutation {
     pub(in crate::flow) write: CallMutationWrite,
     pub(in crate::flow) observations: Vec<CanonicalPlace>,
+}
+
+impl CallStorageWrites {
+    /// These aliases depend on actual evaluation captures, so they remain
+    /// local to this flow build rather than entering the source-only cache.
+    pub(in crate::flow) fn with_captured_observations(
+        &self,
+        arguments: Option<&super::ArgumentSources<'_, '_>>,
+    ) -> Self {
+        let mut observed = self.clone();
+        if let Some(arguments) = arguments {
+            for contribution in &mut observed.contributions {
+                for alias in arguments.mutation_observation_aliases(&contribution.write) {
+                    if !contribution.observations.contains(&alias) {
+                        contribution.observations.push(alias);
+                    }
+                }
+            }
+            observed.observation_places = observed
+                .contributions
+                .iter()
+                .flat_map(|contribution| contribution.observations.iter().cloned())
+                .collect();
+        }
+        observed
+    }
 }
 
 pub(in crate::flow) fn call_storage_writes(

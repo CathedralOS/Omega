@@ -34,6 +34,8 @@ use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode
 /// contents intact; an empty new-source set is not permission to drop them.
 #[derive(Clone)]
 pub struct StoredReferenceEffect {
+    /// Static alternatives carry no local loan but remain value alternatives.
+    pub has_static_values: bool,
     pub destination: LocalWriteOrigin,
     pub sources: Vec<StoredReferenceSource>,
     pub retains_incoming: bool,
@@ -165,14 +167,18 @@ pub(super) fn public_effects(effects: Vec<SlotEffect>) -> Option<Vec<StoredRefer
             let stored_origins::StoredOriginKind::Reference(access) = effect.kind else {
                 return None;
             };
+            let sources = effect.sources?;
+            let has_static_values = sources
+                .iter()
+                .any(|source| source.origin.source.is_static() && source.lifetime_access.is_none());
             Some(StoredReferenceEffect {
+                has_static_values,
                 destination: LocalWriteOrigin {
                     local_symbol: effect.root,
                     local_segments: effect.segments,
                     source: None,
                 },
-                sources: effect
-                    .sources?
+                sources: sources
                     .into_iter()
                     .filter(|source| !source.origin.source.is_static())
                     .map(|source| StoredReferenceSource {

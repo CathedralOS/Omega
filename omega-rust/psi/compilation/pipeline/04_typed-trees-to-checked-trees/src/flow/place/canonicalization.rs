@@ -133,7 +133,7 @@ pub(crate) fn projected_leaf_place(
     (!place
         .segments
         .iter()
-        .any(|segment| super::comparison::place_segment_has_unresolved_identity(*segment)))
+        .any(|segment| super::place_segment_has_unresolved_identity(*segment)))
     .then_some(place)
 }
 

@@ -34,6 +34,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
     places: &mut [LinearPlace],
     evaluated_observations: &[super::super::linear_validation::ObservedCustody],
     claim_identities: &mut super::super::linear_obligations::ClaimIdentityAllocator,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Diagnostic> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let (expression, destination, type_reference) = match statement {
@@ -394,6 +395,7 @@ pub(in crate::checks::multiplicity) fn record_statement(
             statement_index,
             &statements[..statement_index],
             symbol,
+            call_frames,
         ) {
             return Err(Diagnostic::error(
                 "owned match source with borrowed custody requires selected loan-closure evidence",

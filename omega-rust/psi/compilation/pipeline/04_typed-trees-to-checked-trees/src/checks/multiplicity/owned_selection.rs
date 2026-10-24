@@ -12,7 +12,6 @@
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
 pub(super) use availability::record_statement;
@@ -94,14 +93,11 @@ pub(super) fn place_paths_overlap(
     })
 }
 
-/// Whether an owned match source still owes loan-closure evidence: either a
-/// syntactic borrow the loan ledger never recorded (an escape without a
-/// trackable loan, for example persistent machine storage) or a recorded loan
-/// on the source root still live at this statement's entry. The flow builder
-/// drops a loan from the entry constraint set once its last use passes, so a
-/// once-borrowed source whose loans all closed joins like any other owner; a
-/// live loan keeps the explicit rejection instead of guessing at referent
-/// custody across the conditional move.
+/// Live loans exclude a move. Earlier borrow syntax alone does not: a
+/// completed temporary invocation can retain no dependency on its argument.
+/// Before trusting expiry, require every earlier receiving generation to
+/// have complete attribution to its exact loan occurrence. Alias forwarding
+/// can retain a source without spelling another borrow of its name.
 fn source_needs_loan_closure(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -110,46 +106,34 @@ fn source_needs_loan_closure(
     statement_index: usize,
     prior_statements: &[StatementNode],
     symbol: SymbolHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let borrowed = prior_statements.iter().any(|statement| {
-        statement_expressions(program, statement).iter().any(|expression| {
-            matches!(program.expression_table.expression(*expression), ExpressionNode::Borrow(borrow)
-                if expression_names(program, borrow.target, symbol))
-        })
-    });
-    let recorded = facts
-        .borrow
-        .loans
-        .iter()
-        .any(|(_, loan)| loan.root == facts::PlaceRoot::Symbol(symbol));
-    if borrowed && !recorded {
+    let Some(state_flow) = facts.flow.control.states.iter().find_map(|(_, flow)| {
+        (flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol).then_some(flow)
+    }) else {
         return true;
+    };
+    for (index, statement) in prior_statements.iter().enumerate() {
+        if !crate::checks::borrows::retained_outputs_are_attributed(
+            program,
+            facts,
+            machine,
+            state_flow,
+            index,
+            statement,
+            symbol,
+            call_frames,
+        ) {
+            return true;
+        }
     }
-    if !recorded {
-        return false;
-    }
-    let statement_fact = facts
+    let Some(statement) = facts.flow.state_statement(state_flow, statement_index) else {
+        return true;
+    };
+    facts
         .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, flow_state)| {
-            (flow_state.machine_symbol == machine.symbol && flow_state.state_symbol == state.symbol)
-                .then_some(flow_state)
-        })
-        .and_then(|flow_state| facts.flow.state_statement(flow_state, statement_index));
-    match statement_fact {
-        Some(statement_fact) => facts
-            .flow
-            .borrow_loan_constraints(statement_fact.entry_constraints)
-            .any(|loan| facts.borrow.loans.get(loan).root == facts::PlaceRoot::Symbol(symbol)),
-        // Without the statement's entry constraint set, fall back to the
-        // loan's recorded last use, the same boundary the expiry filter uses.
-        None => facts.borrow.loans.iter().any(|(_, loan)| {
-            loan.root == facts::PlaceRoot::Symbol(symbol)
-                && loan.last_use_statement_index >= statement_index
-        }),
-    }
+        .borrow_loan_constraints(statement.entry_constraints)
+        .any(|loan| facts.borrow.loans.get(loan).root == facts::PlaceRoot::Symbol(symbol))
 }
 
 fn unsupported() -> Diagnostic {

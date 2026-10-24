@@ -1,0 +1,25 @@
+// Expected: reject a pre-call pointee equality after the callee overwrites it.
+data Cell { value: i32; }
+data Message<'storage> { body: &'storage mut Cell; }
+machine replace<'storage>(message: &mut Message<'storage>, incoming: &'storage mut Cell) -> bool {
+    incoming.value = 23;
+    message.body = incoming;
+    true
+}
+machine demand_old(target: &Cell) -> bool requires target.value == 19 {
+    true
+}
+machine exercise() -> bool {
+    let mut original: Cell = Cell { value: 17 };
+    let mut incoming: Cell = Cell { value: 19 };
+    let spare: Cell = Cell { value: 7 };
+    let mut message: Message = Message { body: &mut original };
+    let replaced: bool = replace(&mut message, &mut incoming);
+    let written: bool = demand_old(&message.body);
+    replaced && written && original.value == 17 && incoming.value == 41 && spare.value == 7
+}
+machine main() crashes Trap {
+    transition exercise() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

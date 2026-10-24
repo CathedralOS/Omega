@@ -72,16 +72,6 @@ pub(super) fn build_call_flow_fact<'plans>(
         borrow_call,
     );
     let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
-    let invalidation = apply_call_invalidations(
-        program,
-        semantic,
-        domains,
-        build,
-        *active_contexts,
-        *active_constraints,
-        borrow_call,
-        writes,
-    );
     let argument_sources = super::call_phases::ArgumentSources::new(
         program,
         machine.symbol,
@@ -90,6 +80,18 @@ pub(super) fn build_call_flow_fact<'plans>(
         storage_writes,
         &build.control,
         captured_operands,
+    );
+    let observed_writes =
+        writes.map(|writes| writes.with_captured_observations(argument_sources.as_ref()));
+    let invalidation = apply_call_invalidations(
+        program,
+        semantic,
+        domains,
+        build,
+        *active_contexts,
+        *active_constraints,
+        borrow_call,
+        observed_writes.as_ref(),
     );
     let mut exit = build_call_exit_contexts(
         program,
@@ -165,7 +167,12 @@ pub(super) fn build_call_flow_fact<'plans>(
     // Contract consumers must distinguish normal-return storage from copied
     // invocation inputs without rebuilding a wider signature-only write set.
     let mut normal_return_writes = HandleSpan::empty();
-    for place in storage_writes.into_iter().flatten() {
+    for place in observed_writes
+        .as_ref()
+        .map(|writes| writes.observation_places.as_slice())
+        .into_iter()
+        .flatten()
+    {
         let segments = build
             .control
             .operand_referent_segments

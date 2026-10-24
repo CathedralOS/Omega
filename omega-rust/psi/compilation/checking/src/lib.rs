@@ -221,7 +221,7 @@ pub use crate::machine_calls::calls::{
     ReferenceResultTransport, ReferenceViewFormation, ScalarStorageCoordinate,
     ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
     frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
-    state_reference_parameter_binding_is_stable,
+    state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{
     admit_specification_calls, checked_value_call_candidate, expression_values_have_call_identity,
@@ -577,3 +577,7 @@ pub use value_custody::type_references::normalize_closed_const_expression;
 pub use value_custody::const_expressions::{
     ImmutableConstRecordProjection, immutable_record_projection,
 };
+
+// One produced-storage association serves checking and flow consumers.
+pub use value_custody::completed_storage;
+pub use value_custody::places::storage_path_relations;

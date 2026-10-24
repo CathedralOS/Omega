@@ -1,6 +1,10 @@
+//! Canonical storage path identity and conservative overlap. These laws are
+//! shared by source custody and consumers of immutable completed-storage cuts;
+//! neither caller may invent a different meaning for a captured selector.
+
 /// A copied observation may retain only selectors fixed at its capture.
 /// Runtime selectors need separate dependency/capture evidence.
-pub(crate) fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -> bool {
+pub fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -> bool {
     match segment {
         facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
         facts::PlaceSegment::Case { variant } => variant.is_valid(),
@@ -11,7 +15,7 @@ pub(crate) fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -
 
 /// A missing field or case identity gives no information about its descendants.
 /// Runtime indexes retain their separate conservative selector semantics.
-pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bool {
+pub fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bool {
     match segment {
         facts::PlaceSegment::Field { symbol } => !symbol.is_valid(),
         facts::PlaceSegment::Case { variant } => !variant.is_valid(),
@@ -23,7 +27,7 @@ pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment
 /// symbols, `Case` variants, and `FixedIndex` values. `FixedRange` and `Index`
 /// pairs defer to each caller — equality, overlap, and containment compare
 /// them differently.
-pub(crate) fn static_place_segment_pair_equal(
+pub fn static_place_segment_pair_equal(
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> Option<bool> {
@@ -56,8 +60,8 @@ pub(crate) fn static_place_segment_pair_equal(
 /// Runtime `Index` operands compare by structural expression identity — a
 /// `buffer[a..b]` spelled inside a `requires` clause selects the same window the
 /// body's re-spelled `buffer[a..b]` selects, even though the arena nodes differ.
-pub(crate) fn canonical_place_segments_equal(
-    program: &dyn ::validation::CheckingInput,
+pub fn canonical_place_segments_equal(
+    program: &dyn crate::CheckingInput,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
@@ -98,10 +102,10 @@ use checked_trees::expression::ExpressionHandle;
 /// the event-normalized roots match and every segment pair selects the same
 /// storage. The one place-equality operation fact lookups share — a fact read
 /// must only match a place provably identical to its subject.
-pub(crate) fn canonical_places_agree(
-    program: &dyn ::validation::CheckingInput,
-    left: &validation::CanonicalPlace,
-    right: &validation::CanonicalPlace,
+pub fn canonical_places_agree(
+    program: &dyn crate::CheckingInput,
+    left: &crate::CanonicalPlace,
+    right: &crate::CanonicalPlace,
 ) -> bool {
     left.root == right.root
         && left.segments.len() == right.segments.len()
@@ -112,8 +116,8 @@ pub(crate) fn canonical_places_agree(
             .all(|(left, right)| canonical_place_segments_equal(program, *left, *right))
 }
 
-pub(crate) fn canonical_place_segments_may_overlap(
-    program: &dyn ::validation::CheckingInput,
+pub fn canonical_place_segments_may_overlap(
+    program: &dyn crate::CheckingInput,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
 ) -> bool {
@@ -130,8 +134,8 @@ pub(crate) fn canonical_place_segments_may_overlap(
     true
 }
 
-pub(crate) fn canonical_place_joined_segments_may_overlap(
-    program: &dyn ::validation::CheckingInput,
+pub fn canonical_place_joined_segments_may_overlap(
+    program: &dyn crate::CheckingInput,
     prefix: &[facts::PlaceSegment],
     suffix: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
@@ -150,7 +154,7 @@ pub(crate) fn canonical_place_joined_segments_may_overlap(
 }
 
 fn canonical_place_segment_pair_may_overlap(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
@@ -216,7 +220,7 @@ fn fixed_ranges_overlap(
 }
 
 fn expression_static_index(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<usize> {
     if !program.expression_table.expression_is_valid(expression) {
@@ -243,7 +247,7 @@ fn expression_static_index(
 /// fact's dependency path — which the joined-segment matcher handles independently of
 /// this index comparison.
 fn index_expressions_may_overlap(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn crate::CheckingInput,
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
@@ -268,4 +272,21 @@ fn index_expressions_may_overlap(
         ) => left_value == right_value,
         _ => true,
     }
+}
+
+/// Replacing a binding or its ancestor changes its descriptor; a descendant
+/// contents write does not. Unknown selectors keep conservative overlap.
+pub fn binding_overwrite(
+    program: &dyn crate::CheckingInput,
+    place: &crate::CanonicalPlace,
+    segments: &[facts::PlaceSegment],
+) -> bool {
+    segments.len() <= place.segments.len() && contents_overlap(program, place, segments)
+}
+pub fn contents_overlap(
+    program: &dyn crate::CheckingInput,
+    place: &crate::CanonicalPlace,
+    segments: &[facts::PlaceSegment],
+) -> bool {
+    canonical_place_segments_may_overlap(program, &place.segments, segments)
 }

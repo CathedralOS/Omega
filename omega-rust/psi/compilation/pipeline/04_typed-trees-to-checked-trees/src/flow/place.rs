@@ -3,7 +3,6 @@
 //! these children narrow live selectors, compare paths and check case access.
 mod canonicalization;
 mod case_access;
-mod comparison;
 mod coverage;
 mod domain_membership;
 mod literal_projection;
@@ -20,13 +19,13 @@ pub(crate) use case_access::{
     CaseEvidence, place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
     stable_subject as stable_case_subject,
 };
-pub(crate) use comparison::{
+pub(crate) use literal_projection::{
+    LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,
+    literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
+};
+pub(crate) use validation::storage_path_relations::{
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, canonical_places_agree,
     place_segment_has_static_identity, place_segment_has_unresolved_identity,
     static_place_segment_pair_equal,
-};
-pub(crate) use literal_projection::{
-    LiteralExpressionProjection, LiteralValueSource, literal_argument_access_places,
-    literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
 };

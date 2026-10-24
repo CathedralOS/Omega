@@ -24,6 +24,8 @@ mod contexts;
 mod control;
 mod invalidations;
 mod operand;
+mod storage;
+pub use storage::{FlowStorageOperation, FlowStorageSnapshot};
 mod ownership;
 mod semantic_dependencies;
 mod state_rows;

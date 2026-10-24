@@ -170,6 +170,7 @@ pub struct RetiredFlowCall {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FlowStatementFact {
     pub statement_index: usize,
+    pub storage_snapshot: arena::Handle<super::FlowStorageSnapshot>,
     pub value_observations: HandleSpan<super::FlowValueObservationFact>,
     /// Completed RHS after destination evaluation, before storage. Zero for
     /// statements without a stored value; children retain their own epochs.

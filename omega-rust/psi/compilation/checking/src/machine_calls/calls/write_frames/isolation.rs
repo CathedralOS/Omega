@@ -104,7 +104,7 @@ pub(super) fn concrete_nominal_type(
 /// regions. An elided nominal use and an explicit lifetime-only application
 /// have the same fields; actual type arguments and constraints still require
 /// their existing exact type identity. Lifetime validation remains separate.
-pub(super) fn aggregate_storage_types_match(
+pub fn aggregate_storage_types_match(
     program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,

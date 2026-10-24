@@ -1,0 +1,25 @@
+// Forwarding an existing descriptor installs a new live carrier without spelling another borrow of its backing.
+data Token { value: i32; }
+data Holder<'storage> { view: &'storage Token; }
+machine park<'storage>(holder: &mut Holder<'storage>, source: &'storage Token) -> bool {
+    holder.view = source;
+    true
+}
+machine main() crashes Trap {
+    transition exercise() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine exercise() -> bool {
+    let left: Token = Token { value: 17 };
+    let right: Token = Token { value: 19 };
+    let expired: &Token = &left;
+    let first: i32 = expired.value;
+    let mut holder: Holder = Holder { view: &right };
+    let forwarded: &Token = &left;
+    let parked: bool = park(&mut holder, forwarded);
+    
+    let selected: Token = match parked { true -> left false -> left };
+    let second: i32 = holder.view.value;
+    first == 17 && second == 17 && selected.value == 17
+}

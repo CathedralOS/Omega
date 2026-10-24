@@ -694,10 +694,13 @@ defines the complete product bar.
     `pass/termination/runtime_stored_exclusive_endpoint_exit` (0),
     `pass/borrows/local_reference_record_transfer_exit` (70),
     `pass/borrows/projected_reference_record_{argument,residual}_exit` (29).
-  - **Aggregate construction, replacement and reads.** Finish runtime/case
-    projections of stored references and opaque incoming referents that need
-    retained inner-loan evidence; a reference-shaped type alone must not
-    invent it. Preserve `samples/cli/facts/case_payload_stored_loan`: all nine
+  - **Aggregate construction, replacement and reads.** Finish remaining
+    runtime/case compositions and opaque incoming referents that lack retained
+    inner-loan evidence; a reference-shaped type alone must not invent it.
+    Preserve `samples/cli/facts/replaced_field_loan`: every place reborrows the
+    installed descriptor, writes incoming backing and leaves old/sibling backing
+    intact; shared descriptors and live call-carrier moves still reject.
+    Preserve `samples/cli/facts/case_payload_stored_loan`: all nine
     places write 41 through the returned active payload to its original backing,
     preserve the sibling and reject overlapping access. Mixed constructed/moved
     return routes and reordered state inputs retain their exact completed

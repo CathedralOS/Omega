@@ -78,9 +78,11 @@ its legacy value-substitution key cannot encode lexical capture binders.
 The portable scoped normalizer does not authorize comparing diagnostic capture
 handles or substituting an unsubstituted identity for that key.
 
-Guard-time descriptor replacement remains an uncompleted backing-retention
-obligation; its straight-line attribution control also exposes a baseline
-gap. The separate retiring checked-tree interpreter supports the scalar/copy
+[Stored descriptor replacement](../replaced_field_loan/README.md) has its own
+nine-place row. Its guard, held-pointer, formed-child, callee-alias and
+owned-carrier controls distinguish current child storage from a captured
+parent descriptor; copied inline arguments retain private replacement storage.
+The separate retiring checked-tree interpreter supports the scalar/copy
 snapshot and predicate controls but explicitly refuses expression-owned nominal
 cleanup; it is not the Terminal acceptance engine. The parent capabilities
 remain open for their other requirements.

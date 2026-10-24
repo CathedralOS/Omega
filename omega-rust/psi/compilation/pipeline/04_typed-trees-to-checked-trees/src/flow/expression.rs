@@ -35,10 +35,13 @@ use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;
 
+mod call_storage;
 mod constructed_values;
 mod dispatch;
 mod live_memberships;
 mod result_facts;
+mod returned_descriptors;
+mod stored_call_values;
 mod transitions;
 mod view_referents;
 mod view_retention;
@@ -62,12 +65,21 @@ struct CompletedValue {
     formed_type: TypeReferenceHandle,
     children: HandleSpan<checked_trees::FlowOperandChild>,
     alternatives: HandleSpan<checked_trees::FlowOperandFact>,
+    value_source: Handle<checked_trees::FlowOperandFact>,
     /// An address projection depends on its evaluated receiver's backing,
     /// independently of the projected value's reference leaves. Scalar value
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
     retention: Option<Handle<checked_trees::FlowOperandRetention>>,
+}
+
+/// The evaluator retains the full ordered roster and its explicit argument
+/// suffix separately. A namespace/receiver observation is not a state formal;
+/// statement calls and transitions already supply arguments only.
+struct InvocationInputs<'evaluated> {
+    operands: &'evaluated [checked_trees::FlowOperandFact],
+    arguments: &'evaluated [checked_trees::FlowOperandFact],
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -82,6 +94,7 @@ enum InvocationSite {
 #[derive(Clone, Copy)]
 pub(in crate::flow) struct EvaluatedWritePrefix {
     length: usize,
+    pub(in crate::flow) storage_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
     pub(in crate::flow) writes: HandleSpan<checked_trees::FlowOperandReferent>,
     pub(in crate::flow) unknown: bool,
 }
@@ -103,6 +116,7 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     operand_writes: Vec<Option<Vec<CanonicalPlace>>>,
     entry_origin_writes: HandleSpan<checked_trees::FlowOperandReferent>,
     entry_origin_unknown_write: bool,
+    storage_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
     /// Only the final destination of a descriptor replacement names its slot.
     /// Intermediate view projections still load their original referent.
     reference_slot_target: ExpressionHandle,
@@ -262,7 +276,15 @@ pub(super) fn append_statement_calls<'plans>(
                         .capture,
                 );
             }
-            execution.invoke(InvocationSite::Statement, &captured, contexts, constraints);
+            execution.invoke(
+                InvocationSite::Statement,
+                InvocationInputs {
+                    operands: &captured,
+                    arguments: &captured,
+                },
+                contexts,
+                constraints,
+            );
         }
         StatementNode::RootBinding(binding) => {
             execution.expression(binding.receiver, contexts, constraints);
@@ -378,6 +400,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             *contexts = HandleSpan::empty();
             *constraints = HandleSpan::empty();
         }
+        let storage_snapshot = context
+            .control
+            .statements
+            .get(statement_fact)
+            .storage_snapshot;
         Self {
             program,
             borrow,
@@ -395,6 +422,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             operand_writes: Vec::new(),
             entry_origin_writes: HandleSpan::empty(),
             entry_origin_unknown_write: false,
+            storage_snapshot,
             reference_slot_target: ExpressionHandle::invalid(),
             match_subjects: Vec::new(),
         }
@@ -426,7 +454,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn invoke(
         &mut self,
         site: InvocationSite,
-        captured_operands: &[checked_trees::FlowOperandFact],
+        inputs: InvocationInputs<'_>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
@@ -438,6 +466,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             return;
         };
         invocation.visited = true;
+        let captured_operands = inputs.operands;
         let borrowed_call = invocation.call;
         let writes = super::call_phases::call_storage_writes(
             self.program,
@@ -471,11 +500,51 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
-        self.record_operand_writes(
+        let stores = self.capture_call_stores(borrowed_call, inputs.arguments);
+        let physical = writes.as_deref().map(|writes| {
             writes
-                .as_deref()
-                .map(|writes| writes.observation_places.clone()),
-        );
+                .contributions
+                .iter()
+                .filter_map(|contribution| match &contribution.write.region {
+                    super::mutation::StorageRegion::Declared(place) => Some(place.clone()),
+                    super::mutation::StorageRegion::ResidentContent { .. }
+                    | super::mutation::StorageRegion::NonresidentContent { .. }
+                    | super::mutation::StorageRegion::UnresolvedContent { .. } => None,
+                })
+                .collect()
+        });
+        let observations = call
+            .normal_return_writes_complete
+            .then(|| {
+                self.context
+                    .control
+                    .operand_origin_writes
+                    .span(call.normal_return_writes)?
+                    .iter()
+                    .map(|write| {
+                        Some(CanonicalPlace {
+                            root: write.root,
+                            segments: self
+                                .context
+                                .control
+                                .operand_referent_segments
+                                .span(write.segments)?
+                                .to_vec(),
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()
+            })
+            .flatten();
+        self.record_write_footprints(physical, observations);
+        for (destination, value, projection) in stores {
+            self.storage_snapshot = super::stored_values::append_store(
+                &mut self.context.control,
+                self.storage_snapshot,
+                &destination,
+                value,
+                &projection,
+            );
+        }
         call.operands = self
             .context
             .control
@@ -577,7 +646,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 *contexts,
                 *constraints,
             );
+            capture.retention = self.formed_view_retention(&capture);
             capture.children = HandleSpan::empty();
+            capture.value_source = Handle::invalid();
             capture.type_reference = destination;
             self.retain_observation_result(expression, capture);
             return EvaluatedOperand { boolean, capture };
@@ -593,6 +664,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.capture_operand(expression, first_write, *contexts, *constraints, referents);
         capture.children = completed.children;
         capture.alternatives = completed.alternatives;
+        capture.value_source = completed.value_source;
         capture.type_reference = if destination.is_valid() {
             destination
         } else {
@@ -728,6 +800,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.capture_operand(expression, first_write, contexts, constraints, referents);
         capture.children = completed.children;
         capture.alternatives = completed.alternatives;
+        capture.value_source = completed.value_source;
         capture.type_reference = reference;
         if expression != self.reference_slot_target && produces_view {
             if let Some(retention) = completed.retention {
@@ -745,6 +818,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     pub(in crate::flow) fn write_prefix(&self) -> EvaluatedWritePrefix {
         EvaluatedWritePrefix {
             length: self.operand_writes.len(),
+            storage_snapshot: self.storage_snapshot,
             writes: self.entry_origin_writes,
             unknown: self.entry_origin_unknown_write,
         }
@@ -752,11 +826,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
 
     pub(in crate::flow) fn restore_write_prefix(&mut self, prefix: EvaluatedWritePrefix) {
         self.operand_writes.truncate(prefix.length);
+        self.storage_snapshot = prefix.storage_snapshot;
         self.entry_origin_writes = prefix.writes;
         self.entry_origin_unknown_write = prefix.unknown;
     }
 
     fn record_operand_writes(&mut self, writes: Option<Vec<CanonicalPlace>>) {
+        self.record_write_footprints(writes.clone(), writes);
+    }
+
+    fn record_write_footprints(
+        &mut self,
+        physical: Option<Vec<CanonicalPlace>>,
+        writes: Option<Vec<CanonicalPlace>>,
+    ) {
         if let Some(places) = &writes {
             for place in places {
                 let segments = self
@@ -775,6 +858,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         } else {
             self.entry_origin_unknown_write = true;
         }
+        self.storage_snapshot = super::stored_values::append_place_writes(
+            &mut self.context.control,
+            self.storage_snapshot,
+            physical.as_deref(),
+            writes.as_deref(),
+        );
         self.operand_writes.push(writes);
     }
 
@@ -798,8 +887,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             type_reference: TypeReferenceHandle::invalid(),
             children: HandleSpan::empty(),
             alternatives: HandleSpan::empty(),
+            value_source: Handle::invalid(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
+            storage_snapshot: self.storage_snapshot,
             constraints: captured_constraints,
             referents,
             retention,
@@ -1122,6 +1213,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             formed_type,
             children,
             alternatives,
+            value_source,
             backing,
             referents,
             retention,
@@ -1144,8 +1236,28 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *formed_type = captured.type_reference;
                     *children = captured.children;
                     *alternatives = captured.alternatives;
-                    *backing = self.context.control.operands.insert(captured);
-                    *referents = Some(captured.referents);
+                    let source = self.context.control.operands.insert(captured);
+                    *backing = source;
+                    // Copy publication owns detached bytes; noncopy subjects
+                    // retain their existing home and observe its current slots.
+                    if self.is_view_type(captured.type_reference)
+                        || self.program.type_multiplicity(captured.type_reference)
+                            == language_semantics::Multiplicity::Unrestricted
+                    {
+                        *value_source = source;
+                    }
+                    *referents = Some(if self.is_view_type(captured.type_reference) {
+                        captured.referents
+                    } else {
+                        validation::ownership_place_from_expression_in_state(
+                            self.program,
+                            self.state.symbol,
+                            self.statement_index,
+                            expression,
+                        )
+                        .map(|place| self.append_referent_places(&[place]))
+                        .unwrap_or_default()
+                    });
                     *retention = Some(captured.retention);
                 } else {
                     // Missing evaluation custody is unresolved, not a license
@@ -1213,6 +1325,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         constraints,
                     );
                     let right = self.expression(binary.right, contexts, constraints);
+                    self.storage_snapshot = super::stored_values::join(
+                        &mut self.context.control,
+                        &[entry_prefix.storage_snapshot, self.storage_snapshot],
+                    );
                     self.meet(skipped_contexts, skipped_constraints, contexts, constraints);
                     return (right == Some(!evaluate_when)).then_some(!evaluate_when);
                 }
@@ -1283,12 +1399,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     ));
                 }
                 self.record_named_operator_invocations(call, &named_uses, &captured, *constraints);
+                let source_snapshot = self.storage_snapshot;
+                let operands = captured
+                    .iter()
+                    .map(|(_, operand)| *operand)
+                    .collect::<Vec<_>>();
                 self.invoke(
                     InvocationSite::Expression(expression),
-                    &captured
-                        .iter()
-                        .map(|(_, operand)| *operand)
-                        .collect::<Vec<_>>(),
+                    InvocationInputs {
+                        operands: &operands,
+                        arguments: &operands[usize::from(call.receiver.is_valid())..],
+                    },
                     contexts,
                     constraints,
                 );
@@ -1343,6 +1464,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     call,
                     &captured,
                     retention,
+                    source_snapshot,
                 );
             }
             ExpressionNode::ArrayLiteral(values) => {
@@ -1587,7 +1709,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             ExpressionNode::Borrow(borrow) => {
                 let evaluated = self.evaluated_place(borrow.target, contexts, constraints);
                 *referents = Some(evaluated.capture.referents);
-                *retention = Some(evaluated.capture.retention);
+                *retention = Some(self.formed_view_retention(&evaluated.capture));
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(unary.operand, contexts, constraints);

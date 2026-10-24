@@ -275,7 +275,7 @@ pub(super) fn exact_origin_place(
 /// shares its final dimension with the backing selector; it does not consume
 /// that selector from the alias path. Unknown offsets preserve an unknown
 /// element/window and the known descendant suffix, never a later selector value.
-pub(super) fn alias_projection(
+pub(in crate::flow) fn alias_projection(
     captured: &[facts::PlaceSegment],
     storage: &[facts::PlaceSegment],
 ) -> Option<Vec<facts::PlaceSegment>> {

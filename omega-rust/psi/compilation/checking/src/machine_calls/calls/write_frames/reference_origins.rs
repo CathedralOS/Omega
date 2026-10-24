@@ -490,6 +490,20 @@ pub(super) fn declared_origin_root(
                 return super::caller_aliases::caller_name_root_type(program, machine, expression)
                     .map(|_| ());
             }
+            ExpressionNode::SavedSubject(_) => {
+                let source = super::FrameSourcePlace::from_expression(program, expression);
+                if !source.root.is_valid() {
+                    return None;
+                }
+                let (state, _, _) = caller_statement_owner(
+                    program,
+                    machine,
+                    CallerWriteSite::Expression(expression),
+                )?;
+                return (source.root == machine.symbol
+                    || program.symbols.get(source.root).parent == state.symbol)
+                    .then_some(());
+            }
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             _ => return None,

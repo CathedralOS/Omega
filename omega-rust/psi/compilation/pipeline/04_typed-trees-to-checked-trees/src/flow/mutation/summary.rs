@@ -62,10 +62,19 @@ struct StateMutationSummary {
     held_writes: Vec<HeldAccesses<MutationWrite>>,
 }
 
+/// A reference-valued receiving cell is distinct from the storage its value
+/// denotes. Preserve that destination judgment until caller projection ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum WriteDestination {
+    Referent,
+    DescriptorSlot,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MutationWrite {
     region: StorageRegion,
     requires_exclusive_access: bool,
+    destination: WriteDestination,
 }
 
 pub(super) fn instantiate_known_call_mutation_summary_places(
@@ -80,7 +89,8 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
     loan: Option<&CanonicalPlace>,
 ) -> Option<Vec<CallMutationWrite>> {
     let target_state = program.state_by_symbol(borrow_call.target_symbol)?;
-    let summary = state_mutation_summary(program, borrow, cache, target_state, call_frames)?;
+    let summary = state_mutation_summary(program, borrow, cache, target_state, call_frames);
+    let summary = summary?;
     let run = target_run(
         program,
         caller_machine_symbol,
@@ -101,6 +111,7 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             caller_state_symbol,
             borrow_call,
             &write.region,
+            write.destination,
             namespace,
             call_frames,
         )?;
@@ -353,6 +364,7 @@ fn propagate_state_mutation_summaries(
                         .map(|region| MutationWrite {
                             region,
                             requires_exclusive_access: true,
+                            destination: WriteDestination::Referent,
                         })
                         .collect();
                     let held = vec![writes.clone(); caller.held_writes.len()];
@@ -457,12 +469,14 @@ fn instantiate_target_writes(
             caller_state_symbol,
             call,
             &write.region,
+            write.destination,
             WritePlaceNamespace::Storage,
             call_frames,
         )? {
             instantiated.push(MutationWrite {
                 region: contribution.region,
                 requires_exclusive_access: write.requires_exclusive_access,
+                destination: write.destination,
             });
         }
     }
@@ -573,6 +587,7 @@ fn collect_state_mutation_summary_places(
                 let write = MutationWrite {
                     region: StorageRegion::Declared(place),
                     requires_exclusive_access: true,
+                    destination: WriteDestination::Referent,
                 };
                 if state_summary_exposes_place(program, state, &write.region, call_frames)?
                     && !writes.contains(&write)
@@ -596,6 +611,7 @@ fn collect_state_mutation_summary_places(
                 let write = MutationWrite {
                     region: StorageRegion::Declared(place),
                     requires_exclusive_access: false,
+                    destination: WriteDestination::Referent,
                 };
                 if state_summary_exposes_place(program, state, &write.region, call_frames)?
                     && !writes.contains(&write)
@@ -625,9 +641,20 @@ fn collect_state_mutation_summary_places(
             call_frames,
         )?;
         for region in regions {
+            let destination = validation::assignment_stored_value_type(
+                program, machine, state, assignment,
+            )
+            .map(|reference| {
+                if validation::reference_shell(program, reference).is_some() {
+                    WriteDestination::DescriptorSlot
+                } else {
+                    WriteDestination::Referent
+                }
+            })?;
             let write = MutationWrite {
                 region,
                 requires_exclusive_access,
+                destination,
             };
             if state_summary_exposes_place(program, state, &write.region, call_frames)?
                 && !writes.contains(&write)
@@ -655,6 +682,7 @@ pub(in crate::flow) fn instantiate_call_relative_places(
         caller_state_symbol,
         borrow_call,
         &StorageRegion::Declared(relative_place.clone()),
+        WriteDestination::Referent,
         namespace,
         call_frames,
     )
@@ -667,6 +695,7 @@ fn instantiate_call_relative_writes(
     caller_state_symbol: SymbolHandle,
     borrow_call: &BorrowCallFact,
     relative_region: &StorageRegion,
+    destination: WriteDestination,
     namespace: WritePlaceNamespace,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
@@ -710,15 +739,15 @@ fn instantiate_call_relative_writes(
             if parameter.symbol != parameter_symbol {
                 continue;
             }
-            // A body summary includes writes to its own incoming copies.
-            // Only reference-bearing actuals can project those writes into
-            // caller storage; keep their existing precise path/origin join.
-            let mut owned_frames = None;
+            // Inline bytes of a by-value argument belong to the callee.
+            // Only a genuine reference crossing reaches caller storage.
             if matches!(relative_region, StorageRegion::Declared(_))
-                && crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
-                    .is_some_and(|resolver| {
-                        resolver.value_is_reference_free(parameter.type_reference)
-                    })
+                && !write_reaches_caller(
+                    program,
+                    parameter.type_reference,
+                    &relative_place.segments,
+                    destination,
+                )?
             {
                 return Some(Vec::new());
             }
@@ -738,6 +767,7 @@ fn instantiate_call_relative_writes(
                     argument_index.checked_sub(1)?,
                     parameter.type_reference,
                     &relative_place.segments,
+                    destination,
                     call_frames,
                 )?;
                 let regions = match relative_region {
@@ -826,6 +856,7 @@ pub(super) fn captured_argument_write_regions(
     position: usize,
     parameter_type: typed_trees::types::TypeReferenceHandle,
     relative: &[facts::PlaceSegment],
+    destination: WriteDestination,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<StorageRegion>> {
     let machine = program.machine_by_symbol(machine_symbol)?;
@@ -872,15 +903,18 @@ pub(super) fn captured_argument_write_regions(
                         statement_index,
                         projection.expression,
                     )?;
-                    place.segments.extend(projection.remaining);
+                    place.segments.extend_from_slice(&projection.remaining);
                     vec![StorageRegion::Declared(place)]
                 };
             for region in projected_regions {
-                for region in rebase_storage_region(
+                for region in rebase_projected_call_region(
                     program,
                     state_symbol,
                     statement_index,
                     region,
+                    projected_type,
+                    &projection.remaining,
+                    destination,
                     call_frames,
                 )? {
                     if !regions.contains(&region) {
@@ -919,19 +953,82 @@ pub(super) fn captured_argument_write_regions(
         if !storage_place_has_declared_identity(projected.anchor()) {
             return None;
         }
-        for place in rebase_storage_region(
+        let rebased = rebase_projected_call_region(
             program,
             state_symbol,
             statement_index,
             projected,
+            parameter_type,
+            relative,
+            destination,
             call_frames,
-        )? {
+        )?;
+        for place in rebased {
             if !places.contains(&place) {
                 places.push(place);
             }
         }
     }
     Some(places)
+}
+
+/// Rebase the selected source coordinate with its genuine receiving mode.
+/// Shape matching is never reference existence, access or lifetime evidence.
+fn rebase_projected_call_region(
+    program: &dyn validation::CheckingInput,
+    state: SymbolHandle,
+    statement: usize,
+    region: StorageRegion,
+    parameter: typed_trees::types::TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+    destination: WriteDestination,
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<StorageRegion>> {
+    if destination == WriteDestination::Referent {
+        return rebase_storage_region(program, state, statement, region, frames);
+    }
+    let StorageRegion::Declared(place) = region else {
+        return None;
+    };
+    let root_type =
+        validation::reference_shell(program, parameter).map_or(parameter, |shell| shell.referee);
+    let expected = validation::project_type_reference_from_segments(program, root_type, path)?;
+    let actual = validation::canonical_place_type_reference(program, state, statement, &place)?;
+    validation::reference_shell(program, expected)?;
+    validation::reference_shell(program, actual)?;
+    if !validation::storage_origin_types_match(program, expected, actual) {
+        return None;
+    }
+    super::local_origins::rebase_descriptor_slot_regions(program, state, statement, place, frames)
+}
+
+fn write_reaches_caller(
+    program: &dyn validation::CheckingInput,
+    parameter: typed_trees::types::TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+    destination: WriteDestination,
+) -> Option<bool> {
+    if crate::flow::operand_contexts::operand_binds_live_view(program, parameter) {
+        return Some(true);
+    }
+    if !validation::has_contents(
+        program,
+        parameter,
+        &[],
+        validation::ContentsRequirement::StoredValue,
+    ) {
+        return None;
+    }
+    for length in 1..=path.len() {
+        let reference =
+            validation::project_type_reference_from_segments(program, parameter, &path[..length])?;
+        if validation::reference_shell(program, reference).is_some()
+            && (length < path.len() || destination == WriteDestination::Referent)
+        {
+            return Some(true);
+        }
+    }
+    Some(false)
 }
 
 fn storage_place_has_declared_identity(place: &CanonicalPlace) -> bool {

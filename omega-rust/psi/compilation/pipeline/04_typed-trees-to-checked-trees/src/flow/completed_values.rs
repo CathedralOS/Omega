@@ -56,7 +56,7 @@ pub(crate) fn predecessors(
 pub(crate) fn predecessors_in_flow(
     program: &dyn validation::CheckingInput,
     flow: &checked_trees::FlowFacts,
-    semantic: &facts::FactPlan,
+    _semantic: &facts::FactPlan,
     value: Handle<FlowOperandFact>,
     projection: &[PlaceSegment],
     observation: super::stored_values::StoredObservation,
@@ -65,6 +65,28 @@ pub(crate) fn predecessors_in_flow(
         return None;
     }
     let capture = flow.control.operands.get(value);
+    // A value source preserves inline bytes, including a pointer descriptor.
+    // It cannot freeze contents behind that pointer at its earlier epoch.
+    let crosses_reference = (0..=projection.len()).any(|length| {
+        validation::project_type_reference_from_segments(
+            program,
+            capture.type_reference,
+            &projection[..length],
+        )
+        .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+    });
+    if capture.value_source.is_valid()
+        && (matches!(
+            observation,
+            super::stored_values::StoredObservation::Binding
+        ) || !crosses_reference)
+    {
+        return flow
+            .control
+            .operands
+            .is_valid(capture.value_source)
+            .then(|| vec![(capture.value_source, projection.to_vec())]);
+    }
     if !capture.alternatives.is_empty() {
         return Some(
             capture
@@ -136,26 +158,20 @@ pub(crate) fn predecessors_in_flow(
         capture.expression,
     )?;
     source.segments.extend_from_slice(projection);
-    let super::stored_values::StoredOperand::Value {
-        capture: stored,
-        reference,
-        projection: stored_projection,
-    } = super::stored_values::before_statement(
+    let captures = super::stored_values::at_snapshot(
         program,
-        semantic,
         &flow.control,
-        state,
-        state_flow.statements,
-        capture.statement_index,
-        capture.entry_origin_writes,
-        capture.entry_origin_unknown_write,
+        capture.storage_snapshot,
         &source,
         observation,
     )?
-    else {
-        return None;
-    };
-    reference
-        .is_valid()
-        .then_some(vec![(stored, stored_projection)])
+    .captures()?;
+    let mut predecessors = Vec::new();
+    for selected in captures {
+        if !selected.reference.is_valid() {
+            return None;
+        }
+        predecessors.push((selected.capture, selected.projection));
+    }
+    Some(predecessors)
 }

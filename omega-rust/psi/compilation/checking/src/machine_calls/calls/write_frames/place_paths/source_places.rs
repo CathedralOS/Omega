@@ -302,7 +302,53 @@ fn source_coordinates(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<crate::CanonicalPlace> {
-    let place = crate::canonical_place_from_expression(program, expression)?;
+    let mut place = crate::canonical_place_from_expression(program, expression)?;
+    // A captured value keeps its proof/observation identity. Frame paths ask
+    // about storage instead: a noncopy subject has transferred its existing
+    // home, while a copied descriptor keeps its distinct captured binding.
+    // Recover scope from the source declaration, then use the common storage
+    // query; a computed subject with no declaring home stays opaque.
+    if let Some(anchor) = place.root.as_expression()
+        && let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+            program.expression_table.expression(anchor)
+    {
+        let mut source = program.expression_table.saved_subject_source(saved)?;
+        let mut active = vec![saved.capture];
+        loop {
+            let source_place = crate::canonical_place_from_expression(program, source)?;
+            if let Some(root) = source_place.root.as_symbol() {
+                if let Some((machine, state)) = source_owner(program, root, expression)
+                    && let Some((owner, _, statement_index)) = caller_statement_owner(
+                        program,
+                        machine,
+                        CallerWriteSite::Expression(expression),
+                    )
+                    && owner.symbol == state.symbol
+                {
+                    place = crate::ownership_place_from_expression_in_state(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        expression,
+                    )?;
+                }
+                break;
+            }
+            let Some(anchor) = source_place.root.as_expression() else {
+                break;
+            };
+            let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+                program.expression_table.expression(anchor)
+            else {
+                break;
+            };
+            if active.contains(&saved.capture) {
+                return None;
+            }
+            active.push(saved.capture);
+            source = program.expression_table.saved_subject_source(saved)?;
+        }
+    }
     // Fields and element selectors already have exact raw coordinates. Only
     // a window can collapse a collection dimension, so only that geometry
     // needs operation meaning and the expression's lexical owner. Ordinary
@@ -330,7 +376,7 @@ fn source_coordinates(
     if owner.symbol != state.symbol {
         return Some(place);
     }
-    crate::canonical_place_from_expression_in_state(
+    crate::ownership_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,

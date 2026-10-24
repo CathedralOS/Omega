@@ -33,12 +33,11 @@ pub(in crate::flow) fn matching_mutation_for_fact_place<'a, 'b>(
         // writing a resolved descendant cannot change the enclosing tag.
         // Unresolved paths retain the ordinary conservative overlap law.
         if matches!(fact.payload, facts::FactPayload::AssignedCase { .. })
-            && mutation.segments.len() > fact_canonical_place.segments.len()
-            && mutation
-                .segments
-                .iter()
-                .chain(&fact_canonical_place.segments)
-                .all(|segment| !crate::flow::place_segment_has_unresolved_identity(*segment))
+            && !crate::flow::operand_contexts::case_overwrite(
+                program,
+                &fact_canonical_place,
+                &mutation.segments,
+            )
         {
             continue;
         }
