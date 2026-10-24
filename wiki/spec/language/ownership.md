@@ -229,16 +229,19 @@ consumption by an ordinary borrowed call.
 [Nominal cleanup](../terminal-psi/ownership.md#nominal-cleanup) owns the selected
 cleanup edge and ordinary consuming early-disposal call.
 
-Only the data declaration's owning package may authorize its exact nominal
-cleanup disposition, and at most one applies. Its selected cleanup operation is
+The data declaration's owning package authorizes its nominal cleanup through
+[`dropped by`](domains.md#domain-selected-automatic-cleanup) on the default or a
+named domain. Inheritance and conjunction permit zero or one distinct resolved
+machine application: identical selections coalesce and differing selections
+conflict, without overrides or sequencing. Its selected cleanup operation is
 an independent static machine with an explicit `value: &mut T` parameter, not a
 data-owned method. The exact owner/type/disposition identity, not a receiver flag
 or `T::drop` name lookup, selects the compiler cleanup edge. The legacy
-`machine T::drop` attachment is retired under `no-data-code-attachment`; migrating
-its declaration/selection route must preserve unique owner authorization and
-reject source invocation of the edge-only hook. The hook receives and must
-return a whole valid value before structural field cleanup. A nominal-drop type cannot be
-partially moved; meaningful decomposition requires an explicit consuming
+`machine T::drop` attachment is retired under `no-data-code-attachment`;
+source invocation of the selected edge-only hook rejects. The hook receives and
+must return a whole valid value before structural field cleanup. An owned
+occurrence with a selected whole-value hook cannot be partially moved;
+meaningful decomposition requires an explicit consuming
 machine. An unrelated ordinary machine named `drop` has no reserved meaning.
 
 Every owned death edge derives an internal contextual cleanup row: Type-side

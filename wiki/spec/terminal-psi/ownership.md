@@ -278,8 +278,13 @@ required on the returning branch.
 The exact independently declared static cleanup target is a compiler-owned edge
 dependency with an explicit mutable value parameter, not a data-owned method,
 source-selectable call or static-machine value. Legacy `T::drop` attachment and
-name discovery are migration debt; the type owner's unique authorized
-disposition and edge custody remain mandatory. Authored early disposal
+name discovery are migration debt. Source
+[`dropped by` composition](../language/domains.md#domain-selected-automatic-cleanup)
+supplies the unique owner-authorized machine application and retained qualified
+subject obligations. Distinct selections on the same subject reject before
+lowering; repeated identical selections produce one invocation, not a sequence
+per domain. Field cleanup remains independently structural. Erasure retains the
+selected plan and its obligations. Authored early disposal
 uses the ordinary consuming `omega::core::drop(value)` call. The cleanup plan
 keeps Type-side discharge eligibility, logical prerequisites, operational
 reach/effects/work, and derived guarantees separate.

@@ -574,9 +574,25 @@ helper that passes does not close an item.
     the existing exact owner-authorized disposition, uniqueness, consuming-edge
     custody, non-callable hook boundary and operational guarantees. Do not
     replace it with ambient conformance discovery or delete automatic cleanup.
-    The replacement authored nominal-disposition authorization is
-    **OWNER-BLOCKED** on [Q1](OWNER_QUESTIONS.md#q1-how-does-a-type-owner-authorize-an-independent-nominal-cleanup-operation);
-    ordinary static-machine migration and existing cleanup repairs continue.
+    Implement the settled [domain-selected dropper](wiki/spec/language/domains.md#domain-selected-automatic-cleanup):
+    parse `dropped by` on named domains and data default domains, resolve its
+    independent machine application, and preserve it through domain
+    normalization, call transport, erasure, Terminal cleanup and native execution.
+    Zero selections retain ordinary structural eligibility; repeated identical
+    selections invoke once; distinct inherited or conjoined selections reject.
+    Generic identity includes substituted arguments. Prove all inherited
+    obligations and ordinary hook preconditions; selection grants no access or
+    issuance authority. Keep fields' structural cleanup separate from same-subject
+    domain composition. Migrate legacy `T::drop` declarations and fixtures with
+    their behavior intact; no trait-discovery or attached-method compatibility path.
+    Acceptance includes a nine-place fact row with actual cleanup side effects
+    observed under `omega run --both`, parent-none/child-add and identical
+    selection composition, independent field cleanup, and default/named generic
+    domain selection. Reject conflicting machine applications, erasure bypass,
+    missing inherited obligations, unauthorized selection, direct hook calls and
+    hooks that can fail, block, suspend, crash or exit. Zero custom hooks must
+    not discharge a still-owed linear claim. This is implementation work, not
+    an owner-decision dependency.
     **EXPLICIT-ENTRY-STORAGE** owns retiring the separate automatic entry-context
     allocation path; preserve actual platform handoff and storage authority.
   - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs

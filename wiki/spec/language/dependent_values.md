@@ -79,6 +79,9 @@ own writes. See [state contracts](state_contracts.md).
 
 A data declaration's field qualifications and `where` clauses define its default
 domain; omission adds no predicates beyond its ordinary field/type obligations.
+An optional data-declaration `dropped by` clause contributes the default domain's
+[automatic cleanup selection](domains.md#domain-selected-automatic-cleanup),
+independently of those validity predicates.
 This does not mean an uninhabited domain. Zero-initializability is a storage
 representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established

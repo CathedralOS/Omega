@@ -23,11 +23,12 @@ The core rules are:
 
 ## Cleanup Machines
 
-Cleanup uses one exact owner-authorized disposition selecting an independent
-static cleanup operation. Its value parameter is explicit:
+The type owner selects an independent cleanup operation with `dropped by` on
+its default domain or a named domain. On a data declaration the clause belongs
+to the default domain. The operation's value parameter remains explicit:
 
 ```omega
-data MutexGuard<T> {
+data MutexGuard<T> dropped by cleanup_mutex_guard<T> {
     mutex: &Mutex<T>;
 }
 
@@ -38,13 +39,22 @@ machine cleanup_mutex_guard<T>(guard: &mut MutexGuard<T>)
 }
 ```
 
-Only the data declaration's owning package may authorize that exact nominal
-disposition. At most one applies. The checked cleanup plan selects its exact
-hook, not an ambient trait implementation or a machine found by `T::drop`
-spelling. Source invocation of the selected edge-only hook still rejects;
-ordinary early disposal uses the consuming operation below. The example shows
-the operation's parameter/body shape, not new disposition-registration syntax.
-An unrelated machine named `drop` has no reserved meaning.
+Only the data declaration's owning package may authorize that selection. The
+clause names the cleanup operation, not every caller allowed to discard a value.
+Source invocation of the selected edge-only hook still rejects; ordinary early
+disposal uses the consuming operation below. An unrelated machine named `drop`
+has no reserved meaning. This example describes the accepted source contract;
+the compiler migration remains on the task board.
+
+For the same owned subject, default, inherited and combined domains select zero
+or one distinct machine application. A child may add a dropper when its parent
+has none. Repeating the same resolved operation and generic arguments selects
+it once; naming a different operation or application conflicts. There is no
+override, most-specific search or automatic chaining. Fields have their own
+structural cleanup plans. Zero custom droppers permits structural cleanup only
+where disposal is legal; an unresolved linear obligation still rejects.
+Qualification erasure cannot remove the selected cleanup obligation. See
+[domain-selected cleanup](../spec/language/domains.md#domain-selected-automatic-cleanup).
 
 At a cleanup edge the compiler has already begun consuming the owning
 occurrence and temporarily lends the whole valid value as `value: &mut T` to the
@@ -101,10 +111,8 @@ prerequisites, effects, reach, work, and guarantees. A concrete nongeneric
 machine that lets an owned parameter die produces the same row; the mechanism
 belongs to death edges, not to the core helper that first exposes it.
 
-Cleanup is deliberately not a core trait. Ordinary Omega traits permit several
-separately named conformances for the same type and do not authorize dedicated
-syntax to discover one ambiently; automatic cleanup requires one structurally
-unique owner-authorized disposition. Static generic code consumes symbolic cleanup rows,
+`dropped by` directly selects the independent machine; cleanup requires no core
+trait or ambient satisfier search. Static generic code consumes symbolic cleanup rows,
 and dynamic code consumes the type descriptor described below, so neither needs
 a nominal `T: Drop` bound. The reserved data-owned hook spelling is retired;
 its source-selection migration belongs to `STATIC-MACHINE-MIGRATION` in
@@ -254,7 +262,7 @@ Cleanup order is deterministic:
 1. Independent roots are cleaned in reverse declaration order.
 2. Locals therefore precede by-value machine or state parameters declared
    before them.
-3. A whole value's nominal `T::drop(value: &mut T)` runs before structural field
+3. A whole value's domain-selected cleanup machine runs before structural field
    cleanup.
 4. Remaining fields are cleaned in reverse declaration order.
 5. Fixed-array elements are established from lowest to highest index and the
@@ -349,7 +357,7 @@ Diagnostics name both the edge and the missing cleanup premise:
 ```text
 cannot leave edge Transaction::active -> done
 
-automatic Transaction::drop requires:
+selected automatic cleanup requires:
   custodied_by(transaction, stable_ledger)
 
 available:

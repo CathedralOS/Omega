@@ -4,8 +4,8 @@ Named decision: `qualified-fixed-byte-array-carrier`, settled 2026-10-14.
 
 A domain attaches a static theory to a carrier without adding a runtime tag,
 wrapper, hidden storage, or second object model. Predicate requirements,
-semantic contributions, authorized establishment and access routes, and
-transparent aliases are independently normalized aspects of that theory.
+semantic contributions, authorized establishment and access routes, cleanup
+selection, and transparent aliases are independently normalized aspects of that theory.
 Multiplicity, content, carry, and provider evidence keep their own judgments.
 
 Qualification never selects or changes storage representation, capacity, live
@@ -329,6 +329,62 @@ declaration form, or field-private syntax. They attach checked access policy to
 ordinary domain-qualified values. Compiler implementation and a complete mutex
 construction are not established by this specification settlement.
 
+## Domain-selected automatic cleanup
+
+Named decision: `domain-selected-dropper`.
+
+`dropped by` selects one exact independent static cleanup machine for an owned
+qualified occurrence. It names the operation the compiler invokes at cleanup,
+not a list of callers permitted to discard the value. It takes one machine
+application, with generic arguments supplied from the declaration's binders:
+
+```omega
+domain Guard::Held dropped by release_guard;
+```
+
+The carrier's owning package authorizes the selection. A data declaration may
+put the same clause on its default domain; this is a domain clause, not a
+data-owned machine declaration:
+
+```omega
+data Guard<T> dropped by release_guard<T> {
+    value: T;
+}
+```
+
+These separate examples show selection, not a complete resource implementation.
+The selected machine has an explicit mutable reference parameter for the carrier
+and must meet the [cleanup contract](ownership.md#consumers-and-cleanup).
+Name resolution is exact: no overload guessing, trait/satisfier discovery, or
+lookup by the name `drop`. This clause introduces no `Drop` trait or boundary
+requirement.
+
+For one owned subject, normalize its default domain, inherited domains, aliases
+and combined qualifications. The result permits zero or one distinct selected
+machine application. If the parent selects none, a child may add one. Repeating
+the same resolved machine with the same substituted arguments retains one
+selection. A different machine or different application conflicts. A child
+cannot override an inherited selection; conjunction does not order or chain
+droppers. Reject conflicting concrete qualifications; generic selection must
+remain consistent under substitution. Fields are separate owned subjects with
+their own cleanup plans, not competing selections on their enclosing record.
+
+One selected operation must satisfy all applicable domain, custody and loan
+obligations, including inherited ones. Zero selected operations permits ordinary
+structural cleanup only where disposal is otherwise legal; it does not discharge
+an unresolved linear claim. Selection does not itself prove the hook's
+preconditions or give it read/write or issuance authority. The owning package's
+selection is the explicit authorization of that cleanup plan; a linear terminal
+disposition still must account for every obligation under the ownership rules.
+
+Moves and intact transport preserve the selection and its obligations. Alias
+expansion, predicate weakening and explicit qualification erasure cannot remove
+cleanup debt or evade a selection conflict. Borrowing does not authorize disposal
+of the referent. Cleanup selection belongs to the owned qualified subject, not
+to an ambient collection of predicates the compiler happens to prove. Normalized
+machine identity and substituted arguments are part of the domain's semantic
+interface. No hidden runtime domain tag is introduced.
+
 ## Refinement and executable membership
 
 Domains classify values within the carrier's ordinary validity. A domain cannot
@@ -430,7 +486,7 @@ operations, not the interpretation of earlier work or the stored payload.
 
 Weakening is per normalized atom:
 
-- Predicate-only atoms with no access policy may disappear implicitly.
+- Predicate-only atoms with no access or cleanup policy may disappear implicitly.
 - Semantic atoms and non-owning routed provenance require explicit `as` erasure.
 - An atom containing both predicates and a route follows the routed rule.
 - Owned claims cannot be cast away; they must be consumed or transferred.

@@ -4,7 +4,8 @@ A domain is a zero-cost semantic theory attached to a value's unchanged
 carrier.
 
 A domain can state predicates, contribute a unit meaning or arithmetic policy,
-name authorized establishment/read/write routes, or alias other domains. These
+name authorized establishment/read/write routes, select cleanup with `dropped by`,
+or alias other domains. These
 roles are checked separately. The [domain specification](../spec/language/domains.md)
 owns the complete rules; this chapter shows how to use them.
 
@@ -13,7 +14,10 @@ merely because a value is qualified. Validation and conversion are ordinary
 machines with their own runtime work and contracts.
 
 Every data declaration also has a default domain, formed by its field
-constraints and `where` facts. A zeroed layout becomes an accessible value only
+constraints and `where` facts, with any data-declaration `dropped by` selection.
+Cleanup selection is separate from validity; it must compose with named-domain
+selections under the [zero-or-one dropper rule](../spec/language/domains.md#domain-selected-automatic-cleanup).
+A zeroed layout becomes an accessible value only
 when those obligations hold; otherwise it is gated until established. See
 [zero initialization](#declarations-and-the-zero-value) below and
 [invariant windows](chapter_11_invariant_windows.md).
