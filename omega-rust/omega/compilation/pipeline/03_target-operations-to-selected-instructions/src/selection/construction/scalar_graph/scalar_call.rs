@@ -1,7 +1,7 @@
 //! Scalar-result calls marshal their arguments and retain their actual result home.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionKind,
+    SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
@@ -30,18 +30,21 @@ pub(super) fn emit(
     {
         return Err(invalid());
     }
-    let key = crate::selection::scalar_call_abi::unit_key(call, environment).ok_or_else(invalid)?;
-    if !builder.constraints.keys.call_scalar.contains(&key) {
+    // A scalar-shaped result placement can only come from the scalar-call key
+    // family: `unit_key` searches that family exactly when the call carries no
+    // structural result. A call with both would previously have been refused
+    // as a key outside the family; refuse the shape it depends on instead.
+    if call.structural_result.is_some() {
         return Err(invalid());
     }
-    crate::selection::scalar_call_abi::validate(
+    let key = super::call_arguments::validated_call_key(
         function,
         source,
         call,
         target_operations::CallSiteOwner::Operation(operation.operation),
-        key,
-        row(builder.catalog, key)?,
+        builder,
         environment,
+        invalid,
     )?;
     let mut operands = super::call_arguments::marshal(source, operation, call, builder, invalid)?;
     if let Some(selector) = call.target.selector() {
@@ -58,23 +61,12 @@ pub(super) fn emit(
         .ok_or_else(invalid)?
         .class;
     operands.push(short_result);
-    builder
-        .transport
-        .calls
-        .push(selected_instructions::SelectedCallContract {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| invalid())?,
-            ),
-            owner: target_operations::CallSiteOwner::Operation(operation.operation),
-            call: call.clone(),
-            effect: operation.effect,
-            ownership: operation.ownership.clone(),
-        });
-    builder.emit(
+    super::call_arguments::emit_call(
+        builder,
+        target_operations::CallSiteOwner::Operation(operation.operation),
+        call,
+        operation.effect,
+        operation.ownership.clone(),
         SelectedInstructionKind::CallScalar {
             target: selected_instructions::SelectedCallTarget::from_native(call.target),
         },

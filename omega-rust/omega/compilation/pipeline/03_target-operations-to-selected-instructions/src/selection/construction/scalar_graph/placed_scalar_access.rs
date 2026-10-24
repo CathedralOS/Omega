@@ -6,8 +6,7 @@ use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use selected_instructions::{
-    MachineSemanticKind, PlacedScalarForm, SelectedInstructionId, SelectedMemoryAccess,
-    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    MachineSemanticKind, PlacedScalarForm, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
 
 pub(super) fn emit(
@@ -109,25 +108,18 @@ pub(super) fn emit(
     if let Some(output) = output {
         registers.push(output);
     }
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.transport.memory.push(SelectedMemoryAccess {
-        instruction,
-        origin: SelectedMemoryAccessOrigin::Operation(row.operation),
-        place: location.place,
-        byte_offset: offset,
-        byte_count: u32::from(form.bytes),
-        role: if form.write {
+    super::structural::memory_at_origin(
+        builder,
+        SelectedMemoryAccessOrigin::Operation(row.operation),
+        location.place,
+        offset,
+        u32::from(form.bytes),
+        if form.write {
             SelectedMemoryAccessRole::WritePlace
         } else {
             SelectedMemoryAccessRole::ReadPlace
         },
-    });
+    )?;
     builder.emit(
         SelectedInstructionKind::PlacedScalarAccess {
             form,

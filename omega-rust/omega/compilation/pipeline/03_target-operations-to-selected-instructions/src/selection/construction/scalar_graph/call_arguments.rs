@@ -7,7 +7,7 @@
 //! A boundary borrowed-view operand instead places its descriptor fragments
 //! under the retained aggregate ABI, preserving the original backing and loan.
 use super::{
-    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionProvenance,
+    Builder, LegalizedScalarFunction, RegisterConstraintKey, SelectedInstructionProvenance,
     VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
@@ -16,6 +16,7 @@ use crate::selection::construction::scalar_graph::structural;
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstruction,
 };
+use selected_instructions::{SelectedCallContract, SelectedInstructionId, SelectedInstructionKind};
 use terminal_psi::StructuralAccess;
 
 /// Place every argument of `call` and return the register operands in the
@@ -70,8 +71,17 @@ pub(super) fn marshal(
             operands.push((argument_index, output));
         }
     }
-    // Only a register-placed argument yields operands, and the register order
-    // names every such argument.
+    register_ordered_operands(call, &operands, invalid)
+}
+
+/// ABI register order over the marshalled (argument, register) pairs. Only a
+/// register-placed argument yields operands, and the register order names
+/// every such argument.
+pub(super) fn register_ordered_operands(
+    call: &LegalizedScalarCall,
+    operands: &[(usize, VirtualRegisterId)],
+    invalid: impl Fn() -> SelectedInstructionError,
+) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
     let order = crate::selection::scalar_call_abi::register_argument_order(call);
     if operands
         .iter()
@@ -493,25 +503,14 @@ fn place_pointer_argument(
             alignment: 8,
             abi_stack_byte_offset: stack_byte_offset,
         });
-    builder
-        .transport
-        .memory
-        .push(selected_instructions::SelectedMemoryAccess {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| SelectedInstructionError::custody())?,
-            ),
-            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
-                operation.operation,
-            ),
-            place: pointer_place,
-            byte_offset: 0,
-            byte_count: 8,
-            role: selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },
-        });
+    super::structural::memory_at_origin(
+        builder,
+        selected_instructions::SelectedMemoryAccessOrigin::Operation(operation.operation),
+        pointer_place,
+        0,
+        8,
+        selected_instructions::SelectedMemoryAccessRole::WriteOutgoing { slot },
+    )?;
     builder.emit_store64(
         selected_instructions::FrameStorageSlotId::Outgoing(slot),
         0,
@@ -522,4 +521,62 @@ fn place_pointer_argument(
         },
     )?;
     Ok(None)
+}
+
+/// Resolve the exact constraint row for `call` and re-validate the retained
+/// ABI against the selected environment. The row found here is the one the
+/// emission must carry; the ordinary, scalar-result and completion producers
+/// previously repeated both steps privately.
+pub(super) fn validated_call_key(
+    function: usize,
+    source: &LegalizedScalarFunction,
+    call: &LegalizedScalarCall,
+    owner: target_operations::CallSiteOwner,
+    builder: &Builder<'_>,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    invalid: impl Fn() -> SelectedInstructionError,
+) -> Result<RegisterConstraintKey, SelectedInstructionError> {
+    let key = crate::selection::scalar_call_abi::unit_key(call, environment).ok_or_else(invalid)?;
+    crate::selection::scalar_call_abi::validate(
+        function,
+        source,
+        call,
+        owner,
+        key,
+        row(builder.catalog, key)?,
+        environment,
+    )?;
+    Ok(key)
+}
+
+/// Record the pending call contract naming the next instruction, then emit the
+/// call instruction that carries it. Four producers previously kept private
+/// copies of this record-and-emit step.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn emit_call(
+    builder: &mut Builder<'_>,
+    owner: target_operations::CallSiteOwner,
+    call: &LegalizedScalarCall,
+    effect: optimization_unit::EffectLink,
+    ownership: Vec<optimization_unit::OwnershipEvent>,
+    kind: SelectedInstructionKind,
+    key: RegisterConstraintKey,
+    operands: &[VirtualRegisterId],
+    provenance: SelectedInstructionProvenance,
+) -> Result<(), SelectedInstructionError> {
+    let instruction = SelectedInstructionId(
+        builder
+            .instructions
+            .len()
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
+    );
+    builder.transport.calls.push(SelectedCallContract {
+        instruction,
+        owner,
+        call: call.clone(),
+        effect,
+        ownership,
+    });
+    builder.emit(kind, key, operands, provenance)
 }

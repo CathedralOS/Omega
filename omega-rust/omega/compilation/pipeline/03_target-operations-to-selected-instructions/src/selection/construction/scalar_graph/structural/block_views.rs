@@ -8,11 +8,9 @@
 //! loads that address once, so later consumers receive the referent pointer an
 //! incoming borrowed parameter would supply, never a pointer to the carrier.
 use super::{
-    Builder, LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionProvenance,
-    SelectedMemoryAccess, SelectedMemoryAccessRole,
+    Builder, LegalizedScalarFunction, SelectedInstructionProvenance, SelectedMemoryAccessRole,
 };
 use crate::SelectedInstructionError;
-use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{
     LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccessOrigin,
@@ -49,20 +47,14 @@ pub(in crate::selection::construction) fn block_entry(
                 alignment: shape.alignment,
             });
         let pointer = transport_register(builder, parameter.place, 0)?;
-        builder.transport.memory.push(SelectedMemoryAccess {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| invalid())?,
-            ),
-            origin: SelectedMemoryAccessOrigin::Block(block.id),
-            place: parameter.place,
-            byte_offset: 0,
-            byte_count: shape.byte_size,
-            role: SelectedMemoryAccessRole::AddressLocal { slot },
-        });
+        super::memory_at_origin(
+            builder,
+            SelectedMemoryAccessOrigin::Block(block.id),
+            parameter.place,
+            0,
+            shape.byte_size,
+            SelectedMemoryAccessRole::AddressLocal { slot },
+        )?;
         builder.emit_local_frame_address(
             slot,
             pointer,
@@ -70,20 +62,14 @@ pub(in crate::selection::construction) fn block_entry(
         )?;
         let pointer = if joined && shape.byte_size == 8 {
             let referent = transport_register(builder, parameter.place, 0)?;
-            builder.transport.memory.push(SelectedMemoryAccess {
-                instruction: SelectedInstructionId(
-                    builder
-                        .instructions
-                        .len()
-                        .try_into()
-                        .map_err(|_| invalid())?,
-                ),
-                origin: SelectedMemoryAccessOrigin::Block(block.id),
-                place: parameter.place,
-                byte_offset: 0,
-                byte_count: shape.byte_size,
-                role: SelectedMemoryAccessRole::ReadPlace,
-            });
+            super::memory_at_origin(
+                builder,
+                SelectedMemoryAccessOrigin::Block(block.id),
+                parameter.place,
+                0,
+                shape.byte_size,
+                SelectedMemoryAccessRole::ReadPlace,
+            )?;
             builder.emit_load64(
                 0,
                 pointer,

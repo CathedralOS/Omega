@@ -186,23 +186,14 @@ pub(in crate::selection::construction::scalar_graph) fn load_pointer_word(
     let (address, displacement) =
         super::displaced_memory_pointer(builder, place, home, byte_offset, 8, provenance.clone())?;
     let pointer = transport_register(builder, place, byte_offset)?;
-    builder
-        .transport
-        .memory
-        .push(selected_instructions::SelectedMemoryAccess {
-            instruction: selected_instructions::SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| invalid())?,
-            ),
-            origin,
-            place,
-            byte_offset,
-            byte_count: 8,
-            role: SelectedMemoryAccessRole::ReadPlace,
-        });
+    super::memory_at_origin(
+        builder,
+        origin,
+        place,
+        byte_offset,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
     builder.emit_load64(displacement, address, pointer, provenance)?;
     Ok(pointer)
 }

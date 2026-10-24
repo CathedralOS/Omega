@@ -8,8 +8,7 @@ use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
 use selected_instructions::{
-    MachineSemanticKind, SelectedInstructionId, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
-    SelectedMemoryAccessRole,
+    MachineSemanticKind, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
 };
 use semantic_vocabulary::ScalarType;
 
@@ -87,13 +86,6 @@ pub(super) fn emit(
     } else {
         None
     };
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| SelectedInstructionError::custody())?,
-    );
     // An RMW has both roles, but there is exactly one event and one native
     // observed result. Ordering lives in the checked machine effect, not here.
     for (needed, role) in [
@@ -107,14 +99,14 @@ pub(super) fn emit(
         ),
     ] {
         if needed {
-            builder.transport.memory.push(SelectedMemoryAccess {
-                instruction,
-                origin: SelectedMemoryAccessOrigin::Operation(row.operation),
-                place: location.place,
-                byte_offset: *field_byte_offset,
-                byte_count: u32::from(form.width.bytes()),
+            super::structural::memory_at_origin(
+                builder,
+                SelectedMemoryAccessOrigin::Operation(row.operation),
+                location.place,
+                *field_byte_offset,
+                u32::from(form.width.bytes()),
                 role,
-            });
+            )?;
         }
     }
     builder.emit(

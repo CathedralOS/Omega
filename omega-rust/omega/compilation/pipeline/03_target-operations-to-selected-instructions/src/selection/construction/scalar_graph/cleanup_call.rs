@@ -1,12 +1,9 @@
 //! Select edge-owned calls with ordinary borrowed-pointer ABI transport.
-use super::{
-    Builder, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-};
+use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
 use crate::SelectedInstructionError;
 use calling_conventions::{CallSignature, CallingPolicy, ValueClass, evaluate_call_plan};
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use optimization_unit::EffectLink;
-use selected_instructions::SelectedCallContract;
 use target_operations::{CallSiteOwner, NativeCallOrigin};
 
 pub(super) fn emit(
@@ -102,20 +99,12 @@ pub(super) fn emit(
             indices,
         )?);
     }
-    builder.transport.calls.push(SelectedCallContract {
-        instruction: SelectedInstructionId(
-            builder
-                .instructions
-                .len()
-                .try_into()
-                .map_err(|_| SelectedInstructionError::custody())?,
-        ),
+    super::call_arguments::emit_call(
+        builder,
         owner,
-        call: call.clone(),
+        call,
         effect,
-        ownership: Vec::new(),
-    });
-    builder.emit(
+        Vec::new(),
         SelectedInstructionKind::CallUnit {
             target: selected_instructions::SelectedCallTarget::from_native(call.target),
         },

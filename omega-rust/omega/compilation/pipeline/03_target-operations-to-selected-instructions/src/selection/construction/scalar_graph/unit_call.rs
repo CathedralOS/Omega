@@ -1,12 +1,10 @@
 //! Resultless and aggregate-result calls marshal their arguments and publish their result home.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionKind,
+    SelectedInstructionProvenance, ValueLocation,
 };
 use crate::SelectedInstructionError;
-use crate::selection::construction::scalar_graph::row;
 use legalized_operations::LegalizedScalarInstruction;
-use selected_instructions::SelectedCallContract;
 
 pub(super) fn emit(
     function: usize,
@@ -40,16 +38,14 @@ pub(super) fn emit(
                 }
             })
         })?;
-    let key = crate::selection::scalar_call_abi::unit_key(call, environment)
-        .ok_or_else(|| SelectedInstructionError::custody())?;
-    crate::selection::scalar_call_abi::validate(
+    let key = super::call_arguments::validated_call_key(
         function,
         source,
         call,
         target_operations::CallSiteOwner::Operation(operation.operation),
-        key,
-        row(builder.catalog, key)?,
+        builder,
         environment,
+        SelectedInstructionError::custody,
     )?;
     let mut operands = super::call_arguments::marshal(
         source,
@@ -100,34 +96,27 @@ pub(super) fn emit(
             .ok_or(SelectedInstructionError::custody())?;
         operands.insert(inputs, dispatch);
     }
-    builder.transport.calls.push(SelectedCallContract {
-        instruction: SelectedInstructionId(
-            builder
-                .instructions
-                .len()
-                .try_into()
-                .map_err(|_| SelectedInstructionError::custody())?,
-        ),
-        owner: target_operations::CallSiteOwner::Operation(operation.operation),
-        call: call.clone(),
-        effect: operation.effect,
-        ownership: operation.ownership.clone(),
-    });
-    builder.emit(
-        if call.structural_result.is_some()
-            && !call
-                .result_placement
-                .as_ref()
-                .is_some_and(crate::selection::scalar_call_abi::empty_aggregate_placement)
-        {
-            SelectedInstructionKind::CallAggregate {
-                target: selected_instructions::SelectedCallTarget::from_native(call.target),
-            }
-        } else {
-            SelectedInstructionKind::CallUnit {
-                target: selected_instructions::SelectedCallTarget::from_native(call.target),
-            }
-        },
+    let kind = if call.structural_result.is_some()
+        && !call
+            .result_placement
+            .as_ref()
+            .is_some_and(crate::selection::scalar_call_abi::empty_aggregate_placement)
+    {
+        SelectedInstructionKind::CallAggregate {
+            target: selected_instructions::SelectedCallTarget::from_native(call.target),
+        }
+    } else {
+        SelectedInstructionKind::CallUnit {
+            target: selected_instructions::SelectedCallTarget::from_native(call.target),
+        }
+    };
+    super::call_arguments::emit_call(
+        builder,
+        target_operations::CallSiteOwner::Operation(operation.operation),
+        call,
+        operation.effect,
+        operation.ownership.clone(),
+        kind,
         key,
         &operands,
         SelectedInstructionProvenance {

@@ -3,9 +3,7 @@
 //! input pointer would alias a copyable value with the callee's private storage.
 //! Borrowed-view descriptors use the same fragments without copying their backing
 //! or changing the loan's access authority.
-use super::{
-    Builder, LegalizedScalarFunction, SelectedInstructionId, ValueLocation, VirtualRegisterId,
-};
+use super::{Builder, LegalizedScalarFunction, ValueLocation, VirtualRegisterId};
 use crate::SelectedInstructionError;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
@@ -203,9 +201,9 @@ pub(super) fn transport(
                 abi_stack_byte_offset: stack_byte_offset,
             });
         let address = super::structural_case::register(builder, place, 0, 64, false)?;
-        outgoing_memory(
+        super::structural::memory_at_origin(
             builder,
-            operation.operation,
+            selected_instructions::SelectedMemoryAccessOrigin::Operation(operation.operation),
             place,
             0,
             byte_size,
@@ -392,9 +390,9 @@ pub(super) fn transport(
                 byte_size,
                 super::structural::provenance(operation),
             )?;
-            outgoing_memory(
+            super::structural::memory_at_origin(
                 builder,
-                operation.operation,
+                selected_instructions::SelectedMemoryAccessOrigin::Operation(operation.operation),
                 place,
                 stack_offset,
                 byte_size,
@@ -440,9 +438,11 @@ pub(super) fn transport(
                         alignment,
                         abi_stack_byte_offset: stack_byte_offset,
                     });
-                outgoing_memory(
+                super::structural::memory_at_origin(
                     builder,
-                    operation.operation,
+                    selected_instructions::SelectedMemoryAccessOrigin::Operation(
+                        operation.operation,
+                    ),
                     place,
                     0,
                     8,
@@ -494,33 +494,4 @@ fn argument_register(
         .class;
     builder.emit(kind, key, &[input, output], Default::default())?;
     Ok(output)
-}
-
-/// Outgoing ABI storage belongs to this call occurrence, not to a new source place.
-fn outgoing_memory(
-    builder: &mut Builder<'_>,
-    operation: semantic_vocabulary::OperationId,
-    place: semantic_vocabulary::PlaceId,
-    byte_offset: u32,
-    byte_count: u32,
-    role: SelectedMemoryAccessRole,
-) -> Result<(), SelectedInstructionError> {
-    builder
-        .transport
-        .memory
-        .push(selected_instructions::SelectedMemoryAccess {
-            instruction: SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| SelectedInstructionError::custody())?,
-            ),
-            origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
-            place,
-            byte_offset,
-            byte_count,
-            role,
-        });
-    Ok(())
 }

@@ -11,8 +11,7 @@ use legalized_operations::{
 };
 use selected_instructions::{
     LocalStorageSlotId, SelectedCasePayloadBinding, SelectedCasePayloadTransport,
-    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
-    SelectedStructuralCaseEdge,
+    SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralCaseEdge,
 };
 use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use semantic_vocabulary::{IntegerType, PlaceId};
@@ -388,6 +387,8 @@ pub(super) fn register(
     Ok(id)
 }
 
+/// Block-owned arrivals record their accesses through the shared
+/// next-instruction footprint row at the block-origin key.
 pub(super) fn memory(
     builder: &mut Builder<'_>,
     block: semantic_vocabulary::BlockId,
@@ -396,21 +397,14 @@ pub(super) fn memory(
     byte_count: u32,
     role: SelectedMemoryAccessRole,
 ) -> Result<(), SelectedInstructionError> {
-    builder.transport.memory.push(SelectedMemoryAccess {
-        instruction: SelectedInstructionId(
-            builder
-                .instructions
-                .len()
-                .try_into()
-                .map_err(|_| invalid())?,
-        ),
-        origin: SelectedMemoryAccessOrigin::Block(block),
+    super::structural::memory_at_origin(
+        builder,
+        SelectedMemoryAccessOrigin::Block(block),
         place,
         byte_offset,
         byte_count,
         role,
-    });
-    Ok(())
+    )
 }
 
 /// The address an owned aggregate home hands its consumers: a 64-bit

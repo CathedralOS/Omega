@@ -282,20 +282,14 @@ pub(super) fn place_pointer_at_site(
             ([], [edge]) => selected_instructions::SelectedMemoryAccessOrigin::Edge(*edge),
             _ => return Err(invalid()),
         };
-        builder.transport.memory.push(SelectedMemoryAccess {
-            instruction: selected_instructions::SelectedInstructionId(
-                builder
-                    .instructions
-                    .len()
-                    .try_into()
-                    .map_err(|_| invalid())?,
-            ),
+        memory_at_origin(
+            builder,
             origin,
             place,
-            byte_offset: 0,
-            byte_count: home.byte_size,
-            role: SelectedMemoryAccessRole::AddressLocal { slot: home.id },
-        });
+            0,
+            home.byte_size,
+            SelectedMemoryAccessRole::AddressLocal { slot: home.id },
+        )?;
         builder.emit_local_frame_address(home.id, pointer, provenance.clone())?;
         pointer
     };
@@ -651,7 +645,10 @@ fn memory(
     )
 }
 
-fn memory_at_origin(
+/// Record one footprint row at the selected memory-access origin shared by
+/// call sites, block entries and runtime-projected accesses; the emitting
+/// instruction is the next one, before any operand or store emission.
+pub(super) fn memory_at_origin(
     builder: &mut Builder<'_>,
     origin: selected_instructions::SelectedMemoryAccessOrigin,
     place: PlaceId,

@@ -6,8 +6,8 @@ use super::{
 use crate::SelectedInstructionError;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedInstructionId,
-    SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
+    SelectedBoundarySettlement, SelectedBoundarySettlementPayload, SelectedMemoryAccessOrigin,
+    SelectedMemoryAccessRole,
 };
 
 pub(super) fn emit(
@@ -76,20 +76,14 @@ pub(super) fn emit(
     // an operation site — the settlement claims this operation's single
     // attribution row for the read-byte span.
     let pointer = super::structural::transport_register(builder, result.place, 0)?;
-    builder.transport.memory.push(SelectedMemoryAccess {
-        instruction: SelectedInstructionId(
-            builder
-                .instructions
-                .len()
-                .try_into()
-                .map_err(|_| SelectedInstructionError::custody())?,
-        ),
-        origin: SelectedMemoryAccessOrigin::Operation(row.operation),
-        place: result.place,
-        byte_offset: 0,
-        byte_count: layout.shape.byte_size,
-        role: SelectedMemoryAccessRole::AddressLocal { slot },
-    });
+    super::structural::memory_at_origin(
+        builder,
+        SelectedMemoryAccessOrigin::Operation(row.operation),
+        result.place,
+        0,
+        layout.shape.byte_size,
+        SelectedMemoryAccessRole::AddressLocal { slot },
+    )?;
     builder.emit_local_frame_address(slot, pointer, Default::default())?;
     builder.transport.pointers.push((result.place, pointer));
     Ok(true)

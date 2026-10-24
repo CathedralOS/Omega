@@ -47,19 +47,18 @@ pub(super) fn build(
         return Err(SelectedInstructionError::custody());
     }
     if let Some(call) = block.terminator.checked_completion_call() {
-        let owner = target_operations::CallSiteOwner::ExternalCompletion(*psi_edge);
+        // The admitted completion settled its claim transfers before this
+        // edge; the call itself carries no ownership events.
         call.validate_source(&[])
             .map_err(|_| SelectedInstructionError::custody())?;
-        let key = crate::selection::scalar_call_abi::unit_key(&call, environment)
-            .ok_or_else(SelectedInstructionError::custody)?;
-        crate::selection::scalar_call_abi::validate(
+        let key = super::call_arguments::validated_call_key(
             function,
             source_function,
             &call,
-            owner,
-            key,
-            super::row(builder.catalog, key)?,
+            target_operations::CallSiteOwner::ExternalCompletion(*psi_edge),
+            builder,
             environment,
+            SelectedInstructionError::custody,
         )?;
         let mut operands = Vec::new();
         for (argument_position, argument) in call.arguments.iter().enumerate() {
@@ -78,32 +77,17 @@ pub(super) fn build(
                 operands.push((argument_position, register));
             }
         }
-        let operands = crate::selection::scalar_call_abi::register_argument_order(&call)
-            .into_iter()
-            .flat_map(|index| {
-                operands
-                    .iter()
-                    .filter(move |(position, _)| *position == index)
-                    .map(|(_, register)| *register)
-            })
-            .collect::<Vec<_>>();
-        builder
-            .transport
-            .calls
-            .push(selected_instructions::SelectedCallContract {
-                instruction: selected_instructions::SelectedInstructionId(
-                    builder
-                        .instructions
-                        .len()
-                        .try_into()
-                        .map_err(|_| SelectedInstructionError::custody())?,
-                ),
-                owner,
-                call: call.clone(),
-                effect: *effect,
-                ownership: ownership.clone(),
-            });
-        builder.emit(
+        let operands = super::call_arguments::register_ordered_operands(
+            &call,
+            &operands,
+            SelectedInstructionError::custody,
+        )?;
+        super::call_arguments::emit_call(
+            builder,
+            target_operations::CallSiteOwner::ExternalCompletion(*psi_edge),
+            &call,
+            *effect,
+            ownership.clone(),
             SelectedInstructionKind::CallUnit {
                 target: selected_instructions::SelectedCallTarget::from_native(call.target),
             },
