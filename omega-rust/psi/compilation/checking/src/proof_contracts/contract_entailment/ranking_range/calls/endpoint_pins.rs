@@ -465,6 +465,7 @@ fn equality_edges<'program>(
     let mut fields = field_coordinates::FieldCoordinates::empty();
     fields.install(
         program,
+        source.machine,
         source.state,
         source.state,
         None,
@@ -500,7 +501,7 @@ fn equality_edges<'program>(
         &bindings,
     )?;
     comparisons.extend(fields.comparisons(program));
-    comparisons.extend(slices.comparisons());
+    comparisons.extend(slices.comparisons(program));
     comparisons.extend(super::super::length_bound_comparisons(&lengths));
     // Guard reads denote live values. When a prefix writes, decline its guard
     // hypotheses here rather than replaying them against arrival snapshots.

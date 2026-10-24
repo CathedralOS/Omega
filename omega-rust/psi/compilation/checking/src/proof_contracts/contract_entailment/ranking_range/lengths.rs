@@ -3,11 +3,11 @@
 //! of whether the source extent is declared or observed. Saved initializers
 //! use the same evaluator without caller facts: a later observation cannot
 //! retroactively describe the descriptor captured by an earlier binding.
-use super::coordinate::{Coordinate, CoordinateKind};
+use super::coordinate::{Coordinate, CoordinateFamily, CoordinateKind, CoordinateSet};
 use super::fields::{rooted_carrier, unique_literal_field};
 use super::{
     BTreeMap, BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode,
-    Machine, Polynomial, RankingRangeState, State, TypeReferenceNode, projections,
+    Machine, Polynomial, RankSubjectCoordinate, State, TypeReferenceNode, projections,
 };
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;
@@ -484,179 +484,67 @@ impl<'program> Coordinate<'program> {
         }
     }
 }
+/// The projected-length coordinate family: coordinates resolved from the
+/// receiver an authored `x.chain.len` spelling reads.
+pub(super) struct LengthFamily;
 
-/// The projected slice coordinates one range judgment reads: the produced
-/// rank coordinate plus every auxiliary `.len` coordinate discovered while
-/// installing authored expressions. Binding spellings, declared facts, and
-/// arrival substitution all iterate the same set, so a coordinate named in a
-/// guard and the measure's own subject resolve to the same canonical atom.
-pub(super) struct SliceCoordinates<'program> {
-    rank: Option<SliceCoordinate<'program>>,
-    auxiliary: Vec<SliceCoordinate<'program>>,
-}
+pub(super) type SliceCoordinates<'program> = CoordinateSet<'program, LengthFamily>;
 
-impl<'program> SliceCoordinates<'program> {
-    pub(super) fn new(rank: SliceCoordinate<'program>) -> Self {
-        Self {
-            rank: Some(rank),
-            auxiliary: Vec::new(),
-        }
+impl<'program> CoordinateFamily<'program> for LengthFamily {
+    fn resolve(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        scope: &State,
+        expression: ExpressionHandle,
+    ) -> Option<Coordinate<'program>> {
+        let receiver = crate::value_custody::places::collection_length_receiver(
+            program,
+            machine,
+            Some(scope),
+            expression,
+        )?;
+        Coordinate::resolve_length(program, scope, receiver)
     }
 
-    /// No produced rank coordinate: the measure is not `Slice::Length`, but
-    /// authored `.len` spellings inside endpoints, requires facts, guards, or
-    /// actuals still name auxiliary coordinates the same install discovers.
-    pub(super) fn empty() -> Self {
-        Self {
-            rank: None,
-            auxiliary: Vec::new(),
-        }
+    /// An authored `.len` spelling asks for the length it computes, so every
+    /// installed projected length is demanded; the receiver resolution above
+    /// already declined every reading that names no projected slice.
+    fn demanded(_demanded: &[RankSubjectCoordinate], _entry: &RankSubjectCoordinate) -> bool {
+        true
     }
 
-    pub(super) fn value(&self) -> Option<Polynomial> {
-        self.rank.as_ref().map(SliceCoordinate::value)
-    }
-
-    pub(super) fn coordinates(&self) -> impl Iterator<Item = &SliceCoordinate<'program>> {
-        self.rank.iter().chain(&self.auxiliary)
-    }
-
-    pub(super) fn include(&mut self, coordinate: SliceCoordinate<'program>) {
-        // The identity spells the formal and the whole resolved chain, so two
-        // same-named leaves under different steps stay distinct coordinates.
-        if !self
-            .coordinates()
-            .any(|existing| existing.identity == coordinate.identity)
-        {
-            self.auxiliary.push(coordinate);
-        }
+    fn arrived_actual(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        destination_state: &State,
+        destination: &RankSubjectCoordinate,
+        engine: &mut Engine<'_>,
+        argument: ExpressionHandle,
+        bindings: &[(SymbolHandle, String)],
+    ) -> Option<Polynomial> {
+        super::arrival_length_actual(
+            program,
+            machine,
+            state,
+            destination_state,
+            destination,
+            engine,
+            argument,
+            bindings,
+        )
     }
 
     /// A produced length is a natural coordinate; every installed coordinate
     /// contributes its `>= 0` fact exactly as the bare-formal bindings do.
-    pub(super) fn comparisons(&self) -> Vec<Comparison> {
-        self.coordinates()
-            .map(|coordinate| {
-                (
-                    BinaryOperator::GreaterOrEqual,
-                    coordinate.value(),
-                    Polynomial::default(),
-                )
-            })
-            .collect()
-    }
-
-    /// Bind only authored `x.chain.len` projections that resolve to a
-    /// projected coordinate, never all slice fields in a record. Two
-    /// same-named leaves remain independent by formal and resolved chain.
-    pub(super) fn install(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        state: &State,
-        root: &State,
-        entry_parameters: Option<&super::RankStateBindings>,
-        engine: &mut Engine<'_>,
-        expressions: &[ExpressionHandle],
-    ) -> Option<()> {
-        projections::for_each_projection_expression(
-            program,
-            expressions,
-            |member, expression, visit| {
-                let resolved = crate::value_custody::places::collection_length_receiver(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
-                .and_then(|receiver| SliceCoordinate::resolve_length(program, state, receiver))
-                .or_else(|| {
-                    let receiver = crate::value_custody::places::collection_length_receiver(
-                        program,
-                        machine,
-                        Some(root),
-                        expression,
-                    )?;
-                    let coordinate = SliceCoordinate::resolve_length(program, root, receiver)?;
-                    coordinate.at_arrival(
-                        program,
-                        RankingRangeState {
-                            state,
-                            entry_parameters: entry_parameters?,
-                        },
-                        coordinate.parameter.symbol,
-                    )
-                });
-                if let Some(coordinate) = resolved {
-                    if !engine.bind_strict_projection(expression, coordinate.value()) {
-                        return None;
-                    }
-                    self.include(coordinate);
-                }
-                visit(member.receiver);
-                Some(())
-            },
-        )
-    }
-
-    /// Every demanded projected slice of this formal receives the same
-    /// evaluated actual. The caller applies this map simultaneously, never
-    /// sequentially rewriting one coordinate's actual through another's new
-    /// value. A duplicated or role-less destination claim produces no
-    /// substitution rather than a first/last-wins guess.
-    pub(super) fn substitute(
-        &self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        state: &State,
-        entry_parameters: Option<&super::RankStateBindings>,
-        destination: Option<RankingRangeState<'_>>,
-        engine: &mut Engine<'_>,
-        formal: SymbolHandle,
-        argument: ExpressionHandle,
-        bindings: &[(SymbolHandle, String)],
-        substitutions: &mut BTreeMap<String, Polynomial>,
-    ) -> Option<bool> {
-        let mut matched = false;
-        for coordinate in self.coordinates() {
-            let entry = match entry_parameters {
-                None => coordinate.location(program),
-                Some(entries) => {
-                    match super::coordinate::arrived_entry_coordinate(program, entries, coordinate)
-                    {
-                        Some(entry) => entry,
-                        None => continue,
-                    }
-                }
-            };
-            let (arrival_state, target) = match destination {
-                Some(destination) => (
-                    destination.state,
-                    destination.entry_parameters.destination(&entry)?,
-                ),
-                None => (state, entry),
-            };
-            if target.parameter != formal {
-                continue;
-            }
-            let actual = super::arrival_length_actual(
-                program,
-                machine,
-                state,
-                arrival_state,
-                &target,
-                engine,
-                argument,
-                bindings,
-            )?;
-            if substitutions
-                .insert(coordinate.identity.clone(), actual)
-                .is_some()
-            {
-                return None;
-            }
-            matched = true;
-        }
-        Some(matched)
+    fn comparisons(
+        _program: &dyn crate::CheckingInput,
+        coordinate: &Coordinate<'program>,
+    ) -> Vec<Comparison> {
+        vec![(
+            BinaryOperator::GreaterOrEqual,
+            coordinate.value(),
+            Polynomial::default(),
+        )]
     }
 }

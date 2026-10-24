@@ -5,6 +5,7 @@
 //! hypotheses are already polynomials, so rebinding cannot rewrite their past.
 
 use super::super::{StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding};
+use super::coordinate::{CoordinateFamily, CoordinateSet};
 use super::{
     BigInt, BinaryOperator, Comparison, Engine, ExpressionHandle, ExpressionNode, Machine,
     MeasureBodyShape, Polynomial, RankingRangeMeasure, State, collect_guard, entry_comparisons,
@@ -222,7 +223,7 @@ pub(crate) fn prove_ranking_range_call(
             at_entry,
         )?;
         let mut coordinates = field_coordinates::FieldCoordinates::new(coordinate);
-        install_call_field_coordinates(
+        install_call_coordinates(
             program,
             &caller,
             source,
@@ -243,14 +244,16 @@ pub(crate) fn prove_ranking_range_call(
         // the formal actually carrying the record role. Guards, actuals, and
         // endpoints spelling the same member chain bind to the same atom.
         let subjects = scalar_subjects(&caller, source_measure);
-        let mut coordinates = member_subject_coordinates(
+        let mut coordinates = field_coordinates::FieldCoordinates::empty();
+        field_coordinates::include_subject_coordinates(
             program,
             entry,
             source,
             (!at_entry).then_some(caller_site.entry_parameters),
             &subjects,
+            &mut coordinates,
         )?;
-        install_call_field_coordinates(
+        install_call_coordinates(
             program,
             &caller,
             source,
@@ -308,7 +311,7 @@ pub(crate) fn prove_ranking_range_call(
         match resolved {
             Some(coordinate) => {
                 let mut coordinates = lengths::SliceCoordinates::new(coordinate);
-                install_call_slice_coordinates(
+                install_call_coordinates(
                     program,
                     &caller,
                     source,
@@ -330,7 +333,7 @@ pub(crate) fn prove_ranking_range_call(
         // measure name the same projected slice coordinates a SliceLength
         // subject does; install them over the caller's whole read surface.
         let mut coordinates = lengths::SliceCoordinates::empty();
-        install_call_slice_coordinates(
+        install_call_coordinates(
             program,
             &caller,
             source,
@@ -362,7 +365,7 @@ pub(crate) fn prove_ranking_range_call(
         comparisons.extend(coordinates.comparisons(program));
     }
     if let Some(coordinates) = &slice_ranks {
-        comparisons.extend(coordinates.comparisons());
+        comparisons.extend(coordinates.comparisons(program));
     }
     for &(guard, holds) in guards {
         if !engine.capture_expression_calls(guard) {
@@ -1144,41 +1147,6 @@ fn scalar_subjects(
     subjects
 }
 
-/// The natural coordinates scalar subjects read through member chains: each
-/// `record.field` subject resolves against the `authored` scope's formals,
-/// then re-resolves onto `site`'s unique carrier of that role. `site` equals
-/// `authored` at an entry judgment. A bare subject resolves no coordinate; a
-/// resolved chain that cannot arrive fails the judgment rather than naming a
-/// guessed carrier.
-fn member_subject_coordinates<'program>(
-    program: &'program dyn crate::CheckingInput,
-    authored: &'program State,
-    site: &'program State,
-    entry_parameters: Option<&super::RankStateBindings>,
-    subjects: &[ExpressionHandle],
-) -> Option<field_coordinates::FieldCoordinates<'program>> {
-    let mut coordinates = field_coordinates::FieldCoordinates::empty();
-    for subject in subjects {
-        if let Some(coordinate) =
-            fields::FieldCoordinate::resolve_field_projection(program, authored, *subject)
-        {
-            let coordinate = coordinate.at_entry_arrival(program, site, entry_parameters)?;
-            coordinates.include(coordinate);
-            continue;
-        }
-        // A bare subject can still name a coordinate at this site: its entry
-        // role may arrive packed inside a record carrier's unique natural
-        // leaf, exactly as at a named-state edge.
-        if let Some(entries) = entry_parameters
-            && let Some(coordinate) =
-                super::carried_subject_coordinate(program, authored, site, entries, *subject)
-        {
-            coordinates.include(coordinate);
-        }
-    }
-    Some(coordinates)
-}
-
 fn scalar_entry<'program>(
     program: &'program dyn crate::CheckingInput,
     member: &RankingRangeCallMember<'_>,
@@ -1397,12 +1365,12 @@ fn member_call_range(
     )))
 }
 
-/// Build a call's slice-coordinate expressions and install them against the
-/// caller's machine coordinates — the shared surface under the subject-wide
-/// and `.len`-spelled reads.
+/// Build a call's projected-coordinate expressions and install them against
+/// the caller's machine coordinates — the shared surface under the
+/// subject-wide and `.len`-spelled reads. The family fixes which authored
+/// reading each expression names.
 #[allow(clippy::too_many_arguments)]
-
-fn install_call_field_coordinates<'program>(
+fn install_call_coordinates<'program, F: CoordinateFamily<'program>>(
     program: &'program dyn crate::CheckingInput,
     caller: &RankingRangeCallMember<'_>,
     source: &State,
@@ -1410,32 +1378,7 @@ fn install_call_field_coordinates<'program>(
     caller_site: &RankingRangeCallSite<'_>,
     at_entry: bool,
     engine: &mut Engine<'_>,
-    coordinates: &mut field_coordinates::FieldCoordinates<'program>,
-    subjects: Vec<ExpressionHandle>,
-    guards: &[(ExpressionHandle, bool)],
-    arguments: &[ExpressionHandle],
-) -> Option<()> {
-    let expressions =
-        installation_expressions(program, caller, source, subjects, guards, arguments);
-    coordinates.install(
-        program,
-        source,
-        entry,
-        (!at_entry).then_some(caller_site.entry_parameters),
-        engine,
-        &expressions,
-    )
-}
-
-fn install_call_slice_coordinates<'program>(
-    program: &'program dyn crate::CheckingInput,
-    caller: &RankingRangeCallMember<'_>,
-    source: &State,
-    entry: &State,
-    caller_site: &RankingRangeCallSite<'_>,
-    at_entry: bool,
-    engine: &mut Engine<'_>,
-    coordinates: &mut lengths::SliceCoordinates<'program>,
+    coordinates: &mut CoordinateSet<'program, F>,
     subjects: Vec<ExpressionHandle>,
     guards: &[(ExpressionHandle, bool)],
     arguments: &[ExpressionHandle],

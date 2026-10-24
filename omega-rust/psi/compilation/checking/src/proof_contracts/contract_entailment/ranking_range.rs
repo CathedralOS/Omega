@@ -825,24 +825,14 @@ fn subject_field_coordinates<'program>(
             }
         }
     }
-    for subject in subjects {
-        if let Some(coordinate) =
-            fields::FieldCoordinate::resolve_field_projection(program, root, *subject)
-        {
-            let coordinate = coordinate.at_entry_arrival(program, state, entry_parameters)?;
-            coordinates.include(coordinate);
-            continue;
-        }
-        // A bare subject can still name a coordinate at this state: its entry
-        // role may arrive packed inside a record carrier, which holds the
-        // subject's value at the record's unique natural leaf.
-        if let Some(entries) = entry_parameters
-            && let Some(coordinate) =
-                carried_subject_coordinate(program, root, state, entries, *subject)
-        {
-            coordinates.include(coordinate);
-        }
-    }
+    field_coordinates::include_subject_coordinates(
+        program,
+        root,
+        state,
+        entry_parameters,
+        subjects,
+        &mut coordinates,
+    )?;
     Some(coordinates)
 }
 
@@ -1208,6 +1198,7 @@ fn prove_edge(
     if let Some(field) = &mut field_rank {
         field.install(
             program,
+            machine,
             state,
             root,
             entry_parameters,
@@ -1256,7 +1247,7 @@ fn prove_edge(
     if let Some(slice) = &slice_rank {
         // A produced length is a natural coordinate: the projected slice's
         // `>= 0` fact is exactly what the bare-formal length bindings add.
-        comparisons.extend(slice.comparisons());
+        comparisons.extend(slice.comparisons(program));
     }
     comparisons.extend(length_bound_comparisons(&length_bindings));
     // Arrival `requires` facts hold inside this state: the caller discharged
@@ -1423,11 +1414,11 @@ fn prove_edge(
                 state,
                 entry_parameters,
                 destination,
-                parameter,
                 &demanded_coordinates,
                 &mut engine,
                 parameter.symbol,
                 *argument,
+                &[],
                 &mut substitutions,
             )?;
         }
@@ -1438,6 +1429,7 @@ fn prove_edge(
                 state,
                 entry_parameters,
                 destination,
+                &demanded_coordinates,
                 &mut engine,
                 parameter.symbol,
                 *argument,

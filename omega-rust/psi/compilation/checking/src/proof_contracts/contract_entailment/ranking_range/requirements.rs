@@ -61,7 +61,7 @@ fn prepare_requirement<'program>(
     let bindings = integer_bindings(program, target)?;
     let mut engine = Engine::strict(program, callee, &bindings);
     let mut fields = FieldCoordinates::empty();
-    fields.install(program, target, target, None, &mut engine, &[goal])?;
+    fields.install(program, callee, target, target, None, &mut engine, &[goal])?;
     let lengths = lengths::bindings(program, callee, target, None);
     lengths::install(
         program,
@@ -328,6 +328,7 @@ fn prove(
     let mut source_fields = FieldCoordinates::empty();
     source_fields.install(
         program,
+        caller,
         caller_state,
         caller_state,
         None,
@@ -416,7 +417,7 @@ fn prove(
         }
     }
     let mut comparisons = source_fields.comparisons(program);
-    comparisons.extend(source_projected_lengths.comparisons());
+    comparisons.extend(source_projected_lengths.comparisons(program));
     comparisons.extend(source_lengths.iter().map(|(_, identity)| {
         (
             BinaryOperator::GreaterOrEqual,
@@ -479,6 +480,7 @@ fn prove(
                 let mut coordinates = FieldCoordinates::new(coordinate);
                 coordinates.install(
                     program,
+                    caller,
                     caller_state,
                     entry,
                     Some(entry_parameters),
@@ -514,6 +516,7 @@ fn prove(
                 let mut endpoints = FieldCoordinates::empty();
                 endpoints.install(
                     program,
+                    caller,
                     caller_state,
                     entry,
                     Some(entry_parameters),

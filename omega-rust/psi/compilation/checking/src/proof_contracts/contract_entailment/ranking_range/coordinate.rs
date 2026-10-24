@@ -8,7 +8,10 @@ use super::fields::{
     declared_field, declared_spelling_verified, member_chain, member_coordinate_parts,
     record_referent,
 };
-use super::{ExpressionHandle, Polynomial, RankingRangeState, State, exact_integer_parameter};
+use super::{
+    BTreeMap, Comparison, Engine, ExpressionHandle, Machine, Polynomial, RankingRangeState, State,
+    exact_integer_parameter, projections,
+};
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::signature::StateParameter;
@@ -309,4 +312,215 @@ pub(super) fn arrived_entry_coordinate(
     coordinate: &Coordinate<'_>,
 ) -> Option<super::RankSubjectCoordinate> {
     entries.entry(&coordinate.location(program))
+}
+
+/// The projected coordinates one range judgment reads: the produced rank
+/// coordinate plus every auxiliary coordinate discovered while installing
+/// authored expressions. Binding spellings, declared facts, and arrival
+/// substitution all iterate the same set, so a coordinate named in a guard and
+/// the measure's own subject resolve to the same canonical atom. Field ranks
+/// and produced lengths carry this same set over the same member-chain
+/// coordinate; a [`CoordinateFamily`] supplies the four answers that differ.
+pub(super) struct CoordinateSet<'program, F: CoordinateFamily<'program>> {
+    rank: Option<Coordinate<'program>>,
+    auxiliary: Vec<Coordinate<'program>>,
+    family: std::marker::PhantomData<F>,
+}
+
+/// What one coordinate family answers differently from the other. A field rank
+/// names its coordinate through an authored member projection, substitutes
+/// only the entry roles its judgment demands, carries the scalar actual the
+/// arrival evaluates, and contributes the leaf's declared carrier facts. A
+/// produced length names its coordinate through the receiver of an authored
+/// `x.chain.len` spelling, installs every coordinate that spelling names,
+/// carries the length actual the same spelling computes, and contributes the
+/// natural `>= 0` bound. The set owner, its installation walk, and its
+/// substitution loop read no other difference.
+pub(super) trait CoordinateFamily<'program> {
+    /// The coordinate one authored projection expression names inside `scope`.
+    fn resolve(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        scope: &State,
+        expression: ExpressionHandle,
+    ) -> Option<Coordinate<'program>>;
+
+    /// Whether the judgment demands the installed coordinate at `entry`: a
+    /// field rank substitutes only observed scalar roles, while an authored
+    /// `.len` spelling is itself the demand for the length it computes.
+    fn demanded(
+        demanded: &[super::RankSubjectCoordinate],
+        entry: &super::RankSubjectCoordinate,
+    ) -> bool;
+
+    /// The value this family's coordinate holds on arrival.
+    #[allow(clippy::too_many_arguments)]
+    fn arrived_actual(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        destination_state: &State,
+        destination: &super::RankSubjectCoordinate,
+        engine: &mut Engine<'_>,
+        argument: ExpressionHandle,
+        bindings: &[(SymbolHandle, String)],
+    ) -> Option<Polynomial>;
+
+    /// The hypotheses one installed coordinate contributes.
+    fn comparisons(
+        program: &dyn crate::CheckingInput,
+        coordinate: &Coordinate<'program>,
+    ) -> Vec<Comparison>;
+}
+
+impl<'program, F: CoordinateFamily<'program>> CoordinateSet<'program, F> {
+    pub(super) fn new(rank: Coordinate<'program>) -> Self {
+        Self {
+            rank: Some(rank),
+            auxiliary: Vec::new(),
+            family: std::marker::PhantomData,
+        }
+    }
+
+    /// No produced rank coordinate: the measure is not this family's ranked
+    /// shape, but authored spellings inside endpoints, requires facts, guards,
+    /// or actuals still name auxiliary coordinates the same install discovers.
+    pub(super) fn empty() -> Self {
+        Self {
+            rank: None,
+            auxiliary: Vec::new(),
+            family: std::marker::PhantomData,
+        }
+    }
+
+    pub(super) fn value(&self) -> Option<Polynomial> {
+        self.rank.as_ref().map(Coordinate::value)
+    }
+
+    pub(super) fn coordinates(&self) -> impl Iterator<Item = &Coordinate<'program>> {
+        self.rank.iter().chain(&self.auxiliary)
+    }
+
+    pub(super) fn include(&mut self, coordinate: Coordinate<'program>) {
+        // The identity spells the formal and the whole resolved chain, so two
+        // same-named leaves under different steps stay distinct coordinates.
+        if !self
+            .coordinates()
+            .any(|existing| existing.identity == coordinate.identity)
+        {
+            self.auxiliary.push(coordinate);
+        }
+    }
+
+    pub(super) fn comparisons(&self, program: &dyn crate::CheckingInput) -> Vec<Comparison> {
+        self.coordinates()
+            .flat_map(|coordinate| F::comparisons(program, coordinate))
+            .collect()
+    }
+
+    /// Bind only authored projections, never every field or slice in a record.
+    /// Two same-named leaves remain independent by formal and resolved chain.
+    /// Each authored spelling resolves in this state's own scope first, then
+    /// through the other scope's declared reading transported onto this
+    /// state's arrival; the engine then binds the exact atom it names.
+    pub(super) fn install(
+        &mut self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        root: &State,
+        entry_parameters: Option<&super::RankStateBindings>,
+        engine: &mut Engine<'_>,
+        expressions: &[ExpressionHandle],
+    ) -> Option<()> {
+        projections::for_each_projection_expression(
+            program,
+            expressions,
+            |member, expression, visit| {
+                if let Some(coordinate) =
+                    F::resolve(program, machine, state, expression).or_else(|| {
+                        let coordinate = F::resolve(program, machine, root, expression)?;
+                        coordinate.at_arrival(
+                            program,
+                            RankingRangeState {
+                                state,
+                                entry_parameters: entry_parameters?,
+                            },
+                            coordinate.parameter.symbol,
+                        )
+                    })
+                {
+                    if !engine.bind_strict_projection(expression, coordinate.value()) {
+                        return None;
+                    }
+                    self.include(coordinate);
+                }
+                visit(member.receiver);
+                Some(())
+            },
+        )
+    }
+
+    /// Every demanded coordinate of this formal receives the same evaluated
+    /// actual. The caller applies this map simultaneously, never sequentially
+    /// rewriting one coordinate's actual through another's new value. A
+    /// duplicated destination claim produces no substitution rather than a
+    /// first/last-wins guess.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn substitute(
+        &self,
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        entry_parameters: Option<&super::RankStateBindings>,
+        destination: Option<RankingRangeState<'_>>,
+        demanded: &[super::RankSubjectCoordinate],
+        engine: &mut Engine<'_>,
+        formal: SymbolHandle,
+        argument: ExpressionHandle,
+        bindings: &[(SymbolHandle, String)],
+        substitutions: &mut BTreeMap<String, Polynomial>,
+    ) -> Option<bool> {
+        let mut matched = false;
+        for coordinate in self.coordinates() {
+            let entry = match entry_parameters {
+                None => coordinate.location(program),
+                Some(entries) => match arrived_entry_coordinate(program, entries, coordinate) {
+                    Some(entry) => entry,
+                    None => continue,
+                },
+            };
+            if !F::demanded(demanded, &entry) {
+                continue;
+            }
+            let (arrival_state, target) = match destination {
+                Some(destination) => (
+                    destination.state,
+                    destination.entry_parameters.destination(&entry)?,
+                ),
+                None => (state, entry),
+            };
+            if target.parameter != formal {
+                continue;
+            }
+            let actual = F::arrived_actual(
+                program,
+                machine,
+                state,
+                arrival_state,
+                &target,
+                engine,
+                argument,
+                bindings,
+            )?;
+            if substitutions
+                .insert(coordinate.identity.clone(), actual)
+                .is_some()
+            {
+                return None;
+            }
+            matched = true;
+        }
+        Some(matched)
+    }
 }
