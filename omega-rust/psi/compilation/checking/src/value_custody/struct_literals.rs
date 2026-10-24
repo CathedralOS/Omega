@@ -281,31 +281,14 @@ fn scan_expression(
         return;
     }
 
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                scan_expression(
-                    program,
-                    machine,
-                    state,
-                    observations,
-                    child,
-                    diagnostics,
-                    stored_integer_writes,
-                    statement_index,
-                );
-            }
-        }
-        ExpressionNode::Atomic(atomic) => scan_expression(
-            program,
-            machine,
-            state,
-            observations,
-            atomic.value,
-            diagnostics,
-            stored_integer_writes,
-            statement_index,
-        ),
+    // The child roster is the shared expression traversal's, so this scan
+    // cannot drift from the checks that walk the same tree. Only three node
+    // kinds keep an arm of their own, because their judgment rather than their
+    // shape is special: a struct literal is judged before its fields, a proven
+    // case membership never scans its right operand, and an atomic access
+    // scans its value but never its result. Each of those walks itself.
+    let node = program.expression_table.expression(expression);
+    match node {
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(
                 program,
@@ -327,32 +310,6 @@ fn scan_expression(
                 stored_integer_writes,
                 statement_index,
             );
-            for field in program.expression_table.struct_fields(literal.fields) {
-                scan_expression(
-                    program,
-                    machine,
-                    state,
-                    observations,
-                    field.value,
-                    diagnostics,
-                    stored_integer_writes,
-                    statement_index,
-                );
-            }
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
-                scan_expression(
-                    program,
-                    machine,
-                    state,
-                    observations,
-                    *element,
-                    diagnostics,
-                    stored_integer_writes,
-                    statement_index,
-                );
-            }
         }
         ExpressionNode::Binary(binary) => {
             scan_expression(
@@ -413,115 +370,21 @@ fn scan_expression(
                     statement_index,
                 );
             }
+            return;
         }
-        ExpressionNode::Cast(cast) => scan_expression(
-            program,
-            machine,
-            state,
-            observations,
-            cast.value,
-            diagnostics,
-            stored_integer_writes,
-            statement_index,
-        ),
-        ExpressionNode::Call(call) => {
+        ExpressionNode::Atomic(atomic) => {
             scan_expression(
                 program,
                 machine,
                 state,
                 observations,
-                call.receiver,
+                atomic.value,
                 diagnostics,
                 stored_integer_writes,
                 statement_index,
             );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                scan_expression(
-                    program,
-                    machine,
-                    state,
-                    observations,
-                    *argument,
-                    diagnostics,
-                    stored_integer_writes,
-                    statement_index,
-                );
-            }
+            return;
         }
-        ExpressionNode::Indexed(indexed) => {
-            scan_expression(
-                program,
-                machine,
-                state,
-                observations,
-                indexed.collection,
-                diagnostics,
-                stored_integer_writes,
-                statement_index,
-            );
-            scan_expression(
-                program,
-                machine,
-                state,
-                observations,
-                indexed.index,
-                diagnostics,
-                stored_integer_writes,
-                statement_index,
-            );
-        }
-        ExpressionNode::Member(member) => scan_expression(
-            program,
-            machine,
-            state,
-            observations,
-            member.receiver,
-            diagnostics,
-            stored_integer_writes,
-            statement_index,
-        ),
-        ExpressionNode::Borrow(inner) => scan_expression(
-            program,
-            machine,
-            state,
-            observations,
-            inner.target,
-            diagnostics,
-            stored_integer_writes,
-            statement_index,
-        ),
-        ExpressionNode::Range(range) => {
-            scan_expression(
-                program,
-                machine,
-                state,
-                observations,
-                range.start,
-                diagnostics,
-                stored_integer_writes,
-                statement_index,
-            );
-            scan_expression(
-                program,
-                machine,
-                state,
-                observations,
-                range.end,
-                diagnostics,
-                stored_integer_writes,
-                statement_index,
-            );
-        }
-        ExpressionNode::Unary(unary) => scan_expression(
-            program,
-            machine,
-            state,
-            observations,
-            unary.operand,
-            diagnostics,
-            stored_integer_writes,
-            statement_index,
-        ),
         ExpressionNode::Name(path) => {
             let Some(owner) =
                 crate::proof_contracts::bound_expression_meaning::exact_case_reference_owner(
@@ -569,8 +432,20 @@ fn scan_expression(
                 diagnostics,
             );
         }
-        typed_trees::spelled_literal_expression_pattern!() => {}
+        _ => {}
     }
+    crate::expression_traversal::children(program, node, |child| {
+        scan_expression(
+            program,
+            machine,
+            state,
+            observations,
+            child,
+            diagnostics,
+            stored_integer_writes,
+            statement_index,
+        );
+    });
 }
 
 /// Check one literal's named fields against the constructed shape's declared
