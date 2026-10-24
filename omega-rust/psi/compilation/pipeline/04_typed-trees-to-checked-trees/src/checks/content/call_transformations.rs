@@ -11,15 +11,10 @@ use super::body_conservation::owned_return_sides;
 use super::call_results::{
     Invocation, InvocationEvents, input_claim, projection_places, result_claim,
 };
-use super::content_paths::content_segments_to_fact_path;
-use checked_trees::facts::{
-    ContentBodyClaimBinding, ContentClaimTransformation, ContentClaimTransformationSource,
-};
+use super::content_paths::{ClaimBindings, content_segments_to_fact_path};
+use checked_trees::facts::{ContentClaimTransformation, ContentClaimTransformationSource};
 use checked_trees::{CheckFacts, FlowPermissionEvaluation, FlowPermissionEventFact};
-use language_semantics::PermissionClaimIdentity;
-use language_semantics::content::{
-    ContentPlaceRoot, ContentProjectionPlan, ContentStructuralPlace,
-};
+use language_semantics::content::ContentPlaceRoot;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
@@ -120,8 +115,8 @@ pub(crate) fn observe_call_completion(
                     continue;
                 }
                 let bound = (|| {
-                    let mut inputs = Vec::new();
-                    let mut outputs = Vec::new();
+                    let mut inputs = ClaimBindings::default();
+                    let mut outputs = ClaimBindings::default();
                     for subject in input_subjects {
                         let ContentPlaceRoot::Parameter {
                             position, symbol, ..
@@ -164,9 +159,10 @@ pub(crate) fn observe_call_completion(
                             .operands
                             .handles()
                             .nth(position + receiver_offset)?;
-                        append_binding(
-                            &mut inputs,
-                            &projection,
+                        inputs.push(
+                            projection.domain,
+                            projection.semantic_domain,
+                            projection.machine,
                             subject,
                             path,
                             identity,
@@ -176,9 +172,10 @@ pub(crate) fn observe_call_completion(
                     for subject in output_subjects {
                         let path = content_segments_to_fact_path(&subject.segments)?;
                         let identity = result_claim(program, facts, &invocation, &path)?;
-                        append_binding(
-                            &mut outputs,
-                            &projection,
+                        outputs.push(
+                            projection.domain,
+                            projection.semantic_domain,
+                            projection.machine,
                             subject,
                             path,
                             identity,
@@ -193,8 +190,8 @@ pub(crate) fn observe_call_completion(
                     // missing/ambiguous result custody on the public path.
                     continue;
                 };
-                let inputs = publish_bindings(facts, inputs);
-                let outputs = publish_bindings(facts, outputs);
+                let inputs = inputs.publish(facts);
+                let outputs = outputs.publish(facts);
                 facts.qualifications.content.claim_transformations.insert(
                     ContentClaimTransformation {
                         machine_symbol: machine,
@@ -213,55 +210,4 @@ pub(crate) fn observe_call_completion(
             }
         }
     }
-}
-
-fn append_binding(
-    bindings: &mut Vec<(ContentBodyClaimBinding, Vec<facts::PlaceSegment>)>,
-    projection: &ContentProjectionPlan,
-    subject: &ContentStructuralPlace,
-    path: Vec<facts::PlaceSegment>,
-    identity: PermissionClaimIdentity,
-    observation: arena::Handle<checked_trees::FlowOperandFact>,
-) -> Option<()> {
-    if identity == PermissionClaimIdentity::Unknown
-        || bindings
-            .iter()
-            .any(|(binding, _)| binding.claim_identity == identity)
-    {
-        return None;
-    }
-    bindings.push((
-        ContentBodyClaimBinding {
-            claim_identity: identity,
-            domain: projection.domain,
-            semantic_domain: projection.semantic_domain,
-            projection_machine: projection.machine,
-            parameter_symbol: match subject.root {
-                ContentPlaceRoot::Parameter { symbol, .. } => symbol,
-                ContentPlaceRoot::Result => SymbolHandle::invalid(),
-            },
-            segments: Default::default(),
-            observation,
-        },
-        path,
-    ));
-    Some(())
-}
-
-fn publish_bindings(
-    facts: &mut CheckFacts,
-    bindings: Vec<(ContentBodyClaimBinding, Vec<facts::PlaceSegment>)>,
-) -> arena::HandleSpan<ContentBodyClaimBinding> {
-    let bindings = bindings
-        .into_iter()
-        .map(|(mut binding, path)| {
-            binding.segments = facts.flow.ownership.segments.insert_many(path);
-            binding
-        })
-        .collect::<Vec<_>>();
-    facts
-        .qualifications
-        .content
-        .body_claim_bindings
-        .insert_many(bindings)
 }

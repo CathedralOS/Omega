@@ -9,20 +9,14 @@
 //! again. The shared outgoing capture owns result discovery, including nested
 //! fields and local moves, rather than a constructor-shape recognizer here.
 
-use super::content_paths::{content_segments_to_fact_path, entry_claim_identity};
+use super::content_paths::{ClaimBindings, content_segments_to_fact_path, entry_claim_identity};
 use super::partition_wrappers::ordinary_returns;
 use crate::checks::multiplicity::{LinearPlace, ReturnedClaimSource, completed_owned_claims};
 use checked_trees::CheckFacts;
-use checked_trees::facts::{ContentBodyClaimBinding, ContentBodyConservationFact};
+use checked_trees::facts::ContentBodyConservationFact;
 use language_semantics::content::{
     ContentConservationOwnerKind, ContentConservationTerm, ContentPlaceRoot, ContentPlaceVersion,
-    ContentStructuralPlace,
 };
-
-struct PendingBinding {
-    binding: ContentBodyClaimBinding,
-    path: Vec<facts::PlaceSegment>,
-}
 
 pub(crate) fn observe_body_completion(
     program: &dyn validation::CheckingInput,
@@ -113,58 +107,53 @@ pub(crate) fn observe_body_completion(
                     // a theorem cannot fill an absent claim occurrence.
                     continue;
                 };
-                let Some(input_bindings) = bindings(inputs, |subject| {
-                    let ContentPlaceRoot::Parameter { symbol, .. } = subject.root else {
-                        return None;
-                    };
-                    let path = content_segments_to_fact_path(&subject.segments)?;
-                    entry_claim_identity(facts, state.symbol, symbol, &path, events.iter())
-                }) else {
+                let mut input_bindings = ClaimBindings::default();
+                let mut output_bindings = ClaimBindings::default();
+                if input_bindings
+                    .extend_term(inputs, |subject| {
+                        let ContentPlaceRoot::Parameter { symbol, .. } = subject.root else {
+                            return None;
+                        };
+                        let path = content_segments_to_fact_path(&subject.segments)?;
+                        entry_claim_identity(facts, state.symbol, symbol, &path, events.iter())
+                    })
+                    .is_none()
+                    || output_bindings
+                        .extend_term(outputs, |subject| {
+                            let path = content_segments_to_fact_path(&subject.segments)?;
+                            let mut matching = returned.iter().filter(|claim| claim.path == path);
+                            let claim = matching.next()?;
+                            if matching.next().is_some() {
+                                return None;
+                            }
+                            match claim.source {
+                                ReturnedClaimSource::Live(identity) => Some(identity),
+                                ReturnedClaimSource::Inactive => None,
+                            }
+                        })
+                        .is_none()
+                {
                     continue;
-                };
-                let Some(output_bindings) = bindings(outputs, |subject| {
-                    let path = content_segments_to_fact_path(&subject.segments)?;
-                    let mut matching = returned.iter().filter(|claim| claim.path == path);
-                    let claim = matching.next()?;
-                    if matching.next().is_some() {
-                        return None;
-                    }
-                    match claim.source {
-                        ReturnedClaimSource::Live(identity) => Some(identity),
-                        ReturnedClaimSource::Inactive => None,
-                    }
-                }) else {
-                    continue;
-                };
+                }
                 // Result field annotations ask for these predicates; they do not
                 // prove them. Judge each projected value in the same completed
                 // frame as the conservation equation, before recording a candidate.
-                if !output_bindings.iter().all(|output| {
+                if !output_bindings.rows().all(|(binding, path)| {
                     validation::completed_value_proves_domain_predicate(
                         program,
                         machine,
                         state,
                         statement_index,
                         expression,
-                        output.binding.domain,
+                        binding.domain,
                         typed_trees::expression::ExpressionHandle::invalid(),
-                        &output.path,
+                        path,
                     )
                 }) {
                     continue;
                 }
-                let input_bindings = finish_paths(facts, input_bindings);
-                let output_bindings = finish_paths(facts, output_bindings);
-                let inputs = facts
-                    .qualifications
-                    .content
-                    .body_claim_bindings
-                    .insert_many(input_bindings);
-                let outputs = facts
-                    .qualifications
-                    .content
-                    .body_claim_bindings
-                    .insert_many(output_bindings);
+                let inputs = input_bindings.publish(facts);
+                let outputs = output_bindings.publish(facts);
                 let conservation = ContentBodyConservationFact {
                     machine_symbol: machine.symbol,
                     state_symbol: state.symbol,
@@ -312,17 +301,21 @@ fn completed_producers(
     completed
 }
 
-fn finish_paths(
-    facts: &mut CheckFacts,
-    bindings: Vec<PendingBinding>,
-) -> Vec<ContentBodyClaimBinding> {
-    bindings
-        .into_iter()
-        .map(|mut pending| {
-            pending.binding.segments = facts.flow.ownership.segments.insert_many(pending.path);
-            pending.binding
-        })
-        .collect()
+fn side_has_role(term: &ContentConservationTerm, entry: bool) -> bool {
+    match term {
+        ContentConservationTerm::Projection { subject, .. } => {
+            if entry {
+                subject.version == ContentPlaceVersion::Entry
+                    && matches!(subject.root, ContentPlaceRoot::Parameter { .. })
+            } else {
+                subject.version == ContentPlaceVersion::Current
+                    && subject.root == ContentPlaceRoot::Result
+            }
+        }
+        ContentConservationTerm::Separate(children) => {
+            !children.is_empty() && children.iter().all(|child| side_has_role(child, entry))
+        }
+    }
 }
 
 /// Equation canonicalization may reverse the authored sides. Classify by
@@ -342,83 +335,4 @@ pub(super) fn owned_return_sides<'term>(
     } else {
         None
     }
-}
-
-fn side_has_role(term: &ContentConservationTerm, entry: bool) -> bool {
-    match term {
-        ContentConservationTerm::Projection { subject, .. } => {
-            if entry {
-                subject.version == ContentPlaceVersion::Entry
-                    && matches!(subject.root, ContentPlaceRoot::Parameter { .. })
-            } else {
-                subject.version == ContentPlaceVersion::Current
-                    && subject.root == ContentPlaceRoot::Result
-            }
-        }
-        ContentConservationTerm::Separate(children) => {
-            !children.is_empty() && children.iter().all(|child| side_has_role(child, entry))
-        }
-    }
-}
-
-fn bindings(
-    term: &ContentConservationTerm,
-    mut claim_at: impl FnMut(
-        &ContentStructuralPlace,
-    ) -> Option<language_semantics::PermissionClaimIdentity>,
-) -> Option<Vec<PendingBinding>> {
-    fn append(
-        term: &ContentConservationTerm,
-        claim_at: &mut impl FnMut(
-            &ContentStructuralPlace,
-        ) -> Option<language_semantics::PermissionClaimIdentity>,
-        output: &mut Vec<PendingBinding>,
-    ) -> Option<()> {
-        match term {
-            ContentConservationTerm::Projection {
-                domain,
-                semantic_domain,
-                projection_machine,
-                subject,
-                ..
-            } => {
-                let claim_identity = claim_at(subject)?;
-                if claim_identity == language_semantics::PermissionClaimIdentity::Unknown {
-                    return None;
-                }
-                // One projection occurrence cannot stand for two separated
-                // claims. This also catches aliases naming the same claim.
-                if output
-                    .iter()
-                    .any(|pending| pending.binding.claim_identity == claim_identity)
-                {
-                    return None;
-                }
-                output.push(PendingBinding {
-                    binding: ContentBodyClaimBinding {
-                        claim_identity,
-                        domain: *domain,
-                        semantic_domain: *semantic_domain,
-                        projection_machine: *projection_machine,
-                        parameter_symbol: match subject.root {
-                            ContentPlaceRoot::Parameter { symbol, .. } => symbol,
-                            ContentPlaceRoot::Result => Default::default(),
-                        },
-                        segments: Default::default(),
-                        observation: Default::default(),
-                    },
-                    path: content_segments_to_fact_path(&subject.segments)?,
-                });
-            }
-            ContentConservationTerm::Separate(children) => {
-                for child in children {
-                    append(child, claim_at, output)?;
-                }
-            }
-        }
-        Some(())
-    }
-    let mut output = Vec::new();
-    append(term, &mut claim_at, &mut output)?;
-    Some(output)
 }

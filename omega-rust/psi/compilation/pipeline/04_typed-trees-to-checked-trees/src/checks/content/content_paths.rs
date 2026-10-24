@@ -1,6 +1,7 @@
 //! Content segments, contract places and projection plans as fact paths.
 
 use checked_trees::CheckFacts;
+use checked_trees::facts::ContentBodyClaimBinding;
 use language_semantics::content::{
     ContentCaseSegment, ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot,
     ContentPlaceSegment, ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
@@ -36,6 +37,132 @@ pub(crate) fn content_segments_to_fact_path(
             ContentPlaceSegment::Case(_) | ContentPlaceSegment::Field(_) => None,
         })
         .collect()
+}
+
+/// Pending body-claim bindings: one row per exact projection subject, refused
+/// when one claim identity would stand for two separated subjects, published
+/// only after its subject segments are interned. The joins that decide a claim
+/// identity stay with their owners; this owner records rows, never authority.
+#[derive(Default)]
+pub(super) struct ClaimBindings {
+    rows: Vec<PendingBinding>,
+}
+
+struct PendingBinding {
+    binding: ContentBodyClaimBinding,
+    path: Vec<facts::PlaceSegment>,
+}
+
+impl ClaimBindings {
+    /// Record one projection subject. An unknown identity names no claim, and
+    /// one claim identity cannot stand for two separated subjects.
+    pub(super) fn push(
+        &mut self,
+        domain: SymbolHandle,
+        semantic_domain: SemanticDomainId,
+        machine: SymbolHandle,
+        subject: &ContentStructuralPlace,
+        path: Vec<facts::PlaceSegment>,
+        claim_identity: PermissionClaimIdentity,
+        observation: arena::Handle<checked_trees::FlowOperandFact>,
+    ) -> Option<()> {
+        if claim_identity == PermissionClaimIdentity::Unknown
+            || self
+                .rows
+                .iter()
+                .any(|pending| pending.binding.claim_identity == claim_identity)
+        {
+            return None;
+        }
+        self.rows.push(PendingBinding {
+            binding: ContentBodyClaimBinding {
+                claim_identity,
+                domain,
+                semantic_domain,
+                projection_machine: machine,
+                parameter_symbol: match subject.root {
+                    ContentPlaceRoot::Parameter { symbol, .. } => symbol,
+                    ContentPlaceRoot::Result => SymbolHandle::invalid(),
+                },
+                segments: Default::default(),
+                observation,
+            },
+            path,
+        });
+        Some(())
+    }
+
+    /// Walk one conservation term, binding every projection subject through
+    /// `claim_at`, which resolves that subject's claim from its own evidence.
+    /// A missing or ambiguous claim refuses the whole walk.
+    pub(super) fn extend_term(
+        &mut self,
+        term: &ContentConservationTerm,
+        mut claim_at: impl FnMut(&ContentStructuralPlace) -> Option<PermissionClaimIdentity>,
+    ) -> Option<()> {
+        // One instantiation per resolver, and the reversed push keeps the
+        // term's own left-to-right order on the stack.
+        let mut pending = vec![term];
+        while let Some(term) = pending.pop() {
+            match term {
+                ContentConservationTerm::Projection {
+                    domain,
+                    semantic_domain,
+                    projection_machine,
+                    subject,
+                    ..
+                } => {
+                    let claim_identity = claim_at(subject)?;
+                    self.push(
+                        *domain,
+                        *semantic_domain,
+                        *projection_machine,
+                        subject,
+                        content_segments_to_fact_path(&subject.segments)?,
+                        claim_identity,
+                        arena::Handle::invalid(),
+                    )?;
+                }
+                ContentConservationTerm::Separate(children) => {
+                    pending.extend(children.iter().rev());
+                }
+            }
+        }
+        Some(())
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// The recorded rows, still holding their uninterred subject segments.
+    pub(super) fn rows(
+        &self,
+    ) -> impl Iterator<Item = (&ContentBodyClaimBinding, &[facts::PlaceSegment])> {
+        self.rows
+            .iter()
+            .map(|pending| (&pending.binding, pending.path.as_slice()))
+    }
+
+    /// Publish the recorded rows, interning each subject's segments once.
+    pub(super) fn publish(
+        self,
+        facts: &mut CheckFacts,
+    ) -> arena::HandleSpan<ContentBodyClaimBinding> {
+        let rows = self
+            .rows
+            .into_iter()
+            .map(|mut pending| {
+                pending.binding.segments = facts.flow.ownership.segments.insert_many(pending.path);
+                pending.binding
+            })
+            .collect::<Vec<_>>();
+        facts
+            .qualifications
+            .content
+            .body_claim_bindings
+            .insert_many(rows)
+    }
 }
 
 pub(crate) fn projection_term(
