@@ -1970,6 +1970,14 @@ fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruc
     }
 }
 
+/// The declared operand views one position list names.
+fn operand_views(positions: &[u16], operands: &[RegisterViewId]) -> Vec<RegisterViewId> {
+    positions
+        .iter()
+        .map(|&position| operands[usize::from(position)])
+        .collect()
+}
+
 /// Every Trapping form reads its row's inputs, defines its result and
 /// scratch, clobbers RFLAGS, and may stop at its inline UD2.
 fn trapping_footprint(
@@ -1979,14 +1987,8 @@ fn trapping_footprint(
     let shape = TrappingShape::of(form);
     let (reads, writes) = shape.operand_reads_and_writes();
     X86_64SelectedFormFootprint {
-        register_reads: reads
-            .iter()
-            .map(|&position| operands[usize::from(position)])
-            .collect(),
-        register_writes: writes
-            .iter()
-            .map(|&position| operands[usize::from(position)])
-            .collect(),
+        register_reads: operand_views(&reads, operands),
+        register_writes: operand_views(&writes, operands),
         writes_rflags: true,
         encoded: shape.encoded_effects(),
     }
@@ -2003,14 +2005,8 @@ fn saturating_footprint(
     let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let (reads, writes) = form.operand_reads_and_writes();
-    let register_reads = reads
-        .iter()
-        .map(|&position| operands[position as usize])
-        .collect();
-    let register_writes = writes
-        .iter()
-        .map(|&position| operands[position as usize])
-        .collect();
+    let register_reads = operand_views(&reads, operands);
+    let register_writes = operand_views(&writes, operands);
     let mut encoded = MachineEncodedEffects::fallthrough_v1(reads, writes);
     encoded.implicit_unit_clobbers = units("rflags");
     if form.is_division() {
@@ -2052,15 +2048,18 @@ pub(crate) fn footprint(
     if let SelectedInstructionKind::AtomicAccess { form } = kind {
         return super::atomic::footprint(form, operands);
     }
-    let (reads, writes, writes_rflags) = match kind {
+    // The fallthrough kinds' operand surface, as positions into the
+    // alternative's operand roster. The footprint's register views and the
+    // encoded effects both derive from this one list.
+    let (reads, writes, writes_rflags): (Vec<u16>, Vec<u16>, bool) = match kind {
         SelectedInstructionKind::RegisterAccess { operation } => {
             return super::register_access::footprint(operation, operands);
         }
         SelectedInstructionKind::PlacedScalarAccess { form, .. } => {
             if form.write {
-                (vec![operands[0], operands[1]], vec![], false)
+                (vec![0, 1], vec![], false)
             } else {
-                (vec![operands[0]], vec![operands[1]], false)
+                (vec![0], vec![1], false)
             }
         }
         SelectedInstructionKind::FloatResultPolicy { form } => {
@@ -2079,74 +2078,54 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
         | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
-            (vec![], vec![operands[0]], false)
-        }
+        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0], false),
         // The optimizer-selected `xor r64, r64` zero idiom writes RFLAGS.
         SelectedInstructionKind::MaterializeI64 { .. } => {
-            (vec![], vec![operands[0]], alternative.variant == 1)
+            (vec![], vec![0], alternative.variant == 1)
         }
-        SelectedInstructionKind::ImageAddress { .. } => (vec![], vec![operands[0]], false),
+        SelectedInstructionKind::ImageAddress { .. } => (vec![], vec![0], false),
         SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
         | SelectedInstructionKind::SignExtendI8
         | SelectedInstructionKind::SignExtendI16
         | SelectedInstructionKind::SignExtendI32
-        | SelectedInstructionKind::ZeroExtendU32 => (vec![operands[0]], vec![operands[1]], false),
+        | SelectedInstructionKind::ZeroExtendU32 => (vec![0], vec![1], false),
         SelectedInstructionKind::CompareI64Zero
-        | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![operands[0]], vec![], true),
-        SelectedInstructionKind::ExactDivideU64 { .. } => (
-            vec![operands[0], operands[1], operands[3]],
-            vec![operands[2]],
-            true,
-        ),
-        selected_instructions::exact_wrapping_divrem_set_pattern!(..) => (
-            vec![operands[0], operands[1]],
-            vec![operands[2], operands[3]],
-            true,
-        ),
-        SelectedInstructionKind::CompareI64 => (vec![operands[0], operands[1]], vec![], true),
+        | SelectedInstructionKind::CompareI64Immediate { .. } => (vec![0], vec![], true),
+        SelectedInstructionKind::ExactDivideU64 { .. } => (vec![0, 1, 3], vec![2], true),
+        selected_instructions::exact_wrapping_divrem_set_pattern!(..) => {
+            (vec![0, 1], vec![2, 3], true)
+        }
+        SelectedInstructionKind::CompareI64 => (vec![0, 1], vec![], true),
         SelectedInstructionKind::ByteViewAddress
         | SelectedInstructionKind::WrappingAddI64
-        | SelectedInstructionKind::ExactAddI64 { .. } => {
-            (vec![operands[0], operands[1]], vec![operands[2]], false)
-        }
+        | SelectedInstructionKind::ExactAddI64 { .. } => (vec![0, 1], vec![2], false),
         // `not` never defines flags; only the guarding copy may precede it.
-        SelectedInstructionKind::BitwiseNotI64 => (vec![operands[0]], vec![operands[1]], false),
-        selected_instructions::exact_add_or_sub_pair_pattern!(..) => {
-            (vec![operands[0]], vec![operands[1]], false)
-        }
+        SelectedInstructionKind::BitwiseNotI64 => (vec![0], vec![1], false),
+        selected_instructions::exact_add_or_sub_pair_pattern!(..) => (vec![0], vec![1], false),
         SelectedInstructionKind::ExactSubtractI64 { .. }
         | SelectedInstructionKind::WrappingSubtractI64
             if alternative.variant == 0 =>
         {
-            (vec![], vec![operands[2]], true)
+            (vec![], vec![2], true)
         }
         SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::WrappingSubtractI64 => {
-            (vec![operands[0], operands[1]], vec![operands[2]], true)
-        }
+        | SelectedInstructionKind::WrappingSubtractI64 => (vec![0, 1], vec![2], true),
         // `imul` reads its destination operand even when every operand shares
         // one view, so no variant collapses the reads the way `xor` does.
         SelectedInstructionKind::ExactMultiplyI64 { .. }
-        | SelectedInstructionKind::WrappingMultiplyI64 => {
-            (vec![operands[0], operands[1]], vec![operands[2]], true)
-        }
+        | SelectedInstructionKind::WrappingMultiplyI64 => (vec![0, 1], vec![2], true),
         // The single shift form reads the value and the pinned RCX count and
         // writes the early-clobber result; SHx by CL writes RFLAGS.
         SelectedInstructionKind::WrappingShiftLeftI64
         | SelectedInstructionKind::WrappingShiftRightI64
         | SelectedInstructionKind::WrappingShiftRightU64
         | selected_instructions::exact_shift_i64_pair_pattern!()
-        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
-            (vec![operands[0], operands[1]], vec![operands[2]], true)
-        }
+        | SelectedInstructionKind::ExactShiftRightU64 { .. } => (vec![0, 1], vec![2], true),
         SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
-        | SelectedInstructionKind::BitwiseXorI64 => {
-            (vec![operands[0], operands[1]], vec![operands[2]], true)
-        }
+        | SelectedInstructionKind::BitwiseXorI64 => (vec![0, 1], vec![2], true),
         SelectedInstructionKind::ReturnScalar
         | SelectedInstructionKind::ReturnAggregate { .. }
         | SelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
@@ -2162,6 +2141,8 @@ pub(crate) fn footprint(
             unreachable!("trapping forms handled above")
         }
     };
+    let register_reads = operand_views(&reads, operands);
+    let register_writes = operand_views(&writes, operands);
     let physical = crate::x86_64_physical_register_model_ref();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if matches!(kind, SelectedInstructionKind::PortWrite { .. }) {
@@ -2222,92 +2203,7 @@ pub(crate) fn footprint(
             control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
         }
     } else {
-        let mut effects = MachineEncodedEffects::fallthrough_v1(
-            match kind {
-                SelectedInstructionKind::MaterializeBooleanEqual
-                | SelectedInstructionKind::MaterializeBooleanU64LessThan
-                | SelectedInstructionKind::MaterializeBooleanI64LessThan
-                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-                | SelectedInstructionKind::MaterializeI64 { .. }
-                | SelectedInstructionKind::ImageAddress { .. } => vec![],
-                SelectedInstructionKind::CopyI64
-                | SelectedInstructionKind::ZeroExtendU8
-                | SelectedInstructionKind::ZeroExtendU16
-                | SelectedInstructionKind::SignExtendI8
-                | SelectedInstructionKind::SignExtendI16
-                | SelectedInstructionKind::SignExtendI32
-                | SelectedInstructionKind::ZeroExtendU32
-                | SelectedInstructionKind::CompareI64Zero
-                | SelectedInstructionKind::CompareI64Immediate { .. }
-                | selected_instructions::exact_add_or_sub_pair_pattern!(..)
-                | SelectedInstructionKind::BitwiseNotI64 => vec![0],
-                SelectedInstructionKind::CompareI64 => vec![0, 1],
-                SelectedInstructionKind::ExactDivideU64 { .. } => vec![0, 1, 3],
-                selected_instructions::exact_wrapping_divrem_set_pattern!(..) => vec![0, 1],
-                SelectedInstructionKind::ByteViewAddress
-                | SelectedInstructionKind::WrappingAddI64
-                | SelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
-                SelectedInstructionKind::ExactSubtractI64 { .. }
-                | SelectedInstructionKind::WrappingSubtractI64
-                    if alternative.variant == 0 =>
-                {
-                    vec![]
-                }
-                SelectedInstructionKind::ExactSubtractI64 { .. }
-                | SelectedInstructionKind::WrappingSubtractI64
-                | SelectedInstructionKind::ExactMultiplyI64 { .. }
-                | SelectedInstructionKind::WrappingMultiplyI64
-                | SelectedInstructionKind::WrappingShiftLeftI64
-                | SelectedInstructionKind::WrappingShiftRightI64
-                | SelectedInstructionKind::WrappingShiftRightU64
-                | selected_instructions::exact_shift_i64_pair_pattern!()
-                | SelectedInstructionKind::ExactShiftRightU64 { .. }
-                | SelectedInstructionKind::BitwiseAndI64
-                | SelectedInstructionKind::BitwiseOrI64
-                | SelectedInstructionKind::BitwiseXorI64 => vec![0, 1],
-                _ => unreachable!("control forms handled separately"),
-            },
-            match kind {
-                SelectedInstructionKind::MaterializeBooleanEqual
-                | SelectedInstructionKind::MaterializeBooleanU64LessThan
-                | SelectedInstructionKind::MaterializeBooleanI64LessThan
-                | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-                | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual
-                | SelectedInstructionKind::MaterializeI64 { .. }
-                | SelectedInstructionKind::ImageAddress { .. } => vec![0],
-                SelectedInstructionKind::CopyI64
-                | SelectedInstructionKind::ZeroExtendU8
-                | SelectedInstructionKind::ZeroExtendU16
-                | SelectedInstructionKind::SignExtendI8
-                | SelectedInstructionKind::SignExtendI16
-                | SelectedInstructionKind::SignExtendI32
-                | SelectedInstructionKind::ZeroExtendU32
-                | selected_instructions::exact_add_or_sub_pair_pattern!(..)
-                | SelectedInstructionKind::BitwiseNotI64 => vec![1],
-                SelectedInstructionKind::ByteViewAddress
-                | SelectedInstructionKind::WrappingAddI64
-                | SelectedInstructionKind::ExactAddI64 { .. }
-                | SelectedInstructionKind::ExactMultiplyI64 { .. }
-                | SelectedInstructionKind::WrappingMultiplyI64
-                | SelectedInstructionKind::WrappingShiftLeftI64
-                | SelectedInstructionKind::WrappingShiftRightI64
-                | SelectedInstructionKind::WrappingShiftRightU64
-                | selected_instructions::exact_shift_i64_pair_pattern!()
-                | SelectedInstructionKind::ExactShiftRightU64 { .. }
-                | SelectedInstructionKind::ExactSubtractI64 { .. }
-                | SelectedInstructionKind::WrappingSubtractI64 => vec![2],
-                SelectedInstructionKind::BitwiseAndI64
-                | SelectedInstructionKind::BitwiseOrI64
-                | SelectedInstructionKind::BitwiseXorI64 => vec![2],
-                SelectedInstructionKind::CompareI64Zero => vec![],
-                SelectedInstructionKind::ExactDivideU64 { .. } => vec![2],
-                selected_instructions::exact_wrapping_divrem_set_pattern!(..) => vec![2, 3],
-                SelectedInstructionKind::CompareI64 => vec![],
-                SelectedInstructionKind::CompareI64Immediate { .. } => vec![],
-                _ => unreachable!("control forms handled separately"),
-            },
-        );
+        let mut effects = MachineEncodedEffects::fallthrough_v1(reads, writes);
         if matches!(
             kind,
             SelectedInstructionKind::CompareI64Zero
@@ -2363,8 +2259,8 @@ pub(crate) fn footprint(
         effects
     };
     X86_64SelectedFormFootprint {
-        register_reads: reads,
-        register_writes: writes,
+        register_reads,
+        register_writes,
         writes_rflags,
         encoded,
     }
