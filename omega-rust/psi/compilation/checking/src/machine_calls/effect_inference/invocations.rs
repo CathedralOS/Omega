@@ -6,13 +6,15 @@
 //! nth non-`self` entry parameter of the machine whose summary carries it.
 
 use crate::declarations::data_queries::data_definition_by_symbol;
+use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::statement::{TableCall, TableNamePath};
 
+use super::call_sites::{CallSiteVisitor, visit_state_calls};
 use flow_effects::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
 
 use crate::proof_contracts::default_domains::call_summaries::{
@@ -250,17 +252,15 @@ fn build_machine_work(
     let mut direct = Vec::new();
     let mut calls = Vec::new();
     for state in program.machine_states(machine) {
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            collect_statement_calls(
-                program,
-                machine,
-                state,
-                statement,
-                &mut direct,
-                &mut calls,
-                state_to_machine,
-            );
-        }
+        let mut sites = InvocationCallSites {
+            program,
+            machine,
+            state,
+            state_to_machine,
+            direct: &mut direct,
+            calls: &mut calls,
+        };
+        visit_state_calls(program, machine.symbol, state, &mut sites);
     }
     MachineWork {
         symbol: machine.symbol,
@@ -276,343 +276,129 @@ fn build_machine_work(
     }
 }
 
-fn collect_statement_calls(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement: &StatementNode,
-    direct: &mut Vec<InvocationTarget>,
-    calls: &mut Vec<CallWork>,
-    state_to_machine: &StateToMachine,
-) {
-    match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    collect_expression_calls(
-                        program,
-                        machine,
-                        state,
-                        expression,
-                        direct,
-                        calls,
-                        state_to_machine,
-                    );
-                }
+/// Records the direct invocation targets of one machine. The walk itself
+/// belongs to `call_sites`; this pass supplies only what it records per site.
+struct InvocationCallSites<'a> {
+    program: &'a dyn crate::CheckingInput,
+    machine: &'a Machine,
+    state: &'a State,
+    state_to_machine: &'a StateToMachine,
+    direct: &'a mut Vec<InvocationTarget>,
+    calls: &'a mut Vec<CallWork>,
+}
+
+impl CallSiteVisitor for InvocationCallSites<'_> {
+    fn statement_call(&mut self, call: &TableCall, _statement_index: usize, _ordinal: usize) {
+        let receiver = origin_for_statement_receiver(self.program, self.machine, self.state, call);
+        self.resolved_call(
+            call.target_symbol,
+            call.static_machine_parameter,
+            receiver,
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+        );
+    }
+
+    fn expression_call(
+        &mut self,
+        call: &TableCallExpression,
+        _statement_index: usize,
+        _ordinal: usize,
+    ) {
+        let receiver = origin_for_expression(self.program, self.machine, self.state, call.receiver);
+        self.resolved_call(
+            call.target_symbol,
+            call.static_machine_parameter,
+            receiver,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+        );
+    }
+
+    fn named_transfer(
+        &mut self,
+        target: SymbolHandle,
+        path: &TableNamePath,
+        arguments: HandleSpan<ExpressionHandle>,
+        static_machine_parameter: SymbolHandle,
+        _acknowledgement: language_semantics::CallOperationalAcknowledgement,
+        _statement_index: usize,
+        _ordinal: usize,
+    ) {
+        let members = self.program.statement_table.name_path_members(path.members);
+        let receiver = members.split_last().and_then(|(_, receiver)| {
+            if receiver.is_empty() {
+                return None;
             }
-        }
-        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
-        StatementNode::Assignment(assignment) => {
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                assignment.target,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                assignment.value,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }
-        StatementNode::Call(call) => {
-            collect_table_call(
-                program,
-                machine,
-                state,
-                call,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        StatementNode::Expression(expression) => collect_expression_calls(
-            program,
-            machine,
-            state,
-            *expression,
+            origin_for_symbol(self.program, self.machine, self.state, path.head_symbol).or_else(
+                || {
+                    boundary_service_for_receiver_path(
+                        self.program,
+                        self.machine,
+                        self.state,
+                        path.head_symbol,
+                        receiver,
+                    )
+                    .map(InvocationTarget::Service)
+                },
+            )
+        });
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(arguments)
+            .iter()
+            .map(|argument| {
+                origin_for_expression(self.program, self.machine, self.state, *argument)
+            })
+            .collect();
+        let direct = &mut *self.direct;
+        let calls = &mut *self.calls;
+        push_call(
+            self.program,
+            target,
+            static_machine_parameter,
+            receiver,
+            arguments,
             direct,
             calls,
-            state_to_machine,
-        ),
-        StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                local.initial_value,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }
-        StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    guard,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-            collect_transition_target_expression_calls(
-                program,
-                machine,
-                state,
-                transition.target,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            if transition.continuation.is_valid() {
-                collect_transition_target_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    transition.continuation,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        StatementNode::LocalData(_) => {}
+            self.state_to_machine,
+        );
     }
 }
 
-fn collect_transition_target_expression_calls(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    target: typed_trees::statement::TransitionTargetHandle,
-    direct: &mut Vec<InvocationTarget>,
-    calls: &mut Vec<CallWork>,
-    state_to_machine: &StateToMachine,
-) {
-    if !target.is_valid() {
-        return;
-    }
-    match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named {
-            path,
-            arguments,
+impl InvocationCallSites<'_> {
+    /// Shared call collection for statement and expression call sites: the
+    /// receiver and every argument resolve through `origin_for_expression`,
+    /// then the work item lands through `push_call`.
+    fn resolved_call(
+        &mut self,
+        target_symbol: SymbolHandle,
+        static_machine_parameter: SymbolHandle,
+        receiver: Option<InvocationTarget>,
+        argument_handles: &[ExpressionHandle],
+    ) {
+        let arguments = argument_handles
+            .iter()
+            .map(|argument| {
+                origin_for_expression(self.program, self.machine, self.state, *argument)
+            })
+            .collect::<Vec<_>>();
+        let direct = &mut *self.direct;
+        let calls = &mut *self.calls;
+        push_call(
+            self.program,
+            target_symbol,
             static_machine_parameter,
-            ..
-        } => {
-            let target = crate::declarations::transitions::named_transition_call_symbol(
-                program,
-                machine.symbol,
-                path.symbol,
-            );
-            if target.is_valid() {
-                let members = program.statement_table.name_path_members(path.members);
-                let receiver = members.split_last().and_then(|(_, receiver)| {
-                    if receiver.is_empty() {
-                        return None;
-                    }
-                    origin_for_symbol(program, machine, state, path.head_symbol).or_else(|| {
-                        boundary_service_for_receiver_path(
-                            program,
-                            machine,
-                            state,
-                            path.head_symbol,
-                            receiver,
-                        )
-                        .map(InvocationTarget::Service)
-                    })
-                });
-                let arguments = program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .iter()
-                    .map(|argument| origin_for_expression(program, machine, state, *argument))
-                    .collect();
-                push_call(
-                    program,
-                    target,
-                    *static_machine_parameter,
-                    receiver,
-                    arguments,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-            for argument in program.statement_table.expression_handles(*arguments) {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                *expression,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }
-        typed_trees::statement::TransitionTargetNode::Terminal => {}
+            receiver,
+            arguments,
+            direct,
+            calls,
+            self.state_to_machine,
+        );
     }
-}
-
-fn collect_expression_calls(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    direct: &mut Vec<InvocationTarget>,
-    calls: &mut Vec<CallWork>,
-    state_to_machine: &StateToMachine,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            let inputs =
-                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic);
-            for input in inputs {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    input,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        ExpressionNode::Call(call) => {
-            collect_expression_call(
-                program,
-                machine,
-                state,
-                call,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                call.receiver,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    *argument,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        other => crate::expression_traversal::children(program, other, |child| {
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                child,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }),
-    }
-}
-
-fn collect_table_call(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    call: &TableCall,
-    direct: &mut Vec<InvocationTarget>,
-    calls: &mut Vec<CallWork>,
-    state_to_machine: &StateToMachine,
-) {
-    let receiver = origin_for_statement_receiver(program, machine, state, call);
-    collect_resolved_call(
-        program,
-        machine,
-        state,
-        call.target_symbol,
-        call.static_machine_parameter,
-        receiver,
-        program.statement_table.expression_handles(call.arguments),
-        direct,
-        calls,
-        state_to_machine,
-    );
-}
-
-/// Shared call collection for statement and expression call sites: the
-/// receiver and every argument resolve through `origin_for_expression`,
-/// then the work item lands through `push_call`.
-#[allow(clippy::too_many_arguments)]
-fn collect_resolved_call(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    target_symbol: SymbolHandle,
-    static_machine_parameter: SymbolHandle,
-    receiver: Option<InvocationTarget>,
-    argument_handles: &[ExpressionHandle],
-    direct: &mut Vec<InvocationTarget>,
-    calls: &mut Vec<CallWork>,
-    state_to_machine: &StateToMachine,
-) {
-    let arguments = argument_handles
-        .iter()
-        .map(|argument| origin_for_expression(program, machine, state, *argument))
-        .collect::<Vec<_>>();
-    push_call(
-        program,
-        target_symbol,
-        static_machine_parameter,
-        receiver,
-        arguments,
-        direct,
-        calls,
-        state_to_machine,
-    );
 }
 
 fn origin_for_statement_receiver(
@@ -697,30 +483,6 @@ fn type_reference_for_symbol(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — receiver-path and attached-data walks otherwise re-scan
 /// the declaration table per member hop.
-
-fn collect_expression_call(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    call: &TableCallExpression,
-    direct: &mut Vec<InvocationTarget>,
-    calls: &mut Vec<CallWork>,
-    state_to_machine: &StateToMachine,
-) {
-    let receiver = origin_for_expression(program, machine, state, call.receiver);
-    collect_resolved_call(
-        program,
-        machine,
-        state,
-        call.target_symbol,
-        call.static_machine_parameter,
-        receiver,
-        program.expression_table.expression_handles(call.arguments),
-        direct,
-        calls,
-        state_to_machine,
-    );
-}
 
 fn push_call(
     program: &dyn crate::CheckingInput,

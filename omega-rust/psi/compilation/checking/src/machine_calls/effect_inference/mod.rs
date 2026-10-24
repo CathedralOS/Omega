@@ -4,6 +4,7 @@
 //! through exported wrappers. Direct boundary uses still need declarations;
 //! opaque requirements and operational may-ceilings retain their fixed contracts.
 
+mod call_sites;
 mod callback_requirements;
 mod invocations;
 pub(crate) use invocations::full_parameter_invocation;

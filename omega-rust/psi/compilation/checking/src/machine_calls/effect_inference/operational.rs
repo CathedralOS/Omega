@@ -19,9 +19,11 @@
 use arena::HandleSpan;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::statement::{TableCall, TableNamePath};
+
+use super::call_sites::{CallSiteVisitor, visit_state_calls};
 
 use flow_effects::{CallOperational, MachineOperational, OperationalPlan, StateOperational};
 
@@ -149,23 +151,12 @@ fn collect_state_calls(
 ) -> Vec<CallWork> {
     let mut calls = Vec::new();
 
-    for (statement_index, statement) in program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-    {
-        // Call-site identity is (state, statement, ordinal-within-statement),
-        // shared with borrow, flow, contracts, and diagnostics.
-        let mut call_ordinal = 0usize;
-        collect_statement_calls(
-            signature_effects,
-            program,
-            machine,
-            statement,
-            statement_index,
-            &mut call_ordinal,
-            &mut calls,
-        );
-    }
+    let mut sites = OperationalCallSites {
+        signature_effects,
+        program,
+        calls: &mut calls,
+    };
+    visit_state_calls(program, machine, state, &mut sites);
 
     // Evidence-child targets are lexical coordinates for public requirement
     // signatures, not executable states. Borrow/flow already retain that
@@ -192,347 +183,123 @@ fn collect_state_calls(
     calls
 }
 
-fn collect_statement_calls(
-    signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    statement: &StatementNode,
-    statement_index: usize,
-    call_ordinal: &mut usize,
-    calls: &mut Vec<CallWork>,
-) {
-    match statement {
-        // Assembly contract facts are proof obligations, never runtime calls.
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    collect_expression_calls(
-                        signature_effects,
-                        program,
-                        expression,
-                        statement_index,
-                        call_ordinal,
-                        calls,
-                    );
-                }
-            }
-        }
-        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
-        StatementNode::Assignment(assignment) => {
-            collect_expression_calls(
-                signature_effects,
-                program,
-                assignment.target,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-            collect_expression_calls(
-                signature_effects,
-                program,
-                assignment.value,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-        }
-        StatementNode::Call(call) => push_statement_call(
-            signature_effects,
-            program,
-            call,
-            statement_index,
-            call_ordinal,
-            calls,
-        ),
-        StatementNode::Expression(expression) => collect_expression_calls(
-            signature_effects,
-            program,
-            *expression,
-            statement_index,
-            call_ordinal,
-            calls,
-        ),
-        StatementNode::LocalData(local_data) => {
-            if local_data.initial_value.is_valid() {
-                collect_expression_calls(
-                    signature_effects,
-                    program,
-                    local_data.initial_value,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-        }
-        StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_calls(
-                    signature_effects,
-                    program,
-                    guard,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-            collect_transition_target_expression_calls(
-                signature_effects,
-                program,
-                machine,
-                transition.target,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-            if transition.continuation.is_valid() {
-                collect_transition_target_expression_calls(
-                    signature_effects,
-                    program,
-                    machine,
-                    transition.continuation,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-        }
-    }
+/// Records the operational may-ceilings of one machine. The walk itself
+/// belongs to `call_sites`; this pass supplies only what it records per site.
+struct OperationalCallSites<'a> {
+    signature_effects: &'a DirectSignatureEffects,
+    program: &'a dyn crate::CheckingInput,
+    calls: &'a mut Vec<CallWork>,
 }
 
-fn collect_transition_target_expression_calls(
-    signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
-    machine: SymbolHandle,
-    target: typed_trees::statement::TransitionTargetHandle,
-    statement_index: usize,
-    call_ordinal: &mut usize,
-    calls: &mut Vec<CallWork>,
-) {
-    if !target.is_valid() {
-        return;
+impl CallSiteVisitor for OperationalCallSites<'_> {
+    fn statement_call(&mut self, call: &TableCall, statement_index: usize, ordinal: usize) {
+        let target_operator_symbol = {
+            let candidates =
+                typed_trees::operator::named_statement_call_candidates(self.program, call);
+            match candidates.as_slice() {
+                [operator] => operator.symbol,
+                _ => SymbolHandle::invalid(),
+            }
+        };
+        push_call(
+            self.signature_effects,
+            self.program,
+            call.target.as_str(),
+            call.target_symbol,
+            call.static_requirement_dispatch
+                .as_ref()
+                .map_or(SymbolHandle::invalid(), |dispatch| {
+                    dispatch.contract_symbol()
+                }),
+            call.static_machine_parameter,
+            &call.machine_arguments,
+            target_operator_symbol,
+            call.operational_acknowledgement,
+            statement_index,
+            ordinal,
+            self.calls,
+        );
     }
-    match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named {
-            path,
-            arguments,
+
+    fn expression_call(
+        &mut self,
+        call: &TableCallExpression,
+        statement_index: usize,
+        ordinal: usize,
+    ) {
+        if crate::proof_contracts::proof_embeddings::is_exact_embed_call(self.program, call) {
+            // The proof-embedding owner validates this exact builtin's carrier
+            // and proof-only occurrence. It forms a value term, not an
+            // unresolved operational edge. The walk reserved its lexical
+            // coordinate and still traverses every operand, so an effectful
+            // operand cannot disappear with the term.
+            return;
+        }
+        let named_operator =
+            typed_trees::operator::resolve_named_expression_call(self.program, call);
+        let target_operator_symbol = named_operator
+            .map(|operator| operator.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+        // A named boundary use carries no leaf target symbol; borrow and flow
+        // record the same resolved operator identity, so the call summary must
+        // key on it for the reach/operational attach to join the occurrence.
+        let target_state_symbol = named_operator
+            .filter(|operator| operator.is_boundary)
+            .map_or(call.target_symbol, |operator| operator.symbol);
+        push_call(
+            self.signature_effects,
+            self.program,
+            call.target.as_str(),
+            target_state_symbol,
+            call.static_requirement_dispatch
+                .as_ref()
+                .map_or(SymbolHandle::invalid(), |dispatch| {
+                    dispatch.contract_symbol()
+                }),
+            call.static_machine_parameter,
+            &call.machine_arguments,
+            target_operator_symbol,
+            call.operational_acknowledgement,
+            statement_index,
+            ordinal,
+            self.calls,
+        );
+    }
+
+    fn named_transfer(
+        &mut self,
+        target: SymbolHandle,
+        path: &TableNamePath,
+        _arguments: HandleSpan<ExpressionHandle>,
+        static_machine_parameter: SymbolHandle,
+        acknowledgement: language_semantics::CallOperationalAcknowledgement,
+        statement_index: usize,
+        ordinal: usize,
+    ) {
+        let target_name = self
+            .program
+            .statement_table
+            .name_path_members(path.members)
+            .joined_path();
+        push_call(
+            self.signature_effects,
+            self.program,
+            &target_name,
+            target,
+            SymbolHandle::invalid(),
             static_machine_parameter,
-            operational_acknowledgement,
-            ..
-        } => {
-            let target = crate::declarations::transitions::named_transition_call_symbol(
-                program,
-                machine,
-                path.symbol,
-            );
-            if target.is_valid() {
-                let target_name = program
-                    .statement_table
-                    .name_path_members(path.members)
-                    .joined_path();
-                push_call(
-                    signature_effects,
-                    program,
-                    &target_name,
-                    target,
-                    SymbolHandle::invalid(),
-                    *static_machine_parameter,
-                    &[],
-                    SymbolHandle::invalid(),
-                    *operational_acknowledgement,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            } else {
-                // Borrow and semantic call-site traversal reserve a parent
-                // coordinate even for an internal named state transfer.
-                *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
-            }
-            for argument in program.statement_table.expression_handles(*arguments) {
-                collect_expression_calls(
-                    signature_effects,
-                    program,
-                    *argument,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-        }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            collect_expression_calls(
-                signature_effects,
-                program,
-                *expression,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-        }
-        typed_trees::statement::TransitionTargetNode::Terminal => {}
-    }
-}
-
-fn push_statement_call(
-    signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
-    call: &TableCall,
-    statement_index: usize,
-    call_ordinal: &mut usize,
-    calls: &mut Vec<CallWork>,
-) {
-    let target_operator_symbol = {
-        let candidates = typed_trees::operator::named_statement_call_candidates(program, call);
-        match candidates.as_slice() {
-            [operator] => operator.symbol,
-            _ => SymbolHandle::invalid(),
-        }
-    };
-    push_call(
-        signature_effects,
-        program,
-        call.target.as_str(),
-        call.target_symbol,
-        call.static_requirement_dispatch
-            .as_ref()
-            .map_or(SymbolHandle::invalid(), |dispatch| {
-                dispatch.contract_symbol()
-            }),
-        call.static_machine_parameter,
-        &call.machine_arguments,
-        target_operator_symbol,
-        call.operational_acknowledgement,
-        statement_index,
-        call_ordinal,
-        calls,
-    );
-    for argument in program.statement_table.expression_handles(call.arguments) {
-        collect_expression_calls(
-            signature_effects,
-            program,
-            *argument,
+            &[],
+            SymbolHandle::invalid(),
+            acknowledgement,
             statement_index,
-            call_ordinal,
-            calls,
+            ordinal,
+            self.calls,
         );
     }
 }
 
-fn collect_expression_calls(
-    signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-    statement_index: usize,
-    call_ordinal: &mut usize,
-    calls: &mut Vec<CallWork>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => {
-            let inputs =
-                crate::value_custody::atomic_operations::atomic_execution_children(program, atomic);
-            for input in inputs {
-                collect_expression_calls(
-                    signature_effects,
-                    program,
-                    input,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-        }
-        ExpressionNode::Call(call) => {
-            push_expression_call(
-                signature_effects,
-                program,
-                call,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-            collect_expression_calls(
-                signature_effects,
-                program,
-                call.receiver,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_calls(
-                    signature_effects,
-                    program,
-                    *argument,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-        }
-        other => crate::expression_traversal::children(program, other, |child| {
-            collect_expression_calls(
-                signature_effects,
-                program,
-                child,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-        }),
-    }
-}
-
-fn push_expression_call(
-    signature_effects: &DirectSignatureEffects,
-    program: &dyn crate::CheckingInput,
-    call: &TableCallExpression,
-    statement_index: usize,
-    call_ordinal: &mut usize,
-    calls: &mut Vec<CallWork>,
-) {
-    if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
-        // The proof-embedding owner validates this exact builtin's carrier
-        // and proof-only occurrence. It forms a value term, not an unresolved
-        // operational edge. Reserve its lexical coordinate so nested calls
-        // still join the borrow/semantic walk; the caller traverses every
-        // operand, so an effectful operand cannot disappear with the term.
-        *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
-        return;
-    }
-    let named_operator = typed_trees::operator::resolve_named_expression_call(program, call);
-    let target_operator_symbol = named_operator
-        .map(|operator| operator.symbol)
-        .unwrap_or_else(SymbolHandle::invalid);
-    // A named boundary use carries no leaf target symbol; borrow and flow
-    // record the same resolved operator identity, so the call summary must
-    // key on it for the reach/operational attach to join the occurrence.
-    let target_state_symbol = named_operator
-        .filter(|operator| operator.is_boundary)
-        .map_or(call.target_symbol, |operator| operator.symbol);
-    push_call(
-        signature_effects,
-        program,
-        call.target.as_str(),
-        target_state_symbol,
-        call.static_requirement_dispatch
-            .as_ref()
-            .map_or(SymbolHandle::invalid(), |dispatch| {
-                dispatch.contract_symbol()
-            }),
-        call.static_machine_parameter,
-        &call.machine_arguments,
-        target_operator_symbol,
-        call.operational_acknowledgement,
-        statement_index,
-        call_ordinal,
-        calls,
-    );
-}
-
+/// Record one reached call site into `calls`. The walk owns the ordinal
+/// counter, so this pass reads its position instead of advancing it.
 fn push_call(
     signature_effects: &DirectSignatureEffects,
     program: &dyn crate::CheckingInput,
@@ -544,7 +311,7 @@ fn push_call(
     target_operator_symbol: SymbolHandle,
     acknowledgement: language_semantics::CallOperationalAcknowledgement,
     statement_index: usize,
-    call_ordinal: &mut usize,
+    call_ordinal: usize,
     calls: &mut Vec<CallWork>,
 ) {
     let target_machine_symbol = machine_symbol_for_state(program, target_state_symbol);
@@ -562,7 +329,7 @@ fn push_call(
         });
     calls.push(CallWork {
         statement_index,
-        call_ordinal: *call_ordinal,
+        call_ordinal,
         target_name: target_name.to_owned(),
         target_state_symbol,
         static_machine_parameter,
@@ -575,7 +342,6 @@ fn push_call(
         transitive_may_block: false,
         acknowledgement,
     });
-    *call_ordinal = call_ordinal.checked_add(1).expect("call ordinal overflow");
 }
 
 fn machine_symbol_for_state(
