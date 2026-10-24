@@ -41,7 +41,7 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.extend(
         BuiltinFunction::ALL
             .into_iter()
-            .map(CompilerIntrinsicExecutionIdentity::BuiltinFunction),
+            .map(|(function, _)| CompilerIntrinsicExecutionIdentity::BuiltinFunction(function)),
     );
     for operation in CompilerPrimitiveFloatBinaryOperation::ALL {
         for format in FLOAT_FORMATS {

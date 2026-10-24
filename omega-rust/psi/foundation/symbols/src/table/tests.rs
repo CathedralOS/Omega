@@ -24,7 +24,7 @@ mod builtin_function_identity_tests {
     fn every_installed_builtin_function_round_trips_by_exact_slot() {
         let symbols = builtin_symbol_table(builtin_function_symbols());
 
-        for function in BuiltinFunction::ALL {
+        for (function, _) in BuiltinFunction::ALL {
             let symbol = symbols
                 .builtin_function_symbol(function)
                 .expect("compiler builtin function must occupy its fixed root slot");

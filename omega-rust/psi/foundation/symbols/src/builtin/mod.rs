@@ -181,15 +181,15 @@ impl BuiltinType {
         }
     }
 
+    /// The atom's slot in the shared builtin type inventory. The two enums
+    /// must not keep separate copies of the slot number: the `usize`/`isize`
+    /// retirement shifted these positions once already, and the
+    /// builtin_type_ordinals_track_the_symbol_table unit test pins the
+    /// coupling to the symbol table.
     pub fn ordinal(self) -> usize {
-        // POSITION in `builtin_type_symbols()` -- symbol handles are assigned
-        // in table order, so these MUST track that array. (The usize/isize
-        // retirement removed two entries above these and shifted them from
-        // 19/20/21; the builtin_type_ordinals_track_the_symbol_table unit
-        // test pins the coupling.)
         match self {
-            Self::UInt => 17,
-            Self::Int => 18,
+            Self::UInt => BuiltinTypeAtom::UInt.ordinal(),
+            Self::Int => BuiltinTypeAtom::Int.ordinal(),
         }
     }
 }
@@ -358,118 +358,228 @@ pub enum BuiltinFunction {
 impl BuiltinFunction {
     pub const COUNT: usize = 100;
 
-    pub const ALL: [Self; Self::COUNT] = [
-        Self::FloatMaximum,
-        Self::FloatMinimum,
-        Self::FloatSquareRoot,
-        Self::AsmHlt,
-        Self::AsmPortOut,
-        Self::AsmPortIn,
-        Self::AsmLoadFence,
-        Self::AsmStoreFence,
-        Self::AsmFullFence,
-        Self::AsmDisableInterrupts,
-        Self::AsmEnableInterrupts,
-        Self::AsmSnapshotFlags,
-        Self::AsmRestoreFlags,
-        Self::AsmReadMsr,
-        Self::AsmWriteMsr,
-        Self::AsmReadCr0,
-        Self::AsmReadCr2,
-        Self::AsmReadCr3,
-        Self::AsmReadCr4,
-        Self::AsmWriteCr0,
-        Self::AsmWriteCr3,
-        Self::AsmWriteCr4,
-        Self::FloatIsNan,
-        Self::FloatMultiplyThenAddF32,
-        Self::FloatMultiplyThenAddF64,
-        Self::FloatFusedMultiplyAddF32,
-        Self::FloatFusedMultiplyAddF64,
-        Self::FloatIsFinite,
-        Self::FloatIsInfinite,
-        Self::FloatIsNormal,
-        Self::FloatIsSubnormal,
-        Self::FloatClassifyF32,
-        Self::FloatClassifyF64,
-        Self::ContentOld,
-        Self::ContentSeparate,
-        Self::FloatAddTowardZeroF32,
-        Self::FloatAddTowardZeroF64,
-        Self::FloatAddTowardPositiveF32,
-        Self::FloatAddTowardPositiveF64,
-        Self::FloatAddTowardNegativeF32,
-        Self::FloatAddTowardNegativeF64,
-        Self::FloatSubtractTowardZeroF32,
-        Self::FloatSubtractTowardZeroF64,
-        Self::FloatSubtractTowardPositiveF32,
-        Self::FloatSubtractTowardPositiveF64,
-        Self::FloatSubtractTowardNegativeF32,
-        Self::FloatSubtractTowardNegativeF64,
-        Self::FloatMultiplyTowardZeroF32,
-        Self::FloatMultiplyTowardZeroF64,
-        Self::FloatMultiplyTowardPositiveF32,
-        Self::FloatMultiplyTowardPositiveF64,
-        Self::FloatMultiplyTowardNegativeF32,
-        Self::FloatMultiplyTowardNegativeF64,
-        Self::FloatDivideTowardZeroF32,
-        Self::FloatDivideTowardZeroF64,
-        Self::FloatDivideTowardPositiveF32,
-        Self::FloatDivideTowardPositiveF64,
-        Self::FloatDivideTowardNegativeF32,
-        Self::FloatDivideTowardNegativeF64,
-        Self::FloatSqrtTowardZeroF32,
-        Self::FloatSqrtTowardZeroF64,
-        Self::FloatSqrtTowardPositiveF32,
-        Self::FloatSqrtTowardPositiveF64,
-        Self::FloatSqrtTowardNegativeF32,
-        Self::FloatSqrtTowardNegativeF64,
-        Self::FloatFusedMultiplyAddTowardZeroF32,
-        Self::FloatFusedMultiplyAddTowardZeroF64,
-        Self::FloatFusedMultiplyAddTowardPositiveF32,
-        Self::FloatFusedMultiplyAddTowardPositiveF64,
-        Self::FloatFusedMultiplyAddTowardNegativeF32,
-        Self::FloatFusedMultiplyAddTowardNegativeF64,
-        Self::IntegerEmbed,
-        Self::AsmSerialize,
-        Self::AsmInstructionSyncBarrier,
-        Self::AsmSpinPause,
-        Self::AsmYieldHint,
-        Self::AsmWriteBackInvalidate,
-        Self::AsmInvalidate,
-        Self::AsmWriteBackNoInvalidate,
-        Self::AsmNop,
-        Self::AsmWaitForEvent,
-        Self::AsmWaitForInterrupt,
-        Self::AsmSendEvent,
-        Self::AsmSendEventLocal,
-        Self::AsmReadSctlrEl1,
-        Self::AsmReadTcrEl1,
-        Self::AsmReadTtbr0El1,
-        Self::AsmReadTtbr1El1,
-        Self::AsmReadMairEl1,
-        Self::AsmReadVbarEl1,
-        Self::AsmReadTpidrEl1,
-        Self::AsmReadEsrEl1,
-        Self::AsmReadFarEl1,
-        Self::AsmWriteSctlrEl1,
-        Self::AsmWriteTcrEl1,
-        Self::AsmWriteTtbr0El1,
-        Self::AsmWriteTtbr1El1,
-        Self::AsmWriteMairEl1,
-        Self::AsmWriteVbarEl1,
-        Self::AsmWriteTpidrEl1,
+    /// The closed inventory in slot order: every compiler-installed builtin
+    /// function paired with its exact spelling. The array position is the
+    /// slot ordinal ([`Self::ordinal`]) and the root-child slot the symbol
+    /// table installs, so ordinals, spellings and symbol rows all read this
+    /// one roster instead of parallel transcriptions of it.
+    pub const ALL: [(Self, &'static str); Self::COUNT] = [
+        (Self::FloatMaximum, "float#maximum"),
+        (Self::FloatMinimum, "float#minimum"),
+        (Self::FloatSquareRoot, "float#square_root"),
+        (Self::AsmHlt, "asm#hlt"),
+        (Self::AsmPortOut, "asm#port_out"),
+        (Self::AsmPortIn, "asm#port_in"),
+        (Self::AsmLoadFence, "asm#lfence"),
+        (Self::AsmStoreFence, "asm#sfence"),
+        (Self::AsmFullFence, "asm#mfence"),
+        (Self::AsmDisableInterrupts, "asm#cli"),
+        (Self::AsmEnableInterrupts, "asm#sti"),
+        (Self::AsmSnapshotFlags, "asm#pushfq"),
+        (Self::AsmRestoreFlags, "asm#popfq"),
+        (Self::AsmReadMsr, "asm#rdmsr"),
+        (Self::AsmWriteMsr, "asm#wrmsr"),
+        (Self::AsmReadCr0, "asm#read_cr0"),
+        (Self::AsmReadCr2, "asm#read_cr2"),
+        (Self::AsmReadCr3, "asm#read_cr3"),
+        (Self::AsmReadCr4, "asm#read_cr4"),
+        (Self::AsmWriteCr0, "asm#write_cr0"),
+        (Self::AsmWriteCr3, "asm#write_cr3"),
+        (Self::AsmWriteCr4, "asm#write_cr4"),
+        (Self::FloatIsNan, "float#is_nan"),
+        (Self::FloatMultiplyThenAddF32, "float#multiply_then_add_f32"),
+        (Self::FloatMultiplyThenAddF64, "float#multiply_then_add_f64"),
+        (
+            Self::FloatFusedMultiplyAddF32,
+            "float#fused_multiply_add_f32",
+        ),
+        (
+            Self::FloatFusedMultiplyAddF64,
+            "float#fused_multiply_add_f64",
+        ),
+        (Self::FloatIsFinite, "float#is_finite"),
+        (Self::FloatIsInfinite, "float#is_infinite"),
+        (Self::FloatIsNormal, "float#is_normal"),
+        (Self::FloatIsSubnormal, "float#is_subnormal"),
+        (Self::FloatClassifyF32, "float#classify_f32"),
+        (Self::FloatClassifyF64, "float#classify_f64"),
+        (Self::ContentOld, "old"),
+        (Self::ContentSeparate, "separate"),
+        (Self::FloatAddTowardZeroF32, "float#add_toward_zero_f32"),
+        (Self::FloatAddTowardZeroF64, "float#add_toward_zero_f64"),
+        (
+            Self::FloatAddTowardPositiveF32,
+            "float#add_toward_positive_f32",
+        ),
+        (
+            Self::FloatAddTowardPositiveF64,
+            "float#add_toward_positive_f64",
+        ),
+        (
+            Self::FloatAddTowardNegativeF32,
+            "float#add_toward_negative_f32",
+        ),
+        (
+            Self::FloatAddTowardNegativeF64,
+            "float#add_toward_negative_f64",
+        ),
+        (
+            Self::FloatSubtractTowardZeroF32,
+            "float#subtract_toward_zero_f32",
+        ),
+        (
+            Self::FloatSubtractTowardZeroF64,
+            "float#subtract_toward_zero_f64",
+        ),
+        (
+            Self::FloatSubtractTowardPositiveF32,
+            "float#subtract_toward_positive_f32",
+        ),
+        (
+            Self::FloatSubtractTowardPositiveF64,
+            "float#subtract_toward_positive_f64",
+        ),
+        (
+            Self::FloatSubtractTowardNegativeF32,
+            "float#subtract_toward_negative_f32",
+        ),
+        (
+            Self::FloatSubtractTowardNegativeF64,
+            "float#subtract_toward_negative_f64",
+        ),
+        (
+            Self::FloatMultiplyTowardZeroF32,
+            "float#multiply_toward_zero_f32",
+        ),
+        (
+            Self::FloatMultiplyTowardZeroF64,
+            "float#multiply_toward_zero_f64",
+        ),
+        (
+            Self::FloatMultiplyTowardPositiveF32,
+            "float#multiply_toward_positive_f32",
+        ),
+        (
+            Self::FloatMultiplyTowardPositiveF64,
+            "float#multiply_toward_positive_f64",
+        ),
+        (
+            Self::FloatMultiplyTowardNegativeF32,
+            "float#multiply_toward_negative_f32",
+        ),
+        (
+            Self::FloatMultiplyTowardNegativeF64,
+            "float#multiply_toward_negative_f64",
+        ),
+        (
+            Self::FloatDivideTowardZeroF32,
+            "float#divide_toward_zero_f32",
+        ),
+        (
+            Self::FloatDivideTowardZeroF64,
+            "float#divide_toward_zero_f64",
+        ),
+        (
+            Self::FloatDivideTowardPositiveF32,
+            "float#divide_toward_positive_f32",
+        ),
+        (
+            Self::FloatDivideTowardPositiveF64,
+            "float#divide_toward_positive_f64",
+        ),
+        (
+            Self::FloatDivideTowardNegativeF32,
+            "float#divide_toward_negative_f32",
+        ),
+        (
+            Self::FloatDivideTowardNegativeF64,
+            "float#divide_toward_negative_f64",
+        ),
+        (Self::FloatSqrtTowardZeroF32, "float#sqrt_toward_zero_f32"),
+        (Self::FloatSqrtTowardZeroF64, "float#sqrt_toward_zero_f64"),
+        (
+            Self::FloatSqrtTowardPositiveF32,
+            "float#sqrt_toward_positive_f32",
+        ),
+        (
+            Self::FloatSqrtTowardPositiveF64,
+            "float#sqrt_toward_positive_f64",
+        ),
+        (
+            Self::FloatSqrtTowardNegativeF32,
+            "float#sqrt_toward_negative_f32",
+        ),
+        (
+            Self::FloatSqrtTowardNegativeF64,
+            "float#sqrt_toward_negative_f64",
+        ),
+        (
+            Self::FloatFusedMultiplyAddTowardZeroF32,
+            "float#fused_multiply_add_toward_zero_f32",
+        ),
+        (
+            Self::FloatFusedMultiplyAddTowardZeroF64,
+            "float#fused_multiply_add_toward_zero_f64",
+        ),
+        (
+            Self::FloatFusedMultiplyAddTowardPositiveF32,
+            "float#fused_multiply_add_toward_positive_f32",
+        ),
+        (
+            Self::FloatFusedMultiplyAddTowardPositiveF64,
+            "float#fused_multiply_add_toward_positive_f64",
+        ),
+        (
+            Self::FloatFusedMultiplyAddTowardNegativeF32,
+            "float#fused_multiply_add_toward_negative_f32",
+        ),
+        (
+            Self::FloatFusedMultiplyAddTowardNegativeF64,
+            "float#fused_multiply_add_toward_negative_f64",
+        ),
+        (Self::IntegerEmbed, "embed"),
+        (Self::AsmSerialize, "asm#serialize"),
+        (Self::AsmInstructionSyncBarrier, "asm#isb"),
+        (Self::AsmSpinPause, "asm#pause"),
+        (Self::AsmYieldHint, "asm#yield"),
+        (Self::AsmWriteBackInvalidate, "asm#wbinvd"),
+        (Self::AsmInvalidate, "asm#invd"),
+        (Self::AsmWriteBackNoInvalidate, "asm#wbnoinvd"),
+        (Self::AsmNop, "asm#nop"),
+        (Self::AsmWaitForEvent, "asm#wfe"),
+        (Self::AsmWaitForInterrupt, "asm#wfi"),
+        (Self::AsmSendEvent, "asm#sev"),
+        (Self::AsmSendEventLocal, "asm#sevl"),
+        (Self::AsmReadSctlrEl1, "asm#read_sctlr_el1"),
+        (Self::AsmReadTcrEl1, "asm#read_tcr_el1"),
+        (Self::AsmReadTtbr0El1, "asm#read_ttbr0_el1"),
+        (Self::AsmReadTtbr1El1, "asm#read_ttbr1_el1"),
+        (Self::AsmReadMairEl1, "asm#read_mair_el1"),
+        (Self::AsmReadVbarEl1, "asm#read_vbar_el1"),
+        (Self::AsmReadTpidrEl1, "asm#read_tpidr_el1"),
+        (Self::AsmReadEsrEl1, "asm#read_esr_el1"),
+        (Self::AsmReadFarEl1, "asm#read_far_el1"),
+        (Self::AsmWriteSctlrEl1, "asm#write_sctlr_el1"),
+        (Self::AsmWriteTcrEl1, "asm#write_tcr_el1"),
+        (Self::AsmWriteTtbr0El1, "asm#write_ttbr0_el1"),
+        (Self::AsmWriteTtbr1El1, "asm#write_ttbr1_el1"),
+        (Self::AsmWriteMairEl1, "asm#write_mair_el1"),
+        (Self::AsmWriteVbarEl1, "asm#write_vbar_el1"),
+        (Self::AsmWriteTpidrEl1, "asm#write_tpidr_el1"),
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
-        Self::ALL.get(ordinal).copied()
+        Self::ALL.get(ordinal).map(|(function, _)| *function)
     }
 
     /// The builtin function spelled `name`, or `None` when no compiler-installed
     /// function carries that name. Stages that only hold a call's target
     /// spelling ask here instead of keeping their own copy of the names.
     pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|builtin| builtin.name() == name)
+        Self::ALL
+            .into_iter()
+            .find(|(_, spelling)| *spelling == name)
+            .map(|(function, _)| function)
     }
 
     /// Whether this builtin is one of the value-position asm intrinsics
@@ -489,222 +599,19 @@ impl BuiltinFunction {
         )
     }
 
+    /// The installation spelling paired with this function in the closed
+    /// inventory.
     pub fn name(self) -> &'static str {
-        match self {
-            Self::FloatMaximum => "float#maximum",
-            Self::FloatMinimum => "float#minimum",
-            Self::FloatSquareRoot => "float#square_root",
-            Self::AsmHlt => "asm#hlt",
-            Self::AsmPortOut => "asm#port_out",
-            Self::AsmPortIn => "asm#port_in",
-            Self::AsmLoadFence => "asm#lfence",
-            Self::AsmStoreFence => "asm#sfence",
-            Self::AsmFullFence => "asm#mfence",
-            Self::AsmDisableInterrupts => "asm#cli",
-            Self::AsmEnableInterrupts => "asm#sti",
-            Self::AsmSnapshotFlags => "asm#pushfq",
-            Self::AsmRestoreFlags => "asm#popfq",
-            Self::AsmReadMsr => "asm#rdmsr",
-            Self::AsmWriteMsr => "asm#wrmsr",
-            Self::AsmReadCr0 => "asm#read_cr0",
-            Self::AsmReadCr2 => "asm#read_cr2",
-            Self::AsmReadCr3 => "asm#read_cr3",
-            Self::AsmReadCr4 => "asm#read_cr4",
-            Self::AsmWriteCr0 => "asm#write_cr0",
-            Self::AsmWriteCr3 => "asm#write_cr3",
-            Self::AsmWriteCr4 => "asm#write_cr4",
-            Self::AsmSerialize => "asm#serialize",
-            Self::AsmInstructionSyncBarrier => "asm#isb",
-            Self::AsmSpinPause => "asm#pause",
-            Self::AsmYieldHint => "asm#yield",
-            Self::AsmNop => "asm#nop",
-            Self::AsmWaitForEvent => "asm#wfe",
-            Self::AsmWaitForInterrupt => "asm#wfi",
-            Self::AsmSendEvent => "asm#sev",
-            Self::AsmSendEventLocal => "asm#sevl",
-            Self::AsmWriteBackInvalidate => "asm#wbinvd",
-            Self::AsmInvalidate => "asm#invd",
-            Self::AsmWriteBackNoInvalidate => "asm#wbnoinvd",
-            Self::AsmReadSctlrEl1 => "asm#read_sctlr_el1",
-            Self::AsmReadTcrEl1 => "asm#read_tcr_el1",
-            Self::AsmReadTtbr0El1 => "asm#read_ttbr0_el1",
-            Self::AsmReadTtbr1El1 => "asm#read_ttbr1_el1",
-            Self::AsmReadMairEl1 => "asm#read_mair_el1",
-            Self::AsmReadVbarEl1 => "asm#read_vbar_el1",
-            Self::AsmReadTpidrEl1 => "asm#read_tpidr_el1",
-            Self::AsmReadEsrEl1 => "asm#read_esr_el1",
-            Self::AsmReadFarEl1 => "asm#read_far_el1",
-            Self::AsmWriteSctlrEl1 => "asm#write_sctlr_el1",
-            Self::AsmWriteTcrEl1 => "asm#write_tcr_el1",
-            Self::AsmWriteTtbr0El1 => "asm#write_ttbr0_el1",
-            Self::AsmWriteTtbr1El1 => "asm#write_ttbr1_el1",
-            Self::AsmWriteMairEl1 => "asm#write_mair_el1",
-            Self::AsmWriteVbarEl1 => "asm#write_vbar_el1",
-            Self::AsmWriteTpidrEl1 => "asm#write_tpidr_el1",
-            Self::FloatIsNan => "float#is_nan",
-            Self::FloatMultiplyThenAddF32 => "float#multiply_then_add_f32",
-            Self::FloatMultiplyThenAddF64 => "float#multiply_then_add_f64",
-            Self::FloatFusedMultiplyAddF32 => "float#fused_multiply_add_f32",
-            Self::FloatFusedMultiplyAddF64 => "float#fused_multiply_add_f64",
-            Self::FloatIsFinite => "float#is_finite",
-            Self::FloatIsInfinite => "float#is_infinite",
-            Self::FloatIsNormal => "float#is_normal",
-            Self::FloatIsSubnormal => "float#is_subnormal",
-            Self::FloatClassifyF32 => "float#classify_f32",
-            Self::FloatClassifyF64 => "float#classify_f64",
-            Self::FloatAddTowardZeroF32 => "float#add_toward_zero_f32",
-            Self::FloatAddTowardZeroF64 => "float#add_toward_zero_f64",
-            Self::FloatAddTowardPositiveF32 => "float#add_toward_positive_f32",
-            Self::FloatAddTowardPositiveF64 => "float#add_toward_positive_f64",
-            Self::FloatAddTowardNegativeF32 => "float#add_toward_negative_f32",
-            Self::FloatAddTowardNegativeF64 => "float#add_toward_negative_f64",
-            Self::FloatSubtractTowardZeroF32 => "float#subtract_toward_zero_f32",
-            Self::FloatSubtractTowardZeroF64 => "float#subtract_toward_zero_f64",
-            Self::FloatSubtractTowardPositiveF32 => "float#subtract_toward_positive_f32",
-            Self::FloatSubtractTowardPositiveF64 => "float#subtract_toward_positive_f64",
-            Self::FloatSubtractTowardNegativeF32 => "float#subtract_toward_negative_f32",
-            Self::FloatSubtractTowardNegativeF64 => "float#subtract_toward_negative_f64",
-            Self::FloatMultiplyTowardZeroF32 => "float#multiply_toward_zero_f32",
-            Self::FloatMultiplyTowardZeroF64 => "float#multiply_toward_zero_f64",
-            Self::FloatMultiplyTowardPositiveF32 => "float#multiply_toward_positive_f32",
-            Self::FloatMultiplyTowardPositiveF64 => "float#multiply_toward_positive_f64",
-            Self::FloatMultiplyTowardNegativeF32 => "float#multiply_toward_negative_f32",
-            Self::FloatMultiplyTowardNegativeF64 => "float#multiply_toward_negative_f64",
-            Self::FloatDivideTowardZeroF32 => "float#divide_toward_zero_f32",
-            Self::FloatDivideTowardZeroF64 => "float#divide_toward_zero_f64",
-            Self::FloatDivideTowardPositiveF32 => "float#divide_toward_positive_f32",
-            Self::FloatDivideTowardPositiveF64 => "float#divide_toward_positive_f64",
-            Self::FloatDivideTowardNegativeF32 => "float#divide_toward_negative_f32",
-            Self::FloatDivideTowardNegativeF64 => "float#divide_toward_negative_f64",
-            Self::FloatSqrtTowardZeroF32 => "float#sqrt_toward_zero_f32",
-            Self::FloatSqrtTowardZeroF64 => "float#sqrt_toward_zero_f64",
-            Self::FloatSqrtTowardPositiveF32 => "float#sqrt_toward_positive_f32",
-            Self::FloatSqrtTowardPositiveF64 => "float#sqrt_toward_positive_f64",
-            Self::FloatSqrtTowardNegativeF32 => "float#sqrt_toward_negative_f32",
-            Self::FloatSqrtTowardNegativeF64 => "float#sqrt_toward_negative_f64",
-            Self::FloatFusedMultiplyAddTowardZeroF32 => "float#fused_multiply_add_toward_zero_f32",
-            Self::FloatFusedMultiplyAddTowardZeroF64 => "float#fused_multiply_add_toward_zero_f64",
-            Self::FloatFusedMultiplyAddTowardPositiveF32 => {
-                "float#fused_multiply_add_toward_positive_f32"
-            }
-            Self::FloatFusedMultiplyAddTowardPositiveF64 => {
-                "float#fused_multiply_add_toward_positive_f64"
-            }
-            Self::FloatFusedMultiplyAddTowardNegativeF32 => {
-                "float#fused_multiply_add_toward_negative_f32"
-            }
-            Self::FloatFusedMultiplyAddTowardNegativeF64 => {
-                "float#fused_multiply_add_toward_negative_f64"
-            }
-            Self::ContentOld => "old",
-            Self::ContentSeparate => "separate",
-            Self::IntegerEmbed => "embed",
-        }
+        Self::ALL[self.ordinal()].1
     }
 
+    /// The function's slot ordinal: its position in [`Self::ALL`], which is
+    /// also the root-child slot `builtin_function_symbol` resolves.
     pub fn ordinal(self) -> usize {
-        match self {
-            Self::FloatMaximum => 0,
-            Self::FloatMinimum => 1,
-            Self::FloatSquareRoot => 2,
-            Self::AsmHlt => 3,
-            Self::AsmPortOut => 4,
-            Self::AsmPortIn => 5,
-            Self::AsmLoadFence => 6,
-            Self::AsmStoreFence => 7,
-            Self::AsmFullFence => 8,
-            Self::AsmDisableInterrupts => 9,
-            Self::AsmEnableInterrupts => 10,
-            Self::AsmSnapshotFlags => 11,
-            Self::AsmRestoreFlags => 12,
-            Self::AsmReadMsr => 13,
-            Self::AsmWriteMsr => 14,
-            Self::AsmReadCr0 => 15,
-            Self::AsmReadCr2 => 16,
-            Self::AsmReadCr3 => 17,
-            Self::AsmReadCr4 => 18,
-            Self::AsmWriteCr0 => 19,
-            Self::AsmWriteCr3 => 20,
-            Self::AsmWriteCr4 => 21,
-            Self::FloatIsNan => 22,
-            Self::FloatMultiplyThenAddF32 => 23,
-            Self::FloatMultiplyThenAddF64 => 24,
-            Self::FloatFusedMultiplyAddF32 => 25,
-            Self::FloatFusedMultiplyAddF64 => 26,
-            Self::FloatIsFinite => 27,
-            Self::FloatIsInfinite => 28,
-            Self::FloatIsNormal => 29,
-            Self::FloatIsSubnormal => 30,
-            Self::FloatClassifyF32 => 31,
-            Self::FloatClassifyF64 => 32,
-            Self::ContentOld => 33,
-            Self::ContentSeparate => 34,
-            Self::FloatAddTowardZeroF32 => 35,
-            Self::FloatAddTowardZeroF64 => 36,
-            Self::FloatAddTowardPositiveF32 => 37,
-            Self::FloatAddTowardPositiveF64 => 38,
-            Self::FloatAddTowardNegativeF32 => 39,
-            Self::FloatAddTowardNegativeF64 => 40,
-            Self::FloatSubtractTowardZeroF32 => 41,
-            Self::FloatSubtractTowardZeroF64 => 42,
-            Self::FloatSubtractTowardPositiveF32 => 43,
-            Self::FloatSubtractTowardPositiveF64 => 44,
-            Self::FloatSubtractTowardNegativeF32 => 45,
-            Self::FloatSubtractTowardNegativeF64 => 46,
-            Self::FloatMultiplyTowardZeroF32 => 47,
-            Self::FloatMultiplyTowardZeroF64 => 48,
-            Self::FloatMultiplyTowardPositiveF32 => 49,
-            Self::FloatMultiplyTowardPositiveF64 => 50,
-            Self::FloatMultiplyTowardNegativeF32 => 51,
-            Self::FloatMultiplyTowardNegativeF64 => 52,
-            Self::FloatDivideTowardZeroF32 => 53,
-            Self::FloatDivideTowardZeroF64 => 54,
-            Self::FloatDivideTowardPositiveF32 => 55,
-            Self::FloatDivideTowardPositiveF64 => 56,
-            Self::FloatDivideTowardNegativeF32 => 57,
-            Self::FloatDivideTowardNegativeF64 => 58,
-            Self::FloatSqrtTowardZeroF32 => 59,
-            Self::FloatSqrtTowardZeroF64 => 60,
-            Self::FloatSqrtTowardPositiveF32 => 61,
-            Self::FloatSqrtTowardPositiveF64 => 62,
-            Self::FloatSqrtTowardNegativeF32 => 63,
-            Self::FloatSqrtTowardNegativeF64 => 64,
-            Self::FloatFusedMultiplyAddTowardZeroF32 => 65,
-            Self::FloatFusedMultiplyAddTowardZeroF64 => 66,
-            Self::FloatFusedMultiplyAddTowardPositiveF32 => 67,
-            Self::FloatFusedMultiplyAddTowardPositiveF64 => 68,
-            Self::FloatFusedMultiplyAddTowardNegativeF32 => 69,
-            Self::FloatFusedMultiplyAddTowardNegativeF64 => 70,
-            Self::IntegerEmbed => 71,
-            Self::AsmSerialize => 72,
-            Self::AsmInstructionSyncBarrier => 73,
-            Self::AsmSpinPause => 74,
-            Self::AsmYieldHint => 75,
-            Self::AsmWriteBackInvalidate => 76,
-            Self::AsmInvalidate => 77,
-            Self::AsmWriteBackNoInvalidate => 78,
-            Self::AsmNop => 79,
-            Self::AsmWaitForEvent => 80,
-            Self::AsmWaitForInterrupt => 81,
-            Self::AsmSendEvent => 82,
-            Self::AsmSendEventLocal => 83,
-            Self::AsmReadSctlrEl1 => 84,
-            Self::AsmReadTcrEl1 => 85,
-            Self::AsmReadTtbr0El1 => 86,
-            Self::AsmReadTtbr1El1 => 87,
-            Self::AsmReadMairEl1 => 88,
-            Self::AsmReadVbarEl1 => 89,
-            Self::AsmReadTpidrEl1 => 90,
-            Self::AsmReadEsrEl1 => 91,
-            Self::AsmReadFarEl1 => 92,
-            Self::AsmWriteSctlrEl1 => 93,
-            Self::AsmWriteTcrEl1 => 94,
-            Self::AsmWriteTtbr0El1 => 95,
-            Self::AsmWriteTtbr1El1 => 96,
-            Self::AsmWriteMairEl1 => 97,
-            Self::AsmWriteVbarEl1 => 98,
-            Self::AsmWriteTpidrEl1 => 99,
-        }
+        Self::ALL
+            .iter()
+            .position(|(function, _)| *function == self)
+            .expect("builtin function belongs to its closed inventory")
     }
 
     /// The canonical boundary-service identity reached by an asm intrinsic,
@@ -838,57 +745,11 @@ impl BuiltinFunction {
         self.is_float_family()
     }
 
+    /// Whether this builtin is one of the instruction-bearing asm
+    /// intrinsics. Membership reads [`Self::asm_intrinsics`], the one asm
+    /// roster, instead of restating its variants.
     pub fn is_asm_intrinsic(self) -> bool {
-        matches!(
-            self,
-            Self::AsmHlt
-                | Self::AsmPortOut
-                | Self::AsmPortIn
-                | Self::AsmLoadFence
-                | Self::AsmStoreFence
-                | Self::AsmFullFence
-                | Self::AsmDisableInterrupts
-                | Self::AsmEnableInterrupts
-                | Self::AsmSnapshotFlags
-                | Self::AsmRestoreFlags
-                | Self::AsmReadMsr
-                | Self::AsmWriteMsr
-                | Self::AsmReadCr0
-                | Self::AsmReadCr2
-                | Self::AsmReadCr3
-                | Self::AsmReadCr4
-                | Self::AsmWriteCr0
-                | Self::AsmWriteCr3
-                | Self::AsmWriteCr4
-                | Self::AsmReadSctlrEl1
-                | Self::AsmReadTcrEl1
-                | Self::AsmReadTtbr0El1
-                | Self::AsmReadTtbr1El1
-                | Self::AsmReadMairEl1
-                | Self::AsmReadVbarEl1
-                | Self::AsmReadTpidrEl1
-                | Self::AsmReadEsrEl1
-                | Self::AsmReadFarEl1
-                | Self::AsmWriteSctlrEl1
-                | Self::AsmWriteTcrEl1
-                | Self::AsmWriteTtbr0El1
-                | Self::AsmWriteTtbr1El1
-                | Self::AsmWriteMairEl1
-                | Self::AsmWriteVbarEl1
-                | Self::AsmWriteTpidrEl1
-                | Self::AsmSerialize
-                | Self::AsmInstructionSyncBarrier
-                | Self::AsmSpinPause
-                | Self::AsmYieldHint
-                | Self::AsmNop
-                | Self::AsmWaitForEvent
-                | Self::AsmWaitForInterrupt
-                | Self::AsmSendEvent
-                | Self::AsmSendEventLocal
-                | Self::AsmWriteBackInvalidate
-                | Self::AsmInvalidate
-                | Self::AsmWriteBackNoInvalidate
-        )
+        Self::asm_intrinsics().contains(&self)
     }
 
     pub fn asm_intrinsics() -> [Self; 47] {
@@ -955,12 +816,8 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
 
 pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BuiltinFunction::COUNT]
 {
-    BuiltinFunction::ALL.map(|function| {
-        (
-            SymbolKind::BuiltinFunction,
-            SymbolNameRef::Static(function.name()),
-        )
-    })
+    BuiltinFunction::ALL
+        .map(|(_, spelling)| (SymbolKind::BuiltinFunction, SymbolNameRef::Static(spelling)))
 }
 
 /// Closed semantic identity for the fixed `core::*` mathematical
@@ -1004,13 +861,11 @@ impl FixedCoreDeclaration {
     /// The member's slot within the fixed vocabulary — its index in
     /// [`Self::ALL`]. The root-child position is
     /// `BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT + ordinal`.
-    pub const fn ordinal(self) -> usize {
-        match self {
-            Self::Level => 0,
-            Self::Type => 1,
-            Self::Strict => 2,
-            Self::Squash => 3,
-        }
+    pub fn ordinal(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .expect("fixed core declaration belongs to its closed inventory")
     }
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -1116,10 +971,13 @@ mod builtin_ordinal_tests {
     #[test]
     fn builtin_function_ordinals_track_the_symbol_table() {
         // builtin_function_symbol() resolves by BUILTIN_TYPE_COUNT + ordinal
-        // over root children inserted in builtin_function_symbols() order --
-        // the same silent-shift hazard the type test pins.
+        // over root children inserted in builtin_function_symbols() order.
+        // The ordinal is the inventory position now, so the sentinels below
+        // pin the published slot numbers that review-evidence and
+        // provider-evidence bytes encode: reordering `ALL` is a schema move,
+        // not a refactor.
         let table = builtin_function_symbols();
-        for (ordinal, function) in BuiltinFunction::ALL.into_iter().enumerate() {
+        for (ordinal, (function, spelling)) in BuiltinFunction::ALL.into_iter().enumerate() {
             assert_eq!(
                 function.ordinal(),
                 ordinal,
@@ -1128,7 +986,7 @@ mod builtin_ordinal_tests {
             );
             assert_eq!(
                 table[function.ordinal()].1.as_str(),
-                function.name(),
+                spelling,
                 "ordinal for {:?} does not match the symbol table position",
                 function
             );
@@ -1139,16 +997,35 @@ mod builtin_ordinal_tests {
                 function,
             );
         }
+        for (function, ordinal) in [
+            (BuiltinFunction::FloatMaximum, 0),
+            (BuiltinFunction::AsmHlt, 3),
+            (BuiltinFunction::ContentOld, 33),
+            (BuiltinFunction::IntegerEmbed, 71),
+            (BuiltinFunction::AsmWriteTpidrEl1, 99),
+        ] {
+            assert_eq!(
+                function.ordinal(),
+                ordinal,
+                "{function:?} must keep its published slot number"
+            );
+        }
         assert_eq!(BuiltinFunction::from_ordinal(BuiltinFunction::COUNT), None);
     }
 
     #[test]
     fn builtin_function_names_round_trip_through_from_name() {
-        for function in BuiltinFunction::ALL {
+        for (function, spelling) in BuiltinFunction::ALL {
             assert_eq!(
-                BuiltinFunction::from_name(function.name()),
+                BuiltinFunction::from_name(spelling),
                 Some(function),
                 "{:?} must be recoverable from its own spelling",
+                function,
+            );
+            assert_eq!(
+                function.name(),
+                spelling,
+                "{:?} must read the spelling paired with it",
                 function,
             );
         }
@@ -1163,6 +1040,7 @@ mod builtin_ordinal_tests {
     fn value_position_asm_intrinsics_are_exactly_port_in_pushfq_rdmsr() {
         let value_position: Vec<BuiltinFunction> = BuiltinFunction::ALL
             .into_iter()
+            .map(|(function, _)| function)
             .filter(|function| function.is_value_position_asm_intrinsic())
             .collect();
         assert_eq!(
@@ -1239,6 +1117,16 @@ mod builtin_ordinal_tests {
             BuiltinFunction::AsmDisableInterrupts.asm_intrinsic_service_name(),
             Some("MachineControl")
         );
+        // The two remaining explicit asm lists must stay in step: every
+        // intrinsic whose classification reaches a boundary service is a
+        // member of the instruction-bearing roster.
+        for (function, _) in BuiltinFunction::ALL {
+            assert!(
+                function.asm_intrinsic_service_name().is_none() || function.is_asm_intrinsic(),
+                "{:?} reaches a boundary service but is missing from the asm roster",
+                function,
+            );
+        }
     }
 
     #[test]
