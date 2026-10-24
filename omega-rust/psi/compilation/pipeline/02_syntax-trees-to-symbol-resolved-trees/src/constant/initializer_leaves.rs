@@ -130,25 +130,11 @@ pub(crate) fn pending_const_initializer_leaves(
                 // The leaf probe's checked interpreter supplies the result and
                 // admission checks it against this exact array carrier once
                 // its declaration-owned geometry dependencies have completed.
-                ExpressionNode::Call(_) | ExpressionNode::Match(_)
-                    if closed_leaf_carrier(syntax, type_reference, substitution) =>
-                {
-                    leaves.push(PendingConstInitializerLeaf {
-                        expression,
-                        destination: type_reference,
-                        structured: true,
-                    });
-                    Ok(())
-                }
-                ExpressionNode::Name(path)
+                _
                     if closed_leaf_carrier(syntax, type_reference, substitution)
-                        && name_selects_const(syntax, selection, *path) =>
+                        && structured_leaf(syntax, selection, expression) =>
                 {
-                    leaves.push(PendingConstInitializerLeaf {
-                        expression,
-                        destination: type_reference,
-                        structured: true,
-                    });
+                    push_structured_leaf(leaves, expression, type_reference);
                     Ok(())
                 }
                 _ => Err("computed array constant requires an array literal".to_owned()),
@@ -183,36 +169,15 @@ pub(crate) fn pending_const_initializer_leaves(
             }
             TypeReferenceNode::Named(name) => {
                 let ExpressionNode::StructLiteral(literal) = syntax.expressions.expression(expression) else {
-                    if selection.builtin_type(syntax, name).is_none() {
-                        match syntax.expressions.expression(expression) {
-                            // A call or match whose result is the selected
-                            // nominal carrier evaluates through the checked
-                            // interpreter as one structured leaf.
-                            ExpressionNode::Call(_) | ExpressionNode::Match(_) => {
-                                require_closed_data(selection, syntax, name)?;
-                                leaves.push(PendingConstInitializerLeaf {
-                                    expression,
-                                    destination: type_reference,
-                                    structured: true,
-                                });
-                                return Ok(());
-                            }
-                            // An evaluated constant reference at a nominal
-                            // destination is the same structured leaf; a bare
-                            // case or other name stays with literal validation.
-                            ExpressionNode::Name(path)
-                                if name_selects_const(syntax, selection, *path) =>
-                            {
-                                require_closed_data(selection, syntax, name)?;
-                                leaves.push(PendingConstInitializerLeaf {
-                                    expression,
-                                    destination: type_reference,
-                                    structured: true,
-                                });
-                                return Ok(());
-                            }
-                            _ => {}
-                        }
+                    if selection.builtin_type(syntax, name).is_none()
+                        && structured_leaf(syntax, selection, expression)
+                    {
+                        // A call, match, or evaluated constant reference at a
+                        // nominal destination is one structured leaf; a bare
+                        // case or other name stays with literal validation.
+                        require_closed_data(selection, syntax, name)?;
+                        push_structured_leaf(leaves, expression, type_reference);
+                        return Ok(());
                     }
                     // Existing literal validation owns payloadless cases and
                     // noncomputed scalar formats; they introduce no probe leaf.
@@ -273,25 +238,11 @@ pub(crate) fn pending_const_initializer_leaves(
                     // A call, match, or evaluated constant at a closed
                     // application destination evaluates as one structured leaf
                     // whose probe return type spells the application itself.
-                    ExpressionNode::Call(_) | ExpressionNode::Match(_)
-                        if closed_leaf_carrier(syntax, type_reference, substitution) =>
-                    {
-                        leaves.push(PendingConstInitializerLeaf {
-                            expression,
-                            destination: type_reference,
-                            structured: true,
-                        });
-                        Ok(())
-                    }
-                    ExpressionNode::Name(path)
+                    _
                         if closed_leaf_carrier(syntax, type_reference, substitution)
-                            && name_selects_const(syntax, selection, *path) =>
+                            && structured_leaf(syntax, selection, expression) =>
                     {
-                        leaves.push(PendingConstInitializerLeaf {
-                            expression,
-                            destination: type_reference,
-                            structured: true,
-                        });
+                        push_structured_leaf(leaves, expression, type_reference);
                         Ok(())
                     }
                     ExpressionNode::Call(_) | ExpressionNode::Match(_) => Err(
@@ -322,6 +273,34 @@ pub(crate) fn pending_const_initializer_leaves(
                     .to_owned(),
             ),
         }
+    }
+
+    /// A call, match, or evaluated constant reference is one structured leaf at
+    /// a closed destination: the checked interpreter supplies its result and
+    /// admission checks it against the exact destination carrier. A bare case
+    /// or an unresolved spelling is not this leaf and keeps its literal route.
+    fn structured_leaf(
+        syntax: &SyntaxTrees,
+        selection: &crate::preparation::declaration_selection::ConstantSelection,
+        expression: syntax_trees::expression::ExpressionHandle,
+    ) -> bool {
+        match syntax.expressions.expression(expression) {
+            ExpressionNode::Call(_) | ExpressionNode::Match(_) => true,
+            ExpressionNode::Name(path) => name_selects_const(syntax, selection, *path),
+            _ => false,
+        }
+    }
+
+    fn push_structured_leaf(
+        leaves: &mut Vec<PendingConstInitializerLeaf>,
+        expression: syntax_trees::expression::ExpressionHandle,
+        destination: TypeReferenceHandle,
+    ) {
+        leaves.push(PendingConstInitializerLeaf {
+            expression,
+            destination,
+            structured: true,
+        });
     }
 
     fn collect_literal_fields(

@@ -11,6 +11,7 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 
 use source::SourceMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
+use symbols::{SymbolHandle, SymbolKind};
 
 mod symbol_table;
 
@@ -41,6 +42,47 @@ use domain_facts::assign_domain_fact_symbols;
 use statements::{assign_machine_signature_reference_symbols, assign_statement_reference_symbols};
 use top_level::assign_top_level_symbols;
 
+/// The exact call target a `module::member` spelling denotes, or `None` when
+/// the receiver names no top-level module and the call stays on the ordinary
+/// route. The member selects one of the source call kinds; a machine stands
+/// for its callable `entry` state, while an unresolved member still claims the
+/// call with an invalid target so later passes see a selection, not a spelling.
+/// Both statement and expression occurrences apply this one law: keeping the
+/// lookup in one place is what stops the two carriers from drifting apart.
+fn module_call_target(
+    symbols: &symbols::SymbolTable,
+    receiver_name: &str,
+    name: &str,
+    reference: source::SourceSpan,
+) -> Option<SymbolHandle> {
+    let namespace = symbols.find_top_level_by_name_and_kinds_from_source(
+        receiver_name,
+        &[SymbolKind::Module],
+        reference,
+    );
+    if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module) {
+        return None;
+    }
+    Some(
+        symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                name,
+                targets::SOURCE_CALL_KINDS,
+                reference,
+            )
+            .map(|symbol| {
+                if symbols.get(symbol).kind == SymbolKind::Machine {
+                    symbols
+                        .find_child_by_name_and_kind(symbol, "entry", SymbolKind::State)
+                        .unwrap_or_else(SymbolHandle::invalid)
+                } else {
+                    symbol
+                }
+            })
+            .unwrap_or_else(SymbolHandle::invalid),
+    )
+}
+
 pub(crate) fn normalize_static_module_calls(
     program: &mut SymbolResolvedTrees,
     calls: &[(
@@ -53,7 +95,7 @@ pub(crate) fn normalize_static_module_calls(
     )],
 ) {
     use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
-    use symbols::{JoinedPath, SymbolHandle, SymbolKind};
+    use symbols::JoinedPath;
     for (expression, path) in calls {
         let Some((target, receiver)) = path.split_last() else {
             continue;
@@ -86,35 +128,10 @@ pub(crate) fn normalize_static_module_calls(
             }
             continue;
         }
-        let namespace = program
-            .symbols
-            .find_top_level_by_name_and_kinds_from_source(
-                &receiver_name,
-                &[SymbolKind::Module],
-                reference,
-            );
-        if !namespace.is_some_and(|symbol| program.symbols.get(symbol).kind == SymbolKind::Module) {
+        let Some(selected) = module_call_target(&program.symbols, &receiver_name, &name, reference)
+        else {
             continue;
-        }
-        let selected = program
-            .symbols
-            .find_top_level_by_name_and_kinds_from_source(
-                &name,
-                targets::SOURCE_CALL_KINDS,
-                reference,
-            );
-        let selected = selected
-            .map(|symbol| {
-                if program.symbols.get(symbol).kind == SymbolKind::Machine {
-                    program
-                        .symbols
-                        .find_child_by_name_and_kind(symbol, "entry", SymbolKind::State)
-                        .unwrap_or_else(SymbolHandle::invalid)
-                } else {
-                    symbol
-                }
-            })
-            .unwrap_or_else(SymbolHandle::invalid);
+        };
         let original_receiver = match program.tables.bodies.expressions.expression(*expression) {
             ExpressionNode::Call(call) => call.receiver,
             _ => continue,
@@ -185,31 +202,11 @@ pub(crate) fn normalize_static_module_calls(
             };
             let receiver_name = receiver.joined_path();
             let reference = lookup::diagnostic_path_source_span(path);
-            let namespace = symbols.find_top_level_by_name_and_kinds_from_source(
-                &receiver_name,
-                &[SymbolKind::Module],
-                reference,
-            );
-            if !namespace.is_some_and(|symbol| symbols.get(symbol).kind == SymbolKind::Module) {
-                return;
-            }
             let name = format!("{receiver_name}::{}", target.as_str());
-            let selected = symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    &name,
-                    targets::SOURCE_CALL_KINDS,
-                    reference,
-                )
-                .map(|symbol| {
-                    if symbols.get(symbol).kind == SymbolKind::Machine {
-                        symbols
-                            .find_child_by_name_and_kind(symbol, "entry", SymbolKind::State)
-                            .unwrap_or_else(SymbolHandle::invalid)
-                    } else {
-                        symbol
-                    }
-                })
-                .unwrap_or_else(SymbolHandle::invalid);
+            let Some(selected) = module_call_target(symbols, &receiver_name, &name, reference)
+            else {
+                return;
+            };
             call.receiver = arena::HandleSpan::empty();
             call.receiver_symbol = SymbolHandle::invalid();
             call.receiver_root_symbol = SymbolHandle::invalid();
