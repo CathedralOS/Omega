@@ -5,7 +5,10 @@ use super::{
     declarations::encode_representation_target,
     encoder::Encoder,
     public_api::conformance_shape as encode_conformance_shape,
-    values::{conformance_policy, identity::encode_nominal},
+    values::{
+        conformance_policy,
+        identity::{encode_nominal, encode_selection_owner},
+    },
 };
 use crate::encoding::{PACKAGE_REPRESENTATION_POLICY_VERSION, REPRESENTATION_POLICY_MAGIC};
 use crate::record::{
@@ -14,6 +17,55 @@ use crate::record::{
     PackageReviewOpaqueRepresentationCopyDisposition,
     PackageReviewOpaqueRepresentationLifecycleDisposition,
 };
+
+// The opaque-selection join every representation selection and calling opaque
+// use carries: carrier, selected owner, closed application, origin, lifecycle,
+// and copy disposition in one canonical order. The carrier record differs, the
+// encoding does not; `$unresolved_context` names the containing component in
+// the refusal for unresolved selection ownership. The expansion is a value, so
+// a caller may continue with its own trailing fields.
+macro_rules! encode_opaque_representation_fields {
+    ($encoder:expr, $record:ident, $unresolved_context:expr) => {{
+        ($encoder).field("opaque", |encoder| encode_nominal(encoder, &$record.opaque))?;
+        ($encoder).field("carrier", |encoder| {
+            encode_nominal(encoder, &$record.carrier)
+        })?;
+        ($encoder).field("selection_owner", |encoder| {
+            encode_selection_owner(encoder, &$record.selection_owner, $unresolved_context)
+        })?;
+        ($encoder).field("application", |encoder| {
+            conformance_policy::encode_application(encoder, &$record.application)
+        })?;
+        ($encoder).field("origin", |encoder| {
+            match $record.origin {
+                PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance => {
+                    encoder.tag("named_conformance", 0)
+                }
+            };
+            Ok(())
+        })?;
+        ($encoder).field("lifecycle", |encoder| {
+            match $record.lifecycle {
+                PackageReviewOpaqueRepresentationLifecycleDisposition::Inert => {
+                    encoder.tag("inert", 0)
+                }
+            };
+            Ok(())
+        })?;
+        ($encoder).field("copy_disposition", |encoder| {
+            match $record.copy_disposition {
+                PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly => {
+                    encoder.tag("placement_only", 0)
+                }
+                PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy => {
+                    encoder.tag("checked_semantic_copy", 1)
+                }
+            };
+            Ok(())
+        })
+    }};
+}
+pub(super) use encode_opaque_representation_fields;
 
 impl PackagePolicyRepresentation {
     /// Complete representation-policy meaning, without compiler/native
@@ -73,46 +125,9 @@ pub(super) fn selection(
     encoder: &mut Encoder,
     selection: &PackagePolicyRepresentationSelection,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("opaque", |encoder| {
-        encode_nominal(encoder, &selection.opaque)
-    })?;
-    encoder.field("carrier", |encoder| {
-        encode_nominal(encoder, &selection.carrier)
-    })?;
-    encoder.field("selection_owner", |encoder| {
-        crate::encoding::encode::values::identity::encode_selection_owner(
-            encoder,
-            &selection.selection_owner,
-            "representation policy has unresolved selection ownership",
-        )
-    })?;
-    encoder.field("application", |encoder| {
-        conformance_policy::encode_application(encoder, &selection.application)
-    })?;
-    encoder.field("origin", |encoder| {
-        match selection.origin {
-            PackageReviewOpaqueRepresentationApplicationOrigin::NamedConformance => {
-                encoder.tag("named_conformance", 0)
-            }
-        };
-        Ok(())
-    })?;
-    encoder.field("lifecycle", |encoder| {
-        match selection.lifecycle {
-            PackageReviewOpaqueRepresentationLifecycleDisposition::Inert => encoder.tag("inert", 0),
-        };
-        Ok(())
-    })?;
-    encoder.field("copy_disposition", |encoder| {
-        match selection.copy_disposition {
-            PackageReviewOpaqueRepresentationCopyDisposition::PlacementOnly => {
-                encoder.tag("placement_only", 0)
-            }
-            PackageReviewOpaqueRepresentationCopyDisposition::CheckedSemanticCopy => {
-                encoder.tag("checked_semantic_copy", 1)
-            }
-        };
-        Ok(())
-    })?;
-    Ok(())
+    encode_opaque_representation_fields!(
+        encoder,
+        selection,
+        "representation policy has unresolved selection ownership"
+    )
 }

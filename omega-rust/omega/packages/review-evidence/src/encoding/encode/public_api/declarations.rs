@@ -15,8 +15,8 @@ use super::super::{
         identity::encode_nominal,
     },
 };
-use super::signatures::encode_callable_shape;
 use super::signatures::formal;
+use super::signatures::{encode_callable_behavior_tail, encode_callable_shape};
 use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::public_api::Encoder;
 use crate::encoding::encode::public_api::type_parameter;
@@ -75,36 +75,7 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.parameters,
                 requirement.return_type.as_ref()
             );
-            encoder.field("contracts", |encoder| {
-                encoder.sequence(&requirement.contracts, encode_callable_contract)
-            })?;
-            encoder.field("published_crash", |encoder| {
-                encoder.sequence(&requirement.published_crash, crash_route)
-            })?;
-            encoder.field("service_reach", |encoder| {
-                encoder.sequence(&requirement.service_reach, encode_nominal)
-            })?;
-            encoder.field("service_reach_is_installation_bound", |encoder| {
-                encoder.boolean(requirement.service_reach_is_installation_bound);
-                Ok(())
-            })?;
-            encoder.field("synchronous_invocations", |encoder| {
-                encoder.sequence(
-                    &requirement.synchronous_invocations,
-                    encode_synchronous_invocation,
-                )
-            })?;
-            encoder.field("suspends", |encoder| {
-                encoder.boolean(requirement.suspends);
-                Ok(())
-            })?;
-            encoder.field("blocks", |encoder| {
-                encoder.boolean(requirement.blocks);
-                Ok(())
-            })?;
-            encoder.field("termination", |encoder| {
-                termination(encoder, &requirement.termination)
-            })
+            encode_callable_behavior_tail!(encoder, requirement)
         })
     })
 }

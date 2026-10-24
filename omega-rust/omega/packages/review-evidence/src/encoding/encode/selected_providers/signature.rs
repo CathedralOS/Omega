@@ -1,5 +1,6 @@
 use super::{Encoder, PackageReviewEncodingError};
 use crate::encoding::encode::declarations::encode_type_identity;
+use crate::encoding::encode::public_api::formal;
 use crate::encoding::encode::public_api::type_parameter as encode_type_parameter;
 use crate::record::PackagePolicyServiceSignature;
 
@@ -48,19 +49,13 @@ pub(super) fn signature(
     })?;
     encoder.field("parameters", |encoder| {
         encoder.sequence(&signature.parameters, |encoder, parameter| {
-            encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field("type_identity", |encoder| {
-                encode_type_identity(encoder, &parameter.type_identity)
-            })?;
-            encoder.field("is_const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("is_mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
-            Ok(())
+            formal(
+                encoder,
+                &parameter.name,
+                &parameter.type_identity,
+                parameter.is_const,
+                parameter.is_mutable,
+            )
         })
     })?;
     encoder.field("result", |encoder| {

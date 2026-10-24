@@ -35,6 +35,49 @@ macro_rules! encode_callable_shape {
 }
 pub(crate) use encode_callable_shape;
 
+// The published behavior tail every callable-shape encoding restates —
+// contracts, crash routes, service reach with its installation binding,
+// synchronous invocations, suspension, blocking, and termination. A service
+// requirement and a machine parameter signature carry the same tail under the
+// same field names; the carrier record differs, the encoding does not. The
+// expansion is the tail expression of the shape's encoder, so it yields the
+// last field's result.
+macro_rules! encode_callable_behavior_tail {
+    ($encoder:expr, $record:ident) => {{
+        ($encoder).field("contracts", |encoder| {
+            encoder.sequence(&$record.contracts, encode_callable_contract)
+        })?;
+        ($encoder).field("published_crash", |encoder| {
+            encoder.sequence(&$record.published_crash, crash_route)
+        })?;
+        ($encoder).field("service_reach", |encoder| {
+            encoder.sequence(&$record.service_reach, encode_nominal)
+        })?;
+        ($encoder).field("service_reach_is_installation_bound", |encoder| {
+            encoder.boolean($record.service_reach_is_installation_bound);
+            Ok(())
+        })?;
+        ($encoder).field("synchronous_invocations", |encoder| {
+            encoder.sequence(
+                &$record.synchronous_invocations,
+                encode_synchronous_invocation,
+            )
+        })?;
+        ($encoder).field("suspends", |encoder| {
+            encoder.boolean($record.suspends);
+            Ok(())
+        })?;
+        ($encoder).field("blocks", |encoder| {
+            encoder.boolean($record.blocks);
+            Ok(())
+        })?;
+        ($encoder).field("termination", |encoder| {
+            termination(encoder, &$record.termination)
+        })
+    }};
+}
+pub(in crate::encoding) use encode_callable_behavior_tail;
+
 pub(in crate::encoding::encode) fn type_parameter(
     encoder: &mut Encoder,
     parameter: &PackagePolicyTypeParameter,
@@ -106,36 +149,7 @@ pub(in crate::encoding) fn machine_contract(
                 &signature.parameters,
                 signature.return_type.as_ref()
             );
-            encoder.field("contracts", |encoder| {
-                encoder.sequence(&signature.contracts, encode_callable_contract)
-            })?;
-            encoder.field("published_crash", |encoder| {
-                encoder.sequence(&signature.published_crash, crash_route)
-            })?;
-            encoder.field("service_reach", |encoder| {
-                encoder.sequence(&signature.service_reach, encode_nominal)
-            })?;
-            encoder.field("service_reach_is_installation_bound", |encoder| {
-                encoder.boolean(signature.service_reach_is_installation_bound);
-                Ok(())
-            })?;
-            encoder.field("synchronous_invocations", |encoder| {
-                encoder.sequence(
-                    &signature.synchronous_invocations,
-                    encode_synchronous_invocation,
-                )
-            })?;
-            encoder.field("suspends", |encoder| {
-                encoder.boolean(signature.suspends);
-                Ok(())
-            })?;
-            encoder.field("blocks", |encoder| {
-                encoder.boolean(signature.blocks);
-                Ok(())
-            })?;
-            encoder.field("termination", |encoder| {
-                termination(encoder, &signature.termination)
-            })
+            encode_callable_behavior_tail!(encoder, signature)
         }
         PackagePolicyMachineParameterContract::Nominal {
             trait_identity,
@@ -160,7 +174,7 @@ pub(in crate::encoding) fn machine_contract(
     })
 }
 
-pub(super) fn formal(
+pub(in crate::encoding) fn formal(
     encoder: &mut Encoder,
     name: &str,
     value: &PackageReviewTypeIdentity,

@@ -5,7 +5,7 @@ pub(super) mod declarations;
 mod signatures;
 use super::{PackageReviewEncodingError, encoder::Encoder};
 pub(in crate::encoding) use declarations::conformance_shape;
-pub(super) use signatures::type_parameter;
+pub(super) use signatures::{formal, type_parameter};
 
 pub(in crate::encoding) fn public_api(
     encoder: &mut Encoder,
