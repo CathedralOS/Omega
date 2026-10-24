@@ -1434,93 +1434,58 @@ fn validate_receiver_fields(
             };
             field_path.pop();
             outcome?;
-        } else {
-            match field.field_type {
-                // Zero-filled IEEE storage is the exact positive `0.0` of
-                // either format, so float leaves start zero-valid like
-                // booleans and integers. Terminal retains a relevant float
-                // leaf as its own `IeeeFloat` field variant.
-                StructuralFieldType::Scalar(
-                    semantic_vocabulary::ScalarType::Boolean
-                    | semantic_vocabulary::ScalarType::Integer(_)
-                    | semantic_vocabulary::ScalarType::IeeeFloat(_),
-                )
-                | StructuralFieldType::Atomic(_)
-                | StructuralFieldType::IeeeFloat(_) => {}
-                StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_)
-                    if terminal_semantics::scalar_field_accepts_zero(&field.field_type) => {}
-                // Zero-filled owned storage has live length zero for every
-                // capacity. Source receipts separately establish its domains;
-                // fragment replay already checked the complete native footprint.
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                ) => {}
-                StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    predicates,
-                } if predicates.holds_for(&[]) => {}
-                // A zero shared-view descriptor is the empty view: its zero
-                // extent never dereferences the zero pointer, and it borrows
-                // nothing. A declared predicate must hold for empty bytes.
-                StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    },
-                ) => {}
-                StructuralFieldType::PredicateByteSequence {
-                    carrier:
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                        },
-                    predicates,
-                } if predicates.holds_for(&[]) => {}
-                StructuralFieldType::Structural(structural_type) => {
-                    if visiting.contains(&structural_type) {
+        } else if let StructuralFieldType::Structural(structural_type) = field.field_type {
+            // A nested record field extends the walked route so the rows beneath
+            // it rejoin their own service or determined-evidence establishment;
+            // any other nested shape keeps the source-free zero-valid rejection
+            // inside `zero_valid_record_storage`.
+            if visiting.contains(&structural_type) {
+                return Err(invalid());
+            }
+            let nested = declarations
+                .iter()
+                .filter(|declaration| declaration.id == structural_type)
+                .collect::<Vec<_>>();
+            let [nested_declaration] = nested.as_slice() else {
+                return Err(invalid());
+            };
+            match &nested_declaration.shape {
+                terminal_psi::record_or_mixed_shape_pattern!(nested_fields) => {
+                    visiting.push(structural_type);
+                    field_path.push(field.identity);
+                    let outcome = validate_receiver_fields(
+                        declarations,
+                        nested_fields,
+                        source,
+                        receiver_identity,
+                        attachment_type_identity,
+                        identities,
+                        rows,
+                        field_path,
+                        visiting,
+                        erased,
+                        invalid,
+                    );
+                    field_path.pop();
+                    visiting.pop();
+                    outcome?;
+                }
+                _ => {
+                    let valid = zero_valid_record_storage(
+                        declarations,
+                        structural_type,
+                        visiting,
+                        zero_valid_field,
+                    );
+                    if !valid {
                         return Err(invalid());
-                    }
-                    let nested = declarations
-                        .iter()
-                        .filter(|declaration| declaration.id == structural_type)
-                        .collect::<Vec<_>>();
-                    let [nested_declaration] = nested.as_slice() else {
-                        return Err(invalid());
-                    };
-                    match &nested_declaration.shape {
-                        terminal_psi::record_or_mixed_shape_pattern!(nested_fields) => {
-                            visiting.push(structural_type);
-                            field_path.push(field.identity);
-                            let outcome = validate_receiver_fields(
-                                declarations,
-                                nested_fields,
-                                source,
-                                receiver_identity,
-                                attachment_type_identity,
-                                identities,
-                                rows,
-                                field_path,
-                                visiting,
-                                erased,
-                                invalid,
-                            );
-                            field_path.pop();
-                            visiting.pop();
-                            outcome?;
-                        }
-                        _ => {
-                            let valid = zero_valid_record_storage(
-                                declarations,
-                                structural_type,
-                                visiting,
-                                zero_valid_field,
-                            );
-                            if !valid {
-                                return Err(invalid());
-                            }
-                        }
                     }
                 }
-                _ => return Err(invalid()),
             }
+        } else if !zero_valid_field(declarations, field, visiting) {
+            // Every non-erased leaf keeps the one zero-valid judgment; this walk
+            // does not carry a second copy of its accept table.
+            return Err(invalid());
         }
     }
     Ok(())
@@ -1535,6 +1500,10 @@ fn zero_valid_field(
     use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
     !field.relevance.is_erased()
         && match field.field_type {
+            // Zero-filled IEEE storage is the exact positive `0.0` of either
+            // format, so float leaves start zero-valid like booleans and
+            // integers. Terminal retains a relevant float leaf as its own
+            // `IeeeFloat` field variant.
             StructuralFieldType::Scalar(
                 ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
             )
