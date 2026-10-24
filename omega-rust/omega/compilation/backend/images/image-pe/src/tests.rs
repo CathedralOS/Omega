@@ -1,10 +1,11 @@
+use crate::constants::{IMAGE_BASE, TEXT_RVA};
 use crate::emit_pe_x86_64_executable;
 use arena::Handle;
 use image::{
-    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageSection,
-    FinalImageSymbol,
+    FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
+    FinalImageSection, FinalImageSymbol,
 };
-use object_file::SymbolKind;
+use object_file::{RelocationKind, SymbolKind};
 use target::NativeTarget;
 
 fn returning_image() -> FinalImage {
@@ -141,4 +142,83 @@ fn import_free_image_runs_on_windows() {
     std::fs::remove_file(&path).expect("remove executable");
     let result = result.expect("Windows must load an import-free PE");
     assert_eq!(result.status.code(), Some(42), "{result:?}");
+}
+
+/// A `.data` Absolute64 site gives the image a `.reloc` section whose bytes
+/// must be the ones the single layout pass built while sizing that section:
+/// the block's page RVA is the `.data` RVA the pass used, and the section
+/// header and directory describe exactly those bytes. The padded variation
+/// moves `.text` across a section boundary, so `.data` and the page entry
+/// move together; bytes rebuilt against any other base show up as a page RVA
+/// that disagrees with the section table.
+#[test]
+fn emitted_reloc_section_matches_the_planned_data_rva() {
+    for (text_padding, expected_data_rva) in [(0usize, 0x2000usize), (0x1200, 0x3000)] {
+        let mut image = returning_image();
+        image.memory.text.resize(6 + text_padding, 0x90);
+        image.memory.data = vec![0; 8];
+        let entry = image.symbol_table.entry_symbol;
+        image
+            .relocation_table
+            .relocations
+            .insert(FinalImageRelocation {
+                section: FinalImageSection::Data,
+                offset: 0,
+                byte_width: 8,
+                symbol_handle: entry,
+                addend: 0,
+                kind: RelocationKind::Absolute64,
+            });
+
+        let output = emit_pe_x86_64_executable(image, 3).expect("emit image");
+        let bytes = &output.bytes;
+        let u32_at = |offset: usize| {
+            u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize
+        };
+        let pe_offset = u32_at(0x3c);
+        let section_count =
+            u16::from_le_bytes(bytes[pe_offset + 6..pe_offset + 8].try_into().unwrap());
+        assert_eq!(section_count, 3, "text, data and the carried reloc table");
+        let optional_size =
+            u16::from_le_bytes(bytes[pe_offset + 20..pe_offset + 22].try_into().unwrap()) as usize;
+        // Each 40-byte section header is name, virtual size, RVA, raw size,
+        // raw offset; emitted in file order.
+        let section = |index: usize| {
+            let header = pe_offset + 24 + optional_size + 40 * index;
+            (
+                &bytes[header..header + 8],
+                u32_at(header + 8),
+                u32_at(header + 12),
+                u32_at(header + 20),
+            )
+        };
+        assert_eq!(section(0).0, b".text\0\0\0");
+        assert_eq!(section(1).0, b".data\0\0\0");
+        assert_eq!(section(2).0, b".reloc\0\0");
+        let data_rva = section(1).2;
+        assert_eq!(data_rva, expected_data_rva, "the padded .text moves .data");
+
+        // One site pads to a 12-byte block: page RVA, block size, one DIR64
+        // word (0xa000 | page offset), and a zero ABSOLUTE pad word.
+        let (_, reloc_virtual_size, reloc_rva, reloc_raw) = section(2);
+        assert_eq!(reloc_virtual_size, 12);
+        let directory = pe_offset + 24 + 112 + 5 * 8;
+        assert_eq!(
+            (u32_at(directory), u32_at(directory + 4)),
+            (reloc_rva, reloc_virtual_size)
+        );
+        assert_eq!(reloc_rva, data_rva + 0x1000);
+        assert_eq!(u32_at(reloc_raw), data_rva, "page RVA is the planned RVA");
+        assert_eq!(u32_at(reloc_raw + 4), 12);
+        assert_eq!(
+            u16::from_le_bytes(bytes[reloc_raw + 8..reloc_raw + 10].try_into().unwrap()),
+            0xa000 | (data_rva as u16 & 0xFFF)
+        );
+
+        // The site itself was relocated to the entry address after patching.
+        assert_eq!(
+            output.final_data_bytes,
+            (IMAGE_BASE + u64::from(TEXT_RVA)).to_le_bytes()
+        );
+    }
 }

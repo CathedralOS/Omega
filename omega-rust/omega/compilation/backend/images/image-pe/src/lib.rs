@@ -1,5 +1,5 @@
 //! PE32+ executables for x86-64 Windows, in one function whose whole difficulty
-//! is the order its nine steps have to run in.
+//! is the order its eight steps have to run in.
 //!
 //! PE keeps two alignments at once, and every section carries both a virtual
 //! size and a raw size because of it: `SECTION_ALIGNMENT` is 0x1000 in memory,
@@ -24,36 +24,28 @@
 //!
 //! ```text
 //!   1  install_import_thunks     appends to .text, so sizes are not known yet
-//!   2  plan_pe_sections(.., 0)   a first pass, only to learn rdata_rva
-//!   3  build_import_table        needs that rva to place the IAT
-//!   4  plan_pe_sections(.., len) the real pass, now the rdata size is known
-//!   5  build_base_relocations    BEFORE relocations are applied
-//!   6  patch_import_thunks       fills the disp32 now that the IAT has an address
-//!   7  apply_x86_64_relocations  mutates text and data
-//!   8  validate_import_thunk_footprints   re-checks the ff 25 opcodes after 7
-//!   9  place_executable_regions
+//!   2  rdata_rva_after_text      `.rdata` follows `.text`; the import table needs it
+//!   3  build_import_table        encodes its own RVAs from that placement
+//!   4  plan_pe_sections          the one layout pass, carrying the `.reloc` bytes
+//!   5  patch_import_thunks       fills the disp32 now that the IAT has an address
+//!   6  apply_x86_64_relocations  mutates text and data
+//!   7  validate_import_thunk_footprints   re-checks the ff 25 opcodes after 6
+//!   8  place_executable_regions
 //! ```
 //!
-//! Step 5 reads oddly and is right: `.reloc` lists the OFFSETS of relocation
-//! sites, never their values, so it is identical before and after step 7 and
-//! computing it first keeps the section base-independent. Step 8 exists because
-//! step 7 writes into the same `.text` the thunks were appended to; a
-//! relocation whose site overlapped a thunk would corrupt it silently, so the
-//! opcodes are re-read after patching rather than assumed.
-
-//! `plan_pe_sections` runs twice per emission and is not memoised, and the
-//! honest reason is that the second call needs a number only the first call's
-//! output can produce. Threading a partially built `PeSections` through
-//! `build_import_table` would let it observe fields that are still wrong at that
-//! point - every raw offset after `.rdata` shifts once the import table has a
-//! size - so the layout is recomputed from scratch instead of patched.
+//! `.reloc` lists the OFFSETS of relocation sites, never their values, so it is
+//! identical before and after step 6 and is built inside step 4, before the
+//! relocations are applied: computing it first keeps the section
+//! base-independent. Step 7 exists because step 6 writes into the same `.text`
+//! the thunks were appended to; a relocation whose site overlapped a thunk
+//! would corrupt it silently, so the opcodes are re-read after patching rather
+//! than assumed.
 //!
-//! It costs more than it looks. `plan_pe_sections` itself calls
-//! `build_base_relocations` purely to measure the section's length, so the
-//! relocation bytes are built three times per executable: once inside each
-//! planning pass, and once for real at step 5. For the image sizes this
-//! compiler produces that is not worth a cache; if `.reloc` ever gets large it
-//! is the first thing to look at.
+//! The layout needs one pass, not two: `.rdata` placement depends only on the
+//! final text length (step 2), so the import table is built against it and the
+//! single planning pass that follows sees the table's own size. That pass
+//! builds the `.reloc` table once, to measure the section, and carries those
+//! bytes to the file assembly.
 
 //! `image` supplies `FinalImage`, `apply_x86_64_relocations` and
 //! `place_executable_regions`. The Windows subsystem value is a parameter rather
@@ -92,27 +84,19 @@ use imports::{
     build_import_table, install_import_thunks, patch_import_thunks,
     validate_import_thunk_footprints,
 };
-use sections::plan_pe_sections;
+use sections::{plan_pe_sections, rdata_rva_after_text};
 
 pub fn emit_pe_x86_64_executable(
     mut image: FinalImage,
     subsystem: u16,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let import_thunks = install_import_thunks(&mut image, subsystem)?;
-    let initial_sections = plan_pe_sections(&image, 0);
-    let import_table = build_import_table(&import_thunks, initial_sections.rdata_rva);
+    // One layout pass: `.rdata`'s RVA depends only on the final text length, so
+    // the import table is built against it and planning then carries the
+    // `.reloc` bytes it built while measuring that section.
+    let import_table = build_import_table(&import_thunks, rdata_rva_after_text(&image));
     let sections = plan_pe_sections(&image, import_table.bytes.len());
-    if sections.rdata_rva != initial_sections.rdata_rva {
-        return Err(Diagnostic::error(
-            "PE section planning moved .rdata between the measurement and final passes",
-        ));
-    }
     let layout = sections.final_image_layout();
-
-    // The `.reloc` bytes are built from the relocation table BEFORE
-    // relocations are applied (the sites' offsets, not their values, are what
-    // it lists), so the section is base-independent.
-    let base_relocations = relocations::build_base_relocations(&image, TEXT_RVA, sections.data_rva);
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
     apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;
@@ -149,7 +133,7 @@ pub fn emit_pe_x86_64_executable(
     let entry_rva = pe_entry_rva(&image)?;
 
     let (reloc_directory_rva, reloc_directory_size) = if sections.has_reloc {
-        (sections.reloc_rva, sections.reloc_virtual_size)
+        (sections.reloc_rva, sections.reloc.bytes.len())
     } else {
         (0, 0)
     };
@@ -212,7 +196,7 @@ pub fn emit_pe_x86_64_executable(
         write_section_header(
             &mut bytes,
             ".reloc",
-            sections.reloc_virtual_size,
+            sections.reloc.bytes.len(),
             sections.reloc_rva,
             sections.reloc_raw_size,
             sections.reloc_raw,
@@ -246,7 +230,7 @@ pub fn emit_pe_x86_64_executable(
     }
     if sections.has_reloc {
         bytes.resize(sections.reloc_raw, 0);
-        bytes.extend(&base_relocations.bytes);
+        bytes.extend(&sections.reloc.bytes);
         bytes.resize(sections.reloc_raw + sections.reloc_raw_size, 0);
     }
 

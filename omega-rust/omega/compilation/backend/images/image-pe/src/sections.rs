@@ -6,6 +6,7 @@ use crate::constants::{
     SECTION_ALIGNMENT, SECTION_HEADER_SIZE, TEXT_RVA,
 };
 use crate::layout::{align_to, align_to_u32};
+use crate::relocations::{BaseRelocations, build_base_relocations};
 use image::{FinalImage, FinalImageLayout};
 
 pub(crate) struct PeSections {
@@ -21,7 +22,6 @@ pub(crate) struct PeSections {
     pub(crate) rdata_raw_size: usize,
     pub(crate) data_raw_size: usize,
     pub(crate) reloc_raw_size: usize,
-    pub(crate) reloc_virtual_size: usize,
     pub(crate) text_raw: usize,
     pub(crate) rdata_raw: usize,
     pub(crate) data_raw: usize,
@@ -31,6 +31,9 @@ pub(crate) struct PeSections {
     pub(crate) reloc_rva: u32,
     pub(crate) bss_rva: u32,
     pub(crate) size_of_image: u32,
+    /// The exact `.reloc` bytes this plan measured. The emission site extends
+    /// the file with these instead of building the table a second time.
+    pub(crate) reloc: BaseRelocations,
 }
 
 impl PeSections {
@@ -43,18 +46,25 @@ impl PeSections {
     }
 }
 
+/// `.rdata` sits at the next section boundary after the final `.text`, and that
+/// placement depends on nothing else, so the import table can encode its own
+/// RVAs before the rest of the layout exists.
+pub(crate) fn rdata_rva_after_text(image: &FinalImage) -> u32 {
+    align_to_u32(TEXT_RVA + image.memory.text.len() as u32, SECTION_ALIGNMENT)
+}
+
 pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) -> PeSections {
     let text_virtual_size = image.memory.text.len();
-    let rdata_rva = align_to_u32(TEXT_RVA + text_virtual_size as u32, SECTION_ALIGNMENT);
+    let rdata_rva = rdata_rva_after_text(image);
     let data_rva = align_to_u32(rdata_rva + rdata_virtual_size as u32, SECTION_ALIGNMENT);
     // Relocation sites may live in text or data. Both RVAs are known before
-    // the relocation section itself is placed.
-    let reloc_virtual_size = crate::relocations::build_base_relocations(image, TEXT_RVA, data_rva)
-        .bytes
-        .len();
-    let has_reloc = reloc_virtual_size > 0;
+    // the relocation section itself is placed, and the sites' offsets (never
+    // their values) are what `.reloc` lists, so the bytes built here are the
+    // final base-independent section and are carried rather than rebuilt.
+    let reloc = build_base_relocations(image, TEXT_RVA, data_rva);
+    let has_reloc = !reloc.bytes.is_empty();
     let reloc_rva = align_to_u32(data_rva + image.memory.data.len() as u32, SECTION_ALIGNMENT);
-    let bss_rva = align_to_u32(reloc_rva + reloc_virtual_size as u32, SECTION_ALIGNMENT);
+    let bss_rva = align_to_u32(reloc_rva + reloc.bytes.len() as u32, SECTION_ALIGNMENT);
     let has_data = !image.memory.data.is_empty();
     let has_bss = image.memory.bss_size > 0;
     let has_rdata = rdata_virtual_size > 0;
@@ -74,7 +84,7 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
     let text_raw_size = align_to(image.memory.text.len(), FILE_ALIGNMENT);
     let rdata_raw_size = align_to(rdata_virtual_size, FILE_ALIGNMENT);
     let data_raw_size = align_to(image.memory.data.len(), FILE_ALIGNMENT);
-    let reloc_raw_size = align_to(reloc_virtual_size, FILE_ALIGNMENT);
+    let reloc_raw_size = align_to(reloc.bytes.len(), FILE_ALIGNMENT);
     let text_raw = headers_size;
     let rdata_raw = text_raw + text_raw_size;
     let data_raw = rdata_raw + rdata_raw_size;
@@ -94,7 +104,6 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
         rdata_raw_size,
         data_raw_size,
         reloc_raw_size,
-        reloc_virtual_size,
         text_raw,
         rdata_raw,
         data_raw,
@@ -104,12 +113,13 @@ pub(crate) fn plan_pe_sections(image: &FinalImage, rdata_virtual_size: usize) ->
         reloc_rva,
         bss_rva,
         size_of_image,
+        reloc,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::plan_pe_sections;
+    use super::{plan_pe_sections, rdata_rva_after_text};
     use crate::constants::{FILE_ALIGNMENT, SECTION_ALIGNMENT, TEXT_RVA};
     use arena::Handle;
     use image::FinalImage;
@@ -137,11 +147,14 @@ mod tests {
         assert_eq!(sections.rdata_raw_size, FILE_ALIGNMENT);
         assert_eq!(sections.data_raw_size, FILE_ALIGNMENT);
         assert_eq!(sections.rdata_rva, TEXT_RVA + SECTION_ALIGNMENT as u32);
+        assert_eq!(sections.rdata_rva, rdata_rva_after_text(&image));
         assert_eq!(sections.data_rva, TEXT_RVA + SECTION_ALIGNMENT as u32 * 2);
         assert_eq!(sections.bss_rva, TEXT_RVA + SECTION_ALIGNMENT as u32 * 3);
         assert_eq!(
             sections.size_of_image,
             TEXT_RVA + SECTION_ALIGNMENT as u32 * 4
         );
+        assert!(!sections.has_reloc);
+        assert!(sections.reloc.bytes.is_empty());
     }
 }
