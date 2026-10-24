@@ -175,6 +175,7 @@ pub fn validate(
 
 #[cfg(test)]
 mod tests {
+    use super::super::replay_battery;
     use super::*;
     use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
     use semantic_vocabulary::{OperationId, PlaceId};
@@ -228,13 +229,9 @@ mod tests {
                 &encoded.bytes[15..23],
                 &[0x4d, 0x8d, 0xa4, 0x24, 24, 0, 0, 0]
             );
-            for bit in 0..encoded.bytes.len() * 8 {
-                let mut changed = encoded.bytes.clone();
-                changed[bit / 8] ^= 1 << (bit % 8);
-                assert!(
-                    validate(&physical, kind, alternative, &operands, 48, 64, &changed).is_err()
-                );
-            }
+            replay_battery::replay_rejects_byte_mutations(&encoded.bytes, |bytes| {
+                validate(&physical, kind, alternative, &operands, 48, 64, bytes)
+            });
             assert!(
                 validate(
                     &physical,

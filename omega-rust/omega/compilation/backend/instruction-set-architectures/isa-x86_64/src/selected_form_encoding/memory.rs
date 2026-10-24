@@ -19,6 +19,8 @@ mod packed;
 mod placed_scalar_tests;
 #[cfg(test)]
 mod pointer_tests;
+#[cfg(test)]
+mod replay_battery;
 
 pub fn encode_x86_64_selected_memory_form(
     physical: &ValidatedPhysicalRegisterModel,
@@ -390,7 +392,7 @@ fn request(
 mod tests {
     use super::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
-        X86_64SelectedFormEncodingError, encode_x86_64_selected_memory_form,
+        X86_64SelectedFormEncodingError, encode_x86_64_selected_memory_form, replay_battery,
         validate_x86_64_selected_memory_form,
     };
     use register_model::validate_physical_register_model;
@@ -663,69 +665,32 @@ mod tests {
                     };
                     assert_eq!(encoded.bytes, expected);
                 }
-                assert_eq!(
+                replay_battery::replay_rejects_byte_mutations(&encoded.bytes, |bytes| {
                     validate_x86_64_selected_memory_form(
                         &physical,
                         kind,
                         alternative,
                         &operands,
                         56,
-                        &encoded.bytes
-                    ),
-                    Ok(encoded.clone())
-                );
-                for byte_index in 0..encoded.bytes.len() {
-                    let mut changed = encoded.bytes.clone();
-                    changed[byte_index] ^= 1;
-                    assert!(
+                        bytes,
+                    )
+                });
+                replay_battery::replay_rejects_substituted_requests(
+                    &encoded.bytes,
+                    kind,
+                    alternative,
+                    &operands,
+                    56,
+                    |kind, alternative, operands, displacement, bytes| {
                         validate_x86_64_selected_memory_form(
                             &physical,
                             kind,
                             alternative,
-                            &operands,
-                            56,
-                            &changed
+                            operands,
+                            displacement,
+                            bytes,
                         )
-                        .is_err(),
-                        "{name} {kind:?} byte {byte_index}"
-                    );
-                }
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        48,
-                        &encoded.bytes
-                    )
-                    .is_err()
-                );
-                for end in 0..encoded.bytes.len() {
-                    assert!(
-                        validate_x86_64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            56,
-                            &encoded.bytes[..end]
-                        )
-                        .is_err()
-                    );
-                }
-                let mut trailing = encoded.bytes.clone();
-                trailing.push(0);
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        56,
-                        &trailing
-                    )
-                    .is_err()
+                    },
                 );
             }
         }

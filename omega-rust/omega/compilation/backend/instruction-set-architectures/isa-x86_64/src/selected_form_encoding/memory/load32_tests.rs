@@ -1,6 +1,6 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
-    SelectedInstructionKind, encode_x86_64_selected_memory_form,
+    SelectedInstructionKind, encode_x86_64_selected_memory_form, replay_battery,
     validate_x86_64_selected_memory_form,
 };
 #[test]
@@ -27,22 +27,25 @@ fn load32_preserves_exact_four_byte_extent_and_rejects_a_widened_load() {
             byte_count: 4
         }
     );
-    let mut widened = encoded.bytes().to_vec();
-    widened[0] |= 0x08;
-    assert!(
-        validate_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 4, &widened)
-            .is_err()
-    );
-    assert!(
-        validate_x86_64_selected_memory_form(
-            &physical,
-            kind,
-            alternative,
-            &operands,
-            8,
-            encoded.bytes()
-        )
-        .is_err()
+    replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
+        validate_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 4, bytes)
+    });
+    replay_battery::replay_rejects_substituted_requests(
+        encoded.bytes(),
+        kind,
+        alternative,
+        &operands,
+        4,
+        |kind, alternative, operands, displacement, bytes| {
+            validate_x86_64_selected_memory_form(
+                &physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+                bytes,
+            )
+        },
     );
     assert!(
         validate_x86_64_selected_memory_form(

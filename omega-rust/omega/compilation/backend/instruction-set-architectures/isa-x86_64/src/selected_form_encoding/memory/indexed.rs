@@ -115,7 +115,7 @@ fn request(
 #[cfg(test)]
 mod tests {
     use super::super::{
-        SelectedInstructionKind, encode_x86_64_selected_memory_form,
+        SelectedInstructionKind, encode_x86_64_selected_memory_form, replay_battery,
         validate_x86_64_selected_memory_form,
     };
     use super::{MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect};
@@ -146,22 +146,26 @@ mod tests {
                 byte_count: 1,
             }
         );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut corrupt = encoded.bytes().to_vec();
-            corrupt[bit / 8] ^= 1 << (bit % 8);
-            assert!(
+        replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
+            validate_x86_64_selected_memory_form(&physical, kind, alternative, &operands, 0, bytes)
+        });
+        replay_battery::replay_rejects_substituted_requests(
+            encoded.bytes(),
+            kind,
+            alternative,
+            &operands,
+            0,
+            |kind, alternative, operands, displacement, bytes| {
                 validate_x86_64_selected_memory_form(
                     &physical,
                     kind,
                     alternative,
-                    &operands,
-                    0,
-                    &corrupt,
+                    operands,
+                    displacement,
+                    bytes,
                 )
-                .is_err(),
-                "accepted changed encoding bit {bit}"
-            );
-        }
+            },
+        );
         for role in 0..3 {
             let mut corrupt = operands;
             corrupt[role] = operands[(role + 1) % 3];
@@ -181,28 +185,6 @@ mod tests {
             validate_x86_64_selected_memory_form(
                 &physical,
                 kind,
-                alternative,
-                &operands,
-                1,
-                encoded.bytes(),
-            )
-            .is_err()
-        );
-        assert!(
-            validate_x86_64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands[..2],
-                0,
-                encoded.bytes(),
-            )
-            .is_err()
-        );
-        assert!(
-            validate_x86_64_selected_memory_form(
-                &physical,
-                kind,
                 MachineAlternativeKey {
                     family: MachineAlternativeFamily::Load64,
                     variant: 0,
@@ -210,32 +192,6 @@ mod tests {
                 &operands,
                 0,
                 encoded.bytes(),
-            )
-            .is_err()
-        );
-        for length in 0..encoded.bytes().len() {
-            assert!(
-                validate_x86_64_selected_memory_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    0,
-                    &encoded.bytes()[..length],
-                )
-                .is_err()
-            );
-        }
-        let mut trailing = encoded.bytes().to_vec();
-        trailing.push(0);
-        assert!(
-            validate_x86_64_selected_memory_form(
-                &physical,
-                kind,
-                alternative,
-                &operands,
-                0,
-                &trailing,
             )
             .is_err()
         );

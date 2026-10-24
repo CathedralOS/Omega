@@ -1,4 +1,5 @@
 //! Exact memory coverage and independent register/effect custody for packed forms.
+use super::super::replay_battery;
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
     SelectedInstructionKind, encode, validate,
@@ -68,27 +69,18 @@ fn packed_memory_replays_exact_bytes_widths_offsets_and_aliases() {
                         }
                     );
                 }
-                for position in 0..encoded.bytes().len() {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[position] ^= 1;
-                    assert!(
-                        validate(&model, kind, alternative, &operands, 17, &changed).is_err(),
-                        "byte {position}"
-                    );
-                }
-                assert!(
-                    validate(&model, kind, alternative, &operands, 18, encoded.bytes()).is_err()
-                );
-                assert!(
-                    validate(
-                        &model,
-                        kind,
-                        alternative,
-                        &operands,
-                        17,
-                        &encoded.bytes()[..encoded.bytes().len() - 1]
-                    )
-                    .is_err()
+                replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
+                    validate(&model, kind, alternative, &operands, 17, bytes)
+                });
+                replay_battery::replay_rejects_substituted_requests(
+                    encoded.bytes(),
+                    kind,
+                    alternative,
+                    &operands,
+                    17,
+                    |kind, alternative, operands, displacement, bytes| {
+                        validate(&model, kind, alternative, operands, displacement, bytes)
+                    },
                 );
                 for pair in [(0, 2), (1, 2), (0, 1)] {
                     let mut changed = operands;

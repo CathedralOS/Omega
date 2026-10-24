@@ -1,7 +1,7 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
     SelectedInstructionKind, ValidatedPhysicalRegisterModel, encode_x86_64_selected_memory_form,
-    validate_x86_64_selected_memory_form,
+    replay_battery, validate_x86_64_selected_memory_form,
 };
 #[test]
 fn pointer_store_known_bytes_preserve_the_requested_width() {
@@ -135,78 +135,32 @@ fn check_replay(
             MachineEncodedMemoryEffect::NoneV1
         }
     );
-    for bit in 0..encoded.bytes().len() * 8 {
-        let mut corrupt = encoded.bytes().to_vec();
-        corrupt[bit / 8] ^= 1 << (bit % 8);
-        assert!(
-            validate_x86_64_selected_memory_form(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                &corrupt
-            )
-            .is_err(),
-            "{kind:?} bit {bit}"
-        );
-    }
-    for end in 0..encoded.bytes().len() {
-        assert!(
-            validate_x86_64_selected_memory_form(
-                physical,
-                kind,
-                alternative,
-                operands,
-                displacement,
-                &encoded.bytes()[..end]
-            )
-            .is_err()
-        );
-    }
-    let mut trailing = encoded.bytes().to_vec();
-    trailing.push(0);
-    assert!(
+    replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
         validate_x86_64_selected_memory_form(
             physical,
             kind,
             alternative,
             operands,
             displacement,
-            &trailing
+            bytes,
         )
-        .is_err()
-    );
-    assert!(
-        validate_x86_64_selected_memory_form(
-            physical,
-            kind,
-            alternative,
-            operands,
-            displacement + 1,
-            encoded.bytes()
-        )
-        .is_err()
-    );
-    assert!(
-        encode_x86_64_selected_memory_form(
-            physical,
-            kind,
-            MachineAlternativeKey { family, variant: 1 },
-            operands,
-            displacement
-        )
-        .is_err()
-    );
-    assert!(
-        encode_x86_64_selected_memory_form(
-            physical,
-            kind,
-            alternative,
-            &operands[..1],
-            displacement
-        )
-        .is_err()
+    });
+    replay_battery::replay_rejects_substituted_requests(
+        encoded.bytes(),
+        kind,
+        alternative,
+        operands,
+        displacement,
+        |kind, alternative, operands, displacement, bytes| {
+            validate_x86_64_selected_memory_form(
+                physical,
+                kind,
+                alternative,
+                operands,
+                displacement,
+                bytes,
+            )
+        },
     );
 }
 

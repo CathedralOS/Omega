@@ -1,4 +1,5 @@
 //! Source-free ISA readers reject pointer, width, polarity and address substitutions.
+use super::replay_battery;
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineEncodedMemoryEffect,
     MachineSemanticKind, PlacedScalarForm, SelectedInstructionKind,
@@ -81,13 +82,19 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
                 bytes,
             )
         };
-        verify(kind, alternative, &[base, data], 8, encoded.bytes()).unwrap();
+        replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
+            verify(kind, alternative, &[base, data], 8, bytes)
+        });
+        replay_battery::replay_rejects_substituted_requests(
+            encoded.bytes(),
+            kind,
+            alternative,
+            &[base, data],
+            8,
+            verify,
+        );
         assert!(verify(kind, alternative, &[data, base], 8, encoded.bytes()).is_err());
         assert!(verify(kind, alternative, &[data, data], 8, encoded.bytes()).is_err());
-        assert!(verify(kind, alternative, &[base, data], 16, encoded.bytes()).is_err());
-        let mut appended = encoded.bytes().to_vec();
-        appended.extend_from_slice(encoded.bytes());
-        assert!(verify(kind, alternative, &[base, data], 8, &appended).is_err());
         let changed = PlacedScalarForm {
             write: !form.write,
             bytes: form.bytes,
@@ -130,26 +137,5 @@ fn placed_scalar_forms_decode_one_exact_width_transfer() {
             )
             .is_err()
         );
-        assert!(
-            verify(
-                kind,
-                MachineAlternativeKey {
-                    family: alternative.family,
-                    variant: 1
-                },
-                &[base, data],
-                8,
-                encoded.bytes()
-            )
-            .is_err()
-        );
-        for bit in 0..encoded.bytes().len() * 8 {
-            let mut changed = encoded.bytes().to_vec();
-            changed[bit / 8] ^= 1 << (bit % 8);
-            assert!(
-                verify(kind, alternative, &[base, data], 8, &changed).is_err(),
-                "{form:?} bit{bit}"
-            );
-        }
     }
 }

@@ -3,7 +3,7 @@
 use super::{
     MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, SelectedInstructionKind,
-    encode_x86_64_selected_memory_form, validate_x86_64_selected_memory_form,
+    encode_x86_64_selected_memory_form, replay_battery, validate_x86_64_selected_memory_form,
 };
 #[test]
 fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
@@ -66,22 +66,33 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                     .unwrap(),
                     encoded
                 );
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
-                    assert!(
+                replay_battery::replay_rejects_byte_mutations(encoded.bytes(), |bytes| {
+                    validate_x86_64_selected_memory_form(
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        displacement,
+                        bytes,
+                    )
+                });
+                replay_battery::replay_rejects_substituted_requests(
+                    encoded.bytes(),
+                    kind,
+                    alternative,
+                    &operands,
+                    displacement,
+                    |kind, alternative, operands, displacement, bytes| {
                         validate_x86_64_selected_memory_form(
                             &physical,
                             kind,
                             alternative,
-                            &operands,
+                            operands,
                             displacement,
-                            &changed
+                            bytes,
                         )
-                        .is_err(),
-                        "{kind:?}, {base_name}, bit {bit}"
-                    );
-                }
+                    },
+                );
                 for changed_operands in [
                     [destination, base],
                     [destination, destination],
@@ -99,17 +110,6 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                         .is_err()
                     );
                 }
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement + i64::from(width),
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
                 let changed_kind = if width == 1 {
                     SelectedInstructionKind::Load16 { byte_offset }
                 } else {
@@ -123,54 +123,6 @@ fn narrow_loads_decode_exact_width_full_result_and_every_encoded_bit() {
                         &operands,
                         displacement,
                         encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        MachineAlternativeKey { family, variant: 1 },
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands[..1],
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                for end in 0..encoded.bytes().len() {
-                    assert!(
-                        validate_x86_64_selected_memory_form(
-                            &physical,
-                            kind,
-                            alternative,
-                            &operands,
-                            displacement,
-                            &encoded.bytes()[..end]
-                        )
-                        .is_err()
-                    );
-                }
-                let mut trailing = encoded.bytes().to_vec();
-                trailing.push(0);
-                assert!(
-                    validate_x86_64_selected_memory_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        &trailing
                     )
                     .is_err()
                 );
