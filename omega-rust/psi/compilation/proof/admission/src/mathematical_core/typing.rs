@@ -355,28 +355,8 @@ pub fn infer_type(
             // boxing rules, not this eliminator. The level `w` is read
             // off the checked codomain — elimination is not confined to
             // the scrutinee's level.
-            let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
-            let codomain = match arena.get(motive_head) {
-                Term::Pi { domain, codomain } => {
-                    let two = arena.insert(Term::Two);
-                    let domain_sort = infer_sort(arena, context, domain, budget)?;
-                    let shared_domain = arena.insert(Term::Sort(domain_sort));
-                    if !convertible(arena, context, domain, two, shared_domain, budget)? {
-                        return Err(CoreError::TypeMismatch {
-                            expected: two,
-                            actual: domain,
-                        });
-                    }
-                    codomain
-                }
-                _ => {
-                    return Err(CoreError::NotAFunction {
-                        function: motive,
-                        actual_type: motive_head,
-                    });
-                }
-            };
+            let two = arena.insert(Term::Two);
+            let (_, codomain) = admit_eliminator_motive(arena, context, motive, two, budget)?;
             let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
             match arena.get(codomain_head) {
                 Term::Sort(Sort::Type(_)) => {}
@@ -466,25 +446,8 @@ pub fn infer_type(
                     actual: endpoint,
                 });
             }
-            let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
-            let (domain, first_codomain) = match arena.get(motive_head) {
-                Term::Pi { domain, codomain } => (domain, codomain),
-                _ => {
-                    return Err(CoreError::NotAFunction {
-                        function: motive,
-                        actual_type: motive_head,
-                    });
-                }
-            };
-            let domain_sort = infer_sort(arena, context, domain, budget)?;
-            let shared_domain = arena.insert(Term::Sort(domain_sort));
-            if !convertible(arena, context, domain, ty, shared_domain, budget)? {
-                return Err(CoreError::TypeMismatch {
-                    expected: ty,
-                    actual: domain,
-                });
-            }
+            let (domain, first_codomain) =
+                admit_eliminator_motive(arena, context, motive, ty, budget)?;
             // Under the endpoint binder the motive must still be a
             // function of the identity proof, at `Id A x y` with `A`
             // and `x` shifted under the binder and `y` naming it.
@@ -612,27 +575,7 @@ pub fn infer_type(
                     });
                 }
             };
-            let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
-            let codomain = match arena.get(motive_head) {
-                Term::Pi { domain, codomain } => {
-                    let domain_sort = infer_sort(arena, context, domain, budget)?;
-                    let shared_domain = arena.insert(Term::Sort(domain_sort));
-                    if !convertible(arena, context, domain, tree_head, shared_domain, budget)? {
-                        return Err(CoreError::TypeMismatch {
-                            expected: tree_head,
-                            actual: domain,
-                        });
-                    }
-                    codomain
-                }
-                _ => {
-                    return Err(CoreError::NotAFunction {
-                        function: motive,
-                        actual_type: motive_head,
-                    });
-                }
-            };
+            let (_, codomain) = admit_eliminator_motive(arena, context, motive, tree_head, budget)?;
             let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
             match arena.get(codomain_head) {
                 Term::Sort(Sort::Type(_)) => {}
@@ -771,34 +714,8 @@ pub fn infer_type(
                     });
                 }
             };
-            let motive_type = infer_type(arena, context, motive, budget)?;
-            let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
-            let codomain = match arena.get(motive_head) {
-                Term::Pi { domain, codomain } => {
-                    let domain_sort = infer_sort(arena, context, domain, budget)?;
-                    let shared_domain = arena.insert(Term::Sort(domain_sort));
-                    if !convertible(
-                        arena,
-                        context,
-                        domain,
-                        scrutinee_head,
-                        shared_domain,
-                        budget,
-                    )? {
-                        return Err(CoreError::TypeMismatch {
-                            expected: scrutinee_head,
-                            actual: domain,
-                        });
-                    }
-                    codomain
-                }
-                _ => {
-                    return Err(CoreError::NotAFunction {
-                        function: motive,
-                        actual_type: motive_head,
-                    });
-                }
-            };
+            let (_, codomain) =
+                admit_eliminator_motive(arena, context, motive, scrutinee_head, budget)?;
             let codomain_head = weak_head_normalize(arena, context.signature(), codomain, budget)?;
             match arena.get(codomain_head) {
                 Term::Sort(_) => {}
@@ -926,6 +843,51 @@ fn check_w_formation(
         }
     };
     Ok(carrier_level.maximum(children_level))
+}
+
+/// An eliminator motive, admitted once. `motive`'s inferred type must
+/// weak-head normalize to a `Π` whose domain converts to the scrutinee's
+/// own type — an elimination never relocates to a different carrier — and
+/// the `Π`'s domain and codomain are returned: the codomain is the
+/// motive's result type, which each eliminator then sorts under its own
+/// universe rule, and the domain is what the identity eliminator binds
+/// its endpoint under. `caseTwo`, `J`, `indW` and `unbox` all read their
+/// motive through this one premise; the `NotAFunction` and `TypeMismatch`
+/// payloads name the offending motive subterm exactly as each arm's own
+/// rule did.
+fn admit_eliminator_motive(
+    arena: &mut TermArena,
+    context: &Context,
+    motive: TermHandle,
+    scrutinee_type: TermHandle,
+    budget: &mut Budget,
+) -> Result<(TermHandle, TermHandle), CoreError> {
+    let motive_type = infer_type(arena, context, motive, budget)?;
+    let motive_head = weak_head_normalize(arena, context.signature(), motive_type, budget)?;
+    match arena.get(motive_head) {
+        Term::Pi { domain, codomain } => {
+            let domain_sort = infer_sort(arena, context, domain, budget)?;
+            let shared_domain = arena.insert(Term::Sort(domain_sort));
+            if !convertible(
+                arena,
+                context,
+                domain,
+                scrutinee_type,
+                shared_domain,
+                budget,
+            )? {
+                return Err(CoreError::TypeMismatch {
+                    expected: scrutinee_type,
+                    actual: domain,
+                });
+            }
+            Ok((domain, codomain))
+        }
+        _ => Err(CoreError::NotAFunction {
+            function: motive,
+            actual_type: motive_head,
+        }),
+    }
 }
 
 /// The checked type of an `indW` induction step:
