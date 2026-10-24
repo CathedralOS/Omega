@@ -1,19 +1,14 @@
 //! Current-version admission precedes payload interpretation and authentication.
 use super::{
-    FixedViewCopyDecodeError, FixedViewCopyPlan, MAGIC, VERSION, content,
-    envelope::envelope_identity, primitives::Cursor,
+    ENVELOPE, FixedViewCopyDecodeError, FixedViewCopyPlan, content, envelope::envelope_identity,
 };
 use selected_instructions::selected_instruction_plan_identity;
 pub(super) fn decode(encoded: &[u8]) -> Result<FixedViewCopyPlan, FixedViewCopyDecodeError> {
-    let mut cursor = Cursor::new(encoded);
-    crate::codec_bytes::decode_header(
-        &mut cursor,
-        MAGIC,
-        VERSION,
+    let (mut cursor, identity) = ENVELOPE.open(
+        encoded,
         || FixedViewCopyDecodeError::WrongMagic,
         FixedViewCopyDecodeError::UnsupportedVersion,
     )?;
-    let identity: [u8; 32] = cursor.array()?;
     let content_offset = cursor.offset;
     let decoded = content::decode_v7(&mut cursor)?;
     if cursor.remaining() != 0 {

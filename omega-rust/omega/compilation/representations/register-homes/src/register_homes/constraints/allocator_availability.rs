@@ -9,9 +9,9 @@ use register_model::{
 };
 
 use self::identity::encode_terminal_allocator_availability_content;
+use crate::codec_bytes::Envelope;
 
-const ALLOCATOR_AVAILABILITY_MAGIC: &[u8; 8] = b"OMGAVA\0\0";
-const ALLOCATOR_AVAILABILITY_VERSION: u32 = 1;
+const ALLOCATOR_AVAILABILITY_ENVELOPE: Envelope = Envelope::new(b"OMGAVA\0\0", 1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]);
@@ -51,27 +51,16 @@ impl AllocatorAvailabilityPlan {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_terminal_allocator_availability_content(self);
         let identity = crate::allocator_availability_identity(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        crate::codec_bytes::encode_header(
-            &mut encoded,
-            ALLOCATOR_AVAILABILITY_MAGIC,
-            ALLOCATOR_AVAILABILITY_VERSION,
-        );
-        encoded.extend_from_slice(&identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        ALLOCATOR_AVAILABILITY_ENVELOPE.frame(identity.bytes(), &content)
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, AllocatorAvailabilityDecodeError> {
-        let mut cursor = crate::cursor::Cursor::new(encoded);
-        crate::codec_bytes::decode_header(
-            &mut cursor,
-            ALLOCATOR_AVAILABILITY_MAGIC,
-            ALLOCATOR_AVAILABILITY_VERSION,
+        let (mut cursor, identity) = ALLOCATOR_AVAILABILITY_ENVELOPE.open(
+            encoded,
             || AllocatorAvailabilityDecodeError::WrongMagic,
             AllocatorAvailabilityDecodeError::UnsupportedVersion,
         )?;
-        let identity = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
+        let identity = AllocatorAvailabilityIdentity::from_bytes(identity);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let physical = PhysicalRegisterModelIdentity::from_bytes(cursor.array()?);
         let policy = match cursor.byte()? {

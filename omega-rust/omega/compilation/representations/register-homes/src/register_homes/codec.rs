@@ -1,6 +1,7 @@
 //! Canonical home encoding. Successful decode is not allocation admission.
 
 use super::identity::encode_terminal_register_home_content;
+use crate::codec_bytes::Envelope;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRegisterHomes,
     RegisterHomeIdentity, RegisterHomePlan, VirtualRegisterHome, register_home_identity,
@@ -9,8 +10,7 @@ use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentI
 use selected_instructions::{LiveRangeIdentity, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
 
-const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";
-const REGISTER_HOME_VERSION: u32 = 7;
+const REGISTER_HOME_ENVELOPE: Envelope = Envelope::new(b"OMGRAH\0\0", 7);
 
 impl RegisterHomePlan {
     /// Canonical artifact representation. Decoding this representation does
@@ -19,23 +19,16 @@ impl RegisterHomePlan {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_terminal_register_home_content(self);
         let identity = register_home_identity(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        crate::codec_bytes::encode_header(&mut encoded, REGISTER_HOME_MAGIC, REGISTER_HOME_VERSION);
-        encoded.extend_from_slice(&identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        REGISTER_HOME_ENVELOPE.frame(identity.bytes(), &content)
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, RegisterHomeDecodeError> {
-        let mut cursor = crate::cursor::Cursor::new(encoded);
-        crate::codec_bytes::decode_header(
-            &mut cursor,
-            REGISTER_HOME_MAGIC,
-            REGISTER_HOME_VERSION,
+        let (mut cursor, identity) = REGISTER_HOME_ENVELOPE.open(
+            encoded,
             || RegisterHomeDecodeError::WrongMagic,
             RegisterHomeDecodeError::UnsupportedVersion,
         )?;
-        let identity = RegisterHomeIdentity::from_bytes(cursor.array()?);
+        let identity = RegisterHomeIdentity::from_bytes(identity);
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);

@@ -15,6 +15,7 @@ mod selected;
 mod values;
 
 use self::envelope::envelope_identity;
+use crate::codec_bytes::Envelope;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
@@ -36,17 +37,14 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 75 retains declaration-owned linear obligations beneath whole claims.
 // Version 78 distinguishes reads of operation-local storage from source places.
 const VERSION: u32 = 81;
+const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
     pub fn encode(&self) -> Result<Vec<u8>, terminal_codec::CodecError> {
         let mut content = Vec::new();
         content::encode_v7(&mut content, self)?;
-        let mut encoded = Vec::new();
-        crate::codec_bytes::encode_header(&mut encoded, MAGIC, VERSION);
-        encoded.extend_from_slice(&envelope_identity(self, &content));
-        encoded.extend_from_slice(&content);
-        Ok(encoded)
+        Ok(ENVELOPE.frame(envelope_identity(self, &content), &content))
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, FixedViewCopyDecodeError> {

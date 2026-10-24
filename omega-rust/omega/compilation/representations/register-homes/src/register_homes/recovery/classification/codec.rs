@@ -13,6 +13,7 @@ use semantic_vocabulary::{
 };
 
 use super::identity::encode_terminal_recovery_classification_content;
+use crate::codec_bytes::Envelope;
 use crate::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRecoveryClassification,
     NoAdmittedRecoveryReason, PressureRecoveryClassification, RecoveryClassification,
@@ -21,8 +22,7 @@ use crate::{
 };
 use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
-const RECOVERY_CLASSIFICATION_MAGIC: &[u8; 8] = b"OMGRCV\0\0";
-const RECOVERY_CLASSIFICATION_VERSION: u32 = 8;
+const RECOVERY_CLASSIFICATION_ENVELOPE: Envelope = Envelope::new(b"OMGRCV\0\0", 8);
 
 impl RecoveryClassificationPlan {
     /// Canonical transport only. Decoding returns an unchecked plain plan; only
@@ -31,27 +31,16 @@ impl RecoveryClassificationPlan {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_terminal_recovery_classification_content(self);
         let identity = crate::recovery_classification_identity(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        crate::codec_bytes::encode_header(
-            &mut encoded,
-            RECOVERY_CLASSIFICATION_MAGIC,
-            RECOVERY_CLASSIFICATION_VERSION,
-        );
-        encoded.extend_from_slice(&identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        RECOVERY_CLASSIFICATION_ENVELOPE.frame(identity.bytes(), &content)
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, RecoveryClassificationDecodeError> {
-        let mut cursor = crate::cursor::Cursor::new(encoded);
-        crate::codec_bytes::decode_header(
-            &mut cursor,
-            RECOVERY_CLASSIFICATION_MAGIC,
-            RECOVERY_CLASSIFICATION_VERSION,
+        let (mut cursor, identity) = RECOVERY_CLASSIFICATION_ENVELOPE.open(
+            encoded,
             || RecoveryClassificationDecodeError::WrongMagic,
             RecoveryClassificationDecodeError::UnsupportedVersion,
         )?;
-        let identity = RecoveryClassificationIdentity::from_bytes(cursor.array()?);
+        let identity = RecoveryClassificationIdentity::from_bytes(identity);
         let selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         let spill_choices = SpillChoiceIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);

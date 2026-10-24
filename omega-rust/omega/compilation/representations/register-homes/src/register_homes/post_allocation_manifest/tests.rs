@@ -272,9 +272,11 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
     one_transformation.identity = one_transformation.recomputed_identity();
     let mut unknown_transformation = one_transformation.encode();
     let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 1 + 8;
-    unknown_transformation[transformation_tag_offset] = 17;
+    // The supported transformation tags are 1..=17 (17 is FixedOccurrences in
+    // both the encoder and the decoder); 18 is outside that table.
+    unknown_transformation[transformation_tag_offset] = 18;
     assert_eq!(
         PostAllocationOptimizationManifest::decode(&unknown_transformation),
-        Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(17))
+        Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(18))
     );
 }

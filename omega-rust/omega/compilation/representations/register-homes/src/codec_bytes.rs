@@ -42,33 +42,55 @@ pub(crate) fn list<'a, T: 'a>(
     }
 }
 
-/// Writes the shared artifact envelope header: `MAGIC[8] ++ VERSION_LE`.
-pub(crate) fn encode_header(bytes: &mut Vec<u8>, magic: &[u8; 8], version: u32) {
-    bytes.extend_from_slice(magic);
-    bytes.extend_from_slice(&version.to_le_bytes());
+/// One artifact's canonical envelope: the wire magic and version that precede
+/// `IDENTITY[32] ++ CONTENT`. Framing and admission live here so no codec
+/// reassembles the sequence, and the identity an encoder already derived from
+/// its content is the one that is framed.
+pub(crate) struct Envelope {
+    magic: &'static [u8; 8],
+    version: u32,
 }
 
-/// Reads the shared artifact envelope header from `cursor`: the magic must
-/// match exactly and the version must be the expected one, or the decoder's
-/// own wrong-magic / unsupported-version error is returned.
-pub(crate) fn decode_header<E>(
-    cursor: &mut crate::cursor::Cursor<'_>,
-    magic: &[u8; 8],
-    expected_version: u32,
-    wrong_magic: impl FnOnce() -> E,
-    unsupported_version: impl FnOnce(u32) -> E,
-) -> Result<(), E>
-where
-    E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
-{
-    if cursor.take(magic.len())? != magic.as_slice() {
-        return Err(wrong_magic());
+impl Envelope {
+    pub(crate) const fn new(magic: &'static [u8; 8], version: u32) -> Self {
+        Self { magic, version }
     }
-    let version = cursor.u32()?;
-    if version != expected_version {
-        return Err(unsupported_version(version));
+
+    /// Frames the committed identity and content behind this envelope's magic
+    /// and version, in the one canonical order.
+    pub(crate) fn frame(&self, identity: [u8; 32], content: &[u8]) -> Vec<u8> {
+        let mut encoded = Vec::with_capacity(self.magic.len() + 4 + identity.len() + content.len());
+        encoded.extend_from_slice(self.magic);
+        encoded.extend_from_slice(&self.version.to_le_bytes());
+        encoded.extend_from_slice(&identity);
+        encoded.extend_from_slice(content);
+        encoded
     }
-    Ok(())
+
+    /// Admits an artifact in the one canonical order — exact magic, expected
+    /// version, then the committed identity — and leaves the cursor at the
+    /// content that identity covers. The decoder's own wrong-magic /
+    /// unsupported-version error is returned.
+    pub(crate) fn open<'a, E>(
+        &self,
+        encoded: &'a [u8],
+        wrong_magic: impl FnOnce() -> E,
+        unsupported_version: impl FnOnce(u32) -> E,
+    ) -> Result<(crate::cursor::Cursor<'a>, [u8; 32]), E>
+    where
+        E: From<crate::cursor::Truncated> + From<crate::cursor::TakeError>,
+    {
+        let mut cursor = crate::cursor::Cursor::new(encoded);
+        if cursor.take(self.magic.len())? != self.magic.as_slice() {
+            return Err(wrong_magic());
+        }
+        let version = cursor.u32()?;
+        if version != self.version {
+            return Err(unsupported_version(version));
+        }
+        let identity = cursor.array()?;
+        Ok((cursor, identity))
+    }
 }
 
 /// The shared canonical identity formula: `Sha256(domain-tag ++ content)`.

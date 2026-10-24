@@ -8,9 +8,9 @@ use super::{
     SpillChoice, SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
     TargetRegisterEnvironmentIdentity, VirtualRegisterId,
 };
+use crate::codec_bytes::Envelope;
 
-const SPILL_CHOICE_MAGIC: &[u8; 8] = b"OMGSPC\0\0";
-const SPILL_CHOICE_VERSION: u32 = 2;
+const SPILL_CHOICE_ENVELOPE: Envelope = Envelope::new(b"OMGSPC\0\0", 2);
 
 impl SpillChoicePlan {
     /// Canonical transport only. Decoding does not grant recovery-victim or
@@ -19,23 +19,16 @@ impl SpillChoicePlan {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_terminal_spill_choice_content(self);
         let identity = crate::spill_choice_identity(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        crate::codec_bytes::encode_header(&mut encoded, SPILL_CHOICE_MAGIC, SPILL_CHOICE_VERSION);
-        encoded.extend_from_slice(&identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        SPILL_CHOICE_ENVELOPE.frame(identity.bytes(), &content)
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, SpillChoiceDecodeError> {
-        let mut cursor = crate::cursor::Cursor::new(encoded);
-        crate::codec_bytes::decode_header(
-            &mut cursor,
-            SPILL_CHOICE_MAGIC,
-            SPILL_CHOICE_VERSION,
+        let (mut cursor, identity) = SPILL_CHOICE_ENVELOPE.open(
+            encoded,
             || SpillChoiceDecodeError::WrongMagic,
             SpillChoiceDecodeError::UnsupportedVersion,
         )?;
-        let identity = SpillChoiceIdentity::from_bytes(cursor.array()?);
+        let identity = SpillChoiceIdentity::from_bytes(identity);
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);

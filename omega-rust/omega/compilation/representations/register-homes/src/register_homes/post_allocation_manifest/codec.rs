@@ -1,5 +1,6 @@
 //! Canonical manifest persistence. Decoding yields an unvalidated record.
 
+use crate::codec_bytes::Envelope;
 use crate::cursor::Cursor;
 use optimization_core::{
     PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
@@ -23,33 +24,21 @@ use super::{
     PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
 };
 
-const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 16;
+const POST_ALLOCATION_MANIFEST_ENVELOPE: Envelope = Envelope::new(b"OMGPAO\0\0", 16);
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_manifest_content(self);
-        let mut encoded = Vec::with_capacity(44 + content.len());
-        crate::codec_bytes::encode_header(
-            &mut encoded,
-            POST_ALLOCATION_MANIFEST_MAGIC,
-            POST_ALLOCATION_MANIFEST_VERSION,
-        );
-        encoded.extend_from_slice(&self.identity.bytes());
-        encoded.extend_from_slice(&content);
-        encoded
+        POST_ALLOCATION_MANIFEST_ENVELOPE.frame(self.identity.bytes(), &content)
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, PostAllocationOptimizationManifestDecodeError> {
-        let mut cursor = Cursor::new(encoded);
-        crate::codec_bytes::decode_header(
-            &mut cursor,
-            POST_ALLOCATION_MANIFEST_MAGIC,
-            POST_ALLOCATION_MANIFEST_VERSION,
+        let (mut cursor, identity) = POST_ALLOCATION_MANIFEST_ENVELOPE.open(
+            encoded,
             || PostAllocationOptimizationManifestDecodeError::WrongMagic,
             PostAllocationOptimizationManifestDecodeError::UnsupportedVersion,
         )?;
-        let identity = PostAllocationOptimizationManifestIdentity::from_bytes(cursor.array()?);
+        let identity = PostAllocationOptimizationManifestIdentity::from_bytes(identity);
         let stage = match cursor.byte()? {
             1 => PostAllocationManifestStage::RegisterHomes,
             tag => {
