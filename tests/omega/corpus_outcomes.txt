@@ -483,8 +483,8 @@ fail/borrows/dynamic_window_result_keeps_backing_loan rejected 652ms expected @e
 fail/borrows/dynamic_window_result_recast_backing rejected 627ms expected @ea7b63644a0a+wt
 fail/borrows/dynamic_window_result_requires_bounds rejected 610ms expected @ea7b63644a0a+wt
 fail/borrows/evidence_bound_record_result_keeps_loan rejected 1543ms expected @a9ae30e1c334+wt
-fail/borrows/exclusive_reference_array_copy rejected 595ms expected @007086c4fb46
-	machine `invalid` returns a view whose access cannot be supplied by matching input `rows`
+fail/borrows/exclusive_reference_array_copy rejected 483ms expected @4ce70cb5f8a0
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `invalid`, state `entry` (statement 0)
 fail/borrows/expression_stored_carrier_requires_complete_relation rejected 440ms expected @dd6871ed0476
 fail/borrows/fixed_array_return_depth_bound rejected 964ms expected @b7c17b88b59d
 fail/borrows/fixed_array_return_live_parent_write rejected 1300ms expected @b7c17b88b59d
@@ -694,10 +694,15 @@ fail/borrows/stored_primitive_reference_backing_write rejected 1748ms expected @
 fail/borrows/stored_reference_address_write_only_read rejected 164ms expected @5e555aae7d56
 fail/borrows/stored_reference_child_constructor_live_source_write rejected 5529ms expected @a9ae30e1c334+wt
 fail/borrows/stored_reference_constructor_transfer_live_source_write rejected 5510ms expected @a9ae30e1c334+wt
+fail/borrows/stored_reference_exclusive_array_copy rejected 692ms expected @4ce70cb5f8a0
+	cannot use `windows[0].` in machine `main` state `entry` (statement 4) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
+	cannot use `windows[0][0]` in machine `main` state `entry` (statement 5) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 fail/borrows/stored_reference_leaf_child_live_source_write rejected 6051ms expected @a9ae30e1c334+wt
 fail/borrows/stored_reference_live_source_write rejected 1679ms expected @a9ae30e1c334+wt
 fail/borrows/stored_reference_payload_live_source_write rejected 6464ms expected @a9ae30e1c334+wt
 fail/borrows/stored_reference_shared_cohort_live_source_write rejected 5253ms expected @a9ae30e1c334+wt
+fail/borrows/stored_reference_write_only_array_copy rejected 683ms expected @4ce70cb5f8a0
+	cannot use `windows` in machine `main` state `entry` (statement 3) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 fail/borrows/stored_returned_reference_live_source_write rejected 5492ms expected @a9ae30e1c334+wt
 fail/borrows/stored_subview_live_child rejected 1002ms expected @3224bdead711
 fail/borrows/stored_subview_live_exclusive_child rejected 1002ms expected @3224bdead711
@@ -1060,6 +1065,12 @@ fail/collections/projected_range_call_selected_index rejected 1621ms expected @a
 fail/collections/projected_range_call_shared_storage rejected 857ms expected @a9ae30e1c334+wt
 fail/collections/range_call_later_endpoint_cannot_prove_nonempty rejected 1528ms expected @a9ae30e1c334+wt
 fail/collections/runtime_three_indexed_float_read_missing_bound rejected 1706ms expected @9462eda24d9e+wt
+fail/collections/stored_reference_array_owned_record_empty rejected 835ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call observe from main: bundle.windows[0].len == 1 (needs fact `bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/collections/stored_reference_array_sibling_extent rejected 835ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call observe from main: windows[0].len == windows[1].len (needs fact `windows[0].len == windows[1].len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/collections/stored_reference_array_stale_extent rejected 934ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call observe from main: windows[0].len == 1 && saved == 1 (needs fact `windows[0].len == 1 && saved == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/collections/vec_duplicate_cleanup rejected 3136ms expected @8df1d091a810
 fail/collections/vec_invalidated_loan_after_growth rejected 5189ms expected @a9ae30e1c334+wt
 fail/collections/wrapping_loop_increment_bound rejected 1755ms expected @a9ae30e1c334+wt
@@ -2101,6 +2112,13 @@ fail/expressions/match_operand_anonymous_operation_overflow rejected 195ms expec
 fail/expressions/match_result_double_move rejected 1147ms expected @a9ae30e1c334+wt
 fail/expressions/mismatched_width_bitwise_rejected rejected 877ms expected @a9ae30e1c334+wt
 fail/expressions/nested_i32_mul_overflow rejected 2783ms expected @a9ae30e1c334+wt
+fail/expressions/owned_match_duplicated_projected_claim rejected 643ms expected @4ce70cb5f8a0
+	owned match record fields must name disjoint moved places; overlapping paths on one arm consume the same owned storage twice
+fail/expressions/owned_match_subject_consumed_source rejected 750ms expected @4ce70cb5f8a0
+	owned match source must be an available owned local or parameter claim of the exact result type
+fail/expressions/owned_match_unretired_projected_sibling rejected 1299ms expected @4ce70cb5f8a0
+	cannot prove automatic cleanup requires at selected edge from select state entry after statement 1: original.fourth does not establish Token::drop clause `token.code == 0`
+	linear value `original.fourth` reaches scope exit without being consumed or transferred
 fail/expressions/scalar_into_data_field_rejected rejected 2827ms expected @a9ae30e1c334+wt
 fail/expressions/struct_operator_undeclared_rejected rejected 2917ms expected @a9ae30e1c334+wt
 fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 17ms expected @a9ae30e1c334+wt
@@ -10153,6 +10171,27 @@ fail/facts/static_evidence_premise_through_target_body_rejected rejected 1533ms 
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/stored_exclusive_byte_view_through_call_result_rejected rejected 830ms expected @4ce70cb5f8a0
+	cannot prove index `0` is within length 0
+fail/facts/stored_exclusive_byte_view_through_const_name_rejected rejected 832ms expected @4ce70cb5f8a0
+	cannot prove index `0` is within length 0
+fail/facts/stored_exclusive_byte_view_through_field_rejected rejected 827ms expected @4ce70cb5f8a0
+	cannot prove index `0` is within length 0
+fail/facts/stored_exclusive_byte_view_through_local_rejected rejected 824ms expected @4ce70cb5f8a0
+	cannot prove index `0` is within length 0
+fail/facts/stored_exclusive_byte_view_through_match_join_rejected rejected 821ms expected @4ce70cb5f8a0
+	cannot prove index `0` is within length 0
+fail/facts/stored_exclusive_byte_view_through_other_machine_rejected rejected 863ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call forward from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_through_other_state_rejected rejected 838ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call inspect from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_through_parameter_rejected rejected 857ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call observe from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/stored_exclusive_byte_view_through_target_body_rejected rejected 852ms expected @4ce70cb5f8a0
+	cannot prove requires contract for call observe from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe from main: windows[0].len == 1 (needs fact `windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/structural_issuer_forwarding_call_result rejected 3561ms expected @d6cf554fd1cb+wt
 	cannot prove default-domain field requirement for return from Factory::issue, state issue, at statement 0: Token requires Token::Issued
 	construction value is not proven in domain `Token::Issued` in Factory::issue state `issue` at statement 0; a construction value must establish the domain's predicates and any required provenance
@@ -15294,6 +15333,7 @@ pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit checked 109
 pass/borrows/runtime_stored_reference_leaf_field_retirement_exit checked 11063ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit checked 10901ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit checked 11260ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/borrows/runtime_stored_reference_scalar_assignment_exit checked 1258ms check-target:macos_arm64 @4ce70cb5f8a0
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 11123ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_stored_view_reborrow_extent_exit checked 2633ms check-target:macos_arm64 @802a5f738107+wt
 pass/borrows/runtime_tail_expression_views_exit checked 11242ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -15875,6 +15915,8 @@ pass/collections/runtime_shared_fixed_array_cycle_exit checked 11537ms check-tar
 pass/collections/runtime_signed_element_offset_read_exit checked 11307ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_slice_record_copy_exit checked 11197ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_state_indexed_scalar_field_store_exit checked 5565ms check-target:macos_arm64 @fd59b9d3fe3a
+pass/collections/runtime_stored_reference_array_owned_record_contract_exit checked 1274ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/collections/runtime_stored_reference_array_replacement_contract_exit checked 1396ms check-target:macos_arm64 @4ce70cb5f8a0
 pass/collections/runtime_three_indexed_record_float_read_exit checked 10892ms check-target:macos_arm64 @9462eda24d9e+wt
 pass/collections/runtime_vec_u32_growth_exit checked 14108ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/collections/runtime_view_element_structural_replacement_exit checked 10470ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -16676,7 +16718,14 @@ pass/expressions/runtime_indexed_float_record_fields_exit checked 11087ms check-
 pass/expressions/runtime_nested_record_field_call_exit checked 10582ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_nested_record_field_reads_exit checked 11285ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_numeric_cast_exit checked 12014ms check-target:macos_arm64 @9c4d1c444502
+pass/expressions/runtime_owned_match_borrowed_subject_exit checked 1352ms check-target:macos_arm64 @4ce70cb5f8a0
 pass/expressions/runtime_owned_match_call_result_exit checked 11438ms check-target:macos_arm64 @589aedee8ebc+wt
+pass/expressions/runtime_owned_match_effectful_subject_exit checked 1330ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/expressions/runtime_owned_match_multiple_projected_claims_exit checked 1497ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/expressions/runtime_owned_match_parameter_claim_replacement_exit checked 1586ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/expressions/runtime_owned_match_pattern_claim_replacement_exit checked 1116ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/expressions/runtime_owned_match_pattern_replacement_exit checked 1226ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/expressions/runtime_owned_match_skipped_pattern_residual_cleanup_exit checked 1485ms check-target:macos_arm64 @4ce70cb5f8a0
 pass/expressions/runtime_temporary_record_field_call_exit checked 10564ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/runtime_widened_comparison_exit checked 11140ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/expressions/scalar_match_boundary_composition_exit checked 12777ms check-target:macos_arm64 @9c4d1c444502
@@ -19947,6 +19996,15 @@ pass/facts/static_evidence_premise_through_other_machine_exit checked 2368ms che
 pass/facts/static_evidence_premise_through_other_state_exit checked 1917ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/static_evidence_premise_through_parameter_exit checked 2124ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/static_evidence_premise_through_target_body_exit checked 3560ms check-target:macos_arm64 @9d9ba4fb6251+wt
+pass/facts/stored_exclusive_byte_view_through_call_result_exit checked 1027ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_const_name_exit checked 1082ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_field_exit checked 1141ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_local_exit checked 1103ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_match_join_exit checked 1021ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_other_machine_exit checked 998ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_other_state_exit checked 1003ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_parameter_exit checked 989ms check-target:macos_arm64 @4ce70cb5f8a0
+pass/facts/stored_exclusive_byte_view_through_target_body_exit checked 1007ms check-target:macos_arm64 @4ce70cb5f8a0
 pass/facts/structural_issuer_forwarding_call_result checked 4558ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/facts/structural_issuer_forwarding_const_name checked 4633ms check-target:macos_arm64 @d6cf554fd1cb+wt
 pass/facts/structural_issuer_forwarding_field checked 4733ms check-target:macos_arm64 @d6cf554fd1cb+wt
