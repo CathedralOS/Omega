@@ -1,0 +1,8 @@
+{
+  "name": "omega-learn",
+  "scripts": {
+    "build": "bun build.ts",
+    "serve": "bun serve.ts",
+    "verify": "bun tools/verify.ts"
+  }
+}

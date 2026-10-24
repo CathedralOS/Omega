@@ -2,6 +2,7 @@
 
 | Directory | Read it for |
 | --- | --- |
+| [learn/](learn/index.html) | Illustrated field guide for reading Omega and supervising agent-written code. |
 | [language_guide/](language_guide/language_guide.md) | How to write Omega. |
 | spec/ | Current contracts, organized by subject. |
 | [proposals/](proposals/README.md) | Proposed changes, not current rules. |
