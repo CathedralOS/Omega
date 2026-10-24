@@ -6,7 +6,8 @@ without minting routed membership.
 Parent: `DOMAIN-ACCESS-AUTHORITY` in [TASKS.md](../../../../TASKS.md).
 This isolates ordinary explicit erasure before implementing retained read/write
 policy. No access clauses are declared here, so acceptance cannot establish
-policy enforcement or settle post-mutation membership preservation in Q3.
+policy enforcement or establish post-mutation qualification restoration under
+the [invariant-window rules](../../../../wiki/spec/language/dependent_values.md#invariant-windows).
 
 The [root witness](main.omg) starts with an issued record, explicitly borrows it
 under the bare carrier, writes 73 and observes the original field. It makes no
@@ -84,4 +85,5 @@ development scalar probe still encountered an existing unadmitted signature
 shape; it is not counted as passing execution evidence.
 
 Return to `domain_access_authority` and Cathedral after this prerequisite.
-Domain-owned access enforcement and Q3 membership handback remain open.
+Domain-owned access enforcement and compiler qualification-restoration work
+remain open under the existing invariant-window and provenance rules.

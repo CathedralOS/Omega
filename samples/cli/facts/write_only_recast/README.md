@@ -39,7 +39,9 @@ on the other three hosted targets is claimed.
 
 This closes ordinary write-only representation-view transport, not the parent
 domain-access policy. Policy retention under erasure, actual operation demands,
-scoped helper grants and the Q3 membership handback decision remain separate.
+scoped helper grants and qualification restoration under the existing
+[invariant-window rules](../../../../wiki/spec/language/dependent_values.md#invariant-windows)
+remain separate implementation work.
 
 ## Required evidence
 

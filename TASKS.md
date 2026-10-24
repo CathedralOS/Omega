@@ -1952,9 +1952,13 @@ defines the complete product bar.
   and a writer delegating to an unlisted helper. Its interpreter/native results
   agree without extra runtime permission fields or a changed carrier layout.
 
-  The controlled field's post-update routed-membership handback needs the
-  preservation boundary in [Q3](OWNER_QUESTIONS.md#q3-when-does-mutation-preserve-non-owning-routed-membership).
-  This does not gate policy transport or access-demand checking: access restrictions
+  Complete the controlled field's post-update qualification restoration under
+  the existing [invariant-window rules](wiki/spec/language/dependent_values.md#invariant-windows)
+  and [membership evidence rules](wiki/spec/resources/authority.md#membership-and-boundary-evidence).
+  Required qualification must be proved at consumption, return and scope exit;
+  neither mutation authority nor an `ensures` clause supplies that proof. Retain
+  exact existing provenance or justify its checked transformation; do not infer
+  automatic membership survival from an empty predicate list. Access restrictions
   survive independently of invalidated membership facts. Keep the
   `additional_input_domain_mutation` fact row as the prerequisite distinction
   between an extra input qualification and a declared field/default invariant;
@@ -1963,12 +1967,12 @@ defines the complete product bar.
 
   Policy introduced solely through a temporary borrowed view needs the governed
   lifetime/retirement boundary in
-  [Q4](OWNER_QUESTIONS.md#q4-when-does-a-policy-introduced-only-on-a-temporary-view-retire).
+  [Q3](OWNER_QUESTIONS.md#q3-when-does-a-policy-introduced-only-on-a-temporary-view-retire).
   This gates after-loan owner-access judgments, not enforcement while governed
   views live or policy transport and erasure checking.
 
   Direct scalar-result publication needs the operation boundary in
-  [Q5](OWNER_QUESTIONS.md#q5-when-does-an-authorized-scalar-read-publish-an-observation-rather-than-an-intact-copy).
+  [Q4](OWNER_QUESTIONS.md#q4-when-does-an-authorized-scalar-read-publish-an-observation-rather-than-an-intact-copy).
   An authorized load's bare result contract must be distinguished from intact
   copy/erasure before treating policy on its selected source as an automatic
   denial at the caller. This does not gate exact access-demand or invocation
