@@ -64,13 +64,14 @@ Baseline producer `9e45362bf0e` refused the unchanged root during parsing:
 The original root source SHA256 is
 `d34ab9f25d660fbd5b412df7ac0d578a18b7a9cb3777acf308704ee8f475b7ea`.
 
-At integrated base `1e7b3a721e8`, the focused corpus observes native0/Terminal0
-for all nine positives and 15 additional controls on macOS AArch64
-(`build/case-match-1e7-integrated-corpus.json`). These are optimized
-dirty-worktree observations, pending pinned qualification, independent
-exact-candidate review and verified main landing. Run records retain their
-actual producer and source identities; earlier observations are not relabeled
-as this producer's executions.
+Published compiler `2824a5bc57a8` establishes native0/Terminal0 for all nine
+positives and 15 additional controls on macOS AArch64. Its pinned qualification
+also runs the unchanged root, authenticates the retained native/Terminal
+products, and checks all 15 access, custody and case-invalidity controls for
+their intended refusals. Independent exact-candidate review includes fresh
+scratch replays. The scoped corpus records were generated after publication
+with that exact optimized producer; their stamps name the published revision.
+Run records retain actual source, producer, artifact and engine identities.
 
 Theorem/quotient correspondence still refuses captured-subject expressions:
 its legacy value-substitution key cannot encode lexical capture binders.
