@@ -30,12 +30,14 @@ no call with static machine arguments, so `resolve_call_result_selection` never
 runs. This does not time that pass on a placed-view program. Preparation as a
 whole, including pre-resolution and both body-completion batches, is 42–49 ms.
 
-Inside Stage 05, the large named scopes on the dynamic-dispatch median are
-flow-fact construction (`05.d.3.b.flow_fixed_point.build_flow_facts`, 342 ms)
-and standard-library machine checking (`05.d.2.a.2.machine.std_or_core`, 228 ms).
-Those are inclusive of their own children and sit under `05.d.lower_typed_trees`
-(970 ms). Length and the nested record show the same shape, at 296 / 221 ms and
-315 / 223 ms.
+Inside Stage 05, the large named scope on the dynamic-dispatch median is
+flow-fact construction (`05.d.3.b.flow_fixed_point.build_flow_facts`, 342 ms),
+inclusive of its children and under `05.d.lower_typed_trees` (970 ms). Length
+and the nested record show 296 ms and 315 ms. The standard-library machine row
+(`05.d.2.a.2.machine.std_or_core`, 228 / 221 / 223 ms) is not wall time: it is
+entered once per machine inside a parallel loop, and the profiler adds the
+workers' times together. The whole loop is about 44 ms of wall time
+([std/core machine checking](../std_core_machine_check_2026_10_24/README.md)).
 
 Dynamic dispatch and the nested record were compiled in place. Length's
 `local/omega.lock` is version 4 and this compiler refuses it, so length was
