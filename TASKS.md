@@ -1952,6 +1952,13 @@ defines the complete product bar.
   This gates after-loan owner-access judgments, not enforcement while governed
   views live or policy transport and erasure checking.
 
+  Direct scalar-result publication needs the operation boundary in
+  [Q5](OWNER_QUESTIONS.md#q5-when-does-an-authorized-scalar-read-publish-an-observation-rather-than-an-intact-copy).
+  An authorized load's bare result contract must be distinguished from intact
+  copy/erasure before treating policy on its selected source as an automatic
+  denial at the caller. This does not gate exact access-demand or invocation
+  checking; private disputed scalar-copy probes are not acceptance evidence.
+
   Acceptance: the same policy survives the ordinary fact/loan transport places,
   nested fields, whole-place replacement, requirement dispatch, helper calls,
   reflection and codecs. Reject unauthorized reads/writes, an issuer accessing
