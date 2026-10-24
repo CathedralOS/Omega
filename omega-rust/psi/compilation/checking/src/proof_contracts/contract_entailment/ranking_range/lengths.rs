@@ -28,18 +28,13 @@ pub(super) fn parameter<'program>(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<&'program StateParameter> {
-    let Some(symbol) = crate::expression_traversal::single_segment_name_symbol(program, expression)
-    else {
-        return None;
-    };
-    // Mutability is a storage capability, not a value change: the edge owners
-    // supply a parameter-preserving evaluated prefix, so a mutable slice still
-    // denotes its arrival sequence -- and its arrival length -- at the edge.
-    program.state_parameters(state).iter().find(|parameter| {
-        parameter.symbol == symbol
-            && !parameter.is_const
-            && is_slice(program, parameter.type_reference)
-    })
+    // The bare authored spelling resolves through the fields owner; this
+    // family adds only the slice carrier filter. Mutability is a storage
+    // capability, not a value change: the edge owners supply a
+    // parameter-preserving evaluated prefix, so a mutable slice still denotes
+    // its arrival sequence -- and its arrival length -- at the edge.
+    let parameter = super::fields::parameter(program, state, expression)?;
+    is_slice(program, parameter.type_reference).then_some(parameter)
 }
 
 pub(super) fn bindings(

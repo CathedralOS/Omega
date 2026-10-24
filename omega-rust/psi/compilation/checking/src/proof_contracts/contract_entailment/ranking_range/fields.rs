@@ -690,11 +690,11 @@ pub(super) fn member_coordinate_parts<'program>(
     let mut owner = root;
     let mut steps = Vec::with_capacity(step_symbols.len());
     for symbol in step_symbols {
-        let (_, field) = declared_field(program, owner, *symbol)?;
+        let field = declared_field(program, owner, *symbol)?;
         steps.push(field);
         owner = step_owner(program, field)?;
     }
-    let (_, field) = declared_field(program, owner, *last)?;
+    let field = declared_field(program, owner, *last)?;
     if !leaf_admits(program, field) {
         return None;
     }
@@ -822,7 +822,7 @@ fn captured_carrier<'program>(
             return None;
         };
         let (owner, _) = record_referent(program, reference)?;
-        let (_, field) = declared_field(program, owner, symbol)?;
+        let field = declared_field(program, owner, symbol)?;
         chain.push((field.symbol, &field.name));
         reference = field.type_reference;
     }
@@ -883,12 +883,13 @@ pub(super) fn parameter<'program>(
     })
 }
 
-/// The unique field `symbol` declared by the exact record `owner`.
-pub(super) fn declared_field(
-    program: &dyn crate::CheckingInput,
+/// The unique field `symbol` declared by the exact record `owner` -- one
+/// nominal member of one declaration, whichever module asked.
+pub(super) fn declared_field<'program>(
+    program: &'program dyn crate::CheckingInput,
     owner: SymbolHandle,
     symbol: SymbolHandle,
-) -> Option<(SymbolHandle, &DataField)> {
+) -> Option<&'program DataField> {
     let declaration = program
         .data_definitions()
         .iter()
@@ -905,7 +906,7 @@ pub(super) fn declared_field(
             _ => None,
         });
     let field = fields.next()?;
-    fields.next().is_none().then_some((owner, field))
+    fields.next().is_none().then_some(field)
 }
 
 /// The value of the unique `field` entry of a plain literal of exactly `owner`.

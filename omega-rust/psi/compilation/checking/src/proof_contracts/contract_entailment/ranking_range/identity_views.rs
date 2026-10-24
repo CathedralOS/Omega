@@ -10,8 +10,8 @@ use super::super::{
     Engine, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticValue,
 };
+use super::fields::declared_field;
 use symbols::{BuiltinTypeAtom, SymbolHandle, SymbolKind};
-use typed_trees::data::DataMember;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 use typed_trees::name::Identifier;
@@ -298,7 +298,12 @@ pub fn measure_body_shape(
     let mut owner = *root;
     let mut path = Vec::with_capacity(steps.len());
     for step in steps {
-        let field = exact_record_field(program, owner, step.member_symbol, &step.member)?;
+        let field = declared_field(program, owner, step.member_symbol)?;
+        // The authored step must spell the resolved field's own name: a
+        // same-named field of another record is not a projection of this one.
+        if field.name != step.member {
+            return None;
+        }
         // An intermediate step must itself be an exact declared record so the
         // next member resolves against one nominal owner.
         let Some(next) = program
@@ -317,7 +322,11 @@ pub fn measure_body_shape(
         });
         owner = next;
     }
-    let field = exact_record_field(program, owner, last.member_symbol, &last.member)?;
+    let field = declared_field(program, owner, last.member_symbol)?;
+    // The authored step must spell the resolved field's own name.
+    if field.name != last.member {
+        return None;
+    }
     // Returning a field with another carrier does not establish a u64 measure.
     // Field constraints narrow its values without changing that carrier.
     let field_type = program
@@ -340,33 +349,6 @@ pub fn measure_body_shape(
         field_type: field.type_reference,
         field_symbol: field.symbol,
     })
-}
-
-/// The unique field `symbol` named `name` declared by the exact record
-/// `owner`; a same-named field of another record is not a projection of it.
-fn exact_record_field<'program>(
-    program: &'program dyn crate::CheckingInput,
-    owner: SymbolHandle,
-    symbol: SymbolHandle,
-    name: &Identifier,
-) -> Option<&'program typed_trees::data::DataField> {
-    let declaration = program
-        .data_definitions()
-        .iter()
-        .find(|data| owner.is_valid() && data.symbol == owner)?;
-    let field_symbol = program.symbols.get(symbol);
-    if field_symbol.kind != SymbolKind::Field || field_symbol.parent != owner {
-        return None;
-    }
-    let mut fields = program
-        .data_members(declaration)
-        .iter()
-        .filter_map(|member_definition| match member_definition {
-            DataMember::Field(field) if field.symbol == symbol => Some(field),
-            _ => None,
-        });
-    let field = fields.next()?;
-    (fields.next().is_none() && field.name == *name).then_some(field)
 }
 
 /// The unique declared measure spelled by `order` (`["Owner", "Name"]`).

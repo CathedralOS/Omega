@@ -288,7 +288,7 @@ impl<'program> Coordinate<'program> {
         let mut chain = Vec::with_capacity(prefix.len() + self.steps.len() + 1 - depth);
         let mut owner = carrier_root;
         for (symbol, _) in prefix {
-            let (_, field) = declared_field(program, owner, *symbol)?;
+            let field = declared_field(program, owner, *symbol)?;
             let Some(next) = self.kind.step_owner(program, field) else {
                 return None;
             };
