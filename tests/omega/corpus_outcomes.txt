@@ -2889,6 +2889,27 @@ fail/facts/case_where_equality_through_target_body_rejected rejected 4931ms expe
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `take` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/checked_asm_add_carry_false_image rejected 1583ms expected @c2e06b875ba2+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 2261 == 149
+fail/facts/checked_asm_add_carry_through_call_result_rejected rejected 1490ms expected @c2e06b875ba2+wt
+	cannot prove ensures contract for exit from capture at statement 29: result & 2261 == 85
+fail/facts/checked_asm_add_carry_through_const_name_rejected rejected 1541ms expected @c2e06b875ba2+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 2261 == 149
+fail/facts/checked_asm_add_carry_through_field_rejected rejected 1557ms expected @c2e06b875ba2+wt
+	cannot prove asm `requires` fact at block entry in observe state `entry` (statement 27): object.value & 2261 == 149
+fail/facts/checked_asm_add_carry_through_local_rejected rejected 1598ms expected @c2e06b875ba2+wt
+	cannot prove asm `requires` fact at block entry in main state `entry` (statement 32): local_snapshot & 2261 == 85
+fail/facts/checked_asm_add_carry_through_match_join_rejected rejected 1726ms expected @c2e06b875ba2+wt
+	cannot prove asm `requires` fact at block entry in observe_branch state `entry` (statement 47): joined & 2261 == 85
+fail/facts/checked_asm_add_carry_through_other_machine_rejected rejected 1489ms expected @c2e06b875ba2+wt
+	cannot prove requires contract for call consume from forward: snapshot ^ 1 & 2261 == 85 (needs fact `snapshot & 2261 == 85` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_add_carry_through_other_state_rejected rejected 7202ms expected @c2e06b875ba2+wt
+	cannot prove requires contract for call next from main: snapshot ^ 1 & 2261 == 85 (needs fact `carried & 2261 == 85` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_add_carry_through_parameter_rejected rejected 9972ms expected @c2e06b875ba2+wt
+	cannot prove requires contract for call consume from main: snapshot ^ 1 & 2261 == 85 (needs fact `snapshot & 2261 == 85` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/checked_asm_add_carry_through_target_body_rejected rejected 1871ms expected @c2e06b875ba2+wt
+	cannot prove asm `requires` fact at block entry in observe_target state `entry` (statement 28): snapshot & 2261 == 149
+	cannot prove asm `requires` fact at block entry in observe_target state `entry` (statement 28): snapshot & 2261 == 149
 fail/facts/checked_asm_arm_load_through_call_result_rejected rejected 2ms expected @8d202634513c
 	tests/omega/fail/facts/checked_asm_arm_load_through_call_result_rejected/main.omg:10:9: asm instruction `ldr` operand uses bracketed `[...]` memory addressing: spell authorized access as a typed Omega place such as `self.buffer[index]` — the place carries the provenance/permission contract raw addresses cannot express
 fail/facts/checked_asm_arm_load_through_const_name_rejected rejected 2ms expected @8d202634513c
@@ -17055,6 +17076,16 @@ pass/facts/case_where_equality_through_other_machine_exit checked 5621ms check-t
 pass/facts/case_where_equality_through_other_state_exit checked 5557ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_parameter_exit checked 5744ms check-target:macos_arm64 @ec38c6dfcf45
 pass/facts/case_where_equality_through_target_body_exit checked 5710ms check-target:macos_arm64 @ec38c6dfcf45
+pass/facts/checked_asm_add_carry checked 1880ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_call_result_exit checked 1845ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_const_name_exit checked 2055ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_field_exit checked 1842ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_local_exit checked 1896ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_match_join_exit checked 2040ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_other_machine_exit checked 2000ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_other_state_exit checked 1809ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_parameter_exit checked 2106ms check-target:linux_x86_64 @c2e06b875ba2+wt
+pass/facts/checked_asm_add_carry_through_target_body_exit checked 1971ms check-target:linux_x86_64 @c2e06b875ba2+wt
 pass/facts/checked_asm_arm_load_through_call_result_exit checked 2334ms check-target:macos_arm64 @8d202634513c
 pass/facts/checked_asm_arm_load_through_const_name_exit checked 2334ms check-target:macos_arm64 @8d202634513c
 pass/facts/checked_asm_arm_load_through_field_exit checked 2731ms check-target:macos_arm64 @8d202634513c

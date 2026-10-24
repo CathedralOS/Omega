@@ -1,0 +1,14 @@
+// Expected exit: 0.
+// Adding one to the all-ones u32 establishes addition flags 85 under mask 2261; a structured snapshot carries that image to a label.
+data Snapshot { value: u64; }
+machine main() crashes Trap {
+ let mut object: Snapshot = Snapshot { value: 0 };
+ observe(&mut object);
+ transition (object.value & 2261u64) == 85u64 { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}
+machine observe(object: &mut Snapshot) {
+ asm { entry: mov eax, 4294967295; add eax, 1; pushfq object.value; jmp observed;
+ observed requires (object.value & 2261u64) == 85u64: nop }
+}

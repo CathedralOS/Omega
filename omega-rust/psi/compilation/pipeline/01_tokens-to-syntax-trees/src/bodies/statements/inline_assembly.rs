@@ -81,7 +81,12 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let mut blocks = Vec::new();
     let mut primitives = Vec::new();
     let body_requires = contract.requires.clone();
-    let mut subtractions = Vec::new();
+    let mut arithmetic_updates: Vec<(
+        StatementHandle,
+        ExpressionHandle,
+        ExpressionHandle,
+        scratch::ArithmeticFlagProducer,
+    )> = Vec::new();
     let mut block = ParsedAssemblyBlock {
         label: Identifier::generated("asm#entry"),
         requires: contract.requires,
@@ -174,7 +179,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         if instruction.contract.shape == AsmInstructionShape::FlagsSnapshot {
             flag_snapshots.push(instruction.statement);
         }
-        if instruction.contract.shape == AsmInstructionShape::Subtract {
+        if let Some(producer) = arithmetic_flag_producer(instruction.contract.shape) {
             let StatementNode::Assignment(assignment) =
                 syntax_trees.statements.statement(instruction.statement)
             else {
@@ -195,7 +200,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
                 unreachable!()
             };
             let source = source.value;
-            subtractions.push((instruction.statement, destination, source));
+            arithmetic_updates.push((instruction.statement, destination, source, producer));
         }
         block.has_no_local_post_state |= matches!(
             instruction.contract.shape,
@@ -217,7 +222,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         {
             block.instructions.push(instruction.statement);
         }
-        if instruction.contract.shape == AsmInstructionShape::Subtract {
+        if arithmetic_flag_producer(instruction.contract.shape).is_some() {
             let StatementNode::Assignment(assignment) =
                 syntax_trees.statements.statement(instruction.statement)
             else {
@@ -227,7 +232,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             let ExpressionNode::Cast(result) =
                 syntax_trees.expressions.expression(assignment.value)
             else {
-                unreachable!("catalog subtraction produces a same-carrier policy erasure")
+                unreachable!("catalog arithmetic produces a same-carrier policy erasure")
             };
             primitives.push(result.value);
             let flag = scratch::zero_flag(syntax_trees, destination);
@@ -325,11 +330,11 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     // Restoration retains its separate unsupported execution contract.
     if observes_hardware_flags && !restores_hardware_flags {
         // Build full arithmetic state only when this body observes it. The
-        // ordinary SUB/ZF cohort retains its original statements and storage.
-        for (statement, destination, source) in subtractions {
+        // ordinary SUB/ADD/ZF cohort retains its original statements and storage.
+        for (statement, destination, source, producer) in arithmetic_updates {
             let generated_start = syntax_trees.expressions.expression_count();
             let saved = scratch::preserve_sub_operands(syntax_trees, destination, source);
-            let flags = scratch::arithmetic_flags(syntax_trees, destination);
+            let flags = scratch::arithmetic_flags(syntax_trees, destination, producer);
             let mask = scratch::replace_arithmetic_flags(syntax_trees);
             collect_generated_primitives(syntax_trees, generated_start, &mut primitives);
             for block in &mut blocks {
@@ -340,7 +345,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
                 {
                     let count = saved.len();
                     block.instructions.splice(index..index, saved);
-                    // The existing SUB and ZF assignments stay together.
+                    // The existing arithmetic update and ZF assignments stay together.
                     block
                         .instructions
                         .splice(index + count + 2..index + count + 2, [flags, mask]);
@@ -692,6 +697,14 @@ fn asm_intrinsic_result_assignment(
         }))
 }
 
+fn arithmetic_flag_producer(shape: AsmInstructionShape) -> Option<scratch::ArithmeticFlagProducer> {
+    match shape {
+        AsmInstructionShape::Subtract => Some(scratch::ArithmeticFlagProducer::Subtract),
+        AsmInstructionShape::Add => Some(scratch::ArithmeticFlagProducer::Add),
+        _ => None,
+    }
+}
+
 fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -741,7 +754,9 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             "{} requires a declared local assembly label",
             mnemonic.as_str(syntax_trees)
         ))),
-        AsmInstructionShape::Subtract | AsmInstructionShape::RegisterMove => {
+        AsmInstructionShape::Subtract
+        | AsmInstructionShape::Add
+        | AsmInstructionShape::RegisterMove => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
             let (source, input) = parse_expression_handle(syntax_trees, input)?;
@@ -759,23 +774,27 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             )?;
             if matches!(syntax_trees.expressions.expression(destination), ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == "zf"))
             {
-                return Err(mnemonic_site.error_here("mov/sub cannot directly write ZF; its version is established by the catalog arithmetic result"));
+                return Err(mnemonic_site.error_here("mov/sub/add cannot directly write ZF; its version is established by the catalog arithmetic result"));
             }
-            let value = if contract.shape == AsmInstructionShape::Subtract {
+            let value = if let Some(producer) = arithmetic_flag_producer(contract.shape) {
+                let spelling = mnemonic.as_str(syntax_trees);
                 let ExpressionNode::Name(path) = syntax_trees.expressions.expression(destination)
                 else {
-                    return Err(mnemonic_site
-                        .error_here("sub requires a modeled 32-bit register destination"));
+                    return Err(mnemonic_site.error_here(format!(
+                        "{spelling} requires a modeled 32-bit register destination"
+                    )));
                 };
                 let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
-                    return Err(mnemonic_site
-                        .error_here("sub requires a modeled 32-bit register destination"));
+                    return Err(mnemonic_site.error_here(format!(
+                        "{spelling} requires a modeled 32-bit register destination"
+                    )));
                 };
                 if !scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
                     .contains(&name.as_str(syntax_trees))
                 {
-                    return Err(mnemonic_site
-                        .error_here("sub requires a modeled 32-bit register destination"));
+                    return Err(mnemonic_site.error_here(format!(
+                        "{spelling} requires a modeled 32-bit register destination"
+                    )));
                 }
                 let admitted_source = match syntax_trees.expressions.expression(source) {
                     ExpressionNode::Integer(literal) => literal
@@ -787,9 +806,18 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     _ => false,
                 };
                 if !admitted_source {
-                    return Err(mnemonic_site.error_here("sub requires a modeled 32-bit register or a fitting unsigned 32-bit immediate source"));
+                    return Err(mnemonic_site.error_here(format!(
+                        "{spelling} requires a modeled 32-bit register or a fitting unsigned 32-bit immediate source"
+                    )));
                 }
-                scratch::subtraction(syntax_trees, destination, source)
+                match producer {
+                    scratch::ArithmeticFlagProducer::Subtract => {
+                        scratch::subtraction(syntax_trees, destination, source)
+                    }
+                    scratch::ArithmeticFlagProducer::Add => {
+                        scratch::addition(syntax_trees, destination, source)
+                    }
+                }
             } else {
                 source
             };

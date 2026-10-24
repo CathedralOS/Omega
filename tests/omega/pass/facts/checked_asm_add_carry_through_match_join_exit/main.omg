@@ -1,0 +1,28 @@
+// Expected exit: 0.
+// Adding one to the all-ones u32 establishes addition flags 85 under mask 2261; a structured snapshot carries that image to a label.
+machine main() crashes Trap {
+ observe_branch(true);
+ observe_branch(false);
+}
+
+machine observe_branch(branch: bool) crashes Trap {
+ let mut left: u64 = 0;
+ let mut right: u64 = 0;
+ asm where clobbers rax, rflags, r10, r15 {
+ entry:
+  mov eax, 4294967295;
+  add eax, 1;
+  pushfq left;
+  mov eax, 4294967295;
+  add eax, 1;
+  pushfq right;
+  jmp observed;
+ observed requires (left & 2261u64) == 85u64 requires (right & 2261u64) == 85u64:
+  nop
+ }
+ let joined: u64 = match branch { true -> left, false -> right };
+ asm { observed requires (joined & 2261u64) == 85u64: nop }
+ transition (joined & 2261u64) == 85u64 { true -> done() false -> bad() }
+ state done() {}
+ state bad() { crash Trap; }
+}

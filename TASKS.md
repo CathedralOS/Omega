@@ -244,8 +244,13 @@ helper that passes does not close an item.
   saved-flags u64 class. sub records the decreased register, and the
   backedge reads that record; `samples/cli/facts/checked_asm_rank_decrease`
   exits 0 on both Windows engines across its nine places, and the
-  false-fallthrough twin rejects the missing decrease. Other
-  ISA/register views, unmodeled flag production, and checked hardware-effect
+  false-fallthrough twin rejects the missing decrease. Catalog-admitted u32
+  ADD establishes the six arithmetic flags by addition rules — unsigned carry
+  is bit 32 of the sum, and signed overflow is set when the operands share a
+  sign and the sum does not — and transports that image across nine places in
+  `samples/cli/facts/checked_asm_add_carry`, with native/Terminal agreement on
+  Linux x86-64 and fact-sensitive reject twins. Other flag-producing
+  instructions, other ISA/register views, and checked hardware-effect
   retirement of the exact linear obligation remain unfinished.
   Extend that control model rather than adding an opaque asm parser or verifier.
 

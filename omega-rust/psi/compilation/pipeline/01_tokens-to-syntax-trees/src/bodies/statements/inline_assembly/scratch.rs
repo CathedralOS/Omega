@@ -51,13 +51,39 @@ pub(super) fn subtraction(
     destination: ExpressionHandle,
     source: ExpressionHandle,
 ) -> ExpressionHandle {
+    modular_binary(trees, destination, source, BinaryOperator::Subtract)
+}
+
+pub(super) fn addition(
+    trees: &mut SyntaxTrees,
+    destination: ExpressionHandle,
+    source: ExpressionHandle,
+) -> ExpressionHandle {
+    modular_binary(trees, destination, source, BinaryOperator::Add)
+}
+
+/// Which modular u32 update produced the arithmetic flags. Carry and signed
+/// overflow follow that producer's rule. Parity, auxiliary carry, zero and
+/// sign follow the wrapped result for both.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ArithmeticFlagProducer {
+    Subtract,
+    Add,
+}
+
+fn modular_binary(
+    trees: &mut SyntaxTrees,
+    destination: ExpressionHandle,
+    source: ExpressionHandle,
+    operator: BinaryOperator,
+) -> ExpressionHandle {
     let left = cast(trees, destination, ArithmeticDomain::Wrapping);
     let right = cast(trees, source, ArithmeticDomain::Wrapping);
     let result = trees
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             left,
-            operator: BinaryOperator::Subtract,
+            operator,
             right,
         }));
     cast(trees, result, ArithmeticDomain::Exact)
@@ -150,8 +176,10 @@ pub(super) fn bind(
 
 // PUSHFQ observes the same arithmetic versions as label proofs, not incidental
 // flags from realizing ordinary Omega expressions. The environment image is
-// captured at each authored observation; SUB replaces CF/PF/AF/ZF/SF/OF (mask 0x8d5).
-// Pre-write operand snapshots also make `sub eax, eax` independent of SSA order.
+// captured at each authored observation; SUB and ADD replace CF/PF/AF/ZF/SF/OF
+// (mask 0x8d5). Pre-write operand snapshots also make `sub eax, eax` and
+// `add eax, eax` independent of SSA order. ADD reuses the subtraction operand
+// slots: each flag update reads the version written immediately before it.
 pub(super) fn wide_type(trees: &mut SyntaxTrees) -> syntax_trees::types::TypeReferenceHandle {
     trees
         .type_references
@@ -249,27 +277,56 @@ fn masked_shift(
 pub(super) fn arithmetic_flags(
     trees: &mut SyntaxTrees,
     destination: ExpressionHandle,
+    producer: ArithmeticFlagProducer,
 ) -> StatementHandle {
     use BinaryOperator::*;
     // Use width-total bit calculations, not a Boolean-to-integer admission.
-    // Carry is the complement of bit 32 of lhs + 2^32 - rhs; widening the
-    // saved u32 inputs makes every intermediate representable and nonnegative.
-    let left = name(trees, "asm#sub_left");
-    let left = wide_cast(trees, left);
-    let right = name(trees, "asm#sub_right");
-    let right = wide_cast(trees, right);
-    let base = wide_literal(trees, 4294967296);
-    let sum = binary(trees, left, Add, base);
-    let difference = binary(trees, sum, Subtract, right);
-    let count = wide_literal(trees, 32);
-    let high = binary(trees, difference, ShiftRight, count);
-    let one = wide_literal(trees, 1);
-    let cf = binary(trees, high, BitwiseXor, one);
-    let left = name(trees, "asm#sub_left");
-    let difference = binary(trees, left, BitwiseXor, destination);
-    let operands = reg_binary(trees, "asm#sub_left", BitwiseXor, "asm#sub_right");
-    let of = binary(trees, operands, BitwiseAnd, difference);
-    let of = masked_shift(trees, of, 0x80000000, 20);
+    // Subtraction carry is the complement of bit 32 of lhs + 2^32 - rhs.
+    // Addition carry is bit 32 of the unsigned sum. Widening the saved u32
+    // inputs makes every intermediate representable and nonnegative.
+    let cf = match producer {
+        ArithmeticFlagProducer::Subtract => {
+            let left = name(trees, "asm#sub_left");
+            let left = wide_cast(trees, left);
+            let right = name(trees, "asm#sub_right");
+            let right = wide_cast(trees, right);
+            let base = wide_literal(trees, 4294967296);
+            let sum = binary(trees, left, Add, base);
+            let difference = binary(trees, sum, Subtract, right);
+            let count = wide_literal(trees, 32);
+            let high = binary(trees, difference, ShiftRight, count);
+            let one = wide_literal(trees, 1);
+            binary(trees, high, BitwiseXor, one)
+        }
+        ArithmeticFlagProducer::Add => {
+            let left = name(trees, "asm#sub_left");
+            let left = wide_cast(trees, left);
+            let right = name(trees, "asm#sub_right");
+            let right = wide_cast(trees, right);
+            let sum = binary(trees, left, Add, right);
+            let count = wide_literal(trees, 32);
+            binary(trees, sum, ShiftRight, count)
+        }
+    };
+    // Signed overflow: subtraction uses (left XOR right) AND (left XOR result).
+    // Addition uses (left XOR result) AND (right XOR result). Bit 31 moves to OF.
+    let of = match producer {
+        ArithmeticFlagProducer::Subtract => {
+            let left = name(trees, "asm#sub_left");
+            let difference = binary(trees, left, BitwiseXor, destination);
+            let operands = reg_binary(trees, "asm#sub_left", BitwiseXor, "asm#sub_right");
+            let overflow = binary(trees, operands, BitwiseAnd, difference);
+            masked_shift(trees, overflow, 0x80000000, 20)
+        }
+        ArithmeticFlagProducer::Add => {
+            let left = name(trees, "asm#sub_left");
+            let left_difference = binary(trees, left, BitwiseXor, destination);
+            let right = name(trees, "asm#sub_right");
+            let right_difference = binary(trees, right, BitwiseXor, destination);
+            let overflow = binary(trees, left_difference, BitwiseAnd, right_difference);
+            masked_shift(trees, overflow, 0x80000000, 20)
+        }
+    };
     let operands = reg_binary(trees, "asm#sub_left", BitwiseXor, "asm#sub_right");
     let af = binary(trees, operands, BitwiseXor, destination);
     let af = masked_shift(trees, af, 16, 0);

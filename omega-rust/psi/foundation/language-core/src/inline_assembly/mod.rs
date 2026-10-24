@@ -30,6 +30,13 @@ pub enum AsmInstructionShape {
     /// decoded destination and arithmetic status flags. Other flag views
     /// remain unavailable until their complete state semantics are modeled.
     Subtract,
+    /// Modular, destination-width x86 addition; establishes arithmetic flags.
+    /// Decode a 32-bit GPR read/write and a 32-bit GPR or fitting immediate.
+    /// Add modulo 2^32. Carry is the unsigned overflow of that sum. Signed
+    /// overflow is set when the operands share a sign and the sum does not.
+    /// Parity, auxiliary carry, zero and sign follow the wrapped sum. The
+    /// decoded destination and the arithmetic status flags change.
+    Add,
     /// Local conditional transfer consuming the latest zero flag.
     JumpZeroFlag {
         when_set: bool,
@@ -1165,6 +1172,11 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
             clobbers: &["rflags"],
             ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
+        }),
+        "add" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
+            clobbers: &["rflags"],
+            ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Add, X86_64)
         }),
         "jnz" | "jz" => Contract(AsmInstructionContract {
             flags_data_flow: AsmFlagsDataFlow::ZeroFlagBranch,

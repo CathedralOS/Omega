@@ -282,6 +282,27 @@ fn register_move_contracts_delegate_operand_checking_to_the_assignment() {
 }
 
 #[test]
+fn addition_establishes_the_same_arithmetic_flag_flow_as_subtraction() {
+    let Some(AsmCatalogEntry::Contract(addition)) = asm_catalog_entry("add") else {
+        panic!("add retains a checked arithmetic contract");
+    };
+    let Some(AsmCatalogEntry::Contract(subtraction)) = asm_catalog_entry("sub") else {
+        panic!("sub retains a checked arithmetic contract");
+    };
+    assert_eq!(addition.shape, AsmInstructionShape::Add);
+    assert_eq!(subtraction.shape, AsmInstructionShape::Subtract);
+    assert_eq!(addition.flags_data_flow, AsmFlagsDataFlow::ArithmeticResult);
+    assert_eq!(addition.flags_data_flow, subtraction.flags_data_flow);
+    assert_eq!(addition.target, AsmTargetApplicability::X86_64);
+    assert_eq!(addition.clobbers, &["rflags"]);
+    assert_eq!(
+        addition.availability,
+        AsmInstructionAvailability::UserChecked
+    );
+    assert_eq!(addition.required_authority, AsmAuthorityRequirement::None);
+}
+
+#[test]
 fn catalog_names_semantic_refusal_classes() {
     // The checked scratch-CFG branch is an explicit modeled edge, not one
     // of the hidden exits below. Keep this positive classification pinned.
