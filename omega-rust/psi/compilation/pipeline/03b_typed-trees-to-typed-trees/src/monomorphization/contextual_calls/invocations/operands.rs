@@ -79,34 +79,30 @@ pub(super) fn derive(
         let actual = program.static_operand_type_reference(argument).ok()?;
         types.push((*symbol, actual));
     }
-    let mut proposals = Vec::new();
-    let mut constants = Vec::new();
+    let context = super::super::super::BindingContext::new(
+        program,
+        &type_parameters,
+        &const_parameters,
+        None,
+        0,
+    );
+    let mut inferred = super::super::super::StaticProposals::default();
     for (required, argument) in runtime.iter().zip(arguments) {
         if let Some(actual) =
             validation::expression_result_type_reference(program, caller, state, *argument)
             && (caller.has_specialization_parameters()
                 || !super::super::super::selection::names_type_binder(program, actual))
         {
-            super::super::super::infer_static_bindings(
-                program,
-                *required,
-                actual,
-                &type_parameters,
-                &const_parameters,
-                None,
-                0,
-                &mut proposals,
-                &mut constants,
-            );
+            super::super::super::infer_static_bindings(context, *required, actual, &mut inferred);
         }
     }
-    for (_, ordinal, actual) in proposals {
+    for (_, ordinal, actual) in inferred.types {
         let symbol = type_parameters[ordinal].0;
         if !types.iter().any(|(parameter, _)| *parameter == symbol) {
             types.push((symbol, actual));
         }
     }
-    for (_, ordinal, actual) in constants {
+    for (_, ordinal, actual) in inferred.constants {
         let symbol = const_parameters[ordinal].0;
         if !types.iter().any(|(parameter, _)| *parameter == symbol) {
             types.push((symbol, actual));

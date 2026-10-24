@@ -99,8 +99,7 @@ pub(super) fn close(
         .iter()
         .map(Option::is_some)
         .collect::<Vec<_>>();
-    let mut type_proposals = Vec::new();
-    let mut const_proposals = Vec::new();
+    let mut proposals = super::super::StaticProposals::default();
     for (actual, required) in actual_types
         .into_iter()
         .chain([state.return_type])
@@ -109,19 +108,18 @@ pub(super) fn close(
         let required = program
             .apply_callable_type(required, caller_types, &[], expected.symbol)
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        super::super::infer_static_bindings(
+        // The context borrows the program, so it is named after the
+        // application above rather than held across it.
+        let context = super::super::BindingContext::new(
             program,
-            actual,
-            required,
             &provider.template.type_parameters,
             &provider.template.const_parameters,
             None,
             0,
-            &mut type_proposals,
-            &mut const_proposals,
         );
+        super::super::infer_static_bindings(context, actual, required, &mut proposals);
     }
-    for (_, ordinal, actual) in type_proposals {
+    for (_, ordinal, actual) in proposals.types {
         match provider.type_bindings[ordinal] {
             None => provider.type_bindings[ordinal] = Some(actual),
             Some(previous)
@@ -134,7 +132,7 @@ pub(super) fn close(
             Some(_) => {}
         }
     }
-    for (_, ordinal, actual) in const_proposals {
+    for (_, ordinal, actual) in proposals.constants {
         match provider.const_bindings[ordinal] {
             None => provider.const_bindings[ordinal] = Some(actual),
             Some(previous)

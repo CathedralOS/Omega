@@ -1,8 +1,12 @@
 //! Inferring static, fixed-array-length and domain argument bindings.
+//!
+//! Every inference names its candidate's invariant inputs once through
+//! [`BindingContext`] and appends what it derives to the shared
+//! [`StaticProposals`] ledger.
 
+use super::proposals::{BindingContext, StaticProposals};
 use crate::monomorphization::{
-    HandleSpan, SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-    range_arguments,
+    HandleSpan, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, range_arguments,
 };
 
 /// A concrete caller has no type binders in scope. An operand whose result
@@ -53,23 +57,20 @@ pub(crate) fn names_type_binder(
 }
 
 pub(crate) fn infer_static_bindings(
-    program: &dyn ::validation::CheckingInput,
+    context: BindingContext<'_>,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,
-    type_parameters: &[(SymbolHandle, String)],
-    const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
-    fixed_range_parameters: Option<&[usize]>,
-    candidate_index: usize,
-    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    proposals: &mut StaticProposals,
 ) {
+    let program = context.program;
     if !required.is_valid() || !actual.is_valid() {
         return;
     }
     if let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(required)
         && let Some(index) =
-            type_parameters
+            context
+                .type_parameters
                 .iter()
                 .position(|(parameter_symbol, parameter_name)| {
                     parameter_symbol == symbol
@@ -78,13 +79,16 @@ pub(crate) fn infer_static_bindings(
                             && parameter_name == name.as_str())
                 })
     {
-        type_proposals.push((candidate_index, index, actual));
+        proposals
+            .types
+            .push((context.candidate_index, index, actual));
         return;
     }
     if let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(required)
         && let Some(index) =
-            const_parameters
+            context
+                .const_parameters
                 .iter()
                 .position(|(parameter_symbol, parameter_name, _)| {
                     parameter_symbol == symbol
@@ -93,7 +97,9 @@ pub(crate) fn infer_static_bindings(
                             && parameter_name == name.as_str())
                 })
     {
-        const_proposals.push((candidate_index, index, actual));
+        proposals
+            .constants
+            .push((context.candidate_index, index, actual));
         return;
     }
 
@@ -116,17 +122,7 @@ pub(crate) fn infer_static_bindings(
                     )
                 })
             {
-                infer_static_bindings(
-                    program,
-                    required,
-                    application,
-                    type_parameters,
-                    const_parameters,
-                    fixed_range_parameters,
-                    candidate_index,
-                    type_proposals,
-                    const_proposals,
-                );
+                infer_static_bindings(context, required, application, proposals);
             }
         }
         (
@@ -136,17 +132,7 @@ pub(crate) fn infer_static_bindings(
             TypeReferenceNode::Reference {
                 referee: actual, ..
             },
-        ) => infer_static_bindings(
-            program,
-            *required,
-            *actual,
-            type_parameters,
-            const_parameters,
-            fixed_range_parameters,
-            candidate_index,
-            type_proposals,
-            const_proposals,
-        ),
+        ) => infer_static_bindings(context, *required, *actual, proposals),
         (
             TypeReferenceNode::Constrained {
                 base_type: required_base,
@@ -157,52 +143,27 @@ pub(crate) fn infer_static_bindings(
                 constraints: actual_constraints,
             },
         ) => {
+            // Inspect the entire constrained shell once below. Peeling a
+            // range or policy here must not expose a different endpoint.
             infer_static_bindings(
-                program,
+                context.without_fixed_ranges(),
                 *required_base,
                 *actual_base,
-                type_parameters,
-                const_parameters,
-                // Inspect the entire constrained shell once below. Peeling a
-                // range or policy here must not expose a different endpoint.
-                None,
-                candidate_index,
-                type_proposals,
-                const_proposals,
+                proposals,
             );
-            if let Some(fixed_parameters) = fixed_range_parameters {
-                range_arguments::infer(
-                    program,
-                    required,
-                    actual,
-                    const_parameters,
-                    fixed_parameters,
-                    candidate_index,
-                    const_proposals,
-                );
-            }
+            range_arguments::infer(context, required, actual, proposals);
             infer_domain_argument_bindings(
-                program,
+                context,
                 *required_constraints,
                 *actual_constraints,
-                type_parameters,
-                const_parameters,
-                fixed_range_parameters,
-                candidate_index,
-                type_proposals,
-                const_proposals,
+                proposals,
             );
         }
         (TypeReferenceNode::Constrained { base_type, .. }, _) => infer_static_bindings(
-            program,
+            context,
             *base_type,
             validation::unwrapped_type_reference(program, actual).unwrap_or(actual),
-            type_parameters,
-            const_parameters,
-            fixed_range_parameters,
-            candidate_index,
-            type_proposals,
-            const_proposals,
+            proposals,
         ),
         // A borrowed fixed array supplies a slice formal's element carrier.
         // This proposes the static argument only; ordinary call admission
@@ -218,17 +179,7 @@ pub(crate) fn infer_static_bindings(
                 element_type: actual,
                 ..
             },
-        ) => infer_static_bindings(
-            program,
-            *required,
-            *actual,
-            type_parameters,
-            const_parameters,
-            fixed_range_parameters,
-            candidate_index,
-            type_proposals,
-            const_proposals,
-        ),
+        ) => infer_static_bindings(context, *required, *actual, proposals),
         (
             TypeReferenceNode::FixedArray {
                 element_type: required_element,
@@ -239,25 +190,8 @@ pub(crate) fn infer_static_bindings(
                 length: actual_length,
             },
         ) => {
-            infer_fixed_array_length_binding(
-                program,
-                required_length,
-                actual_length,
-                const_parameters,
-                candidate_index,
-                const_proposals,
-            );
-            infer_static_bindings(
-                program,
-                *required_element,
-                *actual_element,
-                type_parameters,
-                const_parameters,
-                fixed_range_parameters,
-                candidate_index,
-                type_proposals,
-                const_proposals,
-            );
+            infer_fixed_array_length_binding(context, required_length, actual_length, proposals);
+            infer_static_bindings(context, *required_element, *actual_element, proposals);
         }
         (
             TypeReferenceNode::Generic {
@@ -291,17 +225,7 @@ pub(crate) fn infer_static_bindings(
                         .type_reference_handles(*actual_arguments),
                 )
             {
-                infer_static_bindings(
-                    program,
-                    *required,
-                    *actual,
-                    type_parameters,
-                    const_parameters,
-                    fixed_range_parameters,
-                    candidate_index,
-                    type_proposals,
-                    const_proposals,
-                );
+                infer_static_bindings(context, *required, *actual, proposals);
             }
         }
         _ => {}
@@ -309,18 +233,17 @@ pub(crate) fn infer_static_bindings(
 }
 
 pub(crate) fn infer_fixed_array_length_binding(
-    program: &dyn ::validation::CheckingInput,
+    context: BindingContext<'_>,
     required: &typed_trees::types::FixedArrayLength,
     actual: &typed_trees::types::FixedArrayLength,
-    const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
-    candidate_index: usize,
-    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    proposals: &mut StaticProposals,
 ) {
     let typed_trees::types::FixedArrayLength::ConstParameter { symbol, name } = required else {
         return;
     };
     let Some(parameter_index) =
-        const_parameters
+        context
+            .const_parameters
             .iter()
             .position(|(parameter_symbol, parameter_name, _)| {
                 parameter_symbol == symbol
@@ -331,6 +254,7 @@ pub(crate) fn infer_fixed_array_length_binding(
     else {
         return;
     };
+    let program = context.program;
     let binding = match actual {
         typed_trees::types::FixedArrayLength::Literal(value) => {
             let value = value.to_string();
@@ -356,22 +280,19 @@ pub(crate) fn infer_fixed_array_length_binding(
         | typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
     };
     if let Some(binding) = binding {
-        const_proposals.push((candidate_index, parameter_index, binding));
+        proposals
+            .constants
+            .push((context.candidate_index, parameter_index, binding));
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn infer_domain_argument_bindings(
-    program: &dyn ::validation::CheckingInput,
+    context: BindingContext<'_>,
     required_constraints: HandleSpan<TypeConstraintNode>,
     actual_constraints: HandleSpan<TypeConstraintNode>,
-    type_parameters: &[(SymbolHandle, String)],
-    const_parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
-    fixed_range_parameters: Option<&[usize]>,
-    candidate_index: usize,
-    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    proposals: &mut StaticProposals,
 ) {
+    let program = context.program;
     for required in program
         .type_reference_table
         .constraints(required_constraints)
@@ -393,17 +314,7 @@ pub(crate) fn infer_domain_argument_bindings(
             continue;
         };
         for (required, actual) in required.arguments.iter().zip(&actual.arguments) {
-            infer_static_bindings(
-                program,
-                *required,
-                *actual,
-                type_parameters,
-                const_parameters,
-                fixed_range_parameters,
-                candidate_index,
-                type_proposals,
-                const_proposals,
-            );
+            infer_static_bindings(context, *required, *actual, proposals);
         }
     }
 }

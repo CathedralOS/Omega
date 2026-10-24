@@ -357,7 +357,15 @@ fn realize_capture(
                 }
             }
             let bindings = super::selection::proposal_bindings(
-                program, &template, machines, evidence, types, constants, values,
+                program,
+                &template,
+                super::selection::StaticProposals {
+                    types,
+                    constants,
+                    machines,
+                    evidence,
+                    runtime_values: values,
+                },
             );
             if bindings.conflicted
                 || bindings.unresolved_type_parameters

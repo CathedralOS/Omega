@@ -5,10 +5,11 @@ use validation::expression_traversal::{
     collect_contract_facts, collect_statement_expression_trees,
 };
 
+use crate::monomorphization::selection::proposals::{BindingContext, StaticProposals};
 use crate::monomorphization::selection::static_bindings::infer_static_bindings;
 use crate::monomorphization::{
     CallSite, CalleeState, Candidate, ExpressionHandle, StaticMachineArgument, SymbolHandle,
-    SymbolKind, TypeReferenceHandle, const_arguments,
+    SymbolKind, const_arguments,
 };
 use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::types::TypeReferenceNode;
@@ -23,13 +24,16 @@ pub(crate) fn collect_machine_proposals_for_callee(
     callee: &CalleeState,
     machine_arguments: &[StaticMachineArgument],
     runtime_scope: Option<(&typed_trees::state::State, usize)>,
-    machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-    evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    proposals: &mut StaticProposals,
 ) -> Result<(), StaticArgumentOverflow> {
     let candidate = &candidates[callee.candidate_index];
+    let context = BindingContext::new(
+        program,
+        &candidate.template.type_parameters,
+        &candidate.template.const_parameters,
+        None,
+        callee.candidate_index,
+    );
     let mut type_index = 0usize;
     let mut const_index = 0usize;
     let mut machine_index = 0usize;
@@ -52,7 +56,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
                         .named_references()
                         .find(|(_, symbol, name)| !symbol.is_valid() && *name == value.to_string())
                     {
-                        const_proposals.push((callee.candidate_index, const_index, handle));
+                        proposals
+                            .constants
+                            .push((callee.candidate_index, const_index, handle));
                     }
                     const_index += 1;
                     continue;
@@ -93,7 +99,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
             if type_index >= candidate.template.type_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
-            type_proposals.push((callee.candidate_index, type_index, selected.type_reference));
+            proposals
+                .types
+                .push((callee.candidate_index, type_index, selected.type_reference));
             type_index += 1;
             continue;
         }
@@ -108,7 +116,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 .type_reference_table
                 .find_named_type_reference(selected.symbol)
             {
-                const_proposals.push((callee.candidate_index, const_index, binding));
+                proposals
+                    .constants
+                    .push((callee.candidate_index, const_index, binding));
             }
             const_index += 1;
             continue;
@@ -122,7 +132,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 .named_references()
                 .find(|(_, symbol, name)| !symbol.is_valid() && *name == literal)
             {
-                const_proposals.push((callee.candidate_index, const_index, handle));
+                proposals
+                    .constants
+                    .push((callee.candidate_index, const_index, handle));
             }
             const_index += 1;
             continue;
@@ -157,7 +169,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
             {
                 let mut subject_argument = selected.clone();
                 subject_argument.symbol = subject;
-                runtime_value_proposals.push((
+                proposals.runtime_values.push((
                     callee.candidate_index,
                     const_index,
                     subject_argument,
@@ -166,7 +178,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 continue;
             }
             if runtime_expression.is_some() || runtime_field.is_some() {
-                runtime_value_proposals.push((
+                proposals.runtime_values.push((
                     callee.candidate_index,
                     const_index,
                     selected.clone(),
@@ -191,7 +203,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 .named_references()
                 .find(|(_, symbol, _)| *symbol == selected.symbol)
             {
-                type_proposals.push((callee.candidate_index, type_index, handle));
+                proposals
+                    .types
+                    .push((callee.candidate_index, type_index, handle));
             }
             type_index += 1;
             continue;
@@ -203,7 +217,9 @@ pub(crate) fn collect_machine_proposals_for_callee(
             if evidence_index >= candidate.template.evidence_parameters.len() {
                 return Err(StaticArgumentOverflow);
             }
-            evidence_proposals.push((callee.candidate_index, evidence_index, selected.clone()));
+            proposals
+                .evidence
+                .push((callee.candidate_index, evidence_index, selected.clone()));
             evidence_index += 1;
             continue;
         }
@@ -213,14 +229,16 @@ pub(crate) fn collect_machine_proposals_for_callee(
         if machine_index >= candidate.template.machine_parameters.len() {
             return Err(StaticArgumentOverflow);
         }
-        machine_proposals.push((callee.candidate_index, machine_index, selected.clone()));
+        proposals
+            .machines
+            .push((callee.candidate_index, machine_index, selected.clone()));
         let requirement = &candidate.template.machine_parameters[machine_index].2;
         machine_index += 1;
         let Some(actual_state) = state_by_symbol(program, selected.symbol) else {
             continue;
         };
-        let first_type_proposal = type_proposals.len();
-        let first_const_proposal = const_proposals.len();
+        let first_type_proposal = proposals.types.len();
+        let first_const_proposal = proposals.constants.len();
         for (required, actual) in program
             .state_signature_parameters(requirement)
             .iter()
@@ -232,28 +250,13 @@ pub(crate) fn collect_machine_proposals_for_callee(
             // supplied at the selecting call site.
             let actual_type = validation::unwrapped_type_reference(program, actual.type_reference)
                 .unwrap_or(actual.type_reference);
-            infer_static_bindings(
-                program,
-                required.type_reference,
-                actual_type,
-                &candidate.template.type_parameters,
-                &candidate.template.const_parameters,
-                None,
-                callee.candidate_index,
-                type_proposals,
-                const_proposals,
-            );
+            infer_static_bindings(context, required.type_reference, actual_type, proposals);
         }
         infer_static_bindings(
-            program,
+            context,
             requirement.return_type,
             actual_state.return_type,
-            &candidate.template.type_parameters,
-            &candidate.template.const_parameters,
-            None,
-            callee.candidate_index,
-            type_proposals,
-            const_proposals,
+            proposals,
         );
         // Provider-local binders are not operands in the selecting caller's
         // telescope. Contextual closure owns their application; an open
@@ -278,13 +281,13 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 )
             };
             let mut ordinal = 0usize;
-            type_proposals.retain(|(_, _, binding)| {
+            proposals.types.retain(|(_, _, binding)| {
                 let keep = ordinal < first_type_proposal || !owns_binder(*binding);
                 ordinal += 1;
                 keep
             });
             let mut ordinal = 0usize;
-            const_proposals.retain(|(_, _, binding)| {
+            proposals.constants.retain(|(_, _, binding)| {
                 let keep = ordinal < first_const_proposal || !owns_binder(*binding);
                 ordinal += 1;
                 keep

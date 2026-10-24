@@ -47,7 +47,7 @@ mod provider_tuple_closure;
 mod requirement_providers;
 mod selection;
 mod trait_implementation_arguments;
-pub(crate) use selection::infer_static_bindings;
+pub(crate) use selection::{BindingContext, StaticProposals, infer_static_bindings};
 
 mod body_rewriting;
 pub(crate) use body_rewriting::{collect_evidence_requirement_closure, insert_subject_name};

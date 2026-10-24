@@ -19,6 +19,8 @@
 //! open shape records an unresolved occurrence instead; neither flow bounds
 //! nor type display strings establish a static endpoint.
 
+use crate::monomorphization::{BindingContext, StaticProposals};
+
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 
@@ -61,14 +63,15 @@ pub(super) fn collect_literals(
 }
 
 pub(super) fn infer(
-    program: &dyn ::validation::CheckingInput,
+    context: BindingContext<'_>,
     required: TypeReferenceHandle,
     actual: TypeReferenceHandle,
-    parameters: &[(SymbolHandle, String, TypeReferenceHandle)],
-    fixed_parameters: &[usize],
-    candidate_index: usize,
-    proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
+    proposals: &mut StaticProposals,
 ) {
+    let Some(fixed_parameters) = context.fixed_range_parameters else {
+        return;
+    };
+    let program = context.program;
     let Some((required_carrier, required_endpoints, required_inclusive)) =
         declared_range(program, required)
     else {
@@ -100,7 +103,8 @@ pub(super) fn infer(
         let Some(name) = program.expression_table.name_path_node(required_endpoint) else {
             continue;
         };
-        let Some(parameter_index) = parameters
+        let Some(parameter_index) = context
+            .const_parameters
             .iter()
             .position(|(symbol, _, _)| symbol.is_valid() && *symbol == name.symbol)
         else {
@@ -131,7 +135,9 @@ pub(super) fn infer(
         // Another argument must not select a compatible but unequal endpoint
         // before a caller's substitution makes this occurrence checkable.
         // Unsupported endpoint computations likewise cannot be silently bypassed.
-        proposals.push((candidate_index, parameter_index, binding));
+        proposals
+            .constants
+            .push((context.candidate_index, parameter_index, binding));
     }
 }
 

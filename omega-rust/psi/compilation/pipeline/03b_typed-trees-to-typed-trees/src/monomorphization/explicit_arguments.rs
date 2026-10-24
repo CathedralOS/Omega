@@ -21,22 +21,14 @@ pub(super) fn bind(
             .map(|parameter| parameter.type_reference)
             .collect(),
     };
-    let mut machines = Vec::new();
-    let mut evidence = Vec::new();
-    let mut types = Vec::new();
-    let mut constants = Vec::new();
-    let mut runtime_values = Vec::new();
+    let mut proposals = super::selection::StaticProposals::default();
     if super::selection::collect_machine_proposals_for_callee(
         program,
         std::slice::from_ref(provider),
         &callee,
         arguments,
         None,
-        &mut machines,
-        &mut evidence,
-        &mut types,
-        &mut constants,
-        &mut runtime_values,
+        &mut proposals,
     )
     .is_err()
     {
@@ -44,15 +36,7 @@ pub(super) fn bind(
             "nested machine application supplies an argument beyond its declared telescope",
         )]);
     }
-    let supplied = super::selection::proposal_bindings(
-        program,
-        provider,
-        machines,
-        evidence,
-        types,
-        constants,
-        runtime_values,
-    );
+    let supplied = super::selection::proposal_bindings(program, provider, proposals);
     provider.type_bindings = supplied.type_bindings;
     provider.const_bindings = supplied.const_bindings;
     provider.runtime_value_bindings = supplied.runtime_value_bindings;

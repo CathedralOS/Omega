@@ -269,8 +269,14 @@ fn retain_constructor_result_type(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let mut type_proposals = Vec::new();
-    let mut const_proposals = Vec::new();
+    let context = crate::monomorphization::BindingContext::new(
+        program,
+        &type_parameters,
+        &const_parameters,
+        None,
+        0,
+    );
+    let mut inferred = crate::monomorphization::StaticProposals::default();
     let mut lifetime_bindings = Vec::new();
     let mut lifetime_conflict = false;
     for field in program.expression_table.struct_fields(literal.fields) {
@@ -301,17 +307,7 @@ fn retain_constructor_result_type(
         else {
             continue;
         };
-        crate::monomorphization::infer_static_bindings(
-            program,
-            required,
-            actual,
-            &type_parameters,
-            &const_parameters,
-            None,
-            0,
-            &mut type_proposals,
-            &mut const_proposals,
-        );
+        crate::monomorphization::infer_static_bindings(context, required, actual, &mut inferred);
         crate::conformance::conformance_application_lifetimes::collect_lifetime_bindings(
             program,
             required,
@@ -341,7 +337,8 @@ fn retain_constructor_result_type(
                 let ordinal = type_parameters
                     .iter()
                     .position(|(symbol, _)| *symbol == parameter.symbol)?;
-                type_proposals
+                inferred
+                    .types
                     .iter()
                     .filter(|(_, candidate, _)| *candidate == ordinal)
                     .map(|(_, _, reference)| *reference)
@@ -352,7 +349,8 @@ fn retain_constructor_result_type(
                 let ordinal = const_parameters
                     .iter()
                     .position(|(symbol, _, _)| *symbol == parameter.symbol)?;
-                const_proposals
+                inferred
+                    .constants
                     .iter()
                     .filter(|(_, candidate, _)| *candidate == ordinal)
                     .map(|(_, _, reference)| *reference)

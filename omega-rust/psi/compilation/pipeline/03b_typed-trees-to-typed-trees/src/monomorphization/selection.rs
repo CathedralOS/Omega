@@ -2,6 +2,7 @@
 //!
 //! This file collects call proposals and call selections.
 //! `callee_proposals.rs` resolves callees and their machine proposals,
+//! `proposals.rs` owns the shared proposal ledger and binding context,
 //! `selection_assembly.rs` assembles selections from proposals,
 //! `static_bindings.rs` infers static, fixed-array and domain bindings.
 
@@ -9,6 +10,7 @@ use validation::collect_expression_tree;
 use validation::collect_statement_expression_trees;
 
 mod callee_proposals;
+mod proposals;
 mod selection_assembly;
 mod static_bindings;
 
@@ -16,6 +18,7 @@ pub(crate) use callee_proposals::{
     collect_machine_proposals_for_callee, contract_expression_handles, resolve_callee,
     state_by_symbol,
 };
+pub(crate) use proposals::{BindingContext, StaticProposals};
 pub(crate) use selection_assembly::{
     proposal_bindings, selection_for_call, selection_from_proposals, unique_complete_selections,
     upsert_selection,
@@ -47,11 +50,7 @@ pub(super) fn collect_call_proposals(
     arguments: &[ExpressionHandle],
     expected_return: Option<TypeReferenceHandle>,
     scope_limit: usize,
-    machine_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-    evidence_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
-    type_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: &mut Vec<(usize, usize, TypeReferenceHandle)>,
-    runtime_value_proposals: &mut Vec<(usize, usize, StaticMachineArgument)>,
+    proposals: &mut StaticProposals,
 ) -> ExplicitArgumentCapacity {
     let Some(callee) = resolve_callee(callee_states, target_symbol) else {
         return ExplicitArgumentCapacity::WithinBounds;
@@ -62,11 +61,7 @@ pub(super) fn collect_call_proposals(
         callee,
         machine_arguments,
         Some((caller_state, scope_limit)),
-        machine_proposals,
-        evidence_proposals,
-        type_proposals,
-        const_proposals,
-        runtime_value_proposals,
+        proposals,
     );
     if explicit_arguments.is_err() {
         return ExplicitArgumentCapacity::Exceeded;
@@ -74,10 +69,10 @@ pub(super) fn collect_call_proposals(
     // Authored type selections are fixed before argument compatibility. An
     // argument with a wider declared range must not reselect that type; its
     // value still owes the selected range at the ordinary call check. Keep
-    // proposals for omitted binders separate so their repeated occurrences
-    // must still agree, rather than treating the first inference as explicit.
-    let explicit_type_count = type_proposals.len();
-    let mut inferred_type_proposals = Vec::new();
+    // compatibility proposals separate so their repeated occurrences must
+    // still agree, rather than treating the first inference as explicit.
+    let explicit_type_count = proposals.types.len();
+    let mut inferred = StaticProposals::default();
 
     // An explicit bound is selected before compatibility. It must not conflict
     // with an ordinary argument's narrower declared endpoint.
@@ -92,6 +87,13 @@ pub(super) fn collect_call_proposals(
         .map(|(parameter_index, _)| parameter_index)
         .collect();
     let candidate = &candidates[callee.candidate_index];
+    let context = BindingContext::new(
+        program,
+        &candidate.template.type_parameters,
+        &candidate.template.const_parameters,
+        Some(&fixed_range_parameters),
+        callee.candidate_index,
+    );
     for (argument, required) in arguments.iter().zip(callee.parameter_types.iter()) {
         // Calls bind argument values, not the storage those values observe.
         // Place lookup strips a borrow to its referent and can infer T instead
@@ -112,48 +114,45 @@ pub(super) fn collect_call_proposals(
         {
             continue;
         }
-        infer_static_bindings(
-            program,
-            *required,
-            actual,
-            &candidate.template.type_parameters,
-            &candidate.template.const_parameters,
-            Some(&fixed_range_parameters),
-            callee.candidate_index,
-            &mut inferred_type_proposals,
-            const_proposals,
-        );
+        infer_static_bindings(context, *required, actual, &mut inferred);
     }
     if let Some(actual) = expected_return {
         // Result context can fill an omitted endpoint, but cannot reselect a
         // bound already supplied by an argument (even a still-open one).
         // The destination's range is a later compatibility obligation.
         let mut fixed_result_parameters = fixed_range_parameters;
-        fixed_result_parameters.extend(const_proposals.iter().filter_map(
-            |(candidate_index, parameter_index, _)| {
-                (*candidate_index == callee.candidate_index).then_some(*parameter_index)
-            },
-        ));
-        infer_static_bindings(
+        // Compatibility inference above already bound this candidate's const
+        // slots; the result context reads them as fixed the same way.
+        fixed_result_parameters.extend(
+            proposals
+                .constants
+                .iter()
+                .chain(inferred.constants.iter())
+                .filter_map(|(candidate_index, parameter_index, _)| {
+                    (*candidate_index == callee.candidate_index).then_some(*parameter_index)
+                }),
+        );
+        let result_context = BindingContext::new(
             program,
-            callee.return_type,
-            actual,
             &candidate.template.type_parameters,
             &candidate.template.const_parameters,
             Some(&fixed_result_parameters),
             callee.candidate_index,
-            &mut inferred_type_proposals,
-            const_proposals,
         );
+        infer_static_bindings(result_context, callee.return_type, actual, &mut inferred);
     }
-    for proposal in inferred_type_proposals {
-        if !type_proposals[..explicit_type_count]
+    // Compatibility proposals merge only where no explicit proposal already
+    // names that binder; an authored selection stays fixed. Const proposals
+    // keep the order they were derived in, after the explicit ones.
+    for proposal in inferred.types {
+        if !proposals.types[..explicit_type_count]
             .iter()
             .any(|explicit| explicit.0 == proposal.0 && explicit.1 == proposal.1)
         {
-            type_proposals.push(proposal);
+            proposals.types.push(proposal);
         }
     }
+    proposals.constants.extend(inferred.constants);
     ExplicitArgumentCapacity::WithinBounds
 }
 
@@ -336,11 +335,7 @@ pub(super) fn collect_call_selections(
             continue;
         };
         let candidate = &candidates[callee.candidate_index];
-        let mut machine_proposals = Vec::new();
-        let mut evidence_proposals = Vec::new();
-        let mut type_proposals = Vec::new();
-        let mut const_proposals = Vec::new();
-        let mut runtime_value_proposals = Vec::new();
+        let mut proposals = StaticProposals::default();
         // Calls outside executable states have no argument evaluation edge
         // that could carry a runtime subject.
         let explicit_arguments = collect_machine_proposals_for_callee(
@@ -349,11 +344,7 @@ pub(super) fn collect_call_selections(
             callee,
             &call.machine_arguments,
             None,
-            &mut machine_proposals,
-            &mut evidence_proposals,
-            &mut type_proposals,
-            &mut const_proposals,
-            &mut runtime_value_proposals,
+            &mut proposals,
         );
         let mut selection = selection_from_proposals(
             program,
@@ -361,11 +352,7 @@ pub(super) fn collect_call_selections(
             callee,
             candidate,
             false,
-            machine_proposals,
-            evidence_proposals,
-            type_proposals,
-            const_proposals,
-            runtime_value_proposals,
+            proposals,
         );
         selection.explicit_argument_overflow = explicit_arguments.is_err();
         selection.lexical_owner =

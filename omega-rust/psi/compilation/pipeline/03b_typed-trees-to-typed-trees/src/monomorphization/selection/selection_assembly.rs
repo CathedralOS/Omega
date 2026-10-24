@@ -1,5 +1,6 @@
 //! Assembling and deduplicating selections from proposals.
 
+use crate::monomorphization::selection::StaticProposals;
 use crate::monomorphization::selection::callee_proposals::{
     enclosing_statement_ordinal, resolve_callee,
 };
@@ -60,11 +61,7 @@ pub(crate) fn selection_for_call(
     };
     let callee = resolve_callee(callee_states, target_symbol)?;
     let candidate = &candidates[callee.candidate_index];
-    let mut machine_proposals = Vec::new();
-    let mut evidence_proposals = Vec::new();
-    let mut type_proposals = Vec::new();
-    let mut const_proposals = Vec::new();
-    let mut runtime_value_proposals = Vec::new();
+    let mut proposals = StaticProposals::default();
     // A runtime `Value` subject resolves only against the locals the call can
     // see: the caller's parameters and `let` declarations before its own
     // statement.
@@ -81,11 +78,7 @@ pub(crate) fn selection_for_call(
         arguments,
         expected_return,
         scope_limit,
-        &mut machine_proposals,
-        &mut evidence_proposals,
-        &mut type_proposals,
-        &mut const_proposals,
-        &mut runtime_value_proposals,
+        &mut proposals,
     );
     let mut selection = selection_from_proposals(
         program,
@@ -93,11 +86,7 @@ pub(crate) fn selection_for_call(
         callee,
         candidate,
         caller_is_generic,
-        machine_proposals,
-        evidence_proposals,
-        type_proposals,
-        const_proposals,
-        runtime_value_proposals,
+        proposals,
     );
     selection.explicit_argument_overflow =
         explicit_arguments == super::ExplicitArgumentCapacity::Exceeded;
@@ -112,21 +101,9 @@ pub(crate) fn selection_from_proposals(
     callee: &CalleeState,
     candidate: &Candidate,
     caller_is_generic: bool,
-    machine_proposals: Vec<(usize, usize, StaticMachineArgument)>,
-    evidence_proposals: Vec<(usize, usize, StaticMachineArgument)>,
-    type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
-    runtime_value_proposals: Vec<(usize, usize, StaticMachineArgument)>,
+    proposals: StaticProposals,
 ) -> CallSelection {
-    let bindings = proposal_bindings(
-        program,
-        candidate,
-        machine_proposals,
-        evidence_proposals,
-        type_proposals,
-        const_proposals,
-        runtime_value_proposals,
-    );
+    let bindings = proposal_bindings(program, candidate, proposals);
     CallSelection {
         site,
         lexical_owner: SymbolHandle::invalid(),
@@ -164,12 +141,17 @@ pub(crate) struct ProposalBindings {
 pub(crate) fn proposal_bindings(
     program: &dyn ::validation::CheckingInput,
     candidate: &Candidate,
-    machine_proposals: Vec<(usize, usize, StaticMachineArgument)>,
-    evidence_proposals: Vec<(usize, usize, StaticMachineArgument)>,
-    type_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
-    const_proposals: Vec<(usize, usize, TypeReferenceHandle)>,
-    runtime_value_proposals: Vec<(usize, usize, StaticMachineArgument)>,
+    proposals: StaticProposals,
 ) -> ProposalBindings {
+    // Binder families keep their derivation order: value subjects first, then
+    // the static families whose conflicts the subject comparison informs.
+    let StaticProposals {
+        types: type_proposals,
+        constants: const_proposals,
+        machines: machine_proposals,
+        evidence: evidence_proposals,
+        runtime_values: runtime_value_proposals,
+    } = proposals;
     let mut selection = ProposalBindings {
         unresolved_type_parameters: false,
         unresolved_machine_parameters: false,
