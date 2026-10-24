@@ -1,6 +1,12 @@
 //! Observe contents only after the structural operand has completed. The same
 //! comparison template serves existing storage and freshly prepared views;
 //! descriptor preparation remains inside its selected scalar branch.
+//!
+//! Both checked byte-sequence query kinds, a literal comparison and a named
+//! predicate, are one operand observation: resolve the storage root and
+//! observation path, evaluate the query leaf over them, then complete the
+//! result with the selectors that leaf depends on. `byte_sequence_observation`
+//! is that route; each entrypoint below constructs only its own leaf.
 use super::{Expansion, LoweringError, QualifiedScalarType, Site, unsupported};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -40,111 +46,106 @@ impl Expansion<'_> {
             .with_structural_observations(self.structural_types)
     }
 
+    /// The one byte-sequence operand observation. A reserved view — a call
+    /// result or a computed subslice — is read through its declared descriptor
+    /// at the private parameter; existing storage resolves its declared root
+    /// and projects the observation path. `query` is the whole difference
+    /// between the checked query kinds: it builds the leaf evaluated over that
+    /// operand.
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn byte_literal_comparison(
+    fn byte_sequence_observation(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        bytes: &[u8],
-        maximum_length: Option<u64>,
-        negated: bool,
         subject: &CheckedUnitStructuralArgumentPlan,
         input_types: &[QualifiedScalarType],
         target: usize,
         site: &Site<'_>,
         active: &mut Vec<super::Computation>,
+        query: impl FnOnce(
+            CheckedStorageRoot,
+            Vec<Predicate>,
+        ) -> Result<CheckedBooleanExpression, LoweringError>,
     ) -> Result<usize, LoweringError> {
         let mut range_slot = None;
         let private_bindings;
-        let (bindings, root, path) =
-            if let Some(expression) = super::call_views::expression(subject) {
-                let slot = self
-                    .call_views
-                    .iter()
-                    .find(|slot| slot.expression == expression)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte comparison operand has no call result reservation",
-                    ))?;
-                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-                (
-                    &private_bindings,
-                    CheckedStorageRoot::Parameter { index: 0 },
-                    Vec::new(),
-                )
-            } else if let Some(range) = super::subslices::range(subject) {
-                let slot = self
-                    .subslices
-                    .iter()
-                    .find(|slot| slot.expression == range.expression)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte comparison operand has no descriptor reservation",
-                    ))?;
-                range_slot = Some(slot.clone());
-                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-                (
-                    &private_bindings,
-                    CheckedStorageRoot::Parameter { index: 0 },
-                    Vec::new(),
-                )
-            } else {
-                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-                let root = match subject.source {
-                    Source::Parameter { parameter_index } => {
-                        let (position, _) = self
-                            .checked
-                            .state_parameters(state)
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, parameter)| {
-                                !parameter.relevance.is_erased()
-                                    && self
-                                        .checked
-                                        .primitive_type_reference(parameter.type_reference)
-                                        .is_none()
-                            })
-                            .nth(parameter_index as usize)
-                            .ok_or(LoweringError::Unsupported(
-                                "byte comparison lost its source parameter",
-                            ))?;
-                        CheckedStorageRoot::Parameter {
-                            index: u32::try_from(position).map_err(|_| {
-                                LoweringError::Unsupported("byte comparison parameter overflow")
-                            })?,
-                        }
+        let (bindings, root, path) = if let Some(expression) =
+            super::call_views::expression(subject)
+        {
+            let slot = self
+                .call_views
+                .iter()
+                .find(|slot| slot.expression == expression)
+                .ok_or(LoweringError::Unsupported(
+                    "byte sequence operand has no call result reservation",
+                ))?;
+            private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
+            (
+                &private_bindings,
+                CheckedStorageRoot::Parameter { index: 0 },
+                Vec::<Predicate>::new(),
+            )
+        } else if let Some(range) = super::subslices::range(subject) {
+            let slot = self
+                .subslices
+                .iter()
+                .find(|slot| slot.expression == range.expression)
+                .ok_or(LoweringError::Unsupported(
+                    "byte sequence operand has no descriptor reservation",
+                ))?;
+            range_slot = Some(slot.clone());
+            private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
+            (
+                &private_bindings,
+                CheckedStorageRoot::Parameter { index: 0 },
+                Vec::<Predicate>::new(),
+            )
+        } else {
+            let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+            let root = match subject.source {
+                Source::Parameter { parameter_index } => {
+                    let (position, _) = self
+                        .checked
+                        .state_parameters(state)
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, parameter)| {
+                            !parameter.relevance.is_erased()
+                                && self
+                                    .checked
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_none()
+                        })
+                        .nth(parameter_index as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "byte sequence operand lost its source parameter",
+                        ))?;
+                    CheckedStorageRoot::Parameter {
+                        index: u32::try_from(position).map_err(|_| {
+                            LoweringError::Unsupported("byte sequence parameter overflow")
+                        })?,
                     }
-                    Source::StructuralLocal { symbol } => {
-                        let (_, local) = self
-                            .checked
-                            .state_local_declaration(state, symbol)
-                            .ok_or(LoweringError::Unsupported("byte comparison lost its local"))?;
-                        if validation::reference_shell(&self.checked.typed, local.type_reference)
-                            .is_some()
-                        {
-                            CheckedStorageRoot::ViewLocal { symbol }
-                        } else {
-                            CheckedStorageRoot::OwnedLocal { symbol }
-                        }
+                }
+                Source::StructuralLocal { symbol } => {
+                    let (_, local) = self.checked.state_local_declaration(state, symbol).ok_or(
+                        LoweringError::Unsupported("byte sequence operand lost its local"),
+                    )?;
+                    if validation::reference_shell(&self.checked.typed, local.type_reference)
+                        .is_some()
+                    {
+                        CheckedStorageRoot::ViewLocal { symbol }
+                    } else {
+                        CheckedStorageRoot::OwnedLocal { symbol }
                     }
-                    _ => return unsupported("byte comparison has no observable operand"),
-                };
-                let path = observation_path(&subject.path)?;
-                (site.bindings, root, path)
+                }
+                _ => return unsupported("byte sequence operand has no observable operand"),
             };
-        let mut comparison = CheckedBooleanExpression::byte_literal_equality_in_extent(
-            root,
-            path,
-            bytes,
-            maximum_length,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "byte comparison literal exceeds its index carrier",
-        ))?;
-        if negated {
-            comparison = CheckedBooleanExpression::Not(Box::new(comparison));
-        }
+            let path = observation_path(&subject.path)?;
+            (site.bindings, root, path)
+        };
         let mut value = bindings.expression(
             identities,
             &self.checked.facts.proven_scalar_indexes,
-            &CheckedScalarExpression::Boolean(Box::new(comparison)),
+            &CheckedScalarExpression::Boolean(Box::new(query(root, path)?)),
         )?;
         // The template asks several questions of one already evaluated operand.
         // Capture its selectors before the length guard, then carry their exact
@@ -159,16 +160,16 @@ impl Expansion<'_> {
                 .iter()
                 .map(|value| QualifiedScalarType::from(value.scalar_type())),
         );
-        let mut comparison = self.binding(
+        let mut completed = self.binding(
             &operand_types,
             input_types.len(),
             target,
             LoweredScalarBinding::Expression(value),
         );
         for (ordinal, value) in captures.values.into_iter().enumerate().rev() {
-            comparison = self.direct_value(
+            completed = self.direct_value(
                 &operand_types[..input_types.len() + ordinal],
-                comparison,
+                completed,
                 value,
             )?;
         }
@@ -178,15 +179,59 @@ impl Expansion<'_> {
                 subject,
                 &slot,
                 input_types,
-                comparison,
+                completed,
                 site,
                 active,
             )?,
-            None => comparison,
+            None => completed,
         };
         self.schedule_call_byte_view(identities, subject, input_types, entry, site)
     }
 
+    /// A literal equality comparison observes the operand as an extent,
+    /// truncated to the declared carrier's length when it has one. Its
+    /// negation is the same observation under a `Not` leaf.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn byte_literal_comparison(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        bytes: &[u8],
+        maximum_length: Option<u64>,
+        negated: bool,
+        subject: &CheckedUnitStructuralArgumentPlan,
+        input_types: &[QualifiedScalarType],
+        target: usize,
+        site: &Site<'_>,
+        active: &mut Vec<super::Computation>,
+    ) -> Result<usize, LoweringError> {
+        self.byte_sequence_observation(
+            identities,
+            subject,
+            input_types,
+            target,
+            site,
+            active,
+            |root, path| {
+                let comparison = CheckedBooleanExpression::byte_literal_equality_in_extent(
+                    root,
+                    path,
+                    bytes,
+                    maximum_length,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "byte comparison literal exceeds its index carrier",
+                ))?;
+                Ok(if negated {
+                    CheckedBooleanExpression::Not(Box::new(comparison))
+                } else {
+                    comparison
+                })
+            },
+        )
+    }
+
+    /// A declared byte predicate observes the same operand under its own named
+    /// judgment.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn byte_predicate(
         &mut self,
@@ -198,130 +243,21 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<super::Computation>,
     ) -> Result<usize, LoweringError> {
-        let mut range_slot = None;
-        let private_bindings;
-        let (bindings, root, path) =
-            if let Some(expression) = super::call_views::expression(subject) {
-                let slot = self
-                    .call_views
-                    .iter()
-                    .find(|slot| slot.expression == expression)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte predicate operand has no call result reservation",
-                    ))?;
-                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-                (
-                    &private_bindings,
-                    CheckedStorageRoot::Parameter { index: 0 },
-                    Vec::new(),
-                )
-            } else if let Some(range) = super::subslices::range(subject) {
-                let slot = self
-                    .subslices
-                    .iter()
-                    .find(|slot| slot.expression == range.expression)
-                    .ok_or(LoweringError::Unsupported(
-                        "byte predicate operand has no descriptor reservation",
-                    ))?;
-                range_slot = Some(slot.clone());
-                private_bindings = self.descriptor_bindings(slot.place, slot.structural_type);
-                (
-                    &private_bindings,
-                    CheckedStorageRoot::Parameter { index: 0 },
-                    Vec::new(),
-                )
-            } else {
-                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
-                let root = match subject.source {
-                    Source::Parameter { parameter_index } => {
-                        let (position, _) = self
-                            .checked
-                            .state_parameters(state)
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, parameter)| {
-                                !parameter.relevance.is_erased()
-                                    && self
-                                        .checked
-                                        .primitive_type_reference(parameter.type_reference)
-                                        .is_none()
-                            })
-                            .nth(parameter_index as usize)
-                            .ok_or(LoweringError::Unsupported(
-                                "byte predicate lost its source parameter",
-                            ))?;
-                        CheckedStorageRoot::Parameter {
-                            index: u32::try_from(position).map_err(|_| {
-                                LoweringError::Unsupported("byte predicate parameter overflow")
-                            })?,
-                        }
-                    }
-                    Source::StructuralLocal { symbol } => {
-                        let (_, local) = self
-                            .checked
-                            .state_local_declaration(state, symbol)
-                            .ok_or(LoweringError::Unsupported("byte predicate lost its local"))?;
-                        if validation::reference_shell(&self.checked.typed, local.type_reference)
-                            .is_some()
-                        {
-                            CheckedStorageRoot::ViewLocal { symbol }
-                        } else {
-                            CheckedStorageRoot::OwnedLocal { symbol }
-                        }
-                    }
-                    _ => return unsupported("byte predicate has no observable operand"),
-                };
-                let path = observation_path(&subject.path)?;
-                (site.bindings, root, path)
-            };
-        let evaluation = CheckedBooleanExpression::ByteSequencePredicate {
-            predicate,
-            root,
-            path,
-        };
-        let mut value = bindings.expression(
+        self.byte_sequence_observation(
             identities,
-            &self.checked.facts.proven_scalar_indexes,
-            &CheckedScalarExpression::Boolean(Box::new(evaluation)),
-        )?;
-        // The evaluated view can carry runtime selectors the predicate itself
-        // depends on; capture their SSA identities before the verdict leaf so
-        // each selector is read once.
-        let mut captures = OperandSelectors::new(input_types.len());
-        captures.capture(&mut value);
-        let mut operand_types = input_types.to_vec();
-        operand_types.extend(
-            captures
-                .values
-                .iter()
-                .map(|value| QualifiedScalarType::from(value.scalar_type())),
-        );
-        let mut evaluation = self.binding(
-            &operand_types,
-            input_types.len(),
+            subject,
+            input_types,
             target,
-            LoweredScalarBinding::Expression(value),
-        );
-        for (ordinal, value) in captures.values.into_iter().enumerate().rev() {
-            evaluation = self.direct_value(
-                &operand_types[..input_types.len() + ordinal],
-                evaluation,
-                value,
-            )?;
-        }
-        let entry = match range_slot {
-            Some(slot) => self.subslice(
-                identities,
-                subject,
-                &slot,
-                input_types,
-                evaluation,
-                site,
-                active,
-            )?,
-            None => evaluation,
-        };
-        self.schedule_call_byte_view(identities, subject, input_types, entry, site)
+            site,
+            active,
+            |root, path| {
+                Ok(CheckedBooleanExpression::ByteSequencePredicate {
+                    predicate,
+                    root,
+                    path,
+                })
+            },
+        )
     }
 
     /// Run the call into its reserved result place, then observe that place.
