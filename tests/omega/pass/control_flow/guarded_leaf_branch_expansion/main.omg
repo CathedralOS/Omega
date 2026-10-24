@@ -54,7 +54,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line(main.line.text);
 
     transition {
-        _ -> main
+        _ -> {}
     }
 
 

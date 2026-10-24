@@ -1,0 +1,1 @@
+machine `Counter::wipe` state `step` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`

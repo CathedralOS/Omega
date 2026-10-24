@@ -7,6 +7,7 @@ use crate::{
     proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
     value_custody::expression_types, value_custody::struct_literals,
 };
+use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 use typed_trees::statement::TransitionTargetNode;
 
@@ -108,11 +109,29 @@ pub(super) fn validate(
         );
     }
 
-    // A transition VALUE target (`_ -> (expr)`) is a return value. When the
-    // state's return type declares a `[a..=b]`, enforce the value is provably
-    // within it (so call-site narrowing that trusts the range is sound); the
-    // exact-overflow + narrowing obligations apply too. Gated inside
-    // `validate_return_value_range`, so plain returns are unaffected.
+    // A transition VALUE target (`_ -> (expr)`) is a return value. A state
+    // without a result (its own arrow absent and the machine's too) has
+    // nothing to deliver it into: the terminal arm is spelled `_ -> {}`, and
+    // lowering has no row that returns a value from a unit state.
+    if let Some(state) = current_state
+        && !state.return_type.is_valid()
+    {
+        for target in transition.targets() {
+            if let TransitionTargetNode::Value(_) =
+                program.statement_table.transition_target(target)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{state_name}` transition returns a value, but the state declares no result; a terminal arm is `_ -> {{}}`",
+                    machine.name
+                )));
+            }
+        }
+    }
+
+    // When the state's return type declares a `[a..=b]`, enforce the value is
+    // provably within it (so call-site narrowing that trusts the range is
+    // sound); the exact-overflow + narrowing obligations apply too. Gated
+    // inside `validate_return_value_range`, so plain returns are unaffected.
     if let Some(state) = current_state
         && state.return_type.is_valid()
     {
