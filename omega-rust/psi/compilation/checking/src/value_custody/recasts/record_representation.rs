@@ -233,6 +233,53 @@ pub fn recast_scalar_layout(
     })
 }
 
+/// One record field under its exact owning declaration: the unique non-erased
+/// member of `carrier`'s data that `select` names. The raw-symbol walk and the
+/// checked-identity replay differ only in that predicate, and both owe the
+/// same uniqueness rule -- a same-spelled or ambiguous member cannot stand in
+/// for the retained one -- so both resolve through here.
+fn unique_record_field<'program>(
+    program: &'program dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
+    select: impl Fn(&typed_trees::data::DataField) -> bool,
+) -> Option<&'program typed_trees::data::DataField> {
+    let owner = crate::declarations::data_queries::data_definition_by_symbol(
+        program,
+        program.type_reference_symbol(carrier),
+    )?;
+    let mut fields = program
+        .data_members(owner)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field)
+                if !field.relevance.is_erased() && select(field) =>
+            {
+                Some(field)
+            }
+            _ => None,
+        });
+    let selected = fields.next()?;
+    fields.next().is_none().then_some(selected)
+}
+
+/// One literal fixed-array step: the index must lie inside the array's literal
+/// length, and its element type is the next carrier. Both path directions owe
+/// this same in-range check.
+fn fixed_array_element(
+    program: &dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
+    index: usize,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(carrier)
+    else {
+        return None;
+    };
+    (index < *length).then_some(*element_type)
+}
+
 fn checked_projection_path(
     program: &dyn crate::CheckingInput,
     root: TypeReferenceHandle,
@@ -245,26 +292,8 @@ fn checked_projection_path(
     for segment in path {
         match segment {
             RepresentationSegment::Field(symbol) => {
-                let owner = crate::declarations::data_queries::data_definition_by_symbol(
-                    program,
-                    program.type_reference_symbol(carrier),
-                )?;
-                let mut fields =
-                    program
-                        .data_members(owner)
-                        .iter()
-                        .filter_map(|member| match member {
-                            typed_trees::data::DataMember::Field(field)
-                                if field.symbol == *symbol && !field.relevance.is_erased() =>
-                            {
-                                Some(field)
-                            }
-                            _ => None,
-                        });
-                let selected = fields.next()?;
-                if fields.next().is_some() {
-                    return None;
-                }
+                let selected =
+                    unique_record_field(program, carrier, |field| field.symbol == *symbol)?;
                 checked_path.push(CheckedSegment::Field(
                     checked_trees::CheckedMemberIdentity::of_member(
                         selected.identity,
@@ -274,18 +303,8 @@ fn checked_projection_path(
                 carrier = selected.type_reference;
             }
             RepresentationSegment::Element(index) => {
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: FixedArrayLength::Literal(length),
-                } = program.type_reference_table.type_reference(carrier)
-                else {
-                    return None;
-                };
-                if index >= length {
-                    return None;
-                }
+                carrier = fixed_array_element(program, carrier, *index)?;
                 checked_path.push(CheckedSegment::FixedIndex(u64::try_from(*index).ok()?));
-                carrier = *element_type;
             }
         }
     }
@@ -341,53 +360,26 @@ fn recast_projection_path(
     let mut carrier = root;
     let mut path = Vec::new();
     for segment in carrier_path {
-        let identity = match segment {
-            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => identity,
+        match segment {
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                let selected = unique_record_field(program, carrier, |field| {
+                    checked_trees::CheckedMemberIdentity::of_member(
+                        field.identity,
+                        field.name.clone(),
+                    ) == *identity
+                })?;
+                path.push(RepresentationSegment::Field(selected.symbol));
+                carrier = selected.type_reference;
+            }
             // A literal element of a fixed array selects that element's
             // normalized leaves, which carry the same element coordinate.
             checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: FixedArrayLength::Literal(length),
-                } = program.type_reference_table.type_reference(carrier)
-                else {
-                    return None;
-                };
                 let index = usize::try_from(*index).ok()?;
-                if index >= *length {
-                    return None;
-                }
+                carrier = fixed_array_element(program, carrier, index)?;
                 path.push(RepresentationSegment::Element(index));
-                carrier = *element_type;
-                continue;
             }
             _ => return None,
-        };
-        let owner = crate::declarations::data_queries::data_definition_by_symbol(
-            program,
-            program.type_reference_symbol(carrier),
-        )?;
-        let mut fields = program
-            .data_members(owner)
-            .iter()
-            .filter_map(|member| match member {
-                typed_trees::data::DataMember::Field(candidate)
-                    if !candidate.relevance.is_erased()
-                        && checked_trees::CheckedMemberIdentity::of_member(
-                            candidate.identity,
-                            candidate.name.clone(),
-                        ) == *identity =>
-                {
-                    Some(candidate)
-                }
-                _ => None,
-            });
-        let selected = fields.next()?;
-        if fields.next().is_some() {
-            return None;
         }
-        path.push(RepresentationSegment::Field(selected.symbol));
-        carrier = selected.type_reference;
     }
     Some(path)
 }
