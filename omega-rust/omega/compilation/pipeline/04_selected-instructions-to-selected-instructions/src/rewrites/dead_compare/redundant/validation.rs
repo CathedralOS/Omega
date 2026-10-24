@@ -15,67 +15,33 @@
 
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
 
+use super::super::admission::compare_removal_steps;
 use super::{RedundantCompareError, RedundantCompareReceipt, ValidatedRedundantCompare};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{edge_surface, terminator_successors};
 use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract
-/// the family publishes: the shared rewrite scan (one step per block
-/// and instruction of the function, one per plan function), a second scan of the reconstructed function's blocks
-/// together with its roster, call, and access rows, the shared walk's
-/// setup and fixpoint bound, and the backward operand audit at one stream
-/// scan plus the crossed edges' transport surface per published unit.
-/// `units` is caller-supplied so discovery can charge the contract before
-/// admission runs: the candidate's published `implicit_defs`/`clobbers`
-/// union bounds it exactly.
+/// the family publishes: the shared compare-removal cone audit — the rewrite
+/// scan, the reconstructed function's blocks together with its roster, call,
+/// and access rows, the shared walk's setup and fixpoint bound, and the
+/// backward operand audit at one stream scan plus the crossed edges'
+/// transport surface per published unit. `units` is caller-supplied so
+/// discovery can charge the contract before admission runs: the candidate's
+/// published `implicit_defs`/`clobbers` union bounds it exactly.
 pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
     successors: &[Vec<usize>],
     units: usize,
 ) -> Result<u64, RedundantCompareError> {
-    let cone = crate::rewrites::cone_propagation(function, successors, || {
-        RedundantCompareError::IdentityOverflow
-    })?;
-    let function_scan = cone.function_scan;
-    let edge_count = cone.edge_count;
-    let per_unit = cone.per_unit_base;
-    let walk_setup = cone.walk_setup_base;
-    let transport_rows = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            terminator_successors(&block.terminator)
-                .iter()
-                .try_fold(total, |total, successor| {
-                    total.checked_add(edge_surface(successor))
-                })
-        })
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let audit = units
-        .checked_mul(
-            function_scan
-                .checked_add(edge_count)
-                .and_then(|total| total.checked_add(transport_rows))
-                .ok_or(RedundantCompareError::IdentityOverflow)?,
-        )
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan)?
-                .checked_add(function.virtual_registers.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.memory_accesses.len())
-        })
-        .and_then(|total| {
-            total
-                .checked_add(walk_setup)?
-                .checked_add(units.checked_mul(per_unit)?)?
-                .checked_add(audit)
-        })
-        .ok_or(RedundantCompareError::IdentityOverflow)?;
+    let steps = compare_removal_steps(
+        plan,
+        function,
+        successors,
+        units,
+        |cone| Ok(cone.per_unit_base),
+        || RedundantCompareError::IdentityOverflow,
+    )?;
     u64::try_from(steps).map_err(|_| RedundantCompareError::IdentityOverflow)
 }
 

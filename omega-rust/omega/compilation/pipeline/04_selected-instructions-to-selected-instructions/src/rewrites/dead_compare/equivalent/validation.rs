@@ -17,78 +17,43 @@
 
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
 
+use super::super::admission::compare_removal_steps;
 use super::{EquivalentCompareError, EquivalentCompareReceipt, ValidatedEquivalentCompare};
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{edge_surface, terminator_successors};
 use crate::rewrites::sealed;
 
 /// The validation work this audit performs, in the measured-step contract
-/// the family publishes: the shared rewrite scan (one step per block
-/// and instruction of the function, one per plan function), a second scan of the reconstructed function together
-/// with its roster, call, and access rows, then the reaching walk's setup
-/// — every edge's target resolution, the predecessor fill, and the cone
-/// mark — plus per published unit the in-block prefix scan, the per-block
-/// last-event table, the bounded fixpoint propagation, and the per-site
-/// equivalence checks' unique-producer scans, and finally the backward
-/// operand audit once per unit over stream positions and crossed edge
-/// surfaces. `units` is caller-supplied so discovery can charge the
-/// contract before admission runs: the candidate's published
-/// `implicit_defs`/`clobbers` union bounds it exactly.
+/// the family publishes: the shared compare-removal cone audit — the rewrite
+/// scan, the reconstructed function's roster, call, and access rows, the
+/// reaching walk's setup, the backward operand audit over stream positions
+/// and crossed edge surfaces, and the shadow-transport rows per published
+/// unit — plus the per-site equivalence checks' unique-producer scans.
+/// `units` is caller-supplied so discovery can charge the contract before
+/// admission runs: the candidate's published `implicit_defs`/`clobbers`
+/// union bounds it exactly.
 pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
     successors: &[Vec<usize>],
     units: usize,
 ) -> Result<u64, EquivalentCompareError> {
-    let cone = crate::rewrites::cone_propagation(function, successors, || {
-        EquivalentCompareError::IdentityOverflow
-    })?;
-    let function_scan = cone.function_scan;
-    let edge_count = cone.edge_count;
-    let per_unit = Some(cone.per_unit_base)
-        .and_then(|total| {
-            total.checked_add(
-                cone.elements
-                    .checked_mul(cone.function_scan)?
-                    .checked_mul(4)?,
-            )
-        })
-        .ok_or(EquivalentCompareError::IdentityOverflow)?;
-    let walk_setup = cone.walk_setup_base;
-    let transport_rows = function
-        .blocks
-        .iter()
-        .try_fold(0usize, |total, block| {
-            terminator_successors(&block.terminator)
-                .iter()
-                .try_fold(total, |total, successor| {
-                    total.checked_add(edge_surface(successor))
-                })
-        })
-        .ok_or(EquivalentCompareError::IdentityOverflow)?;
-    let audit = units
-        .checked_mul(
-            function_scan
-                .checked_add(edge_count)
-                .and_then(|total| total.checked_add(transport_rows))
-                .ok_or(EquivalentCompareError::IdentityOverflow)?,
-        )
-        .ok_or(EquivalentCompareError::IdentityOverflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan)?
-                .checked_add(function.virtual_registers.len())?
-                .checked_add(function.calls.len())?
-                .checked_add(function.memory_accesses.len())
-        })
-        .and_then(|total| {
-            total
-                .checked_add(walk_setup)?
-                .checked_add(units.checked_mul(per_unit)?)?
-                .checked_add(audit)
-        })
-        .ok_or(EquivalentCompareError::IdentityOverflow)?;
+    let steps = compare_removal_steps(
+        plan,
+        function,
+        successors,
+        units,
+        |cone| {
+            cone.per_unit_base
+                .checked_add(
+                    cone.elements
+                        .checked_mul(cone.function_scan)
+                        .and_then(|product| product.checked_mul(4))
+                        .ok_or(EquivalentCompareError::IdentityOverflow)?,
+                )
+                .ok_or(EquivalentCompareError::IdentityOverflow)
+        },
+        || EquivalentCompareError::IdentityOverflow,
+    )?;
     u64::try_from(steps).map_err(|_| EquivalentCompareError::IdentityOverflow)
 }
 

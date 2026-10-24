@@ -91,7 +91,7 @@ pub(crate) fn measured_steps(
     materialize_surface: usize,
     producer_defs: usize,
 ) -> Result<u64, ConstantBooleanError> {
-    crate::rewrites::constant_fold_measured_steps(
+    let steps = crate::rewrites::constant_fold_steps(
         plan,
         function,
         successors,
@@ -100,7 +100,8 @@ pub(crate) fn measured_steps(
         materialize_surface,
         producer_defs,
         || ConstantBooleanError::IdentityOverflow,
-    )
+    )?;
+    u64::try_from(steps).map_err(|_| ConstantBooleanError::IdentityOverflow)
 }
 
 /// Admit a freshly produced plan with its receipt; the producer calls this

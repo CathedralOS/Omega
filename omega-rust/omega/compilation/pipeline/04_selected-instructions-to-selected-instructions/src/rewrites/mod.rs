@@ -592,10 +592,12 @@ pub(crate) fn shifted_boundary_settlements<E>(
     Ok(shifted)
 }
 
-/// Shared validation-step measurement for the constant folds: the
+/// Shared cone-audited step measurement for the constant folds: the
 /// cone-propagation bases plus the per-unit surface, the reach scan and the
 /// rewrite scan, all saturating through the caller's overflow diagnostic.
-pub(crate) fn constant_fold_measured_steps<E>(
+/// Both fold admissions charge this total and both fold validators publish
+/// it, so the fold's measured-step contract is derived once.
+pub(crate) fn constant_fold_steps<E>(
     plan: &selected_instructions::SelectedInstructionPlan,
     function: &selected_instructions::SelectedFunction,
     successors: &[Vec<usize>],
@@ -604,7 +606,7 @@ pub(crate) fn constant_fold_measured_steps<E>(
     surface: usize,
     defs: usize,
     overflow: impl Fn() -> E + Copy,
-) -> Result<u64, E> {
+) -> Result<usize, E> {
     let cone = crate::rewrites::cone_propagation(function, successors, overflow)?;
     let per_unit = Some(cone.per_unit_base)
         .and_then(|total| total.checked_add(flag_universe.checked_add(surface)?.checked_add(defs)?))
@@ -618,14 +620,13 @@ pub(crate) fn constant_fold_measured_steps<E>(
         .checked_mul(per_unit)
         .and_then(|total| total.checked_add(walk_setup))
         .ok_or_else(overflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
+    crate::rewrites::rewrite_scan(plan, function)
         .and_then(|total| {
             total
                 .checked_add(function_scan.checked_mul(2)?)?
                 .checked_add(reach_scan)
         })
-        .ok_or_else(overflow)?;
-    u64::try_from(steps).map_err(|_| overflow())
+        .ok_or_else(overflow)
 }
 
 /// Shared phase validation for rewrite-stage rule catalogs: the required

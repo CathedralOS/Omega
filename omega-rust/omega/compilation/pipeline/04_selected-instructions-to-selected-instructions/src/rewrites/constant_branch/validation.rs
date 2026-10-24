@@ -87,7 +87,7 @@ pub(crate) fn measured_steps(
     jump_surface: usize,
     compare_defs: usize,
 ) -> Result<u64, ConstantBranchError> {
-    crate::rewrites::constant_fold_measured_steps(
+    let steps = crate::rewrites::constant_fold_steps(
         plan,
         function,
         successors,
@@ -96,7 +96,8 @@ pub(crate) fn measured_steps(
         jump_surface,
         compare_defs,
         || ConstantBranchError::IdentityOverflow,
-    )
+    )?;
+    u64::try_from(steps).map_err(|_| ConstantBranchError::IdentityOverflow)
 }
 
 /// Admit a freshly produced plan with its receipt; the producer calls this

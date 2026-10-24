@@ -255,37 +255,16 @@ pub(super) fn admit<'source>(
     if !rule.admits_declarations(consumer_declaration, rewritten_declaration) {
         return Err(ConstantBranchError::EffectSurfaceMismatch);
     }
-    let cone = crate::rewrites::cone_propagation(function, &successors, || {
-        ConstantBranchError::IdentityOverflow
-    })?;
-    let per_unit = Some(cone.per_unit_base)
-        .and_then(|total| {
-            total.checked_add(
-                flag_universe
-                    .len()
-                    .checked_add(jump_surface.len())?
-                    .checked_add(compare_instruction.implicit_defs.len())?,
-            )
-        })
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let walk_setup = Some(cone.walk_setup_base)
-        .and_then(|total| total.checked_add(flag_universe.len()))
-        .and_then(|total| total.checked_add(jump_surface.len()))
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let function_scan = cone.function_scan;
-    let reach_scan = branch_instruction
-        .implicit_uses
-        .len()
-        .checked_mul(per_unit)
-        .and_then(|total| total.checked_add(walk_setup))
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan.checked_mul(2)?)?
-                .checked_add(reach_scan)
-        })
-        .ok_or(ConstantBranchError::IdentityOverflow)?;
+    let steps = crate::rewrites::constant_fold_steps(
+        plan,
+        function,
+        &successors,
+        branch_instruction.implicit_uses.len(),
+        flag_universe.len(),
+        jump_surface.len(),
+        compare_instruction.implicit_defs.len(),
+        || ConstantBranchError::IdentityOverflow,
+    )?;
     crate::rewrites::charge_steps(
         steps,
         budget,

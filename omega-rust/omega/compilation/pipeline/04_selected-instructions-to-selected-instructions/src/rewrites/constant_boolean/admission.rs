@@ -277,9 +277,6 @@ pub(super) fn admit<'source>(
     if !rule.admits_declarations(&flag_universe, consumer_declaration, rewritten_declaration) {
         return Err(ConstantBooleanError::EffectSurfaceMismatch);
     }
-    let cone = crate::rewrites::cone_propagation(function, &successors, || {
-        ConstantBooleanError::IdentityOverflow
-    })?;
     let materialize_surface = rewritten_row
         .implicit_uses
         .iter()
@@ -287,34 +284,16 @@ pub(super) fn admit<'source>(
         .chain(rewritten_row.clobbers.iter())
         .collect::<BTreeSet<_>>()
         .len();
-    let per_unit = Some(cone.per_unit_base)
-        .and_then(|total| {
-            total.checked_add(
-                flag_universe
-                    .len()
-                    .checked_add(materialize_surface)?
-                    .checked_add(compare_instruction.implicit_defs.len())?,
-            )
-        })
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let walk_setup = Some(cone.walk_setup_base)
-        .and_then(|total| total.checked_add(flag_universe.len()))
-        .and_then(|total| total.checked_add(materialize_surface))
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let function_scan = cone.function_scan;
-    let reach_scan = materialization_instruction
-        .implicit_uses
-        .len()
-        .checked_mul(per_unit)
-        .and_then(|total| total.checked_add(walk_setup))
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
-    let steps = crate::rewrites::rewrite_scan(plan, function)
-        .and_then(|total| {
-            total
-                .checked_add(function_scan.checked_mul(2)?)?
-                .checked_add(reach_scan)
-        })
-        .ok_or(ConstantBooleanError::IdentityOverflow)?;
+    let steps = crate::rewrites::constant_fold_steps(
+        plan,
+        function,
+        &successors,
+        materialization_instruction.implicit_uses.len(),
+        flag_universe.len(),
+        materialize_surface,
+        compare_instruction.implicit_defs.len(),
+        || ConstantBooleanError::IdentityOverflow,
+    )?;
     crate::rewrites::charge_steps(
         steps,
         budget,

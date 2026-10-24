@@ -13,9 +13,10 @@
 //!
 //! This file also owns the helpers the sibling removal families reuse:
 //! `canonical_compare_operands` reads the emitted flag-publisher shape any
-//! compare — victim or shadow — must carry, and `audit_stable_paths` is the
+//! compare — victim or shadow — must carry, `audit_stable_paths` is the
 //! backward operand-stability walk the shadow-based families run per
-//! published unit.
+//! published unit, and `compare_removal_steps` is the cone-audited
+//! measured-step contract both shadow-based families publish.
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
@@ -30,7 +31,9 @@ use selected_instructions::{
 
 use super::DeadCompareError;
 use crate::ValidatedSelectedAnalysis;
-use crate::rewrites::block_edges::{block_instructions, member_position, terminator_successors};
+use crate::rewrites::block_edges::{
+    block_instructions, edge_surface, member_position, terminator_successors,
+};
 use crate::rewrites::condition_state::{EventSite, instruction_at};
 
 pub(super) struct Admission<'source> {
@@ -147,6 +150,62 @@ pub(super) fn audit_stable_paths<E: Copy>(
         }
     }
     Ok(())
+}
+
+/// The cone-audited step contract the backward-walk compare removals
+/// publish: the cone-propagation bases, the shadow-transport rows between
+/// successor edges, the removal audit at the function scan, edge count, and
+/// transport rows per published unit, and the shared rewrite, roster, call,
+/// and access scans — plus the caller's own per-unit term. Only the per-unit
+/// term differs between the shadow-based families, so they derive their
+/// measured steps here rather than restating the audit.
+pub(super) fn compare_removal_steps<E>(
+    plan: &SelectedInstructionPlan,
+    function: &SelectedFunction,
+    successors: &[Vec<usize>],
+    units: usize,
+    per_unit: impl FnOnce(&crate::rewrites::ConePropagation) -> Result<usize, E>,
+    overflow: impl Fn() -> E + Copy,
+) -> Result<usize, E> {
+    let cone = crate::rewrites::cone_propagation(function, successors, overflow)?;
+    let function_scan = cone.function_scan;
+    let edge_count = cone.edge_count;
+    let per_unit = per_unit(&cone)?;
+    let walk_setup = cone.walk_setup_base;
+    let transport_rows = function
+        .blocks
+        .iter()
+        .try_fold(0usize, |total, block| {
+            terminator_successors(&block.terminator)
+                .iter()
+                .try_fold(total, |total, successor| {
+                    total.checked_add(edge_surface(successor))
+                })
+        })
+        .ok_or_else(overflow)?;
+    let audit = units
+        .checked_mul(
+            function_scan
+                .checked_add(edge_count)
+                .and_then(|total| total.checked_add(transport_rows))
+                .ok_or_else(overflow)?,
+        )
+        .ok_or_else(overflow)?;
+    crate::rewrites::rewrite_scan(plan, function)
+        .and_then(|total| {
+            total
+                .checked_add(function_scan)?
+                .checked_add(function.virtual_registers.len())?
+                .checked_add(function.calls.len())?
+                .checked_add(function.memory_accesses.len())
+        })
+        .and_then(|total| {
+            total
+                .checked_add(walk_setup)?
+                .checked_add(units.checked_mul(per_unit)?)?
+                .checked_add(audit)
+        })
+        .ok_or_else(overflow)
 }
 
 fn audit_dead_unit(
