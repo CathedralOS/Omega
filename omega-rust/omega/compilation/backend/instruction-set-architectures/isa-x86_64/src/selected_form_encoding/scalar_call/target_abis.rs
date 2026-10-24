@@ -15,7 +15,8 @@ fn target_register_arities_encode_and_reject_opposite_abi_effects() {
         &physical,
     )
     .unwrap();
-    for pair in crate::X86_64_REQUIRED_REGISTER_CONSTRAINTS.windows(2) {
+    let required = crate::x86_64_required_register_constraints();
+    for pair in required.windows(2) {
         assert!(
             pair[0] < pair[1],
             "constraint inventory out of order: {:?} >= {:?}",

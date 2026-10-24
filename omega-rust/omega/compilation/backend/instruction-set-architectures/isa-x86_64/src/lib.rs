@@ -30,8 +30,6 @@ pub use register_model::X86_64_MATERIALIZE_BOOLEAN;
 pub use register_model::X86_64_MULTIPLY_I64;
 pub use register_model::X86_64_REMAINDER_I64;
 pub use register_model::X86_64_REMAINDER_U64;
-#[cfg(test)]
-pub(crate) use register_model::X86_64_REQUIRED_REGISTER_CONSTRAINTS;
 pub use register_model::X86_64_SATURATING_ADD_CLAMPED;
 pub use register_model::X86_64_SATURATING_ADD_U64;
 pub use register_model::X86_64_SATURATING_DIVIDE_SIGNED;
@@ -42,6 +40,8 @@ pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
 pub use register_model::X86_64_SHIFT_I64;
 pub use register_model::X86_64_ZERO_BYTES;
 pub use register_model::x86_64_linux_system_call_keys;
+#[cfg(test)]
+pub(crate) use register_model::x86_64_required_register_constraints;
 pub use register_model::{
     X86_64_ATOMIC_BITWISE_UPDATE, X86_64_ATOMIC_COMPARE_EXCHANGE, X86_64_ATOMIC_FENCE,
     X86_64_ATOMIC_LOAD, X86_64_ATOMIC_STORE, X86_64_ATOMIC_UPDATE, X86_64_CONTROL_REGISTER_READ,

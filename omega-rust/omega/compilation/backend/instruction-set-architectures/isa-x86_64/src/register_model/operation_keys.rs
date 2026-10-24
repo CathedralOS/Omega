@@ -1,11 +1,14 @@
 //! The constraint keys of the ordinary x86-64 operations: loads, stores,
 //! float bit casts, hosted calls, arithmetic, comparisons and branches, and
-//! the closed inventory every catalog must carry.
+//! the closed inventory every catalog must carry, extended from the key owners
+//! that mint each call and return family.
 
+use super::float_scalar_calls::{x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys};
+use super::indirect_results::x86_64_indirect_aggregate_call_keys;
+use super::packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 use crate::register_model::{
-    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_CALL_UNIT, X86_64_MICROSOFT_RETURN,
-    X86_64_MICROSOFT_RETURN_UNIT, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
-    X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT,
+    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
 };
 use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
 
@@ -507,105 +510,16 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
     variant: 9,
 };
 
-/// Closed v1 inventory owned by the x86-64 target.
+/// The named ordinary x86-64 rows: every constraint key the target mints as
+/// its own constant instead of as a member of a call or return family.
 ///
 /// The ordinary rows are deliberately limited to the baseline operations
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 114] = [
+pub(crate) const X86_64_ORDINARY_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 90] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
-    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 4,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 5,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 6,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 7,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 8,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 9,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 10,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 11,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 12,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 13,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 14,
-    },
-    X86_64_MICROSOFT_CALL_UNIT,
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 720,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 721,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 723,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 724,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 740,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 741,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 742,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 743,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 744,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 745,
-    },
-    RegisterConstraintKey {
-        family: RegisterConstraintFamily::Call,
-        variant: 746,
-    },
     X86_64_SYSTEM_V_RETURN,
     X86_64_MICROSOFT_RETURN,
     X86_64_SYSTEM_V_RETURN_UNIT,
@@ -695,6 +609,38 @@ pub(crate) const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 1
     X86_64_CONTROL_REGISTER_WRITE,
     X86_64_FLAGS_RESTORE,
 ];
+
+/// Closed v1 inventory owned by the x86-64 target: the named ordinary rows
+/// plus every call and return family of the target.
+///
+/// Each family is extended from the key owner that mints it, so the inventory
+/// cannot drift from the rows the catalog builds out of the same keys.
+pub(crate) fn x86_64_required_register_constraints() -> Vec<RegisterConstraintKey> {
+    let mut required = X86_64_ORDINARY_REGISTER_CONSTRAINTS.to_vec();
+    required.extend(super::call_keys::x86_64_system_v_register_call_keys());
+    required.extend(super::call_keys::x86_64_microsoft_register_call_keys());
+    required.extend(super::call_keys::x86_64_system_v_register_unit_call_keys());
+    required.extend(super::call_keys::x86_64_microsoft_register_unit_call_keys());
+    required.extend(super::call_keys::x86_64_system_v_aggregate_call_keys());
+    required.extend(super::call_keys::x86_64_system_v_aggregate_return_keys());
+    required.extend(super::call_keys::x86_64_microsoft_aggregate_call_keys());
+    required.extend(super::call_keys::x86_64_microsoft_aggregate_return_keys());
+    required.extend(super::call_keys::x86_64_system_v_normalized_foreign_call_keys());
+    required.extend(super::call_keys::x86_64_microsoft_normalized_foreign_call_keys());
+    required.extend(super::mixed_calls::x86_64_system_v_mixed_unit_call_keys());
+    required.extend(super::mixed_calls::x86_64_microsoft_mixed_unit_call_keys());
+    required.extend(super::mixed_aggregate_calls::x86_64_system_v_mixed_aggregate_call_keys());
+    required.extend(super::mixed_aggregate_calls::x86_64_microsoft_mixed_aggregate_call_keys());
+    for microsoft in [false, true] {
+        required.extend(x86_64_float_scalar_call_keys(microsoft));
+        required.extend(x86_64_float_scalar_return_keys(microsoft));
+        required.extend(x86_64_indirect_aggregate_call_keys(microsoft));
+    }
+    required.extend(super::system_calls::x86_64_linux_system_call_keys());
+    required.extend([X86_64_LOAD_PACKED, X86_64_STORE_PACKED]);
+    required.sort_unstable();
+    required
+}
 
 pub const X86_64_PLACED_READ: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,

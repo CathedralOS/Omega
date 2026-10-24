@@ -1,7 +1,6 @@
 //! The register constraint catalog of every x86-64 operation and its
 //! validation against the closed inventory.
 
-use crate::register_model::packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 use crate::register_model::physical_model::{GPR64, VECTOR128, complement};
 use crate::register_model::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET, X86_64_ATOMIC_BITWISE_UPDATE,
@@ -16,30 +15,23 @@ use crate::register_model::{
     X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN,
     X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
     X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
-    X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64,
-    X86_64_SATURATING_DIVIDE_SIGNED, X86_64_SATURATING_MULTIPLY_CLAMPED,
-    X86_64_SATURATING_MULTIPLY_U64, X86_64_SATURATING_SUBTRACT_CLAMPED,
-    X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE,
-    X86_64_STORE_ENCODED_SCALAR, X86_64_STORE64, X86_64_SUBTRACT_I64,
-    X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
-    X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64_TRAPPING_BINARY,
-    X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES,
-    canonical_x86_64_physical_register_model_identity, validated_x86_64_physical_register_model,
-    x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
-    x86_64_microsoft_normalized_foreign_call_keys, x86_64_microsoft_register_call_keys,
-    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_aggregate_call_keys,
-    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
+    X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
+    X86_64_SATURATING_MULTIPLY_CLAMPED, X86_64_SATURATING_MULTIPLY_U64,
+    X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED,
+    X86_64_SCAN_BYTE_SEQUENCE, X86_64_SHIFT_I64, X86_64_STORE, X86_64_STORE_ENCODED_SCALAR,
+    X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
+    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR,
+    X86_64_TRAPPING_SHIFT, X86_64_ZERO_BYTES, canonical_x86_64_physical_register_model_identity,
+    validated_x86_64_physical_register_model, x86_64_microsoft_aggregate_call_keys,
+    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_register_call_keys,
+    x86_64_microsoft_register_unit_call_keys, x86_64_required_register_constraints,
+    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
     x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::{X86_64_PLACED_READ, X86_64_PLACED_WRITE};
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
-};
-use crate::{
-    x86_64_float_scalar_call_keys, x86_64_float_scalar_return_keys,
-    x86_64_indirect_aggregate_call_keys, x86_64_microsoft_mixed_aggregate_call_keys,
-    x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_aggregate_call_keys,
-    x86_64_system_v_mixed_unit_call_keys,
 };
 use register_model::{
     PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
@@ -1301,28 +1293,7 @@ pub fn x86_64_register_constraint_catalog(
     }
     RegisterConstraintCatalog {
         architecture: Architecture::X86_64,
-        required: {
-            let mut required = X86_64_REQUIRED_REGISTER_CONSTRAINTS.to_vec();
-            required.extend([X86_64_LOAD_PACKED, X86_64_STORE_PACKED]);
-            required.extend(x86_64_system_v_mixed_unit_call_keys());
-            for microsoft in [false, true] {
-                required.extend(x86_64_float_scalar_call_keys(microsoft));
-                required.extend(x86_64_float_scalar_return_keys(microsoft));
-                required.extend(x86_64_indirect_aggregate_call_keys(microsoft));
-            }
-            required.extend(x86_64_microsoft_mixed_unit_call_keys());
-            required.extend(x86_64_system_v_mixed_aggregate_call_keys());
-            required.extend(x86_64_microsoft_mixed_aggregate_call_keys());
-            required.extend(x86_64_system_v_aggregate_call_keys());
-            required.extend(x86_64_system_v_aggregate_return_keys());
-            required.extend(x86_64_microsoft_aggregate_call_keys());
-            required.extend(x86_64_microsoft_aggregate_return_keys());
-            required.extend(x86_64_system_v_normalized_foreign_call_keys());
-            required.extend(x86_64_microsoft_normalized_foreign_call_keys());
-            required.extend(super::system_calls::x86_64_linux_system_call_keys());
-            required.sort_unstable();
-            required
-        },
+        required: x86_64_required_register_constraints(),
         constraints,
     }
 }
