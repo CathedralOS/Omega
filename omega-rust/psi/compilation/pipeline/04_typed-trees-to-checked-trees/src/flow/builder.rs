@@ -7,8 +7,8 @@
 //! The common first-pass fixed point already has complete output and returns it.
 //!
 //! Whole-output storage is reused only while unpublished; no sweep-local handle
-//! survives that replacement boundary. Baseline contents still copy per sweep,
-//! including context-point links, while clone_from reuses their allocations.
+//! survives that replacement boundary. Baseline pages and their complete context
+//! index are shared before fan-out; each group appends only its own later pages.
 //!
 //! Value inputs cross state boundaries along transitions and ordinary call
 //! argument deliveries, including another machine's entry, so machines
@@ -56,6 +56,7 @@ pub(crate) fn build_flow_facts(
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
+    semantic.share_pages();
     let baseline = semantic.clone();
     // Declaration contexts do not change during flow. Retain their handles
     // once, in typed-machine order, instead of rediscovering Global/Machine

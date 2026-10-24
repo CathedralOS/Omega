@@ -204,6 +204,11 @@ impl<T: Default> PagedArenaSet<T> {
         self.current_generation = generation;
     }
 
+    /// Generation retained when later pages are handed to another owner.
+    pub fn first_generation(&self) -> u32 {
+        self.first_generation
+    }
+
     pub fn reserve(&mut self, additional: usize) {
         self.current_mut().reserve(additional);
     }

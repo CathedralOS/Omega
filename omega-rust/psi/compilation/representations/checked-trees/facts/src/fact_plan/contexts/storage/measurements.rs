@@ -15,10 +15,11 @@
 //! where query volume is high and prepared groups amortize setup — exactly
 //! the flow-checking pattern `FactContexts` serves. No timing is asserted;
 //! only the selected-count equalities are.
+//!
+//! The current prepared-group measurement includes sealing the shared baseline.
+//! It compares two routes through current storage, not a historical executable.
 
-use super::{
-    Arena, ContextGroup, ContextLink, FactContext, FactContextGroup, FactContexts, ProgramPoint,
-};
+use super::{Arena, FactContext, FactContextGroup, FactContexts, ProgramPoint};
 use std::hint::black_box;
 use std::time::Instant;
 
@@ -108,6 +109,7 @@ fn prepared_entry_group_cost() {
         }
         let old_elapsed = start.elapsed();
         let start = Instant::now();
+        baseline.share_pages();
         let global = baseline.group_at_point(ProgramPoint::Global);
         let groups: Vec<_> = machines
             .iter()
@@ -139,7 +141,7 @@ fn prepared_entry_group_cost() {
         let old_lookups = passes * machine_count * states_per_machine * 3;
         let new_lookups = 1 + machine_count + passes * machine_count * states_per_machine;
         println!(
-            "machines={machine_count} states_per_machine={states_per_machine} declared={declared} passes={passes} contexts={} old={old_elapsed:?} prepared_including_setup={new_elapsed:?} setup={preparation:?} old_lookups={old_lookups} new_lookups={new_lookups} selector_capacity_bytes={} selected={new_count}",
+            "machines={machine_count} states_per_machine={states_per_machine} declared={declared} passes={passes} contexts={} unshared={old_elapsed:?} shared_prepared_including_setup={new_elapsed:?} setup={preparation:?} unprepared_lookups={old_lookups} prepared_lookups={new_lookups} selector_capacity_bytes={} selected={new_count}",
             baseline.len(),
             (groups.capacity() + 1) * size_of::<FactContextGroup>()
         );
@@ -212,10 +214,12 @@ fn context_index_cost() {
         assert_eq!(indexed_selected, reference_selected);
         // Logical retained index payload, excluding allocator slack and arena/hash
         // bookkeeping. Report capacity separately, not as a peak-memory claim.
-        let link_payload = indexed.links.len() * size_of::<ContextLink>();
-        let group_payload = indexed.groups.len() * size_of::<(ProgramPoint, ContextGroup)>();
+        let membership_payload = indexed.members.iter().map(Vec::len).sum::<usize>()
+            * size_of::<crate::FactContextHandle>();
+        let group_payload = indexed.groups.len() * size_of::<(ProgramPoint, FactContextGroup)>()
+            + indexed.members.len() * size_of::<Vec<crate::FactContextHandle>>();
         println!(
-            "machines={machine_count} contexts={} queries={} baseline_setup={baseline_setup:?} indexed_setup={indexed_setup:?} baseline_lookup={baseline_lookup:?} indexed_lookup={indexed_lookup:?} scanned={} selected={indexed_selected} link_payload={link_payload} group_payload={group_payload} group_capacity={}",
+            "machines={machine_count} contexts={} queries={} baseline_setup={baseline_setup:?} indexed_setup={indexed_setup:?} baseline_lookup={baseline_lookup:?} indexed_lookup={indexed_lookup:?} scanned={} selected={indexed_selected} membership_payload={membership_payload} group_payload={group_payload} group_capacity={}",
             indexed.len(),
             queries.len(),
             baseline.len() * queries.len(),
