@@ -19,6 +19,8 @@ pub(super) fn construct_with_assignment(
     let upstream = legality.custody();
     let manifest = project_post_allocation_optimization_manifest(
         upstream.manifest(),
+        None,
+        None,
         &[],
         legality.ranges(),
         legality.legality(),
@@ -63,6 +65,8 @@ pub(super) fn construct_optimized_register_homes_after_fixed_view_copies_with_as
     let _environment = reanalysis.register_environment();
     let manifest = project_post_allocation_optimization_manifest(
         source.source().manifest(),
+        None,
+        None,
         &[PostAllocationSelectedTransformation::FixedViewCopy(
             source.source().transformation(),
         )],

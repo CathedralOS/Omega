@@ -3,24 +3,23 @@
 //! The route, in order: take the selected X-to-X evidence as produced; a completed
 //! selected-lowering or pre-allocation run probes assignment over its final
 //! facts — success takes `assignment::transformed` homes while residual
-//! `NoCompatibleHome` or value-local `NoCommonCandidate` pressure hands the proven run,
-//! ledger and completion
-//! identity included, to `assignment::runtime_spill`; otherwise an
+//! runtime-recoverable pressure (`RegisterHomeError::admits_runtime_recovery`)
+//! hands the proven run — ledger and completion identity included — to
+//! `assignment::runtime_spill`; otherwise an
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
 //! homes, or materializes typed operation-local fixed operands and recovers
-//! residual `NoCompatibleHome` or value-local `NoCommonCandidate` pressure in
+//! residual runtime-recoverable pressure in
 //! `assignment::runtime_spill`.
 //! A declared fixed-view rule whose segment-home probe reports a capacity
 //! decline — segment pressure or front-end work-budget exhaustion — hands
 //! the still-owned legality to `assignment::runtime_spill` before the
-//! sequence consumes custody, and residual `NoCompatibleHome` or value-local
-//! `NoCommonCandidate` after
+//! sequence consumes custody, and residual runtime-recoverable pressure after
 //! materialized copies enters it through the post-copy reanalysis — both
 //! compositions publish one `RetainedAllocation` like every other branch.
 //! The declared active-resident rule composes the same way: its proven
 //! rematerialization sweep stays a validated prefix, and residual
-//! `NoCompatibleHome` or value-local `NoCommonCandidate` over the rebuilt facts hands
+//! runtime-recoverable pressure over the rebuilt facts hands
 //! that prefix — not the
 //! original legality — to `assignment::runtime_spill`.
 
@@ -88,11 +87,7 @@ pub fn stage_register_allocation(
         stage_optimized_allocation_legality(ranges).map_err(RegisterAllocationError::Legality)?;
     let assignment = match crate::assignment::runtime_spill::assign_source(&legality) {
         Ok(homes) => homes,
-        Err(
-            crate::RegisterHomeError::NoCompatibleHome { .. }
-            | crate::RegisterHomeError::NoCommonCandidate { .. }
-            | crate::RegisterHomeError::UnresolvedEntryTransitions { .. },
-        ) => {
+        Err(error) if error.admits_runtime_recovery() => {
             let recovered = crate::assignment::runtime_spill::recover(legality)
                 .map_err(RegisterAllocationError::RuntimeSpill)?;
             return RetainedAllocation::try_from(recovered)

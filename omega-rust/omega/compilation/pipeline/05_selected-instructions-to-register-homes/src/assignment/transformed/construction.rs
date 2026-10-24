@@ -1,7 +1,4 @@
-use crate::assignment::post_allocation_manifest::{
-    project_post_allocation_optimization_manifest_after_pre_allocation,
-    project_post_allocation_optimization_manifest_after_selected_lowering,
-};
+use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
 use crate::{RegisterHomeError, ValidatedRegisterHomes, assign_register_homes};
 
 use selected_instructions_to_selected_instructions::{
@@ -63,9 +60,10 @@ fn finish_register_homes_after_pre_allocation(
 > {
     let (ranges, legality) = pre_allocation_final_analysis(&run);
     let transformations = pre_allocation_transformations(&source);
-    let manifest = project_post_allocation_optimization_manifest_after_pre_allocation(
+    let manifest = project_post_allocation_optimization_manifest(
         source.source().manifest(),
-        source.identity(),
+        None,
+        Some(source.identity()),
         &transformations,
         ranges,
         legality,
@@ -124,9 +122,10 @@ fn finish_register_homes_after_selected_lowering(
 > {
     let (ranges, legality) = selected_lowering_final_analysis(&run);
     let transformations = selected_lowering_transformations(&source);
-    let manifest = project_post_allocation_optimization_manifest_after_selected_lowering(
+    let manifest = project_post_allocation_optimization_manifest(
         source.source().manifest(),
-        source.identity(),
+        Some(source.identity()),
+        None,
         &transformations,
         ranges,
         legality,

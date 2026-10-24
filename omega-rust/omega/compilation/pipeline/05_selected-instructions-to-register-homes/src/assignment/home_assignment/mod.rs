@@ -195,6 +195,22 @@ pub enum RegisterHomeError {
     },
 }
 
+impl RegisterHomeError {
+    /// The verdicts runtime-spill recovery relieves: placement proved no
+    /// compatible home for the failed domain, this exact value's candidate
+    /// intersection is empty, or its entry transitions remain unresolved at
+    /// its own points. Every other failure is the route's own to surface,
+    /// and recovery never reinterprets one as pressure.
+    pub(crate) const fn admits_runtime_recovery(&self) -> bool {
+        matches!(
+            self,
+            Self::NoCompatibleHome { .. }
+                | Self::NoCommonCandidate { .. }
+                | Self::UnresolvedEntryTransitions { .. }
+        )
+    }
+}
+
 impl std::fmt::Display for RegisterHomeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
