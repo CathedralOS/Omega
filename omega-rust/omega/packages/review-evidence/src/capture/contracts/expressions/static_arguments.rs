@@ -1,7 +1,7 @@
 mod conformance;
 mod const_values;
 
-use super::names::portable_parameter_position;
+use super::names::portable_ordinal;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -11,6 +11,7 @@ use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdenti
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+use super::targets::contract_call_target_telescopes;
 use conformance::project_contract_conformance_application;
 pub(crate) use conformance::require_exact_conformance_static_argument_selections;
 use const_values::project_named_const_static_argument;
@@ -51,56 +52,21 @@ pub(crate) fn contract_call_static_parameter_kinds(
     target: SymbolHandle,
     supplied_count: usize,
 ) -> Result<Vec<ContractCallStaticParameterKind>, Vec<Diagnostic>> {
-    let project = |parameters: &[typed_trees::data::TypeParameter]| {
-        parameters
-            .iter()
-            .map(contract_call_static_parameter_kind)
-            .collect::<Vec<_>>()
-    };
-    let project_machine = |machine: &typed_trees::machine::Machine| {
-        let mut kinds = project(compilation.machine_type_parameters(machine));
-        kinds.extend(
-            machine
-                .conformance_bounds
+    let candidates = contract_call_target_telescopes(compilation, target)
+        .into_iter()
+        .map(|telescope| {
+            let mut kinds = telescope
+                .static_parameters
                 .iter()
-                .map(|_| ContractCallStaticParameterKind::Conformance),
-        );
-        kinds
-    };
-    let mut candidates = compilation
-        .machines()
-        .iter()
-        .filter(|machine| {
-            typed_trees::state::state_by_symbol(compilation.machine_states(machine), target)
-                .is_some()
+                .map(contract_call_static_parameter_kind)
+                .collect::<Vec<_>>();
+            kinds.extend(std::iter::repeat_n(
+                ContractCallStaticParameterKind::Conformance,
+                telescope.conformance_slots,
+            ));
+            kinds
         })
-        .map(project_machine)
         .collect::<Vec<_>>();
-    if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
-        candidates.push(project(
-            compilation.state_signature_type_parameters(signature),
-        ));
-    }
-    candidates.extend(compilation.traits().iter().flat_map(|definition| {
-        compilation
-            .trait_machine_signatures(definition)
-            .iter()
-            .filter(|signature| signature.symbol == target)
-            .map(|signature| project(compilation.state_signature_type_parameters(signature)))
-    }));
-    candidates.extend(
-        compilation
-            .operators()
-            .iter()
-            .chain(
-                compilation
-                    .domain_definitions()
-                    .iter()
-                    .flat_map(|domain| compilation.domain_operators(domain)),
-            )
-            .filter(|operator| operator.symbol == target)
-            .map(|operator| project(compilation.operator_type_parameters(operator))),
-    );
     let [parameter_kinds] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract call target rejoins {} static telescopes; expected exactly one",
@@ -350,7 +316,7 @@ pub(crate) fn project_static_argument(
         .iter()
         .position(|(symbol, _)| *symbol == argument.symbol)
     {
-        let position = portable_parameter_position(position)?;
+        let position = portable_ordinal(position)?;
         return match compilation.typed.symbols.get(argument.symbol).kind {
             symbols::SymbolKind::MachineParameter
                 if parameter_kind == ContractCallStaticParameterKind::Machine =>

@@ -1,3 +1,4 @@
+use super::targets::contract_call_target_telescopes;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -56,34 +57,10 @@ fn contract_call_target_parameter_sets<'a>(
     compilation: &'a PackageReviewInput<'_>,
     target: SymbolHandle,
 ) -> Vec<&'a [typed_trees::signature::StateParameter]> {
-    let mut candidates = compilation
-        .machine_states_named(target)
-        .map(|(_, state)| compilation.state_parameters(state))
-        .collect::<Vec<_>>();
-    if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
-        candidates.push(compilation.state_signature_parameters(signature));
-    }
-    candidates.extend(compilation.traits().iter().flat_map(|definition| {
-        compilation
-            .trait_machine_signatures(definition)
-            .iter()
-            .filter(|signature| signature.symbol == target)
-            .map(|signature| compilation.state_signature_parameters(signature))
-    }));
-    candidates.extend(
-        compilation
-            .operators()
-            .iter()
-            .chain(
-                compilation
-                    .domain_definitions()
-                    .iter()
-                    .flat_map(|domain| compilation.domain_operators(domain)),
-            )
-            .filter(|operator| operator.symbol == target)
-            .map(|operator| compilation.operator_parameters(operator)),
-    );
-    candidates
+    contract_call_target_telescopes(compilation, target)
+        .into_iter()
+        .map(|telescope| telescope.value_parameters)
+        .collect()
 }
 
 pub(crate) fn require_exact_contract_call_reference_arguments(

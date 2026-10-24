@@ -1,3 +1,4 @@
+use super::names::portable_ordinal;
 use crate::capture::PackageReviewInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
@@ -117,7 +118,7 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 ))]);
             }
             Ok(PackageReviewContractEvidenceArgument {
-                lane_position: portable_lane(lane_position)?,
+                lane_position: portable_ordinal(lane_position)?,
                 source: project_term(compilation, source)?,
                 parameter: project_term(compilation, parameter)?,
             })
@@ -217,14 +218,6 @@ fn project_term(
             checked_trees::ContractProofFactKind::Requires => PackageReviewContractKind::Requires,
             checked_trees::ContractProofFactKind::Ensures => PackageReviewContractKind::Ensures,
         },
-        lane_position: portable_lane(term.lane_position)?,
-    })
-}
-
-fn portable_lane(position: usize) -> Result<u32, Vec<Diagnostic>> {
-    u32::try_from(position).map_err(|_| {
-        vec![Diagnostic::error(
-            "checked evidence lane exceeds the portable package-review range",
-        )]
+        lane_position: portable_ordinal(term.lane_position)?,
     })
 }

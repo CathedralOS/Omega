@@ -112,13 +112,13 @@ pub(crate) fn project_contract_name_expression(
         Some(PackageReviewContractExpression::DomainSubject)
     } else if let Some(position) = parameter_position {
         Some(PackageReviewContractExpression::Parameter(
-            portable_parameter_position(position)?,
+            portable_ordinal(position)?,
         ))
     } else if root_name.is_some_and(|name| language_core::is_reserved_result(name.as_str())) {
         Some(PackageReviewContractExpression::Result)
     } else if let Some(position) = binder_position {
         Some(PackageReviewContractExpression::GenericBinder(
-            portable_parameter_position(position)?,
+            portable_ordinal(position)?,
         ))
     } else {
         None
@@ -198,10 +198,12 @@ pub(crate) fn project_contract_name_expression(
     })
 }
 
-pub(crate) fn portable_parameter_position(position: usize) -> Result<u32, Vec<Diagnostic>> {
+/// A reviewed ordinal (a parameter position, a lane position) must fit the
+/// 32-bit portable identity range that canonical package-review bytes carry.
+pub(crate) fn portable_ordinal(position: usize) -> Result<u32, Vec<Diagnostic>> {
     u32::try_from(position).map_err(|_| {
         vec![Diagnostic::error(
-            "package review contract parameter ordinal exceeds the portable identity range",
+            "package review ordinal exceeds the portable identity range",
         )]
     })
 }

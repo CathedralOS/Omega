@@ -1,4 +1,4 @@
-use super::super::contracts::expressions::names::portable_parameter_position;
+use super::super::contracts::expressions::names::portable_ordinal;
 use super::super::semantics::declarations::nominal_identity;
 use crate::capture::PackageReviewInput;
 use crate::record::{
@@ -83,9 +83,9 @@ pub(crate) fn project_machine_parameter_termination(
     }
     project_termination_with_subject(compilation, &signature.termination_guarantee, |root| {
         if let Some(position) = typed_trees::signature::state_parameter_position(parameters, root) {
-            Ok(PackageReviewProgressSubject::Parameter(
-                portable_parameter_position(position)?,
-            ))
+            Ok(PackageReviewProgressSubject::Parameter(portable_ordinal(
+                position,
+            )?))
         } else if let Some(subject) = declaration_subject(compilation, root)? {
             Ok(subject)
         } else {

@@ -2,7 +2,7 @@ use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use crate::capture::contracts::expressions::names::portable_parameter_position;
+use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::contracts::propositions::evidence::project_evidence_interface;
 use crate::capture::semantics::declarations::{
@@ -54,7 +54,7 @@ pub(crate) fn project_proposition_binder_argument(
         .iter()
         .position(|(symbol, _)| *symbol == argument.symbol)
     {
-        PackageReviewPropositionBinderValue::GenericBinder(portable_parameter_position(position)?)
+        PackageReviewPropositionBinderValue::GenericBinder(portable_ordinal(position)?)
     } else if argument.symbol.is_valid() {
         match argument.kind {
             typed_trees::proposition::PropositionBinderArgumentKind::Type => {
@@ -217,7 +217,7 @@ pub(crate) fn project_proposition_evidence_projection(
     };
     Ok(PackageReviewPropositionBinderValue::EvidenceProjection {
         source_kind: PackageReviewContractKind::Requires,
-        source_lane_position: portable_parameter_position(term.lane_position)?,
+        source_lane_position: portable_ordinal(term.lane_position)?,
         declaring_trait,
         declaring_trait_arguments: projected_requirement.declaring_trait_arguments.clone(),
         requirement,

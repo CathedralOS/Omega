@@ -2,7 +2,7 @@ use crate::capture::PackageReviewInput;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use crate::capture::contracts::expressions::names::portable_parameter_position;
+use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::capture::contracts::expressions::projection::project_contract_expression_with_substitutions;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{
@@ -152,7 +152,7 @@ pub(crate) fn project_contract_proposition(
             .collect::<Result<Vec<_>, _>>()?;
         return Ok(PackageReviewContractFact::PropositionParameter(
             PackageReviewPropositionParameterApplication {
-                binder_ordinal: portable_parameter_position(*binder_ordinal)?,
+                binder_ordinal: portable_ordinal(*binder_ordinal)?,
                 arguments,
             },
         ));

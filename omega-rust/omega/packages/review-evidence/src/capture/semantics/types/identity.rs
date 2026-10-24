@@ -12,27 +12,7 @@ pub(crate) fn review_type_identity_with_binders(
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    validate_package_type_identity_input(
-        compilation,
-        compilation.checking_input,
-        type_reference,
-        binders,
-    )?;
-    let identity = compilation
-        .exact_owner_type_identity(ExactOwnerTypeIdentityRequest {
-            type_reference,
-            binders,
-            substitutions: &[],
-            exact_toolchain_sources: compilation.custody.sources().exact_toolchain_sources(),
-        })
-        .ok_or_else(missing_exact_toolchain_type_owner)?;
-    Ok(PackageReviewTypeIdentity {
-        canonical: compilation
-            .checking_input
-            .typed_program()
-            .type_identity_text(identity)
-            .unwrap_or_default(),
-    })
+    review_type_identity_with_binders_and_substitutions(compilation, type_reference, binders, &[])
 }
 
 pub(crate) fn review_type_identity_with_binders_and_substitutions(
@@ -75,28 +55,12 @@ pub(crate) fn review_signature_type_identity_with_binders(
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-    review_signature_type_identity_with_binders_and_substitutions(
-        compilation,
-        type_reference,
-        binders,
-        lifetime_binders,
-        &[],
-    )
-}
-
-fn review_signature_type_identity_with_binders_and_substitutions(
-    compilation: &PackageReviewInput<'_>,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-    binders: &[(SymbolHandle, String)],
-    lifetime_binders: &[typed_trees::name::Identifier],
-    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
     review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
         compilation,
         type_reference,
         binders,
         lifetime_binders,
-        substitutions,
+        &[],
         &[],
     )
 }

@@ -1,6 +1,6 @@
 use super::facts::ContractProjectionContext;
 use crate::capture::PackageReviewInput;
-use crate::capture::contracts::expressions::names::portable_parameter_position;
+use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::record::{
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionEvidence,
@@ -210,5 +210,5 @@ pub(crate) fn validate_checked_contract_evidence_components(
             context.subject_kind, context.subject_name, binding
         ))]);
     }
-    portable_parameter_position(term.lane_position).map(Some)
+    portable_ordinal(term.lane_position).map(Some)
 }
