@@ -20,23 +20,8 @@ fn standing_domain_fact_proves_requirement(
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((caller, caller_state)) = validation::machine_state_by_symbols(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    ) else {
-        return false;
-    };
-    let Some(call_site) = validation::find_call_site(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call_flow.statement_index,
-        call_flow.call_ordinal,
-    ) else {
-        return false;
-    };
-    let Some(parameters) = validation::call_target_parameters(program, call_flow.target_symbol)
+    let Some((caller, caller_state, call_site, parameters)) =
+        super::call_coordinates(program, state_flow, call_flow)
     else {
         return false;
     };
@@ -72,25 +57,9 @@ fn explicit_subject_call_requirement_proven(
     call_flow: &FlowCallFact,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((machine, state)) = validation::machine_state_by_symbols(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    ) else {
-        return false;
-    };
-    let Some(callee_parameters) =
-        validation::call_target_parameters(program, call_flow.target_symbol)
+    let Some((machine, state, site, callee_parameters)) =
+        super::call_coordinates(program, state_flow, call_flow)
     else {
-        return false;
-    };
-    let Some(site) = validation::find_call_site(
-        program,
-        machine.symbol,
-        state.symbol,
-        call_flow.statement_index,
-        call_flow.call_ordinal,
-    ) else {
         return false;
     };
     let arguments = validation::call_site_argument_expressions(program, &site);

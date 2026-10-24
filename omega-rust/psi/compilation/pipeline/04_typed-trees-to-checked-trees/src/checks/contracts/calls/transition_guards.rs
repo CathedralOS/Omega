@@ -22,20 +22,11 @@ fn selected_transition_premise<'program>(
     call_frames: Option<&validation::CallFrameResolver<'program>>,
 ) -> Option<(
     validation::CallSite<'program>,
+    &'program [typed_trees::signature::StateParameter],
     Vec<typed_trees::expression::ExpressionHandle>,
 )> {
-    let call_site = validation::find_call_site(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        call_flow.statement_index,
-        call_flow.call_ordinal,
-    )?;
-    let (machine, caller_state) = validation::machine_state_by_symbols(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-    )?;
+    let (machine, caller_state, call_site, target_parameters) =
+        super::call_coordinates(program, state_flow, call_flow)?;
     let Some(StatementNode::Transition(transition)) = program
         .statement_table
         .statement_at(caller_state, call_flow.statement_index)
@@ -92,7 +83,7 @@ fn selected_transition_premise<'program>(
             .then_some(premise)
         }))
         .collect();
-    Some((call_site, premises))
+    Some((call_site, target_parameters, premises))
 }
 
 /// Query one original Boolean conjunct through the same selected-arm and
@@ -105,13 +96,8 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, guards)) =
+    let Some((call_site, target_parameters, guards)) =
         selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
-    else {
-        return false;
-    };
-    let Some(target_parameters) =
-        validation::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };
@@ -164,7 +150,7 @@ pub(super) fn transition_guard_proves_requires(
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, matching_guards)) =
+    let Some((call_site, target_parameters, matching_guards)) =
         selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
     else {
         return false;
@@ -173,11 +159,6 @@ pub(super) fn transition_guard_proves_requires(
         matching_guards
             .iter()
             .any(|guard| guard_conjunct_matches(program, *guard, label))
-    };
-    let Some(target_parameters) =
-        validation::call_target_parameters(program, call_flow.target_symbol)
-    else {
-        return false;
     };
     let required_label = match fact.payload {
         FactPayload::ContractBooleanExpression { expression, .. } => {

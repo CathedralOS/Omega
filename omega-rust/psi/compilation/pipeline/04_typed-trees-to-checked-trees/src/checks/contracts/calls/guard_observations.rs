@@ -14,16 +14,7 @@ pub(super) fn conjunct_matches(
     guard: ExpressionHandle,
     required: ExpressionHandle,
 ) -> bool {
-    let Some(parameters) = validation::call_target_parameters(program, call.target_symbol) else {
-        return false;
-    };
-    let Some(site) = validation::find_call_site(
-        program,
-        state.machine_symbol,
-        state.state_symbol,
-        call.statement_index,
-        call.call_ordinal,
-    ) else {
+    let Some((_, _, site, parameters)) = super::call_coordinates(program, state, call) else {
         return false;
     };
     let arguments = validation::call_site_argument_expressions(program, &site);

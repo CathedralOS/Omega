@@ -536,24 +536,35 @@ fn value_call_return_domain_grants(
         })
 }
 
-/// The invocation's call site plus its target signature parameters.
-fn call_site_target_parameters<'p>(
+/// Every requirement route's static coordinates for one call occurrence: the
+/// caller's own machine and state, the exact invocation site inside it, and
+/// the callee's declared parameters. The routes used to spell this lookup
+/// chain themselves, one gate at a time, so one resolver keeps them agreeing
+/// about which lookups must succeed before a proof may run.
+fn call_coordinates<'p>(
     program: &'p dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
 ) -> Option<(
+    &'p typed_trees::machine::Machine,
+    &'p typed_trees::state::State,
     validation::CallSite<'p>,
     &'p [typed_trees::signature::StateParameter],
 )> {
-    let call_site = validation::find_call_site(
+    let (machine, state) = validation::machine_state_by_symbols(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
+    )?;
+    let call_site = validation::find_call_site(
+        program,
+        machine.symbol,
+        state.symbol,
         call_flow.statement_index,
         call_flow.call_ordinal,
     )?;
     let target_parameters = validation::call_target_parameters(program, call_flow.target_symbol)?;
-    Some((call_site, target_parameters))
+    Some((machine, state, call_site, target_parameters))
 }
 
 /// Diagnostics retain the caller's operand spelling beside the canonical
@@ -567,7 +578,7 @@ fn authored_requirement_label(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<String> {
     use typed_trees::proposition::ProofSubstitutions;
-    let (site, parameters) = call_site_target_parameters(program, state, call)?;
+    let (_, _, site, parameters) = call_coordinates(program, state, call)?;
     let arguments = validation::call_site_argument_expressions(program, &site);
     if arguments.len() != parameters.len() {
         return None;
@@ -757,13 +768,8 @@ fn incoming_guard_proves_requires(
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((_machine, state)) =
-        program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
-    else {
-        return false;
-    };
-    let Some((call_site, target_parameters)) =
-        call_site_target_parameters(program, state_flow, call_flow)
+    let Some((_machine, state, call_site, target_parameters)) =
+        call_coordinates(program, state_flow, call_flow)
     else {
         return false;
     };
