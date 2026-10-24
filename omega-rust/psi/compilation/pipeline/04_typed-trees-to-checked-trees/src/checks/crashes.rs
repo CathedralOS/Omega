@@ -676,35 +676,84 @@ fn call_route_guard_covers(
 /// retain operand-reversed equivalents. Everything else remains an opaque
 /// canonical atom. This is deliberately incomplete but sound, and does not
 /// rewrite public routes.
+///
+/// The split itself is one shared operation: every retained-guard reader asks
+/// which step a Boolean occurrence takes rather than transcribing the rule, so
+/// a new decomposable form lands here once instead of drifting between
+/// collectors.
+pub(super) enum BooleanStructure {
+    /// The operand carrying the occurrence's established polarity: the operand
+    /// of `!`, or the non-literal operand of `x == true`, `x == false`,
+    /// `x != true` or `x != false`. The flag is the exact polarity the
+    /// occurrence establishes for that operand, including a negated or
+    /// fallthrough relation.
+    Operand(typed_trees::expression::ExpressionHandle, bool),
+    /// `&&`/`||` as the two occurrences it joins. The flag is the polarity's
+    /// effect: true when the pair is a conjunction whose sides both hold,
+    /// false when the alternatives are a disjunction and must be intersected
+    /// rather than split.
+    Pair(
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::expression::ExpressionHandle,
+        bool,
+    ),
+    /// A leaf occurrence, or a form that establishes only itself.
+    Atom,
+}
 
-/// `x == true`/`x == false`/`x != true`/`x != false` normalizes to the exact
-/// polarity of `x` the edge establishes, including a negated/fallthrough
-/// relation; `apply` receives the compared operand and its polarity.
-pub(super) fn for_each_boolean_literal_operand(
+/// Which one step `expression` takes under `negated`: `!` and a Boolean-literal
+/// equality hand one operand the occurrence's polarity, a positive `&&` or
+/// negated `||` joins two occurrences as a conjunction, and every other form —
+/// including a disjunction — is an atom. The query never rewrites the
+/// expression or its public route.
+pub(super) fn boolean_structure(
     program: &dyn ::validation::CheckingInput,
-    binary: &typed_trees::expression::TableBinaryExpression,
+    expression: typed_trees::expression::ExpressionHandle,
     negated: bool,
-    mut apply: impl FnMut(typed_trees::expression::ExpressionHandle, bool),
-) {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode};
+) -> BooleanStructure {
+    use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
 
-    let operand_and_literal = match (
-        program.expression_table.expression(binary.left),
-        program.expression_table.expression(binary.right),
-    ) {
-        (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
-        (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
-        _ => None,
-    };
-    if let Some((operand, literal)) = operand_and_literal {
-        let equality_is_negated = if binary.operator == BinaryOperator::Equal {
-            negated
-        } else {
-            !negated
-        };
-        apply(operand, equality_is_negated == literal);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            BooleanStructure::Operand(unary.operand, !negated)
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+        {
+            BooleanStructure::Pair(
+                binary.left,
+                binary.right,
+                (binary.operator == BinaryOperator::And) != negated,
+            )
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) =>
+        {
+            let operand_and_literal = match (
+                program.expression_table.expression(binary.left),
+                program.expression_table.expression(binary.right),
+            ) {
+                (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
+                (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
+                _ => None,
+            };
+            let Some((operand, literal)) = operand_and_literal else {
+                return BooleanStructure::Atom;
+            };
+            let equality_is_negated = if binary.operator == BinaryOperator::Equal {
+                negated
+            } else {
+                !negated
+            };
+            BooleanStructure::Operand(operand, equality_is_negated == literal)
+        }
+        _ => BooleanStructure::Atom,
     }
 }
+
 fn collect_structural_guard_consequences(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
@@ -714,7 +763,7 @@ fn collect_structural_guard_consequences(
     integer_types: &IntegerTypeClassification,
     output: &mut Vec<checked_trees::CrashPredicateIdentity>,
 ) {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+    use typed_trees::expression::ExpressionNode;
 
     output.push(crate::facts::canonical_crash_path_predicate(
         program,
@@ -723,25 +772,20 @@ fn collect_structural_guard_consequences(
         parameter_names,
         content_conservation,
     ));
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+    match boolean_structure(program, expression, negated) {
+        BooleanStructure::Operand(operand, polarity) => collect_structural_guard_consequences(
+            program,
+            operand,
+            polarity,
+            parameter_names,
+            content_conservation,
+            integer_types,
+            output,
+        ),
+        BooleanStructure::Pair(left, right, true) => {
             collect_structural_guard_consequences(
                 program,
-                unary.operand,
-                !negated,
-                parameter_names,
-                content_conservation,
-                integer_types,
-                output,
-            );
-        }
-        ExpressionNode::Binary(binary)
-            if (!negated && binary.operator == BinaryOperator::And)
-                || (negated && binary.operator == BinaryOperator::Or) =>
-        {
-            collect_structural_guard_consequences(
-                program,
-                binary.left,
+                left,
                 negated,
                 parameter_names,
                 content_conservation,
@@ -750,7 +794,7 @@ fn collect_structural_guard_consequences(
             );
             collect_structural_guard_consequences(
                 program,
-                binary.right,
+                right,
                 negated,
                 parameter_names,
                 content_conservation,
@@ -758,57 +802,28 @@ fn collect_structural_guard_consequences(
                 output,
             );
         }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) =>
-        {
-            for_each_boolean_literal_operand(program, binary, negated, |operand, polarity| {
-                collect_structural_guard_consequences(
-                    program,
-                    operand,
-                    polarity,
-                    parameter_names,
-                    content_conservation,
-                    integer_types,
-                    output,
-                );
-            });
-            let operands_are_integers =
-                comparison_operands_are_integers(program, binary.left, binary.right, integer_types);
-            let normalized = normalized_comparison(binary.operator, negated, operands_are_integers)
-                .expect("equality operators are comparisons");
-            push_comparison_consequences(
-                program,
-                normalized,
-                binary.left,
-                binary.right,
-                operands_are_integers,
-                parameter_names,
-                content_conservation,
-                output,
-            );
-        }
-        ExpressionNode::Binary(binary) => {
-            let operands_are_integers =
-                comparison_operands_are_integers(program, binary.left, binary.right, integer_types);
-            if let Some(normalized) =
-                normalized_comparison(binary.operator, negated, operands_are_integers)
-            {
-                push_comparison_consequences(
-                    program,
-                    normalized,
-                    binary.left,
-                    binary.right,
-                    operands_are_integers,
-                    parameter_names,
-                    content_conservation,
-                    output,
-                );
-            }
-        }
-        _ => {}
+        BooleanStructure::Pair(_, _, false) | BooleanStructure::Atom => {}
+    }
+    // A comparison occurrence contributes its normalized consequences after the
+    // operand structure it handed to a conjunct; every other operator — a
+    // disjunctive pair, arithmetic — normalizes to nothing.
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return;
+    };
+    let operands_are_integers =
+        comparison_operands_are_integers(program, binary.left, binary.right, integer_types);
+    if let Some(normalized) = normalized_comparison(binary.operator, negated, operands_are_integers)
+    {
+        push_comparison_consequences(
+            program,
+            normalized,
+            binary.left,
+            binary.right,
+            operands_are_integers,
+            parameter_names,
+            content_conservation,
+            output,
+        );
     }
 }
 
@@ -837,91 +852,61 @@ fn collect_integer_order_relations(
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
 ) {
-    use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
+    use typed_trees::expression::ExpressionNode;
 
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            collect_integer_order_relations(
-                program,
-                unary.operand,
-                !negated,
-                parameter_names,
-                content_conservation,
-                integer_types,
-                output,
-                disequalities,
-            );
-        }
-        ExpressionNode::Binary(binary)
-            if (!negated && binary.operator == BinaryOperator::And)
-                || (negated && binary.operator == BinaryOperator::Or) =>
-        {
-            collect_integer_order_relations(
-                program,
-                binary.left,
-                negated,
-                parameter_names,
-                content_conservation,
-                integer_types,
-                output,
-                disequalities,
-            );
-            collect_integer_order_relations(
-                program,
-                binary.right,
-                negated,
-                parameter_names,
-                content_conservation,
-                integer_types,
-                output,
-                disequalities,
-            );
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) =>
-        {
-            for_each_boolean_literal_operand(program, binary, negated, |operand, polarity| {
-                collect_integer_order_relations(
-                    program,
-                    operand,
-                    polarity,
-                    parameter_names,
-                    content_conservation,
-                    integer_types,
-                    output,
-                    disequalities,
-                );
-            });
-            collect_normalized_integer_order_relation(
-                program,
-                binary.operator,
-                binary.left,
-                binary.right,
-                negated,
-                parameter_names,
-                content_conservation,
-                integer_types,
-                output,
-                disequalities,
-            );
-        }
-        ExpressionNode::Binary(binary) => collect_normalized_integer_order_relation(
+    match boolean_structure(program, expression, negated) {
+        BooleanStructure::Operand(operand, polarity) => collect_integer_order_relations(
             program,
-            binary.operator,
-            binary.left,
-            binary.right,
-            negated,
+            operand,
+            polarity,
             parameter_names,
             content_conservation,
             integer_types,
             output,
             disequalities,
         ),
-        _ => {}
+        BooleanStructure::Pair(left, right, true) => {
+            collect_integer_order_relations(
+                program,
+                left,
+                negated,
+                parameter_names,
+                content_conservation,
+                integer_types,
+                output,
+                disequalities,
+            );
+            collect_integer_order_relations(
+                program,
+                right,
+                negated,
+                parameter_names,
+                content_conservation,
+                integer_types,
+                output,
+                disequalities,
+            );
+        }
+        BooleanStructure::Pair(_, _, false) | BooleanStructure::Atom => {}
     }
+    // Every comparison occurrence states its order relation or disequality,
+    // after any operand the occurrence handed to a conjunct. Non-comparison
+    // operators normalize to nothing.
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return;
+    };
+    collect_normalized_integer_order_relation(
+        program,
+        binary.operator,
+        binary.left,
+        binary.right,
+        negated,
+        parameter_names,
+        content_conservation,
+        integer_types,
+        output,
+        disequalities,
+    );
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -2,9 +2,8 @@
 //! No branch is discarded as infeasible, and facts from different alternatives
 //! are intersected rather than joined as simultaneous assumptions.
 
-use super::{
-    BinaryOperator, CrashPredicateIdentity, ExpressionHandle, ExpressionNode, UnaryOperator,
-};
+use super::super::{BooleanStructure, boolean_structure};
+use super::{CrashPredicateIdentity, ExpressionHandle};
 pub(super) struct Consequences<'a> {
     program: &'a dyn ::validation::CheckingInput,
     parameters: &'a [typed_trees::signature::StateParameter],
@@ -12,12 +11,6 @@ pub(super) struct Consequences<'a> {
     content_conservation: &'a [validation::ContentConservationSourcePlan],
     integer_types: &'a super::super::IntegerTypeClassification,
     remaining: usize,
-}
-
-enum Structure {
-    Operand(ExpressionHandle, bool),
-    Pair(ExpressionHandle, ExpressionHandle, bool),
-    Atom,
 }
 
 impl<'a> Consequences<'a> {
@@ -73,11 +66,11 @@ impl<'a> Consequences<'a> {
         }
         self.charge(1)?;
         let mut output = vec![self.identity(expression, negated)];
-        match structure(self.program, expression, negated) {
-            Structure::Operand(operand, polarity) => {
+        match boolean_structure(self.program, expression, negated) {
+            BooleanStructure::Operand(operand, polarity) => {
                 output.extend(self.collect(operand, polarity, depth + 1)?);
             }
-            Structure::Pair(left, right, conjunction) => {
+            BooleanStructure::Pair(left, right, conjunction) => {
                 let mut left = self.collect(left, negated, depth + 1)?;
                 let right = self.collect(right, negated, depth + 1)?;
                 self.charge(left.len().checked_add(right.len())?)?;
@@ -90,7 +83,7 @@ impl<'a> Consequences<'a> {
                 }
                 output.extend(left);
             }
-            Structure::Atom => {
+            BooleanStructure::Atom => {
                 // A proof identity is already operand-canonical. Do not add
                 // executable-equality spellings as consequences of this fact.
                 if output[0].expression().is_some_and(
@@ -135,57 +128,18 @@ impl<'a> Consequences<'a> {
         {
             return Some(true);
         }
-        match structure(self.program, expression, negated) {
-            Structure::Operand(operand, polarity) => {
+        match boolean_structure(self.program, expression, negated) {
+            BooleanStructure::Operand(operand, polarity) => {
                 self.establishes(operand, polarity, known, depth + 1)
             }
-            Structure::Pair(left, right, conjunction) => {
+            BooleanStructure::Pair(left, right, conjunction) => {
                 let left = self.establishes(left, negated, known, depth + 1)?;
                 if left != conjunction {
                     return Some(left);
                 }
                 self.establishes(right, negated, known, depth + 1)
             }
-            Structure::Atom => Some(false),
+            BooleanStructure::Atom => Some(false),
         }
-    }
-}
-
-fn structure(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-    negated: bool,
-) -> Structure {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            Structure::Operand(unary.operand, !negated)
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
-        {
-            Structure::Pair(
-                binary.left,
-                binary.right,
-                (binary.operator == BinaryOperator::And) != negated,
-            )
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) =>
-        {
-            let (operand, literal) = match (
-                program.expression_table.expression(binary.left),
-                program.expression_table.expression(binary.right),
-            ) {
-                (ExpressionNode::Boolean(literal), _) => (binary.right, *literal),
-                (_, ExpressionNode::Boolean(literal)) => (binary.left, *literal),
-                _ => return Structure::Atom,
-            };
-            let equality_is_negated = negated != (binary.operator == BinaryOperator::NotEqual);
-            Structure::Operand(operand, equality_is_negated == literal)
-        }
-        _ => Structure::Atom,
     }
 }

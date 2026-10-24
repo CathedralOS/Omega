@@ -93,10 +93,9 @@ struct GuardContext<'a> {
 }
 
 impl GuardContext<'_> {
-    /// Split the top-level conjunctive structure the same way the
-    /// consequence collectors do — positive `&&`, negated `||`, and `!`
-    /// polarity — and keep each conjunct only while every sensitive leaf in
-    /// it still holds its claimed entry operand.
+    /// Split the conjunctive structure of `expression` the shared way —
+    /// [`super::boolean_structure`] — and keep each conjunct only while every
+    /// sensitive leaf in it still holds its claimed entry operand.
     fn collect_clean_conjuncts(
         &self,
         expression: ExpressionHandle,
@@ -110,58 +109,21 @@ impl GuardContext<'_> {
         {
             return;
         }
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                self.collect_clean_conjuncts(unary.operand, !negated, output)
+        match super::boolean_structure(self.program, expression, negated) {
+            super::BooleanStructure::Operand(operand, polarity) => {
+                self.collect_clean_conjuncts(operand, polarity, output)
             }
-            ExpressionNode::Binary(binary)
-                if (!negated && binary.operator == BinaryOperator::And)
-                    || (negated && binary.operator == BinaryOperator::Or) =>
-            {
-                self.collect_clean_conjuncts(binary.left, negated, output);
-                self.collect_clean_conjuncts(binary.right, negated, output);
+            super::BooleanStructure::Pair(left, right, true) => {
+                self.collect_clean_conjuncts(left, negated, output);
+                self.collect_clean_conjuncts(right, negated, output);
             }
-            ExpressionNode::Binary(binary)
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Equal | BinaryOperator::NotEqual
-                ) =>
-            {
-                // `x == true` and `x != false` establish `x`; `x == false`
-                // and `x != true` establish `!x`. Peel the normalization so
-                // one spoiled operand cannot discard a sound sibling — the
-                // surviving conjunct is checked again on its own leaves.
-                let operand_and_literal = match (
-                    self.program.expression_table.expression(binary.left),
-                    self.program.expression_table.expression(binary.right),
-                ) {
-                    (ExpressionNode::Boolean(literal), _) => Some((binary.right, *literal)),
-                    (_, ExpressionNode::Boolean(literal)) => Some((binary.left, *literal)),
-                    _ => None,
-                };
-                match operand_and_literal {
-                    Some((operand, literal)) => {
-                        let equality_is_negated = if binary.operator == BinaryOperator::Equal {
-                            negated
-                        } else {
-                            !negated
-                        };
-                        self.collect_clean_conjuncts(
-                            operand,
-                            equality_is_negated == literal,
-                            output,
-                        );
-                    }
-                    None if self.leaves_hold_entry_meaning(expression) => {
-                        output.push((expression, negated));
-                    }
-                    None => {}
+            super::BooleanStructure::Pair(_, _, false) | super::BooleanStructure::Atom => {
+                // An atom keeps its own polar identity only while its leaves
+                // still prove the entry operands their spelling claims.
+                if self.leaves_hold_entry_meaning(expression) {
+                    output.push((expression, negated));
                 }
             }
-            _ if self.leaves_hold_entry_meaning(expression) => {
-                output.push((expression, negated));
-            }
-            _ => {}
         }
     }
 

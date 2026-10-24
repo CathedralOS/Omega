@@ -14,7 +14,7 @@
 
 use checked_trees::{CrashPredicateIdentity, CrashSiteLocation};
 use symbols::SymbolHandle;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
@@ -165,30 +165,25 @@ fn collect_stable_consequences(
         output.push((expression, negated));
         return;
     }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+    match super::boolean_structure(program, expression, negated) {
+        super::BooleanStructure::Operand(operand, polarity) => collect_stable_consequences(
+            program,
+            machine,
+            state,
+            evaluated_at,
+            operand,
+            polarity,
+            parameter_names,
+            content_conservation,
+            output,
+        ),
+        super::BooleanStructure::Pair(left, right, true) => {
             collect_stable_consequences(
                 program,
                 machine,
                 state,
                 evaluated_at,
-                unary.operand,
-                !negated,
-                parameter_names,
-                content_conservation,
-                output,
-            );
-        }
-        ExpressionNode::Binary(binary)
-            if (!negated && binary.operator == BinaryOperator::And)
-                || (negated && binary.operator == BinaryOperator::Or) =>
-        {
-            collect_stable_consequences(
-                program,
-                machine,
-                state,
-                evaluated_at,
-                binary.left,
+                left,
                 negated,
                 parameter_names,
                 content_conservation,
@@ -199,39 +194,14 @@ fn collect_stable_consequences(
                 machine,
                 state,
                 evaluated_at,
-                binary.right,
+                right,
                 negated,
                 parameter_names,
                 content_conservation,
                 output,
             );
         }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) =>
-        {
-            super::for_each_boolean_literal_operand(
-                program,
-                binary,
-                negated,
-                |operand, polarity| {
-                    collect_stable_consequences(
-                        program,
-                        machine,
-                        state,
-                        evaluated_at,
-                        operand,
-                        polarity,
-                        parameter_names,
-                        content_conservation,
-                        output,
-                    );
-                },
-            );
-        }
-        _ => {}
+        super::BooleanStructure::Pair(_, _, false) | super::BooleanStructure::Atom => {}
     }
 }
 

@@ -3,7 +3,7 @@
 //! not the invocation snapshot, and must never enter this collection.
 
 use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::expression::ExpressionHandle;
 
 mod consequences;
 
