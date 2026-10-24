@@ -196,8 +196,22 @@ helper that passes does not close an item.
   retained graphs; persisted compiler-private reuse needs exact source,
   dependency and compiler binding, not process-local handles. Native consumers
   still require executable checked bodies or reused Terminal products.
-  Next: preserve this graph boundary and remove measured repeated checking;
-  demonstrate the timing bound through public checks and invalid controls.
+  Same-invocation reuse now skips one repeated Stage 05 judgment: contract
+  entailment of a dependency body whose correspondence matches a strict
+  retained check. The consumer keeps the typed body, installs the raw proved
+  `ensures` ordinals, and still runs exit coverage. Substitution identities
+  ride in that correspondence, including an in-place rewrite of the template
+  symbol; a symbol with more than one specialization is judged again. On
+  Linux x86-64, opt-level 1, a 10-line std package probe (import
+  `omega_language_std::console`, return `3`, `Build::package` plus a path
+  dependency) checks in 4.40 s with Stage 05 at 1.78 s across the build, the
+  std package, and the probe. 30 dependent entailments were reused and 384
+  were judged. That is under the recorded 15.6 s whole-check baseline.
+  `tests/omega/fail/proofs/structural_ensures_unjudged_rejected` still
+  rejects its unjudged structural ensures. Fixture median under 2 s, a std
+  probe under 3 s, persisted reuse bound to exact source, dependency and
+  compiler identity, and native Terminal product reuse remain open. Body
+  queries still read the frozen bodies.
 
 - **CHECKED-ASM-LABEL-CONTRACTS.** (split-of:STATIC-MACHINE-MIGRATION)
   Implement the ratified checked-assembly control-flow model in

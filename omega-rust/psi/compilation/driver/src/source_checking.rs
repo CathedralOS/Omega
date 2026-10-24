@@ -103,6 +103,11 @@ impl CheckRequest<'_> {
                     self.admission.declarations,
                 )
             })?;
+            let prior_dependency_bodies: Vec<_> = self
+                .previous
+                .iter()
+                .flat_map(|prior| prior.strict_dependency_bodies().iter().cloned())
+                .collect();
             phase_profile::scope("05.d.lower_typed_trees", || {
                 typed_trees_to_checked_trees::lower_typed_trees_reusing(
                     program,
@@ -110,6 +115,7 @@ impl CheckRequest<'_> {
                     retained_input,
                     &checking,
                     self.previous.first().copied(),
+                    &prior_dependency_bodies,
                     self.retain,
                 )
             })?
