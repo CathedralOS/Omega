@@ -1,8 +1,10 @@
 //! Explicit directed binary forms retain their format and mode in the same
-//! IEEE catalog as nearest arithmetic. Each form saves the exact incoming
-//! controls, installs its masked, gradual-underflow rounding mode, and restores
-//! the saved controls before publishing its result. Independent instruction
-//! decoding rejects a substituted mode, absent restore or unbalanced storage.
+//! IEEE catalog as nearest arithmetic. Both directed forms wrap their single
+//! rounding operation in one private MXCSR envelope: the caller's exact word
+//! is saved, the masked, gradual-underflow word carrying the selected rounding
+//! field is installed, and the saved word is restored before the result is
+//! published. Independent instruction decoding rejects a substituted mode,
+//! absent restore or unbalanced storage.
 //!
 //! Nearest-even scalar IEEE operations on general-register payloads.
 //!
@@ -75,9 +77,10 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId, sorted_units};
 use selected_instructions::{
-    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier,
-    IeeeFloatToIntegerDomain, MachineAlternative, MachineAlternativeApplicability, MachineBarrier,
-    MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation,
+    IeeeFloatIntegerCarrier, IeeeFloatRoundingDirection, IeeeFloatToIntegerDomain,
+    MachineAlternative, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
     MachineSizeKnowledge, MachineTrapBehavior, ieee_float_arithmetic_is_trapping,
 };
@@ -1025,6 +1028,48 @@ const fn binary_opcode(operation: IeeeFloatArithmeticOperation) -> Option<u8> {
     }
 }
 
+/// The x86-64 rounding-control field of one directed mode: `11` toward zero,
+/// `10` toward positive, `01` toward negative.
+const fn rounding_control(rounding: IeeeFloatRoundingDirection) -> u32 {
+    match rounding {
+        IeeeFloatRoundingDirection::TowardZero => 3,
+        IeeeFloatRoundingDirection::TowardPositive => 2,
+        IeeeFloatRoundingDirection::TowardNegative => 1,
+    }
+}
+
+/// The private MXCSR envelope both directed forms share: 16 reserved private
+/// bytes (never the red zone), the caller's exact incoming word saved, the
+/// canonical masked gradual-underflow word with the mode's rounding field
+/// installed, `arithmetic` between the install and the restore, and the saved
+/// word restored before any result escapes. LEA preserves flags. Independent
+/// decoding still compares this exact sequence for every directed form.
+fn mxcsr_envelope(
+    rounding: IeeeFloatRoundingDirection,
+    arithmetic: Instruction,
+) -> [Instruction; 7] {
+    [
+        Instruction::AdjustStack { displacement: -16 },
+        Instruction::ControlWord {
+            load: false,
+            displacement: 0,
+        },
+        Instruction::StoreControlMode {
+            value: crate::OMEGA_CANONICAL_MXCSR | (rounding_control(rounding) << 13),
+        },
+        Instruction::ControlWord {
+            load: true,
+            displacement: 4,
+        },
+        arithmetic,
+        Instruction::ControlWord {
+            load: true,
+            displacement: 0,
+        },
+        Instruction::AdjustStack { displacement: 16 },
+    ]
+}
+
 /// The canonical instructions of one form: `registers` holds the operand
 /// general registers in authored order followed by the result register.
 fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instruction>, Error> {
@@ -1053,88 +1098,32 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instru
             operation,
             rounding,
         } => {
-            // Save the exact incoming word, establish masked exceptions and
-            // gradual underflow with the selected RC, then restore before any
-            // result escapes. The private allocation never uses the red zone.
-            // LEA preserves flags; operands are captured before output aliasing.
-            let mode = match rounding.ordinal() {
-                0 => 3,
-                1 => 2,
-                2 => 1,
-                _ => unreachable!(),
+            let arithmetic = Instruction::Scalar {
+                double,
+                opcode: match operation {
+                    IeeeFloatBinaryOperation::Add => 0x58,
+                    IeeeFloatBinaryOperation::Subtract => 0x5c,
+                    IeeeFloatBinaryOperation::Multiply => 0x59,
+                    IeeeFloatBinaryOperation::Divide => 0x5e,
+                },
+                destination: LEFT_SCRATCH,
+                source: RIGHT_SCRATCH,
             };
-            let opcode = match operation.ordinal() {
-                0 => 0x58,
-                1 => 0x5c,
-                2 => 0x59,
-                3 => 0x5e,
-                _ => unreachable!(),
-            };
-            vec![
+            let mut program = vec![
                 move_in(registers[0], LEFT_SCRATCH, double),
                 move_in(registers[1], RIGHT_SCRATCH, double),
-                Instruction::AdjustStack { displacement: -16 },
-                Instruction::ControlWord {
-                    load: false,
-                    displacement: 0,
-                },
-                Instruction::StoreControlMode {
-                    value: 0x1f80 | (mode << 13),
-                },
-                Instruction::ControlWord {
-                    load: true,
-                    displacement: 4,
-                },
-                Instruction::Scalar {
-                    double,
-                    opcode,
-                    destination: LEFT_SCRATCH,
-                    source: RIGHT_SCRATCH,
-                },
-                Instruction::ControlWord {
-                    load: true,
-                    displacement: 0,
-                },
-                Instruction::AdjustStack { displacement: 16 },
-                move_out,
-            ]
+            ];
+            program.extend(mxcsr_envelope(rounding, arithmetic));
+            program.push(move_out);
+            program
         }
+        // SQRTSS/SQRTSD honor RC; the directed square root is one payload and
+        // opcode 0x51 inside the same envelope.
         IeeeFloatArithmeticOperation::DirectedSquareRoot { rounding } => {
-            // Same private MXCSR envelope as directed binary arithmetic.
-            // SQRTSS/SQRTSD honor RC; one operand, opcode 0x51.
-            let mode = match rounding.ordinal() {
-                0 => 3,
-                1 => 2,
-                2 => 1,
-                _ => unreachable!(),
-            };
-            vec![
-                move_in(registers[0], LEFT_SCRATCH, double),
-                Instruction::AdjustStack { displacement: -16 },
-                Instruction::ControlWord {
-                    load: false,
-                    displacement: 0,
-                },
-                Instruction::StoreControlMode {
-                    value: 0x1f80 | (mode << 13),
-                },
-                Instruction::ControlWord {
-                    load: true,
-                    displacement: 4,
-                },
-                Instruction::Scalar {
-                    double,
-                    opcode: 0x51,
-                    destination: LEFT_SCRATCH,
-                    source: LEFT_SCRATCH,
-                },
-                Instruction::ControlWord {
-                    load: true,
-                    displacement: 0,
-                },
-                Instruction::AdjustStack { displacement: 16 },
-                move_out,
-            ]
+            let mut program = vec![move_in(registers[0], LEFT_SCRATCH, double)];
+            program.extend(mxcsr_envelope(rounding, in_place(double, 0x51)));
+            program.push(move_out);
+            program
         }
         // Baseline SSE2 has no single-rounding multiply-add. Selection reaches
         // this form only from a realization carrying admitted AVX+FMA3 custody.
