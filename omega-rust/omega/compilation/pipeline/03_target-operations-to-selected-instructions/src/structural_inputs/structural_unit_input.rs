@@ -1,5 +1,6 @@
 //! Reconstruct structural parameter shape and incoming ABI storage.
 
+use crate::structural_inputs::structural_reference_input::{parameter_shape, stored_value_shape};
 use calling_conventions::{
     CallPlan, IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement,
 };
@@ -45,22 +46,12 @@ pub(crate) fn accepts_graph(
         // the physical shape of an owned value. Exact source/ownership replay
         // retains those obligations; layout must not require one body family
         // merely to carry a qualified or linear value through its ABI.
+        // Owned fragments take the same stored-carrier geometry as every
+        // other owned home; only the borrowed forms select a descriptor.
         let Some(shape) = (if semantic.access == StructuralAccess::Owned {
-            crate::structural_inputs::structural_reference_input::primitive_array_shape(
-                semantic.structural_type,
-                structural_types,
-            )
-            .or_else(|| {
-                crate::structural_inputs::structural_reference_input::shape(
-                    semantic.structural_type,
-                    structural_types,
-                )
-            })
+            stored_value_shape(semantic.structural_type, structural_types)
         } else {
-            crate::structural_inputs::structural_reference_input::parameter_shape(
-                semantic,
-                structural_types,
-            )
+            parameter_shape(semantic, structural_types)
         }) else {
             return false;
         };
