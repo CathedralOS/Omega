@@ -1,5 +1,6 @@
 //! Target-closed private callback slots and complete inline record paths.
 use crate::builder::semantic_ranges::{plan_laid_semantic_ranges, ranges_overlap};
+use crate::sizing::pointer_layout;
 use crate::{
     DataLayout, DataShape, FieldLayout, PrivateCallbackInlineField, PrivateCallbackLayout,
     TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
@@ -318,21 +319,17 @@ pub(crate) fn close_private_callback_demands(
             plan.data_name
         )));
     }
-    if target.pointer_size == 0
-        || target.pointer_alignment == 0
-        || !target.pointer_alignment.is_power_of_two()
-    {
+    let pointer = pointer_layout(target);
+    if pointer.size == 0 || pointer.alignment == 0 || !pointer.alignment.is_power_of_two() {
         return Err(Diagnostic::error(format!(
             "plan-laid data `{}` cannot close private callback slots for invalid target pointer geometry {}/{}",
-            plan.data_name, target.pointer_size, target.pointer_alignment
+            plan.data_name, pointer.size, pointer.alignment
         )));
     }
-    if geometry.align < target.pointer_alignment
-        || !geometry.align.is_multiple_of(target.pointer_alignment)
-    {
+    if geometry.align < pointer.alignment || !geometry.align.is_multiple_of(pointer.alignment) {
         return Err(Diagnostic::error(format!(
             "plan-laid data `{}` has alignment {}, which cannot align a {}-byte private callback slot",
-            plan.data_name, geometry.align, target.pointer_alignment
+            plan.data_name, geometry.align, pointer.alignment
         )));
     }
 
@@ -363,13 +360,13 @@ pub(crate) fn close_private_callback_demands(
                 plan.data_name, demand.slot_identity, demand.offset
             ))
         })?;
-        if !offset.is_multiple_of(target.pointer_alignment) {
+        if !offset.is_multiple_of(pointer.alignment) {
             return Err(Diagnostic::error(format!(
                 "plan-laid data `{}` private callback slot `{}` offset {} is not aligned to the selected target's {}-byte function-pointer alignment",
-                plan.data_name, demand.slot_identity, offset, target.pointer_alignment
+                plan.data_name, demand.slot_identity, offset, pointer.alignment
             )));
         }
-        let end = offset.checked_add(target.pointer_size).ok_or_else(|| {
+        let end = offset.checked_add(pointer.size).ok_or_else(|| {
             Diagnostic::error(format!(
                 "plan-laid data `{}` private callback slot `{}` extent overflows",
                 plan.data_name, demand.slot_identity
@@ -440,8 +437,8 @@ pub(crate) fn close_private_callback_demands(
             slot,
             requirement,
             offset,
-            byte_size: target.pointer_size,
-            alignment: target.pointer_alignment,
+            byte_size: pointer.size,
+            alignment: pointer.alignment,
         });
     }
     closed.sort_unstable_by(|left, right| left.slot_identity.cmp(&right.slot_identity));

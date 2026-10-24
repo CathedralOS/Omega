@@ -14,6 +14,18 @@ pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
     }
 }
 
+/// The canonical `TypeLayout` of one target pointer word.
+///
+/// Addresses, selectors, thin references and each word of a descriptor all
+/// read the target's pointer geometry here instead of re-spelling
+/// `{ target.pointer_size, target.pointer_alignment }` at the carrier arms.
+pub(super) fn pointer_layout(target: NativeTarget) -> TypeLayout {
+    TypeLayout {
+        size: target.pointer_size,
+        alignment: target.pointer_alignment,
+    }
+}
+
 /// The canonical `TypeLayout` of a scalar primitive, given the target's pointer
 /// geometry.
 ///
