@@ -36,7 +36,7 @@ pub use authority_digests::{
     NonAuthoritativeInformationalFingerprint64, NonAuthoritativeWriterContextFingerprint64,
     PlacementPlanId, RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
 };
-pub use installation::{InstallationError, InstalledCode, InstalledCodeContext};
+pub use installation::{InstallationError, InstalledCode};
 pub use post_handoff_writer::{
     ResolvedPostHandoffEntryWriterContext, ValidatedPreparedPostHandoffWriterDestination,
 };

@@ -122,18 +122,47 @@ fn reusable_writer_fragment_rejects_inconsistent_values_for_one_target() {
         .lower_reusable_fragment()
         .expect_err("one symbolic source cannot change between fragments");
     assert!(error.0.contains("inconsistent invocation values"));
-    let error = writer
-        .validate(
-            8,
-            PlacementSite {
-                base_address: 0,
-                phase: PlacementPhase::PostHandoff,
-                machine_regime: None,
-                installation_scope: None,
-            },
-        )
-        .expect_err("direct execution validates the same source invariant");
-    assert!(error.0.contains("inconsistent invocation values"));
+}
+
+#[test]
+fn invocation_destination_check_binds_placement_and_exact_length() {
+    let target = entry();
+    let invocation = crate::test_support::single_address_writer(
+        target,
+        PostHandoffWriterSource::Resolve(target),
+    )
+    .lower_reusable_fragment()
+    .expect("valid reusable invocation");
+    let site = PlacementSite {
+        base_address: 0x4000,
+        phase: PlacementPhase::PostHandoff,
+        machine_regime: None,
+        installation_scope: None,
+    };
+    invocation
+        .validate_destination(8, site)
+        .expect("the exact post-handoff destination admits the fragment");
+    let short = invocation
+        .validate_destination(7, site)
+        .expect_err("a destination shorter than the fragment must refuse");
+    assert!(
+        short.0.contains("needs 8 bytes, destination has 7"),
+        "{}",
+        short.0
+    );
+    let wrong_phase = invocation.validate_destination(
+        8,
+        PlacementSite {
+            phase: PlacementPhase::Load,
+            ..site
+        },
+    );
+    assert!(
+        wrong_phase
+            .expect_err("a non-post-handoff site must refuse")
+            .0
+            .contains("phase")
+    );
 }
 
 #[test]

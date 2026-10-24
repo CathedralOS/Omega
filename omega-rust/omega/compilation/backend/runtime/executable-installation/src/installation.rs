@@ -148,10 +148,6 @@ impl InstalledCode {
         self.wx
     }
 
-    pub fn receipt_context(&self) -> InstalledCodeContext {
-        InstalledCodeContext(InstalledCodeEvidence::from_installed(self))
-    }
-
     /// Returns a sealed target only for an entry admitted with this installed
     /// artifact. The numeric address stays private to writer execution.
     pub fn selected_entry_target(
@@ -162,32 +158,6 @@ impl InstalledCode {
             .frozen
             .artifact
             .selected_entry_target(identity)
-    }
-}
-
-/// One-shot authority to retire one exact installed realization. Required
-/// completion facts are open provider vocabulary; quiescence and permission
-/// transition remain mandatory lifecycle gates.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct InstalledCodeEvidence {
-    pub(crate) installed: InstalledCodeId,
-    validated: ValidatedPlacementEvidence,
-    wx: WxEnforcement,
-}
-
-/// Opaque exact installed-realization context for downstream provider
-/// admissions. It exposes no bytes, addresses, or constructors; consumers can
-/// retain and compare it without reducing authority to compact report IDs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InstalledCodeContext(pub(crate) InstalledCodeEvidence);
-
-impl InstalledCodeEvidence {
-    pub(crate) fn from_installed(installed: &InstalledCode) -> Self {
-        Self {
-            installed: installed.identity,
-            validated: ValidatedPlacementEvidence::from_validated(&installed.validated),
-            wx: installed.wx,
-        }
     }
 }
 

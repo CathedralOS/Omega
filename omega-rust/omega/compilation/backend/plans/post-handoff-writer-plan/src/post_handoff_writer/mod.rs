@@ -20,11 +20,6 @@ mod tests;
 pub fn derive_post_handoff_writer(
     plan: &SymbolicMaterializationPlan,
 ) -> Result<PostHandoffWriterPlan, MaterializationDiagnostic> {
-    if plan.actions.is_empty() {
-        return Err(MaterializationDiagnostic(
-            "post-handoff writer requires at least one fragment".into(),
-        ));
-    }
     let mut steps = Vec::with_capacity(plan.actions.len());
     for action in &plan.actions {
         let step = match action {
@@ -47,6 +42,7 @@ pub fn derive_post_handoff_writer(
         };
         steps.push(step);
     }
+    validate_post_handoff_writer_nonempty(&steps)?;
     Ok(PostHandoffWriterPlan {
         byte_len: plan.byte_len,
         byte_order: plan.byte_order,
@@ -187,6 +183,27 @@ impl PostHandoffWriterInvocationPlan {
 
     pub fn fit_constraints(&self) -> &[PostHandoffWriterFitConstraint] {
         &self.fit_constraints
+    }
+
+    /// Check this exact invocation against one concrete destination: the
+    /// retained placement constraints must admit the site, and the destination
+    /// byte view must cover the fragment. Provider preparation uses this pass
+    /// to bind the checked writer before any numeric entry address exists
+    /// outside the sealed resolver. Fragment geometry is checked by lowering;
+    /// repeating that walk here would only run the same rules twice.
+    pub fn validate_destination(
+        &self,
+        destination_len: usize,
+        site: PlacementSite,
+    ) -> Result<(), MaterializationDiagnostic> {
+        self.placement.validate_site(self.fragment.byte_len, site)?;
+        if destination_len < self.fragment.byte_len {
+            return Err(MaterializationDiagnostic(format!(
+                "post-handoff writer needs {} bytes, destination has {}",
+                self.fragment.byte_len, destination_len
+            )));
+        }
+        Ok(())
     }
 
     /// Independently replay the sealed invocation before a consumer accepts
@@ -435,46 +452,6 @@ impl PostHandoffWriterPlan {
             sources,
             fit_constraints,
         })
-    }
-
-    /// Validate the complete direct-destination program without resolving a
-    /// symbolic address or mutating the destination. Provider preparation
-    /// uses this pass to bind one exact checked writer before any numeric
-    /// entry address exists outside the sealed resolver.
-    pub fn validate(
-        &self,
-        destination_len: usize,
-        site: PlacementSite,
-    ) -> Result<(), MaterializationDiagnostic> {
-        validate_post_handoff_writer_nonempty(&self.steps)?;
-        self.placement.validate_site(self.byte_len, site)?;
-        if destination_len < self.byte_len {
-            return Err(MaterializationDiagnostic(format!(
-                "post-handoff writer needs {} bytes, destination has {}",
-                self.byte_len, destination_len
-            )));
-        }
-        let mut sources = Vec::<PostHandoffWriterSourceSlot>::new();
-        for step in &self.steps {
-            validate_post_handoff_writer_step(self.byte_len, step)?;
-            if let Some(source) = sources
-                .iter()
-                .find(|source| source.target == step.write.target)
-            {
-                if source.source != step.source {
-                    return Err(MaterializationDiagnostic(format!(
-                        "post-handoff writer target {:?} has inconsistent invocation values across fragments",
-                        step.write.target
-                    )));
-                }
-            } else {
-                sources.push(PostHandoffWriterSourceSlot {
-                    target: step.write.target,
-                    source: step.source,
-                });
-            }
-        }
-        Ok(())
     }
 }
 

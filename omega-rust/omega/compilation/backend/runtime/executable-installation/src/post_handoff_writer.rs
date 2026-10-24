@@ -8,7 +8,6 @@ use crate::authority_digests::{
     ArtifactId, DestinationPreparationReceiptId, InstalledCodeId,
     NonAuthoritativeWriterContextFingerprint64,
 };
-use crate::installation::InstalledCodeEvidence;
 use crate::installation::{InstallationDiagnostic, InstalledCode};
 use extents::{ExtentRights, MappedExtent, MappingReceiptContext};
 use layout_plans::{MaterializationDiagnostic, PlacementSite, RelocationTarget};
@@ -18,53 +17,66 @@ use post_handoff_writer_plan::{
 };
 
 impl InstalledCode {
-    fn validate_post_handoff_entry_writer_invocation(
+    /// Produce the exact source words for one lowered invocation against this
+    /// installed realization: every source slot resolves through the same
+    /// admission, and the resolved roster is replayed against the invocation's
+    /// retained pre-resolved values and fit evidence before a word is packed.
+    fn resolve_post_handoff_entry_writer_source_values(
         &self,
-        plan: &PostHandoffWriterPlan,
         invocation: &PostHandoffWriterInvocationPlan,
-        destination_len: usize,
-        destination_site: PlacementSite,
     ) -> Result<Vec<u64>, MaterializationDiagnostic> {
-        plan.validate(destination_len, destination_site)?;
         let mut source_values = Vec::with_capacity(invocation.sources().len());
         for slot in invocation.sources() {
             let value = match slot.source {
                 PostHandoffWriterSource::Resolve(target) => {
-                    if target != slot.target || !self.contains_entry_target(target) {
-                        return Err(MaterializationDiagnostic(format!(
-                            "post-handoff writer target {target:?} is not an admitted entry in the exact installed artifact"
-                        )));
-                    }
-                    self.resolve_entry_target(target).ok_or_else(|| {
-                        MaterializationDiagnostic(format!(
-                            "post-handoff writer could not resolve admitted target {target:?}"
-                        ))
-                    })?
+                    self.resolve_admitted_entry_target(target)?
                 }
-                PostHandoffWriterSource::Resolved(value) => match slot.target {
-                    RelocationTarget::Entry(_)
-                        if self.resolve_entry_target(slot.target) == Some(value) =>
-                    {
-                        value
-                    }
-                    RelocationTarget::Entry(_) => {
+                PostHandoffWriterSource::Resolved(value) => {
+                    if self.resolve_admitted_entry_target(slot.target)? != value {
                         return Err(MaterializationDiagnostic(format!(
                             "post-handoff writer pre-resolved entry {:?} does not match the exact installed realization",
                             slot.target
                         )));
                     }
-                    RelocationTarget::Data(_) => {
-                        return Err(MaterializationDiagnostic(format!(
-                            "post-handoff entry writer target {:?} is not an admitted entry in the exact installed artifact",
-                            slot.target
-                        )));
-                    }
-                },
+                    value
+                }
             };
             source_values.push(value);
         }
         invocation.validate_source_values(&source_values)?;
         Ok(source_values)
+    }
+
+    /// Resolve one written target to its exact installed address. A target
+    /// outside the admitted entry set and an admitted entry whose
+    /// placement-relative address cannot be computed refuse with distinct
+    /// reasons; one slot resolves exactly one lookup.
+    fn resolve_admitted_entry_target(
+        &self,
+        target: RelocationTarget,
+    ) -> Result<u64, MaterializationDiagnostic> {
+        let entry = match target {
+            RelocationTarget::Entry(identity) => {
+                self.validated.frozen.artifact.artifact.entry(identity)
+            }
+            RelocationTarget::Data(_) => None,
+        };
+        let entry = entry.ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "post-handoff writer target {target:?} is not an admitted entry in the exact installed artifact"
+            ))
+        })?;
+        self.validated
+            .frozen
+            .placement
+            .extent
+            .base()
+            .checked_add(entry.code_offset)
+            .ok_or_else(|| {
+                MaterializationDiagnostic(format!(
+                    "post-handoff writer could not resolve admitted target {target:?}"
+                ))
+            })
     }
 
     /// Resolve every distinct source exactly once into an opaque packed
@@ -77,14 +89,10 @@ impl InstalledCode {
         destination_site: PlacementSite,
     ) -> Result<ResolvedPostHandoffEntryWriterContext, MaterializationDiagnostic> {
         let invocation = plan.lower_reusable_fragment()?;
-        let source_values = self.validate_post_handoff_entry_writer_invocation(
-            plan,
-            &invocation,
-            destination_len,
-            destination_site,
-        )?;
+        invocation.validate_destination(destination_len, destination_site)?;
+        let source_values = self.resolve_post_handoff_entry_writer_source_values(&invocation)?;
 
-        let mut packed_words = Vec::with_capacity(invocation.sources().len() + 1);
+        let mut packed_words = Vec::with_capacity(source_values.len() + 1);
         packed_words.push(destination_site.base_address);
         packed_words.extend(source_values);
         let non_authoritative_fingerprint =
@@ -97,7 +105,6 @@ impl InstalledCode {
                 &packed_words,
             );
         Ok(ResolvedPostHandoffEntryWriterContext {
-            installed_evidence: InstalledCodeEvidence::from_installed(self),
             installed_code: self.identity,
             artifact: self.artifact(),
             destination_site,
@@ -107,39 +114,6 @@ impl InstalledCode {
             non_authoritative_fingerprint,
         })
     }
-
-    fn resolve_entry_target(&self, target: RelocationTarget) -> Option<u64> {
-        match target {
-            RelocationTarget::Entry(identity) => self
-                .validated
-                .frozen
-                .artifact
-                .artifact
-                .entry(identity)
-                .and_then(|entry| {
-                    self.validated
-                        .frozen
-                        .placement
-                        .extent
-                        .base()
-                        .checked_add(entry.code_offset)
-                }),
-            RelocationTarget::Data(_) => None,
-        }
-    }
-
-    fn contains_entry_target(&self, target: RelocationTarget) -> bool {
-        match target {
-            RelocationTarget::Entry(identity) => self
-                .validated
-                .frozen
-                .artifact
-                .artifact
-                .entry(identity)
-                .is_some(),
-            RelocationTarget::Data(_) => false,
-        }
-    }
 }
 
 /// Opaque provider-private words for one checked post-handoff entry writer.
@@ -148,7 +122,6 @@ impl InstalledCode {
 /// public accessor and this carrier is deliberately non-clonable.
 #[derive(PartialEq, Eq)]
 pub struct ResolvedPostHandoffEntryWriterContext {
-    installed_evidence: InstalledCodeEvidence,
     installed_code: InstalledCodeId,
     artifact: ArtifactId,
     destination_site: PlacementSite,

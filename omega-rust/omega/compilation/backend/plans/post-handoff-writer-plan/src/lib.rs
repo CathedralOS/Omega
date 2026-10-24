@@ -8,11 +8,12 @@
 //! description in `layout-plans`. `derive_post_handoff_writer` turns a
 //! `SymbolicMaterializationPlan`'s portable actions into a writer program,
 //! `PostHandoffWriterPlan::lower_reusable_fragment` separates static fragment
-//! geometry from invocation evidence, and the invocation carrier replays its
-//! own structure and bound source values before any consumer resolves an
-//! address. Byte application against a concrete destination belongs to the
-//! executable-installation execution owner; the interpreter consumes the
-//! portable actions through its own path and never lowers these fragments.
+//! geometry from invocation evidence, and the invocation carrier admits one
+//! concrete destination and replays its own structure and bound source values
+//! before any consumer resolves an address. Byte application against a
+//! concrete destination belongs to the executable-installation execution
+//! owner; the interpreter consumes the portable actions through its own path
+//! and never lowers these fragments.
 
 mod post_handoff_writer;
 
