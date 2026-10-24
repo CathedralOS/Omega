@@ -1976,12 +1976,15 @@ defines the complete product bar.
   Keep introduction/admission and intact-value/result transport separate from
   retirement; historical call admission must not permanently restrict a bare lender.
 
-  Direct scalar-result publication needs the operation boundary in
-  [Q3](OWNER_QUESTIONS.md#q3-when-does-an-authorized-scalar-read-publish-an-observation-rather-than-an-intact-copy).
-  An authorized load's bare result contract must be distinguished from intact
-  copy/erasure before treating policy on its selected source as an automatic
-  denial at the caller. This does not gate exact access-demand or invocation
-  checking; private disputed scalar-copy probes are not acceptance evidence.
+  Implement scalar reads and results under the existing
+  [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls)
+  and [explicit erasure rules](wiki/spec/language/domains.md#exact-coercion-and-erasure).
+  Reading through a reference to a copyable primitive needs no separate cast
+  feature. Copyability grants neither read authority nor implicit qualification
+  erasure; preserve intact governed copies and references while admitting
+  authorized observation results under their checked contracts. This is
+  implementation work, not an owner-decision dependency; private disputed
+  scalar-copy denial probes are not acceptance evidence.
 
   Acceptance: the same policy survives the ordinary fact/loan transport places,
   nested fields, whole-place replacement, requirement dispatch, helper calls,

@@ -254,6 +254,12 @@ state transport, and generic substitution retain the applicable subject/policy
 relationships. Public field names or ownership of the enclosing record do not
 waive an installed field policy.
 
+Reading a copyable primitive through a readable reference uses ordinary
+[copy rules](ownership.md); it needs no separate reference-to-value cast.
+Copyability does not grant read authority or implicitly erase qualification.
+Qualification forgetting remains subject to [exact coercion and erasure](#exact-coercion-and-erasure),
+and authorized publication remains subject to the result contract below.
+
 Callers may forward a restricted value or reference to an authorized operation
 without personally acquiring its read/write grant. Argument admission still
 proves carrier validity, qualification, lifetime, and the required ordinary loan.
