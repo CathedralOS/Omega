@@ -258,37 +258,39 @@ impl DescriptorLoans {
             requirements: Vec::new(),
         };
         let mut requirements = Vec::new();
-        let mut retain = |requirement| {
-            if !requirements.contains(&requirement) {
-                requirements.push(requirement);
-            }
-            true
-        };
+        // Collect every authenticated requirement once, in scan order. A later
+        // query defers a collision at its own requirement, never at this roster.
         for block in &function.blocks {
             for (index, node) in block.nodes.iter().enumerate() {
-                result.conflicted_operation_replaying(
+                result.conflicted_operation(
                     borrowed_regions,
                     block.id,
                     index as u32,
                     &node.operation,
                     &[],
-                    &mut retain,
+                    &mut requirements,
                 );
                 for edge in &node.successors {
                     if let Some(target) = function.block(edge.target) {
-                        result.conflicted_edge_replaying(
+                        result.conflicted_edge(
                             borrowed_regions,
                             block.id,
                             index as u32,
                             edge,
                             &target.structural_parameters,
-                            &mut retain,
+                            &mut requirements,
                         );
                     }
                 }
             }
         }
-        result.requirements = requirements;
+        let mut observed = Vec::new();
+        for requirement in requirements {
+            if !observed.contains(&requirement) {
+                observed.push(requirement);
+            }
+        }
+        result.requirements = observed;
         result
     }
 
@@ -320,6 +322,13 @@ impl DescriptorLoans {
         self.requirements.clone()
     }
 
+    /// Replay one operation's disturbance against the live descriptor loans.
+    ///
+    /// A collision the demand authenticates through an exclusive-ingress
+    /// requirement is deferred rather than refused, and the scan appends that
+    /// requirement to `requirements`. The collecting pass and every later query
+    /// enumerate the same loans, positions and demands in the same order, so a
+    /// query can only meet a requirement this scan already computed there.
     pub(super) fn conflicted_operation(
         &self,
         borrowed_regions: &BorrowedRegions,
@@ -327,25 +336,7 @@ impl DescriptorLoans {
         node: u32,
         operation: &O,
         moved: &[PlaceId],
-    ) -> Option<PlaceId> {
-        self.conflicted_operation_replaying(
-            borrowed_regions,
-            block,
-            node,
-            operation,
-            moved,
-            |requirement| self.requirements.contains(&requirement),
-        )
-    }
-
-    fn conflicted_operation_replaying(
-        &self,
-        borrowed_regions: &BorrowedRegions,
-        block: BlockId,
-        node: u32,
-        operation: &O,
-        moved: &[PlaceId],
-        mut defer: impl FnMut(DescriptorCompatibilityRequirement) -> bool,
+        requirements: &mut Vec<DescriptorCompatibilityRequirement>,
     ) -> Option<PlaceId> {
         let position = (block, node);
         // Normal return cleanup closes the activation after its scalar result
@@ -398,19 +389,23 @@ impl DescriptorLoans {
                 .iter()
                 .chain(observations)
             {
-                if !loan.authorizes(
+                if loan.authorizes(
                     position,
                     observation.location.as_ref(),
                     &observation.regions,
-                ) && observation.regions.iter().any(|region| {
-                    loan.regions.iter().any(|backing| {
-                        borrowed_regions.regions_overlap_at(backing, region, position)
-                            && !self
-                                .compatibility_requirement(loan, region, position)
-                                .is_some_and(&mut defer)
-                    })
-                }) {
-                    return Some(observation.place);
+                ) {
+                    continue;
+                }
+                for region in &observation.regions {
+                    for backing in &loan.regions {
+                        if !borrowed_regions.regions_overlap_at(backing, region, position) {
+                            continue;
+                        }
+                        match self.compatibility_requirement(loan, region, position) {
+                            Some(requirement) => requirements.push(requirement),
+                            None => return Some(observation.place),
+                        }
+                    }
                 }
             }
             // Descendant access never authorizes relocating or disposing its
@@ -428,6 +423,8 @@ impl DescriptorLoans {
         None
     }
 
+    /// Replay one edge's disturbance against the live descriptor loans under the
+    /// same deferral rule an operation's own demands use.
     pub(super) fn conflicted_edge(
         &self,
         borrowed_regions: &BorrowedRegions,
@@ -435,25 +432,7 @@ impl DescriptorLoans {
         node: u32,
         edge: &OptimizationEdge,
         destination: &[terminal_psi::StructuralParameterDeclaration],
-    ) -> Option<PlaceId> {
-        self.conflicted_edge_replaying(
-            borrowed_regions,
-            block,
-            node,
-            edge,
-            destination,
-            |requirement| self.requirements.contains(&requirement),
-        )
-    }
-
-    fn conflicted_edge_replaying(
-        &self,
-        borrowed_regions: &BorrowedRegions,
-        block: BlockId,
-        node: u32,
-        edge: &OptimizationEdge,
-        destination: &[terminal_psi::StructuralParameterDeclaration],
-        mut defer: impl FnMut(DescriptorCompatibilityRequirement) -> bool,
+        requirements: &mut Vec<DescriptorCompatibilityRequirement>,
     ) -> Option<PlaceId> {
         for loan in &self.loans {
             if !loan.live.contains(&(block, node)) || !loan.live.contains(&(edge.target, 0)) {
@@ -487,18 +466,31 @@ impl DescriptorLoans {
                     borrowed_regions.access_location((block, node), place, &projection.path);
                 let regions =
                     borrowed_regions.resolve_at((block, node), place, projection.at((block, node)));
-                if (forced || !loan.authorizes((block, node), location, &regions))
-                    && regions.iter().any(|region| {
+                if forced {
+                    // A forced disposition of overlapping backing never
+                    // consults a requirement.
+                    if regions.iter().any(|region| {
                         loan.regions.iter().any(|backing| {
                             borrowed_regions.regions_overlap_at(backing, region, (block, node))
-                                && (forced
-                                    || !self
-                                        .compatibility_requirement(loan, region, (block, node))
-                                        .is_some_and(&mut defer))
                         })
-                    })
-                {
-                    return Some(place);
+                    }) {
+                        return Some(place);
+                    }
+                    continue;
+                }
+                if loan.authorizes((block, node), location, &regions) {
+                    continue;
+                }
+                for region in &regions {
+                    for backing in &loan.regions {
+                        if !borrowed_regions.regions_overlap_at(backing, region, (block, node)) {
+                            continue;
+                        }
+                        match self.compatibility_requirement(loan, region, (block, node)) {
+                            Some(requirement) => requirements.push(requirement),
+                            None => return Some(place),
+                        }
+                    }
                 }
             }
         }

@@ -361,15 +361,9 @@ impl AddressJoinPins {
             node,
             operation,
             &moved,
+            &mut Vec::new(),
         ) {
-            return Err(
-                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                    machine: function.machine,
-                    block,
-                    node,
-                    place,
-                },
-            );
+            return Err(pinned_root_disturbed(function, block, node, place));
         }
         if let Some(pinned) = self.exclusive.get(&block) {
             // Cleanup is checked at its completion boundary: edge disposal by
@@ -378,14 +372,7 @@ impl AddressJoinPins {
             let inputs =
                 crate::unit_validation::function_structure::operation_place_accesses(operation);
             if let Some(place) = inputs.into_iter().find(|place| pinned.contains(place)) {
-                return Err(
-                    OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                        machine: function.machine,
-                        block,
-                        node,
-                        place,
-                    },
-                );
+                return Err(pinned_root_disturbed(function, block, node, place));
             }
         }
         let Some(pinned) = self.shared.get(&block) else {
@@ -395,14 +382,7 @@ impl AddressJoinPins {
             .borrowed_regions
             .conflicted_operation(pinned, (block, node), &moved);
         match disturbed {
-            Some(place) => Err(
-                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                    machine: function.machine,
-                    block,
-                    node,
-                    place,
-                },
-            ),
+            Some(place) => Err(pinned_root_disturbed(function, block, node, place)),
             None => Ok(()),
         }
     }
@@ -426,15 +406,9 @@ impl AddressJoinPins {
             node,
             edge,
             destination,
+            &mut Vec::new(),
         ) {
-            return Err(
-                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                    machine: function.machine,
-                    block,
-                    node,
-                    place,
-                },
-            );
+            return Err(pinned_root_disturbed(function, block, node, place));
         }
         // A new exclusive local loan borrows live storage; it does not move or
         // discharge the owner. Check the current frontier before edge cleanup
@@ -487,14 +461,7 @@ impl AddressJoinPins {
                     .iter()
                     .any(|action| action.place() == place)
             {
-                return Err(
-                    OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                        machine: function.machine,
-                        block,
-                        node,
-                        place,
-                    },
-                );
+                return Err(pinned_root_disturbed(function, block, node, place));
             }
         }
         // A later state's loan chain ends on an edge: discarding the
@@ -518,14 +485,7 @@ impl AddressJoinPins {
                 )
                 .find(|place| pinned.contains(place))
         {
-            return Err(
-                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                    machine: function.machine,
-                    block,
-                    node,
-                    place,
-                },
-            );
+            return Err(pinned_root_disturbed(function, block, node, place));
         }
         let Some(pinned) = self.shared.get(&block) else {
             return Ok(());
@@ -559,14 +519,7 @@ impl AddressJoinPins {
             })
             .map(|(place, _)| place);
         match disturbed {
-            Some(place) => Err(
-                OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
-                    machine: function.machine,
-                    block,
-                    node,
-                    place,
-                },
-            ),
+            Some(place) => Err(pinned_root_disturbed(function, block, node, place)),
             None => Ok(()),
         }
     }
@@ -591,6 +544,22 @@ impl AddressJoinPins {
                 })
             })
         })
+    }
+}
+
+/// The one diagnostic every pinned-root disturbance reports: the exact place
+/// whose move, exclusive loan or disposal the pin refuses.
+fn pinned_root_disturbed(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    place: PlaceId,
+) -> OptimizationUnitValidationError {
+    OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
+        machine: function.machine,
+        block,
+        node,
+        place,
     }
 }
 

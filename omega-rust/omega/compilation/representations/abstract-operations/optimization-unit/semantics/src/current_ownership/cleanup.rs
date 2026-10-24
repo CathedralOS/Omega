@@ -22,32 +22,12 @@ use terminal_semantics::owned_structure::{
 pub(super) type CaseMembership<'a> =
     dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId, bool) -> bool + 'a;
 
+/// Settle one completed exit's cleanup actions. The roster must close the
+/// ownership frontier exactly and normal completion must restore borrowed
+/// reference custody. The drained frontier returns to a structural exit that
+/// continues with its retired rows; a unit exit retires it with the activation.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn validate_unit_cleanup_actions(
-    function: &PsiOptimizationFunction,
-    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    reference_effects: &super::references::call_effects::ReferenceCallEffects,
-    block: BlockId,
-    frontier: &CurrentOwnership,
-    actions: &[TerminalAffineCleanupAction],
-    membership: &CaseMembership<'_>,
-) -> Result<(), OptimizationUnitValidationError> {
-    validate_scalar_cleanup_actions(
-        function,
-        functions,
-        structural_types,
-        reference_effects,
-        block,
-        frontier,
-        actions,
-        membership,
-    )?;
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn validate_scalar_cleanup_actions(
+pub(super) fn validate_return_cleanup_actions(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

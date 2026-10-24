@@ -1,7 +1,5 @@
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::cleanup::{
-    validate_scalar_cleanup_actions, validate_unit_cleanup_actions,
-};
+use crate::current_ownership::cleanup::validate_return_cleanup_actions;
 use crate::current_ownership::mutations::{insert_owned_result, reject_live_linear_claim};
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{
@@ -1245,7 +1243,7 @@ pub(super) fn validate_current_ownership_cfg(
                 O::Return {
                     cleanup_actions, ..
                 } => {
-                    frontier = validate_scalar_cleanup_actions(
+                    frontier = validate_return_cleanup_actions(
                         function,
                         functions,
                         structural_types,
@@ -1260,7 +1258,9 @@ pub(super) fn validate_current_ownership_cfg(
                 O::ReturnUnit {
                     cleanup_actions, ..
                 } => {
-                    validate_unit_cleanup_actions(
+                    // A unit exit has no retired structural rows to continue;
+                    // the drained frontier retires with the activation.
+                    validate_return_cleanup_actions(
                         function,
                         functions,
                         structural_types,
@@ -1332,7 +1332,7 @@ pub(super) fn validate_current_ownership_cfg(
                     for binding in returned_claims {
                         frontier.claims.remove(&binding.claim);
                     }
-                    frontier = validate_scalar_cleanup_actions(
+                    frontier = validate_return_cleanup_actions(
                         function,
                         functions,
                         structural_types,
