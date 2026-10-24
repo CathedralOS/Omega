@@ -325,7 +325,9 @@ pass/calls/value_call_element_view_arg_compile built 3267ms exit:0 interpreter-e
 pass/calls/whole_byte_array_view_loans_exit built 3448ms exit:70 interpreter-exit:70 interpreter:agrees @af65e4684ce5+wt
 pass/capabilities/acquires_through_helper_return built 3368ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
 pass/capabilities/runtime_qualified_record_return_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @e8239f945e82+wt
+pass/cases/runtime_borrowed_case_subject_exit built 1078ms exit:0 interpreter-exit:0 interpreter:agrees @21ef4e954411
 pass/cases/runtime_refuted_generic_case_dispatch_exit built 7462ms exit:70 interpreter-exit:70 interpreter:agrees @c083b963e5ba
+pass/cases/runtime_stored_case_reference_subject_exit built 1174ms exit:0 interpreter-exit:0 interpreter:agrees @21ef4e954411
 pass/collections/case_array_computed_index_match_exit built 3066ms exit:20 interpreter-exit:20 interpreter:agrees @0c36a0fe0b35
 pass/collections/policy_array_enum_element_dispatch_exit built 2571ms exit:0 interpreter-exit:0 interpreter:agrees @d0e40a213f35
 pass/collections/qualified_element_read_modify_write_retains_policy_exit built 6686ms exit:0 interpreter-exit:0 interpreter:agrees @97705f5a651d

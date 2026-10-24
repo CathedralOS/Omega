@@ -1041,6 +1041,13 @@ fail/capabilities/native_slice_external_leaf_rejected rejected 292ms expected @e
 fail/capabilities/provider_widens_requirement_ceiling rejected 4446ms expected @a9ae30e1c334+wt
 fail/capabilities/undeclared_synchronous_invocation rejected 1341ms expected @a9ae30e1c334+wt
 fail/capabilities/via_producer_without_target_body rejected 10865ms expected @9f9aac0513f8+wt
+fail/cases/borrowed_case_write_only_tag_read rejected 205ms expected @21ef4e954411
+	machine `inspect` state `entry` reads write-only parameter `message`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/cases/borrowed_case_wrong_pattern_owner rejected 199ms expected @21ef4e954411
+	case-membership operation lost its exact subject, carrier or case identity
+	match pattern does not select a record or case of its subject's exact carrier
+	match pattern does not select a record or case of its subject's exact carrier
+	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 fail/cases/match_guard_invalidates_nested_tag rejected 1096ms expected @2824a5bc57a8
 	machine `exercise` state `entry` statement 2: cannot prove selected case for payload access
 	machine `exercise` state `entry` statement 2: cannot prove selected case for payload access
@@ -15935,10 +15942,12 @@ pass/cases/mid_arm_value_return checked 9490ms @5041ef1af684+wt
 pass/cases/mixed_record_cases checked 9523ms @5041ef1af684+wt
 pass/cases/ordered_underscore_arms checked 9689ms @5041ef1af684+wt
 pass/cases/param_case_payload_return checked 9708ms @5041ef1af684+wt
+pass/cases/runtime_borrowed_case_subject_exit checked 809ms check-target:macos_arm64 @21ef4e954411
 pass/cases/runtime_call_result_case_membership_exit checked 13653ms check-target:macos_arm64 @7c0518fd7afd+wt
 pass/cases/runtime_case_payload_policy_cast_exit checked 7965ms check-target:macos_arm64 @31988b31bfed+wt
 pass/cases/runtime_nested_payload_scalar_projection_exit checked 749ms check-target:macos_arm64 @2e8db3108ed0
 pass/cases/runtime_refuted_generic_case_dispatch_exit checked 7328ms check-target:macos_arm64 @c083b963e5ba
+pass/cases/runtime_stored_case_reference_subject_exit checked 909ms check-target:macos_arm64 @21ef4e954411
 pass/cases/self_payload_return checked 9538ms @5041ef1af684+wt
 pass/cases/union_guard_paren checked 9242ms @5041ef1af684+wt
 pass/cases/unit_empty_arm checked 9541ms @5041ef1af684+wt
