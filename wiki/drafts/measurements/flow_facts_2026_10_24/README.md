@@ -30,9 +30,8 @@ six states per pass, which matches grouped sweeps plus a confirming pass rather
 than a full-program rebuild on every pass. The Build check reaches 89 states
 in 15 ms. Replaying it would not remove the product check's 230 ms.
 
-## Next question
+## Answered
 
-What the product check does inside one state visit. About 340 visits cost
-about 230 ms, near 0.7 ms each. The sweep's baseline `clone_from` and
-`build_state_flow_fact` are the two pieces to separate before rewriting the
-fixed point.
+The state visit and the per-group copy are separated in
+[the saturation record](saturated.md). The product-check wall is the slowest
+group's sweep. That group's baseline copy is about 1 ms.

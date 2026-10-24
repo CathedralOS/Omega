@@ -25,8 +25,9 @@ thread time beside 531 ms inside `build_state_flow_fact`. A state visit records
 about 1.6 ms of thread time. The Build check stays the small one: 89 visits,
 27–28 ms of state facts, and 15–17 ms of flow wall.
 
-## Next question
+## Answered
 
-Which part of `build_state_flow_fact` spends that 1.6 ms: entry-context
-rebasing, the statement walk, or exit facts. The per-group baseline clone is
-the other candidate, and only if a group can sweep without its own full copy.
+[The saturation record](saturated.md) splits the state visit and the group
+copy. Entry and exit are a few milliseconds of thread time. The wall is the
+slowest group's statement and call sweep, and that group's baseline copy is
+about 1 ms.
