@@ -410,6 +410,9 @@ profiles bound to the actual binary digests. See
   becomes `mbx check`, `cargo test` becomes `mbx nextest run` (needs
   cargo-nextest 0.9.140 or newer). If `mbx` is unavailable, use Cargo without
   asking. Nextest does not run doctests; use `mbx test --doc`.
+- Wrap a lane's whole gate-and-landing chain in one `tools/build_slot.py`
+  hold: the pool is a race, not a queue, and nested holds short-circuit
+  ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
 - Keep using `cargo fmt` and `cargo clean` directly — `mbx clean` differs.
   Whole-workspace formatting is `python tools/fmt.py`: `cargo fmt --all`
   exceeds the Windows command-line limit at this workspace's size.
