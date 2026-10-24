@@ -7,8 +7,10 @@ type FloatLandingPair = (ExpressionHandle, TypeReferenceHandle);
 
 mod call_destinations;
 mod numeric_operands;
-pub(crate) use numeric_operands::validate_anonymous_divisions;
 pub(super) use numeric_operands::validate_numeric_tree_destination;
+pub(crate) use numeric_operands::{
+    validate_anonymous_bitwise, validate_anonymous_numeric_formation,
+};
 
 /// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
 /// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`

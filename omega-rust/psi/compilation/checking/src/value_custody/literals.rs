@@ -10,17 +10,18 @@
 //!
 //! `program_validation::validate` runs this module's program-wide checks at
 //! three points. First, before any other validator,
-//! `validate_anonymous_remainders` (`integer_remainder`),
-//! `validate_anonymous_bitwise` (`integer_bitwise`) and
-//! `validate_anonymous_divisions` (`float_landing`); validation stops if
-//! any reports a diagnostic. Later it runs `validate_suffix_landings` and
+//! `validate_anonymous_numeric_formation` (`float_landing::numeric_operands`)
+//! rejects an anonymous `%` and an anonymous division by zero; validation stops
+//! if it reports a diagnostic. Later it runs `validate_suffix_landings` and
 //! `validate_suffix_magnitudes`. `validate_suffix_landings` checks each
 //! struct-literal field, state result, assignment, local initializer and
 //! transition value against its declared type through
 //! `validate_suffix_landing`, which call validation and
 //! `expression_types::match_dispatch` also call directly. Last, after every
-//! other check passes, it reports `anonymous_integer_landing_warnings`
-//! (`integer_landing`).
+//! other check passes, it reports `validate_anonymous_bitwise` (the same
+//! formation owner) and `anonymous_integer_landing_warnings` (`integer_landing`),
+//! whose missing anonymous bitwise carrier matters only when no source error
+//! already explains why the program cannot form.
 //!
 //! The landing queries are used outside validation too.
 //! `land_float_literal_destinations` (`float_landing`) gives unsuffixed float
@@ -145,7 +146,7 @@ pub(crate) fn validate_suffix_magnitudes(
 
 mod float_landing;
 pub use float_landing::land_float_literal_destinations;
-pub(crate) use float_landing::validate_anonymous_divisions;
+pub(crate) use float_landing::{validate_anonymous_bitwise, validate_anonymous_numeric_formation};
 mod constant_arrays;
 mod record_projection;
 pub use constant_arrays::builtin_constant_array_projection_type;
@@ -158,10 +159,7 @@ pub use constant_arrays::{
 };
 pub(crate) use record_projection::closed_record_integer_projection;
 pub use record_projection::{closed_record_scalar_projection, closed_scalar_place_projection};
-mod integer_bitwise;
 mod integer_landing;
-mod integer_remainder;
-pub(crate) use integer_bitwise::validate_anonymous_bitwise;
 pub(crate) use integer_landing::anonymous_integer_landing_warnings;
 pub(crate) use integer_landing::{anonymous_numeric_value, evaluate_anonymous_numeric_equality};
 pub use integer_landing::{
@@ -169,7 +167,6 @@ pub use integer_landing::{
     has_anonymous_numeric_results, has_anonymous_operator_meaning,
     land_anonymous_integer_expression, land_integer_value, select_anonymous_numeric_match_arm,
 };
-pub(crate) use integer_remainder::validate_anonymous_remainders;
 
 /// Check an already-landed literal against one exact declared destination.
 /// Explicit casts are conversions, not transparent literal wrappers.

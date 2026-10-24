@@ -187,8 +187,7 @@ fn validate<'program>(
     if let Err(message) = crate::validate_boundary_completion_declarations(program) {
         diagnostics.push(Diagnostic::error(message));
     }
-    literals::validate_anonymous_remainders(program, &mut diagnostics);
-    literals::validate_anonymous_divisions(program, &mut diagnostics);
+    literals::validate_anonymous_numeric_formation(program, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
