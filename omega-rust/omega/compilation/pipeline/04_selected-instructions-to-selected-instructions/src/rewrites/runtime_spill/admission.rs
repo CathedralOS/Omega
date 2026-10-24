@@ -1,120 +1,15 @@
-use optimization_core::OptimizationWorkBudget;
-use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterClassId, RegisterInstructionConstraint};
+//! Shared emission constructors for one admitted runtime-value spill: the
+//! address/load reload pair and the definition's store sequence, each built by
+//! one constructor so the proposal and the replay's own reconstruction emit
+//! identical register and instruction streams. The admission derivation these
+//! consume is [`super::derive_runtime_spill`].
+
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
-use semantic_vocabulary::ScalarType;
 
-use super::{
-    BitsConversion, RuntimeSpillError, StorageDefinition, StructuralArgumentUse, VictimLineage,
-    slot,
-};
-use crate::ValidatedSelectedAnalysis;
-
-pub(super) struct Admission<'source> {
-    pub function: &'source SelectedFunction,
-    pub use_blocks: Vec<usize>,
-    /// Per block: one reload register serves consecutive flexible uses until
-    /// an instruction that can destroy register content — a clobber or an
-    /// implicit definition — closes it and the next use opens a fresh pair.
-    /// `false` keeps each use on a private reload pair. A use recorded in
-    /// `dedicated_tie_uses` keeps a private pair even where this holds.
-    pub shared_reload: Vec<bool>,
-    /// Per block: `(instruction index, operand ordinal)` of each victim use
-    /// whose tied `Def` is early-clobber while an unpinned victim-reading
-    /// co-operand could share the block's open reload register — the write
-    /// may then land in that register ahead of the co-operand's read. The
-    /// tied use takes a dedicated pair so the write's tied home is a
-    /// register no other operand reads. Consulted only where `shared_reload`
-    /// holds: a private-pair block already leaves every use unshared.
-    pub dedicated_tie_uses: Vec<std::collections::BTreeSet<(usize, u16)>>,
-    /// Per block: the source instruction indices that close the still-open
-    /// shared reload — every instruction redefining the victim, whose later
-    /// `Def` or `UseDef` operand makes the held value stale the way a unit
-    /// writer makes it unsafe, plus every clobbering or implicitly-defining
-    /// instruction
-    /// the span policy did not cross. Under
-    /// `RuntimeSpillSpanPolicy::UnitWriteCrossing` a unit-writing instruction
-    /// stays off this set while an allocatable view of the victim's class
-    /// avoids every unit written inside the span so far — the surviving home
-    /// the produced interval then demands of the allocator. Under
-    /// `UnitWriteBounded`, the historical shape, every unit writer is a
-    /// member. Proposal, replay, and the slot-reuse analysis all read this
-    /// one decision.
-    pub span_closes: Vec<std::collections::BTreeSet<usize>>,
-    // Establishment retains its exact address operand; only later uses reload.
-    pub retained_uses: std::collections::BTreeSet<(SelectedInstructionId, u16)>,
-    pub victim: &'source VirtualRegister,
-    /// What the spill restates. A scalar victim keeps its source `ValueId`;
-    /// a structural victim — an ABI live-in's incoming pointer, a field
-    /// observation load's result, or an instruction-made transport register —
-    /// is identified by the declared place and byte offset it restates and
-    /// names no source value at all, so value bindings cannot transport it
-    /// and its reload registers carry an observation origin, not a result
-    /// one.
-    pub lineage: VictimLineage,
-    pub address_scalar_type: ScalarType,
-    pub definitions: Vec<StorageDefinition>,
-    /// The slot every emitted store and reload pair names. Each storage
-    /// window — the definitions one reload position may observe and the
-    /// positions they reach — independently takes the first declared `Spill`
-    /// slot the last-writer replay proves disjoint from its accesses; a
-    /// window no candidate admits falls back to the victim's private slot.
-    /// `declares_private` decides whether the rewrite appends that
-    /// declaration: `false` means every window landed on storage already
-    /// charged to earlier victims, so frame demand stays unchanged and the
-    /// bytes are never counted a second time.
-    pub assignment: slot::Assignment,
-    /// Stored structural-transport arguments naming the victim, one per
-    /// binding. The snapshot's chunk loads are the real uses and were admitted
-    /// as ordinary instruction operands; `loads` holds those load identities
-    /// in byte order so proposal and replay can retarget the binding's
-    /// `argument` field to the single register the loads name after rewriting.
-    pub structural_uses: Vec<StructuralArgumentUse>,
-    pub first_instruction: u32,
-    pub first_register: u32,
-    pub address: &'source RegisterInstructionConstraint,
-    pub load: &'source RegisterInstructionConstraint,
-    pub store: &'source RegisterInstructionConstraint,
-    /// The class the private slot's access stream moves end to end — the
-    /// victim's own class when it rides the rows directly, else the single
-    /// class the frame-address, load, and store rows share, reached through
-    /// the declared conversion pair below.
-    pub carrier_class: RegisterClassId,
-    /// `Some` when the victim's class cannot sit in the slot rows: its raw
-    /// payload crosses the pair instead, so each store becomes `to_bits` then
-    /// `Store64` and each reload appends `from_bits` after its `Load64`.
-    pub bits_conversion: Option<BitsConversion<'source>>,
-}
-
-pub(super) fn admit<'source>(
-    source: &'source impl ValidatedSelectedAnalysis,
-    function_index: usize,
-    register: VirtualRegisterId,
-    environment: &'source ValidatedTargetRegisterEnvironment,
-    span_policy: super::RuntimeSpillSpanPolicy,
-    budget: OptimizationWorkBudget,
-) -> Result<Admission<'source>, RuntimeSpillError> {
-    let derived = super::derive_runtime_spill(
-        source,
-        function_index,
-        register,
-        environment,
-        span_policy,
-        budget,
-    )?;
-    Ok(super::runtime_spill_projection!(Admission, derived))
-}
-
-/// The declared bit-preserving pair bridging a foreign-class victim to the
-/// slot's carrier class. Only an IEEE-float payload has such a pair today;
-/// each row must be the exact two-operand `Use`/`Def` bridge between the two
-/// classes with no hidden effects — a conversion that wrote or clobbered a
-/// unit could destroy the still-open reload it sits inside. A missing key, an
-/// absent row, or a row that does not bridge the two classes is a victim
+use super::{RuntimeSpillDerivation, RuntimeSpillError, VictimLineage};
 
 pub(super) fn fresh(next: &mut u32) -> Result<u32, RuntimeSpillError> {
     let result = *next;
@@ -166,7 +61,7 @@ impl Reload {
 }
 
 pub(super) fn reload(
-    admitted: &Admission<'_>,
+    admitted: &RuntimeSpillDerivation<'_>,
     slot: LocalStorageSlotId,
     register: VirtualRegisterId,
     next_instruction: &mut u32,
@@ -312,7 +207,7 @@ impl Store {
 }
 
 pub(super) fn store(
-    admitted: &Admission<'_>,
+    admitted: &RuntimeSpillDerivation<'_>,
     slot: LocalStorageSlotId,
     stored: VirtualRegisterId,
     next_instruction: &mut u32,
@@ -395,8 +290,6 @@ pub(super) fn store(
         ),
     })
 }
-
-/// Target rows supply the complete operand/effect interface, not guessed ISA conventions.
 
 pub(super) fn frame(slot: LocalStorageSlotId) -> FrameStorageSlotId {
     FrameStorageSlotId::Local(slot)

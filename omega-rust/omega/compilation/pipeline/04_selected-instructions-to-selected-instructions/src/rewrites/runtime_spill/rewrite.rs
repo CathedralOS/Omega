@@ -7,7 +7,10 @@ use selected_instructions::{
     SelectedValueTransport, VirtualRegisterId,
 };
 
-use super::{RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, admission};
+use super::{
+    RuntimeSpillDerivation, RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill,
+    admission, derive_runtime_spill,
+};
 use crate::ValidatedSelectedAnalysis;
 
 /// Emit one private address/load pair for a use, or — when `share` admits a
@@ -19,7 +22,7 @@ use crate::ValidatedSelectedAnalysis;
 /// call.
 /// Returns the register the rewritten use must name.
 fn reload_for_use(
-    admitted: &admission::Admission<'_>,
+    admitted: &RuntimeSpillDerivation<'_>,
     slot: LocalStorageSlotId,
     register: VirtualRegisterId,
     share: bool,
@@ -77,7 +80,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
     budget: OptimizationWorkBudget,
     span_policy: RuntimeSpillSpanPolicy,
 ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-    let admitted = admission::admit(
+    let admitted = derive_runtime_spill(
         source,
         function_index,
         register,

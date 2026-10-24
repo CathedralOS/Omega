@@ -1854,36 +1854,6 @@ pub(super) fn derive_runtime_spill<'source>(
         bits_conversion,
     })
 }
-/// limit rather than an environment fault.
-/// The verbatim per-side projection: the admission and replay records carry
-/// the derivation's fields one-for-one — the macro keeps the restatement
-/// single while each record type stays owned by its side.
-macro_rules! runtime_spill_projection {
-    ($Type:ident, $derived:ident) => {
-        $Type {
-            function: $derived.function,
-            use_blocks: $derived.use_blocks,
-            shared_reload: $derived.shared_reload,
-            dedicated_tie_uses: $derived.dedicated_tie_uses,
-            span_closes: $derived.span_closes,
-            retained_uses: $derived.retained_uses,
-            victim: $derived.victim,
-            lineage: $derived.lineage,
-            address_scalar_type: $derived.address_scalar_type,
-            definitions: $derived.definitions,
-            assignment: $derived.assignment,
-            structural_uses: $derived.structural_uses,
-            first_instruction: $derived.first_instruction,
-            first_register: $derived.first_register,
-            address: $derived.address,
-            load: $derived.load,
-            store: $derived.store,
-            carrier_class: $derived.carrier_class,
-            bits_conversion: $derived.bits_conversion,
-        }
-    };
-}
-pub(super) use runtime_spill_projection;
 
 pub(super) fn parameter_definitions(
     function: &SelectedFunction,

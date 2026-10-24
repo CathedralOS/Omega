@@ -871,6 +871,13 @@ fn loads_before(
     (previous..index).any(|point| span_closes[block_index].contains(&point))
 }
 
+/// The declared bit-preserving pair bridging a foreign-class victim to the
+/// slot's carrier class. Only an IEEE-float payload has such a pair today;
+/// each row must be the exact two-operand `Use`/`Def` bridge between the two
+/// classes with no hidden effects — a conversion that wrote or clobbered a
+/// unit could destroy the still-open reload it sits inside. A missing key, an
+/// absent row, or a row that does not bridge the two classes is a
+/// candidate-local rejection, not a constraint fault.
 pub(super) fn bits_transport<'source>(
     environment: &'source ValidatedTargetRegisterEnvironment,
     victim: &VirtualRegister,
