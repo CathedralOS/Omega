@@ -1935,6 +1935,12 @@ defines the complete product bar.
   `non_owning_reference_erasure` carries that distinction through explicit
   writable views without minting membership or discarding lender obligations.
 
+  Policy introduced solely through a temporary borrowed view needs the governed
+  lifetime/retirement boundary in
+  [Q4](OWNER_QUESTIONS.md#q4-when-does-a-policy-introduced-only-on-a-temporary-view-retire).
+  This gates after-loan owner-access judgments, not enforcement while governed
+  views live or policy transport and erasure checking.
+
   Acceptance: the same policy survives the ordinary fact/loan transport places,
   nested fields, whole-place replacement, requirement dispatch, helper calls,
   reflection and codecs. Reject unauthorized reads/writes, an issuer accessing
