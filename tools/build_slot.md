@@ -50,3 +50,19 @@ re-verify cannot lose its lease to the queue
 ([landing](landing.md#land-from-one-scripted-invocation)). Run the chain's
 steps strictly sequentially; a candidate whose verify checks no packages
 (docs-only changes) needs no hold at all.
+
+## Diagnostics don't queue with chains
+
+Fixing a compile error or a red test is a minutes-scale check-edit-check loop.
+Run those single-crate checks in a separate named pool so they neither wait
+behind nor starve the chain slots:
+
+```sh
+python3 tools/build_slot.py --pool diag --slots 1 -- mbx check -p <crate>
+```
+
+The diag pool keeps its own slot file (`build/diag-slots/slot-0`) and its own
+short-circuit variable (`OMEGA_BUILD_SLOT_HELD_DIAG`), so it never contends
+with — or gets silenced by — the two chain slots. Budget one extra rustc
+process: keep diag commands short and single-crate, and under memory
+pressure, drop diag work before chain builds.
