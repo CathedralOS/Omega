@@ -1,0 +1,1 @@
+parameter envelope.entries[0]::Ready.ticket requires Ticket::Issued

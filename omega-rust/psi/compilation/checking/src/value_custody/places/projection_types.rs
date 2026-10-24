@@ -422,12 +422,18 @@ fn field_type_reference(
         typed_trees::types::TypeReferenceNode::Named {
             symbol: base_symbol,
             name: base_name,
-        } => crate::field_domains::data_definition_by_symbol_or_name(
-            program,
-            *base_symbol,
-            base_name,
-        )
-        .and_then(|data| data_field_type_reference(program, data, field_symbol)),
+        } => {
+            if let Some(machine) = program.machine(*base_symbol) {
+                attached_data_field_type_reference(program, machine, field_symbol)
+            } else {
+                crate::field_domains::data_definition_by_symbol_or_name(
+                    program,
+                    *base_symbol,
+                    base_name,
+                )
+                .and_then(|data| data_field_type_reference(program, data, field_symbol))
+            }
+        }
         typed_trees::types::TypeReferenceNode::ConstExpression(_)
         | typed_trees::types::TypeReferenceNode::FixedArray { .. }
         | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }

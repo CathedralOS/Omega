@@ -1,0 +1,32 @@
+// Expected exit: 0. A declared payload qualification survives a runtime-indexed write and borrowed arrival.
+data Ticket [copy] { value: u64; }
+domain Ticket::Issued established by mint;
+data Choice { case Empty; case Ready(ticket: Ticket in Issued); }
+data Envelope { entries: [Choice; 2]; }
+machine mint(value: u64) -> Ticket in Issued { Ticket { value: value } }
+machine fill(slot: &mut Choice) -> bool {
+    slot = Choice::Ready { ticket: mint(73) };
+    true
+}
+machine observe(ticket: &Ticket in Issued) -> u64 { ticket.value }
+machine visit(envelope: &mut Envelope, index: u64) -> u64
+requires index < 2
+{
+    let stored: bool = fill(&mut envelope.entries[index]);
+    transition stored { true -> registered(envelope, index) _ -> 0 }
+    state registered(envelope: &mut Envelope, index: u64) -> u64
+    requires index < 2
+    {
+        transition &envelope.entries[index] {
+            Choice::Ready { ticket } -> (observe(ticket))
+            Choice::Empty -> 0
+        }
+    }
+}
+machine main() crashes Trap {
+    let mut envelope: Envelope;
+    let observed: u64 = visit(&mut envelope, 1);
+    transition observed == 73 { true -> done() _ -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

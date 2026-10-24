@@ -83,10 +83,10 @@ impl StorageRegion {
 
     /// Ordinary normal-return writes through a borrowed resident preserve its
     /// captured owner's qualifications. A nonresident content write can retain
-    /// only an existing identity-only theory on the same descriptor. This
-    /// retains an existing fact at
-    /// that exact owner: it neither issues a qualification nor restores content
-    /// observations. Borrowed-content checking must still restore every hole.
+    /// only an existing content-independent theory on the same descriptor.
+    /// This retains an existing fact at that exact owner: it neither issues a
+    /// qualification nor restores content observations. Borrowed-content
+    /// checking must still restore every hole.
     pub(crate) fn preserves_owner_qualification(
         &self,
         program: &dyn validation::CheckingInput,
@@ -116,7 +116,7 @@ impl StorageRegion {
             } if domain == *granted || domain == *resident => owner,
             Self::NonresidentContent { owner, .. }
                 if domain.is_valid()
-                    && crate::flow::domain::qualification_is_identity_only(
+                    && crate::flow::domain::qualification_is_content_independent(
                         program,
                         domain_symbol,
                     ) =>

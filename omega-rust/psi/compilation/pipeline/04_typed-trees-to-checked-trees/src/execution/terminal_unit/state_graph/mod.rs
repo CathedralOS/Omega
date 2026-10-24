@@ -26,7 +26,8 @@ use crate::execution::terminal_unit::calls::{
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, fold_parameter_entry_domains, machine_binders, state_flow,
+    ShapeCollector, fold_parameter_entry_domains, machine_binders,
+    retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
 
@@ -393,6 +394,12 @@ pub(super) fn build_traced(
         };
         trace.phase("state graph: state signature: entry domains");
         fold_parameter_entry_domains(program, shapes, machine, state, &mut structural)?;
+        if let Err(reason) =
+            retain_parameter_arrival_domains(program, facts, shapes, owner, state, &mut structural)
+        {
+            trace.phase(reason);
+            return None;
+        }
         trace.phase("state graph: state signature: entry claims");
         let claims = entry_claims(
             program,

@@ -266,13 +266,16 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                 && (source_parameter.access == target.access
                     || (source_parameter.access == CheckedStructuralAccess::MutableBorrow
                         && target.access == CheckedStructuralAccess::SharedBorrow))
-                // A whole owned move carries the source's complete contract.
-                // An argument that adds or erases a membership is a fresh
-                // value with the target's contract, established below.
+                // Operand preparation retains a new value when the receiving
+                // declared type changes. Inferred arrival facts do not change
+                // that storage operation: the existing value carries them.
                 && (target.access != CheckedStructuralAccess::Owned
-                    || (source_parameter.qualifications == target.qualifications
-                        && source_parameter.projected_qualifications
-                            == target.projected_qualifications))
+                    || program.state_parameters(source).get(source_parameter.position as usize)
+                        .zip(target_parameters.get(target.position as usize))
+                        .is_some_and(|(source, target)| {
+                            program.normalized_type_identity(source.type_reference)
+                                == program.normalized_type_identity(target.type_reference)
+                        }))
             {
                 mark(SuccessorGuard::ParameterTransfer);
                 return Some(CheckedStructuralControlTransferPlan {
@@ -394,17 +397,18 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     && let Some(symbol) = place.root.as_symbol()
                     && let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
                         super::super::local_storage::source(program, source, operations, symbol)
-                    // As for a forwarded parameter: an owned move carries the
-                    // local's declared contract, and an argument adding or
-                    // erasing a membership is established below instead.
+                    // Use the same declared-type relation as operand
+                    // preparation. A completed call may have established more
+                    // facts than the local annotation spells; forwarding its
+                    // current home must not discard those facts or fabricate
+                    // an unprepared value merely to restate them.
                     && (target.access != CheckedStructuralAccess::Owned
-                        || program.state_local_declaration(source, symbol).is_some_and(|(_, local)| {
-                            super::super::types::parameter_qualifications(
-                                program, shapes, local.type_reference,
-                                &super::super::types::machine_binders(program, machine),
-                            )
-                            .is_some_and(|qualifications| qualifications == target.qualifications)
-                        }))
+                        || program.state_local_declaration(source, symbol)
+                            .zip(target_parameters.get(target.position as usize))
+                            .is_some_and(|((_, local), target)| {
+                                program.normalized_type_identity(local.type_reference)
+                                    == program.normalized_type_identity(target.type_reference)
+                            }))
                 {
                     let mut matches = operations.iter()
                         .filter(|operation| !operand_owned_construction(operation))

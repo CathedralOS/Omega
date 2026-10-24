@@ -662,6 +662,12 @@ pub(crate) fn place_from_origin_path(
     statement_index: usize,
     path: &str,
 ) -> Option<CanonicalPlace> {
+    // The frame owner deliberately absorbs indexed descendants into a final
+    // collection-content coordinate. It is not part of the field's name and
+    // does not mean replacement of the collection descriptor.
+    let (path, collection_contents) = path
+        .strip_suffix("[*]")
+        .map_or((path, false), |collection| (collection, true));
     let mut members = path.split('.');
     let root_name = members.next()?;
     let root = program
@@ -685,6 +691,12 @@ pub(crate) fn place_from_origin_path(
         let type_symbol = symbol_type_symbol(program, symbol)?;
         symbol = resolve_member_symbol_from_type_symbol(program, type_symbol, member)?;
         push_field_place_segments(program, &mut place.segments, symbol);
+    }
+    if collection_contents {
+        place.segments.push(facts::PlaceSegment::FixedRange {
+            start: 0,
+            end: usize::MAX,
+        });
     }
     Some(place)
 }
