@@ -806,20 +806,24 @@ crashes Trap
     transition { _ -> next(parser, input, base, base) }
 
     state next(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
-        transition cursor < parser.pending_type_argument_count {
+        transition cursor < parser.pending_type_argument_count && cursor < 32 {
             true -> capacity(parser, input, base, cursor)
             _ -> close(parser, base)
         }
     }
 
-    state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+    state capacity(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
+    requires cursor < 32
+    {
         transition parser.output.type_argument_count < 1024 {
             true -> copy(parser, input, base, cursor)
             _ -> full(parser, input)
         }
     }
 
-    state copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping) {
+    state copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
+    requires cursor < 32
+    {
         parser.output.type_arguments[parser.output.type_argument_count] = parser.pending_type_arguments[cursor] as u64 in Trapping;
         parser.output.type_argument_count = parser.output.type_argument_count + 1;
         transition { _ -> next(parser, input, base, cursor + 1) }

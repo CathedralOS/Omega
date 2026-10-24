@@ -7,10 +7,18 @@ use psi::syntax::syntax;
 // definition (`let` root) or a transparent trait refinement rejects at its
 // root; a trait's `where proposition` contract at that contract. A machine,
 // whatever contains it, that gives a static machine binder a `where machine`
-// contract, or declares a proposition or conformance-evidence binder,
-// rejects at that form rather than resolving as if it were absent: a
-// contract's binder and an evidence binder's trait each need a binding table
-// this resolver does not keep yet. An operator token binds (operators.omg)
+// contract, or declares a proposition binder, rejects at that form rather
+// than resolving as if it were absent: a contract's binder needs a binding
+// table this resolver does not keep yet. An evidence binder
+// (`Reader satisfies Reading<Value>`) is admitted on a trait telescope,
+// in the position the author wrote it among the other binders. Its trait
+// application is an ordinary type reference bound as a trait, so earlier
+// binders in that mixed telescope are in scope; the binder is not a stored
+// type and not a second telescope. The same binder on a machine, data
+// declaration, conformance, domain or proposition still rejects: machines
+// keep a separate evidence telescope this resolver does not record, and the
+// other declarations do not admit implementation parameters. An operator
+// token binds (operators.omg)
 // only on an ordinary owned machine (`machine + Vector::add`) and for an
 // arithmetic or order token; a trait requirement's token (selected through
 // a proof-static binder), an unqualified machine's (homed through a declared
@@ -44,25 +52,25 @@ crashes Trap
 
     state data_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: DataItem = SyntaxTrees::data_item(syntax, item.item_index);
-        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count);
+        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
     state conformance_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: ConformanceItem = SyntaxTrees::conformance_item(syntax, item.item_index);
-        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count);
+        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
     state domain_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: DomainItem = SyntaxTrees::domain_item(syntax, item.item_index);
-        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count);
+        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
     state proposition_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: PropositionItem = SyntaxTrees::proposition_item(syntax, item.item_index);
-        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count);
+        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, false);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
@@ -82,7 +90,7 @@ crashes Trap
     }
 
     state trait_binders(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping, declared: TraitItem) {
-        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count);
+        Resolver::check_binder_forms(resolver, syntax, declared.first_generic_parameter, declared.generic_parameter_count, true);
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
@@ -111,25 +119,33 @@ crashes Trap
     state done() {}
 }
 
-// A declaration's proposition or evidence binder rejects at that binder.
-machine Resolver::check_binder_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping)
+// A declaration's proposition binder rejects at that binder. An evidence
+// binder rejects unless `admit_evidence` (a trait telescope) keeps it.
+machine Resolver::check_binder_forms(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool)
 crashes Trap
 {
-    transition { _ -> next(resolver, syntax, first, count, 0) }
+    transition { _ -> next(resolver, syntax, first, count, admit_evidence, 0) }
 
-    state next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
+    state next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         transition offset < count {
-            true -> binder(resolver, syntax, first, count, offset)
+            true -> binder(resolver, syntax, first, count, admit_evidence, offset)
             _ -> done()
         }
     }
 
-    state binder(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
+    state binder(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
         transition parameter.kind {
             GenericParameterKind::Proposition -> reject(resolver, parameter.source_span)
-            GenericParameterKind::Evidence -> reject(resolver, parameter.source_span)
-            _ -> next(resolver, syntax, first, count, offset + 1)
+            GenericParameterKind::Evidence -> evidence(resolver, syntax, first, count, admit_evidence, offset, parameter.source_span)
+            _ -> next(resolver, syntax, first, count, admit_evidence, offset + 1)
+        }
+    }
+
+    state evidence(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping, source_span: SourceSpan) {
+        transition admit_evidence {
+            true -> next(resolver, syntax, first, count, admit_evidence, offset + 1)
+            _ -> reject(resolver, source_span)
         }
     }
 

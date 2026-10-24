@@ -17,13 +17,15 @@ crashes Trap
     transition { _ -> next(typer, sources, syntax, resolution, 0) }
 
     state next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
-        transition index < typer.output.reference_count && typer.output.accepted {
+        transition index < typer.output.reference_count && index < 65536 && typer.output.accepted {
             true -> row(typer, sources, syntax, resolution, index)
             _ -> done()
         }
     }
 
-    state row(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    state row(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping)
+    requires index < 65536
+    {
         let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
         let binding: TypeBinding = resolution.type_bindings[index];
         let domain: DomainBinding = resolution.domain_bindings[index];
@@ -35,18 +37,49 @@ crashes Trap
             TypeBinding::Array -> array(typer, sources, syntax, resolution, index, reference, domain)
             TypeBinding::Slice -> slice(typer, sources, syntax, resolution, index, reference, domain)
             TypeBinding::Literal -> literal(typer, sources, syntax, resolution, index, reference)
-            TypeBinding::Trait { item } -> application(typer, sources, syntax, resolution, index)
+            TypeBinding::Trait { item } -> trait_application(typer, sources, syntax, resolution, index, item)
             TypeBinding::Machine { handle } -> application(typer, sources, syntax, resolution, index)
+            TypeBinding::Conformance { item } -> conformance_argument(typer, sources, syntax, resolution, index, reference)
             _ -> unsupported(typer, reference)
         }
     }
 
     // A trait application (a trait's parent, a conformance's satisfied
-    // trait) and a static argument naming a machine are not types: the row
-    // takes none, and an application's arguments' rows intern as ever.
+    // trait, an evidence binder's trait) and a static argument naming a
+    // machine are not types: the row takes none, and an application's
+    // arguments' rows intern as ever. When the trait's telescope contains
+    // an evidence binder, each argument must occupy the slot of its kind:
+    // a type, a const, or an implementation, in the order the trait wrote
+    // them. A type-only telescope keeps today's argument check.
+    state trait_application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
+        Typing::set_reference_type(&mut typer.output, index, 0);
+        let mixed: bool = Typer::telescope_has_evidence(syntax, item);
+        transition mixed && typer.output.accepted {
+            true -> check_telescope(typer, sources, syntax, resolution, index, item)
+            _ -> next(typer, sources, syntax, resolution, index + 1)
+        }
+    }
+
+    state check_telescope(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
+        Typer::check_implementation_telescope(typer, syntax, resolution, index, item);
+        transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
+    }
+
     state application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
         Typing::set_reference_type(&mut typer.output, index, 0);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
+    }
+
+    // A conformance is an implementation argument only when a trait
+    // application lists it. A call's static argument naming a conformance
+    // stays unsupported: this typer does not yet bind a machine's separate
+    // evidence telescope.
+    state conformance_argument(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, reference: TypeReference) {
+        let admitted: bool = Typer::trait_slot_argument(syntax, resolution, index);
+        transition admitted {
+            true -> application(typer, sources, syntax, resolution, index)
+            _ -> unsupported(typer, reference)
+        }
     }
 
     state builtin(
@@ -426,4 +459,238 @@ public machine Typer::collection_qualifier(domain: DomainBinding) -> bool {
     state no() -> bool {
         false
     }
+}
+
+// Whether type-reference `row` is an argument of some trait application.
+// The parent's binding is enough: argument rows are typed before the parent
+// root, and resolution has already recorded which root is a trait.
+public machine Typer::trait_slot_argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> parent(syntax, resolution, row, 0) }
+
+    state parent(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+        transition index < syntax.type_reference_count {
+            true -> kind(syntax, resolution, row, index)
+            _ -> no()
+        }
+    }
+
+    state kind(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let binding: TypeBinding = NameResolution::type_binding_at(resolution, index);
+        transition binding {
+            TypeBinding::Trait { item } -> arguments(syntax, resolution, row, index)
+            _ -> parent(syntax, resolution, row, index + 1)
+        }
+    }
+
+    state arguments(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping) -> bool {
+        let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
+        transition { _ -> argument(syntax, resolution, row, index, reference, 0) }
+    }
+
+    state argument(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
+        transition offset < reference.argument_count {
+            true -> listed(syntax, resolution, row, index, reference, offset)
+            _ -> parent(syntax, resolution, row, index + 1)
+        }
+    }
+
+    state listed(syntax: &SyntaxTrees, resolution: &NameResolution, row: u64 in Trapping, index: u64 in Trapping, reference: TypeReference, offset: u64 in Trapping) -> bool {
+        let handle: u64 in Trapping = SyntaxTrees::type_argument(syntax, reference.first_argument + offset);
+        transition handle == row {
+            true -> yes()
+            _ -> argument(syntax, resolution, row, index, reference, offset + 1)
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Whether trait `item`'s telescope publishes an evidence binder. Only those
+// telescopes are matched here; a type-only trait keeps its existing checks.
+public machine Typer::telescope_has_evidence(syntax: &SyntaxTrees, item: u64 in Trapping) -> bool
+crashes Trap
+{
+    let declared: TraitItem = SyntaxTrees::trait_item(syntax, item);
+    transition { _ -> next(syntax, declared, 0) }
+
+    state next(syntax: &SyntaxTrees, declared: TraitItem, offset: u64 in Trapping) -> bool {
+        transition offset < declared.generic_parameter_count {
+            true -> kind(syntax, declared, offset)
+            _ -> no()
+        }
+    }
+
+    state kind(syntax: &SyntaxTrees, declared: TraitItem, offset: u64 in Trapping) -> bool {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, declared.first_generic_parameter + offset);
+        transition parameter.kind {
+            GenericParameterKind::Evidence -> yes()
+            _ -> next(syntax, declared, offset + 1)
+        }
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Non-lifetime binders of one telescope. Lifetimes are a separate argument run.
+machine Typer::runtime_binder_count(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> next(syntax, first, count, 0, 0) }
+
+    state next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
+        transition offset < count {
+            true -> one(syntax, first, count, offset, counted)
+            _ -> result(counted)
+        }
+    }
+
+    state one(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, counted: u64 in Trapping) -> u64 in Trapping {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
+        transition parameter.kind == GenericParameterKind::Lifetime {
+            true -> next(syntax, first, count, offset + 1, counted)
+            _ -> next(syntax, first, count, offset + 1, counted + 1)
+        }
+    }
+
+    state result(counted: u64 in Trapping) -> u64 in Trapping {
+        counted
+    }
+}
+
+// Whether static argument `binding` may occupy a binder of `kind`.
+// An evidence slot takes a named implementation or a forwarded evidence
+// binder. A type slot takes a type. A const slot takes a static integer or
+// a const binder. Order is the caller's: this predicate does not search.
+public machine Typer::slot_accepts(syntax: &SyntaxTrees, kind: GenericParameterKind, binding: TypeBinding) -> bool
+crashes Trap
+{
+    transition kind {
+        GenericParameterKind::Evidence -> evidence(syntax, binding)
+        GenericParameterKind::Type -> type_slot(syntax, binding)
+        GenericParameterKind::Const -> const_slot(syntax, binding)
+        GenericParameterKind::Machine -> machine_slot(syntax, binding)
+        _ -> no()
+    }
+
+    state evidence(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+        transition binding {
+            TypeBinding::Conformance { item } -> yes()
+            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Evidence)
+            _ -> no()
+        }
+    }
+
+    state type_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+        transition binding {
+            TypeBinding::Builtin { builtin } -> yes()
+            TypeBinding::Data { item } -> yes()
+            TypeBinding::Reference -> yes()
+            TypeBinding::Array -> yes()
+            TypeBinding::Slice -> yes()
+            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Type)
+            _ -> no()
+        }
+    }
+
+    state const_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+        transition binding {
+            TypeBinding::Literal -> yes()
+            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Const)
+            _ -> no()
+        }
+    }
+
+    state machine_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+        transition binding {
+            TypeBinding::Machine { handle } -> yes()
+            TypeBinding::GenericParameter { parameter } -> generic_kind(syntax, parameter, GenericParameterKind::Machine)
+            _ -> no()
+        }
+    }
+
+    state generic_kind(syntax: &SyntaxTrees, parameter: u64 in Trapping, expected: GenericParameterKind) -> bool {
+        let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
+        declared.kind == expected
+    }
+
+    state yes() -> bool {
+        true
+    }
+
+    state no() -> bool {
+        false
+    }
+}
+
+// Match one trait application's arguments to its authored telescope.
+// Lifetimes are not in this argument run. A short or long run rejects as a
+// count; a run of the right length with a binder in the wrong category
+// rejects at that argument.
+public machine Typer::check_implementation_telescope(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping)
+crashes Trap
+{
+    let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
+    let declared: TraitItem = SyntaxTrees::trait_item(syntax, item);
+    let expected: u64 in Trapping = Typer::runtime_binder_count(syntax, declared.first_generic_parameter, declared.generic_parameter_count);
+    transition reference.argument_count == expected {
+        true -> parameter(typer, syntax, resolution, declared, reference, 0, 0)
+        _ -> count_rejected(typer, reference)
+    }
+
+    state parameter(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
+        transition offset < declared.generic_parameter_count && typer.output.accepted {
+            true -> kind(typer, syntax, resolution, declared, reference, offset, position)
+            _ -> done()
+        }
+    }
+
+    state kind(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping) {
+        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, declared.first_generic_parameter + offset);
+        transition parameter.kind {
+            GenericParameterKind::Lifetime -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position)
+            _ -> slot(typer, syntax, resolution, declared, reference, offset, position, parameter)
+        }
+    }
+
+    state slot(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
+        transition position < reference.argument_count {
+            true -> classify(typer, syntax, resolution, declared, reference, offset, position, parameter)
+            _ -> count_rejected(typer, reference)
+        }
+    }
+
+    state classify(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, declared: TraitItem, reference: TypeReference, offset: u64 in Trapping, position: u64 in Trapping, parameter: GenericParameter) {
+        let argument: u64 in Trapping = SyntaxTrees::type_argument(syntax, reference.first_argument + position);
+        let binding: TypeBinding = NameResolution::type_binding_at(resolution, argument);
+        let fits: bool = Typer::slot_accepts(syntax, parameter.kind, binding);
+        transition fits {
+            true -> parameter(typer, syntax, resolution, declared, reference, offset + 1, position + 1)
+            _ -> slot_rejected(typer, syntax, argument)
+        }
+    }
+
+    state slot_rejected(typer: &mut Typer, syntax: &SyntaxTrees, argument: u64 in Trapping) {
+        let row: TypeReference = SyntaxTrees::type_reference(syntax, argument);
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::UnsupportedTypeForm, row.source_span);
+    }
+
+    state count_rejected(typer: &mut Typer, reference: TypeReference) {
+        Typing::reject(&mut typer.output, TypeDiagnosticCode::GenericArgumentCount, reference.source_span);
+    }
+
+    state done() {}
 }

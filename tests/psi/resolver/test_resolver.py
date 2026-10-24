@@ -1270,12 +1270,34 @@ def main() -> None:
         UNSUPPORTED_MACHINE_CONTRACT,
         b"where proposition R(left: C, right: C);",
     )
+    # A trait telescope keeps an evidence binder in the position the author
+    # wrote. The binder's trait application binds as a trait, not a type.
+    accepted(
+        program,
+        "trait-evidence-binder",
+        b"trait CallingPolicy { }\ntrait Calling<Policy satisfies CallingPolicy> {}",
+        (trait(0),),
+    )
+    accepted(
+        program,
+        "ordered-mixed-trait-telescope",
+        b"trait Reading<Value> { }\n"
+        b"trait Consumer<Value, Reader satisfies Reading<Value>, const Tag: i32> {}",
+        (generic(1), trait(0), builtin("i32")),
+    )
     rejected(
         program,
-        "unsupported-trait-evidence-binder",
-        b"trait Calling<Policy satisfies CallingPolicy> {}",
+        "data-evidence-binder",
+        b"data Box<Reader satisfies Marker> { x: u8; }",
         UNSUPPORTED_GENERIC_PARAMETER,
-        b"Policy satisfies CallingPolicy",
+        b"Reader satisfies Marker",
+    )
+    rejected(
+        program,
+        "conformance-evidence-binder",
+        b"Name<Reader satisfies Marker> satisfies Marker { }",
+        UNSUPPORTED_GENERIC_PARAMETER,
+        b"Reader satisfies Marker",
     )
 
     # Machine forms whose bindings resolution does not record yet reject at

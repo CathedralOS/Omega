@@ -151,10 +151,16 @@ as does a form whose bindings resolution does not record yet
 ([`resolve/forms.omg`](resolve/forms.omg)), at that form: a nominal `where
 machine ... satisfies` contract, a structural one with generic parameters or
 clauses other than `requires`, `crashes`, `suspends` and `blocks`, a `where
-proposition` contract, a proposition or evidence binder, or an
+proposition` contract, a proposition binder, an evidence binder on a machine,
+data declaration, conformance, domain or proposition, or an
 operator token anywhere but on an ordinary owned machine binding an
 arithmetic or order token (a trait requirement's token, an unqualified
 machine's, `==`, `!=`, `[]` and `[..]`), on any machine or declaration. A
+trait telescope admits an evidence binder in the position the author wrote
+it (`Reader satisfies Reading<Value>` between a type and a const, or any
+other mix). The binder selects an implementation; it is not a stored type
+and not a second list. Its trait application binds as a trait in that
+telescope's scope, so an earlier binder is visible to it. A
 structural `where machine` contract binds its machine's `machine` binder of
 its name, one contract per binder
 ([`resolve/contracts.omg`](resolve/contracts.omg)), its parameter and result
@@ -354,11 +360,17 @@ a case of the value's data or a declared domain of its carrier
 declared conformance rejects as unsupported rather than typing partially. Carrier facts beyond the qualifier
 (unbounded `UInt`/`Int` storage, ranges) belong to checking. A constant is a
 value of its declared type, and each constant's value types against that type
-like a `let` initializer. A trait application's row takes no type. A call
+like a `let` initializer. A trait application's row takes no type. When that trait's telescope
+contains an evidence binder, typing matches the application's arguments to
+the authored order: a type slot takes a type, an evidence slot takes a
+named implementation or a forwarded evidence binder, and a const slot takes
+a static integer or a const binder. A type in an evidence slot, an
+implementation in a type or const slot, or the wrong number of arguments
+rejects. A type-only trait does not take this check. A call
 selects among the callee's family by machine path; a trait requirement (which
 runs only through a selected conformance), a generic conformance's member, a
 target-scoped family's body (a realization's choice), a conformance named as
-a static argument and a case domain qualifier reject as unsupported. A
+a call's static argument and a case domain qualifier reject as unsupported. A
 declared domain qualifies its carrier (through a reference, `&[u8] in
 Path` qualifies the slice): a value of the carrier meets a qualified
 destination by a membership checking proves (adaptation `Qualified`), a

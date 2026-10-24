@@ -885,7 +885,12 @@ crashes Trap
 }
 
 // The type annotations of one declaration's value binders (`const N: u64`,
-// `Count: u32`), each in the declaration's own scope.
+// `Count: u32`) and the trait application of an evidence binder
+// (`Reader satisfies Reading<Value>`), each in the declaration's own scope.
+// An evidence binder's application is a trait, not a type: binding it as a
+// type would reject the trait name and would also hide that the binder
+// selects code. Earlier binders of the same telescope are already in scope,
+// so `Reading<Value>` sees `Value` whether it was declared before `Reader`.
 public machine Resolver::bind_generic_annotations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope)
 crashes Trap
 {
@@ -901,13 +906,20 @@ crashes Trap
     state annotation(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.has_type_reference {
-            true -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference)
+            true -> role(resolver, sources, syntax, scope, offset, parameter)
             _ -> next(resolver, sources, syntax, scope, offset + 1)
         }
     }
 
-    state bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, reference: u64 in Trapping) {
-        Resolver::bind_type_reference(resolver, sources, syntax, scope, reference, TypeRole::Type);
+    state role(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, parameter: GenericParameter) {
+        transition parameter.kind {
+            GenericParameterKind::Evidence -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Trait)
+            _ -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Type)
+        }
+    }
+
+    state bind(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, reference: u64 in Trapping, role: TypeRole) {
+        Resolver::bind_type_reference(resolver, sources, syntax, scope, reference, role);
         transition { _ -> next(resolver, sources, syntax, scope, offset + 1) }
     }
 

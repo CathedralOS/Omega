@@ -1156,20 +1156,24 @@ crashes Trap
     transition { _ -> next(parser, input, 0) }
 
     state next(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
-        transition cursor < parser.ranked_subject_count {
+        transition cursor < parser.ranked_subject_count && cursor < 8 {
             true -> capacity(parser, input, cursor)
             _ -> close(parser)
         }
     }
 
-    state capacity(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
+    state capacity(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping)
+    requires cursor < 8
+    {
         transition parser.output.argument_count < 65536 {
             true -> copy(parser, input, cursor)
             _ -> full(parser, input)
         }
     }
 
-    state copy(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) {
+    state copy(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping)
+    requires cursor < 8
+    {
         parser.output.arguments[parser.output.argument_count] = parser.ranked_subjects[cursor] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;
         transition { _ -> next(parser, input, cursor + 1) }

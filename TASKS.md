@@ -324,11 +324,19 @@ helper that passes does not close an item.
     entry machines; these rows now require migration to inline members.
     Provider planning installs each through the
     implementation's own plan and resolves installation reach from its rows.
-    Remaining: product-producer parity for positional trait implementation
-    binders and their ordered mixed telescopes; const-expression closure and
+    Remaining: const-expression closure and
     package projection outside the reference producer's qualified scalar inline
     member path; calling-policy/member kinds beyond the closed inline
     calling-policy path. The reference producer's
+    `samples/cli/facts/positional_implementation_binder` row carries one
+    positional evidence binder in `Carrier<Mark, Reader satisfies Reading, Tag>`
+    and the lower bound of its default `floor` through all nine places, with
+    native/Terminal exit 0 on Linux x86-64. Each reject twin changes only
+    `Seven` to `Other` and refuses because that implementation is `Loose`, not
+    `Reading`. Other hosts remain unexecuted for that row. The product producer
+    admits an evidence binder on a trait telescope and checks ordered mixed
+    slot categories; data, conformance, domain, proposition, and machine
+    telescopes still reject one. The reference producer's
     `samples/cli/facts/open_const_implementation` row preserves the exact
     `Selected<Base + 4>` application and its lower-bound contract through all
     nine places, including const evaluation and private package projection,

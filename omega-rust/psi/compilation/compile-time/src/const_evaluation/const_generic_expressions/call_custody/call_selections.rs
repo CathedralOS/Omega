@@ -5,8 +5,161 @@
 //! invocation checking still owns all supplying bounds, effects and permission.
 
 use symbols::{SymbolHandle, SymbolKind};
+use typed_trees::expression::TableCallExpression;
 use typed_trees::{TypedTrees, static_applications::StaticMachineBindingValue};
 use validation::CallSite;
+
+/// The owned entry of a trait-requirement call that names one supplying
+/// implementation. The requirement itself has no body. A map that does not
+/// supply the trait returns nothing, leaving the requirement in place.
+pub(super) fn owned_realization_entry(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    authored: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let authored_symbol = program.symbols.get(authored);
+    if authored_symbol.kind != SymbolKind::State
+        || program.symbols.get(authored_symbol.parent).kind != SymbolKind::Trait
+    {
+        return None;
+    }
+    let requirement_trait = authored_symbol.parent;
+    let implementation = if let Some(path) = program.expression_table.name_path_node(call.receiver)
+        && program.symbols.get(path.symbol).kind == SymbolKind::Conformance
+    {
+        path.symbol
+    } else {
+        let argument = call.machine_arguments.last()?;
+        if !argument.names_implementation(&program.symbols) {
+            return None;
+        }
+        argument.symbol
+    };
+    let conformance = program.conformance_by_symbol(implementation)?;
+    if !trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait) {
+        return None;
+    }
+    let mut rows = conformance.rows.iter().filter(|row| {
+        (row.requirement.is_valid() && row.requirement == authored)
+            || row.requirement_name.as_str() == call.target.as_str()
+    });
+    let row = rows.next()?;
+    if rows.next().is_some() || !row.realization_state.is_valid() {
+        return None;
+    }
+    Some(row.realization_state)
+}
+
+/// A named implementation that does not supply the requirement's trait.
+/// The sentence matches the explicit-requirement checker so a constant
+/// initializer rejects for the same fact before that later rewrite.
+pub(super) fn unsupplied_requirement(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    authored: SymbolHandle,
+) -> Option<String> {
+    let authored_symbol = program.symbols.get(authored);
+    if authored_symbol.kind != SymbolKind::State
+        || program.symbols.get(authored_symbol.parent).kind != SymbolKind::Trait
+    {
+        return None;
+    }
+    let requirement_trait = authored_symbol.parent;
+    let implementation = if let Some(path) = program.expression_table.name_path_node(call.receiver)
+        && program.symbols.get(path.symbol).kind == SymbolKind::Conformance
+    {
+        path.symbol
+    } else {
+        let argument = call.machine_arguments.last()?;
+        if !argument.names_implementation(&program.symbols) {
+            return None;
+        }
+        argument.symbol
+    };
+    let conformance = program.conformance_by_symbol(implementation)?;
+    if trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait) {
+        return None;
+    }
+    let implemented = format!(
+        "{}<{}>",
+        conformance.trait_name.as_str(),
+        program
+            .type_reference_table
+            .type_reference_handles(conformance.arguments)
+            .iter()
+            .map(|argument| program.display_type_reference(*argument))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    let name = program.symbols.name(implementation);
+    Some(format!(
+        "`{name}` implements `{implemented}`, which neither is nor inherits `{}`, the trait that declares `{}`",
+        program.symbols.display_path(requirement_trait, "::"),
+        program.symbols.display_path(authored, "::"),
+    ))
+}
+
+/// Whether `target` is the owned entry of a row for `requirement`.
+/// Preparation may already have replaced the call's implementation operand
+/// with that entry, so the operand is no longer on the call.
+pub(super) fn requirement_realized_by(
+    program: &TypedTrees,
+    requirement: SymbolHandle,
+    target: SymbolHandle,
+) -> bool {
+    if !requirement.is_valid() || !target.is_valid() || requirement == target {
+        return false;
+    }
+    program.conformances().iter().any(|conformance| {
+        conformance.rows.iter().any(|row| {
+            row.requirement == requirement
+                && row.realization_state.is_valid()
+                && (row.realization_state == target
+                    || same_authored_declaration(program, row.realization_state, target))
+        })
+    })
+}
+
+fn same_authored_declaration(
+    program: &TypedTrees,
+    left: SymbolHandle,
+    right: SymbolHandle,
+) -> bool {
+    program.symbols.get(left).kind == program.symbols.get(right).kind
+        && program.symbols.symbol_source_span(left).is_some()
+        && program.symbols.symbol_source_span(left) == program.symbols.symbol_source_span(right)
+}
+
+fn trait_supplies_requirement(
+    program: &TypedTrees,
+    implementation_trait: SymbolHandle,
+    requirement_trait: SymbolHandle,
+) -> bool {
+    if !implementation_trait.is_valid() || !requirement_trait.is_valid() {
+        return false;
+    }
+    let mut pending = vec![implementation_trait];
+    let mut visited = Vec::new();
+    while let Some(current) = pending.pop() {
+        if !current.is_valid() || visited.contains(&current) {
+            continue;
+        }
+        if current == requirement_trait {
+            return true;
+        }
+        visited.push(current);
+        let Some(definition) = program.trait_definition_by_symbol(current) else {
+            continue;
+        };
+        pending.extend(
+            program
+                .trait_requirements(definition)
+                .iter()
+                .map(|parent| parent.symbol),
+        );
+    }
+    false
+}
 
 pub(super) fn retained_target(site: &CallSite<'_>) -> SymbolHandle {
     match site {

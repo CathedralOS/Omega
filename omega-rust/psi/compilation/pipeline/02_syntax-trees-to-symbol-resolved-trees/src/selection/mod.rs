@@ -55,6 +55,20 @@ pub(crate) fn select_operator_homes(lowerer: &mut Lowerer) -> Result<(), Vec<Dia
 /// Record the authored-selection ledger: one exact occurrence per authored
 /// source token, after constants have been substituted.
 pub(crate) fn finalize_authored_selections(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
+    let const_roots = lowerer
+        .symbol_resolved_trees
+        .const_declarations
+        .iter()
+        .flat_map(|declaration| [declaration.initializer, declaration.authored_initializer])
+        .filter(|expression| expression.is_valid())
+        .collect::<Vec<_>>();
+    // Substitution may copy an initializer after the pre-selection bind.
+    // Rebind those copies before this ledger records a late call for the token.
+    crate::constant::initializer_dependencies::bind_named_implementation_const_calls(
+        &mut lowerer.symbol_resolved_trees,
+        &const_roots,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     authored_selections::finalize_authored_expression_selections(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_authored_expressions,

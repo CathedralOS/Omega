@@ -955,7 +955,27 @@ impl<'program> Collector<'program> {
                 let Some(selected) = selection_target.as_resolved() else {
                     return Err("constant closure retained an unresolved call selection".into());
                 };
-                let target = (selection.source_span(), selected.selected_symbol());
+                let mut symbol = selected.selected_symbol();
+                // The ledger names the trait requirement. Execution and the
+                // dependency roster name the supplying row's entry. Retain
+                // that entry for this call's own token; nested selections
+                // keep the declaration they were recorded under.
+                if selection.source_span() == table.source_span(expression)
+                    && let ExpressionNode::Call(call) = table.expression(expression)
+                {
+                    if let Some(entry) =
+                        call_selections::owned_realization_entry(program, call, symbol)
+                    {
+                        symbol = entry;
+                    } else if call_selections::requirement_realized_by(
+                        program,
+                        symbol,
+                        call.target_symbol,
+                    ) {
+                        symbol = call.target_symbol;
+                    }
+                }
+                let target = (selection.source_span(), symbol);
                 if !self.retained_call_targets.contains(&target) {
                     self.retained_call_targets.push(target);
                 }
@@ -1048,11 +1068,25 @@ impl<'program> Collector<'program> {
                     else {
                         continue;
                     };
-                    if self.call_selection_matches(&site, context, target)? {
-                        let selected = (target, selection.source_span());
-                        if !selections.contains(&selected) {
-                            selections.push(selected);
-                        }
+                    let matches = self.call_selection_matches(&site, context, target)?;
+                    // Preparation may rewrite the call to the row's entry
+                    // after the ledger recorded the trait requirement.
+                    let symbol = if call_selections::owned_realization_entry(program, call, target)
+                        == Some(call.target_symbol)
+                        || call_selections::requirement_realized_by(
+                            program,
+                            target,
+                            call.target_symbol,
+                        ) {
+                        call.target_symbol
+                    } else if matches {
+                        target
+                    } else {
+                        continue;
+                    };
+                    let selected = (symbol, selection.source_span());
+                    if !selections.contains(&selected) {
+                        selections.push(selected);
                     }
                 }
                 let [(authored, reference)] = selections.as_slice() else {
@@ -1063,7 +1097,20 @@ impl<'program> Collector<'program> {
                     }
                     .into());
                 };
-                self.selected_call(&site, context, *authored, *reference)?;
+                // A trait requirement names no body. A supplying map's row
+                // entry is the call custody executes. A map that does not
+                // supply the trait rejects here, before that body is walked.
+                if let Some(entry) =
+                    call_selections::owned_realization_entry(program, call, *authored)
+                {
+                    self.call(entry, *reference, context.initializer)?;
+                } else if let Some(message) =
+                    call_selections::unsupplied_requirement(program, call, *authored)
+                {
+                    return Err(message);
+                } else {
+                    self.selected_call(&site, context, *authored, *reference)?;
+                }
             }
             ExpressionNode::Name(name)
                 if program.symbols.get(name.symbol).kind == SymbolKind::Const =>

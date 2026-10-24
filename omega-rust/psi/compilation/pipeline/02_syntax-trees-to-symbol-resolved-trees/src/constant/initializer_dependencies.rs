@@ -1,6 +1,8 @@
 //! Declaration-owned dependency discovery before provisional values exist.
 
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+use language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+};
 use source::SourceSpan;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
@@ -163,6 +165,480 @@ pub(crate) fn expression_at_source(
     selected.ok_or_else(|| "initializer leaf is absent from its retained original root".to_owned())
 }
 
+/// How a call through a named implementation contributes a constant dependency.
+/// Ordinary machine, operator, and evidence-binder calls stay on their existing
+/// paths. A concrete map supplies its owned realization body. A map that does
+/// not implement the named trait supplies no body; checking still rejects it.
+enum NamedImplementationDependency {
+    NotSelected,
+    Realization(SymbolHandle),
+    RequirementOnly(SymbolHandle),
+}
+
+fn named_implementation_dependency(
+    program: &SymbolResolvedTrees,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    target_name: &str,
+    static_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+) -> Result<NamedImplementationDependency, String> {
+    let target = program.symbols.get(target_symbol);
+    let target_parent_kind = program.symbols.get(target.parent).kind;
+    if matches!(
+        target.kind,
+        SymbolKind::Machine | SymbolKind::Operator | SymbolKind::BuiltinFunction
+    ) || (target.kind == SymbolKind::State
+        && matches!(
+            target_parent_kind,
+            SymbolKind::Machine | SymbolKind::ConformanceParameter
+        ))
+    {
+        return Ok(NamedImplementationDependency::NotSelected);
+    }
+    let (implementation, requirement_trait) =
+        if program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance {
+            (receiver_symbol, None)
+        } else if target.kind == SymbolKind::State && target_parent_kind == SymbolKind::Trait {
+            let Some(argument) = static_arguments.last() else {
+                return Ok(NamedImplementationDependency::NotSelected);
+            };
+            if program.symbols.get(argument.symbol).kind != SymbolKind::Conformance {
+                return Ok(NamedImplementationDependency::NotSelected);
+            }
+            (argument.symbol, Some(target.parent))
+        } else {
+            return Ok(NamedImplementationDependency::NotSelected);
+        };
+    let conformance = program
+        .conformances
+        .iter()
+        .find(|conformance| conformance.symbol == implementation)
+        .ok_or_else(|| {
+            format!(
+                "named implementation call lost its conformance declaration `{}`",
+                program.symbols.display_path(implementation, "::")
+            )
+        })?;
+    if let Some(requirement_trait) = requirement_trait
+        && !trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait)
+    {
+        return Ok(NamedImplementationDependency::RequirementOnly(
+            target_symbol,
+        ));
+    }
+    let mut rows = conformance.rows.iter().filter(|row| {
+        if target_symbol.is_valid() && row.requirement.is_valid() {
+            row.requirement == target_symbol
+        } else {
+            row.requirement_name.as_str() == target_name
+        }
+    });
+    let Some(row) = rows.next() else {
+        if requirement_trait.is_some() {
+            return Ok(NamedImplementationDependency::RequirementOnly(
+                target_symbol,
+            ));
+        }
+        return Err(format!(
+            "named implementation `{}` has no row for `{target_name}`",
+            program.symbols.display_path(implementation, "::")
+        ));
+    };
+    if rows.next().is_some() {
+        return Err(format!(
+            "named implementation `{}` has more than one row for `{target_name}`",
+            program.symbols.display_path(implementation, "::")
+        ));
+    }
+    let machine =
+        crate::symbols::owned_conformance_realization(program, row).map_err(str::to_owned)?;
+    realization_entry(program, machine).map(NamedImplementationDependency::Realization)
+}
+
+fn trait_supplies_requirement(
+    program: &SymbolResolvedTrees,
+    implementation_trait: SymbolHandle,
+    requirement_trait: SymbolHandle,
+) -> bool {
+    if !implementation_trait.is_valid() || !requirement_trait.is_valid() {
+        return false;
+    }
+    let mut pending = vec![implementation_trait];
+    let mut visited = Vec::new();
+    while let Some(current) = pending.pop() {
+        if !current.is_valid() || visited.contains(&current) {
+            continue;
+        }
+        if current == requirement_trait {
+            return true;
+        }
+        visited.push(current);
+        let Some(definition) = program
+            .traits
+            .iter()
+            .find(|definition| definition.symbol == current)
+        else {
+            continue;
+        };
+        pending.extend(
+            program
+                .trait_requirements(definition.requires)
+                .iter()
+                .map(|parent| parent.symbol),
+        );
+    }
+    false
+}
+
+/// Bind unresolved constant-initializer calls through a named implementation
+/// to that row's owned entry before authored-selection recording. Every copy
+/// of those source tokens is bound too: selection finalization groups copies
+/// by token, and one unresolved copy keeps a late call selection. Machine-body
+/// calls keep their own later requirement route. The entry is what constant
+/// custody compares with the call that remains.
+pub(crate) fn bind_named_implementation_const_calls(
+    program: &mut SymbolResolvedTrees,
+    roots: &[ExpressionHandle],
+) -> Result<(), String> {
+    let mut spans = Vec::new();
+    collect_call_target_spans(program, roots, &mut spans);
+    if spans.is_empty() {
+        return Ok(());
+    }
+    let expressions = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .map(|(expression, _)| expression)
+        .collect::<Vec<_>>();
+    let mut bound_entries: Vec<(SourceSpan, SymbolHandle)> = Vec::new();
+    for expression in expressions {
+        let node = program
+            .tables
+            .bodies
+            .expressions
+            .expression(expression)
+            .clone();
+        let ExpressionNode::Call(call) = &node else {
+            continue;
+        };
+        if call.target_symbol.is_valid() || !spans.contains(&call.target.source_span()) {
+            continue;
+        }
+        let receiver_symbol = program
+            .tables
+            .bodies
+            .expressions
+            .name_path_node(call.receiver)
+            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
+        let NamedImplementationDependency::Realization(mut entry) =
+            named_implementation_dependency(
+                program,
+                receiver_symbol,
+                call.target_symbol,
+                call.target.as_str(),
+                &call.machine_arguments,
+            )?
+        else {
+            continue;
+        };
+        let span = call.target.source_span();
+        if let Some((_, existing)) = bound_entries.iter().find(|(bound, _)| *bound == span) {
+            entry = *existing;
+        } else {
+            bound_entries.push((span, entry));
+        }
+        let ExpressionNode::Call(call) =
+            program.tables.bodies.expressions.expression_mut(expression)
+        else {
+            continue;
+        };
+        call.target_symbol = entry;
+    }
+    Ok(())
+}
+
+/// Named-implementation routing publishes the trait requirement on every
+/// machine-reachable call after constant selection has already recorded the
+/// owned entry. A use copied into a machine shares that callee token, so
+/// routing moves the copy while the selection stays the entry. Constant
+/// custody compares the two. Put the recorded entry back on every copy of
+/// that initializer call. Other machine-body calls keep the requirement.
+pub(crate) fn restore_const_named_implementation_call_targets(program: &mut SymbolResolvedTrees) {
+    let roots = program
+        .const_declarations
+        .iter()
+        .flat_map(|declaration| [declaration.initializer, declaration.authored_initializer])
+        .filter(|expression| expression.is_valid())
+        .collect::<Vec<_>>();
+    let mut initializer_expressions = Vec::new();
+    collect_expression_handles(program, &roots, &mut initializer_expressions);
+    let mut recorded = Vec::new();
+    for expression in &initializer_expressions {
+        let node = program
+            .tables
+            .bodies
+            .expressions
+            .expression(*expression)
+            .clone();
+        let ExpressionNode::Call(call) = &node else {
+            continue;
+        };
+        let Some(symbol) = recorded_call_selection(program, *expression, call.target.source_span())
+        else {
+            continue;
+        };
+        let selected_symbol = program.symbols.get(symbol);
+        if selected_symbol.kind != SymbolKind::State
+            || program.symbols.get(selected_symbol.parent).kind != SymbolKind::Machine
+        {
+            continue;
+        }
+        let span = call.target.source_span();
+        if let Some((_, existing)) = recorded.iter().find(|(bound, _)| *bound == span) {
+            if *existing != symbol {
+                recorded.retain(|(bound, _)| *bound != span);
+            }
+            continue;
+        }
+        recorded.push((span, symbol));
+    }
+    if recorded.is_empty() {
+        return;
+    }
+    let expressions = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .map(|(expression, _)| expression)
+        .collect::<Vec<_>>();
+    for expression in expressions {
+        let node = program
+            .tables
+            .bodies
+            .expressions
+            .expression(expression)
+            .clone();
+        let ExpressionNode::Call(call) = &node else {
+            continue;
+        };
+        let receiver_symbol = program
+            .tables
+            .bodies
+            .expressions
+            .name_path_node(call.receiver)
+            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
+        if program.symbols.get(receiver_symbol).kind != SymbolKind::Conformance {
+            continue;
+        }
+        let Some((_, symbol)) = recorded
+            .iter()
+            .find(|(span, _)| *span == call.target.source_span())
+        else {
+            continue;
+        };
+        if call.target_symbol == *symbol {
+            continue;
+        }
+        let ExpressionNode::Call(call) =
+            program.tables.bodies.expressions.expression_mut(expression)
+        else {
+            continue;
+        };
+        call.target_symbol = *symbol;
+    }
+}
+
+fn recorded_call_selection(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+    span: SourceSpan,
+) -> Option<SymbolHandle> {
+    let mut selected = None;
+    for occurrence in program
+        .tables
+        .bodies
+        .expressions
+        .authored_selection_occurrences(expression)
+    {
+        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
+            continue;
+        };
+        if selection.kind() != AuthoredDeclarationSelectionKind::Call
+            || selection.source_span() != span
+        {
+            continue;
+        }
+        let target = selection.target();
+        let Some(resolved) = target.as_resolved() else {
+            return None;
+        };
+        let symbol = resolved.selected_symbol();
+        match selected {
+            None => selected = Some(symbol),
+            Some(existing) if existing == symbol => {}
+            Some(_) => return None,
+        }
+    }
+    selected
+}
+
+fn collect_expression_handles(
+    program: &SymbolResolvedTrees,
+    roots: &[ExpressionHandle],
+    expressions: &mut Vec<ExpressionHandle>,
+) {
+    let mut pending = roots.to_vec();
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() || expressions.contains(&expression) {
+            continue;
+        }
+        if !program
+            .tables
+            .bodies
+            .expressions
+            .expression_is_valid(expression)
+        {
+            continue;
+        }
+        expressions.push(expression);
+        let node = program
+            .tables
+            .bodies
+            .expressions
+            .expression(expression)
+            .clone();
+        pending.extend(expression_child_handles(program, &node));
+    }
+}
+
+fn collect_call_target_spans(
+    program: &SymbolResolvedTrees,
+    roots: &[ExpressionHandle],
+    spans: &mut Vec<SourceSpan>,
+) {
+    let mut pending = roots.to_vec();
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() || visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        if !program
+            .tables
+            .bodies
+            .expressions
+            .expression_is_valid(expression)
+        {
+            continue;
+        }
+        let node = program
+            .tables
+            .bodies
+            .expressions
+            .expression(expression)
+            .clone();
+        if let ExpressionNode::Call(call) = &node
+            && !spans.contains(&call.target.source_span())
+        {
+            spans.push(call.target.source_span());
+        }
+        pending.extend(expression_child_handles(program, &node));
+    }
+}
+
+fn expression_child_handles(
+    program: &SymbolResolvedTrees,
+    node: &ExpressionNode,
+) -> Vec<ExpressionHandle> {
+    let table = &program.tables.bodies.expressions;
+    match node {
+        ExpressionNode::Call(call) => {
+            let mut children = Vec::new();
+            if call.receiver.is_valid() {
+                children.push(call.receiver);
+            }
+            children.extend(table.expression_handles(call.arguments).iter().copied());
+            children
+        }
+        ExpressionNode::Binary(binary) => vec![binary.left, binary.right],
+        ExpressionNode::Unary(unary) => vec![unary.operand],
+        ExpressionNode::Cast(cast) => vec![cast.value],
+        ExpressionNode::Member(member) => vec![member.receiver],
+        ExpressionNode::Borrow(borrow) => vec![borrow.target],
+        ExpressionNode::Indexed(indexed) => vec![indexed.collection, indexed.index],
+        ExpressionNode::Membership(membership) => vec![membership.value],
+        ExpressionNode::Atomic(atomic) => vec![atomic.value, atomic.result],
+        ExpressionNode::Range(range) => [range.start, range.end]
+            .into_iter()
+            .filter(|handle| handle.is_valid())
+            .collect(),
+        ExpressionNode::ArrayLiteral(elements) => table
+            .expression_handles(*elements)
+            .iter()
+            .copied()
+            .collect(),
+        ExpressionNode::StructLiteral(literal) => table
+            .struct_fields(literal.fields)
+            .iter()
+            .map(|field| field.value)
+            .collect(),
+        ExpressionNode::Match(dispatch) => {
+            let mut children = vec![dispatch.subject];
+            for arm in table.match_arms(dispatch.arms) {
+                children.extend(table.match_pattern_dependencies(arm.pattern));
+                children.push(arm.value);
+            }
+            children
+        }
+        ExpressionNode::SavedSubject(saved) => vec![
+            table.match_subject(saved.capture).subject,
+            saved.pattern_head,
+        ],
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::ZeroValue(_) => Vec::new(),
+    }
+}
+
+fn realization_entry(
+    program: &SymbolResolvedTrees,
+    machine_symbol: SymbolHandle,
+) -> Result<SymbolHandle, String> {
+    let mut machines = program
+        .machines
+        .iter()
+        .filter(|machine| machine.symbol == machine_symbol);
+    let machine = machines
+        .next()
+        .ok_or("owned conformance realization lost its machine declaration")?;
+    if machines.next().is_some() {
+        return Err("owned conformance realization has ambiguous machine declarations".to_owned());
+    }
+    let leaf = machine
+        .name
+        .as_str()
+        .rsplit_once("::")
+        .map_or(machine.name.as_str(), |(_, leaf)| leaf);
+    let states = program.machine_state_handles(machine.states);
+    let state = states
+        .iter()
+        .find(|state| program.machine_state(**state).name.as_str() == leaf)
+        .or_else(|| {
+            states
+                .iter()
+                .find(|state| program.machine_state(**state).name.as_str() == "entry")
+        })
+        .ok_or("owned conformance realization has no entry state")?;
+    Ok(program.machine_state(*state).symbol)
+}
+
 struct Collector<'program> {
     program: &'program SymbolResolvedTrees,
     dependencies: ConstInitializerDependencies,
@@ -266,24 +742,7 @@ impl<'program> Collector<'program> {
             // Named boundary operators likewise retain their declaration here.
             // This source dependency row grants no execution permission and
             // cannot substitute for the checked selected-body custody closure.
-            let declaration = self
-                .program
-                .symbols
-                .symbol_source_span(target)
-                .ok_or("constant logical call lost its exact declaration source")?;
-            let selection = (reference, declaration);
-            if !self.dependencies.calls.contains(&selection) {
-                self.dependencies.calls.push(selection);
-            }
-            let dependency = AuthoredCallDependency {
-                reference,
-                declaration,
-                target,
-            };
-            if !self.dependencies.call_targets.contains(&dependency) {
-                self.dependencies.call_targets.push(dependency);
-            }
-            return Ok(());
+            return self.record_logical_call(target, reference);
         }
         let machine = match symbol.kind {
             SymbolKind::Machine => target,
@@ -350,6 +809,57 @@ impl<'program> Collector<'program> {
             self.machines.push(machine);
         }
         Ok(())
+    }
+
+    fn record_logical_call(
+        &mut self,
+        target: SymbolHandle,
+        reference: SourceSpan,
+    ) -> Result<(), String> {
+        let declaration = self
+            .program
+            .symbols
+            .symbol_source_span(target)
+            .ok_or("constant logical call lost its exact declaration source")?;
+        let selection = (reference, declaration);
+        if !self.dependencies.calls.contains(&selection) {
+            self.dependencies.calls.push(selection);
+        }
+        let dependency = AuthoredCallDependency {
+            reference,
+            declaration,
+            target,
+        };
+        if !self.dependencies.call_targets.contains(&dependency) {
+            self.dependencies.call_targets.push(dependency);
+        }
+        Ok(())
+    }
+
+    fn call_dependency(
+        &mut self,
+        receiver_symbol: SymbolHandle,
+        target_symbol: SymbolHandle,
+        target_name: &str,
+        target_span: SourceSpan,
+        static_arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    ) -> Result<(), String> {
+        match named_implementation_dependency(
+            self.program,
+            receiver_symbol,
+            target_symbol,
+            target_name,
+            static_arguments,
+        )? {
+            // A map that does not supply this requirement has no body to walk.
+            // The requirement declaration stays the dependency so checking can
+            // reject the selection; this row does not execute that body.
+            NamedImplementationDependency::RequirementOnly(requirement) => {
+                self.record_logical_call(requirement, target_span)
+            }
+            NamedImplementationDependency::Realization(entry) => self.call(entry, target_span),
+            NamedImplementationDependency::NotSelected => self.call(target_symbol, target_span),
+        }
     }
 
     fn expression(&mut self, expression: ExpressionHandle) -> Result<(), String> {
@@ -441,7 +951,16 @@ impl<'program> Collector<'program> {
                     );
                 self.dependencies.pending_target_observation |= layout_query;
                 if !native_query && !layout_query {
-                    self.call(call.target_symbol, call.target.source_span())?;
+                    let receiver_symbol = table
+                        .name_path_node(call.receiver)
+                        .map_or_else(SymbolHandle::invalid, |path| path.symbol);
+                    self.call_dependency(
+                        receiver_symbol,
+                        call.target_symbol,
+                        call.target.as_str(),
+                        call.target.source_span(),
+                        &call.machine_arguments,
+                    )?;
                 }
                 if call.receiver.is_valid() {
                     self.expressions.push(call.receiver);
@@ -661,7 +1180,13 @@ impl<'program> Collector<'program> {
                             return Err("late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation".to_owned());
                         }
                         if !native_query {
-                            self.call(call.target_symbol, call.target.source_span())?;
+                            self.call_dependency(
+                                call.receiver_symbol,
+                                call.target_symbol,
+                                call.target.as_str(),
+                                call.target.source_span(),
+                                &call.machine_arguments,
+                            )?;
                         }
                         let arguments = expressions.expression_handles(call.arguments);
                         if arguments.len() != call.arguments.len() {

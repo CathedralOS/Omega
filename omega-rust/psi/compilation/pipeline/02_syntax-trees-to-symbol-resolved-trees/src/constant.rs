@@ -198,14 +198,25 @@ pub(crate) fn finalize(
         &lowerer.pending_const_argument_slots,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    let const_expression_roots = lowerer
+        .pending_const_values
+        .iter()
+        .copied()
+        .chain(lowerer.pending_const_argument_expressions.iter().copied())
+        .collect::<Vec<_>>();
     crate::symbols::assign_constant_expression_symbols(
         program,
-        lowerer
-            .pending_const_values
-            .iter()
-            .copied()
-            .chain(lowerer.pending_const_argument_expressions.iter().copied()),
+        const_expression_roots.iter().copied(),
     );
+    // Selection recording reads the call target. A named-implementation call
+    // in a constant initializer has no machine-body route yet, so bind the
+    // owned realization entry before that recording. Later requirement
+    // routing still publishes the public requirement on machine-body calls.
+    initializer_dependencies::bind_named_implementation_const_calls(
+        program,
+        &const_expression_roots,
+    )
+    .map_err(|message| vec![Diagnostic::error(message)])?;
     if lowerer.const_resolution_mode == crate::resolution::lowerer::ConstResolutionMode::Complete {
         declaration_values::validate_nominal_destinations(program)
             .map_err(|diagnostic| vec![diagnostic])?;

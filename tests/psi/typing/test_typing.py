@@ -1842,6 +1842,60 @@ def main() -> None:
         b"Ascending!2",
     )
 
+    # An evidence binder keeps its place between ordinary type arguments.
+    # The slot takes an implementation; a type there, or an implementation in
+    # a type slot, rejects. A const later in the same telescope stays a const.
+    mixed = (
+        b"trait Marker { }\n"
+        b"Seven satisfies Marker { }\n"
+        b"trait Consumer<Value, Reader satisfies Marker, Tag> { }\n"
+        b"trait Forward<Value, Reader satisfies Marker, Tag>: Consumer<Value, Reader, Tag> { }\n"
+    )
+    accepted(program, "ordered-mixed-implementation-telescope", mixed + b"trait Concrete: Forward<u64, Seven, i32> { }", ())
+    rejected(
+        program,
+        "type-in-implementation-slot",
+        mixed + b"trait Concrete: Forward<u64, u64, i32> { }",
+        "UnsupportedTypeForm",
+        b"u64!2",
+    )
+    rejected(
+        program,
+        "implementation-in-type-slot",
+        mixed + b"trait Concrete: Forward<Seven, u64, i32> { }",
+        "UnsupportedTypeForm",
+        b"Seven!2",
+    )
+    rejected(
+        program,
+        "forwarded-binder-in-the-wrong-slot",
+        b"trait Marker { }\n"
+        b"trait Consumer<Value, Reader satisfies Marker, Tag> { }\n"
+        b"trait Forward<Value, Reader satisfies Marker, Tag>: Consumer<Reader, Value, Tag> { }",
+        "UnsupportedTypeForm",
+        b"Reader!3",
+    )
+    rejected(
+        program,
+        "implementation-telescope-argument-count",
+        mixed + b"trait Concrete: Forward<u64, Seven> { }",
+        "GenericArgumentCount",
+        b"Forward<u64, Seven>",
+    )
+    const_mixed = (
+        b"trait Marker { }\n"
+        b"Seven satisfies Marker { }\n"
+        b"trait Consumer<Value, Reader satisfies Marker, const Tag: i32> { }\n"
+    )
+    accepted(program, "const-after-implementation-binder", const_mixed + b"trait Use: Consumer<u64, Seven, 4> { }", ())
+    rejected(
+        program,
+        "type-in-const-slot-after-implementation-binder",
+        const_mixed + b"trait Use: Consumer<u64, Seven, i32> { }",
+        "UnsupportedTypeForm",
+        b"i32!2",
+    )
+
     # The product's own psi package types as one source set: each module
     # under source/psi as `<directory>::<file>` of package `psi`.
     psi_root = Path(__file__).resolve().parents[3] / "source" / "psi"

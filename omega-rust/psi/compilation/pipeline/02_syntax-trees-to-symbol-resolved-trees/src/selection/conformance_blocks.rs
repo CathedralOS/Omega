@@ -195,9 +195,10 @@ impl DefaultBodyScope {
 /// public requirement remains the call target until typed preparation closes
 /// and retains the selected map. Replacing it with the private realization
 /// here would erase that source selection before its contract can be checked.
-/// A requirement name that
-/// matches no row, or several inherited rows, leaves the call unresolved so
-/// checking rejects it rather than choosing one.
+/// A requirement name that matches no row, or several inherited rows, leaves
+/// the call unresolved so checking rejects it rather than choosing one.
+/// Constant initializers bind that owned entry during constant finalization:
+/// their authored selection is recorded before this route runs.
 pub(crate) fn route_named_implementation_calls(
     program: &mut SymbolResolvedTrees,
     inputs: &[super::body_calls::CallSelectionInput],
@@ -219,29 +220,42 @@ pub(crate) fn route_named_implementation_calls(
     if implementation_rows.is_empty() {
         return;
     }
+    let mut select_requirement = |site: &super::body_calls::CallSite<'_>| {
+        named_implementation_requirement(&implementation_rows, site)
+    };
     let machines = program
         .machines
         .iter()
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
     for machine in machines {
-        super::body_calls::retarget_machine_calls(program, machine, inputs, &mut |site| {
-            if !site.receiver_symbol.is_valid() {
-                return None;
-            }
-            let (_, rows) = implementation_rows
-                .iter()
-                .find(|(conformance, _)| *conformance == site.receiver_symbol)?;
-            let mut matches = rows
-                .iter()
-                .filter(|(requirement, _)| requirement.as_str() == site.target.as_str());
-            let selected = matches.next().map(|(_, state)| *state);
-            if matches.next().is_some() {
-                return Some(SymbolHandle::invalid());
-            }
-            Some(selected.unwrap_or_else(SymbolHandle::invalid))
-        });
+        super::body_calls::retarget_machine_calls(
+            program,
+            machine,
+            inputs,
+            &mut select_requirement,
+        );
     }
+}
+
+fn named_implementation_requirement(
+    implementation_rows: &[(SymbolHandle, Vec<(DiagnosticName, SymbolHandle)>)],
+    site: &super::body_calls::CallSite<'_>,
+) -> Option<SymbolHandle> {
+    if !site.receiver_symbol.is_valid() {
+        return None;
+    }
+    let (_, rows) = implementation_rows
+        .iter()
+        .find(|(conformance, _)| *conformance == site.receiver_symbol)?;
+    let mut matches = rows
+        .iter()
+        .filter(|(requirement, _)| requirement.as_str() == site.target.as_str());
+    let selected = matches.next().map(|(_, state)| *state);
+    if matches.next().is_some() {
+        return Some(SymbolHandle::invalid());
+    }
+    Some(selected.unwrap_or_else(SymbolHandle::invalid))
 }
 
 /// Calls a conformance's own member bodies make to its requirements select
