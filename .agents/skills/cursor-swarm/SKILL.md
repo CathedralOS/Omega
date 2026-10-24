@@ -247,7 +247,11 @@ conversation. Include:
   `landed`, `verification_only`, `blocked`, `superseded`, or `aborted`
 
 The worker keeps one Rust build active on its own machine. The coordinator
-does not build a compiler to warm the workers.
+does not build a compiler to warm the workers. Batch that machine's whole
+gate-and-landing chain into its own single hold
+([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain));
+separate VMs cannot share or upload a build pool, so per-machine batching is
+the play.
 
 ## Reuse the session
 

@@ -144,7 +144,12 @@ cannot dispatch work or acquire managed rollout/completion credit. See
    Honor capacity responses without treating the requested count as a receipt.
    Keep one Rust build active per executor; independent machines have separate
    build slots. Do not launch compiler builds on the coordinator to warm every
-   worker's machine.
+   worker's machine. Each session batches its own machine's chain — the whole
+   gate-and-landing sequence inside one hold
+   ([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain));
+   build pools never span sessions and a session cannot upload a build to
+   another's pool, so cross-machine coordination stays with the claims
+   registry and the serialized landing queue.
 
 The executable cloud controller currently checks compiler-program acceptance;
 use ordinary advance and measured acceptance for development-health assignments,

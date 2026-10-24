@@ -143,6 +143,44 @@ compiled in 42-81 seconds warm, and a 32-wide dispatch sat at load ~45-50 with
 The next ceiling is not builds: it is golden-record memory floors (~1.2 GB free)
 and landing rebase+verify traffic.
 
+## Take the pool once for the whole chain
+
+The pool is a race among pollers, not a queue, and its wait outlasts a
+per-step pattern: on 2026-10-23, amid a fifty-lane LOC wave, a lane's single
+chain acquisition waited 3,039 to 5,282 seconds (up to 88 minutes) for one of
+two slots, and the wave's live logs recorded 1,594 `waiting for one of 2
+slot(s)` announcements. A chain that re-queued for each check, test run and
+landing re-verify would pay that wait several times and would not fit its own
+`--timeout`.
+
+Wrap the chain instead — one acquisition, strictly sequential steps:
+
+    python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash chain.sh
+
+`hold()` exports `OMEGA_BUILD_SLOT_HELD=1` into everything it wraps, and
+nested pool users — a nested `build_slot.py`, `corpus_gate.py`'s runner build,
+`landing.py`'s verify checks — inherit it and short-circuit, so check → crate
+tests → scoped corpus gate → the scripted landing sequence (verify → enqueue →
+claim → rebase → re-verify → note → publish → remote ancestor check) costs one
+acquisition and the in-lease re-verify cannot lose its 180-second lease to the
+queue
+([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain)).
+
+Two habits keep a killed lane cheap to resume, learned across two host
+restarts in one day:
+
+- Commit as soon as the change is coherent, and amend or squash before
+  publishing; a committed mechanism survives a session that does not.
+- `claims.py note` at every milestone, not only before publish; the note is
+  what a successor agent reads to continue without re-deriving the work.
+
+This play is per machine. Worktrees of one checkout share its pool and its MBX
+action cache; separate computers — cloud executors, another host — have their
+own pools and cannot lend, batch or upload builds to each other, so each
+session takes its own machine's pool once for its own chain. Cross-machine
+coordination is the claims registry and the serialized landing queue; the
+build pool is not a cross-machine resource.
+
 ## Bound the shared disk safely
 
 Read the effective MBX config and distinguish the action-cache cap from the

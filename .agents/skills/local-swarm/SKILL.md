@@ -126,6 +126,12 @@ makes the generation valid by construction; re-roll one generation per sub-batch
 (a warm pair build compiles in ~1-2 minutes). Slots never build for verification
 and build at most once for a demonstrated repair.
 
+Take the pool once for the whole chain: wrap a lane's entire gate-and-landing
+sequence in one `tools/build_slot.py` hold
+([one hold](host-setup.md#take-the-pool-once-for-the-whole-chain)); nested
+pool users short-circuit on the inherited `OMEGA_BUILD_SLOT_HELD=1` instead of
+re-racing the wait.
+
 Keep worktree targets independent and reuse the host's supported MBX action
 cache. Never force a common `CARGO_TARGET_DIR` across editing agents. Prefer a
 stable worktree for an ongoing outcome; a same-checkout no-op does not prove a
