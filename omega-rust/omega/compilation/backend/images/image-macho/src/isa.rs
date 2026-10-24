@@ -3,14 +3,14 @@
 //! The emitters and validators share one file plan, command stream, bind/rebase
 //! language, and signature layout; the ISA choice supplies the header CPU
 //! fields, the loader/code-directory page granule, the import-thunk encoding,
-//! the entry-alignment contract, and the relocation applicator. Anything not
-//! listed here is genuinely format-level and stays shared. The thunk bytes
+//! and the entry-alignment contract. Relocation application is not an ISA fact
+//! here any more: `image::apply_relocations` reads each kind's instruction set
+//! against the image's own target rather than off a chosen entrypoint. Anything
+//! not listed here is genuinely format-level and stays shared. The thunk bytes
 //! themselves stay beside their dyld-linking callers; `isa-x86_64` owns the
 //! closed x86-64 form's decoder and claimed footprint.
 
 use calling_conventions::StateFootprintEvidence;
-use diagnostics::Diagnostic;
-use image::{FinalImage, FinalImageLayout};
 
 /// The two instruction sets the supported Mach-O writer emits for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -106,19 +106,6 @@ impl MachoIsa {
         match self {
             Self::Aarch64 => "mach-o-arm64-executable",
             Self::X86_64 => "mach-o-x86_64-executable",
-        }
-    }
-
-    /// Apply this ISA's object relocations to the image's section bytes.
-    pub(crate) fn apply_relocations(
-        self,
-        image: &mut FinalImage,
-        layout: &FinalImageLayout,
-        output_name: &str,
-    ) -> Result<(), Diagnostic> {
-        match self {
-            Self::Aarch64 => image::apply_aarch64_relocations(image, layout, output_name),
-            Self::X86_64 => image::apply_x86_64_relocations(image, layout, output_name),
         }
     }
 

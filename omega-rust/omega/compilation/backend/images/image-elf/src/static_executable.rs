@@ -6,9 +6,8 @@
 
 use diagnostics::Diagnostic;
 use image::{
-    ExecutableImageOutput, FinalImage, FinalImageLayout, PlacedDataRegionInventory,
-    apply_aarch64_relocations, apply_x86_64_relocations, place_data_regions,
-    place_executable_regions,
+    ExecutableImageOutput, FinalImage, PlacedDataRegionInventory, apply_relocations,
+    place_data_regions, place_executable_regions,
 };
 
 mod headers;
@@ -27,30 +26,20 @@ const EM_X86_64: u16 = 62;
 const EM_AARCH64: u16 = 183;
 
 pub fn emit_elf_aarch64_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_elf_executable(
-        image,
-        EM_AARCH64,
-        "elf64-aarch64-executable",
-        apply_aarch64_relocations,
-    )
+    emit_elf_executable(image, EM_AARCH64, "elf64-aarch64-executable")
 }
 
 pub fn emit_elf_x86_64_executable(image: FinalImage) -> Result<ExecutableImageOutput, Diagnostic> {
-    emit_elf_executable(
-        image,
-        EM_X86_64,
-        "elf64-x86-64-executable",
-        apply_x86_64_relocations,
-    )
+    emit_elf_executable(image, EM_X86_64, "elf64-x86-64-executable")
 }
 
 /// Shared ELF64 executable emitter. The ELF container is architecture-agnostic
-/// apart from `e_machine` and the relocation application, both passed in.
+/// apart from `e_machine` and the relocation application, both derived from the
+/// image.
 fn emit_elf_executable(
     mut image: FinalImage,
     machine: u16,
     format: &str,
-    apply_relocations: fn(&mut FinalImage, &FinalImageLayout, &str) -> Result<(), Diagnostic>,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let imports = canonical_referenced_imports(&image)?;
     if let Some(import) = imports.first() {

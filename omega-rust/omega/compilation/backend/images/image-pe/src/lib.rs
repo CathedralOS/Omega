@@ -28,7 +28,7 @@
 //!   3  build_import_table        encodes its own RVAs from that placement
 //!   4  plan_pe_sections          the one layout pass, carrying the `.reloc` bytes
 //!   5  patch_import_thunks       fills the disp32 now that the IAT has an address
-//!   6  apply_x86_64_relocations  mutates text and data
+//!   6  apply_relocations  mutates text and data
 //!   7  validate_import_thunk_footprints   re-checks the ff 25 opcodes after 6
 //!   8  place_executable_regions
 //! ```
@@ -47,7 +47,7 @@
 //! builds the `.reloc` table once, to measure the section, and carries those
 //! bytes to the file assembly.
 
-//! `image` supplies `FinalImage`, `apply_x86_64_relocations` and
+//! `image` supplies `FinalImage`, `apply_relocations` and
 //! `place_executable_regions`. The Windows subsystem value is a parameter rather
 //! than a constant here, so the console and GUI variants share every byte of
 //! this path except that one `u16`.
@@ -61,7 +61,7 @@
 use diagnostics::Diagnostic;
 use image::{
     ExecutableImageOutput, FinalDataRegion, FinalDataRegionOrigin, FinalImage,
-    PlacedDataRegionInventory, apply_x86_64_relocations, place_data_extent, place_data_regions,
+    PlacedDataRegionInventory, apply_relocations, place_data_extent, place_data_regions,
     place_executable_regions,
 };
 
@@ -99,7 +99,7 @@ pub fn emit_pe_x86_64_executable(
     let layout = sections.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
-    apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;
+    apply_relocations(&mut image, &layout, "PE direct executable")?;
     validate_import_thunk_footprints(&mut image, &import_thunks)?;
     let executable_regions = place_executable_regions(&image, layout)?;
     let data_regions = place_data_regions(&image, layout)?;

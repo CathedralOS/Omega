@@ -315,14 +315,7 @@ pub(super) fn emit(
                 .symbol_handle = symbol;
         }
     }
-    match image.target.architecture {
-        Architecture::X86_64 => {
-            image::apply_x86_64_relocations(&mut relocated, &layout, "shared ELF component")?
-        }
-        Architecture::Aarch64 => {
-            image::apply_aarch64_relocations(&mut relocated, &layout, "shared ELF component")?
-        }
-    }
+    image::apply_relocations(&mut relocated, &layout, "shared ELF component")?;
     output.resize(initialized_end, 0);
     put64(&mut output, got_offset, dynamic_offset as u64);
     output[text_offset..text_offset + text_size].copy_from_slice(&relocated.memory.text);

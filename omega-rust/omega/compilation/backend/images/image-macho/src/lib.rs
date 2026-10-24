@@ -286,7 +286,7 @@ fn emit_macho_container_contents(
     let layout = plan.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks, isa)?;
-    isa.apply_relocations(&mut image, &layout, "Mach-O direct executable")?;
+    image::apply_relocations(&mut image, &layout, "Mach-O direct executable")?;
     let rebase_pointers = rebase_info.validate_patched_preferred_pointers(&image, &layout)?;
     validate_import_thunk_footprints(&mut image, &import_thunks, isa)?;
     let executable_regions = place_executable_regions(&image, layout)?;

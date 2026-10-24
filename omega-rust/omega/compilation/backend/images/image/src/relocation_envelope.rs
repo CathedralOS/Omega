@@ -2,6 +2,7 @@
 //! every slot the plan declared and comparing everything that is left.
 
 use crate::final_image::{FNV_OFFSET, fingerprint_bytes};
+use crate::relocations::relocation_field_geometry;
 use crate::{
     CompilerTextDerivationDigest, CompilerTextRelocationEnvelopeDigest,
     CompilerTextValidationEvidence, EncodedCompilerTextDigest, FinalCompilerTextDigest,
@@ -99,22 +100,18 @@ pub fn validate_final_text_relocation_envelope(
         if relocation.section != SectionKind::Text {
             continue;
         }
-        let (expected_width, masks): (usize, &[u8]) = match relocation.kind {
-            RelocationKind::X86_64Relative32 => (4, &[0xff; 4]),
-            RelocationKind::Absolute64 => (8, &[0xff; 8]),
-            RelocationKind::Aarch64Page21 => (4, &[0xe0, 0xff, 0xff, 0x60]),
-            RelocationKind::Aarch64PageOffset12 => (4, &[0x00, 0xfc, 0x3f, 0x00]),
-            RelocationKind::Aarch64Branch26 => (4, &[0xff, 0xff, 0xff, 0x03]),
-        };
-        if relocation.byte_width != expected_width {
+        let geometry = relocation_field_geometry(relocation.kind);
+        if relocation.byte_width != geometry.byte_width {
             return Err(Diagnostic::error(format!(
                 "text relocation at byte {} has width {}, expected {} for {:?}",
-                relocation.offset, relocation.byte_width, expected_width, relocation.kind
+                relocation.offset, relocation.byte_width, geometry.byte_width, relocation.kind
             )));
         }
+        let mask_bytes = geometry.mask.to_le_bytes();
+        let masks = &mask_bytes[..geometry.byte_width];
         let end = relocation
             .offset
-            .checked_add(expected_width)
+            .checked_add(geometry.byte_width)
             .filter(|end| *end <= mutable_bits.len())
             .ok_or_else(|| {
                 Diagnostic::error(format!(

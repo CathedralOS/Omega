@@ -5,7 +5,7 @@
 //! `build_final_image` copies an `ObjectPlan` and a `RelocationPlan` into a
 //! `FinalImage` (bytes, symbols, imports, relocations, executable regions).
 //! The emitters then hand back a `FinalImageLayout` naming the addresses they
-//! chose, and `apply_*_relocations` patches the fields in place against it.
+//! chose, and `apply_relocations` patches the fields in place against it.
 //!
 //! The load-bearing trick is that symbol handles are not remapped. A
 //! `FinalImageSymbolHandle` reuses its `ObjectSymbolHandle`'s raw coordinate:
@@ -27,24 +27,15 @@
 //! not resolve to `Handle::invalid()` rather than storing a coordinate that
 //! points at the wrong symbol.
 //!
-//! The relocation arithmetic, with the constants the ISA forces on us:
-//!
-//! - AArch64 ADRP: pages are 4096 bytes (`address & !0xfff`), the page delta
-//!   must lie in `[-2^20, 2^20)`, and the 21-bit immediate splits into
-//!   `immlo` at instruction bits 29-30 and `immhi` at bits 5-23, cleared with
-//!   `(0b11 << 29) | (0x7ffff << 5)`.
-//! - AArch64 ADD page offset: `symbol_address & 0xfff`, shifted into bits
-//!   10-21.
-//! - x86-64 rel32: `relocation_address = section_address + offset + 4`. That
-//!   `+ 4` is an assumption the code never states - that the four-byte
-//!   displacement is the last field of the instruction - and it is why the
-//!   delta is computed in `i128` before being narrowed to `i32`.
-//!
-//! `relocation_envelope.rs` carries the same masks a second time, as
-//! little-endian byte arrays, to prove afterwards that only the relocation
+//! The relocation arithmetic, with the constants the ISA forces on us, lives
+//! in `relocations.rs`, which states each kind's field geometry once.
+//! `relocation_envelope.rs` turns that same declaration around, as
+//! little-endian byte masks, to prove afterwards that only the relocation
 //! fields moved: `Aarch64Page21 -> [0xe0, 0xff, 0xff, 0x60]` is exactly
-//! `(0b11 << 29) | (0x7ffff << 5)` written out. The two tables live in
-//! different files and are kept in step by hand.
+//! `(0b11 << 29) | (0x7ffff << 5)` written out as `to_le_bytes`. The mask
+//! table that used to live in the envelope as a hand-kept second copy is gone;
+//! `each_relocation_kind_masks_exactly_its_declared_field_bits` pins the single
+//! declaration against independent byte masks.
 //!
 //! Text and data envelopes are deliberately asymmetric. A final `.text` buffer
 //! may be LONGER than the encoded input, and only the encoded-length prefix is
@@ -133,7 +124,6 @@ macro_rules! image_digest {
     };
 }
 
-mod aarch64_relocations;
 mod builder;
 pub mod codec_bytes;
 mod final_image;
@@ -141,12 +131,11 @@ pub(crate) use optimization_core::digest_encoder;
 mod output;
 mod patch_bytes;
 mod relocation_envelope;
+mod relocations;
 mod symbols;
 #[cfg(test)]
 mod tests;
-mod x86_64_relocations;
 
-pub use aarch64_relocations::apply_aarch64_relocations;
 pub use builder::{FinalImageInput, build_final_image};
 pub use final_image::{
     FinalDataRegion, FinalDataRegionOrigin, FinalExecutableRegion, FinalExecutableRegionOrigin,
@@ -169,11 +158,11 @@ pub use output::{
     emitted_direct_executable_output,
 };
 pub use relocation_envelope::validate_final_text_relocation_envelope;
+pub use relocations::apply_relocations;
 pub use symbols::{
     final_image_entry_symbol, final_image_imports_symbol, final_image_symbol_address,
     final_image_symbol_name,
 };
-pub use x86_64_relocations::apply_x86_64_relocations;
 
 /// Round `value` up to a multiple of `alignment` (a zero alignment is one).
 pub fn align_to(value: usize, alignment: usize) -> usize {

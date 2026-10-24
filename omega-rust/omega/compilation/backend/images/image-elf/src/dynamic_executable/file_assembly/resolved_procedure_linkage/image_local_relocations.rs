@@ -16,10 +16,7 @@
 
 use crate::dynamic_executable::load_placement::load_layout::ValidatedElfDynamicLoadLayout;
 use diagnostics::Diagnostic;
-use image::{
-    FinalImage, FinalImageRelocationTable, apply_aarch64_relocations, apply_x86_64_relocations,
-    final_image_imports_symbol,
-};
+use image::{FinalImage, FinalImageRelocationTable, apply_relocations, final_image_imports_symbol};
 use target::TargetProfile;
 
 /// Retained `.text` and `.data` after every image-local relocation is patched
@@ -57,18 +54,14 @@ pub(crate) fn relocate_image_local_memory(
     };
     let final_layout = layout.final_image_layout();
     match layout.target() {
-        TargetProfile::LinuxX64 => {
-            apply_x86_64_relocations(&mut local_image, &final_layout, "dynamic ELF image")?
-        }
-        TargetProfile::LinuxArm64 => {
-            apply_aarch64_relocations(&mut local_image, &final_layout, "dynamic ELF image")?
-        }
+        TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => {}
         _ => {
             return Err(Diagnostic::error(
                 "dynamic ELF image-local relocation requires an exact Linux x86-64 or AArch64 profile",
             ));
         }
     }
+    apply_relocations(&mut local_image, &final_layout, "dynamic ELF image")?;
     Ok(ElfImageLocalRelocatedMemory {
         text: local_image.memory.text,
         data: local_image.memory.data,

@@ -23,8 +23,8 @@ use common::{TEXT_ADDRESS, layout};
 
 use image::{
     EmittedImageOutput, EncodedCompilerTextDigest, ExecutableImageOutput, FinalImageInput,
-    apply_x86_64_relocations, build_final_image, emitted_direct_executable_output,
-    place_data_regions, place_executable_regions, validate_final_text_relocation_envelope,
+    apply_relocations, build_final_image, emitted_direct_executable_output, place_data_regions,
+    place_executable_regions, validate_final_text_relocation_envelope,
     validate_placed_data_region_inventory, validate_placed_executable_region_inventory,
 };
 use object_file::{
@@ -125,7 +125,7 @@ fn emitted_output(
         text_bytes: &TEXT_BYTES,
         data_bytes: &encoded,
     });
-    apply_x86_64_relocations(&mut image, &layout(), "test image")
+    apply_relocations(&mut image, &layout(), "test image")
         .expect("the declared data relocation applies");
     assert_eq!(
         u64::from_le_bytes(image.memory.data[8..16].try_into().unwrap()),
