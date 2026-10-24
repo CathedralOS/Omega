@@ -1,7 +1,10 @@
 //! Mapping bounds through a checked affine form: direct and correlated add,
 //! subtract, multiply and shift, preserving each policy: modular steps need
 //! directional no-wrap evidence; Saturating translations clamp inclusive
-//! endpoints and reject strict transport across their plateaus.
+//! endpoints and reject strict transport across their plateaus. One endpoint
+//! walk (`walk_endpoint_steps`) both maps a chain and names the no-wrap
+//! conjunct set a producer cites, so the two reads cannot describe different
+//! obligations.
 
 use crate::integer_rules::fixed_integer::{fixed_integer_as_i128, integer_value_as_i128};
 use crate::integer_rules::integer_affine::CheckedIntegerAffineForm;
@@ -66,76 +69,76 @@ pub fn map_integer_affine_bound(
     )
 }
 
-fn map_integer_affine_bound_with_remainder_policy(
-    form: &CheckedIntegerAffineForm,
-    root_bound: &Proposition,
-    remainder_upper_bound: RemainderUpperBound,
-) -> Result<Proposition, IntegerAffineBoundConversionError> {
-    if matches!(
-        form.endpoint_steps.as_slice(),
-        [CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder]
-    ) {
-        return super::remainder::map_bound(form, root_bound);
-    }
-    if matches!(
-        form.endpoint_steps.as_slice(),
+/// Where a checked form's root bound is mapped: one of the shapes whose
+/// evidence is the bound relation itself, or the chain walk. One classifier
+/// answers for both the mapping and the producer-facing conjunct set, so a
+/// producer's conjunction and the admission recomputation describe the same
+/// route.
+#[derive(Clone, Copy)]
+enum BoundRoute {
+    Remainder,
+    CorrelatedAdd,
+    CorrelatedSubtract,
+    CorrelatedMultiply,
+    DirectAdd,
+    DirectSubtract,
+    DirectMultiply,
+    DirectShift,
+    Chain,
+}
+
+fn bound_route(form: &CheckedIntegerAffineForm) -> BoundRoute {
+    match form.endpoint_steps.as_slice() {
+        [CheckedIntegerEndpointStep::CorrelatedUnsignedRemainder] => BoundRoute::Remainder,
         [CheckedIntegerEndpointStep::CorrelatedAddLower]
-            | [CheckedIntegerEndpointStep::CorrelatedAddUpper]
-    ) {
-        return map_correlated_add_bound(form, root_bound);
-    }
-    if matches!(
-        form.endpoint_steps.as_slice(),
+        | [CheckedIntegerEndpointStep::CorrelatedAddUpper] => BoundRoute::CorrelatedAdd,
         [CheckedIntegerEndpointStep::CorrelatedSubtractLower]
-            | [CheckedIntegerEndpointStep::CorrelatedSubtractUpper]
-            | [CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract]
-    ) {
-        return map_correlated_subtract_bound(form, root_bound);
-    }
-    if matches!(
-        form.endpoint_steps.as_slice(),
+        | [CheckedIntegerEndpointStep::CorrelatedSubtractUpper]
+        | [CheckedIntegerEndpointStep::CorrelatedUnsignedSubtract] => {
+            BoundRoute::CorrelatedSubtract
+        }
         [CheckedIntegerEndpointStep::CorrelatedMultiplyMinimum]
-            | [CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum]
-    ) {
-        return map_correlated_multiply_bound(form, root_bound);
+        | [CheckedIntegerEndpointStep::CorrelatedMultiplyMaximum] => BoundRoute::CorrelatedMultiply,
+        [] => match form.target() {
+            ScalarTerm::ExactIntegerAdd { .. } => BoundRoute::DirectAdd,
+            ScalarTerm::ExactIntegerSubtract { .. } => BoundRoute::DirectSubtract,
+            ScalarTerm::ExactIntegerMultiply { .. }
+            | ScalarTerm::WrappingIntegerMultiply { .. } => BoundRoute::DirectMultiply,
+            ScalarTerm::ExactIntegerShiftLeft { .. } => BoundRoute::DirectShift,
+            _ => BoundRoute::Chain,
+        },
+        _ => BoundRoute::Chain,
     }
-    if form.endpoint_steps.is_empty() && matches!(form.target(), ScalarTerm::ExactIntegerAdd { .. })
-    {
-        return map_direct_add_bound(form, root_bound);
-    }
-    if form.endpoint_steps.is_empty()
-        && matches!(form.target(), ScalarTerm::ExactIntegerSubtract { .. })
-    {
-        return map_direct_subtract_bound(form, root_bound);
-    }
-    if form.endpoint_steps.is_empty()
-        && matches!(
-            form.target(),
-            ScalarTerm::ExactIntegerMultiply { .. } | ScalarTerm::WrappingIntegerMultiply { .. }
-        )
-    {
-        return map_direct_multiply_bound(form, root_bound);
-    }
-    if form.endpoint_steps.is_empty()
-        && let ScalarTerm::ExactIntegerShiftLeft {
-            count_type, count, ..
-        } = form.target()
-    {
-        return map_direct_shift_left_bound(form, *count_type, count, root_bound);
-    }
-    let ChainRootBound {
-        strict,
-        bound,
-        root_is_lower_endpoint,
-        evidence_members,
-    } = destructure_chain_root_bound(form, root_bound)?;
-    if relative_translation::applies(form, strict, bound) {
-        return relative_translation::map(form, &evidence_members);
-    }
-    let Some(bound) = fixed_integer_as_i128(bound, form.integer_type()) else {
-        return Err(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral);
-    };
-    let mut mapped = bound;
+}
+
+/// One ordered walk of a chain form's endpoint steps: where the root
+/// bound's literal endpoint maps, whether a negative scale reversed the
+/// relation's orientation, and the exact no-wrap conjuncts the wrapping
+/// steps required, in step order and deduplicated.
+struct ChainWalk {
+    mapped: i128,
+    reverses_order: bool,
+    required_evidence: Vec<Proposition>,
+}
+
+/// The single owner of the chain-walk policy: a strict endpoint survives
+/// only translation steps, a negative scale reverses orientation, and a
+/// wrapping step demands headroom on the side its addend can cross. The map
+/// entry turns the mapped endpoint and orientation into the conclusion
+/// relation; [`integer_affine_wrapping_evidence`] returns the conjuncts
+/// alone.
+///
+/// A dispatched step reaching this walk is a shape [`bound_route`] never
+/// selects for it, and refuses rather than mapping half a chain.
+fn walk_endpoint_steps(
+    form: &CheckedIntegerAffineForm,
+    strict: bool,
+    root_is_lower_endpoint: bool,
+    bound: &ScalarTerm,
+    remainder_upper_bound: RemainderUpperBound,
+) -> Result<ChainWalk, IntegerAffineBoundConversionError> {
+    let mut mapped = fixed_integer_as_i128(bound, form.integer_type())
+        .ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)?;
     let mut reverses_order = false;
     let mut required_evidence = Vec::new();
     for step in &form.endpoint_steps {
@@ -298,19 +301,59 @@ fn map_integer_affine_bound_with_remainder_policy(
         }
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
     }
+    Ok(ChainWalk {
+        mapped,
+        reverses_order,
+        required_evidence,
+    })
+}
+
+fn map_integer_affine_bound_with_remainder_policy(
+    form: &CheckedIntegerAffineForm,
+    root_bound: &Proposition,
+    remainder_upper_bound: RemainderUpperBound,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    match bound_route(form) {
+        BoundRoute::Remainder => return super::remainder::map_bound(form, root_bound),
+        BoundRoute::CorrelatedAdd => return map_correlated_add_bound(form, root_bound),
+        BoundRoute::CorrelatedSubtract => return map_correlated_subtract_bound(form, root_bound),
+        BoundRoute::CorrelatedMultiply => return map_correlated_multiply_bound(form, root_bound),
+        BoundRoute::DirectAdd => return map_direct_add_bound(form, root_bound),
+        BoundRoute::DirectSubtract => return map_direct_subtract_bound(form, root_bound),
+        BoundRoute::DirectMultiply => return map_direct_multiply_bound(form, root_bound),
+        BoundRoute::DirectShift => return map_direct_shift_left_bound(form, root_bound),
+        BoundRoute::Chain => {}
+    }
+    let ChainRootBound {
+        strict,
+        bound,
+        root_is_lower_endpoint,
+        evidence_members,
+    } = destructure_chain_root_bound(form, root_bound)?;
+    if relative_translation::applies(form, strict, bound) {
+        return relative_translation::map(form, &evidence_members);
+    }
+    let mut walk = walk_endpoint_steps(
+        form,
+        strict,
+        root_is_lower_endpoint,
+        bound,
+        remainder_upper_bound,
+    )?;
     for member in evidence_members {
-        let Some(position) = required_evidence
+        let Some(position) = walk
+            .required_evidence
             .iter()
             .position(|required| required == member)
         else {
             return Err(IntegerAffineBoundConversionError::WrappingEvidenceUnexpected);
         };
-        required_evidence.remove(position);
+        walk.required_evidence.remove(position);
     }
-    if !required_evidence.is_empty() {
+    if !walk.required_evidence.is_empty() {
         return Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing);
     }
-    let mapped_value = IntegerValue::for_sign(form.integer_type().sign(), mapped)
+    let mapped_value = IntegerValue::for_sign(form.integer_type().sign(), walk.mapped)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
     let mapped = ScalarTerm::integer(form.integer_type(), mapped_value)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
@@ -318,7 +361,7 @@ fn map_integer_affine_bound_with_remainder_policy(
     // Positive forms preserve order, negative forms reverse it. A constant
     // form can soundly provide either orientation; retaining the root bound's
     // orientation makes that choice deterministic.
-    let target_is_left = if reverses_order {
+    let target_is_left = if walk.reverses_order {
         root_is_lower_endpoint
     } else {
         !root_is_lower_endpoint
@@ -385,7 +428,9 @@ fn destructure_chain_root_bound<'a>(
 /// Compute the exact no-wrap conjuncts a checked form needs from its root
 /// bound for the supplied relation shape, in step order and deduplicated.
 /// This is producer convenience: bound conversion recomputes the same set at
-/// admission and rejects any member that is missing or unexpected.
+/// admission and rejects any member that is missing or unexpected. Both
+/// entries read [`walk_endpoint_steps`], so the cited set and the
+/// recomputed set cannot describe different obligations.
 pub fn integer_affine_wrapping_evidence(
     form: &CheckedIntegerAffineForm,
     relation: &Proposition,
@@ -402,46 +447,19 @@ pub fn integer_affine_wrapping_evidence(
     if relative_translation::applies(form, strict, bound) {
         return relative_translation::evidence(form);
     }
-    let _ = fixed_integer_as_i128(bound, form.integer_type())
-        .ok_or(IntegerAffineBoundConversionError::RootBoundNotTypedLiteral)?;
-    let mut reverses_order = false;
-    let mut required_evidence = Vec::new();
-    for step in &form.endpoint_steps {
-        let current_is_lower = root_is_lower_endpoint ^ reverses_order;
-        if strict && !step.preserves_strict_endpoint() {
-            return Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation);
-        }
-        match step {
-            CheckedIntegerEndpointStep::Multiply(value)
-            | CheckedIntegerEndpointStep::Divide(value)
-                if *value < 0 =>
-            {
-                reverses_order = !reverses_order;
-            }
-            CheckedIntegerEndpointStep::WrappingAdd { operand, literal }
-                if wrapping_side_needs_evidence(current_is_lower, *literal) =>
-            {
-                push_wrapping_evidence(
-                    &mut required_evidence,
-                    form.integer_type(),
-                    operand,
-                    *literal,
-                )?;
-            }
-            CheckedIntegerEndpointStep::WrappingAddBackward { operand, literal }
-                if wrapping_side_needs_evidence(!current_is_lower, *literal) =>
-            {
-                push_wrapping_evidence(
-                    &mut required_evidence,
-                    form.integer_type(),
-                    operand,
-                    *literal,
-                )?;
-            }
-            _ => {}
-        }
-    }
-    Ok(required_evidence)
+    // A dispatched shape maps the relation itself: it walks no chain steps
+    // and reads no root literal, so it has no conjunct to cite.
+    let BoundRoute::Chain = bound_route(form) else {
+        return Ok(Vec::new());
+    };
+    Ok(walk_endpoint_steps(
+        form,
+        strict,
+        root_is_lower_endpoint,
+        bound,
+        RemainderUpperBound::DividendIntersection,
+    )?
+    .required_evidence)
 }
 
 /// Whether mapping the lower (`current_is_lower`) or upper bound through a
@@ -530,27 +548,14 @@ fn map_correlated_add_bound(
     if evidence != &expected {
         return Err(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch);
     }
-    let sum = IntegerMathTerm::Add(
-        Box::new(
-            direct_math_leaf(left, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch)?,
-        ),
-        Box::new(
-            direct_math_leaf(right, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch)?,
-        ),
-    );
-    Ok(if lower {
-        Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(form.integer_type().minimum_value()),
-            sum,
-        )
-    } else {
-        Proposition::IntegerMathLessOrEqual(
-            sum,
-            IntegerMathTerm::literal(form.integer_type().maximum_value()),
-        )
-    })
+    let sum = directed_op_term(
+        form,
+        left,
+        right,
+        IntegerAffineBoundConversionError::DirectAddEvidenceMismatch,
+        |left, right| IntegerMathTerm::Add(Box::new(left), Box::new(right)),
+    )?;
+    Ok(carrier_endpoint_image(form, sum, lower))
 }
 
 fn map_correlated_subtract_bound(
@@ -579,27 +584,14 @@ fn map_correlated_subtract_bound(
     if evidence != &expected {
         return Err(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch);
     }
-    let difference = IntegerMathTerm::Subtract(
-        Box::new(
-            direct_math_leaf(left, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
-        ),
-        Box::new(
-            direct_math_leaf(right, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
-        ),
-    );
-    Ok(if lower {
-        Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(form.integer_type().minimum_value()),
-            difference,
-        )
-    } else {
-        Proposition::IntegerMathLessOrEqual(
-            difference,
-            IntegerMathTerm::literal(form.integer_type().maximum_value()),
-        )
-    })
+    let difference = directed_op_term(
+        form,
+        left,
+        right,
+        IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch,
+        |left, right| IntegerMathTerm::Subtract(Box::new(left), Box::new(right)),
+    )?;
+    Ok(carrier_endpoint_image(form, difference, lower))
 }
 
 fn map_correlated_multiply_bound(
@@ -638,27 +630,14 @@ fn map_correlated_multiply_bound(
     if bound_evidence != &expected_bound {
         return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
     }
-    let product = IntegerMathTerm::Multiply(
-        Box::new(
-            direct_math_leaf(left, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
-        ),
-        Box::new(
-            direct_math_leaf(right, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
-        ),
-    );
-    Ok(if lower {
-        Proposition::IntegerMathLessOrEqual(
-            IntegerMathTerm::literal(form.integer_type().minimum_value()),
-            product,
-        )
-    } else {
-        Proposition::IntegerMathLessOrEqual(
-            product,
-            IntegerMathTerm::literal(form.integer_type().maximum_value()),
-        )
-    })
+    let product = directed_op_term(
+        form,
+        left,
+        right,
+        IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch,
+        |left, right| IntegerMathTerm::Multiply(Box::new(left), Box::new(right)),
+    )?;
+    Ok(carrier_endpoint_image(form, product, lower))
 }
 
 fn map_direct_add_bound(
@@ -694,21 +673,14 @@ fn map_direct_add_bound(
     let left_bound = left_endpoint.literal(form.integer_type(), lower);
     let right_bound = right_endpoint.literal(form.integer_type(), lower);
     let bound = add_math_literals(left_bound, right_bound)?;
-    let sum = IntegerMathTerm::Add(
-        Box::new(
-            direct_math_leaf(left, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch)?,
-        ),
-        Box::new(
-            direct_math_leaf(right, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectAddEvidenceMismatch)?,
-        ),
-    );
-    Ok(if lower {
-        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), sum)
-    } else {
-        Proposition::IntegerMathLessOrEqual(sum, IntegerMathTerm::IntegerLiteral(bound))
-    })
+    let sum = directed_op_term(
+        form,
+        left,
+        right,
+        IntegerAffineBoundConversionError::DirectAddEvidenceMismatch,
+        |left, right| IntegerMathTerm::Add(Box::new(left), Box::new(right)),
+    )?;
+    Ok(literal_endpoint_image(sum, bound, lower))
 }
 
 fn map_direct_subtract_bound(
@@ -766,21 +738,14 @@ fn map_direct_subtract_bound(
     let left_bound = left_endpoint.literal(form.integer_type(), lower);
     let right_bound = right_endpoint.literal(form.integer_type(), !lower);
     let bound = subtract_math_literals(left_bound, right_bound)?;
-    let difference = IntegerMathTerm::Subtract(
-        Box::new(
-            direct_math_leaf(left, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
-        ),
-        Box::new(
-            direct_math_leaf(right, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch)?,
-        ),
-    );
-    Ok(if lower {
-        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), difference)
-    } else {
-        Proposition::IntegerMathLessOrEqual(difference, IntegerMathTerm::IntegerLiteral(bound))
-    })
+    let difference = directed_op_term(
+        form,
+        left,
+        right,
+        IntegerAffineBoundConversionError::DirectSubtractEvidenceMismatch,
+        |left, right| IntegerMathTerm::Subtract(Box::new(left), Box::new(right)),
+    )?;
+    Ok(literal_endpoint_image(difference, bound, lower))
 }
 
 fn map_direct_multiply_bound(
@@ -900,21 +865,14 @@ fn map_direct_multiply_bound(
             Proposition::LessOrEqual(form.target().clone(), literal)
         });
     }
-    let product = IntegerMathTerm::Multiply(
-        Box::new(
-            direct_math_leaf(left, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
-        ),
-        Box::new(
-            direct_math_leaf(right, form.integer_type())
-                .ok_or(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?,
-        ),
-    );
-    Ok(if lower {
-        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(bound), product)
-    } else {
-        Proposition::IntegerMathLessOrEqual(product, IntegerMathTerm::IntegerLiteral(bound))
-    })
+    let product = directed_op_term(
+        form,
+        left,
+        right,
+        IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch,
+        |left, right| IntegerMathTerm::Multiply(Box::new(left), Box::new(right)),
+    )?;
+    Ok(literal_endpoint_image(product, bound, lower))
 }
 
 enum DirectAddEndpoint {
@@ -1101,12 +1059,75 @@ pub(crate) fn direct_math_leaf(
     }
 }
 
+/// The directed operation term over a matched operation's two operands,
+/// when both are direct fixed-integer leaves. `error` is the family's own
+/// evidence-mismatch variant: the six mappers share this lift but keep
+/// their distinct diagnostics.
+fn directed_op_term(
+    form: &CheckedIntegerAffineForm,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    error: IntegerAffineBoundConversionError,
+    operation: impl FnOnce(IntegerMathTerm, IntegerMathTerm) -> IntegerMathTerm,
+) -> Result<IntegerMathTerm, IntegerAffineBoundConversionError> {
+    let left = direct_math_leaf(left, form.integer_type()).ok_or(error.clone())?;
+    let right = direct_math_leaf(right, form.integer_type()).ok_or(error)?;
+    Ok(operation(left, right))
+}
+
+/// The carrier endpoint's image of one mapped operation: `min ≤ term` for a
+/// lower bound, `term ≤ max` otherwise.
+fn carrier_endpoint_image(
+    form: &CheckedIntegerAffineForm,
+    term: IntegerMathTerm,
+    lower: bool,
+) -> Proposition {
+    let integer_type = form.integer_type();
+    if lower {
+        Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(integer_type.minimum_value()),
+            term,
+        )
+    } else {
+        Proposition::IntegerMathLessOrEqual(
+            term,
+            IntegerMathTerm::literal(integer_type.maximum_value()),
+        )
+    }
+}
+
+/// The computed-literal image of one mapped operation: `literal ≤ term` for a
+/// lower bound, `term ≤ literal` otherwise.
+fn literal_endpoint_image(
+    term: IntegerMathTerm,
+    literal: semantic_vocabulary::IntegerMathLiteral,
+    lower: bool,
+) -> Proposition {
+    if lower {
+        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(literal), term)
+    } else {
+        Proposition::IntegerMathLessOrEqual(term, IntegerMathTerm::IntegerLiteral(literal))
+    }
+}
+
 fn map_direct_shift_left_bound(
     form: &CheckedIntegerAffineForm,
-    count_type: IntegerType,
-    count: &ScalarTerm,
     evidence: &Proposition,
 ) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    let ScalarTerm::ExactIntegerShiftLeft {
+        value_type,
+        count_type,
+        value,
+        count,
+    } = form.target()
+    else {
+        return Err(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch);
+    };
+    let count: &ScalarTerm = count;
+    let shifted_operand = direct_math_leaf(value, *value_type)
+        .ok_or(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch)?;
+    let shifted_count = direct_math_leaf(count, *count_type)
+        .ok_or(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch)?;
     let parts = match evidence {
         Proposition::Conjunction(parts) => parts.as_slice(),
         proposition => std::slice::from_ref(proposition),
@@ -1129,7 +1150,7 @@ fn map_direct_shift_left_bound(
                 let (actual, value) = literal
                     .integer_value()
                     .ok_or(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch)?;
-                if actual != count_type || exact_count.replace(value).is_some() {
+                if actual != *count_type || exact_count.replace(value).is_some() {
                     return Err(IntegerAffineBoundConversionError::AmbiguousDirectShiftEvidence);
                 }
             }
@@ -1137,7 +1158,7 @@ fn map_direct_shift_left_bound(
                 let (actual, value) = left
                     .integer_value()
                     .ok_or(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch)?;
-                if actual == count_type && integer_value_to_u128(value) == Some(0) {
+                if actual == *count_type && integer_value_to_u128(value) == Some(0) {
                     count_lower = true;
                 }
             }
@@ -1145,7 +1166,7 @@ fn map_direct_shift_left_bound(
                 let (actual, value) = right
                     .integer_value()
                     .ok_or(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch)?;
-                if actual != count_type || count_upper.replace(value).is_some() {
+                if actual != *count_type || count_upper.replace(value).is_some() {
                     return Err(IntegerAffineBoundConversionError::AmbiguousDirectShiftEvidence);
                 }
             }
@@ -1157,7 +1178,7 @@ fn map_direct_shift_left_bound(
     let root_bound =
         root_bound.ok_or(IntegerAffineBoundConversionError::DirectShiftRootBoundMissing)?;
     let (minimum_count, maximum_count) = if let Some((actual, embedded)) = count.integer_value() {
-        if actual != count_type || exact_count.is_some() || count_upper.is_some() {
+        if actual != *count_type || exact_count.is_some() || count_upper.is_some() {
             return Err(IntegerAffineBoundConversionError::DirectShiftCountEvidenceMismatch);
         }
         (embedded, embedded)
@@ -1211,12 +1232,15 @@ fn map_direct_shift_left_bound(
         (true, false) | (false, true) => minimum_count,
     };
     let shifted_bound = shift_math_literal(bound, count)?;
-    let shifted = direct_shift_math_term(form)?;
-    Ok(if root_is_lower_endpoint {
-        Proposition::IntegerMathLessOrEqual(IntegerMathTerm::IntegerLiteral(shifted_bound), shifted)
-    } else {
-        Proposition::IntegerMathLessOrEqual(shifted, IntegerMathTerm::IntegerLiteral(shifted_bound))
-    })
+    let shifted = IntegerMathTerm::ShiftLeft {
+        value: Box::new(shifted_operand),
+        count: Box::new(shifted_count),
+    };
+    Ok(literal_endpoint_image(
+        shifted,
+        shifted_bound,
+        root_is_lower_endpoint,
+    ))
 }
 
 fn integer_value_to_u128(value: IntegerValue) -> Option<u128> {
@@ -1250,43 +1274,6 @@ fn shift_math_literal(
         .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
     semantic_vocabulary::IntegerMathLiteral::new(literal.negative(), magnitude)
         .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOverflow)
-}
-
-fn direct_shift_math_term(
-    form: &CheckedIntegerAffineForm,
-) -> Result<IntegerMathTerm, IntegerAffineBoundConversionError> {
-    let ScalarTerm::ExactIntegerShiftLeft {
-        value_type,
-        count_type,
-        value,
-        count,
-    } = form.target()
-    else {
-        return Err(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch);
-    };
-    let lift = |term: &ScalarTerm, expected: IntegerType| match term {
-        ScalarTerm::Value {
-            id,
-            scalar_type: ScalarType::Integer(actual),
-        } if *actual == expected => Some(IntegerMathTerm::MathValue {
-            source_type: expected,
-            value: *id,
-        }),
-        ScalarTerm::Integer { scalar_type, value } if *scalar_type == expected => {
-            Some(IntegerMathTerm::literal(*value))
-        }
-        _ => None,
-    };
-    Ok(IntegerMathTerm::ShiftLeft {
-        value: Box::new(
-            lift(value, *value_type)
-                .ok_or(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch)?,
-        ),
-        count: Box::new(
-            lift(count, *count_type)
-                .ok_or(IntegerAffineBoundConversionError::DirectShiftEvidenceMismatch)?,
-        ),
-    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
