@@ -1,6 +1,6 @@
 ---
 name: codex-swarm
-description: Coordinate compiler advancement through reusable Codex cloud sessions, one independent executor per worker. Use for a Codex swarm or a pool of Codex sessions. Use dot-swarm for explicitly requested native agents sharing one executor, devin-swarm for Devin sessions, and cursor-swarm for Cursor cloud subagents.
+description: Coordinate compiler advancement through reusable Codex cloud sessions, one independent executor per worker, including compact source uploads to a single batch-integration session. Use for a Codex swarm or a pool of Codex sessions. Use dot-swarm for explicitly requested native agents sharing one executor, devin-swarm for Devin sessions, and cursor-swarm for Cursor cloud subagents.
 ---
 
 # Codex session swarm
@@ -54,7 +54,10 @@ Apply the [law of completion](../../../AGENTS.md#law-of-completion).
 Each implementation owner retains context through full acceptance, required
 review and authorized verified main landing, including its necessary compiler,
 library and prerequisite repairs. Do not split these stages into dependencies
-on other workers or substitute artifact handoffs for completion.
+on other workers or substitute artifact handoffs for completion. When the user
+selects compact batch integration below, the named integration session owns final
+integration and landing; workers retain semantic context for findings and report
+`source_ready`, not completion or landed acceptance.
 Follow the concrete path through completion; let working programs reveal design.
 
 Read [AGENTS.md](../../../AGENTS.md), [advance](../advance/SKILL.md),
@@ -149,7 +152,9 @@ cannot dispatch work or acquire managed rollout/completion credit. See
    ([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain));
    build pools never span sessions and a session cannot upload a build to
    another's pool, so cross-machine coordination stays with the claims
-   registry and the serialized landing queue.
+   registry and the serialized landing queue. In compact batch mode, build the
+   combined candidate on the integration executor; transfer source, never worker
+   build pools or cached producer identities.
 
 The executable cloud controller currently checks compiler-program acceptance;
 use ordinary advance and measured acceptance for development-health assignments,
@@ -159,9 +164,82 @@ gates when using that controller. A larger requested pool does not authorize
 inventing an unsupported schema or bypassing its gates. Record the remaining
 requested sessions as pending and report the particular admission prerequisite.
 
+## Compact source intake and batch integration
+
+Use this mode when the user requests workers to upload source into one existing
+integration session. Record the integration owner and batch stopping condition
+before dispatch or changing execution mode. Workers do not independently publish
+overlapping candidates; reconcile existing claims, leases and uncertain writes at
+safe checkpoints first. Preserve original worker worktrees and dirty state.
+This mode changes orchestration ownership, not language or acceptance rules.
+
+1. **Export source, not a machine.** Each worker inventories every authored
+   worktree, including older dirty ones. Package `committed.patch` (obtainable
+   BASE to HEAD), `staged.patch` (HEAD to index), `unstaged.patch` (index to
+   working tree), including empty layers, with binary/full-index diff and
+   external diff/text conversion disabled. Include authored untracked and
+   explicitly identified ignored source needed to continue, retaining paths,
+   deletions, executable modes and symlinks without following external links.
+   A manifest binds session/environment/worktree/branch, BASE/HEAD provenance,
+   layers, file sizes/hashes, landed status and omissions. Verify the base is
+   obtainable from repository history or an identified shared base package.
+   Verify restoration in isolation against captured bytes, index and modes;
+   detect concurrent changes. No full repository/history, linked `.git`, build
+   cache, binaries, nested bulk archives or qualification-state dumps. Preserve
+   unique evidence separately and reference its confirmed identity. Prefer a
+   small source ZIP below 50 MiB; explain genuine large source members.
+2. **Receive locally.** Use the currently documented artifact service workflow
+   to materialize into the integration executor. Confirm readable local bytes,
+   version and hashes; a worker's cloud path is not a local path. Keep original
+   packages immutable. Reconcile uncertain transfers before retrying; never
+   bypass access errors or change authentication. Record missing source rather
+   than replacing it with an old review snapshot or assuming empty dirty layers.
+3. **Inventory before selecting.** Keep every worktree's committed, staged,
+   unstaged and new-file mappings distinct. Filter committed work by fetched-main
+   ancestry and reviewed source equivalence for rebased commits. An ancestor HEAD
+   does not clear dirty/new-file layers; a missing commit object does not prove
+   source absent. Deduplicate identical payload bytes by hash while retaining all
+   provenance and worktree mappings. Restore on the exact obtainable base in an
+   isolated location. Restoration reconstructs source/index state, not original
+   commit identity, compiler correctness or permission to reuse captured locks.
+4. **Bound the batch.** Select compatible, dependency-related candidates and
+   record their exact layers, producer/consumer dependencies, witnesses, oracles,
+   affected closure and exclusions. Intake may collect many lanes; it never
+   overlays every patch blindly. Integrate candidates sequentially in a separate
+   checkout from freshly fetched main. Resolve textual and semantic conflicts
+   deliberately, preserving both intents; ask the owner about real ambiguities.
+   Shared paths alone are neither incompatibility nor proof of independence.
+5. **Validate the combined closure.** Build the optimized producer for the
+   combined candidate on this executor once, then run the union of required
+   affected checks and fixed positive/negative engine oracles. Use
+   [change-scoped validation](../../../tools/testing.md#validation-scope) and
+   [qualification](../../../tools/qualification.md); retain exact producer,
+   inputs, environment, logs and applicable historical observations. Worker
+   acceptance or a successful patch application does not accept the batch.
+   Required independent review covers the exact integrated candidate. Do not
+   replay redundant per-worker integration pipelines or claim foreign execution.
+6. **Isolate failures without losing work.** Keep a candidate inclusion ledger
+   and checkpoints. On a failure, use focused comparisons or smaller candidate
+   subsets to locate the changed dependency/interaction; preserve all originals
+   and report deferred slices. Do not suppress checks or rewrite fixed oracles.
+   After any conflict resolution, inclusion change or main movement, reassess
+   inputs and rerun affected/final checks, reusing only justified evidence.
+7. **Land linearly only when authorized.** Batch intake and combined validation
+   are not a Git merge or queue bypass. Keep independently buildable coherent
+   commits; squash inseparable repairs so every retained commit builds on its
+   own. Follow normal exact-SHA review/qualification and `landing.py verify`
+   requirements, including intermediate-commit checks, then the serialized
+   queue and fast-forward publication. Release the lease if affected checks
+   cannot fit; never waive them. Confirm remote ancestry before `landed`, and
+   record acceptance per outcome without closing broader tasks. Source-only or
+   planning authorization stops before integration/publication as requested.
+
 ## The worker's goal
 
-Copy this into every worker prompt:
+Copy this into every worker prompt. In compact batch mode, explicitly replace
+the worker-publication instructions with source export and `source_ready`; name
+the integration owner, keep workers available for findings, and assign final
+acceptance/publication to that owner. An upload is not a landed outcome:
 
 > Read the assigned capability's full acceptance and identify the requirement
 > this witness establishes. Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
@@ -280,7 +358,9 @@ confirmed artifacts or published lanes through the supported channel; a path on
 another machine is not accessible evidence. Verify artifact content and commit
 ancestry before integration. Keep independent proof, custody and trust checks.
 
-Drain each result promptly: inspect evidence and diff, reconcile claims, record
+In compact batch mode, drain results into the intake ledger above; do not start
+an independent worker landing loop. Otherwise drain each result promptly:
+inspect evidence and diff, reconcile claims, record
 the outcome, verify the owner's complete path through `landing.py`, and follow up
 with the next necessary step of the owned outcome on the same session.
 Continue the same parent task through successive complete landed witnesses;
