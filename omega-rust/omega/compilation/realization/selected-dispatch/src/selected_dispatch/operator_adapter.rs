@@ -143,27 +143,13 @@ pub(super) fn resolve_checked_adapter_for_operator(
             }
         }
     };
-    if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
+    let entry = crate::exact_checked_body_entry(
+        checked,
         plan,
         row,
         provider,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine_identity}` does not belong to nominal provider `{}`",
-            plan.provider_type,
-        )));
-    }
-    if provider.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-        return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine_identity}` is not a checked body",
-        )));
-    }
-    let Some(entry) = checked.machine_states(provider).first() else {
-        return Err(Diagnostic::error(format!(
-            "selected checked-operator adapter `{machine_identity}` has no executable entry state",
-        )));
-    };
+        &format!("selected checked-operator adapter `{machine_identity}`"),
+    )?;
 
     let [namespace, requirement] = checked.operator_path_members(operator.name) else {
         return Err(Diagnostic::error(format!(

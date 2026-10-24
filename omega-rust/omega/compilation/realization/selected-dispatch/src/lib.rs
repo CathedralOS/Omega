@@ -8,6 +8,9 @@
 //! associations, not another entrance into source checking.
 
 mod boundary_dispatch;
+mod checked_body;
+
+pub(crate) use checked_body::exact_checked_body_entry;
 mod compiler_intrinsic;
 mod constant_evaluation;
 mod execution_settlement;

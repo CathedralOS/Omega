@@ -288,8 +288,8 @@ fn resolve_template_adapter_rows(
         );
     }
 
-    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
-    let entry = exact_adapter_entry(typed, adapter, machine_identity)?;
+    let (adapter, entry) = planned_checked_adapter(typed, plan, row, machine_identity)?;
+    require_nongeneric_adapter(typed, adapter, machine_identity)?;
 
     if !provider_planning::provider_trait_requirement_matches(
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
@@ -326,25 +326,6 @@ fn resolve_template_adapter_rows(
     })])
 }
 
-/// Resolve the exact checked adapter realizing a top-level `boundary
-/// requirement`. A public requirement carrying no static generic binders
-/// (`public boundary requirement Owner::name(...);`, optionally with an erased
-/// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
-/// adapter with no static generic binders whose exact `satisfies` edge rejoins
-/// that requirement symbol with the same explicit arity. Unlike the trait
-/// rows above, top-level machine requirements are not slots in named trait
-/// implementation maps. A generic
-/// token-machine requirement instead settles through its selected
-/// specialization roster: the plan row stays keyed by the authored template
-/// and every demanded closed requirement instance emits one row naming the
-/// exact specialized provider instance the roster joins to it. The requirement's lifetime telescope is the
-/// adapter's own telescope by the identity application conformance checked,
-/// so an erased telescope needs no row argument of its own. A receiver-free
-/// requirement admits only an exact-arity adapter. Its selected entry is the
-/// dispatch identity; an authored nominal qualifier may also identify that
-/// direct call, but a structural collection requirement has no nominal owner.
-/// Execution consumes the association while Terminal retains the
-/// requirement.
 fn require_parameter_count(
     plan: &effects::provider_plan::ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
@@ -361,6 +342,24 @@ fn require_parameter_count(
     Ok(())
 }
 
+/// Resolve the exact checked adapter realizing a top-level `boundary
+/// requirement`. A public requirement carrying no static generic binders
+/// (`public boundary requirement Owner::name(...);`, optionally with an erased
+/// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
+/// adapter with no static generic binders whose exact `satisfies` edge rejoins
+/// that requirement symbol with the same explicit arity. Unlike the trait
+/// rows above, top-level machine requirements are not slots in named trait
+/// implementation maps. A generic token-machine requirement instead settles
+/// through its selected specialization roster: the plan row stays keyed by
+/// the authored template and every demanded closed requirement instance emits
+/// one row naming the exact specialized provider instance the roster joins to
+/// it. The requirement's lifetime telescope is the adapter's own telescope by
+/// the identity application conformance checked, so an erased telescope needs
+/// no row argument of its own. A receiver-free requirement admits only an
+/// exact-arity adapter. Its selected entry is the dispatch identity; an
+/// authored nominal qualifier may also identify that direct call, but a
+/// structural collection requirement has no nominal owner. Execution consumes
+/// the association while Terminal retains the requirement.
 fn resolve_top_level_requirement_adapter_row(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
@@ -388,7 +387,7 @@ fn resolve_top_level_requirement_adapter_row(
             "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
         )));
     }
-    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
+    let (adapter, adapter_entry) = planned_checked_adapter(typed, plan, row, machine_identity)?;
     if !typed.machine_type_parameters(requirement).is_empty() {
         return resolve_specialized_top_level_requirement_adapter_rows(
             typed,
@@ -403,7 +402,7 @@ fn resolve_top_level_requirement_adapter_row(
             specialization_identities,
         );
     }
-    let adapter_entry = exact_adapter_entry(typed, adapter, machine_identity)?;
+    require_nongeneric_adapter(typed, adapter, machine_identity)?;
     sole_boundary_conformance(
         typed,
         adapter,
@@ -484,20 +483,22 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             && specialization_identities.text(specialization.selected_machine_identity)
                 == Some(machine_identity)
     }) {
+        // Each roster row's retained identities are read once: the closed
+        // requirement's feeds the exact-machine lookup, and the provider
+        // instance's names that machine in the diagnostics below.
+        let requirement_identity = specialization_identities
+            .text(specialization.requirement_identity)
+            .unwrap_or_default();
+        let instance_identity = specialization_identities
+            .text(specialization.machine_identity)
+            .unwrap_or_default();
         let Some(closed) = typed.machine_by_callable_identity(
-            typed.callable_identity_by_text(
-                specialization_identities
-                    .text(specialization.requirement_identity)
-                    .unwrap_or_default(),
-            ),
+            typed.callable_identity_by_text(requirement_identity),
             declarations,
         ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names closed requirement `{}` with no exact typed machine",
-                plan.name,
-                specialization_identities
-                    .text(specialization.requirement_identity)
-                    .unwrap_or_default(),
+                plan.name, requirement_identity,
             )));
         };
         let closed_receipts = typed
@@ -513,9 +514,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         {
             return Err(Diagnostic::error(format!(
                 "selected specialization row `{}` does not name one retained closed instance of requirement template `{machine_identity}`",
-                specialization_identities
-                    .text(specialization.requirement_identity)
-                    .unwrap_or_default(),
+                requirement_identity,
             )));
         }
         let [closed_entry] = typed.machine_states(closed) else {
@@ -531,19 +530,12 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             )));
         }
         let Some(instance) = typed.machine_by_callable_identity(
-            typed.callable_identity_by_text(
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
-            ),
+            typed.callable_identity_by_text(instance_identity),
             declarations,
         ) else {
             return Err(Diagnostic::error(format!(
                 "selected provider plan `{}` specialization roster names provider instance `{}` with no exact typed machine",
-                plan.name,
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
+                plan.name, instance_identity,
             )));
         };
         let instance_receipts = typed
@@ -555,53 +547,16 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             .count();
         if instance_receipts != 1 || !typed.machine_type_parameters(instance).is_empty() {
             return Err(Diagnostic::error(format!(
-                "selected specialization row `{}` does not name one retained specialization instance of checked adapter `{machine_identity}`",
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
+                "selected specialization row `{instance_identity}` does not name one retained specialization instance of checked adapter `{machine_identity}`",
             )));
         }
-        if !provider_planning::provider_row_matches(
-            provider_planning::ProviderPlanningContext::new(
-                typed,
-                source::DependencyScope::Product,
-            ),
+        let instance_entry = crate::exact_checked_body_entry(
+            typed,
             plan,
             row,
             instance,
-        ) {
-            return Err(Diagnostic::error(format!(
-                "selected provider instance `{}` does not belong to nominal provider `{}`",
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
-                plan.provider_type,
-            )));
-        }
-        if !instance.supply_mode.is_checked_body() {
-            return Err(Diagnostic::error(format!(
-                "selected provider instance `{}` is not a checked body",
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
-            )));
-        }
-        let Some(instance_entry) = typed.machine_states(instance).first() else {
-            return Err(Diagnostic::error(format!(
-                "selected provider instance `{}` has no executable entry state",
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
-            )));
-        };
-        if !instance_entry.symbol.is_valid() {
-            return Err(Diagnostic::error(format!(
-                "selected provider instance `{}` has no exact entry-state symbol",
-                specialization_identities
-                    .text(specialization.machine_identity)
-                    .unwrap_or_default(),
-            )));
-        }
+            &format!("selected provider instance `{instance_identity}`"),
+        )?;
         let actual_parameters = typed.state_parameters(instance_entry);
         require_parameter_count(plan, method, actual_parameters.len())?;
         resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
@@ -609,10 +564,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             provider_plan_digest: *plan.identity_digest().as_bytes(),
             receiver_trait_name: closed.name.as_str().to_owned(),
             requirement: method.name.clone(),
-            requirement_identity: specialization_identities
-                .text(specialization.requirement_identity)
-                .unwrap_or_default()
-                .to_owned(),
+            requirement_identity: requirement_identity.to_owned(),
             requirement_symbol: closed_entry.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: instance_entry.symbol,
@@ -688,7 +640,7 @@ fn resolve_family_adapter_row(
         }
     };
 
-    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
+    let (adapter, template_entry) = planned_checked_adapter(typed, plan, row, machine_identity)?;
     // A family provider must be generic over exactly the requirement's
     // enumerable value binders; other binder kinds have no `where` equality
     // to close them and mixed static arguments cannot key a value tuple.
@@ -709,12 +661,6 @@ fn resolve_family_adapter_row(
             plan.schema.identity_text(method.requirement_identity),
         )));
     }
-    let Some(template_entry) = typed.machine_states(adapter).first() else {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no executable entry state",
-        )));
-    };
-
     if !provider_planning::provider_trait_requirement_matches(
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         plan,
@@ -771,18 +717,16 @@ fn resolve_family_adapter_row(
                 tuple.display.join(", "),
             )));
         };
-        let Some(entry) = typed.machine_states(instance).first() else {
-            return Err(Diagnostic::error(format!(
-                "finite family specialization of `{machine_identity}` for tuple `({})` has no executable entry state",
+        let entry = crate::exact_checked_body_entry(
+            typed,
+            plan,
+            row,
+            instance,
+            &format!(
+                "finite family specialization of `{machine_identity}` for tuple `({})`",
                 tuple.display.join(", "),
-            )));
-        };
-        if !entry.symbol.is_valid() {
-            return Err(Diagnostic::error(format!(
-                "finite family specialization of `{machine_identity}` for tuple `({})` has no exact entry-state symbol",
-                tuple.display.join(", "),
-            )));
-        }
+            ),
+        )?;
         rows.push(ResolvedAdapterRow::Adapter(AdapterRow {
             receiver_trait: receiver_trait.symbol,
             provider_plan_digest: *plan.identity_digest().as_bytes(),
@@ -819,15 +763,22 @@ fn resolve_family_adapter_row(
     Ok(rows)
 }
 
-/// The exact checked adapter a boundary row's ProviderPlan names: the plan
-/// must carry a nominal provider type, the resolved adapter must belong to
-/// it, and the adapter must be a checked body.
+/// The exact checked adapter a boundary row's ProviderPlan names, with the
+/// entry state that starts it: the plan must carry a nominal provider type,
+/// and the resolved adapter must be that provider's exact executable checked
+/// body.
 fn planned_checked_adapter<'typed>(
     typed: &'typed TypedTrees,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     machine_identity: &str,
-) -> Result<&'typed typed_trees::machine::Machine, Diagnostic> {
+) -> Result<
+    (
+        &'typed typed_trees::machine::Machine,
+        &'typed typed_trees::state::State,
+    ),
+    Diagnostic,
+> {
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
@@ -839,51 +790,30 @@ fn planned_checked_adapter<'typed>(
         plan,
         row,
     )?;
-    if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+    let entry = crate::exact_checked_body_entry(
+        typed,
         plan,
         row,
         adapter,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
-            plan.provider_type,
-        )));
-    }
-    if !adapter.supply_mode.is_checked_body() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is not a checked body",
-        )));
-    }
-    Ok(adapter)
+        &format!("selected checked adapter `{machine_identity}`"),
+    )?;
+    Ok((adapter, entry))
 }
 
-/// The executable entry state of an exact checked adapter: a generic
-/// adapter cannot be the exact realization of a nongeneric requirement —
-/// its unbound binders have no tuple to close them — and the adapter must
-/// declare a first state with a valid symbol.
-fn exact_adapter_entry<'typed>(
-    typed: &'typed TypedTrees,
-    adapter: &'typed typed_trees::machine::Machine,
+/// A generic adapter cannot be the exact realization of a nongeneric
+/// requirement: its unbound binders have no tuple to close them.
+fn require_nongeneric_adapter(
+    typed: &TypedTrees,
+    adapter: &typed_trees::machine::Machine,
     machine_identity: &str,
-) -> Result<&'typed typed_trees::state::State, Diagnostic> {
+) -> Result<(), Diagnostic> {
     if !typed.machine_type_parameters(adapter).is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` is generic over {} machine binders; only an exact nongeneric realization can settle a boundary row",
             typed.machine_type_parameters(adapter).len(),
         )));
     }
-    let Some(entry) = typed.machine_states(adapter).first() else {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no executable entry state",
-        )));
-    };
-    if !entry.symbol.is_valid() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no exact entry-state symbol",
-        )));
-    }
-    Ok(entry)
+    Ok(())
 }
 
 /// The selected checked adapter must bind the top-level boundary
