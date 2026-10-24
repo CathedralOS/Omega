@@ -8,6 +8,7 @@ pub(crate) use facts::IntegerRange;
 use numerics::bignum::BigInt;
 use std::fmt;
 use symbols::SymbolHandle;
+use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, FloatLiteral};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
@@ -302,32 +303,32 @@ impl ProofConstraint {
             }
             // Symbolic proof atoms retain inclusive offsets, not executable
             // subtraction. Validation fences an unrepresentable offset first.
-            if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
-                && let Some(symbolic) = typed_trees::dependent_ranges::symbolic_range_maximum(
+            // One classification decides the atom: the same class value the
+            // validation fence and the index prover read, so the plan cannot
+            // order its class checks differently from the gate.
+            if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64) {
+                match typed_trees::dependent_ranges::dependent_range_maximum(
                     program,
                     maximum,
                     end_inclusive,
-                )
-            {
-                return Some(Self::IntegerRangeSymbolicMax {
-                    minimum,
-                    max_field: symbolic.field,
-                    max_offset: symbolic.offset,
-                });
-            }
-            // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
-            if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64)
-                && let Some(sibling) = typed_trees::dependent_ranges::sibling_range_maximum(
-                    program,
-                    maximum,
-                    end_inclusive,
-                )
-            {
-                return Some(Self::IntegerRangeSiblingLenMax {
-                    minimum,
-                    sibling: sibling.sibling,
-                    max_offset: sibling.offset,
-                });
+                ) {
+                    Some(DependentBoundClass::SelfField(symbolic)) => {
+                        return Some(Self::IntegerRangeSymbolicMax {
+                            minimum,
+                            max_field: symbolic.field,
+                            max_offset: symbolic.offset,
+                        });
+                    }
+                    // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
+                    Some(DependentBoundClass::SiblingLen(sibling)) => {
+                        return Some(Self::IntegerRangeSiblingLenMax {
+                            minimum,
+                            sibling: sibling.sibling,
+                            max_offset: sibling.offset,
+                        });
+                    }
+                    _ => {}
+                }
             }
         }
 

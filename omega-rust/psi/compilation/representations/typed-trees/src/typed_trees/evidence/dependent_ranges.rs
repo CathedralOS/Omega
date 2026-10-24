@@ -1,12 +1,14 @@
 //! R1 dependent-range recognizer (chapter 12): the ADMISSIBLE symbolic
 //! bound classes a declared range's endpoint may take. One classifier,
-//! [`dependent_bound_class`], decides which class a bound is; the three
-//! policy consumers -- the validation fence (which non-constant bounds are
+//! [`dependent_bound_class`], decides which class a bound is, and every
+//! policy consumer -- the validation fence (which non-constant bounds are
 //! legal, validation type_references.rs), the proof-plan atom minting
 //! (proof obligations.rs), and the callee-side range substitution
-//! (typed-trees-to-checked-trees index proofs) -- share that decision
-//! directly or through the per-class views below, so "admissible" can
-//! never drift between the gate and the dischargers.
+//! (typed-trees-to-checked-trees index proofs) -- reads that class as a
+//! value, so "admissible" can never drift between the gate and the
+//! dischargers. A per-class projection would instead re-run the classifier
+//! once per class a consumer tries, and would let a consumer order its
+//! class checks differently from the classifier's own precedence.
 //!
 //! Rung R1a admits exactly three classes, each a named anchor plus an
 //! optional literal offset. `<param>.<field>` on a subject parameter is
@@ -62,9 +64,9 @@ pub struct ScopedNameBound {
 /// admissible bound is exactly one variant, so a consumer that accepts
 /// several classes (the validation fence accepts all three; the proof plan
 /// mints atoms for the self-field and sibling classes) reads the class as a
-/// value instead of running separate recognizers -- the class can never
-/// disagree with what the per-class views below return, because they ARE
-/// this classification filtered.
+/// value instead of running one recognizer per class. The classes are
+/// disjoint on the anchor node, so a reader of the variant cannot disagree
+/// with the classifier's own precedence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependentBoundClass {
     /// `<param>.<field>` -- a field read on the signature's subject
@@ -179,33 +181,6 @@ fn bound_anchor_class(
         .map(|name| DependentBoundClass::ScopedName(ScopedNameBound { name, offset: 0 }))
 }
 
-/// Recognizes an R1a-admissible `<param>.<field>` bound on a subject
-/// parameter. `None` means the bound is not in that class (callers keep
-/// their literal path or their fence -- never treat `None` as unbounded).
-pub fn symbolic_max_bound(
-    program: &crate::TypedTrees,
-    bound: ExpressionHandle,
-) -> Option<SymbolicMaxBound> {
-    match dependent_bound_class(program, bound)? {
-        DependentBoundClass::SelfField(bound) => Some(bound),
-        _ => None,
-    }
-}
-
-/// Normalize an authored `<param>.<field>` upper end on a subject
-/// parameter into the bounded proof offset. Failure is not an unbounded
-/// range: callers must reject unsupported metadata.
-pub fn symbolic_range_maximum(
-    program: &crate::TypedTrees,
-    bound: ExpressionHandle,
-    end_inclusive: bool,
-) -> Option<SymbolicMaxBound> {
-    match dependent_range_maximum(program, bound, end_inclusive)? {
-        DependentBoundClass::SelfField(bound) => Some(bound),
-        _ => None,
-    }
-}
-
 /// `<param>.<field>` where `<param>` names a subject parameter (a Member
 /// whose receiver is a bare name resolving to the signature's data
 /// binding), or `None` for any other shape -- locals, non-subject params,
@@ -250,30 +225,6 @@ fn receiver_is_subject_parameter(program: &crate::TypedTrees, receiver: SymbolHa
     false
 }
 
-/// Recognizes `<name>.len [+/- k]` -- the sibling-length class. `None` is
-/// never unbounded; callers keep their fence.
-pub fn sibling_len_bound(
-    program: &crate::TypedTrees,
-    bound: ExpressionHandle,
-) -> Option<SiblingLenBound> {
-    match dependent_bound_class(program, bound)? {
-        DependentBoundClass::SiblingLen(bound) => Some(bound),
-        _ => None,
-    }
-}
-
-/// The same checked boundary normalization for a sibling's length.
-pub fn sibling_range_maximum(
-    program: &crate::TypedTrees,
-    bound: ExpressionHandle,
-    end_inclusive: bool,
-) -> Option<SiblingLenBound> {
-    match dependent_range_maximum(program, bound, end_inclusive)? {
-        DependentBoundClass::SiblingLen(bound) => Some(bound),
-        _ => None,
-    }
-}
-
 /// `<name>.len` where `<name>` is a bare single-segment name that does
 /// not hold the subject position (`main.len` is the field class).
 fn bare_name_len(program: &crate::TypedTrees, expression: ExpressionHandle) -> Option<Identifier> {
@@ -289,33 +240,6 @@ fn bare_name_len(program: &crate::TypedTrees, expression: ExpressionHandle) -> O
         return None;
     };
     (!receiver_is_subject_parameter(program, path.symbol)).then(|| only.clone())
-}
-
-/// Recognizes `<name> [+/- k]` where `<name>` is a bare single-segment Name
-/// node. `None` is never unbounded; callers keep their fence. Whether the
-/// named symbol is admissible -- an integer scalar parameter of the same
-/// state, or an earlier local on a local declaration -- is the policy's
-/// scope check, not this recognizer's.
-pub fn scoped_name_bound(
-    program: &crate::TypedTrees,
-    bound: ExpressionHandle,
-) -> Option<ScopedNameBound> {
-    match dependent_bound_class(program, bound)? {
-        DependentBoundClass::ScopedName(bound) => Some(bound),
-        _ => None,
-    }
-}
-
-/// The same checked boundary normalization for a scope-named value.
-pub fn scoped_range_maximum(
-    program: &crate::TypedTrees,
-    bound: ExpressionHandle,
-    end_inclusive: bool,
-) -> Option<ScopedNameBound> {
-    match dependent_range_maximum(program, bound, end_inclusive)? {
-        DependentBoundClass::ScopedName(bound) => Some(bound),
-        _ => None,
-    }
 }
 
 /// `<name>` as a bound anchor: a bare single-segment Name that does not

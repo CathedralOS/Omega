@@ -34,7 +34,9 @@ pub(super) fn refine_dependent_subtract(
         return naive;
     };
     // Left: `self.F` or `self.F + m` for the SAME field.
-    let Some(left_bound) = typed_trees::dependent_ranges::symbolic_max_bound(program, left) else {
+    let Some(typed_trees::dependent_ranges::DependentBoundClass::SelfField(left_bound)) =
+        typed_trees::dependent_ranges::dependent_bound_class(program, left)
+    else {
         return naive;
     };
     if left_bound.field.as_str() != right_field.as_str() {

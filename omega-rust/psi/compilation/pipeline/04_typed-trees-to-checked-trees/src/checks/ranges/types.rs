@@ -6,6 +6,7 @@
 
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
+use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -283,11 +284,15 @@ fn dependent_range_of_type_reference(
                     } => {
                         let minimum =
                             validation::closed_integer_range_bound(program, *minimum)?.to_i64()?;
-                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                            program,
-                            *maximum,
-                            *end_inclusive,
-                        )?;
+                        let DependentBoundClass::SelfField(symbolic) =
+                            typed_trees::dependent_ranges::dependent_range_maximum(
+                                program,
+                                *maximum,
+                                *end_inclusive,
+                            )?
+                        else {
+                            return None;
+                        };
                         Some((minimum, symbolic))
                     }
                     _ => None,

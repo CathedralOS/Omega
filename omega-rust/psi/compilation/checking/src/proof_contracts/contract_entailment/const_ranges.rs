@@ -449,7 +449,9 @@ fn scoped_value_bound(
     let Some(state) = state else {
         return false;
     };
-    let Some(scoped) = typed_trees::dependent_ranges::scoped_name_bound(program, endpoint) else {
+    let Some(typed_trees::dependent_ranges::DependentBoundClass::ScopedName(scoped)) =
+        typed_trees::dependent_ranges::dependent_bound_class(program, endpoint)
+    else {
         return false;
     };
     let Some(path) = program.expression_table.name_path_node(scoped.name) else {

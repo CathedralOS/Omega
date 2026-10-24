@@ -224,11 +224,15 @@ pub fn exact_shells_symbolic_range_maximum<'p>(
                 end_inclusive,
                 ..
             } => {
-                let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                    program,
-                    *maximum,
-                    *end_inclusive,
-                )?;
+                let typed_trees::dependent_ranges::DependentBoundClass::SelfField(symbolic) =
+                    typed_trees::dependent_ranges::dependent_range_maximum(
+                        program,
+                        *maximum,
+                        *end_inclusive,
+                    )?
+                else {
+                    return None;
+                };
                 Some((symbolic.field, symbolic.offset))
             }
             _ => None,

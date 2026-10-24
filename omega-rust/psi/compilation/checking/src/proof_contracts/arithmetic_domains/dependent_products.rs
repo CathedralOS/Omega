@@ -76,18 +76,23 @@ fn dependent_product_atoms(
     typed_trees::name::Identifier,
     typed_trees::name::Identifier,
 )> {
+    use typed_trees::dependent_ranges::{DependentBoundClass, dependent_bound_class};
+
     let (a_expr, fb_expr) = {
-        let left_is_field = typed_trees::dependent_ranges::symbolic_max_bound(program, left)
-            .is_some_and(|bound| bound.offset == 0);
+        let left_is_field = matches!(
+            dependent_bound_class(program, left),
+            Some(DependentBoundClass::SelfField(bound)) if bound.offset == 0
+        );
         if left_is_field {
             (right, left)
         } else {
             (left, right)
         }
     };
-    let fb = typed_trees::dependent_ranges::symbolic_max_bound(program, fb_expr)
-        .filter(|bound| bound.offset == 0)
-        .map(|bound| bound.field)?;
+    let fb = dependent_bound_class(program, fb_expr).and_then(|class| match class {
+        DependentBoundClass::SelfField(bound) if bound.offset == 0 => Some(bound.field),
+        _ => None,
+    })?;
     let fa = strict_dependent_atom_field(program, machine, state, a_expr)?;
     Some((a_expr, fa, fb))
 }

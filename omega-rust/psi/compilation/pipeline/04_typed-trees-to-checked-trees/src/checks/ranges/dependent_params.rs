@@ -92,11 +92,16 @@ fn sibling_len_of_type_reference(
                 maximum,
                 end_inclusive,
                 ..
-            } => typed_trees::dependent_ranges::sibling_range_maximum(
+            } => match typed_trees::dependent_ranges::dependent_range_maximum(
                 program,
                 *maximum,
                 *end_inclusive,
-            ),
+            ) {
+                Some(typed_trees::dependent_ranges::DependentBoundClass::SiblingLen(sibling)) => {
+                    Some(sibling)
+                }
+                _ => None,
+            },
             _ => None,
         });
         found.is_none()

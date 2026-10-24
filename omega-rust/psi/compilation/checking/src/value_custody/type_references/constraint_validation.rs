@@ -4,6 +4,7 @@ use super::{
     type_references_match,
 };
 use diagnostics::Diagnostic;
+use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -519,12 +520,15 @@ fn dependent_state_parameter_range_error(
     {
         return Some(generic());
     }
+    // One classification decides the class of this bound; the arms below
+    // apply the policy of the class it names. Reading the class once keeps
+    // this fence's class choice identical to the proof plan's.
+    let class =
+        typed_trees::dependent_ranges::dependent_range_maximum(program, maximum, end_inclusive);
     // Sibling-length class (`[0..items.len]`): the named sibling must be a
     // slice/fixed-array parameter of the SAME state, and only offsets <= 0
     // are admissible (a `+k` bound would exceed the length).
-    if let Some(sibling) =
-        typed_trees::dependent_ranges::sibling_range_maximum(program, maximum, end_inclusive)
-    {
+    if let Some(DependentBoundClass::SiblingLen(sibling)) = &class {
         let TypeReferenceOwner::StateParameter {
             owner: StateSignatureOwner::Machine(machine),
             state: state_name,
@@ -569,14 +573,10 @@ fn dependent_state_parameter_range_error(
     // shape a specialized `Value` binder leaves behind: a runtime-bound
     // generic argument's result range `-> u64[0..=Bound]` names the
     // specialization's own realized parameter.
-    if let Some(scoped) =
-        typed_trees::dependent_ranges::scoped_range_maximum(program, maximum, end_inclusive)
-    {
-        return scoped_maximum_error(program, owner, scoped);
+    if let Some(DependentBoundClass::ScopedName(scoped)) = &class {
+        return scoped_maximum_error(program, owner, scoped.clone());
     }
-    let Some(symbolic) =
-        typed_trees::dependent_ranges::symbolic_range_maximum(program, maximum, end_inclusive)
-    else {
+    let Some(DependentBoundClass::SelfField(symbolic)) = class else {
         return Some(generic());
     };
     let TypeReferenceOwner::StateParameter {
