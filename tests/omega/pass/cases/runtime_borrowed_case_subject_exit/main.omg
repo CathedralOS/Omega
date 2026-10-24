@@ -1,0 +1,24 @@
+// Expected exit: 0
+data Message { case Active(value: u32); case Empty; }
+domain Message::Controlled;
+machine authorized_read(message: &Message) -> u32 {
+    match message {
+        Message::Active { value } -> value
+        Message::Empty -> 0
+    }
+}
+machine inspect(message: &Message) -> u32 {
+    match message {
+        Message::Active { value } -> value
+        Message::Empty -> 0
+    }
+}
+machine exercise() -> u32 {
+    let message: Message in Controlled = Message::Active { value: 73 };
+    inspect(&message)
+}
+machine main() crashes Trap {
+    transition exercise() == 73 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

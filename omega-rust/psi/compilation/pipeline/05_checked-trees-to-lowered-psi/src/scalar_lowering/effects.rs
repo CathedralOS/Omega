@@ -85,7 +85,7 @@ pub(crate) fn emit(
                             return unsupported("completed case observation has no source path");
                         };
                         let (path, case) =
-                            crate::expression_preparation::bindings::structural_cases::resolve_at(
+                            crate::expression_preparation::bindings::structural_cases::resolve_observation_at(
                                 identities,
                                 calls.structural_types,
                                 completed.structural_type,

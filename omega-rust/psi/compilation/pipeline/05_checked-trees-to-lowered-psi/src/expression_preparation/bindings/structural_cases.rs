@@ -39,10 +39,9 @@ impl StructuralCaseBinding {
     }
 }
 
-/// Resolve an executable observation at an established readable place. Its
-/// captured address path may cross reference descriptors; that is not a
-/// predicate's canonical owned-place path. Selectors still require their real
-/// emitting operand frame, and source bindings retain live custody.
+/// Resolve the exact emitted path without following an endpoint descriptor.
+/// Cleanup and custody selection use this strict geometry: owning a reference
+/// carrier never means owning the sum behind it.
 pub(crate) fn resolve_at(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     declarations: &[StructuralTypeDeclaration],
@@ -56,18 +55,64 @@ pub(crate) fn resolve_at(
     ),
     LoweringError,
 > {
+    let path = prepare_case_path(identities, declarations, structural_type, steps)?;
+    resolve_emitted_path(identities, declarations, structural_type, path, identity)
+}
+
+/// A tag read observes the saved value's readable referent, not its descriptor.
+/// Complete only this observation's path; the captured subject remains intact
+/// for wildcard arms and descriptor transport. The physical endpoint scopes
+/// the case namespace, independently of the source expression's presentation.
+pub(crate) fn resolve_observation_at(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    steps: &[checked_trees::CheckedUnitStructuralPathSegment],
+    identity: &checked_trees::CheckedMemberIdentity,
+) -> Result<
+    (
+        Vec<terminal_psi::StructuralPathSegment>,
+        semantic_vocabulary::StructuralCaseId,
+    ),
+    LoweringError,
+> {
+    let mut path = prepare_case_path(identities, declarations, structural_type, steps)?;
+    super::structural_paths::complete_read_observation_path(
+        structural_type,
+        &mut path,
+        declarations,
+    )?;
+    resolve_emitted_path(identities, declarations, structural_type, path, identity)
+}
+
+fn prepare_case_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    steps: &[checked_trees::CheckedUnitStructuralPathSegment],
+) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
     let prepared = super::structural_paths::prepare_argument_path(
         identities,
         steps,
         structural_type,
         declarations,
     )?;
-    let path = super::structural_paths::emit_argument_path(
-        &prepared,
-        None,
-        &mut std::iter::empty(),
-        None,
-    )?;
+    super::structural_paths::emit_argument_path(&prepared, None, &mut std::iter::empty(), None)
+}
+
+fn resolve_emitted_path(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    path: Vec<terminal_psi::StructuralPathSegment>,
+    identity: &checked_trees::CheckedMemberIdentity,
+) -> Result<
+    (
+        Vec<terminal_psi::StructuralPathSegment>,
+        semantic_vocabulary::StructuralCaseId,
+    ),
+    LoweringError,
+> {
     for (position, segment) in path.iter().enumerate() {
         if *segment != terminal_psi::StructuralPathSegment::Referent {
             continue;

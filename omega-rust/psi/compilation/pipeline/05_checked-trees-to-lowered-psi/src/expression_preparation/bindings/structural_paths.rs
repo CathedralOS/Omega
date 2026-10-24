@@ -251,21 +251,63 @@ pub(crate) fn complete_emitted_argument_path(
 }
 
 fn complete_reference_endpoint<'a>(
-    mut tip: Option<&'a terminal_psi::StructuralTypeDeclaration>,
+    tip: Option<&'a terminal_psi::StructuralTypeDeclaration>,
     expected: terminal_psi::TerminalIdentityIndex,
     access: StructuralAccess,
     types: &'a [terminal_psi::StructuralTypeDeclaration],
-    mut append: impl FnMut(StructuralPathSegment),
+    append: impl FnMut(StructuralPathSegment),
 ) -> Result<(), LoweringError> {
+    follow_reference_endpoint(
+        tip,
+        |declaration| declaration.identity == expected,
+        access,
+        types,
+        append,
+    )?;
+    Ok(())
+}
+
+/// A content observation reads the endpoint of the actual descriptor chain,
+/// rather than transporting a reference value. Keep this separate from call
+/// endpoint completion: a receiving reference declaration may stop that walk
+/// before its referent, and owned transfers must never cross a reference.
+pub(crate) fn complete_read_observation_path(
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &mut Vec<StructuralPathSegment>,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<semantic_vocabulary::StructuralTypeId, LoweringError> {
+    let tip = terminal_semantics::runtime_structural_path_tip(types.iter(), root, path).ok_or(
+        LoweringError::Unsupported("content observation lost its exact carrier"),
+    )?;
+    let endpoint = follow_reference_endpoint(
+        Some(tip),
+        |_| false,
+        StructuralAccess::SharedBorrow,
+        types,
+        |segment| path.push(segment),
+    )?
+    .ok_or(LoweringError::Unsupported(
+        "content observation lost its reference endpoint",
+    ))?;
+    Ok(endpoint.id)
+}
+
+fn follow_reference_endpoint<'a>(
+    mut tip: Option<&'a terminal_psi::StructuralTypeDeclaration>,
+    is_endpoint: impl Fn(&terminal_psi::StructuralTypeDeclaration) -> bool,
+    access: StructuralAccess,
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
+    mut append: impl FnMut(StructuralPathSegment),
+) -> Result<Option<&'a terminal_psi::StructuralTypeDeclaration>, LoweringError> {
     // A call lends its declared endpoint. A stored reference is a carrier for
     // that endpoint; preserve every crossing instead of passing its wrapper.
     // Owned transport keeps the descriptor itself and never performs this read.
     if access == StructuralAccess::Owned {
-        return Ok(());
+        return Ok(tip);
     }
     let mut crossed = Vec::new();
     while let Some(declaration) = tip {
-        if declaration.identity == expected {
+        if is_endpoint(declaration) {
             break;
         }
         let terminal_psi::StructuralTypeShape::Reference {
@@ -286,7 +328,7 @@ fn complete_reference_endpoint<'a>(
         )?);
         append(StructuralPathSegment::Referent);
     }
-    Ok(())
+    Ok(tip)
 }
 
 fn prepare_structural_argument_projection<'a>(

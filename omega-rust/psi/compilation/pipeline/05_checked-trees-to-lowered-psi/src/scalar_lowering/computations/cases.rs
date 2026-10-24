@@ -385,7 +385,7 @@ impl Expansion<'_> {
                 )?;
                 let identity = structural_case_identity(self.checked, observed_case)?;
                 let (path, case) =
-                    crate::expression_preparation::bindings::structural_cases::resolve_at(
+                    crate::expression_preparation::bindings::structural_cases::resolve_observation_at(
                         identities,
                         self.structural_types,
                         structural_type,
