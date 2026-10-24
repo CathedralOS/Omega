@@ -1,0 +1,18 @@
+data Row { value: i32; }
+data Grid { rows: [Row; 2]; }
+machine require_three(row: &Row) requires row.value == 3 {}
+machine write_selected(grid: &mut Grid, index: u64) requires index < 2u64 {
+    transition grid.rows[0].value == 3 {
+        true -> overwrite(grid, index)
+        _ -> done()
+    }
+    state overwrite(grid: &mut Grid, index: u64) requires index < 2u64 {
+        grid.rows[index].value = 9;
+        require_three(&grid.rows[0]);
+    }
+    state done() {}
+}
+machine main() {
+    let mut grid: Grid = Grid { rows: [Row { value: 3 }, Row { value: 5 }] };
+    write_selected(&mut grid, 0);
+}

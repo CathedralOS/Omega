@@ -472,12 +472,15 @@ fn adapt(
                 ..
             } = operation
                 && let Some(value) = scalar_expression(function, value.value)
+                // Runtime selectors keep their typed invalidation below; only
+                // an exact coordinate establishes a new stored scalar fact.
+                && let Some(destination) = location(destination.place(), path, Some(*field))
             {
                 graph
                     .scalar_payload_writes
                     .entry(position)
                     .or_default()
-                    .push((location(destination.place(), path, Some(*field))?, value));
+                    .push((destination, value));
             }
             let result = operation.structural_result().map(|(_, result)| result);
             if !node.definitions.is_empty() {

@@ -173,6 +173,7 @@ pass/recast/runtime_bool_representation_recast_exit built 4563ms exit:70 interpr
 pass/recast/runtime_float_range_representation_recast_exit built 12409ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/recast/runtime_scalar_parameter_shared_views_exit built 5934ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/relevance/runtime_static_proof_namespace_exit built 7745ms exit:0 interpreter-exit:0 interpreter:agrees @0c9d1b8dd763+wt
+pass/slices/runtime_indexed_descriptor_replacement_call_exit built 1794ms exit:0 interpreter-exit:0 interpreter:agrees @52ec8cdca916+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/targets/uefi_table_integrity_exit built 10286ms exit:70 interpreter-exit:70 interpreter:agrees @94394d5fbb6f+wt
 pass/termination/bitwise_payload_exit built 8790ms exit:70 interpreter-exit:70 interpreter:agrees @94394d5fbb6f+wt
@@ -184,6 +185,9 @@ pass/text/state_parameter_byte_replacement_exit built 4416ms exit:70 interpreter
 pass/wire/runtime_wire_decode_ranged_field_exit built 87176ms exit:70 interpreter-exit:70 interpreter:agrees @9ed8b7d0772d
 pass/wire/wire_compatibility_migration_across_shapes built 2534ms exit:0 interpreter-exit:0 interpreter:agrees @8899cb25e748+wt
 run/arithmetic/disjoint_pressure_regions built 14830ms exit:70 interpreter-exit:70 interpreter:agrees @c1aa4ca6360b
+run/borrows/direct_runtime_index_write built 7716ms exit:9 interpreter-exit:9 interpreter:agrees @52ec8cdca916+wt
 run/borrows/local_mut_borrow built 5502ms exit:9 interpreter-exit:9 interpreter:agrees @506354b3cca3+wt
 run/borrows/reference_local_binding_routes built 5514ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @506354b3cca3+wt
 run/borrows/reference_result_call_binding built 5464ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @506354b3cca3+wt
+run/borrows/runtime_index_bounded_borrow built 7538ms exit:0 interpreter-exit:0 interpreter:agrees @52ec8cdca916+wt
+run/borrows/runtime_index_scalar_write_descriptor_result built 1646ms exit:0 interpreter-exit:0 interpreter:agrees @52ec8cdca916+wt

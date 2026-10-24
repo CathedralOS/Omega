@@ -1258,6 +1258,8 @@ fail/contracts/returned_length_cannot_use_later_operand_guarantee rejected 652ms
 fail/contracts/returned_reference_field_stale_fact rejected 670ms expected @9e04918b1d1c
 	cannot prove requires contract for call consume from main: captured.counter.value == 7 (needs fact `counter.value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/returned_windows_keep_distinct_measures rejected 657ms expected @6756ba1b9853
+fail/contracts/runtime_index_scalar_write_retires_payload_fact rejected 1767ms expected @52ec8cdca916+wt
+	cannot prove requires contract for call require_three from write_selected: grid.rows[0].value == 3 (needs fact `row.value == 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `overwrite`
 fail/contracts/runtime_requirement_after_argument_write rejected 3268ms expected @c0ec033db8e0+wt
 	cannot prove requires contract for call needs_one from outer: cell.value == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `middle`
 fail/contracts/runtime_requirement_after_guard_write rejected 5847ms expected @7912abbc354e
@@ -23175,6 +23177,7 @@ run/borrows/reference_local_binding_routes checked 11261ms check-target:macos_ar
 run/borrows/reference_result_call_binding checked 11177ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/returned_element_from_offset_view checked 3337ms check-target:macos_arm64 @137efb5802df
 run/borrows/runtime_index_bounded_borrow checked 11411ms check-target:macos_arm64 @a9ae30e1c334+wt
+run/borrows/runtime_index_scalar_write_descriptor_result checked 3081ms check-target:macos_arm64 @52ec8cdca916+wt
 run/borrows/shared_field_borrow checked 11475ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_indexed_read checked 12014ms check-target:macos_arm64 @a9ae30e1c334+wt
 run/borrows/shared_local_borrow checked 11726ms check-target:macos_arm64 @a9ae30e1c334+wt
