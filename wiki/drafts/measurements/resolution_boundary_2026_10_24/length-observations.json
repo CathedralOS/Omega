@@ -1,0 +1,4622 @@
+{
+  "omega_sha256": "a3fd536015acdf635f86b1e5f1447f549206c748d4ac4c5a93caa8216a648d57",
+  "runs": [
+    {
+      "role": "warmup",
+      "returncode": 0,
+      "elapsed_ns": 1668882900,
+      "native_exit": null,
+      "stages": [
+        {
+          "ms": 79.759,
+          "name": "prepare: project -> prepared sources"
+        },
+        {
+          "ms": 1383.528,
+          "name": "compile: sources -> requested product"
+        },
+        {
+          "ms": 16.773,
+          "name": "publish: retained product -> published product"
+        },
+        {
+          "ms": 16.655,
+          "name": "Source ingress: SourceFiles -> SyntaxTrees"
+        },
+        {
+          "ms": 55.414,
+          "name": "Step: assemble: PreparedSources -> AssembledSyntax"
+        },
+        {
+          "ms": 25.153,
+          "name": "Stage 03: SyntaxTrees -> SymbolResolvedTrees"
+        },
+        {
+          "ms": 46.039,
+          "name": "Stage 04: SymbolResolvedTrees -> TypedTrees"
+        },
+        {
+          "ms": 198.675,
+          "name": "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)"
+        },
+        {
+          "ms": 1094.274,
+          "name": "Stage 05: TypedTrees -> CheckedTrees"
+        },
+        {
+          "ms": 40.78,
+          "name": "Step: settle: CheckedTrees -> SelectedExecution"
+        },
+        {
+          "ms": 3.645,
+          "name": "terminal-production: CheckedTrees -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 3.368,
+          "name": "terminal-production/lowering: CheckedTrees -> LoweredPsi"
+        },
+        {
+          "ms": 0.0,
+          "name": "terminal-production/machine-selection: CheckedTrees -> TerminalMachine"
+        },
+        {
+          "ms": 0.156,
+          "name": "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi"
+        },
+        {
+          "ms": 0.02,
+          "name": "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt"
+        },
+        {
+          "ms": 0.079,
+          "name": "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 1490.5,
+          "name": "total elapsed"
+        }
+      ],
+      "phase_rows": [
+        {
+          "ms": 1094.265,
+          "count": 2,
+          "name": "05"
+        },
+        {
+          "ms": 0.005,
+          "count": 2,
+          "name": "05.a.source_completion"
+        },
+        {
+          "ms": 3.245,
+          "count": 2,
+          "name": "05.b.retained_input_clone"
+        },
+        {
+          "ms": 28.465,
+          "count": 2,
+          "name": "05.c.1.pre_specialization"
+        },
+        {
+          "ms": 66.944,
+          "count": 2,
+          "name": "05.c.2.specialization_loop"
+        },
+        {
+          "ms": 0.012,
+          "count": 2,
+          "name": "05.c.3.a.assembly_normalize"
+        },
+        {
+          "ms": 4.58,
+          "count": 2,
+          "name": "05.c.3.b.settle_value_destinations"
+        },
+        {
+          "ms": 0.005,
+          "count": 2,
+          "name": "05.c.3.c.default_domain_zero"
+        },
+        {
+          "ms": 2.261,
+          "count": 2,
+          "name": "05.c.3.d.constructed_result_types"
+        },
+        {
+          "ms": 13.863,
+          "count": 2,
+          "name": "05.c.3.e.data_applications"
+        },
+        {
+          "ms": 13.892,
+          "count": 2,
+          "name": "05.c.3.f.runtime_index_fields"
+        },
+        {
+          "ms": 0.365,
+          "count": 2,
+          "name": "05.c.3.g.dynamic_call_targets"
+        },
+        {
+          "ms": 1.294,
+          "count": 2,
+          "name": "05.c.3.h.dynamic_slots"
+        },
+        {
+          "ms": 18.097,
+          "count": 2,
+          "name": "05.c.3.i.requirement_applications"
+        },
+        {
+          "ms": 0.099,
+          "count": 2,
+          "name": "05.c.3.j.elaborate_new_types"
+        },
+        {
+          "ms": 2.24,
+          "count": 2,
+          "name": "05.c.3.k.assignment_destinations"
+        },
+        {
+          "ms": 0.002,
+          "count": 2,
+          "name": "05.c.3.l.zero_contexts"
+        },
+        {
+          "ms": 0.008,
+          "count": 2,
+          "name": "05.c.3.m.assembly_admit"
+        },
+        {
+          "ms": 35.335,
+          "count": 2,
+          "name": "05.c.3.n.mathematical_declarations"
+        },
+        {
+          "ms": 92.266,
+          "count": 2,
+          "name": "05.c.3.post_specialization"
+        },
+        {
+          "ms": 0.413,
+          "count": 2,
+          "name": "05.c.placement_lifecycle_plans"
+        },
+        {
+          "ms": 187.684,
+          "count": 2,
+          "name": "05.c.prepare_typed_trees"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.d.0.prior_equality"
+        },
+        {
+          "ms": 2.828,
+          "count": 2,
+          "name": "05.d.0.retained_program_clone"
+        },
+        {
+          "ms": 2.05,
+          "count": 2,
+          "name": "05.d.11_13.a.1.owner_index"
+        },
+        {
+          "ms": 0.03,
+          "count": 2,
+          "name": "05.d.11_13.a.2.root_bindings"
+        },
+        {
+          "ms": 1.832,
+          "count": 2,
+          "name": "05.d.11_13.a.3.expression_loop"
+        },
+        {
+          "ms": 0.016,
+          "count": 11,
+          "name": "05.d.11_13.a.3.member"
+        },
+        {
+          "ms": 1.518,
+          "count": 455,
+          "name": "05.d.11_13.a.3.operator"
+        },
+        {
+          "ms": 0.036,
+          "count": 2,
+          "name": "05.d.11_13.a.4.statement_selections"
+        },
+        {
+          "ms": 0.051,
+          "count": 2,
+          "name": "05.d.11_13.a.5.membership_selections"
+        },
+        {
+          "ms": 0.084,
+          "count": 2,
+          "name": "05.d.11_13.a.6.proof_view_calls"
+        },
+        {
+          "ms": 0.836,
+          "count": 2,
+          "name": "05.d.11_13.a.7.apply_resolutions"
+        },
+        {
+          "ms": 5.249,
+          "count": 2,
+          "name": "05.d.11_13.a.finalize_selections"
+        },
+        {
+          "ms": 0.211,
+          "count": 2,
+          "name": "05.d.11_13.b.visibility_and_cleanup_selections"
+        },
+        {
+          "ms": 6.307,
+          "count": 2,
+          "name": "05.d.11_13.c.reference_custody"
+        },
+        {
+          "ms": 12.85,
+          "count": 2,
+          "name": "05.d.11_13.d.content_classes"
+        },
+        {
+          "ms": 4.614,
+          "count": 2,
+          "name": "05.d.11_13.e.resolved_types"
+        },
+        {
+          "ms": 0.046,
+          "count": 2,
+          "name": "05.d.11_13.f.state_locals"
+        },
+        {
+          "ms": 0.282,
+          "count": 2,
+          "name": "05.d.11_13.g.provider_closed_requirements"
+        },
+        {
+          "ms": 2.921,
+          "count": 2,
+          "name": "05.d.11_13.h.boundary_and_portable_checks"
+        },
+        {
+          "ms": 32.719,
+          "count": 2,
+          "name": "05.d.11_13.selections_custody_types_boundaries"
+        },
+        {
+          "ms": 73.342,
+          "count": 2,
+          "name": "05.d.2.a.1.pre_machine_validators"
+        },
+        {
+          "ms": 0.074,
+          "count": 2,
+          "name": "05.d.2.a.1a.definition_fact_plan"
+        },
+        {
+          "ms": 0.247,
+          "count": 2,
+          "name": "05.d.2.a.1a2.proposition_entailment"
+        },
+        {
+          "ms": 5.296,
+          "count": 2,
+          "name": "05.d.2.a.1a2b.domains_and_signatures"
+        },
+        {
+          "ms": 0.626,
+          "count": 2,
+          "name": "05.d.2.a.1a3.operational_and_service_reaches"
+        },
+        {
+          "ms": 2.551,
+          "count": 2,
+          "name": "05.d.2.a.1a4b.data_and_proof_faces"
+        },
+        {
+          "ms": 0.439,
+          "count": 2,
+          "name": "05.d.2.a.1a5.call_cycles_and_properties"
+        },
+        {
+          "ms": 0.002,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.1.constants"
+        },
+        {
+          "ms": 33.398,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.2.struct_literals"
+        },
+        {
+          "ms": 0.077,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.3.destructure"
+        },
+        {
+          "ms": 33.48,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.constants_and_literals"
+        },
+        {
+          "ms": 19.911,
+          "count": 2,
+          "name": "05.d.2.a.1a5c.default_domain_writes"
+        },
+        {
+          "ms": 0.394,
+          "count": 2,
+          "name": "05.d.2.a.1a5d.recasts_wire_operators"
+        },
+        {
+          "ms": 2.465,
+          "count": 2,
+          "name": "05.d.2.a.1a6.static_machine_selections"
+        },
+        {
+          "ms": 0.181,
+          "count": 2,
+          "name": "05.d.2.a.1b.call_frame_resolver"
+        },
+        {
+          "ms": 235.724,
+          "count": 133,
+          "name": "05.d.2.a.2.machine.std_or_core"
+        },
+        {
+          "ms": 3.663,
+          "count": 4,
+          "name": "05.d.2.a.2.machine.user_or_other"
+        },
+        {
+          "ms": 53.02,
+          "count": 2,
+          "name": "05.d.2.a.2.machine_loop"
+        },
+        {
+          "ms": 53.072,
+          "count": 137,
+          "name": "05.d.2.a.2a.contract_entailment"
+        },
+        {
+          "ms": 179.986,
+          "count": 137,
+          "name": "05.d.2.a.2b.state_statements"
+        },
+        {
+          "ms": 0.446,
+          "count": 2,
+          "name": "05.d.2.a.3.post_machine_validators"
+        },
+        {
+          "ms": 126.834,
+          "count": 2,
+          "name": "05.d.2.a.validate"
+        },
+        {
+          "ms": 2.112,
+          "count": 2,
+          "name": "05.d.2.b.build_proof_plan"
+        },
+        {
+          "ms": 0.769,
+          "count": 2,
+          "name": "05.d.2.c.check_proof_plan"
+        },
+        {
+          "ms": 0.033,
+          "count": 2,
+          "name": "05.d.2.d.bare_boundary_trait_values"
+        },
+        {
+          "ms": 129.763,
+          "count": 2,
+          "name": "05.d.2.prepare_typed_program"
+        },
+        {
+          "ms": 48.968,
+          "count": 2,
+          "name": "05.d.3.a.pre_flow_facts"
+        },
+        {
+          "ms": 410.364,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point"
+        },
+        {
+          "ms": 319.993,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point.build_flow_facts"
+        },
+        {
+          "ms": 517.749,
+          "count": 2,
+          "name": "05.d.3.build_check_facts"
+        },
+        {
+          "ms": 16.499,
+          "count": 2,
+          "name": "05.d.3.c.1.scalar_and_index_plans"
+        },
+        {
+          "ms": 2.863,
+          "count": 2,
+          "name": "05.d.3.c.2.index_compatibility"
+        },
+        {
+          "ms": 1.184,
+          "count": 2,
+          "name": "05.d.3.c.3.cleanup_effects_and_reaches"
+        },
+        {
+          "ms": 3.58,
+          "count": 2,
+          "name": "05.d.3.c.4.admit_prepared_program_effects"
+        },
+        {
+          "ms": 34.029,
+          "count": 2,
+          "name": "05.d.3.c.5.post_admit_facts"
+        },
+        {
+          "ms": 6.378,
+          "count": 2,
+          "name": "05.d.3.c.5a.termination"
+        },
+        {
+          "ms": 15.311,
+          "count": 2,
+          "name": "05.d.3.c.5b.mutation_and_integer_writes"
+        },
+        {
+          "ms": 9.892,
+          "count": 2,
+          "name": "05.d.3.c.5c.contract_plans"
+        },
+        {
+          "ms": 58.343,
+          "count": 2,
+          "name": "05.d.3.c.post_flow_facts"
+        },
+        {
+          "ms": 1.034,
+          "count": 2,
+          "name": "05.d.4_6.quotients_borrows_identities"
+        },
+        {
+          "ms": 8.354,
+          "count": 2,
+          "name": "05.d.7.0.setup_guards_and_entailment"
+        },
+        {
+          "ms": 0.095,
+          "count": 2,
+          "name": "05.d.7.1.bind_call_evidence_arguments"
+        },
+        {
+          "ms": 41.142,
+          "count": 2,
+          "name": "05.d.7.2.check_flow_call_borrows"
+        },
+        {
+          "ms": 0.368,
+          "count": 2,
+          "name": "05.d.7.2b.runtime_indices_case_fences"
+        },
+        {
+          "ms": 1.357,
+          "count": 2,
+          "name": "05.d.7.3a.content_composition"
+        },
+        {
+          "ms": 1.112,
+          "count": 2,
+          "name": "05.d.7.3b.0.cleanup_requirements"
+        },
+        {
+          "ms": 0.041,
+          "count": 2,
+          "name": "05.d.7.3b.0b.assembly_and_refutations"
+        },
+        {
+          "ms": 15.78,
+          "count": 414,
+          "name": "05.d.7.3b.1.calls"
+        },
+        {
+          "ms": 0.654,
+          "count": 1,
+          "name": "05.d.7.3b.1.calls.req.boolean_proves"
+        },
+        {
+          "ms": 14.525,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.captured"
+        },
+        {
+          "ms": 0.005,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.membership"
+        },
+        {
+          "ms": 15.209,
+          "count": 16,
+          "name": "05.d.7.3b.1.calls.requires_loop"
+        },
+        {
+          "ms": 9.758,
+          "count": 18,
+          "name": "05.d.7.3b.1.cap.1_current_values"
+        },
+        {
+          "ms": 2.649,
+          "count": 15,
+          "name": "05.d.7.3b.1.cap.2_structural_req"
+        },
+        {
+          "ms": 0.246,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2c_judge_init"
+        },
+        {
+          "ms": 0.36,
+          "count": 11,
+          "name": "05.d.7.3b.1.cap.2d.citation"
+        },
+        {
+          "ms": 1.562,
+          "count": 109,
+          "name": "05.d.7.3b.1.cap.2d.local_init"
+        },
+        {
+          "ms": 16.138,
+          "count": 74,
+          "name": "05.d.7.3b.1.cap.2d.transitions"
+        },
+        {
+          "ms": 2.514,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2d_recognize"
+        },
+        {
+          "ms": 0.74,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2e_visit"
+        },
+        {
+          "ms": 0.031,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.3_captured_arith"
+        },
+        {
+          "ms": 0.021,
+          "count": 3,
+          "name": "05.d.7.3b.1.cap.4_prove_scalar"
+        },
+        {
+          "ms": 2.003,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.5_float_req"
+        },
+        {
+          "ms": 0.017,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.6_preserves_captures"
+        },
+        {
+          "ms": 19.56,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits"
+        },
+        {
+          "ms": 7.074,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.a.activation_return"
+        },
+        {
+          "ms": 0.011,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.b.boundary_refutations"
+        },
+        {
+          "ms": 0.069,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.c.scalar_result_domains"
+        },
+        {
+          "ms": 10.872,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.d.exit_ensures"
+        },
+        {
+          "ms": 1.198,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.e.result_field_domains"
+        },
+        {
+          "ms": 0.124,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.f.exclusive_referent_field_domains"
+        },
+        {
+          "ms": 2.805,
+          "count": 360,
+          "name": "05.d.7.3b.3.writes"
+        },
+        {
+          "ms": 40.014,
+          "count": 2,
+          "name": "05.d.7.3b.check_flow_call_contracts"
+        },
+        {
+          "ms": 5.281,
+          "count": 2,
+          "name": "05.d.7.4.check_linear_obligations"
+        },
+        {
+          "ms": 15.381,
+          "count": 2,
+          "name": "05.d.7.5_8.crashes_content_carry_operators"
+        },
+        {
+          "ms": 0.097,
+          "count": 17,
+          "name": "05.d.7.9.a.range_call_context"
+        },
+        {
+          "ms": 17.576,
+          "count": 8,
+          "name": "05.d.7.9.b.state_argument_facts"
+        },
+        {
+          "ms": 0.057,
+          "count": 17,
+          "name": "05.d.7.9.c.loop_invariant_facts"
+        },
+        {
+          "ms": 29.93,
+          "count": 2,
+          "name": "05.d.7.9.check_indexed_accesses"
+        },
+        {
+          "ms": 0.424,
+          "count": 49,
+          "name": "05.d.7.9.d.seed_state"
+        },
+        {
+          "ms": 11.464,
+          "count": 49,
+          "name": "05.d.7.9.e.check_statements"
+        },
+        {
+          "ms": 142.815,
+          "count": 2,
+          "name": "05.d.7.check_checked_facts"
+        },
+        {
+          "ms": 0.35,
+          "count": 2,
+          "name": "05.d.8_10.a.1.rank_and_terminal_machines"
+        },
+        {
+          "ms": 1.332,
+          "count": 2,
+          "name": "05.d.8_10.a.2.structural_control_cleanups"
+        },
+        {
+          "ms": 0.726,
+          "count": 2,
+          "name": "05.d.8_10.a.3.1.boundary_and_dynamic"
+        },
+        {
+          "ms": 54.783,
+          "count": 2,
+          "name": "05.d.8_10.a.3.2.candidate_bodies"
+        },
+        {
+          "ms": 1.262,
+          "count": 133,
+          "name": "05.d.8_10.a.3.2a.body_route"
+        },
+        {
+          "ms": 2.239,
+          "count": 66,
+          "name": "05.d.8_10.a.3.2b.sequence_body"
+        },
+        {
+          "ms": 0.099,
+          "count": 49,
+          "name": "05.d.8_10.a.3.2c.1.fused_and_ranks"
+        },
+        {
+          "ms": 8.333,
+          "count": 43,
+          "name": "05.d.8_10.a.3.2c.2.signatures"
+        },
+        {
+          "ms": 20.513,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3.sequence"
+        },
+        {
+          "ms": 0.804,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3a.outer_calls"
+        },
+        {
+          "ms": 19.358,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3b.statement_sequence"
+        },
+        {
+          "ms": 0.011,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b1.scalar_control"
+        },
+        {
+          "ms": 0.161,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b2.erased_locals"
+        },
+        {
+          "ms": 3.268,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b3.stores"
+        },
+        {
+          "ms": 14.133,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b4.statement_loop"
+        },
+        {
+          "ms": 2.286,
+          "count": 274,
+          "name": "05.d.8_10.a.3.2c.3b5.completion"
+        },
+        {
+          "ms": 3.897,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.4.terminator"
+        },
+        {
+          "ms": 5.992,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.5.result_custody"
+        },
+        {
+          "ms": 11.114,
+          "count": 42,
+          "name": "05.d.8_10.a.3.2c.6.parameter_custody_and_finish"
+        },
+        {
+          "ms": 51.221,
+          "count": 67,
+          "name": "05.d.8_10.a.3.2c.graph_body"
+        },
+        {
+          "ms": 2.828,
+          "count": 2,
+          "name": "05.d.8_10.a.3.3.cleanup_selections"
+        },
+        {
+          "ms": 0.206,
+          "count": 2,
+          "name": "05.d.8_10.a.3.4.candidate_closure"
+        },
+        {
+          "ms": 61.35,
+          "count": 2,
+          "name": "05.d.8_10.a.3.unit_effect_plans"
+        },
+        {
+          "ms": 0.764,
+          "count": 2,
+          "name": "05.d.8_10.a.4.nominal_affine_cleanups"
+        },
+        {
+          "ms": 68.8,
+          "count": 2,
+          "name": "05.d.8_10.a.finalize_execution"
+        },
+        {
+          "ms": 0.726,
+          "count": 2,
+          "name": "05.d.8_10.b.semantic_dependencies"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.8_10.c.accepted_template_identities"
+        },
+        {
+          "ms": 72.811,
+          "count": 2,
+          "name": "05.d.8_10.finalize_execution_identities"
+        },
+        {
+          "ms": 902.879,
+          "count": 2,
+          "name": "05.d.lower_typed_trees"
+        },
+        {
+          "ms": 0.498,
+          "count": 2,
+          "name": "05.e.declaration_authority"
+        },
+        {
+          "ms": 21.208,
+          "count": 43,
+          "name": "typed_trees::collect_program_references"
+        },
+        {
+          "ms": 0.416,
+          "count": 18,
+          "name": "typed_trees::program_proof_facts"
+        }
+      ],
+      "probes": [
+        {
+          "kind": "clone",
+          "label": "syntax_forest",
+          "ns": 148100,
+          "rows": 72
+        },
+        {
+          "kind": "scope",
+          "label": "retain_applied_results",
+          "ns": 14600
+        },
+        {
+          "kind": "scope",
+          "label": "pre_resolution",
+          "ns": 20233200
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 503000,
+          "rows": 541
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 712600
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 13076300
+        },
+        {
+          "kind": "scope",
+          "label": "prepare",
+          "ns": 61195600
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 1910700,
+          "rows": 5052
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 1293800,
+          "rows": 5052
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 1679300
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 5847300
+        }
+      ],
+      "stderr_tail": "   902.879 ms         2 x  05.d.lower_typed_trees\n     0.498 ms         2 x  05.e.declaration_authority\n       24460 n  05.ordered_relations.edges\n        3423 n  05.ordered_relations.graphs\n        3101 n  05.ordered_relations.rows\n       20704 n  05.ordered_relations.vertices\n    21.208 ms        43 x  typed_trees::collect_program_references\n     0.416 ms        18 x  typed_trees::program_proof_facts"
+    },
+    {
+      "role": "measured",
+      "returncode": 0,
+      "elapsed_ns": 1294296000,
+      "native_exit": 0,
+      "stages": [
+        {
+          "ms": 31.985,
+          "name": "prepare: project -> prepared sources"
+        },
+        {
+          "ms": 1130.397,
+          "name": "compile: sources -> requested product"
+        },
+        {
+          "ms": 2.811,
+          "name": "publish: retained product -> published product"
+        },
+        {
+          "ms": 9.57,
+          "name": "Source ingress: SourceFiles -> SyntaxTrees"
+        },
+        {
+          "ms": 26.993,
+          "name": "Step: assemble: PreparedSources -> AssembledSyntax"
+        },
+        {
+          "ms": 17.432,
+          "name": "Stage 03: SyntaxTrees -> SymbolResolvedTrees"
+        },
+        {
+          "ms": 27.822,
+          "name": "Stage 04: SymbolResolvedTrees -> TypedTrees"
+        },
+        {
+          "ms": 135.17,
+          "name": "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)"
+        },
+        {
+          "ms": 934.173,
+          "name": "Stage 05: TypedTrees -> CheckedTrees"
+        },
+        {
+          "ms": 46.253,
+          "name": "Step: settle: CheckedTrees -> SelectedExecution"
+        },
+        {
+          "ms": 3.201,
+          "name": "terminal-production: CheckedTrees -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 2.955,
+          "name": "terminal-production/lowering: CheckedTrees -> LoweredPsi"
+        },
+        {
+          "ms": 0.0,
+          "name": "terminal-production/machine-selection: CheckedTrees -> TerminalMachine"
+        },
+        {
+          "ms": 0.137,
+          "name": "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi"
+        },
+        {
+          "ms": 0.018,
+          "name": "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt"
+        },
+        {
+          "ms": 0.069,
+          "name": "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 1167.408,
+          "name": "total elapsed"
+        }
+      ],
+      "phase_rows": [
+        {
+          "ms": 934.168,
+          "count": 2,
+          "name": "05"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.a.source_completion"
+        },
+        {
+          "ms": 2.038,
+          "count": 2,
+          "name": "05.b.retained_input_clone"
+        },
+        {
+          "ms": 13.361,
+          "count": 2,
+          "name": "05.c.1.pre_specialization"
+        },
+        {
+          "ms": 38.83,
+          "count": 2,
+          "name": "05.c.2.specialization_loop"
+        },
+        {
+          "ms": 0.009,
+          "count": 2,
+          "name": "05.c.3.a.assembly_normalize"
+        },
+        {
+          "ms": 2.838,
+          "count": 2,
+          "name": "05.c.3.b.settle_value_destinations"
+        },
+        {
+          "ms": 0.003,
+          "count": 2,
+          "name": "05.c.3.c.default_domain_zero"
+        },
+        {
+          "ms": 1.348,
+          "count": 2,
+          "name": "05.c.3.d.constructed_result_types"
+        },
+        {
+          "ms": 8.905,
+          "count": 2,
+          "name": "05.c.3.e.data_applications"
+        },
+        {
+          "ms": 9.037,
+          "count": 2,
+          "name": "05.c.3.f.runtime_index_fields"
+        },
+        {
+          "ms": 0.116,
+          "count": 2,
+          "name": "05.c.3.g.dynamic_call_targets"
+        },
+        {
+          "ms": 0.8,
+          "count": 2,
+          "name": "05.c.3.h.dynamic_slots"
+        },
+        {
+          "ms": 10.834,
+          "count": 2,
+          "name": "05.c.3.i.requirement_applications"
+        },
+        {
+          "ms": 0.06,
+          "count": 2,
+          "name": "05.c.3.j.elaborate_new_types"
+        },
+        {
+          "ms": 1.164,
+          "count": 2,
+          "name": "05.c.3.k.assignment_destinations"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.c.3.l.zero_contexts"
+        },
+        {
+          "ms": 0.003,
+          "count": 2,
+          "name": "05.c.3.m.assembly_admit"
+        },
+        {
+          "ms": 27.715,
+          "count": 2,
+          "name": "05.c.3.n.mathematical_declarations"
+        },
+        {
+          "ms": 62.987,
+          "count": 2,
+          "name": "05.c.3.post_specialization"
+        },
+        {
+          "ms": 0.346,
+          "count": 2,
+          "name": "05.c.placement_lifecycle_plans"
+        },
+        {
+          "ms": 115.183,
+          "count": 2,
+          "name": "05.c.prepare_typed_trees"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.d.0.prior_equality"
+        },
+        {
+          "ms": 1.933,
+          "count": 2,
+          "name": "05.d.0.retained_program_clone"
+        },
+        {
+          "ms": 1.798,
+          "count": 2,
+          "name": "05.d.11_13.a.1.owner_index"
+        },
+        {
+          "ms": 0.016,
+          "count": 2,
+          "name": "05.d.11_13.a.2.root_bindings"
+        },
+        {
+          "ms": 1.589,
+          "count": 2,
+          "name": "05.d.11_13.a.3.expression_loop"
+        },
+        {
+          "ms": 0.013,
+          "count": 11,
+          "name": "05.d.11_13.a.3.member"
+        },
+        {
+          "ms": 1.313,
+          "count": 455,
+          "name": "05.d.11_13.a.3.operator"
+        },
+        {
+          "ms": 0.036,
+          "count": 2,
+          "name": "05.d.11_13.a.4.statement_selections"
+        },
+        {
+          "ms": 0.062,
+          "count": 2,
+          "name": "05.d.11_13.a.5.membership_selections"
+        },
+        {
+          "ms": 0.102,
+          "count": 2,
+          "name": "05.d.11_13.a.6.proof_view_calls"
+        },
+        {
+          "ms": 0.725,
+          "count": 2,
+          "name": "05.d.11_13.a.7.apply_resolutions"
+        },
+        {
+          "ms": 4.612,
+          "count": 2,
+          "name": "05.d.11_13.a.finalize_selections"
+        },
+        {
+          "ms": 0.155,
+          "count": 2,
+          "name": "05.d.11_13.b.visibility_and_cleanup_selections"
+        },
+        {
+          "ms": 5.89,
+          "count": 2,
+          "name": "05.d.11_13.c.reference_custody"
+        },
+        {
+          "ms": 12.63,
+          "count": 2,
+          "name": "05.d.11_13.d.content_classes"
+        },
+        {
+          "ms": 4.388,
+          "count": 2,
+          "name": "05.d.11_13.e.resolved_types"
+        },
+        {
+          "ms": 0.037,
+          "count": 2,
+          "name": "05.d.11_13.f.state_locals"
+        },
+        {
+          "ms": 0.262,
+          "count": 2,
+          "name": "05.d.11_13.g.provider_closed_requirements"
+        },
+        {
+          "ms": 2.868,
+          "count": 2,
+          "name": "05.d.11_13.h.boundary_and_portable_checks"
+        },
+        {
+          "ms": 31.056,
+          "count": 2,
+          "name": "05.d.11_13.selections_custody_types_boundaries"
+        },
+        {
+          "ms": 52.736,
+          "count": 2,
+          "name": "05.d.2.a.1.pre_machine_validators"
+        },
+        {
+          "ms": 0.05,
+          "count": 2,
+          "name": "05.d.2.a.1a.definition_fact_plan"
+        },
+        {
+          "ms": 0.173,
+          "count": 2,
+          "name": "05.d.2.a.1a2.proposition_entailment"
+        },
+        {
+          "ms": 4.664,
+          "count": 2,
+          "name": "05.d.2.a.1a2b.domains_and_signatures"
+        },
+        {
+          "ms": 0.61,
+          "count": 2,
+          "name": "05.d.2.a.1a3.operational_and_service_reaches"
+        },
+        {
+          "ms": 2.102,
+          "count": 2,
+          "name": "05.d.2.a.1a4b.data_and_proof_faces"
+        },
+        {
+          "ms": 0.48,
+          "count": 2,
+          "name": "05.d.2.a.1a5.call_cycles_and_properties"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.1.constants"
+        },
+        {
+          "ms": 24.93,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.2.struct_literals"
+        },
+        {
+          "ms": 0.067,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.3.destructure"
+        },
+        {
+          "ms": 24.999,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.constants_and_literals"
+        },
+        {
+          "ms": 11.644,
+          "count": 2,
+          "name": "05.d.2.a.1a5c.default_domain_writes"
+        },
+        {
+          "ms": 0.265,
+          "count": 2,
+          "name": "05.d.2.a.1a5d.recasts_wire_operators"
+        },
+        {
+          "ms": 1.744,
+          "count": 2,
+          "name": "05.d.2.a.1a6.static_machine_selections"
+        },
+        {
+          "ms": 0.123,
+          "count": 2,
+          "name": "05.d.2.a.1b.call_frame_resolver"
+        },
+        {
+          "ms": 223.719,
+          "count": 133,
+          "name": "05.d.2.a.2.machine.std_or_core"
+        },
+        {
+          "ms": 5.346,
+          "count": 4,
+          "name": "05.d.2.a.2.machine.user_or_other"
+        },
+        {
+          "ms": 46.842,
+          "count": 2,
+          "name": "05.d.2.a.2.machine_loop"
+        },
+        {
+          "ms": 50.93,
+          "count": 137,
+          "name": "05.d.2.a.2a.contract_entailment"
+        },
+        {
+          "ms": 168.296,
+          "count": 137,
+          "name": "05.d.2.a.2b.state_statements"
+        },
+        {
+          "ms": 0.547,
+          "count": 2,
+          "name": "05.d.2.a.3.post_machine_validators"
+        },
+        {
+          "ms": 100.147,
+          "count": 2,
+          "name": "05.d.2.a.validate"
+        },
+        {
+          "ms": 1.836,
+          "count": 2,
+          "name": "05.d.2.b.build_proof_plan"
+        },
+        {
+          "ms": 0.737,
+          "count": 2,
+          "name": "05.d.2.c.check_proof_plan"
+        },
+        {
+          "ms": 0.03,
+          "count": 2,
+          "name": "05.d.2.d.bare_boundary_trait_values"
+        },
+        {
+          "ms": 102.761,
+          "count": 2,
+          "name": "05.d.2.prepare_typed_program"
+        },
+        {
+          "ms": 40.034,
+          "count": 2,
+          "name": "05.d.3.a.pre_flow_facts"
+        },
+        {
+          "ms": 393.563,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point"
+        },
+        {
+          "ms": 311.226,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point.build_flow_facts"
+        },
+        {
+          "ms": 485.731,
+          "count": 2,
+          "name": "05.d.3.build_check_facts"
+        },
+        {
+          "ms": 16.593,
+          "count": 2,
+          "name": "05.d.3.c.1.scalar_and_index_plans"
+        },
+        {
+          "ms": 2.621,
+          "count": 2,
+          "name": "05.d.3.c.2.index_compatibility"
+        },
+        {
+          "ms": 0.832,
+          "count": 2,
+          "name": "05.d.3.c.3.cleanup_effects_and_reaches"
+        },
+        {
+          "ms": 3.003,
+          "count": 2,
+          "name": "05.d.3.c.4.admit_prepared_program_effects"
+        },
+        {
+          "ms": 28.906,
+          "count": 2,
+          "name": "05.d.3.c.5.post_admit_facts"
+        },
+        {
+          "ms": 6.426,
+          "count": 2,
+          "name": "05.d.3.c.5a.termination"
+        },
+        {
+          "ms": 12.851,
+          "count": 2,
+          "name": "05.d.3.c.5b.mutation_and_integer_writes"
+        },
+        {
+          "ms": 7.768,
+          "count": 2,
+          "name": "05.d.3.c.5c.contract_plans"
+        },
+        {
+          "ms": 52.069,
+          "count": 2,
+          "name": "05.d.3.c.post_flow_facts"
+        },
+        {
+          "ms": 0.888,
+          "count": 2,
+          "name": "05.d.4_6.quotients_borrows_identities"
+        },
+        {
+          "ms": 6.457,
+          "count": 2,
+          "name": "05.d.7.0.setup_guards_and_entailment"
+        },
+        {
+          "ms": 0.097,
+          "count": 2,
+          "name": "05.d.7.1.bind_call_evidence_arguments"
+        },
+        {
+          "ms": 34.742,
+          "count": 2,
+          "name": "05.d.7.2.check_flow_call_borrows"
+        },
+        {
+          "ms": 0.327,
+          "count": 2,
+          "name": "05.d.7.2b.runtime_indices_case_fences"
+        },
+        {
+          "ms": 1.238,
+          "count": 2,
+          "name": "05.d.7.3a.content_composition"
+        },
+        {
+          "ms": 1.005,
+          "count": 2,
+          "name": "05.d.7.3b.0.cleanup_requirements"
+        },
+        {
+          "ms": 0.04,
+          "count": 2,
+          "name": "05.d.7.3b.0b.assembly_and_refutations"
+        },
+        {
+          "ms": 13.33,
+          "count": 414,
+          "name": "05.d.7.3b.1.calls"
+        },
+        {
+          "ms": 0.602,
+          "count": 1,
+          "name": "05.d.7.3b.1.calls.req.boolean_proves"
+        },
+        {
+          "ms": 12.223,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.captured"
+        },
+        {
+          "ms": 0.004,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.membership"
+        },
+        {
+          "ms": 12.851,
+          "count": 16,
+          "name": "05.d.7.3b.1.calls.requires_loop"
+        },
+        {
+          "ms": 8.546,
+          "count": 18,
+          "name": "05.d.7.3b.1.cap.1_current_values"
+        },
+        {
+          "ms": 2.307,
+          "count": 15,
+          "name": "05.d.7.3b.1.cap.2_structural_req"
+        },
+        {
+          "ms": 0.209,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2c_judge_init"
+        },
+        {
+          "ms": 0.32,
+          "count": 11,
+          "name": "05.d.7.3b.1.cap.2d.citation"
+        },
+        {
+          "ms": 1.582,
+          "count": 109,
+          "name": "05.d.7.3b.1.cap.2d.local_init"
+        },
+        {
+          "ms": 14.923,
+          "count": 74,
+          "name": "05.d.7.3b.1.cap.2d.transitions"
+        },
+        {
+          "ms": 2.226,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2d_recognize"
+        },
+        {
+          "ms": 0.644,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2e_visit"
+        },
+        {
+          "ms": 0.026,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.3_captured_arith"
+        },
+        {
+          "ms": 0.012,
+          "count": 3,
+          "name": "05.d.7.3b.1.cap.4_prove_scalar"
+        },
+        {
+          "ms": 1.285,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.5_float_req"
+        },
+        {
+          "ms": 0.011,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.6_preserves_captures"
+        },
+        {
+          "ms": 18.774,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits"
+        },
+        {
+          "ms": 7.167,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.a.activation_return"
+        },
+        {
+          "ms": 0.01,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.b.boundary_refutations"
+        },
+        {
+          "ms": 0.065,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.c.scalar_result_domains"
+        },
+        {
+          "ms": 10.007,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.d.exit_ensures"
+        },
+        {
+          "ms": 1.214,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.e.result_field_domains"
+        },
+        {
+          "ms": 0.113,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.f.exclusive_referent_field_domains"
+        },
+        {
+          "ms": 2.815,
+          "count": 360,
+          "name": "05.d.7.3b.3.writes"
+        },
+        {
+          "ms": 36.637,
+          "count": 2,
+          "name": "05.d.7.3b.check_flow_call_contracts"
+        },
+        {
+          "ms": 5.117,
+          "count": 2,
+          "name": "05.d.7.4.check_linear_obligations"
+        },
+        {
+          "ms": 12.075,
+          "count": 2,
+          "name": "05.d.7.5_8.crashes_content_carry_operators"
+        },
+        {
+          "ms": 0.058,
+          "count": 17,
+          "name": "05.d.7.9.a.range_call_context"
+        },
+        {
+          "ms": 13.107,
+          "count": 8,
+          "name": "05.d.7.9.b.state_argument_facts"
+        },
+        {
+          "ms": 0.047,
+          "count": 17,
+          "name": "05.d.7.9.c.loop_invariant_facts"
+        },
+        {
+          "ms": 21.28,
+          "count": 2,
+          "name": "05.d.7.9.check_indexed_accesses"
+        },
+        {
+          "ms": 0.313,
+          "count": 49,
+          "name": "05.d.7.9.d.seed_state"
+        },
+        {
+          "ms": 7.561,
+          "count": 49,
+          "name": "05.d.7.9.e.check_statements"
+        },
+        {
+          "ms": 118.71,
+          "count": 2,
+          "name": "05.d.7.check_checked_facts"
+        },
+        {
+          "ms": 0.205,
+          "count": 2,
+          "name": "05.d.8_10.a.1.rank_and_terminal_machines"
+        },
+        {
+          "ms": 1.325,
+          "count": 2,
+          "name": "05.d.8_10.a.2.structural_control_cleanups"
+        },
+        {
+          "ms": 0.868,
+          "count": 2,
+          "name": "05.d.8_10.a.3.1.boundary_and_dynamic"
+        },
+        {
+          "ms": 55.614,
+          "count": 2,
+          "name": "05.d.8_10.a.3.2.candidate_bodies"
+        },
+        {
+          "ms": 1.239,
+          "count": 133,
+          "name": "05.d.8_10.a.3.2a.body_route"
+        },
+        {
+          "ms": 1.976,
+          "count": 66,
+          "name": "05.d.8_10.a.3.2b.sequence_body"
+        },
+        {
+          "ms": 0.106,
+          "count": 49,
+          "name": "05.d.8_10.a.3.2c.1.fused_and_ranks"
+        },
+        {
+          "ms": 6.731,
+          "count": 43,
+          "name": "05.d.8_10.a.3.2c.2.signatures"
+        },
+        {
+          "ms": 18.53,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3.sequence"
+        },
+        {
+          "ms": 0.66,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3a.outer_calls"
+        },
+        {
+          "ms": 17.598,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3b.statement_sequence"
+        },
+        {
+          "ms": 0.009,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b1.scalar_control"
+        },
+        {
+          "ms": 0.13,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b2.erased_locals"
+        },
+        {
+          "ms": 3.144,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b3.stores"
+        },
+        {
+          "ms": 12.54,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b4.statement_loop"
+        },
+        {
+          "ms": 2.233,
+          "count": 274,
+          "name": "05.d.8_10.a.3.2c.3b5.completion"
+        },
+        {
+          "ms": 3.212,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.4.terminator"
+        },
+        {
+          "ms": 12.527,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.5.result_custody"
+        },
+        {
+          "ms": 10.119,
+          "count": 42,
+          "name": "05.d.8_10.a.3.2c.6.parameter_custody_and_finish"
+        },
+        {
+          "ms": 52.331,
+          "count": 67,
+          "name": "05.d.8_10.a.3.2c.graph_body"
+        },
+        {
+          "ms": 2.445,
+          "count": 2,
+          "name": "05.d.8_10.a.3.3.cleanup_selections"
+        },
+        {
+          "ms": 0.14,
+          "count": 2,
+          "name": "05.d.8_10.a.3.4.candidate_closure"
+        },
+        {
+          "ms": 61.552,
+          "count": 2,
+          "name": "05.d.8_10.a.3.unit_effect_plans"
+        },
+        {
+          "ms": 0.625,
+          "count": 2,
+          "name": "05.d.8_10.a.4.nominal_affine_cleanups"
+        },
+        {
+          "ms": 69.174,
+          "count": 2,
+          "name": "05.d.8_10.a.finalize_execution"
+        },
+        {
+          "ms": 0.725,
+          "count": 2,
+          "name": "05.d.8_10.b.semantic_dependencies"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.8_10.c.accepted_template_identities"
+        },
+        {
+          "ms": 72.849,
+          "count": 2,
+          "name": "05.d.8_10.finalize_execution_identities"
+        },
+        {
+          "ms": 816.573,
+          "count": 2,
+          "name": "05.d.lower_typed_trees"
+        },
+        {
+          "ms": 0.373,
+          "count": 2,
+          "name": "05.e.declaration_authority"
+        },
+        {
+          "ms": 9.451,
+          "count": 43,
+          "name": "typed_trees::collect_program_references"
+        },
+        {
+          "ms": 0.394,
+          "count": 18,
+          "name": "typed_trees::program_proof_facts"
+        }
+      ],
+      "probes": [
+        {
+          "kind": "clone",
+          "label": "syntax_forest",
+          "ns": 114400,
+          "rows": 72
+        },
+        {
+          "kind": "scope",
+          "label": "retain_applied_results",
+          "ns": 11700
+        },
+        {
+          "kind": "scope",
+          "label": "pre_resolution",
+          "ns": 15510300
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 394700,
+          "rows": 541
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 621500
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 9141500
+        },
+        {
+          "kind": "scope",
+          "label": "prepare",
+          "ns": 48017700
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 667700,
+          "rows": 5052
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 549300,
+          "rows": 5052
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 772000
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 3299200
+        }
+      ],
+      "stderr_tail": "   816.573 ms         2 x  05.d.lower_typed_trees\n     0.373 ms         2 x  05.e.declaration_authority\n       24460 n  05.ordered_relations.edges\n        3423 n  05.ordered_relations.graphs\n        3101 n  05.ordered_relations.rows\n       20704 n  05.ordered_relations.vertices\n     9.451 ms        43 x  typed_trees::collect_program_references\n     0.394 ms        18 x  typed_trees::program_proof_facts"
+    },
+    {
+      "role": "measured",
+      "returncode": 0,
+      "elapsed_ns": 1244659300,
+      "native_exit": 0,
+      "stages": [
+        {
+          "ms": 28.933,
+          "name": "prepare: project -> prepared sources"
+        },
+        {
+          "ms": 1122.12,
+          "name": "compile: sources -> requested product"
+        },
+        {
+          "ms": 2.861,
+          "name": "publish: retained product -> published product"
+        },
+        {
+          "ms": 9.024,
+          "name": "Source ingress: SourceFiles -> SyntaxTrees"
+        },
+        {
+          "ms": 22.934,
+          "name": "Step: assemble: PreparedSources -> AssembledSyntax"
+        },
+        {
+          "ms": 14.882,
+          "name": "Stage 03: SyntaxTrees -> SymbolResolvedTrees"
+        },
+        {
+          "ms": 26.785,
+          "name": "Stage 04: SymbolResolvedTrees -> TypedTrees"
+        },
+        {
+          "ms": 133.531,
+          "name": "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)"
+        },
+        {
+          "ms": 939.406,
+          "name": "Stage 05: TypedTrees -> CheckedTrees"
+        },
+        {
+          "ms": 39.485,
+          "name": "Step: settle: CheckedTrees -> SelectedExecution"
+        },
+        {
+          "ms": 3.375,
+          "name": "terminal-production: CheckedTrees -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 3.117,
+          "name": "terminal-production/lowering: CheckedTrees -> LoweredPsi"
+        },
+        {
+          "ms": 0.0,
+          "name": "terminal-production/machine-selection: CheckedTrees -> TerminalMachine"
+        },
+        {
+          "ms": 0.136,
+          "name": "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi"
+        },
+        {
+          "ms": 0.019,
+          "name": "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt"
+        },
+        {
+          "ms": 0.078,
+          "name": "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 1155.845,
+          "name": "total elapsed"
+        }
+      ],
+      "phase_rows": [
+        {
+          "ms": 939.4,
+          "count": 2,
+          "name": "05"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.a.source_completion"
+        },
+        {
+          "ms": 1.915,
+          "count": 2,
+          "name": "05.b.retained_input_clone"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.b.retained_match"
+        },
+        {
+          "ms": 14.645,
+          "count": 2,
+          "name": "05.c.1.pre_specialization"
+        },
+        {
+          "ms": 40.568,
+          "count": 2,
+          "name": "05.c.2.specialization_loop"
+        },
+        {
+          "ms": 0.009,
+          "count": 2,
+          "name": "05.c.3.a.assembly_normalize"
+        },
+        {
+          "ms": 2.894,
+          "count": 2,
+          "name": "05.c.3.b.settle_value_destinations"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.c.3.c.default_domain_zero"
+        },
+        {
+          "ms": 1.506,
+          "count": 2,
+          "name": "05.c.3.d.constructed_result_types"
+        },
+        {
+          "ms": 10.148,
+          "count": 2,
+          "name": "05.c.3.e.data_applications"
+        },
+        {
+          "ms": 9.137,
+          "count": 2,
+          "name": "05.c.3.f.runtime_index_fields"
+        },
+        {
+          "ms": 0.183,
+          "count": 2,
+          "name": "05.c.3.g.dynamic_call_targets"
+        },
+        {
+          "ms": 0.826,
+          "count": 2,
+          "name": "05.c.3.h.dynamic_slots"
+        },
+        {
+          "ms": 11.252,
+          "count": 2,
+          "name": "05.c.3.i.requirement_applications"
+        },
+        {
+          "ms": 0.065,
+          "count": 2,
+          "name": "05.c.3.j.elaborate_new_types"
+        },
+        {
+          "ms": 1.227,
+          "count": 2,
+          "name": "05.c.3.k.assignment_destinations"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.c.3.l.zero_contexts"
+        },
+        {
+          "ms": 0.003,
+          "count": 2,
+          "name": "05.c.3.m.assembly_admit"
+        },
+        {
+          "ms": 29.176,
+          "count": 2,
+          "name": "05.c.3.n.mathematical_declarations"
+        },
+        {
+          "ms": 66.606,
+          "count": 2,
+          "name": "05.c.3.post_specialization"
+        },
+        {
+          "ms": 0.404,
+          "count": 2,
+          "name": "05.c.placement_lifecycle_plans"
+        },
+        {
+          "ms": 121.825,
+          "count": 2,
+          "name": "05.c.prepare_typed_trees"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.d.0.prior_equality"
+        },
+        {
+          "ms": 2.35,
+          "count": 2,
+          "name": "05.d.0.retained_program_clone"
+        },
+        {
+          "ms": 1.825,
+          "count": 2,
+          "name": "05.d.11_13.a.1.owner_index"
+        },
+        {
+          "ms": 0.015,
+          "count": 2,
+          "name": "05.d.11_13.a.2.root_bindings"
+        },
+        {
+          "ms": 2.288,
+          "count": 2,
+          "name": "05.d.11_13.a.3.expression_loop"
+        },
+        {
+          "ms": 0.029,
+          "count": 11,
+          "name": "05.d.11_13.a.3.member"
+        },
+        {
+          "ms": 1.915,
+          "count": 455,
+          "name": "05.d.11_13.a.3.operator"
+        },
+        {
+          "ms": 0.03,
+          "count": 2,
+          "name": "05.d.11_13.a.4.statement_selections"
+        },
+        {
+          "ms": 0.049,
+          "count": 2,
+          "name": "05.d.11_13.a.5.membership_selections"
+        },
+        {
+          "ms": 0.089,
+          "count": 2,
+          "name": "05.d.11_13.a.6.proof_view_calls"
+        },
+        {
+          "ms": 0.523,
+          "count": 2,
+          "name": "05.d.11_13.a.7.apply_resolutions"
+        },
+        {
+          "ms": 5.227,
+          "count": 2,
+          "name": "05.d.11_13.a.finalize_selections"
+        },
+        {
+          "ms": 0.174,
+          "count": 2,
+          "name": "05.d.11_13.b.visibility_and_cleanup_selections"
+        },
+        {
+          "ms": 6.322,
+          "count": 2,
+          "name": "05.d.11_13.c.reference_custody"
+        },
+        {
+          "ms": 12.834,
+          "count": 2,
+          "name": "05.d.11_13.d.content_classes"
+        },
+        {
+          "ms": 4.279,
+          "count": 2,
+          "name": "05.d.11_13.e.resolved_types"
+        },
+        {
+          "ms": 0.045,
+          "count": 2,
+          "name": "05.d.11_13.f.state_locals"
+        },
+        {
+          "ms": 0.198,
+          "count": 2,
+          "name": "05.d.11_13.g.provider_closed_requirements"
+        },
+        {
+          "ms": 2.925,
+          "count": 2,
+          "name": "05.d.11_13.h.boundary_and_portable_checks"
+        },
+        {
+          "ms": 32.225,
+          "count": 2,
+          "name": "05.d.11_13.selections_custody_types_boundaries"
+        },
+        {
+          "ms": 57.003,
+          "count": 2,
+          "name": "05.d.2.a.1.pre_machine_validators"
+        },
+        {
+          "ms": 0.062,
+          "count": 2,
+          "name": "05.d.2.a.1a.definition_fact_plan"
+        },
+        {
+          "ms": 0.208,
+          "count": 2,
+          "name": "05.d.2.a.1a2.proposition_entailment"
+        },
+        {
+          "ms": 4.566,
+          "count": 2,
+          "name": "05.d.2.a.1a2b.domains_and_signatures"
+        },
+        {
+          "ms": 0.635,
+          "count": 2,
+          "name": "05.d.2.a.1a3.operational_and_service_reaches"
+        },
+        {
+          "ms": 1.858,
+          "count": 2,
+          "name": "05.d.2.a.1a4b.data_and_proof_faces"
+        },
+        {
+          "ms": 0.498,
+          "count": 2,
+          "name": "05.d.2.a.1a5.call_cycles_and_properties"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.1.constants"
+        },
+        {
+          "ms": 25.374,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.2.struct_literals"
+        },
+        {
+          "ms": 0.052,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.3.destructure"
+        },
+        {
+          "ms": 25.429,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.constants_and_literals"
+        },
+        {
+          "ms": 13.528,
+          "count": 2,
+          "name": "05.d.2.a.1a5c.default_domain_writes"
+        },
+        {
+          "ms": 0.266,
+          "count": 2,
+          "name": "05.d.2.a.1a5d.recasts_wire_operators"
+        },
+        {
+          "ms": 1.986,
+          "count": 2,
+          "name": "05.d.2.a.1a6.static_machine_selections"
+        },
+        {
+          "ms": 0.149,
+          "count": 2,
+          "name": "05.d.2.a.1b.call_frame_resolver"
+        },
+        {
+          "ms": 213.29,
+          "count": 133,
+          "name": "05.d.2.a.2.machine.std_or_core"
+        },
+        {
+          "ms": 4.0,
+          "count": 4,
+          "name": "05.d.2.a.2.machine.user_or_other"
+        },
+        {
+          "ms": 40.506,
+          "count": 2,
+          "name": "05.d.2.a.2.machine_loop"
+        },
+        {
+          "ms": 43.62,
+          "count": 137,
+          "name": "05.d.2.a.2a.contract_entailment"
+        },
+        {
+          "ms": 165.744,
+          "count": 137,
+          "name": "05.d.2.a.2b.state_statements"
+        },
+        {
+          "ms": 0.486,
+          "count": 2,
+          "name": "05.d.2.a.3.post_machine_validators"
+        },
+        {
+          "ms": 98.014,
+          "count": 2,
+          "name": "05.d.2.a.validate"
+        },
+        {
+          "ms": 1.657,
+          "count": 2,
+          "name": "05.d.2.b.build_proof_plan"
+        },
+        {
+          "ms": 0.567,
+          "count": 2,
+          "name": "05.d.2.c.check_proof_plan"
+        },
+        {
+          "ms": 0.025,
+          "count": 2,
+          "name": "05.d.2.d.bare_boundary_trait_values"
+        },
+        {
+          "ms": 100.269,
+          "count": 2,
+          "name": "05.d.2.prepare_typed_program"
+        },
+        {
+          "ms": 36.115,
+          "count": 2,
+          "name": "05.d.3.a.pre_flow_facts"
+        },
+        {
+          "ms": 399.135,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point"
+        },
+        {
+          "ms": 315.363,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point.build_flow_facts"
+        },
+        {
+          "ms": 485.563,
+          "count": 2,
+          "name": "05.d.3.build_check_facts"
+        },
+        {
+          "ms": 15.162,
+          "count": 2,
+          "name": "05.d.3.c.1.scalar_and_index_plans"
+        },
+        {
+          "ms": 2.857,
+          "count": 2,
+          "name": "05.d.3.c.2.index_compatibility"
+        },
+        {
+          "ms": 0.886,
+          "count": 2,
+          "name": "05.d.3.c.3.cleanup_effects_and_reaches"
+        },
+        {
+          "ms": 2.759,
+          "count": 2,
+          "name": "05.d.3.c.4.admit_prepared_program_effects"
+        },
+        {
+          "ms": 28.441,
+          "count": 2,
+          "name": "05.d.3.c.5.post_admit_facts"
+        },
+        {
+          "ms": 6.066,
+          "count": 2,
+          "name": "05.d.3.c.5a.termination"
+        },
+        {
+          "ms": 12.687,
+          "count": 2,
+          "name": "05.d.3.c.5b.mutation_and_integer_writes"
+        },
+        {
+          "ms": 7.717,
+          "count": 2,
+          "name": "05.d.3.c.5c.contract_plans"
+        },
+        {
+          "ms": 50.259,
+          "count": 2,
+          "name": "05.d.3.c.post_flow_facts"
+        },
+        {
+          "ms": 1.09,
+          "count": 2,
+          "name": "05.d.4_6.quotients_borrows_identities"
+        },
+        {
+          "ms": 6.697,
+          "count": 2,
+          "name": "05.d.7.0.setup_guards_and_entailment"
+        },
+        {
+          "ms": 0.107,
+          "count": 2,
+          "name": "05.d.7.1.bind_call_evidence_arguments"
+        },
+        {
+          "ms": 34.703,
+          "count": 2,
+          "name": "05.d.7.2.check_flow_call_borrows"
+        },
+        {
+          "ms": 0.243,
+          "count": 2,
+          "name": "05.d.7.2b.runtime_indices_case_fences"
+        },
+        {
+          "ms": 1.171,
+          "count": 2,
+          "name": "05.d.7.3a.content_composition"
+        },
+        {
+          "ms": 0.999,
+          "count": 2,
+          "name": "05.d.7.3b.0.cleanup_requirements"
+        },
+        {
+          "ms": 0.03,
+          "count": 2,
+          "name": "05.d.7.3b.0b.assembly_and_refutations"
+        },
+        {
+          "ms": 13.6,
+          "count": 414,
+          "name": "05.d.7.3b.1.calls"
+        },
+        {
+          "ms": 0.702,
+          "count": 1,
+          "name": "05.d.7.3b.1.calls.req.boolean_proves"
+        },
+        {
+          "ms": 12.374,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.captured"
+        },
+        {
+          "ms": 0.004,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.membership"
+        },
+        {
+          "ms": 13.1,
+          "count": 16,
+          "name": "05.d.7.3b.1.calls.requires_loop"
+        },
+        {
+          "ms": 8.686,
+          "count": 18,
+          "name": "05.d.7.3b.1.cap.1_current_values"
+        },
+        {
+          "ms": 2.284,
+          "count": 15,
+          "name": "05.d.7.3b.1.cap.2_structural_req"
+        },
+        {
+          "ms": 0.215,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2c_judge_init"
+        },
+        {
+          "ms": 0.358,
+          "count": 11,
+          "name": "05.d.7.3b.1.cap.2d.citation"
+        },
+        {
+          "ms": 1.454,
+          "count": 109,
+          "name": "05.d.7.3b.1.cap.2d.local_init"
+        },
+        {
+          "ms": 13.141,
+          "count": 74,
+          "name": "05.d.7.3b.1.cap.2d.transitions"
+        },
+        {
+          "ms": 2.233,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2d_recognize"
+        },
+        {
+          "ms": 0.657,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2e_visit"
+        },
+        {
+          "ms": 0.03,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.3_captured_arith"
+        },
+        {
+          "ms": 0.012,
+          "count": 3,
+          "name": "05.d.7.3b.1.cap.4_prove_scalar"
+        },
+        {
+          "ms": 1.317,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.5_float_req"
+        },
+        {
+          "ms": 0.011,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.6_preserves_captures"
+        },
+        {
+          "ms": 18.168,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits"
+        },
+        {
+          "ms": 6.531,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.a.activation_return"
+        },
+        {
+          "ms": 0.01,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.b.boundary_refutations"
+        },
+        {
+          "ms": 0.063,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.c.scalar_result_domains"
+        },
+        {
+          "ms": 10.133,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.d.exit_ensures"
+        },
+        {
+          "ms": 1.126,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.e.result_field_domains"
+        },
+        {
+          "ms": 0.112,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.f.exclusive_referent_field_domains"
+        },
+        {
+          "ms": 2.798,
+          "count": 360,
+          "name": "05.d.7.3b.3.writes"
+        },
+        {
+          "ms": 36.291,
+          "count": 2,
+          "name": "05.d.7.3b.check_flow_call_contracts"
+        },
+        {
+          "ms": 5.249,
+          "count": 2,
+          "name": "05.d.7.4.check_linear_obligations"
+        },
+        {
+          "ms": 12.292,
+          "count": 2,
+          "name": "05.d.7.5_8.crashes_content_carry_operators"
+        },
+        {
+          "ms": 0.052,
+          "count": 17,
+          "name": "05.d.7.9.a.range_call_context"
+        },
+        {
+          "ms": 12.209,
+          "count": 8,
+          "name": "05.d.7.9.b.state_argument_facts"
+        },
+        {
+          "ms": 0.047,
+          "count": 17,
+          "name": "05.d.7.9.c.loop_invariant_facts"
+        },
+        {
+          "ms": 20.954,
+          "count": 2,
+          "name": "05.d.7.9.check_indexed_accesses"
+        },
+        {
+          "ms": 0.296,
+          "count": 49,
+          "name": "05.d.7.9.d.seed_state"
+        },
+        {
+          "ms": 8.15,
+          "count": 49,
+          "name": "05.d.7.9.e.check_statements"
+        },
+        {
+          "ms": 118.233,
+          "count": 2,
+          "name": "05.d.7.check_checked_facts"
+        },
+        {
+          "ms": 0.206,
+          "count": 2,
+          "name": "05.d.8_10.a.1.rank_and_terminal_machines"
+        },
+        {
+          "ms": 1.253,
+          "count": 2,
+          "name": "05.d.8_10.a.2.structural_control_cleanups"
+        },
+        {
+          "ms": 0.851,
+          "count": 2,
+          "name": "05.d.8_10.a.3.1.boundary_and_dynamic"
+        },
+        {
+          "ms": 55.512,
+          "count": 2,
+          "name": "05.d.8_10.a.3.2.candidate_bodies"
+        },
+        {
+          "ms": 8.628,
+          "count": 133,
+          "name": "05.d.8_10.a.3.2a.body_route"
+        },
+        {
+          "ms": 1.832,
+          "count": 66,
+          "name": "05.d.8_10.a.3.2b.sequence_body"
+        },
+        {
+          "ms": 0.094,
+          "count": 49,
+          "name": "05.d.8_10.a.3.2c.1.fused_and_ranks"
+        },
+        {
+          "ms": 6.986,
+          "count": 43,
+          "name": "05.d.8_10.a.3.2c.2.signatures"
+        },
+        {
+          "ms": 18.668,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3.sequence"
+        },
+        {
+          "ms": 0.712,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3a.outer_calls"
+        },
+        {
+          "ms": 17.651,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3b.statement_sequence"
+        },
+        {
+          "ms": 0.011,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b1.scalar_control"
+        },
+        {
+          "ms": 0.142,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b2.erased_locals"
+        },
+        {
+          "ms": 3.264,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b3.stores"
+        },
+        {
+          "ms": 12.656,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b4.statement_loop"
+        },
+        {
+          "ms": 1.955,
+          "count": 274,
+          "name": "05.d.8_10.a.3.2c.3b5.completion"
+        },
+        {
+          "ms": 3.45,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.4.terminator"
+        },
+        {
+          "ms": 5.243,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.5.result_custody"
+        },
+        {
+          "ms": 9.373,
+          "count": 42,
+          "name": "05.d.8_10.a.3.2c.6.parameter_custody_and_finish"
+        },
+        {
+          "ms": 44.992,
+          "count": 67,
+          "name": "05.d.8_10.a.3.2c.graph_body"
+        },
+        {
+          "ms": 2.617,
+          "count": 2,
+          "name": "05.d.8_10.a.3.3.cleanup_selections"
+        },
+        {
+          "ms": 0.15,
+          "count": 2,
+          "name": "05.d.8_10.a.3.4.candidate_closure"
+        },
+        {
+          "ms": 61.745,
+          "count": 2,
+          "name": "05.d.8_10.a.3.unit_effect_plans"
+        },
+        {
+          "ms": 0.569,
+          "count": 2,
+          "name": "05.d.8_10.a.4.nominal_affine_cleanups"
+        },
+        {
+          "ms": 68.861,
+          "count": 2,
+          "name": "05.d.8_10.a.finalize_execution"
+        },
+        {
+          "ms": 0.719,
+          "count": 2,
+          "name": "05.d.8_10.b.semantic_dependencies"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.8_10.c.accepted_template_identities"
+        },
+        {
+          "ms": 72.659,
+          "count": 2,
+          "name": "05.d.8_10.finalize_execution_identities"
+        },
+        {
+          "ms": 815.226,
+          "count": 2,
+          "name": "05.d.lower_typed_trees"
+        },
+        {
+          "ms": 0.316,
+          "count": 2,
+          "name": "05.e.declaration_authority"
+        },
+        {
+          "ms": 11.777,
+          "count": 43,
+          "name": "typed_trees::collect_program_references"
+        },
+        {
+          "ms": 0.344,
+          "count": 18,
+          "name": "typed_trees::program_proof_facts"
+        }
+      ],
+      "probes": [
+        {
+          "kind": "clone",
+          "label": "syntax_forest",
+          "ns": 113600,
+          "rows": 72
+        },
+        {
+          "kind": "scope",
+          "label": "retain_applied_results",
+          "ns": 10900
+        },
+        {
+          "kind": "scope",
+          "label": "pre_resolution",
+          "ns": 14637600
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 406700,
+          "rows": 541
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 554500
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 7947200
+        },
+        {
+          "kind": "scope",
+          "label": "prepare",
+          "ns": 42214100
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 865500,
+          "rows": 5052
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 678400,
+          "rows": 5052
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 846000
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 2945200
+        }
+      ],
+      "stderr_tail": "   815.226 ms         2 x  05.d.lower_typed_trees\n     0.316 ms         2 x  05.e.declaration_authority\n       24460 n  05.ordered_relations.edges\n        3423 n  05.ordered_relations.graphs\n        3101 n  05.ordered_relations.rows\n       20704 n  05.ordered_relations.vertices\n    11.777 ms        43 x  typed_trees::collect_program_references\n     0.344 ms        18 x  typed_trees::program_proof_facts"
+    },
+    {
+      "role": "measured",
+      "returncode": 0,
+      "elapsed_ns": 1202458800,
+      "native_exit": 0,
+      "stages": [
+        {
+          "ms": 29.569,
+          "name": "prepare: project -> prepared sources"
+        },
+        {
+          "ms": 1080.004,
+          "name": "compile: sources -> requested product"
+        },
+        {
+          "ms": 2.634,
+          "name": "publish: retained product -> published product"
+        },
+        {
+          "ms": 8.817,
+          "name": "Source ingress: SourceFiles -> SyntaxTrees"
+        },
+        {
+          "ms": 22.308,
+          "name": "Step: assemble: PreparedSources -> AssembledSyntax"
+        },
+        {
+          "ms": 15.129,
+          "name": "Stage 03: SyntaxTrees -> SymbolResolvedTrees"
+        },
+        {
+          "ms": 24.768,
+          "name": "Stage 04: SymbolResolvedTrees -> TypedTrees"
+        },
+        {
+          "ms": 125.124,
+          "name": "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)"
+        },
+        {
+          "ms": 903.004,
+          "name": "Stage 05: TypedTrees -> CheckedTrees"
+        },
+        {
+          "ms": 37.992,
+          "name": "Step: settle: CheckedTrees -> SelectedExecution"
+        },
+        {
+          "ms": 3.182,
+          "name": "terminal-production: CheckedTrees -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 2.898,
+          "name": "terminal-production/lowering: CheckedTrees -> LoweredPsi"
+        },
+        {
+          "ms": 0.0,
+          "name": "terminal-production/machine-selection: CheckedTrees -> TerminalMachine"
+        },
+        {
+          "ms": 0.164,
+          "name": "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi"
+        },
+        {
+          "ms": 0.02,
+          "name": "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt"
+        },
+        {
+          "ms": 0.075,
+          "name": "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 1114.184,
+          "name": "total elapsed"
+        }
+      ],
+      "phase_rows": [
+        {
+          "ms": 902.996,
+          "count": 2,
+          "name": "05"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.a.source_completion"
+        },
+        {
+          "ms": 1.727,
+          "count": 2,
+          "name": "05.b.retained_input_clone"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.b.retained_match"
+        },
+        {
+          "ms": 13.58,
+          "count": 2,
+          "name": "05.c.1.pre_specialization"
+        },
+        {
+          "ms": 40.711,
+          "count": 2,
+          "name": "05.c.2.specialization_loop"
+        },
+        {
+          "ms": 0.011,
+          "count": 2,
+          "name": "05.c.3.a.assembly_normalize"
+        },
+        {
+          "ms": 3.428,
+          "count": 2,
+          "name": "05.c.3.b.settle_value_destinations"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.c.3.c.default_domain_zero"
+        },
+        {
+          "ms": 1.488,
+          "count": 2,
+          "name": "05.c.3.d.constructed_result_types"
+        },
+        {
+          "ms": 9.112,
+          "count": 2,
+          "name": "05.c.3.e.data_applications"
+        },
+        {
+          "ms": 9.363,
+          "count": 2,
+          "name": "05.c.3.f.runtime_index_fields"
+        },
+        {
+          "ms": 0.167,
+          "count": 2,
+          "name": "05.c.3.g.dynamic_call_targets"
+        },
+        {
+          "ms": 0.728,
+          "count": 2,
+          "name": "05.c.3.h.dynamic_slots"
+        },
+        {
+          "ms": 14.278,
+          "count": 2,
+          "name": "05.c.3.i.requirement_applications"
+        },
+        {
+          "ms": 0.084,
+          "count": 2,
+          "name": "05.c.3.j.elaborate_new_types"
+        },
+        {
+          "ms": 2.068,
+          "count": 2,
+          "name": "05.c.3.k.assignment_destinations"
+        },
+        {
+          "ms": 0.002,
+          "count": 2,
+          "name": "05.c.3.l.zero_contexts"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.c.3.m.assembly_admit"
+        },
+        {
+          "ms": 30.257,
+          "count": 2,
+          "name": "05.c.3.n.mathematical_declarations"
+        },
+        {
+          "ms": 71.156,
+          "count": 2,
+          "name": "05.c.3.post_specialization"
+        },
+        {
+          "ms": 0.324,
+          "count": 2,
+          "name": "05.c.placement_lifecycle_plans"
+        },
+        {
+          "ms": 125.451,
+          "count": 2,
+          "name": "05.c.prepare_typed_trees"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.d.0.prior_equality"
+        },
+        {
+          "ms": 2.353,
+          "count": 2,
+          "name": "05.d.0.retained_program_clone"
+        },
+        {
+          "ms": 2.13,
+          "count": 2,
+          "name": "05.d.11_13.a.1.owner_index"
+        },
+        {
+          "ms": 0.017,
+          "count": 2,
+          "name": "05.d.11_13.a.2.root_bindings"
+        },
+        {
+          "ms": 2.555,
+          "count": 2,
+          "name": "05.d.11_13.a.3.expression_loop"
+        },
+        {
+          "ms": 0.027,
+          "count": 11,
+          "name": "05.d.11_13.a.3.member"
+        },
+        {
+          "ms": 2.157,
+          "count": 455,
+          "name": "05.d.11_13.a.3.operator"
+        },
+        {
+          "ms": 0.03,
+          "count": 2,
+          "name": "05.d.11_13.a.4.statement_selections"
+        },
+        {
+          "ms": 0.045,
+          "count": 2,
+          "name": "05.d.11_13.a.5.membership_selections"
+        },
+        {
+          "ms": 0.092,
+          "count": 2,
+          "name": "05.d.11_13.a.6.proof_view_calls"
+        },
+        {
+          "ms": 0.645,
+          "count": 2,
+          "name": "05.d.11_13.a.7.apply_resolutions"
+        },
+        {
+          "ms": 5.962,
+          "count": 2,
+          "name": "05.d.11_13.a.finalize_selections"
+        },
+        {
+          "ms": 0.224,
+          "count": 2,
+          "name": "05.d.11_13.b.visibility_and_cleanup_selections"
+        },
+        {
+          "ms": 6.707,
+          "count": 2,
+          "name": "05.d.11_13.c.reference_custody"
+        },
+        {
+          "ms": 13.499,
+          "count": 2,
+          "name": "05.d.11_13.d.content_classes"
+        },
+        {
+          "ms": 4.151,
+          "count": 2,
+          "name": "05.d.11_13.e.resolved_types"
+        },
+        {
+          "ms": 0.033,
+          "count": 2,
+          "name": "05.d.11_13.f.state_locals"
+        },
+        {
+          "ms": 0.187,
+          "count": 2,
+          "name": "05.d.11_13.g.provider_closed_requirements"
+        },
+        {
+          "ms": 2.811,
+          "count": 2,
+          "name": "05.d.11_13.h.boundary_and_portable_checks"
+        },
+        {
+          "ms": 33.783,
+          "count": 2,
+          "name": "05.d.11_13.selections_custody_types_boundaries"
+        },
+        {
+          "ms": 54.435,
+          "count": 2,
+          "name": "05.d.2.a.1.pre_machine_validators"
+        },
+        {
+          "ms": 0.057,
+          "count": 2,
+          "name": "05.d.2.a.1a.definition_fact_plan"
+        },
+        {
+          "ms": 0.246,
+          "count": 2,
+          "name": "05.d.2.a.1a2.proposition_entailment"
+        },
+        {
+          "ms": 4.532,
+          "count": 2,
+          "name": "05.d.2.a.1a2b.domains_and_signatures"
+        },
+        {
+          "ms": 0.631,
+          "count": 2,
+          "name": "05.d.2.a.1a3.operational_and_service_reaches"
+        },
+        {
+          "ms": 2.098,
+          "count": 2,
+          "name": "05.d.2.a.1a4b.data_and_proof_faces"
+        },
+        {
+          "ms": 0.402,
+          "count": 2,
+          "name": "05.d.2.a.1a5.call_cycles_and_properties"
+        },
+        {
+          "ms": 0.002,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.1.constants"
+        },
+        {
+          "ms": 25.261,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.2.struct_literals"
+        },
+        {
+          "ms": 0.045,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.3.destructure"
+        },
+        {
+          "ms": 25.309,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.constants_and_literals"
+        },
+        {
+          "ms": 11.831,
+          "count": 2,
+          "name": "05.d.2.a.1a5c.default_domain_writes"
+        },
+        {
+          "ms": 0.222,
+          "count": 2,
+          "name": "05.d.2.a.1a5d.recasts_wire_operators"
+        },
+        {
+          "ms": 1.734,
+          "count": 2,
+          "name": "05.d.2.a.1a6.static_machine_selections"
+        },
+        {
+          "ms": 0.137,
+          "count": 2,
+          "name": "05.d.2.a.1b.call_frame_resolver"
+        },
+        {
+          "ms": 219.006,
+          "count": 133,
+          "name": "05.d.2.a.2.machine.std_or_core"
+        },
+        {
+          "ms": 5.254,
+          "count": 4,
+          "name": "05.d.2.a.2.machine.user_or_other"
+        },
+        {
+          "ms": 42.375,
+          "count": 2,
+          "name": "05.d.2.a.2.machine_loop"
+        },
+        {
+          "ms": 47.014,
+          "count": 137,
+          "name": "05.d.2.a.2a.contract_entailment"
+        },
+        {
+          "ms": 168.287,
+          "count": 137,
+          "name": "05.d.2.a.2b.state_statements"
+        },
+        {
+          "ms": 0.437,
+          "count": 2,
+          "name": "05.d.2.a.3.post_machine_validators"
+        },
+        {
+          "ms": 97.264,
+          "count": 2,
+          "name": "05.d.2.a.validate"
+        },
+        {
+          "ms": 1.855,
+          "count": 2,
+          "name": "05.d.2.b.build_proof_plan"
+        },
+        {
+          "ms": 0.62,
+          "count": 2,
+          "name": "05.d.2.c.check_proof_plan"
+        },
+        {
+          "ms": 0.026,
+          "count": 2,
+          "name": "05.d.2.d.bare_boundary_trait_values"
+        },
+        {
+          "ms": 99.774,
+          "count": 2,
+          "name": "05.d.2.prepare_typed_program"
+        },
+        {
+          "ms": 38.082,
+          "count": 2,
+          "name": "05.d.3.a.pre_flow_facts"
+        },
+        {
+          "ms": 349.073,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point"
+        },
+        {
+          "ms": 270.974,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point.build_flow_facts"
+        },
+        {
+          "ms": 441.688,
+          "count": 2,
+          "name": "05.d.3.build_check_facts"
+        },
+        {
+          "ms": 15.635,
+          "count": 2,
+          "name": "05.d.3.c.1.scalar_and_index_plans"
+        },
+        {
+          "ms": 2.665,
+          "count": 2,
+          "name": "05.d.3.c.2.index_compatibility"
+        },
+        {
+          "ms": 1.089,
+          "count": 2,
+          "name": "05.d.3.c.3.cleanup_effects_and_reaches"
+        },
+        {
+          "ms": 3.465,
+          "count": 2,
+          "name": "05.d.3.c.4.admit_prepared_program_effects"
+        },
+        {
+          "ms": 31.45,
+          "count": 2,
+          "name": "05.d.3.c.5.post_admit_facts"
+        },
+        {
+          "ms": 6.89,
+          "count": 2,
+          "name": "05.d.3.c.5a.termination"
+        },
+        {
+          "ms": 14.159,
+          "count": 2,
+          "name": "05.d.3.c.5b.mutation_and_integer_writes"
+        },
+        {
+          "ms": 8.417,
+          "count": 2,
+          "name": "05.d.3.c.5c.contract_plans"
+        },
+        {
+          "ms": 54.474,
+          "count": 2,
+          "name": "05.d.3.c.post_flow_facts"
+        },
+        {
+          "ms": 0.921,
+          "count": 2,
+          "name": "05.d.4_6.quotients_borrows_identities"
+        },
+        {
+          "ms": 7.194,
+          "count": 2,
+          "name": "05.d.7.0.setup_guards_and_entailment"
+        },
+        {
+          "ms": 0.117,
+          "count": 2,
+          "name": "05.d.7.1.bind_call_evidence_arguments"
+        },
+        {
+          "ms": 33.373,
+          "count": 2,
+          "name": "05.d.7.2.check_flow_call_borrows"
+        },
+        {
+          "ms": 0.303,
+          "count": 2,
+          "name": "05.d.7.2b.runtime_indices_case_fences"
+        },
+        {
+          "ms": 1.133,
+          "count": 2,
+          "name": "05.d.7.3a.content_composition"
+        },
+        {
+          "ms": 0.959,
+          "count": 2,
+          "name": "05.d.7.3b.0.cleanup_requirements"
+        },
+        {
+          "ms": 0.034,
+          "count": 2,
+          "name": "05.d.7.3b.0b.assembly_and_refutations"
+        },
+        {
+          "ms": 16.957,
+          "count": 414,
+          "name": "05.d.7.3b.1.calls"
+        },
+        {
+          "ms": 0.697,
+          "count": 1,
+          "name": "05.d.7.3b.1.calls.req.boolean_proves"
+        },
+        {
+          "ms": 15.679,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.captured"
+        },
+        {
+          "ms": 0.005,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.membership"
+        },
+        {
+          "ms": 16.406,
+          "count": 16,
+          "name": "05.d.7.3b.1.calls.requires_loop"
+        },
+        {
+          "ms": 10.121,
+          "count": 18,
+          "name": "05.d.7.3b.1.cap.1_current_values"
+        },
+        {
+          "ms": 3.011,
+          "count": 15,
+          "name": "05.d.7.3b.1.cap.2_structural_req"
+        },
+        {
+          "ms": 0.257,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2c_judge_init"
+        },
+        {
+          "ms": 0.346,
+          "count": 11,
+          "name": "05.d.7.3b.1.cap.2d.citation"
+        },
+        {
+          "ms": 1.368,
+          "count": 109,
+          "name": "05.d.7.3b.1.cap.2d.local_init"
+        },
+        {
+          "ms": 16.112,
+          "count": 74,
+          "name": "05.d.7.3b.1.cap.2d.transitions"
+        },
+        {
+          "ms": 2.854,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2d_recognize"
+        },
+        {
+          "ms": 0.798,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2e_visit"
+        },
+        {
+          "ms": 0.029,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.3_captured_arith"
+        },
+        {
+          "ms": 0.02,
+          "count": 3,
+          "name": "05.d.7.3b.1.cap.4_prove_scalar"
+        },
+        {
+          "ms": 2.438,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.5_float_req"
+        },
+        {
+          "ms": 0.014,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.6_preserves_captures"
+        },
+        {
+          "ms": 19.359,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits"
+        },
+        {
+          "ms": 6.896,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.a.activation_return"
+        },
+        {
+          "ms": 0.01,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.b.boundary_refutations"
+        },
+        {
+          "ms": 0.059,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.c.scalar_result_domains"
+        },
+        {
+          "ms": 10.873,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.d.exit_ensures"
+        },
+        {
+          "ms": 1.222,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.e.result_field_domains"
+        },
+        {
+          "ms": 0.104,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.f.exclusive_referent_field_domains"
+        },
+        {
+          "ms": 2.845,
+          "count": 360,
+          "name": "05.d.7.3b.3.writes"
+        },
+        {
+          "ms": 40.819,
+          "count": 2,
+          "name": "05.d.7.3b.check_flow_call_contracts"
+        },
+        {
+          "ms": 5.077,
+          "count": 2,
+          "name": "05.d.7.4.check_linear_obligations"
+        },
+        {
+          "ms": 12.853,
+          "count": 2,
+          "name": "05.d.7.5_8.crashes_content_carry_operators"
+        },
+        {
+          "ms": 0.068,
+          "count": 17,
+          "name": "05.d.7.9.a.range_call_context"
+        },
+        {
+          "ms": 13.009,
+          "count": 8,
+          "name": "05.d.7.9.b.state_argument_facts"
+        },
+        {
+          "ms": 0.048,
+          "count": 17,
+          "name": "05.d.7.9.c.loop_invariant_facts"
+        },
+        {
+          "ms": 21.781,
+          "count": 2,
+          "name": "05.d.7.9.check_indexed_accesses"
+        },
+        {
+          "ms": 0.326,
+          "count": 49,
+          "name": "05.d.7.9.d.seed_state"
+        },
+        {
+          "ms": 8.132,
+          "count": 49,
+          "name": "05.d.7.9.e.check_statements"
+        },
+        {
+          "ms": 123.15,
+          "count": 2,
+          "name": "05.d.7.check_checked_facts"
+        },
+        {
+          "ms": 0.367,
+          "count": 2,
+          "name": "05.d.8_10.a.1.rank_and_terminal_machines"
+        },
+        {
+          "ms": 1.305,
+          "count": 2,
+          "name": "05.d.8_10.a.2.structural_control_cleanups"
+        },
+        {
+          "ms": 0.669,
+          "count": 2,
+          "name": "05.d.8_10.a.3.1.boundary_and_dynamic"
+        },
+        {
+          "ms": 47.671,
+          "count": 2,
+          "name": "05.d.8_10.a.3.2.candidate_bodies"
+        },
+        {
+          "ms": 1.127,
+          "count": 133,
+          "name": "05.d.8_10.a.3.2a.body_route"
+        },
+        {
+          "ms": 1.899,
+          "count": 66,
+          "name": "05.d.8_10.a.3.2b.sequence_body"
+        },
+        {
+          "ms": 0.095,
+          "count": 49,
+          "name": "05.d.8_10.a.3.2c.1.fused_and_ranks"
+        },
+        {
+          "ms": 7.481,
+          "count": 43,
+          "name": "05.d.8_10.a.3.2c.2.signatures"
+        },
+        {
+          "ms": 17.729,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3.sequence"
+        },
+        {
+          "ms": 0.65,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3a.outer_calls"
+        },
+        {
+          "ms": 16.796,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3b.statement_sequence"
+        },
+        {
+          "ms": 0.01,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b1.scalar_control"
+        },
+        {
+          "ms": 0.127,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b2.erased_locals"
+        },
+        {
+          "ms": 3.077,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b3.stores"
+        },
+        {
+          "ms": 12.031,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b4.statement_loop"
+        },
+        {
+          "ms": 2.03,
+          "count": 274,
+          "name": "05.d.8_10.a.3.2c.3b5.completion"
+        },
+        {
+          "ms": 3.236,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.4.terminator"
+        },
+        {
+          "ms": 5.015,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.5.result_custody"
+        },
+        {
+          "ms": 9.766,
+          "count": 42,
+          "name": "05.d.8_10.a.3.2c.6.parameter_custody_and_finish"
+        },
+        {
+          "ms": 44.586,
+          "count": 67,
+          "name": "05.d.8_10.a.3.2c.graph_body"
+        },
+        {
+          "ms": 2.018,
+          "count": 2,
+          "name": "05.d.8_10.a.3.3.cleanup_selections"
+        },
+        {
+          "ms": 0.137,
+          "count": 2,
+          "name": "05.d.8_10.a.3.4.candidate_closure"
+        },
+        {
+          "ms": 53.345,
+          "count": 2,
+          "name": "05.d.8_10.a.3.unit_effect_plans"
+        },
+        {
+          "ms": 0.492,
+          "count": 2,
+          "name": "05.d.8_10.a.4.nominal_affine_cleanups"
+        },
+        {
+          "ms": 67.347,
+          "count": 2,
+          "name": "05.d.8_10.a.finalize_execution"
+        },
+        {
+          "ms": 0.747,
+          "count": 2,
+          "name": "05.d.8_10.b.semantic_dependencies"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.8_10.c.accepted_template_identities"
+        },
+        {
+          "ms": 71.171,
+          "count": 2,
+          "name": "05.d.8_10.finalize_execution_identities"
+        },
+        {
+          "ms": 775.468,
+          "count": 2,
+          "name": "05.d.lower_typed_trees"
+        },
+        {
+          "ms": 0.299,
+          "count": 2,
+          "name": "05.e.declaration_authority"
+        },
+        {
+          "ms": 10.299,
+          "count": 43,
+          "name": "typed_trees::collect_program_references"
+        },
+        {
+          "ms": 0.342,
+          "count": 18,
+          "name": "typed_trees::program_proof_facts"
+        }
+      ],
+      "probes": [
+        {
+          "kind": "clone",
+          "label": "syntax_forest",
+          "ns": 106600,
+          "rows": 72
+        },
+        {
+          "kind": "scope",
+          "label": "retain_applied_results",
+          "ns": 9300
+        },
+        {
+          "kind": "scope",
+          "label": "pre_resolution",
+          "ns": 15019200
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 376500,
+          "rows": 541
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 537200
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 7435700
+        },
+        {
+          "kind": "scope",
+          "label": "prepare",
+          "ns": 41370800
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 801600,
+          "rows": 5052
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 652800,
+          "rows": 5052
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 907200
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 3545700
+        }
+      ],
+      "stderr_tail": "   775.468 ms         2 x  05.d.lower_typed_trees\n     0.299 ms         2 x  05.e.declaration_authority\n       24460 n  05.ordered_relations.edges\n        3423 n  05.ordered_relations.graphs\n        3101 n  05.ordered_relations.rows\n       20704 n  05.ordered_relations.vertices\n    10.299 ms        43 x  typed_trees::collect_program_references\n     0.342 ms        18 x  typed_trees::program_proof_facts"
+    },
+    {
+      "role": "measured",
+      "returncode": 0,
+      "elapsed_ns": 1212827100,
+      "native_exit": 0,
+      "stages": [
+        {
+          "ms": 29.109,
+          "name": "prepare: project -> prepared sources"
+        },
+        {
+          "ms": 1087.679,
+          "name": "compile: sources -> requested product"
+        },
+        {
+          "ms": 2.662,
+          "name": "publish: retained product -> published product"
+        },
+        {
+          "ms": 9.026,
+          "name": "Source ingress: SourceFiles -> SyntaxTrees"
+        },
+        {
+          "ms": 22.265,
+          "name": "Step: assemble: PreparedSources -> AssembledSyntax"
+        },
+        {
+          "ms": 15.012,
+          "name": "Stage 03: SyntaxTrees -> SymbolResolvedTrees"
+        },
+        {
+          "ms": 27.288,
+          "name": "Stage 04: SymbolResolvedTrees -> TypedTrees"
+        },
+        {
+          "ms": 127.821,
+          "name": "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)"
+        },
+        {
+          "ms": 903.828,
+          "name": "Stage 05: TypedTrees -> CheckedTrees"
+        },
+        {
+          "ms": 41.679,
+          "name": "Step: settle: CheckedTrees -> SelectedExecution"
+        },
+        {
+          "ms": 3.243,
+          "name": "terminal-production: CheckedTrees -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 2.953,
+          "name": "terminal-production/lowering: CheckedTrees -> LoweredPsi"
+        },
+        {
+          "ms": 0.0,
+          "name": "terminal-production/machine-selection: CheckedTrees -> TerminalMachine"
+        },
+        {
+          "ms": 0.153,
+          "name": "terminal-production/optimization: LoweredPsi -> OptimizedLoweredPsi"
+        },
+        {
+          "ms": 0.026,
+          "name": "terminal-production/entry-receipt: OptimizedLoweredPsi -> ProgramEntryReceipt"
+        },
+        {
+          "ms": 0.09,
+          "name": "terminal-production/publication: OptimizedLoweredPsi -> CanonicalTerminalArtifact"
+        },
+        {
+          "ms": 1121.431,
+          "name": "total elapsed"
+        }
+      ],
+      "phase_rows": [
+        {
+          "ms": 903.823,
+          "count": 2,
+          "name": "05"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.a.source_completion"
+        },
+        {
+          "ms": 1.905,
+          "count": 2,
+          "name": "05.b.retained_input_clone"
+        },
+        {
+          "ms": 13.983,
+          "count": 2,
+          "name": "05.c.1.pre_specialization"
+        },
+        {
+          "ms": 38.731,
+          "count": 2,
+          "name": "05.c.2.specialization_loop"
+        },
+        {
+          "ms": 0.01,
+          "count": 2,
+          "name": "05.c.3.a.assembly_normalize"
+        },
+        {
+          "ms": 2.98,
+          "count": 2,
+          "name": "05.c.3.b.settle_value_destinations"
+        },
+        {
+          "ms": 0.004,
+          "count": 2,
+          "name": "05.c.3.c.default_domain_zero"
+        },
+        {
+          "ms": 1.503,
+          "count": 2,
+          "name": "05.c.3.d.constructed_result_types"
+        },
+        {
+          "ms": 9.634,
+          "count": 2,
+          "name": "05.c.3.e.data_applications"
+        },
+        {
+          "ms": 8.872,
+          "count": 2,
+          "name": "05.c.3.f.runtime_index_fields"
+        },
+        {
+          "ms": 0.122,
+          "count": 2,
+          "name": "05.c.3.g.dynamic_call_targets"
+        },
+        {
+          "ms": 0.726,
+          "count": 2,
+          "name": "05.c.3.h.dynamic_slots"
+        },
+        {
+          "ms": 10.915,
+          "count": 2,
+          "name": "05.c.3.i.requirement_applications"
+        },
+        {
+          "ms": 0.065,
+          "count": 2,
+          "name": "05.c.3.j.elaborate_new_types"
+        },
+        {
+          "ms": 1.348,
+          "count": 2,
+          "name": "05.c.3.k.assignment_destinations"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.c.3.l.zero_contexts"
+        },
+        {
+          "ms": 0.003,
+          "count": 2,
+          "name": "05.c.3.m.assembly_admit"
+        },
+        {
+          "ms": 27.074,
+          "count": 2,
+          "name": "05.c.3.n.mathematical_declarations"
+        },
+        {
+          "ms": 63.404,
+          "count": 2,
+          "name": "05.c.3.post_specialization"
+        },
+        {
+          "ms": 0.284,
+          "count": 2,
+          "name": "05.c.placement_lifecycle_plans"
+        },
+        {
+          "ms": 116.123,
+          "count": 2,
+          "name": "05.c.prepare_typed_trees"
+        },
+        {
+          "ms": 0.0,
+          "count": 2,
+          "name": "05.d.0.prior_equality"
+        },
+        {
+          "ms": 2.281,
+          "count": 2,
+          "name": "05.d.0.retained_program_clone"
+        },
+        {
+          "ms": 1.975,
+          "count": 2,
+          "name": "05.d.11_13.a.1.owner_index"
+        },
+        {
+          "ms": 0.021,
+          "count": 2,
+          "name": "05.d.11_13.a.2.root_bindings"
+        },
+        {
+          "ms": 1.95,
+          "count": 2,
+          "name": "05.d.11_13.a.3.expression_loop"
+        },
+        {
+          "ms": 0.017,
+          "count": 11,
+          "name": "05.d.11_13.a.3.member"
+        },
+        {
+          "ms": 1.664,
+          "count": 455,
+          "name": "05.d.11_13.a.3.operator"
+        },
+        {
+          "ms": 0.033,
+          "count": 2,
+          "name": "05.d.11_13.a.4.statement_selections"
+        },
+        {
+          "ms": 0.052,
+          "count": 2,
+          "name": "05.d.11_13.a.5.membership_selections"
+        },
+        {
+          "ms": 0.108,
+          "count": 2,
+          "name": "05.d.11_13.a.6.proof_view_calls"
+        },
+        {
+          "ms": 0.704,
+          "count": 2,
+          "name": "05.d.11_13.a.7.apply_resolutions"
+        },
+        {
+          "ms": 5.27,
+          "count": 2,
+          "name": "05.d.11_13.a.finalize_selections"
+        },
+        {
+          "ms": 0.226,
+          "count": 2,
+          "name": "05.d.11_13.b.visibility_and_cleanup_selections"
+        },
+        {
+          "ms": 6.425,
+          "count": 2,
+          "name": "05.d.11_13.c.reference_custody"
+        },
+        {
+          "ms": 13.508,
+          "count": 2,
+          "name": "05.d.11_13.d.content_classes"
+        },
+        {
+          "ms": 4.557,
+          "count": 2,
+          "name": "05.d.11_13.e.resolved_types"
+        },
+        {
+          "ms": 0.043,
+          "count": 2,
+          "name": "05.d.11_13.f.state_locals"
+        },
+        {
+          "ms": 0.258,
+          "count": 2,
+          "name": "05.d.11_13.g.provider_closed_requirements"
+        },
+        {
+          "ms": 2.915,
+          "count": 2,
+          "name": "05.d.11_13.h.boundary_and_portable_checks"
+        },
+        {
+          "ms": 33.452,
+          "count": 2,
+          "name": "05.d.11_13.selections_custody_types_boundaries"
+        },
+        {
+          "ms": 51.276,
+          "count": 2,
+          "name": "05.d.2.a.1.pre_machine_validators"
+        },
+        {
+          "ms": 0.049,
+          "count": 2,
+          "name": "05.d.2.a.1a.definition_fact_plan"
+        },
+        {
+          "ms": 0.159,
+          "count": 2,
+          "name": "05.d.2.a.1a2.proposition_entailment"
+        },
+        {
+          "ms": 4.235,
+          "count": 2,
+          "name": "05.d.2.a.1a2b.domains_and_signatures"
+        },
+        {
+          "ms": 0.496,
+          "count": 2,
+          "name": "05.d.2.a.1a3.operational_and_service_reaches"
+        },
+        {
+          "ms": 2.011,
+          "count": 2,
+          "name": "05.d.2.a.1a4b.data_and_proof_faces"
+        },
+        {
+          "ms": 0.556,
+          "count": 2,
+          "name": "05.d.2.a.1a5.call_cycles_and_properties"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.1.constants"
+        },
+        {
+          "ms": 24.324,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.2.struct_literals"
+        },
+        {
+          "ms": 0.053,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.3.destructure"
+        },
+        {
+          "ms": 24.379,
+          "count": 2,
+          "name": "05.d.2.a.1a5b.constants_and_literals"
+        },
+        {
+          "ms": 11.61,
+          "count": 2,
+          "name": "05.d.2.a.1a5c.default_domain_writes"
+        },
+        {
+          "ms": 0.234,
+          "count": 2,
+          "name": "05.d.2.a.1a5d.recasts_wire_operators"
+        },
+        {
+          "ms": 1.501,
+          "count": 2,
+          "name": "05.d.2.a.1a6.static_machine_selections"
+        },
+        {
+          "ms": 0.12,
+          "count": 2,
+          "name": "05.d.2.a.1b.call_frame_resolver"
+        },
+        {
+          "ms": 228.503,
+          "count": 133,
+          "name": "05.d.2.a.2.machine.std_or_core"
+        },
+        {
+          "ms": 5.718,
+          "count": 4,
+          "name": "05.d.2.a.2.machine.user_or_other"
+        },
+        {
+          "ms": 44.984,
+          "count": 2,
+          "name": "05.d.2.a.2.machine_loop"
+        },
+        {
+          "ms": 53.563,
+          "count": 137,
+          "name": "05.d.2.a.2a.contract_entailment"
+        },
+        {
+          "ms": 174.556,
+          "count": 137,
+          "name": "05.d.2.a.2b.state_statements"
+        },
+        {
+          "ms": 0.452,
+          "count": 2,
+          "name": "05.d.2.a.3.post_machine_validators"
+        },
+        {
+          "ms": 96.731,
+          "count": 2,
+          "name": "05.d.2.a.validate"
+        },
+        {
+          "ms": 1.987,
+          "count": 2,
+          "name": "05.d.2.b.build_proof_plan"
+        },
+        {
+          "ms": 0.7,
+          "count": 2,
+          "name": "05.d.2.c.check_proof_plan"
+        },
+        {
+          "ms": 0.026,
+          "count": 2,
+          "name": "05.d.2.d.bare_boundary_trait_values"
+        },
+        {
+          "ms": 99.453,
+          "count": 2,
+          "name": "05.d.2.prepare_typed_program"
+        },
+        {
+          "ms": 41.472,
+          "count": 2,
+          "name": "05.d.3.a.pre_flow_facts"
+        },
+        {
+          "ms": 360.127,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point"
+        },
+        {
+          "ms": 280.7,
+          "count": 2,
+          "name": "05.d.3.b.flow_fixed_point.build_flow_facts"
+        },
+        {
+          "ms": 456.232,
+          "count": 2,
+          "name": "05.d.3.build_check_facts"
+        },
+        {
+          "ms": 15.64,
+          "count": 2,
+          "name": "05.d.3.c.1.scalar_and_index_plans"
+        },
+        {
+          "ms": 2.654,
+          "count": 2,
+          "name": "05.d.3.c.2.index_compatibility"
+        },
+        {
+          "ms": 1.212,
+          "count": 2,
+          "name": "05.d.3.c.3.cleanup_effects_and_reaches"
+        },
+        {
+          "ms": 3.827,
+          "count": 2,
+          "name": "05.d.3.c.4.admit_prepared_program_effects"
+        },
+        {
+          "ms": 31.003,
+          "count": 2,
+          "name": "05.d.3.c.5.post_admit_facts"
+        },
+        {
+          "ms": 6.432,
+          "count": 2,
+          "name": "05.d.3.c.5a.termination"
+        },
+        {
+          "ms": 13.817,
+          "count": 2,
+          "name": "05.d.3.c.5b.mutation_and_integer_writes"
+        },
+        {
+          "ms": 8.405,
+          "count": 2,
+          "name": "05.d.3.c.5c.contract_plans"
+        },
+        {
+          "ms": 54.55,
+          "count": 2,
+          "name": "05.d.3.c.post_flow_facts"
+        },
+        {
+          "ms": 0.961,
+          "count": 2,
+          "name": "05.d.4_6.quotients_borrows_identities"
+        },
+        {
+          "ms": 6.811,
+          "count": 2,
+          "name": "05.d.7.0.setup_guards_and_entailment"
+        },
+        {
+          "ms": 0.108,
+          "count": 2,
+          "name": "05.d.7.1.bind_call_evidence_arguments"
+        },
+        {
+          "ms": 34.426,
+          "count": 2,
+          "name": "05.d.7.2.check_flow_call_borrows"
+        },
+        {
+          "ms": 0.27,
+          "count": 2,
+          "name": "05.d.7.2b.runtime_indices_case_fences"
+        },
+        {
+          "ms": 1.132,
+          "count": 2,
+          "name": "05.d.7.3a.content_composition"
+        },
+        {
+          "ms": 1.117,
+          "count": 2,
+          "name": "05.d.7.3b.0.cleanup_requirements"
+        },
+        {
+          "ms": 0.034,
+          "count": 2,
+          "name": "05.d.7.3b.0b.assembly_and_refutations"
+        },
+        {
+          "ms": 14.094,
+          "count": 414,
+          "name": "05.d.7.3b.1.calls"
+        },
+        {
+          "ms": 0.607,
+          "count": 1,
+          "name": "05.d.7.3b.1.calls.req.boolean_proves"
+        },
+        {
+          "ms": 12.947,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.captured"
+        },
+        {
+          "ms": 0.005,
+          "count": 18,
+          "name": "05.d.7.3b.1.calls.req.membership"
+        },
+        {
+          "ms": 13.582,
+          "count": 16,
+          "name": "05.d.7.3b.1.calls.requires_loop"
+        },
+        {
+          "ms": 8.697,
+          "count": 18,
+          "name": "05.d.7.3b.1.cap.1_current_values"
+        },
+        {
+          "ms": 2.5,
+          "count": 15,
+          "name": "05.d.7.3b.1.cap.2_structural_req"
+        },
+        {
+          "ms": 0.228,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2c_judge_init"
+        },
+        {
+          "ms": 0.331,
+          "count": 11,
+          "name": "05.d.7.3b.1.cap.2d.citation"
+        },
+        {
+          "ms": 1.419,
+          "count": 109,
+          "name": "05.d.7.3b.1.cap.2d.local_init"
+        },
+        {
+          "ms": 14.898,
+          "count": 74,
+          "name": "05.d.7.3b.1.cap.2d.transitions"
+        },
+        {
+          "ms": 2.385,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2d_recognize"
+        },
+        {
+          "ms": 0.695,
+          "count": 16,
+          "name": "05.d.7.3b.1.cap.2e_visit"
+        },
+        {
+          "ms": 0.028,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.3_captured_arith"
+        },
+        {
+          "ms": 0.017,
+          "count": 3,
+          "name": "05.d.7.3b.1.cap.4_prove_scalar"
+        },
+        {
+          "ms": 1.653,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.5_float_req"
+        },
+        {
+          "ms": 0.012,
+          "count": 1,
+          "name": "05.d.7.3b.1.cap.6_preserves_captures"
+        },
+        {
+          "ms": 18.775,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits"
+        },
+        {
+          "ms": 7.093,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.a.activation_return"
+        },
+        {
+          "ms": 0.009,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.b.boundary_refutations"
+        },
+        {
+          "ms": 0.059,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.c.scalar_result_domains"
+        },
+        {
+          "ms": 10.179,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.d.exit_ensures"
+        },
+        {
+          "ms": 1.137,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.e.result_field_domains"
+        },
+        {
+          "ms": 0.104,
+          "count": 284,
+          "name": "05.d.7.3b.2.exits.f.exclusive_referent_field_domains"
+        },
+        {
+          "ms": 2.81,
+          "count": 360,
+          "name": "05.d.7.3b.3.writes"
+        },
+        {
+          "ms": 37.478,
+          "count": 2,
+          "name": "05.d.7.3b.check_flow_call_contracts"
+        },
+        {
+          "ms": 4.828,
+          "count": 2,
+          "name": "05.d.7.4.check_linear_obligations"
+        },
+        {
+          "ms": 11.305,
+          "count": 2,
+          "name": "05.d.7.5_8.crashes_content_carry_operators"
+        },
+        {
+          "ms": 0.055,
+          "count": 17,
+          "name": "05.d.7.9.a.range_call_context"
+        },
+        {
+          "ms": 12.575,
+          "count": 8,
+          "name": "05.d.7.9.b.state_argument_facts"
+        },
+        {
+          "ms": 0.048,
+          "count": 17,
+          "name": "05.d.7.9.c.loop_invariant_facts"
+        },
+        {
+          "ms": 20.857,
+          "count": 2,
+          "name": "05.d.7.9.check_indexed_accesses"
+        },
+        {
+          "ms": 0.33,
+          "count": 49,
+          "name": "05.d.7.9.d.seed_state"
+        },
+        {
+          "ms": 7.654,
+          "count": 49,
+          "name": "05.d.7.9.e.check_statements"
+        },
+        {
+          "ms": 117.77,
+          "count": 2,
+          "name": "05.d.7.check_checked_facts"
+        },
+        {
+          "ms": 0.248,
+          "count": 2,
+          "name": "05.d.8_10.a.1.rank_and_terminal_machines"
+        },
+        {
+          "ms": 1.367,
+          "count": 2,
+          "name": "05.d.8_10.a.2.structural_control_cleanups"
+        },
+        {
+          "ms": 0.985,
+          "count": 2,
+          "name": "05.d.8_10.a.3.1.boundary_and_dynamic"
+        },
+        {
+          "ms": 54.939,
+          "count": 2,
+          "name": "05.d.8_10.a.3.2.candidate_bodies"
+        },
+        {
+          "ms": 1.246,
+          "count": 133,
+          "name": "05.d.8_10.a.3.2a.body_route"
+        },
+        {
+          "ms": 2.02,
+          "count": 66,
+          "name": "05.d.8_10.a.3.2b.sequence_body"
+        },
+        {
+          "ms": 0.097,
+          "count": 49,
+          "name": "05.d.8_10.a.3.2c.1.fused_and_ranks"
+        },
+        {
+          "ms": 6.572,
+          "count": 43,
+          "name": "05.d.8_10.a.3.2c.2.signatures"
+        },
+        {
+          "ms": 25.116,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3.sequence"
+        },
+        {
+          "ms": 0.713,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3a.outer_calls"
+        },
+        {
+          "ms": 24.103,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.3b.statement_sequence"
+        },
+        {
+          "ms": 0.011,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b1.scalar_control"
+        },
+        {
+          "ms": 0.137,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b2.erased_locals"
+        },
+        {
+          "ms": 3.048,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b3.stores"
+        },
+        {
+          "ms": 19.193,
+          "count": 276,
+          "name": "05.d.8_10.a.3.2c.3b4.statement_loop"
+        },
+        {
+          "ms": 2.192,
+          "count": 274,
+          "name": "05.d.8_10.a.3.2c.3b5.completion"
+        },
+        {
+          "ms": 3.037,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.4.terminator"
+        },
+        {
+          "ms": 5.436,
+          "count": 231,
+          "name": "05.d.8_10.a.3.2c.5.result_custody"
+        },
+        {
+          "ms": 10.22,
+          "count": 42,
+          "name": "05.d.8_10.a.3.2c.6.parameter_custody_and_finish"
+        },
+        {
+          "ms": 51.609,
+          "count": 67,
+          "name": "05.d.8_10.a.3.2c.graph_body"
+        },
+        {
+          "ms": 2.318,
+          "count": 2,
+          "name": "05.d.8_10.a.3.3.cleanup_selections"
+        },
+        {
+          "ms": 0.165,
+          "count": 2,
+          "name": "05.d.8_10.a.3.4.candidate_closure"
+        },
+        {
+          "ms": 61.315,
+          "count": 2,
+          "name": "05.d.8_10.a.3.unit_effect_plans"
+        },
+        {
+          "ms": 0.584,
+          "count": 2,
+          "name": "05.d.8_10.a.4.nominal_affine_cleanups"
+        },
+        {
+          "ms": 68.698,
+          "count": 2,
+          "name": "05.d.8_10.a.finalize_execution"
+        },
+        {
+          "ms": 0.706,
+          "count": 2,
+          "name": "05.d.8_10.b.semantic_dependencies"
+        },
+        {
+          "ms": 0.001,
+          "count": 2,
+          "name": "05.d.8_10.c.accepted_template_identities"
+        },
+        {
+          "ms": 72.408,
+          "count": 2,
+          "name": "05.d.8_10.finalize_execution_identities"
+        },
+        {
+          "ms": 785.484,
+          "count": 2,
+          "name": "05.d.lower_typed_trees"
+        },
+        {
+          "ms": 0.431,
+          "count": 2,
+          "name": "05.e.declaration_authority"
+        },
+        {
+          "ms": 11.361,
+          "count": 43,
+          "name": "typed_trees::collect_program_references"
+        },
+        {
+          "ms": 0.367,
+          "count": 18,
+          "name": "typed_trees::program_proof_facts"
+        }
+      ],
+      "probes": [
+        {
+          "kind": "clone",
+          "label": "syntax_forest",
+          "ns": 111900,
+          "rows": 72
+        },
+        {
+          "kind": "scope",
+          "label": "retain_applied_results",
+          "ns": 10500
+        },
+        {
+          "kind": "scope",
+          "label": "pre_resolution",
+          "ns": 14596600
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 297000,
+          "rows": 541
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 435700
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 7463800
+        },
+        {
+          "kind": "scope",
+          "label": "prepare",
+          "ns": 40342600
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 1019000,
+          "rows": 5052
+        },
+        {
+          "kind": "clone",
+          "label": "symbol_resolved",
+          "ns": 750500,
+          "rows": 5052
+        },
+        {
+          "kind": "scope",
+          "label": "seed_body_lowerer",
+          "ns": 946300
+        },
+        {
+          "kind": "scope",
+          "label": "complete_bodies",
+          "ns": 3506400
+        }
+      ],
+      "stderr_tail": "   785.484 ms         2 x  05.d.lower_typed_trees\n     0.431 ms         2 x  05.e.declaration_authority\n       24460 n  05.ordered_relations.edges\n        3423 n  05.ordered_relations.graphs\n        3101 n  05.ordered_relations.rows\n       20704 n  05.ordered_relations.vertices\n    11.361 ms        43 x  typed_trees::collect_program_references\n     0.367 ms        18 x  typed_trees::program_proof_facts"
+    }
+  ],
+  "measured_wall_ms": [
+    1294.296,
+    1244.6593,
+    1202.4588,
+    1212.8271
+  ],
+  "wall_median_ms": 1228.7432
+}
