@@ -14,13 +14,8 @@ use super::initialization::{InitializationRejection, PreparedProviderImage};
 use super::{ProviderStorageSlot, ResidentStorageSlot};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
-use crate::values::{
-    StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
-    TerminalStructuralValue,
-};
-use semantic_vocabulary::IntegerValue;
+use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     BoundaryMachineDeclaration, Operation, OperationKind, StructuralAccess,
@@ -407,44 +402,13 @@ impl TerminalExecution<'_> {
                 &selected,
             )?;
         }
-        let (failure, coordinates) = match rejection {
-            InitializationRejection::RangeTooSmall {
-                required,
-                available,
-            } => (&failures[0], vec![required, available]),
-            InitializationRejection::Misaligned { modulus, residue } => {
-                (&failures[1], vec![modulus, residue])
-            }
-            InitializationRejection::IncompatibleSupply => (&failures[2], Vec::new()),
-        };
-        let reason = StructuralRuntimePlace {
-            opaque_identity: value.opaque_identity,
-            path: vec![StructuralPathSegment::Field(reason_field.identity)],
-        };
-        storage.stage_case(
-            reason.clone(),
-            reason_field
-                .field_type
-                .as_structural()
-                .ok_or_else(malformed)?,
-            failure.id,
-        );
-        for (field, coordinate) in failure.fields.iter().zip(coordinates) {
-            storage.stage_scalar_endpoint(
-                &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField::case_payload(
-                    reason.clone(),
-                    field.id,
-                )),
-                TerminalScalarValue::Integer {
-                    scalar_type: field
-                        .field_type
-                        .scalar_type()
-                        .and_then(|scalar| scalar.as_integer())
-                        .ok_or_else(malformed)?,
-                    value: IntegerValue::Unsigned(u128::from(coordinate)),
-                },
-            )?;
-        }
+        super::initialization::stage_rejection_failure(
+            &mut storage,
+            rejection,
+            failures,
+            reason_field,
+            value.opaque_identity,
+        )?;
         value.projected_qualifications.sort();
         value.projected_qualifications.dedup();
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;

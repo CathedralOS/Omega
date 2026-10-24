@@ -6,12 +6,8 @@
 use super::{PlacedReference, PlacedStorage};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::provider_storage::initialization::InitializationRejection;
 use crate::record::storage::ConstructorStorage;
-use crate::values::{
-    StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
-    TerminalStructuralValue,
-};
+use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralPathSegment,
     TerminalPlacementLifecyclePlan,
@@ -139,45 +135,13 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 };
                 storage.stage_case(root.clone(), result.structural_type, rejected.id);
-                let (failure, coordinates) = match rejection {
-                    InitializationRejection::RangeTooSmall {
-                        required,
-                        available,
-                    } => (&failures[0], vec![required, available]),
-                    InitializationRejection::Misaligned { modulus, residue } => {
-                        (&failures[1], vec![modulus, residue])
-                    }
-                    InitializationRejection::IncompatibleSupply => (&failures[2], Vec::new()),
-                };
-                let reason = StructuralRuntimePlace {
-                    opaque_identity: value.opaque_identity,
-                    path: vec![StructuralPathSegment::Field(reason_field.identity)],
-                };
-                storage.stage_case(
-                    reason.clone(),
-                    reason_field
-                        .field_type
-                        .as_structural()
-                        .ok_or_else(malformed)?,
-                    failure.id,
-                );
-                for (field, coordinate) in failure.fields.iter().zip(coordinates) {
-                    storage.stage_scalar_endpoint(
-                        &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
-                            StructuralScalarRuntimeField::case_payload(reason.clone(), field.id),
-                        ),
-                        TerminalScalarValue::Integer {
-                            scalar_type: field
-                                .field_type
-                                .scalar_type()
-                                .and_then(|scalar| scalar.as_integer())
-                                .ok_or_else(malformed)?,
-                            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(
-                                coordinate,
-                            )),
-                        },
-                    )?;
-                }
+                crate::provider_storage::initialization::stage_rejection_failure(
+                    &mut storage,
+                    rejection,
+                    failures,
+                    reason_field,
+                    value.opaque_identity,
+                )?;
             }
         }
         storage.validate_projected_memberships(self, &value, &result.projected_qualifications)?;

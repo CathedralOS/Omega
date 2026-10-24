@@ -10,9 +10,14 @@
 
 use super::{ProviderStorageBinding, ProviderStorageSlot, RuntimeProviderStorage};
 use crate::errors::{TerminalInterpretError, malformed};
+use crate::primitive_storage::PrimitiveStorageEndpoint;
+use crate::record::storage::ConstructorStorage;
+use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
 use access_plans::{
     InitializationResourceCompatibility, ValidatedPlacementPlan, ValidatedResourceProfile,
 };
+use semantic_vocabulary::IntegerValue;
+use terminal_psi::{StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralPathSegment};
 
 #[derive(Debug)]
 pub(crate) enum InitializationRejection {
@@ -120,4 +125,57 @@ impl RuntimeProviderStorage {
             compatibility,
         }))
     }
+}
+
+/// Stage the rejected outcome's failure case and its integer coordinate
+/// payload. The rejection selects the contract's declared failure case and
+/// carries the coordinates its fields report. Both outcome builders — the
+/// initialization result and a borrowed placement's rejected result — stage
+/// the same payload, so one owner derives it here.
+pub(crate) fn stage_rejection_failure(
+    storage: &mut ConstructorStorage,
+    rejection: InitializationRejection,
+    failures: &[StructuralCaseDeclaration; 3],
+    reason_field: &StructuralFieldDeclaration,
+    opaque_identity: u64,
+) -> Result<(), TerminalInterpretError> {
+    let (failure, coordinates) = match rejection {
+        InitializationRejection::RangeTooSmall {
+            required,
+            available,
+        } => (&failures[0], vec![required, available]),
+        InitializationRejection::Misaligned { modulus, residue } => {
+            (&failures[1], vec![modulus, residue])
+        }
+        InitializationRejection::IncompatibleSupply => (&failures[2], Vec::new()),
+    };
+    let reason = StructuralRuntimePlace {
+        opaque_identity,
+        path: vec![StructuralPathSegment::Field(reason_field.identity)],
+    };
+    storage.stage_case(
+        reason.clone(),
+        reason_field
+            .field_type
+            .as_structural()
+            .ok_or_else(malformed)?,
+        failure.id,
+    );
+    for (field, coordinate) in failure.fields.iter().zip(coordinates) {
+        storage.stage_scalar_endpoint(
+            &PrimitiveStorageEndpoint::ScalarField(StructuralScalarRuntimeField::case_payload(
+                reason.clone(),
+                field.id,
+            )),
+            TerminalScalarValue::Integer {
+                scalar_type: field
+                    .field_type
+                    .scalar_type()
+                    .and_then(|scalar| scalar.as_integer())
+                    .ok_or_else(malformed)?,
+                value: IntegerValue::Unsigned(u128::from(coordinate)),
+            },
+        )?;
+    }
+    Ok(())
 }
