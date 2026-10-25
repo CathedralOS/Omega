@@ -43,12 +43,31 @@ python tools/tests/test_compiler_pilot.py -v
 python tools/ci/compiler_pilot.py
 ```
 
-Reports and the exact corpus runner upload as `compiler-regression-SHA-attempt`,
+Reports, captured Terminal/native artifacts, the exact corpus runner and its build-profile receipt upload as
+`compiler-regression-OS-SHA-attempt`,
 retained seven days. `summary.json` separates build and test timing and identifies
-the producer. The 30-minute job does not cancel a running predecessor; pending
+the producer. The 45-minute job does not cancel a running predecessor; pending
 push runs coalesce to the newest revision. This is a bounded Linux smoke, not
 all supported hosts, the full corpus, or Cathedral UEFI boot. Host/customer and
 release qualification remain explicit separate acceptance.
+
+Manual dispatch with `cleanup=true` instead runs the existing CML4 cleanup
+controls on both Ubuntu and Windows. `tools/ci/compiler_cleanup.py` selects
+ordered parent/child hooks, partial construction, replacements and the nine
+returned-linear-child places with their reject twins; it uses the same corpus
+execution and report validator as smoke. Authored output must be observed by
+both engines. It does not change admission, scheduled smoke or any golden.
+The macOS/Linux roster also preserves the existing descriptor output controls
+for C pointer/count pairs and separate stdout/stderr.
+
+```text
+gh workflow run compiler-regression.yml --ref BRANCH -f cleanup=true
+python tools/ci/compiler_cleanup.py
+```
+
+Read each host's `build/compiler-cleanup/summary.json`, `checking.json` and
+`both.json`; a completed job and its actual producer identify that host's
+measurement. Pending, cancelled and failed jobs do not establish qualification.
 
 A regression belongs to the author of the regressing change; the first observer
 claims triage until attribution is established. Repair or revert promptly through

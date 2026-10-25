@@ -58,7 +58,9 @@ pub(super) fn admit(
     let descriptor_type = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
     let width: u16 = match abi {
         DescriptorAbi::WindowsCrt => 32,
-        DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxKernel => 64,
+        DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc | DescriptorAbi::LinuxKernel => {
+            64
+        }
     };
     let count_type = IntegerType::new(IntegerSign::Unsigned, width).map_err(|_| invalid())?;
     let result_type = IntegerType::new(IntegerSign::Signed, width).map_err(|_| invalid())?;
@@ -76,7 +78,10 @@ pub(super) fn admit(
             DescriptorBuffer::Scalar(*scalar)
         }
         Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }))
-            if matches!(abi, DescriptorAbi::DarwinLibSystem)
+            // The selected 64-bit C plan carries this exact pair as buffer
+            // pointer and size_t. Windows CRT has a 32-bit count; a syscall
+            // admits one-word authored operands instead of this C pair.
+            if matches!(abi, DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc)
                 && access.is_none_or(|access| access == formal.access) =>
         {
             DescriptorBuffer::Bytes
