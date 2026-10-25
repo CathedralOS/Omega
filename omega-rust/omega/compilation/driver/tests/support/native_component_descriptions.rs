@@ -98,6 +98,13 @@ pub(super) fn inspect(
         )?;
         let decoded = decode_component_description(product.description())
             .map_err(|error| format!("decode native description: {error:?}"))?;
+        if ordinal == 0
+            && fixture
+                .join("expected_component_identity_controls.txt")
+                .exists()
+        {
+            inspect_description_identity_controls(product.description(), &decoded, &request)?;
+        }
         let mut missing_identity = decoded.clone();
         missing_identity.realization_identity = None;
         let mut missing_stack = decoded;
@@ -129,6 +136,87 @@ pub(super) fn inspect(
             .map_err(|error| error.to_string())?;
         receipt.revalidate()?;
         std::fs::remove_dir_all(directory).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+/// Exercise the published byte consumer on this fixture's actual component,
+/// including a derived export longer than a small source identifier. No checked
+/// IR or admitted compiler evidence is manufactured or changed.
+fn inspect_description_identity_controls(
+    bytes: &[u8],
+    decoded: &component_description::component_description::ComponentDescription,
+    request: &ComponentVerificationRequest,
+) -> Result<(), String> {
+    use component_description::ComponentVerificationRejection;
+    use component_description::component_description::DescriptionDecodeRejection;
+
+    if !decoded
+        .exports
+        .iter()
+        .any(|export| export.identity.len() > 1024)
+    {
+        return Err("description identity control lacks an actual long derived export".into());
+    }
+    // Schema V3 starts with magic, schema, frontier and the embedded artifact.
+    // Select the first text field in the ordinary import/export wire roster.
+    let identity_length = 8 + 4 + 1 + 4 + decoded.artifact_bytes.len() + 4 + 4;
+    let text_start = identity_length + 4;
+    let length = u32::from_le_bytes(
+        bytes
+            .get(identity_length..text_start)
+            .ok_or("missing text length")?
+            .try_into()
+            .map_err(|_| "invalid text length")?,
+    ) as usize;
+    if length == 0 || text_start + length > bytes.len() {
+        return Err("description identity control lacks a complete text field".into());
+    }
+    let mut excessive_length = bytes.to_vec();
+    excessive_length[identity_length..text_start].copy_from_slice(&u32::MAX.to_le_bytes());
+    if !matches!(
+        decode_component_description(&excessive_length),
+        Err(DescriptionDecodeRejection::Corrupt("truncated input"))
+    ) {
+        return Err("description consumer accepted a length beyond the retained bytes".into());
+    }
+    if !matches!(
+        decode_component_description(&bytes[..text_start + length - 1]),
+        Err(DescriptionDecodeRejection::Corrupt("truncated input"))
+    ) {
+        return Err("description consumer accepted truncated identity bytes".into());
+    }
+    let mut invalid_utf8 = bytes.to_vec();
+    invalid_utf8[text_start] = 0xff;
+    if !matches!(
+        decode_component_description(&invalid_utf8),
+        Err(DescriptionDecodeRejection::IdentityInvalid("not utf-8"))
+    ) {
+        return Err("description consumer accepted invalid UTF-8 identity bytes".into());
+    }
+    if !matches!(
+        decode_component_description(&vec![0; 8 * 1024 * 1024 + 1]),
+        Err(DescriptionDecodeRejection::RosterBoundExceeded(
+            "description byte length"
+        ))
+    ) {
+        return Err("description consumer accepted a payload beyond its wire envelope".into());
+    }
+    let mut changed = decoded.clone();
+    changed
+        .exports
+        .first_mut()
+        .ok_or("missing actual export")?
+        .identity
+        .push_str(":changed");
+    let changed = encode_component_description(&changed);
+    decode_component_description(&changed)
+        .map_err(|error| format!("changed full identity did not form: {error:?}"))?;
+    if !matches!(
+        verify_component(&changed, request),
+        Err(ComponentVerificationRejection::UnexpectedDerivedExport(_))
+    ) {
+        return Err("description consumer accepted a different complete export identity".into());
     }
     Ok(())
 }
