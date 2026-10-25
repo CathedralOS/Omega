@@ -62,7 +62,11 @@ pub(super) fn compile(
         )]
     })?;
     let target_name = outcome.target.target_name();
-    let report = outcome.result.map_err(BuildError::into_diagnostics)?.report;
+    let outcome = outcome.result.map_err(BuildError::into_diagnostics)?;
+    let report = outcome
+        .into_report()
+        .map_err(BuildError::into_diagnostics)?
+        .report;
     let interpretations = reference_inputs
         .into_iter()
         .map(|input| interpret_product(&report, Some(input), target_name))

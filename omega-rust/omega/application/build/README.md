@@ -1,7 +1,9 @@
 # Project Build
 
 Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
-single explicit target or batch, and a check or native product. The entrance
+single explicit target or batch, and a check, native or named Terminal inspection
+product. Inspection has one target context and uses a private workspace without
+native publication. The entrance
 admits output directories, prepares the project, requests products through
 package/compiler facades, and publishes ordered outcomes. A target's directory
 refusal stays beside that target; it does not hide successful siblings. Checks
@@ -17,6 +19,12 @@ same preparation and compilation route, retaining its product for Terminal
 replay before publication consumes it. Private entry RAM belongs to that native
 request and reaches both package and standalone compilation. Execution owns
 input replay, native invocation and comparison, not a second project compiler.
+
+Source inspection uses this same lifecycle and returns the compiler's explicit
+inspection product, not a fabricated compilation report. CLI inspection only
+adapts the request and presents/adopts that artifact. Already-encoded artifact
+inspection remains independent of Build: it admits the supplied envelope and
+does not acquire sources or execute code.
 
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or

@@ -31,7 +31,15 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     })
     .unwrap();
     assert_eq!(outcomes.len(), 1);
-    let report = outcomes.into_iter().next().unwrap().result.unwrap().report;
+    let report = outcomes
+        .into_iter()
+        .next()
+        .unwrap()
+        .result
+        .unwrap()
+        .into_report()
+        .unwrap()
+        .report;
     let artifact = report.retained_native_artifact().unwrap().psi_artifact();
     let request = |target| TerminalRuntimeRequest {
         artifact,

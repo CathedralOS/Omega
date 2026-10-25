@@ -26,6 +26,10 @@ use std::path::PathBuf;
 #[derive(Clone, Debug)]
 pub enum ProjectProduct {
     Check,
+    /// A named machine's Terminal description, with no native realization.
+    Inspection {
+        machine: String,
+    },
     Native {
         destination: NativeDestination,
         private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
@@ -67,10 +71,31 @@ pub struct BuildRequest {
 }
 
 pub struct BuildOutcome {
+    pub output: compiler::CompilationOutput,
+    pub timings: CompileTimings,
+    pub executable_path: Option<PathBuf>,
+}
+
+/// A check or native outcome ready for compilation-command presentation.
+pub struct BuildReport {
     pub report: CompileReport,
     pub timings: CompileTimings,
     /// Present only after native publication succeeds.
     pub executable_path: Option<PathBuf>,
+}
+
+impl BuildOutcome {
+    pub fn into_report(self) -> Result<BuildReport, BuildError> {
+        let report = self
+            .output
+            .into_report()
+            .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))?;
+        Ok(BuildReport {
+            report,
+            timings: self.timings,
+            executable_path: self.executable_path,
+        })
+    }
 }
 
 pub struct TargetBuildOutcome {
@@ -84,6 +109,7 @@ pub enum BuildError {
     Preparation(packages::PrepareLocalProjectError),
     PackageCheck(packages::CheckPreparedLocalProjectError),
     PackageNative(packages::CompilePreparedLocalProjectNativeError),
+    Inspection(package_manager::review::CompileResolvedPackageReviewsError),
     Publication(String),
     CheckWorkspace(std::io::Error),
     BuildDirectory(String),
@@ -98,6 +124,9 @@ impl std::fmt::Display for BuildError {
             Self::Preparation(error) => write!(formatter, "{error}"),
             Self::PackageCheck(error) => write!(formatter, "{error}"),
             Self::PackageNative(error) => write!(formatter, "{error}"),
+            Self::Inspection(error) => {
+                write!(formatter, "cannot check inspection project: {error}")
+            }
             Self::Publication(error) => write!(formatter, "{error}"),
             Self::CheckWorkspace(error) => {
                 write!(formatter, "cannot create the check workspace: {error}")
