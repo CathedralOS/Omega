@@ -7,6 +7,7 @@
 //! a loop invariant nor permission to replay mutable storage observations.
 
 mod array_elements;
+mod collection_extents;
 mod operand_types;
 mod owned_arguments;
 
@@ -1195,75 +1196,7 @@ impl<'program> StructuralJudge<'program> {
                         judge.intake_admitted_value_predicates(reference, value.clone());
                     }
                 }
-                if let ExpressionNode::Indexed(indexed) = node
-                    && let Some(range) = program.expression_table.range_node(indexed.index)
-                {
-                    // A completed runtime view keeps its captured descriptor;
-                    // there is no element observation to form. Its extent is
-                    // exactly the authored window: the formation's own bounds
-                    // check already admitted start <= end <= len(collection).
-                    let input_value = |source: ExpressionHandle| {
-                        inputs
-                            .iter()
-                            .find(|(input, _)| *input == source)
-                            .map(|(_, value)| value.clone())
-                    };
-                    let Some(collection) = input_value(indexed.collection) else {
-                        return None;
-                    };
-                    let start = range
-                        .start
-                        .is_valid()
-                        .then(|| input_value(range.start))
-                        .flatten();
-                    let end = range
-                        .end
-                        .is_valid()
-                        .then(|| input_value(range.end))
-                        .flatten();
-                    let collection_measure =
-                        |collection: &StructuralTerm, collection_source| {
-                            let receiver = judge.completed_collection_type(collection_source, scope)?;
-                            super::super::structural_terms::observed_collection_measure(
-                                program,
-                                receiver,
-                                language_semantics::declaration_selection::CollectionMeasure::Length,
-                                || Some(collection.clone()),
-                            )
-                        };
-                    let difference = |left: StructuralTerm, right: StructuralTerm| {
-                        StructuralTerm::MathematicalBinary {
-                            operator: BinaryOperator::Subtract,
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    };
-                    let extent = match (start, end) {
-                        (Some(start), Some(end)) => Some(match start {
-                            StructuralTerm::Integer(ref literal) if literal.is_zero() => end,
-                            _ => difference(end, start),
-                        }),
-                        (None, Some(end)) => Some(end),
-                        (start, None) => collection_measure(&collection, indexed.collection).map(
-                            |full| match start {
-                                Some(start) => difference(full, start),
-                                None => full,
-                            },
-                        ),
-                    };
-                    if let Some(extent) = extent
-                        && let Some(view) = judge.normal_value_type_reference(expression, scope)
-                        && let Some(measure) =
-                            super::super::structural_terms::observed_collection_measure(
-                                program,
-                                view,
-                                language_semantics::declaration_selection::CollectionMeasure::Length,
-                                || Some(value.clone()),
-                            )
-                    {
-                        judge.assume_normal_equation(measure, extent);
-                    }
-                }
+                judge.observe_completed_window(expression, &inputs, scope, &value)?;
                 if let ExpressionNode::Borrow(borrow) = node {
                     // A checked borrow selects its referent; it does not create
                     // a new case-bearing value. The referent's completed term

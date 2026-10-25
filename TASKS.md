@@ -680,8 +680,10 @@ defines the complete product bar.
     equations preserve exact immutable input metadata; admitted dynamic regions
     supply conservative backing independently of scalar identity and permission
     ancestry. Reject growing pointee paths, changed inputs, divergent identities
-    and writes to any possible retained backing. Nonzero-window result extent
-    establishment and multi-input callable-region refinement remain unqualified.
+    and writes to any possible retained backing. Retain returned window extents
+    as mathematical endpoint differences, including symbolic, inclusive and open
+    bounds, without deriving endpoint formation or bounds from the result.
+    Multi-input callable-region refinement remains unqualified.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.

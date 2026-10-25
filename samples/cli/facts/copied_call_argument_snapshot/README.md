@@ -248,8 +248,38 @@ attempting a write to actual or same-lifetime sibling backing; both must reject.
 Acceptance is native/Terminal exit 0 for all nine computed places and both
 controls, with all nine source-9 twins and backing controls rejecting. These runs
 are for macOS ARM64. Other-host execution, general opaque/provider and dependent
-results remain open. Separate baseline probes retain nonzero-window extent and
-multi-input callable-region refusals; they are not qualified by this repair.
+results remain open. Multi-input callable-region refinement remains unqualified.
+
+### Returned window extents
+
+Each computed byte-view place also creates its snapshot through
+`initial_snapshot`, returning `source.bytes[2..2 + WINDOW_LENGTH]` from a
+record field. The completed result establishes length 7 before another operand
+replaces its former home with length 9. The consumer uses that retained length
+directly; the sentinel byte 49 checks the nonzero offset at runtime. Its twin
+changes the window bound to 9 and must reject `ranged_original.bytes.len == 7`,
+independently of the earlier twin obligation. All nine positive and negative
+places have matching fact pins.
+
+The fresh baseline refuses the helper’s own result-length contract in all nine
+places. The repair records builtin window length as a mathematical difference
+of its captured endpoints, embeds finite scalar endpoints in the existing
+mathematical judgment, and normalizes inclusive and omitted bounds there. It
+does not replay expressions, grant custom range machines builtin geometry,
+justify endpoint arithmetic, or establish storage access.
+
+`controls/dynamic_nonzero_window` retains the original failing dynamic-call
+witness; `controls/returned_window_extents` executes symbolic endpoints,
+inclusive bounds, open suffixes and empty windows. Their pins are
+`pass/slices/runtime_nonzero_window_result_snapshot_exit` and
+`runtime_observed_window_extents_exit`. The reject pins
+`fail/slices/returned_window_extent_mismatch`,
+`returned_inclusive_window_extent_mismatch`,
+`window_extent_does_not_establish_bounds` and
+`window_extent_does_not_form_endpoint` preserve false-length, bounds and overflow
+refusals. Acceptance is observed native/Terminal exit 0 on macOS ARM64 for both
+controls and all nine places, plus fact-sensitive rejection of their twins.
+Other-host execution remains unverified.
 
 ## Requirements and evidence
 

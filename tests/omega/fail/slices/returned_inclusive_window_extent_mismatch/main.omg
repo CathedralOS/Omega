@@ -1,0 +1,6 @@
+data View<'storage> [copy] { bytes: &'storage [u8]; }
+machine clip<'storage>(source: &'storage [u8]) -> View<'storage>
+requires source.len == 9
+ensures result.bytes.len == 6
+{ View { bytes: &source[2..=8] } }
+machine main() { let value: View = clip("123456789"); }
