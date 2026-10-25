@@ -1,0 +1,23 @@
+// A returned field cannot acquire an extra unit beyond two captured public sums.
+use omega::language::core::extent;
+use omega::language::core::content;
+public data Split { taken: Extent in Granted & Vacant; rest: Extent in Granted & Vacant; }
+public boundary trait Partition {
+    machine merge(parts: Split) -> Extent
+    ensures embed(result.length) == embed(parts.taken.length) + embed(parts.rest.length),
+        result in Granted & Vacant,
+        separate(Granted::content(old(&parts.taken)), Granted::content(old(&parts.rest))) == Granted::content(&result),
+        separate(Vacant::content(old(&parts.taken)), Vacant::content(old(&parts.rest))) == Vacant::content(&result);
+}
+public data Counter where remaining == tail.length { tail: Extent in Granted & Vacant; remaining: u64; }
+machine reset(strategy: Counter, lower: Extent in Granted & Vacant, upper: Extent in Granted & Vacant) -> Counter
+ensures embed(result.remaining) == embed(lower.length) + embed(upper.length) + embed(strategy.tail.length) + 1
+reaches Partition
+{
+    let tail: Extent in Granted & Vacant = strategy.tail;
+    let upper_and_tail: Extent in Granted & Vacant = Partition::merge(Split { taken: upper, rest: tail });
+    let whole: Extent in Granted & Vacant = Partition::merge(Split { taken: lower, rest: upper_and_tail });
+    let remaining: u64 = whole.length;
+    Counter { tail: whole, remaining: remaining }
+}
+machine main() {}

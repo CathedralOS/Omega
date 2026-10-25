@@ -88,42 +88,40 @@ fn mathematical_captures_are_inline(
     let Some(application) = mathematics.application(expression) else {
         return false;
     };
-    mathematics
-        .applications
-        .captures
-        .span_or_empty(application.captures)
-        .iter()
-        .all(|capture| {
-            // A scalar loaded through a reference is still a content observation.
-            // Require every prefix to be inline, not merely a scalar leaf type.
-            let Some(segments) =
-                relative_place_segments_from_expression(program, capture.expression, domain)
-            else {
-                return false;
-            };
-            // A dynamic selector can itself observe referenced storage even
-            // when the selected element is inline. The projected type alone
-            // proves nothing about that observation; retain invalidation when
-            // selector dependencies have not been established.
-            if segments.iter().any(|segment| {
-                matches!(
-                    segment,
-                    facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
-                )
-            }) {
-                return false;
-            }
-            (0..=segments.len()).all(|length| {
-                validation::project_type_reference_from_segments(
-                    program,
-                    domain.target_type,
-                    &segments[..length],
-                )
-                .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
-            }) && program
-                .primitive_type_reference(capture.source_type)
-                .is_some()
-        })
+    let Some(captures) = mathematics.applications.captures.span(application.captures) else {
+        return false;
+    };
+    captures.iter().all(|capture| {
+        // A scalar loaded through a reference is still a content observation.
+        // Require every prefix to be inline, not merely a scalar leaf type.
+        let Some(segments) =
+            relative_place_segments_from_expression(program, capture.expression, domain)
+        else {
+            return false;
+        };
+        // A dynamic selector can itself observe referenced storage even
+        // when the selected element is inline. The projected type alone
+        // proves nothing about that observation; retain invalidation when
+        // selector dependencies have not been established.
+        if segments.iter().any(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+            )
+        }) {
+            return false;
+        }
+        (0..=segments.len()).all(|length| {
+            validation::project_type_reference_from_segments(
+                program,
+                domain.target_type,
+                &segments[..length],
+            )
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+        }) && program
+            .primitive_type_reference(capture.source_type)
+            .is_some()
+    })
 }
 
 pub(crate) fn build_domain_facts(

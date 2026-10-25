@@ -174,6 +174,7 @@ pub(crate) fn finalize_const_argument_selections(
     program: &mut SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingConstArgumentSelection],
     slots: &[crate::resolution::lowerer::PendingConstArgumentSlot],
+    lexical_inputs: &[crate::lowering::state::StateLexicalInputs],
 ) -> Result<(), Diagnostic> {
     for (selection_ordinal, selection) in pending.iter().enumerate() {
         let origin = &selection.origin;
@@ -207,8 +208,8 @@ pub(crate) fn finalize_const_argument_selections(
             .iter()
             .filter(|slot| slot.selection == selection_ordinal)
         {
-            let parameters =
-                carrier::receiving_parameters(program, slot.arguments).ok_or_else(|| {
+            let parameters = carrier::receiving_parameters(program, slot.arguments, lexical_inputs)
+                .ok_or_else(|| {
                     Diagnostic::error("constant lost its actual receiving application")
                         .with_source_span(origin.reference)
                 })?;

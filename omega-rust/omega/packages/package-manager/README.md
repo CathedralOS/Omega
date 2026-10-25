@@ -241,8 +241,9 @@ A matching prior judgment lends checked storage only after fresh admission.
 frontend checkpoint table. The command's `PackageBuildSession` persists across
 review rounds and targets, so sponsors are not replenished per target.
 Ordinary accepted compilation constructs a dependency-ordered request from those
-inputs. The compiler joins generated outputs, retains Build continuations and
-publishes demanded independent components; package operations no longer drive
+inputs. Application Build schedules dependencies and joins generated outputs;
+the compiler retains opaque Build continuations and publishes demanded independent
+components. Package operations no longer drive
 `prepare_build` / `check_build` or retain their continuations. Review requests
 component descriptions through the compiler too, without a backend-publication
 dependency in this package.

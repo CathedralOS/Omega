@@ -961,7 +961,9 @@ impl<'program> StructuralJudge<'program> {
             return Some(outcomes);
         }
         let has_own_effect = match node {
-            ExpressionNode::Call(call) => !call_has_mathematical_denotation(program, call),
+            ExpressionNode::Call(call) => {
+                !call_has_mathematical_denotation(program, scope.0.symbol, call)
+            }
             ExpressionNode::Atomic(_) => {
                 crate::value_custody::atomic_operations::atomic_once_carrier(program, expression)
                     .is_some()
@@ -1009,7 +1011,9 @@ impl<'program> StructuralJudge<'program> {
         let namespace_receiver = program
             .expression_table
             .call_node(expression)
-            .filter(|call| super::super::structural_terms::static_call_receiver(program, call))
+            .filter(|call| {
+                super::super::structural_terms::static_call_receiver(program, scope.0.symbol, call)
+            })
             .map(|call| call.receiver);
         if let ExpressionNode::Indexed(indexed) = node
             && let Some(range) = program.expression_table.range_node(indexed.index)
@@ -1801,13 +1805,13 @@ impl<'program> StructuralJudge<'program> {
         let ExpressionNode::Call(call) = node else {
             return None;
         };
-        let Some(owner) = selected_call_contract(program, call) else {
+        let Some(owner) = selected_call_contract(program, scope.0.symbol, call) else {
             return None;
         };
         // Computed proof machines are erased mathematical applications. Their
         // definitions and induction remain with the existing term owner;
         // replacing them with opaque runtime occurrences loses that denotation.
-        if call_has_mathematical_denotation(program, call) {
+        if call_has_mathematical_denotation(program, scope.0.symbol, call) {
             return None;
         }
         if !call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
@@ -2057,6 +2061,11 @@ impl<'program> StructuralJudge<'program> {
             callable,
             result_type,
         };
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT normal-capture bindings expression={expression:?} entry={entry_bindings:?} post={bindings:?}"
+            );
+        }
         // An overwritten referent supplies no stable input observation, but
         // does not erase independent guarantees about this returned value.
         // Equations requiring an omitted formal fail exact substitution.
@@ -2065,7 +2074,7 @@ impl<'program> StructuralJudge<'program> {
         else {
             return None;
         };
-        let equations = guarantees.equations;
+        let mut equations = guarantees.equations;
         std::sync::Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags
@@ -2171,14 +2180,18 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
-        let recorded = if let SelectedCallContract::Concrete(callee, _) = &owner
-            && let Some(constructor) = returned_record_term(program, callee, parameters, actuals)
-        {
-            constructor
-        } else {
-            captured
-        };
-        std::sync::Arc::make_mut(&mut self.normal_results).push((expression, recorded));
+        if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
+            equations.extend(self.returned_field_equations(
+                callee,
+                selected_state,
+                parameters,
+                actuals,
+                &captured,
+            ));
+        }
+        // A construction describes payload, never the identity or admission of
+        // this call's result. Equal field geometry cannot merge linear roots.
+        std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
         for (left, right) in equations {
             std::sync::Arc::make_mut(&mut self.captured_result_equations)
                 .push((left.clone(), right.clone()));
@@ -2301,6 +2314,7 @@ impl NormalReturnPath<'_> {
 /// proof-only classification; runtime calls still require complete write frames.
 pub(super) fn call_has_mathematical_denotation(
     program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     if crate::mathematical_applications::selected_definition(program, call).is_some() {
@@ -2314,7 +2328,7 @@ pub(super) fn call_has_mathematical_denotation(
             .proof_only_mention(program, signature.return_type)
             .is_some();
     }
-    match selected_call_contract(program, call) {
+    match selected_call_contract(program, caller, call) {
         Some(SelectedCallContract::Concrete(machine, _)) => {
             crate::proof_only_classification(program).is_proof_machine(program, machine)
         }
@@ -2337,54 +2351,4 @@ fn program_expression_is_live(
     expression: ExpressionHandle,
 ) -> bool {
     expression.is_valid() && program.expression_table.expression_is_valid(expression)
-}
-
-/// A call whose body is one record literal records that constructor. Field
-/// projections of the result use the substituted fields. A body that calls
-/// again stays a captured occurrence.
-fn returned_record_term(
-    program: &dyn crate::CheckingInput,
-    callee: &typed_trees::machine::Machine,
-    parameters: &[typed_trees::signature::StateParameter],
-    actuals: &[StructuralTerm],
-) -> Option<StructuralTerm> {
-    if parameters.len() != actuals.len() {
-        return None;
-    }
-    let state = program.machine_states(callee).first()?;
-    let statements: Vec<_> = program
-        .statement_table
-        .indexed_statements(state.statement_nodes)
-        .collect();
-    let [(_, statement)] = statements.as_slice() else {
-        return None;
-    };
-    let typed_trees::statement::StatementNode::Expression(expression) = statement else {
-        return None;
-    };
-    let mut handles = Vec::new();
-    crate::expression_traversal::collect_expression_tree(program, *expression, &mut handles);
-    if handles.into_iter().any(|handle| {
-        matches!(
-            program.expression_table.expression(handle),
-            ExpressionNode::Call(_)
-        )
-    }) {
-        return None;
-    }
-    let environment = parameters
-        .iter()
-        .zip(actuals)
-        .map(|(parameter, term)| (parameter.name.as_str().to_owned(), term.clone()))
-        .collect::<Vec<_>>();
-    let judge = StructuralJudge::from_runtime_requires(program, callee, &[]);
-    let paths = judge.normal_return_paths(
-        *expression,
-        &environment,
-        (callee, state, state.return_type),
-    )?;
-    let [path] = paths.as_slice() else {
-        return None;
-    };
-    matches!(path.value, StructuralTerm::Constructor { .. }).then(|| path.value.clone())
 }

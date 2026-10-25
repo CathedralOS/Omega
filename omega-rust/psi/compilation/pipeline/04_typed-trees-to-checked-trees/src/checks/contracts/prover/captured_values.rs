@@ -37,15 +37,21 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                 value.observation,
                 value.observation_type,
                 crate::flow::captured_observation_places(program, &facts.flow, &value),
+                invocation,
+                value.observation,
+                false,
             ),
             (
                 value.operand,
                 value.type_reference,
                 crate::flow::captured_value_places(program, &facts.flow, &value),
+                value.producer_invocation(invocation),
+                value.producer_epoch.unwrap_or(value.operand),
+                value.producer_epoch.is_some(),
             ),
         ]
         .into_iter()
-        .find_map(|(operand, reference, places)| {
+        .find_map(|(operand, reference, places, invocation, epoch, frozen)| {
             let contexts = crate::flow::operand_contexts(
                 program,
                 &facts.flow.contexts,
@@ -55,8 +61,9 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                 reference,
                 invocation,
             );
-            let statement = if crate::flow::operand_binds_stable_copy(program, reference) {
-                operand.statement_index.checked_add(1)?
+            let detached = frozen || crate::flow::operand_binds_stable_copy(program, reference);
+            let statement = if detached {
+                epoch.statement_index.checked_add(1)?
             } else {
                 consumer_statement
             };
@@ -67,8 +74,8 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                 &contexts,
                 facts::ProgramPoint::Statement {
                     machine_symbol: state.machine_symbol,
-                    state_symbol: if crate::flow::operand_binds_stable_copy(program, reference) {
-                        operand.state_symbol
+                    state_symbol: if detached {
+                        epoch.state_symbol
                     } else {
                         state.state_symbol
                     },
@@ -93,10 +100,8 @@ pub(in crate::checks::contracts) fn scalar_at_path(
                         &contexts,
                         facts::ProgramPoint::Statement {
                             machine_symbol: state.machine_symbol,
-                            state_symbol: if crate::flow::operand_binds_stable_copy(
-                                program, reference,
-                            ) {
-                                operand.state_symbol
+                            state_symbol: if detached {
+                                epoch.state_symbol
                             } else {
                                 state.state_symbol
                             },

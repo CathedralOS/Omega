@@ -1,0 +1,24 @@
+// Expected exit: 0
+// An unrelated lexical machine bound supplies no [] meaning.
+data Value [copy] { code: u64; }
+data Pair [copy] { items: [Value; 2]; }
+trait Marker {
+    machine tag() -> u64;
+}
+Chosen satisfies Marker {
+    machine tag() -> u64 { 7 }
+}
+machine issue<Policy satisfies Marker>() -> Pair
+ensures result.items[0].code == 7
+{
+    Pair { items: [Value { code: 7 }, Value { code: 7 }] }
+}
+machine main() crashes Trap {
+    let pair: Pair = issue<Chosen>();
+    transition pair.items[0].code == 7 {
+        true -> done()
+        false -> bad()
+    }
+    state done() { }
+    state bad() { crash Trap; }
+}

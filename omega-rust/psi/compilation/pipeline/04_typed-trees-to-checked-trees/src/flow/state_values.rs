@@ -15,6 +15,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 use validation::CanonicalPlace;
 
 mod arguments;
+pub(super) mod lexical_regions;
 mod parameter_bounds;
 mod predicates;
 use parameter_bounds::ParameterBounds;
@@ -748,6 +749,13 @@ pub(super) fn append_entry_context(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
+    // Ordinary entry proof is declaration-owned. Only an authenticated
+    // extracted region receives its exact source activation captures.
+    if machine.lexical_region_origin.is_none()
+        && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol)
+    {
+        return;
+    }
     let Some(input) = build
         .state_value_inputs
         .iter()

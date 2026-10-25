@@ -15,6 +15,7 @@ use typed_trees::statement::TransitionGuardNode;
 pub(super) fn back_edge_counter_upper_bound(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
     back_sources: &[SymbolHandle],
     head: SymbolHandle,
@@ -23,7 +24,8 @@ pub(super) fn back_edge_counter_upper_bound(
     let mut bound: Option<i64> = None;
     for &source in back_sources {
         let state = find_state(states, source)?;
-        let edge_bound = source_arm_to_head_upper_bound(program, machine, state, head, counter)?;
+        let edge_bound =
+            source_arm_to_head_upper_bound(program, machine, call_frames, state, head, counter)?;
         bound = Some(bound.map_or(edge_bound, |current| current.max(edge_bound)));
     }
     bound
@@ -38,13 +40,23 @@ pub(super) fn back_edge_counter_upper_bound(
 pub(super) fn loop_head_index_collection(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<String> {
-    match loop_head_relational_upper(program, machine, states, edges, loop_states, head, counter)? {
+    match loop_head_relational_upper(
+        program,
+        machine,
+        call_frames,
+        states,
+        edges,
+        loop_states,
+        head,
+        counter,
+    )? {
         RelationalUpper {
             term: UpperTerm::CollectionLength(collection),
             strict: true,
@@ -58,13 +70,23 @@ pub(super) fn loop_head_index_collection(
 pub(super) fn loop_head_upper_place(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
     head: SymbolHandle,
     counter: SymbolHandle,
 ) -> Option<(String, bool)> {
-    match loop_head_relational_upper(program, machine, states, edges, loop_states, head, counter)? {
+    match loop_head_relational_upper(
+        program,
+        machine,
+        call_frames,
+        states,
+        edges,
+        loop_states,
+        head,
+        counter,
+    )? {
         RelationalUpper {
             term: UpperTerm::Place(bound),
             strict,
@@ -79,6 +101,7 @@ pub(super) fn loop_head_upper_place(
 pub(super) fn loop_head_relational_upper(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     states: &[State],
     edges: &[Edge],
     loop_states: &[SymbolHandle],
@@ -91,8 +114,14 @@ pub(super) fn loop_head_relational_upper(
 
     for edge in edges.iter().filter(|edge| edge.target == head) {
         let source = find_state(states, edge.source)?;
-        let edge_upper =
-            source_arm_to_head_relational_upper(program, machine, source, head, counter)?;
+        let edge_upper = source_arm_to_head_relational_upper(
+            program,
+            machine,
+            call_frames,
+            source,
+            head,
+            counter,
+        )?;
         match &mut upper {
             Some(known) if known.term != edge_upper.term => return None,
             Some(known) => known.strict &= edge_upper.strict,
@@ -122,6 +151,7 @@ pub(super) fn loop_head_relational_upper(
 pub(super) fn single_head_bound_edge<T>(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     source: &State,
     head: SymbolHandle,
     mut parse: impl FnMut(
@@ -132,7 +162,12 @@ pub(super) fn single_head_bound_edge<T>(
     ) -> Option<T>,
 ) -> Option<T> {
     let mut found = None;
-    for statement in program.statement_table.statements(source.statement_nodes) {
+    for (statement_index, statement) in program
+        .statement_table
+        .statements(source.statement_nodes)
+        .iter()
+        .enumerate()
+    {
         let Some(transition) = statement.as_transition() else {
             continue;
         };
@@ -146,19 +181,23 @@ pub(super) fn single_head_bound_edge<T>(
         if continuation_is_head {
             return None;
         }
-        let TransitionGuardNode::When(guard) = transition.guard else {
-            return None;
-        };
-        // Validate the original expression, including generated Boolean arm
-        // equality, before the reader peels any wrapper or operands.
-        if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard)
-        {
+        if !matches!(transition.guard, TransitionGuardNode::When(_)) || found.is_some() {
             return None;
         }
-        if found.is_some() {
-            return None;
-        }
-        found = Some(parse(program, machine, source, guard)?);
+        let observations = crate::flow::transition_guard_observations(
+            program,
+            machine,
+            source,
+            statement_index,
+            transition,
+            true,
+            call_frames,
+        )?;
+        found = Some(observations.into_iter().find_map(|(predicate, holds)| {
+            holds
+                .then(|| parse(program, machine, source, predicate))
+                .flatten()
+        })?);
     }
     found
 }
@@ -166,6 +205,7 @@ pub(super) fn single_head_bound_edge<T>(
 pub(super) fn source_arm_to_head_relational_upper(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     source: &State,
     head: SymbolHandle,
     counter: SymbolHandle,
@@ -173,6 +213,7 @@ pub(super) fn source_arm_to_head_relational_upper(
     single_head_bound_edge(
         program,
         machine,
+        call_frames,
         source,
         head,
         |program, machine, source, guard| {
@@ -195,11 +236,10 @@ pub(super) fn parse_counter_relational_upper(
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<RelationalUpper> {
-    let Some(binary) = program.expression_table.binary_node(guard) else {
-        // A subject spelled by name stands for its capture's initializer.
-        let subject = boolean_subject_definition(program, source, guard)?;
-        return parse_counter_relational_upper(program, machine, source, subject, counter);
-    };
+    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard) {
+        return None;
+    }
+    let binary = program.expression_table.binary_node(guard)?;
     if binary.operator == BinaryOperator::Equal {
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;
         return parse_counter_relational_upper(program, machine, source, inner, counter);

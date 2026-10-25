@@ -467,6 +467,25 @@ fn contributed_parameters(
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)
             {
+                // This relation names the entry descriptor. A reseated or
+                // exposed reference may name another input at this return.
+                let stable = if type_reference_is_reference(program, parameter.type_reference) {
+                    program
+                        .machine_holding_state(state.symbol)
+                        .is_some_and(|machine| {
+                            super::alias_bindings::state_reference_parameter_binding_is_stable(
+                                program,
+                                machine,
+                                state,
+                                parameter.symbol,
+                            )
+                        })
+                } else {
+                    !parameter.is_mutable
+                };
+                if !stable {
+                    return None;
+                }
                 return Some(vec![parameter.symbol]);
             }
             current

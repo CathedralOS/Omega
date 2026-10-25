@@ -1,13 +1,11 @@
-//! Execute a dependency-ordered package request through the compiler session.
+//! Complete individual Build activations and their requested source products.
 //!
-//! Package management supplies immutable source custody, accepted bindings and
-//! occurrence-specific consent. This owner joins generated outputs, retains
-//! dependency continuations, and completes only demanded independent products
-//! before checking the root. Package callers do not assemble compiler stages.
+//! Application Build owns dependency order and generated-source joins. This
+//! facade keeps source continuations, source cohort checking, component custody,
+//! provider settlement and Terminal/native production inside the compiler.
 
 use super::CompilationSession;
-use super::package_preparation::{PackagePlan, PreparedPackageRoot};
-use compilation_products::{CheckedCompileRequest, CompileFailure};
+use compilation_products::{CheckedCompileRequest, CompileFailure, PreparedPackageBuild};
 use diagnostics::Diagnostic;
 
 /// One dependency-ordered source closure. The last request is its Product root;
@@ -21,238 +19,179 @@ pub struct PackageCompilationRequest {
         Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
-/// The occurrence responsible for a rejected compiler request. Package naming
-/// and presentation remain with the package owner.
+/// The occurrence responsible for a rejected package request.
 pub struct PackageCompileFailure {
     pub occurrence: usize,
     pub failure: CompileFailure,
 }
 
-/// Caller identity and product policy stay attached while package frontiers
-/// and source cohorts complete in a different order.
-struct PackageProductOwner {
-    position: usize,
-    root_occurrence: usize,
-    root_path: std::path::PathBuf,
-    product: crate::CompilationProduct,
-    permissions: Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+/// A completed Build with compiler-private source continuation. Applications
+/// can schedule its generated sources and demanded packages, but cannot extract
+/// typed trees, alter source completion, or install a checked checkpoint.
+pub struct PackageBuild {
+    source: PreparedPackageBuild,
+}
+
+impl PackageBuild {
+    pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
+        self.source.package_inputs()
+    }
+
+    pub fn generated_source_bundle(&self) -> &package_compilation::PackageGeneratedSourceBundle {
+        self.source.generated_source_bundle()
+    }
+
+    pub fn required_component_packages(&self) -> Vec<semantic_vocabulary::PackageKeyIdentity> {
+        self.source
+            .build()
+            .independent_components()
+            .selections
+            .into_iter()
+            .filter_map(|selection| selection.component)
+            .collect()
+    }
+
+    /// Only descriptions may join after Build; source, purpose, input custody
+    /// and grants remain the ones this activation actually consumed.
+    pub fn with_independent_component_descriptions(
+        self,
+        descriptions: Vec<package_compilation::IndependentComponentDescription>,
+    ) -> Result<Self, Vec<package_compilation::PackageCompilationInputError>> {
+        self.source
+            .with_independent_component_descriptions(descriptions)
+            .map(|source| Self { source })
+    }
+}
+
+/// A completed Build and the requested product of its retained source.
+/// Generated inputs and demanded component descriptions have already joined
+/// this exact activation; completing it does not execute Build again.
+pub struct PreparedPackageProduct {
+    pub build: PackageBuild,
+    pub product: crate::CompilationProduct,
+    pub permissions: Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 impl CompilationSession {
-    /// Check a dependency-ordered package activation without producing its root.
-    /// Demanded independent dependencies still require their own verified products;
-    /// a description alone cannot settle the root's boundary applications.
-    pub fn check_package(
+    /// Execute one admitted occurrence's Build, retaining opaque Product work.
+    /// The caller may join its generated output into dependent Build requests.
+    pub fn prepare_package_build(
         &mut self,
-        occurrences: Vec<CheckedCompileRequest>,
-    ) -> Result<super::CheckedCompilation, PackageCompileFailure> {
-        let root = occurrences.len().saturating_sub(1);
+        request: CheckedCompileRequest,
+    ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
-            let prepared = self
-                .prepare_packages(vec![(
-                    (),
-                    PackagePlan {
-                        occurrences,
-                        join_root: false,
-                    },
-                )])
-                .pop();
-            let build = match prepared {
-                Some(((), Ok(PreparedPackageRoot::Build(build)))) => *build,
-                Some(((), Err(error))) => return Ok(Err(error)),
-                _ => {
-                    return Ok(Err(PackageCompileFailure {
-                        occurrence: root,
-                        failure: vec![Diagnostic::error("package checking lost its prepared root")]
-                            .into(),
-                    }));
-                }
-            };
+            self.prepare_build(request)
+                .map(|source| PackageBuild { source })
+        })
+    }
+
+    /// Check a completed Build's source without a native product. Review and
+    /// diagnostic consumers use the checked custody; application Build submits
+    /// requested products through complete_package_products instead.
+    pub fn check_package_build(
+        &mut self,
+        build: PackageBuild,
+    ) -> Result<super::CheckedCompilation, CompileFailure> {
+        super::run_on_compile_thread(|| {
             let ((), selected) = self
-                .select_build_batch(vec![((), build)])
+                .select_build_batch(vec![((), build.source)])
                 .pop()
                 .ok_or_else(|| {
                     vec![Diagnostic::error("package checking lost its selected root")]
                 })?;
-            Ok::<_, Vec<Diagnostic>>(selected.install().result.map_err(|failure| {
-                PackageCompileFailure {
-                    occurrence: root,
-                    failure,
-                }
-            }))
-        })
-        .unwrap_or_else(|diagnostics| {
-            Err(PackageCompileFailure {
-                occurrence: root,
-                failure: diagnostics.into(),
-            })
+            selected.install().result
         })
     }
 
-    /// Compile the complete admitted roster through its requested products.
-    /// Source checking, consent comparison and production belong to this call;
-    /// package operations provide policy inputs, not a mid-pipeline callback.
-    pub fn compile_packages(
+    /// Complete demanded independent components as one source cohort batch.
+    /// Retain executable custody in this session and return only descriptions
+    /// for the caller to join to waiting consumers. A description alone never
+    /// grants a consumer executable authority.
+    pub fn complete_package_components<Owner: Send>(
         &mut self,
-        requests: Vec<PackageCompilationRequest>,
-    ) -> Vec<Result<crate::CompilationOutput, PackageCompileFailure>> {
-        let count = requests.len();
+        builds: Vec<(Owner, PackageBuild)>,
+    ) -> Result<
+        Vec<(
+            Owner,
+            Result<package_compilation::IndependentComponentDescription, Vec<Diagnostic>>,
+        )>,
+        Vec<Diagnostic>,
+    > {
         super::run_on_compile_thread(|| {
-            let mut outcomes = Vec::with_capacity(requests.len());
-            let mut plans = Vec::with_capacity(requests.len());
-            for (position, mut request) in requests.into_iter().enumerate() {
-                let root = request.occurrences.len().saturating_sub(1);
-                let path = request
-                    .occurrences
-                    .last()
-                    .map(|root| root.root_path.clone())
-                    .unwrap_or_default();
-                for occurrence in &mut request.occurrences {
-                    occurrence.optimization_rollback = request.product.optimization_rollback();
-                }
-                let owner = PackageProductOwner {
-                    position,
-                    root_occurrence: root,
-                    root_path: path,
-                    product: request.product,
-                    permissions: request.terminal_permissions,
-                };
-                plans.push((
-                    owner,
-                    PackagePlan {
-                        occurrences: request.occurrences,
-                        join_root: false,
-                    },
-                ));
-            }
-
-            let mut builds = Vec::new();
-            for (owner, prepared) in self.prepare_packages(plans) {
-                match prepared {
-                    Ok(PreparedPackageRoot::Build(build)) => {
-                        builds.push((owner, *build));
-                    }
-                    Ok(PreparedPackageRoot::Joined(_)) => {
-                        outcomes.push((
-                            owner.position,
-                            Err(PackageCompileFailure {
-                                occurrence: owner.root_occurrence,
-                                failure: vec![Diagnostic::error(
-                                    "package compilation joined a root it was asked to prepare",
-                                )]
-                                .into(),
-                            }),
-                        ));
-                    }
-                    Err(error) => outcomes.push((owner.position, Err(error))),
-                }
-            }
-
-            // All roots enter source completion together. Provider selection feeds
-            // the same Terminal-before-installation sequence as standalone builds.
-            // Permission consent travels to that sequence's admission boundary.
-            let mut products = Vec::new();
-            for (owner, selected) in self.select_build_batch(builds) {
-                match selected.result {
-                    Ok(selected) => {
-                        products.push((
-                            (owner.position, owner.root_occurrence),
-                            Ok(crate::product_execution::ProductRequest {
-                                realization: selected,
-                                root: owner.root_path,
-                                product: owner.product,
-                                permissions: owner.permissions,
-                            }),
-                        ));
-                    }
-                    Err(failure) => {
-                        outcomes.push((
-                            owner.position,
-                            Err(PackageCompileFailure {
-                                occurrence: owner.root_occurrence,
-                                failure,
-                            }),
-                        ));
-                    }
-                }
-            }
-            for ((position, root), product) in crate::compiler::produce_products(products) {
-                outcomes.push((
-                    position,
-                    product.map_err(|error| PackageCompileFailure {
-                        occurrence: root,
-                        failure: error.into_diagnostics().into(),
-                    }),
-                ));
-            }
-            outcomes.sort_unstable_by_key(|(position, _)| *position);
-            Ok::<_, Vec<Diagnostic>>(outcomes.into_iter().map(|(_, outcome)| outcome).collect())
-        })
-        .unwrap_or_else(|diagnostics| {
-            (0..count)
-                .map(|_| {
-                    Err(PackageCompileFailure {
-                        occurrence: 0,
-                        failure: diagnostics.clone().into(),
-                    })
+            let builds = builds
+                .into_iter()
+                .map(|(owner, build)| (owner, build.source))
+                .collect();
+            let checked = self
+                .select_build_batch(builds)
+                .into_iter()
+                .map(|(owner, selected)| {
+                    (
+                        owner,
+                        selected
+                            .install()
+                            .result
+                            .map_err(CompileFailure::into_diagnostics),
+                    )
                 })
-                .collect()
+                .collect();
+            let mut completed = Vec::new();
+            for (owner, product) in
+                crate::compiler::package::publish_checked_component_products(checked)
+            {
+                let description = match product {
+                    Ok(product) => {
+                        let description = product.description().clone();
+                        self.retain_component_product(product);
+                        Ok(description)
+                    }
+                    Err(diagnostics) => Err(diagnostics),
+                };
+                completed.push((owner, description));
+            }
+            Ok(completed)
         })
     }
 
-    /// Execute every dependency occurrence of one dependency-ordered plan, as
-    /// [`Self::compile_packages`] does, and return its Product root's package
-    /// inputs joined with their complete generated source, without preparing
-    /// or checking the root. `occurrences` has the shape of
-    /// [`PackageCompilationRequest::occurrences`]: the Product root is last.
-    ///
-    /// The corpus runner's fixture harness calls this. Each of its legs
-    /// compiles a fixture root through its own product request, so the root
-    /// needs dependency Build output joined into its inputs rather than a
-    /// finished package product. Package operations submit whole plans
-    /// through [`Self::compile_packages`] instead.
-    pub fn join_dependency_builds(
+    /// Complete ready roots together, sharing source/Terminal work while each
+    /// request retains its own policy, permission consent and result.
+    pub fn complete_package_products<Owner: Send>(
         &mut self,
-        occurrences: Vec<CheckedCompileRequest>,
-    ) -> Result<package_compilation::PackageCompilationInputs, PackageCompileFailure> {
-        let root = occurrences.len().saturating_sub(1);
+        requests: Vec<(Owner, PreparedPackageProduct)>,
+    ) -> Result<
+        Vec<(
+            Owner,
+            Result<crate::CompilationOutput, crate::CompilationProductError>,
+        )>,
+        Vec<Diagnostic>,
+    > {
         super::run_on_compile_thread(|| {
-            let prepared = self
-                .prepare_packages(vec![(
-                    (),
-                    PackagePlan {
-                        occurrences,
-                        join_root: true,
-                    },
-                )])
-                .pop();
-            Ok::<_, Vec<Diagnostic>>(match prepared {
-                Some(((), Ok(PreparedPackageRoot::Joined(request)))) => {
-                    request.package_inputs.ok_or_else(|| PackageCompileFailure {
-                        occurrence: root,
-                        failure: vec![Diagnostic::error(
-                            "package compilation requires source custody",
-                        )]
-                        .into(),
+            let builds = requests
+                .into_iter()
+                .map(|(owner, request)| {
+                    let root = request.build.source.root_path().to_path_buf();
+                    (
+                        (owner, root, request.product, request.permissions),
+                        request.build.source,
+                    )
+                })
+                .collect();
+            let mut products = Vec::new();
+            for ((owner, root, product, permissions), selected) in self.select_build_batch(builds) {
+                let request = selected
+                    .result
+                    .map(|realization| crate::product_execution::ProductRequest {
+                        realization,
+                        root,
+                        product,
+                        permissions,
                     })
-                }
-                Some(((), Err(error))) => Err(error),
-                Some(((), Ok(PreparedPackageRoot::Build(_)))) | None => {
-                    Err(PackageCompileFailure {
-                        occurrence: root,
-                        failure: vec![Diagnostic::error(
-                            "package preparation lost its joined root",
-                        )]
-                        .into(),
-                    })
-                }
-            })
-        })
-        .unwrap_or_else(|diagnostics| {
-            Err(PackageCompileFailure {
-                occurrence: 0,
-                failure: diagnostics.into(),
-            })
+                    .map_err(|failure| {
+                        crate::CompilationProductError::Production(failure.into_diagnostics())
+                    });
+                products.push((owner, request));
+            }
+            Ok(crate::compiler::produce_products(products))
         })
     }
 }

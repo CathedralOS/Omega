@@ -11,7 +11,9 @@ pub use static_arguments::{
     mathematical_carrier_head, source_generic_argument_plan,
 };
 mod expressions;
-pub use expressions::{definition_roots, erased_initializer_nodes, expression_nodes};
+pub use expressions::{
+    definition_roots, erased_initializer_nodes, expression_nodes, scoped_expression_nodes,
+};
 mod logical_bodies;
 pub use logical_bodies::{indexed_contract_is_proved, is_indexed_logical_machine};
 mod prepared;

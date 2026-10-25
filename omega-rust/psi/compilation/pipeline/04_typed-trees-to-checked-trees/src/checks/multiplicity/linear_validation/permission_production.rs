@@ -13,7 +13,8 @@ use crate::checks::multiplicity::linear_obligations::{
     ClaimIdentityAllocator, LinearPlace, WrittenLinearTarget,
 };
 use crate::checks::multiplicity::linear_validation::claim_provenance::{
-    completed_statement_values, written_linear_targets, written_owner_targets,
+    completed_receiving_values, completed_statement_values, written_linear_targets,
+    written_owner_targets,
 };
 use crate::checks::multiplicity::selected_evaluation::SelectedEvaluation;
 use crate::checks::multiplicity::selected_evaluation::place_bindings::{
@@ -855,9 +856,16 @@ pub(crate) fn evaluate_statement_permissions(
                     evaluation,
                     permission_events,
                 );
-                if !completed_statement_values(program, statement)
-                    .iter()
-                    .any(|(receiving, source)| *receiving == expression && *source == evaluation)
+                if !completed_receiving_values(
+                    program,
+                    facts,
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    statement,
+                )
+                .iter()
+                .any(|(receiving, source)| *receiving == expression && *source == evaluation)
                 {
                     complete_body_custody(
                         program,
@@ -872,6 +880,7 @@ pub(crate) fn evaluate_statement_permissions(
                         permission_events,
                         event_start,
                         cleanup_dispositions,
+                        crate::checks::multiplicity::CompletedClaimLocation::Expression,
                     );
                 }
                 observed_completions::complete_at(
@@ -1067,7 +1076,14 @@ pub(crate) fn complete_statement_permissions(
             permission_events,
         );
     }
-    for (expression, source) in completed_statement_values(program, statement) {
+    for (expression, source) in completed_receiving_values(
+        program,
+        facts,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        statement,
+    ) {
         if source != evaluation {
             continue;
         }
@@ -1090,6 +1106,7 @@ pub(crate) fn complete_statement_permissions(
             permission_events,
             event_start,
             cleanup_dispositions,
+            crate::checks::multiplicity::CompletedClaimLocation::ReceivingStorage,
         );
     }
     // Returning a completed expression transfers its established frontier;
@@ -1170,6 +1187,7 @@ fn complete_body_custody(
     permission_events: &mut Vec<FlowPermissionEventFact>,
     event_start: usize,
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
+    location: crate::checks::multiplicity::CompletedClaimLocation,
 ) {
     let body_conservations = crate::checks::content::observe_body_completion(
         program,
@@ -1182,6 +1200,7 @@ fn complete_body_custody(
         places,
         permission_events,
         &permission_events[event_start..],
+        location,
     );
     let transformation_start = permission_events.len();
     // A missing conservation grants nothing; ordinary checking still owns
@@ -1311,7 +1330,7 @@ fn copy_source_completions(
                 &[],
                 validation::ContentsRequirement::DescriptorCleanup,
             )
-            || !facts.borrow.with_state_borrows(machine, state, |rows| {
+            || facts.borrow.with_state_borrows(machine, state, |rows| {
                 rows.iter()
                     .map(|handle| facts.borrow.states.get(*handle))
                     .any(|state_fact| {

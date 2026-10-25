@@ -44,12 +44,13 @@ pub fn validate_source_const_recipes(
                 return;
             }
         };
+        let arguments = ordinary_arguments(program, call);
         crate::value_custody::const_expressions::validate_argument_recipes(
             program,
             caller,
             state,
             parameters,
-            call.arguments(program),
+            &arguments,
             &mut diagnostics,
             formation_obligations,
         );
@@ -249,6 +250,63 @@ fn source_requirement<'program>(
     )))
 }
 
+/// Machine conformance binders occupy a separate telescope. Remove only
+/// operands joined to those exact binders by the retained application; the
+/// remaining Type/Const/Machine operands keep their authored order. A kind
+/// cursor here would admit permutations of the ordinary telescope.
+fn ordinary_arguments<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: StaticArgumentCall<'program>,
+) -> std::borrow::Cow<'program, [StaticMachineArgument]> {
+    let arguments = call.arguments(program);
+    let handle = call.application();
+    if !handle.is_valid() {
+        return std::borrow::Cow::Borrowed(arguments);
+    }
+    let application = program.expression_table.static_machine_application(handle);
+    let Some(machine) = program.machine_by_symbol(application.binding_declaration) else {
+        return std::borrow::Cow::Borrowed(arguments);
+    };
+    if !program
+        .machine_by_symbol(call.registration_operation(program))
+        .or_else(|| program.machine_holding_state(call.registration_operation(program)))
+        .is_some_and(|source| source.symbol == machine.symbol)
+    {
+        return std::borrow::Cow::Borrowed(arguments);
+    }
+    if machine.conformance_bounds.is_empty() {
+        return std::borrow::Cow::Borrowed(arguments);
+    }
+    let bindings = program
+        .expression_table
+        .static_machine_application_bindings(handle);
+    let mut consumed = vec![false; bindings.len()];
+    std::borrow::Cow::Owned(
+        arguments
+            .iter()
+            .filter(|argument| {
+                let evidence = bindings.iter().enumerate().position(|(index, binding)| {
+                    !consumed[index]
+                        && machine.conformance_bounds.iter().any(|bound| {
+                            bound.binder == binding.parameter
+                                && bindings.iter().filter(|other| other.parameter == bound.binder).count() == 1
+                        })
+                        && matches!(&binding.value,
+                            typed_trees::static_applications::StaticMachineBindingValue::Conformance(actual)
+                            if actual == *argument)
+                });
+                if let Some(index) = evidence {
+                    consumed[index] = true;
+                    false
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect(),
+    )
+}
+
 fn expression_call_states<'program>(
     program: &'program dyn crate::CheckingInput,
 ) -> Vec<(typed_trees::expression::ExpressionHandle, &'program State)> {
@@ -354,7 +412,8 @@ fn validate_call(
         && !parameters.is_empty()
     {
         let state = call_state(call, context, expression_states);
-        if let Err(error) = validate_arguments(program, name, parameters, arguments, state) {
+        let ordinary = ordinary_arguments(program, call);
+        if let Err(error) = validate_arguments(program, name, parameters, &ordinary, state) {
             diagnostics.push(error);
         }
         if let Some(state) = state
@@ -365,7 +424,7 @@ fn validate_call(
                 machine,
                 state,
                 parameters,
-                arguments,
+                &ordinary,
                 diagnostics,
                 formation_obligations,
             );

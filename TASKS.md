@@ -663,10 +663,10 @@ defines the complete product bar.
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque and dependent result composition through
     the same producer and custody relationships: ranked structural returns still
-    lose descriptor-length equalities at recursive exits, and returned descriptors
-    projected through stored array elements lack completed backing at simultaneous
-    call admission. Preserve copied returns from mutated borrowed record fields
-    through the existing computed-descriptor fact row.
+    lose descriptor-length equalities at recursive exits. Preserve copied returns
+    from mutated borrowed record fields and stored array elements through the
+    existing computed-descriptor fact row, including saved descriptors returned
+    after their former slot changes again and untouched element/sibling storage.
     Keep
     `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
     and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
@@ -1140,7 +1140,10 @@ defines the complete product bar.
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
-    checked ordered temporary action roster and its scalar-call continuation in
+    exact completion-time cleanup facts for copied descriptor leaves, and end
+    borrowed carriers' loans before disposing their supplier storage; anonymous
+    descriptor-source completion remains unfinished.
+    Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
     consume retained claims. Preserve the selected transfer and ordered
@@ -1148,8 +1151,14 @@ defines the complete product bar.
     temporary for the selected field.
     Keep `samples/cli/facts/returned_linear_residual/` and its pinned
     pass/reject pairs for selected by-value linear-child consumption and
-    original-owner residual cleanup. Preserve the owner-telescope review
-    control `runtime_generic_cleanup_owner_telescope_exit` alongside it.
+    original-owner residual cleanup. Keep
+    `samples/cli/facts/returned_indexed_linear_residual/` and its pinned
+    pass/reject pairs for literal fixed-array selection under the returned
+    owner's exact element claims. Authored or lexical indexing cannot acquire
+    builtin result laws; inherited functional guarantees still owe ordinary
+    exit proof under the exact applied parameter mapping. Preserve the
+    owner-telescope review control `runtime_generic_cleanup_owner_telescope_exit`
+    alongside these rows.
     Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
     `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
     and Terminal controls for conditional establishment, descendant identity
@@ -2897,8 +2906,12 @@ crash and native exit behavior.
   plans; package completion retains custody, identity reconciliation and disposal.
   Package frontiers, source cohorts and component publication carry caller identity
   with work and results, rather than reconstructing parallel result tables.
-  Candidate review and compiler-internal dependency/Build activation scheduling
-  still need migration. Psi
+  Application Build now schedules dependency frontiers and joins generated source,
+  completing demanded components before their consumers. Compiler-owned opaque
+  Build continuations prevent the application from extracting source IR; source
+  checking and component/product publication remain behind the compiler facade.
+  Candidate review and Terminal Build/helper activation scheduling still need
+  migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

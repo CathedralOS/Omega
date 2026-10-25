@@ -142,19 +142,39 @@ impl<'facts> InvocationContexts<'facts> {
         selected: symbols::SymbolHandle,
         operands: &[ExpressionHandle],
     ) -> Self {
+        Self::for_selected_expression_in_flow(
+            program,
+            &facts.operators,
+            &facts.flow,
+            &facts.semantic,
+            expression,
+            selected,
+            operands,
+        )
+    }
+
+    /// The same exact occurrence binding while the checked facts are being
+    /// assembled. Readers borrow the published owners independently; they do
+    /// not manufacture a temporary aggregate or re-evaluate source operands.
+    pub(crate) fn for_selected_expression_in_flow(
+        program: &dyn ::validation::CheckingInput,
+        operators: &'facts checked_trees::CheckedOperatorFacts,
+        flow: &'facts FlowFacts,
+        semantic: &'facts FactPlan,
+        expression: ExpressionHandle,
+        selected: symbols::SymbolHandle,
+        operands: &[ExpressionHandle],
+    ) -> Self {
         let mut spelled = Vec::new();
-        facts
-            .operators
-            .for_each_expression_use(expression, |handle, fact| {
-                if fact.selected_operator_symbol == selected
-                    && fact.status == checked_trees::CheckedOperatorResolutionStatus::Resolved
-                    && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
-                {
-                    spelled.push((handle, fact));
-                }
-            });
-        let named = facts
-            .operators
+        operators.for_each_expression_use(expression, |handle, fact| {
+            if fact.selected_operator_symbol == selected
+                && fact.status == checked_trees::CheckedOperatorResolutionStatus::Resolved
+                && fact.occurrence == checked_trees::CheckedOperatorOccurrence::Expression
+            {
+                spelled.push((handle, fact));
+            }
+        });
+        let named = operators
             .named_uses
             .iter()
             .filter(|(_, fact)| {
@@ -162,23 +182,22 @@ impl<'facts> InvocationContexts<'facts> {
             })
             .collect::<Vec<_>>();
         if let ([(handle, _)], []) = (spelled.as_slice(), named.as_slice()) {
-            return Self::new(facts, *handle, operands);
+            return Self::from_flow(flow, semantic, *handle, operands);
         }
         if let ([], [(handle, _)]) = (spelled.as_slice(), named.as_slice()) {
-            return Self::from_named_use(&facts.flow, &facts.semantic, *handle, operands);
+            return Self::from_named_use(flow, semantic, *handle, operands);
         }
         // Ordinary calls retain their entry-state target; boundary requirement
         // selections name the declaration. Compare that established owner
         // identity without weakening occurrence or operand custody.
-        let mut calls = facts.flow.control.calls.iter().filter_map(|(_, call)| {
+        let mut calls = flow.control.calls.iter().filter_map(|(_, call)| {
             (call.authored_expression == expression
                 && validation::find_machine_by_entry_state(program, call.authored_target)
                     .map(|(machine, _)| machine.symbol)
                     .unwrap_or(call.authored_target)
                     == selected
                 && call.authored_source_custody_valid
-                && facts
-                    .flow
+                && flow
                     .control
                     .operands
                     .span_or_empty(call.operands)
@@ -200,10 +219,19 @@ impl<'facts> InvocationContexts<'facts> {
             _ => None,
         };
         Self {
-            flow: &facts.flow,
-            semantic: &facts.semantic,
+            flow,
+            semantic,
             invocation,
         }
+    }
+
+    pub(crate) fn entry_constraints(
+        &self,
+    ) -> Option<arena::HandleSpan<checked_trees::FlowConstraintRef>> {
+        Some(match self.invocation.as_ref()? {
+            CapturedInvocation::Operator(invocation) => invocation.requires_constraints,
+            CapturedInvocation::Call { call, .. } => call.entry_constraints,
+        })
     }
 
     pub(crate) fn for_expressions(

@@ -161,8 +161,11 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
         };
         let (entries, leading) = match self.call {
             CallSite::Expression { expression, call } => {
-                let Some(owner) = super::specification_calls::selected_call_contract(program, call)
-                else {
+                let Some(owner) = super::specification_calls::selected_call_contract(
+                    program,
+                    machine.symbol,
+                    call,
+                ) else {
                     self.valid = false;
                     return;
                 };

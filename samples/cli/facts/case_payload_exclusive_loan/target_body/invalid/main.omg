@@ -10,7 +10,11 @@ requires counter == 0
     true
 }
 
-linux_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
+linux_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
     let selected: &mut i64 = match choose(visits) {
         true -> &mut chosen.value
         false -> &mut other.value
@@ -20,7 +24,11 @@ linux_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64
     selected
 }
 
-linux_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
+linux_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
     let selected: &mut i64 = match choose(visits) {
         true -> &mut chosen.value
         false -> &mut other.value
@@ -30,7 +38,11 @@ linux_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64)
     selected
 }
 
-macos_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
+macos_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
     let selected: &mut i64 = match choose(visits) {
         true -> &mut chosen.value
         false -> &mut other.value
@@ -40,7 +52,11 @@ macos_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64)
     selected
 }
 
-windows_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
+windows_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present
+requires other in Slot::Present
+requires visits == 0
+{
     let selected: &mut i64 = match choose(visits) {
         true -> &mut chosen.value
         false -> &mut other.value

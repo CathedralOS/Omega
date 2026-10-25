@@ -31,11 +31,11 @@ mod permission_events;
 mod permission_schedule;
 mod returned_claims;
 pub(crate) use linear_obligations::LinearPlace;
-pub(crate) use returned_claims::completed_owned_claims;
 pub(crate) use returned_claims::{
     ClaimConsumption, ReturnedClaim, ReturnedClaimSource, consumed_operand_claims,
     current_returned_claims,
 };
+pub(crate) use returned_claims::{CompletedClaimLocation, completed_owned_claims};
 mod selected_cleanup;
 mod selected_evaluation;
 pub(crate) use claim_outcomes::ClaimOutcomePreparation;

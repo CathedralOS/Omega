@@ -13,6 +13,6 @@ pub(crate) fn compile(
 ) -> Vec<ProjectCompilationOutcome> {
     let admitted = admit_project_compilation(request);
     let mut compiler = compiler::CompilationSession::default();
-    let products = compiler.compile_packages(admitted.requests);
+    let products = crate::compile_packages(&mut compiler, admitted.requests);
     admitted.completion.complete(products)
 }

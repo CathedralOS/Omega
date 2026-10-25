@@ -221,6 +221,7 @@ pub(crate) fn shared_reference_observation<'facts>(
         type_reference: source.type_reference,
         projection,
         choices: captured.choices.clone(),
+        producer_epoch: None,
     })
 }
 

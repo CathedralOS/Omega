@@ -70,9 +70,11 @@ impl Engine<'_> {
             let ExpressionNode::Call(call) = node else {
                 continue;
             };
-            let Some(owner) =
-                super::super::specification_calls::selected_call_contract(self.program, call)
-            else {
+            let Some(owner) = super::super::specification_calls::selected_call_contract(
+                self.program,
+                self.source_owner,
+                call,
+            ) else {
                 continue;
             };
             let parameters =

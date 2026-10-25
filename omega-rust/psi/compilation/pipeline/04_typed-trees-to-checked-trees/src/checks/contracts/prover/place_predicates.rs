@@ -35,6 +35,13 @@ impl PlacePredicate {
         contexts: &[facts::FactContextHandle],
         captured: &crate::flow::CapturedValue<'_>,
     ) -> bool {
+        let (source_state, source_statement) =
+            captured.producer_frontier(state.state_symbol, call.statement_index);
+        let point = facts::ProgramPoint::Statement {
+            machine_symbol: state.machine_symbol,
+            state_symbol: source_state,
+            statement_index: source_statement,
+        };
         if let Some(namespace) = crate::flow::descriptor_observation_namespace(
             program,
             &facts.flow.control,
@@ -43,16 +50,16 @@ impl PlacePredicate {
         )
         .and_then(|namespace| {
             crate::flow::project_captured_view_place(namespace, &captured.projection.remaining)
-        }) && self.proven(program, facts, state, call, contexts, &namespace)
+        }) && self.proven(program, facts, point, contexts, &namespace)
         {
             return true;
         }
         let proven = crate::flow::captured_value_places(program, &facts.flow, captured)
             .is_some_and(|places| {
                 !places.is_empty()
-                    && places.iter().all(|place| {
-                        self.proven(program, facts, state, call, contexts, &place.projected)
-                    })
+                    && places
+                        .iter()
+                        .all(|place| self.proven(program, facts, point, contexts, &place.projected))
             });
         if !proven {
             match crate::checks::borrows::shared_reference_observation(
@@ -82,11 +89,14 @@ impl PlacePredicate {
                         .is_some_and(|places| {
                             !places.is_empty()
                                 && places.iter().all(|place| {
-                                    self.proven_at(
+                                    self.proven(
                                         program,
                                         facts,
-                                        state,
-                                        source.operand.statement_index,
+                                        facts::ProgramPoint::Statement {
+                                            machine_symbol: state.machine_symbol,
+                                            state_symbol: source.operand.state_symbol,
+                                            statement_index: source.operand.statement_index,
+                                        },
                                         &source_contexts,
                                         &place.projected,
                                     )
@@ -282,27 +292,7 @@ impl PlacePredicate {
         &self,
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state: &FlowStateFact,
-        call: &FlowCallFact,
-        contexts: &[facts::FactContextHandle],
-        subject: &validation::CanonicalPlace,
-    ) -> bool {
-        self.proven_at(
-            program,
-            facts,
-            state,
-            call.statement_index,
-            contexts,
-            subject,
-        )
-    }
-
-    fn proven_at(
-        &self,
-        program: &dyn ::validation::CheckingInput,
-        facts: &CheckFacts,
-        state: &FlowStateFact,
-        statement_index: usize,
+        point: facts::ProgramPoint,
         contexts: &[facts::FactContextHandle],
         subject: &validation::CanonicalPlace,
     ) -> bool {
@@ -314,17 +304,27 @@ impl PlacePredicate {
                 subject,
                 *predicate,
             ),
-            Self::Case(case) => crate::flow::place_case_has_value(
-                program,
-                &facts.semantic,
-                contexts,
-                state.machine_symbol,
-                state.state_symbol,
-                statement_index,
-                subject,
-                *case,
-                true,
-            ),
+            Self::Case(case) => {
+                let facts::ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                } = point
+                else {
+                    return false;
+                };
+                crate::flow::place_case_has_value(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    subject,
+                    *case,
+                    true,
+                )
+            }
         }
     }
 }

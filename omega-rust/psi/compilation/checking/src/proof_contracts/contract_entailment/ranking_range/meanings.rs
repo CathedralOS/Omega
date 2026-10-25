@@ -165,7 +165,11 @@ pub(super) fn admitted_carrier(
             // edge's complete write frame preserves its live premises;
             // normalization separately supplies an occurrence-bound result
             // from the public contract when the witness actually reads it.
-            let owner = super::super::specification_calls::selected_call_contract(program, call)?;
+            let owner = super::super::specification_calls::selected_call_contract(
+                program,
+                machine.symbol,
+                call,
+            )?;
             Some(Some(super::super::specification_calls::owner_return_type(
                 &owner,
             )))

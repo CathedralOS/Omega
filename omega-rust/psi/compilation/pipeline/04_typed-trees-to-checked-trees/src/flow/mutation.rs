@@ -439,7 +439,7 @@ fn codec_frame_storage_regions(
         .may_write_frame(machine, call)
         .into_complete_paths()?
     {
-        let place = local_origins::place_from_origin_path(
+        let place = local_origins::frame_write_place(
             program,
             state,
             borrow_call.statement_index,
@@ -537,12 +537,8 @@ fn shared_call_storage_regions(
     );
     let mut places = Vec::new();
     for path in frame.complete_paths()? {
-        let source = local_origins::place_from_origin_path(
-            program,
-            state,
-            borrow_call.statement_index,
-            path,
-        )?;
+        let source =
+            local_origins::frame_write_place(program, state, borrow_call.statement_index, path)?;
         for region in local_origins::rebase_local_write_regions(
             program,
             caller_state_symbol,
@@ -944,7 +940,7 @@ pub(crate) fn frame_storage_writes(
     let state = program.state_by_symbol(state_symbol)?;
     let mut places = Vec::new();
     for path in frame.complete_paths()? {
-        let source = local_origins::place_from_origin_path(program, state, statement_index, path)?;
+        let source = local_origins::frame_write_place(program, state, statement_index, path)?;
         for place in local_origins::rebase_local_write_places(
             program,
             state_symbol,

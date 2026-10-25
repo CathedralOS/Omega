@@ -173,11 +173,11 @@ pub struct CheckedUnitStructuralFieldPlan {
     pub relevance: BindingRelevance,
     pub field_type: CheckedUnitStructuralFieldType,
     pub storage: Option<semantic_vocabulary::AuthoredFieldStorage>,
-    /// The carrier types this field's domain qualifications are registered
-    /// against when the field type itself names no structural type (a
-    /// qualified byte view such as `&[u8] in Utf8`). A value constructed into
-    /// the field carries those memberships, so a catalog that keeps the
-    /// owner keeps these carriers and their domain theories with it.
+    /// The carrier types this field's qualifications are registered against
+    /// when its inline field plan names no structural type: a refined scalar
+    /// or a qualified byte view such as `&[u8] in Utf8`. A catalog that keeps
+    /// the owner also keeps these exact receiving restrictions and domain
+    /// theories. Field-only stated bounds remain in `field_type`.
     pub qualification_carriers: Vec<TypeIdentityId>,
 }
 

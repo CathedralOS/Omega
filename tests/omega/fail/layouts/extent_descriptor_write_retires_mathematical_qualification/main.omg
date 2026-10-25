@@ -1,0 +1,9 @@
+// Writing the descriptor retires its existing mathematical qualification.
+use omega::language::core::extent;
+
+machine preserve(storage: &mut Extent in Granted)
+ensures storage in Granted
+{
+    let alias: &mut Extent in Granted = storage;
+    alias.length = 0u64;
+}

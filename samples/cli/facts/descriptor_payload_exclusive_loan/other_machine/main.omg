@@ -10,7 +10,9 @@ requires counter == 0
     true
 }
 
-machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
+machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present, other in Slot::Present, visits == 0
+{
     let selected: &mut [i64] = match choose(visits) {
         true -> &mut chosen.value[..]
         false -> &mut other.value[..]
@@ -19,7 +21,9 @@ machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
     selected[0]
 }
 
-machine forward(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 {
+machine forward(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
+requires chosen in Slot::Present, other in Slot::Present, visits == 0
+{
     apply(chosen, other, visits)
 }
 

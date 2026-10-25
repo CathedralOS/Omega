@@ -1,0 +1,10 @@
+// Participating nominal element owns Index; selected copy is an ordinary machine result.
+data Value [copy] { code: u64; }
+machine [] replacement<T [copy]>(items: &[Value; 2], selected: T) -> T { selected }
+machine main() crashes Trap {
+    let items: [Value; 2] = [Value { code: 7 }, Value { code: 9 }];
+    let observed: u64 = items[Value { code: 8 }].code;
+    transition observed == 8 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

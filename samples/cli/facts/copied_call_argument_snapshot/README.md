@@ -170,20 +170,29 @@ former home; access authority remains with the original loan judgments. Terminal
 argument preparation establishes descriptor values at their authored positions,
 including views with existing or projected homes.
 
-The computed row's replacement helper now reads the descriptor it installed in
-borrowed storage, copies it to a local, and returns that completed copy. The
-field place uses an intermediate constructed carrier; the other-machine place
-uses a nested borrowed record. On baseline `ef5fad42548`, source checking
-succeeded but all nine places refused production at `reference retirement:
-transport`. Translating a loan owner's path must look through the containing
-record's reference/constraint shells, just as the inverse owner-path translation
-does. The checked loan occurrence still owns access and backing; this geometry
-translation grants neither. The same nine positives now run with native/Terminal
-exit 0 on macOS ARM64; their nine source-9 twins retain the `receive` refusal.
-Backing writes after copying, parent-loan conflicts and write-only reads still
-reject. General cyclic, opaque and dependent result composition remains open
-under the parent acceptance, as does source admission of returned descriptors
-projected through an array element.
+The computed row's replacement helper installs a descriptor through a borrowed
+array element, copies it to a local, and returns that completed value. The local
+place replaces the slot again before returning the saved descriptor. The field
+place uses an intermediate constructed carrier; the other-machine place nests
+the array in a borrowed record. Every place checks the untouched second element
+and sibling field. The call-result place supplies local-array backing and checks
+its distinct first byte after installation.
+
+The supplier relation retains structured source coordinates independently of
+conservative write footprints. An indexed home can coarsen the latter even when
+its loaded descriptor resolves to an exact evaluated supplier. Descriptor capture
+uses that supplier's checked path, type, access and full retention inventory;
+footprint coarseness supplies neither an address nor a reason to discard this
+association. Loan-owner path translation also looks through reference and
+constraint shells at every selector. Ordinary loan judgments still authorize
+access. The backing-write control replaces the array slot, then attempts to
+mutate the saved descriptor's backing; it must reject independently of that slot.
+
+Baseline `3ddc7d1455f` refuses all nine expanded positives for missing completed
+descriptor backing at simultaneous call admission. Acceptance is native/Terminal
+exit 0 for each positive and the unchanged `receive` refusal for every source-9
+twin. Measurements are for macOS ARM64; other-host execution and general cyclic,
+opaque and dependent result composition remain open under the parent acceptance.
 
 ## Requirements and evidence
 

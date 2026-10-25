@@ -1,0 +1,32 @@
+// A copied Present payload of 7 stays readable after a later argument replaces its source with Absent.
+// Place: parameter.
+// Expected exit: 0
+data Slot [copy] { case Absent; case Present(value: u64); }
+
+machine set_to_absent(slot: &mut Slot) -> u64 {
+    slot = Slot::Absent {};
+    0
+}
+
+machine read_payload(before: Slot, marker: u64) -> u64
+requires before in Slot::Present
+{
+    before.value
+}
+
+machine apply(mut chosen: Slot) -> u64
+requires chosen in Slot::Present
+{
+    read_payload(chosen, set_to_absent(&mut chosen))
+}
+
+machine main() crashes Trap {
+    let chosen: Slot = Slot::Present { value: 7 };
+    let observed: u64 = apply(chosen);
+    transition observed == 7 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

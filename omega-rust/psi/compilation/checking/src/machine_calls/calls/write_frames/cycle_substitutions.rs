@@ -202,3 +202,38 @@ pub(super) fn substitutions_are_finite(
     }
     substitutions.is_finite()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Root, Substitutions};
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn root_dependencies_reject_growth_within_each_component() {
+        fn graph(roots: usize, edges: &[(usize, usize, bool)]) -> Substitutions {
+            let mut substitutions = Substitutions::default();
+            for index in 0..roots {
+                substitutions.root(SymbolHandle::from_arena_index(index as u32), Root::Receiver);
+            }
+            for &(source, target, grows) in edges {
+                substitutions.insert(source, target, grows);
+            }
+            substitutions
+        }
+
+        assert!(graph(4, &[(0, 1, false), (1, 0, false)]).is_finite());
+        assert!(
+            !graph(4, &[(0, 1, true), (1, 0, false)]).is_finite(),
+            "unrelated components cannot hide a growing root cycle"
+        );
+        assert!(
+            graph(
+                4,
+                &[(0, 1, false), (1, 0, false), (1, 2, true), (2, 3, true)]
+            )
+            .is_finite(),
+            "growth across an acyclic dependency stays finite"
+        );
+        assert!(!graph(2, &[(0, 1, true), (1, 0, false)]).is_finite());
+    }
+}

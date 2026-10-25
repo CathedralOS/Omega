@@ -11,7 +11,9 @@ requires counter == 0
     true
 }
 
-machine select<'a>(chosen: &'a mut Slot, other: &'a mut Slot, visits: &mut u64) -> &'a mut [i64] {
+machine select<'a>(chosen: &'a mut Slot, other: &'a mut Slot, visits: &mut u64) -> &'a mut [i64]
+requires chosen in Slot::Present, other in Slot::Present, visits == 0
+{
     match choose(visits) {
         true -> &mut chosen.value[0..2]
         false -> &mut other.value[2..4]

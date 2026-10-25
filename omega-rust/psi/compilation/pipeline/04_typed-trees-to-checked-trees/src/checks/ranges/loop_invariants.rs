@@ -3,8 +3,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{
-    StatementNode, TableAssignment, TransitionGuardNode, TransitionTargetHandle,
-    TransitionTargetNode,
+    StatementNode, TableAssignment, TransitionTargetHandle, TransitionTargetNode,
 };
 
 use super::facts::RangeFacts;
@@ -214,6 +213,7 @@ pub(super) fn collect_loop_invariant_facts(
             if !update_bounds::updates_preserve_order(
                 program,
                 machine,
+                call_frames,
                 states,
                 &loop_states,
                 head.symbol,
@@ -261,6 +261,7 @@ pub(super) fn collect_loop_invariant_facts(
                 && let Some(bound) = back_edge_counter_upper_bound(
                     program,
                     machine,
+                    call_frames,
                     states,
                     &back_sources,
                     head.symbol,
@@ -288,6 +289,7 @@ pub(super) fn collect_loop_invariant_facts(
                 && let Some(collection) = loop_head_index_collection(
                     program,
                     machine,
+                    call_frames,
                     states,
                     &edges,
                     &loop_states,
@@ -324,6 +326,7 @@ pub(super) fn collect_loop_invariant_facts(
                 && let Some((bound, edge_strict)) = loop_head_upper_place(
                     program,
                     machine,
+                    call_frames,
                     states,
                     &edges,
                     &loop_states,
@@ -485,28 +488,6 @@ fn boolean_equality_inner(
     } else {
         None
     }
-}
-
-/// The expression a bare-name guard stands for: the immutable local's
-/// initializer in the same state. Generated transition-subject captures
-/// (`let __transition_subject#N = i < 4`) spell the arm's tested condition by
-/// name, and an authored `let has_next = i < n` binds the same way. A mutable
-/// binding's initializer does not describe the guard-time value, so only an
-/// immutable local may substitute.
-pub(super) fn boolean_subject_definition(
-    program: &dyn ::validation::CheckingInput,
-    state: &State,
-    guard: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    let path = program.expression_table.name_path_node(guard)?;
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| statement.as_local_data())
-        .find(|local| local.symbol == path.symbol && !local.is_mutable)
-        .map(|local| local.initial_value)
-        .filter(|initial| *initial != guard)
 }
 
 fn integer_literal(

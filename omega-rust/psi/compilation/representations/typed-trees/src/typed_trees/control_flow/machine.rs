@@ -44,8 +44,19 @@ pub struct EntryContextOrigin {
     pub context_parameter: SymbolHandle,
 }
 
+/// An extracted lexical region still belongs to one source activation. Its
+/// generated call retains the exact argument roster that captures that region;
+/// an ordinary authored invocation cannot supply this association.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LexicalRegionOrigin {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub arguments: HandleSpan<ExpressionHandle>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
+    pub lexical_region_origin: Option<LexicalRegionOrigin>,
     /// A generated context-owning caller of the exact source entry. Its local,
     /// borrow and normal cleanup are checked as ordinary code. Installation
     /// must separately join this origin to the selected entry and storage root.
@@ -210,6 +221,7 @@ pub struct TargetMachineFamilyMember {
 impl Default for Machine {
     fn default() -> Self {
         Self {
+            lexical_region_origin: None,
             entry_context_origin: None,
             assembly_target_requirement:
                 language_core::inline_assembly::AsmTargetApplicability::Any,

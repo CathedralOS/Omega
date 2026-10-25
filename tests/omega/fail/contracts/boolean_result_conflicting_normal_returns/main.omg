@@ -1,0 +1,18 @@
+// Frozen before latest-producer use: ordinary Boolean result consumed by requires.
+machine choose(pick: bool) -> bool {
+    transition pick {
+        true -> false
+        false -> true
+    }
+}
+
+machine hold(value: bool) -> bool
+requires value == false
+{
+    true
+}
+
+machine main() {
+    let direct: bool = choose(false);
+    let observed: bool = hold(direct);
+}

@@ -10,6 +10,7 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, PropositionContext, ScalarTerm, ScalarType,
     StructuralPlaceKind,
 };
+use std::borrow::{Borrow, Cow};
 use terminal_psi::{StructuralDomainDeclaration, StructuralTypeDeclaration};
 
 #[cfg(test)]
@@ -92,6 +93,20 @@ pub(super) fn close(
     domains: &[StructuralDomainDeclaration],
     contract: &mut PayloadMembershipContract,
 ) {
+    close_with_shared_requirements::<Proposition>(types, domains, contract, &[], None);
+}
+
+/// Most payloads have no eligible byte predicate. Keep the state's shared
+/// theory borrowed until a predicate actually reads it; that reader still
+/// receives the complete ordered premises for its context, equations and goal.
+pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
+    types: &[StructuralTypeDeclaration],
+    domains: &[StructuralDomainDeclaration],
+    contract: &mut PayloadMembershipContract,
+    shared: &[Shared],
+    edge_predicate: Option<&Proposition>,
+) {
+    let mut requirements = None;
     for domain in domains {
         if domain.carrier != contract.carrier
             || domain.content_projection.is_some()
@@ -106,13 +121,29 @@ pub(super) fn close(
         if !crate::domain_predicate_is_closed(types.iter(), domain.carrier, predicate) {
             continue;
         }
+        let requirements = requirements.get_or_insert_with(|| {
+            if shared.is_empty() && edge_predicate.is_none() {
+                Cow::Borrowed(contract.scalar_requirements.as_slice())
+            } else {
+                let mut premises = contract.scalar_requirements.clone();
+                super::payload_history::extend_canonical_premises(&mut premises, shared);
+                // Preserve the pre-normalization proof input of predicate edges:
+                // ordered local/shared union, then the whole predicate if new.
+                if let Some(predicate) = edge_predicate
+                    && !premises.contains(predicate)
+                {
+                    premises.push(predicate.clone());
+                }
+                Cow::Owned(premises)
+            }
+        });
         let mut value_types = Vec::new();
         for observation in &contract.scalar_observations {
             if let Some(value) = &observation.value {
                 collect_value_types(value, &mut value_types, 0);
             }
         }
-        for premise in &contract.scalar_requirements {
+        for premise in requirements.iter() {
             collect_proposition_types(premise, &mut value_types);
         }
         let Ok(context) = PropositionContext::from_value_types_and_places(
@@ -128,7 +159,7 @@ pub(super) fn close(
         // selected edges. Their unconditional equalities may rewrite captured
         // scalar operands just as the independently reconstructed field
         // equations do; the requested domain supplies neither roster.
-        let mut equations = contract.scalar_requirements.clone();
+        let mut equations = requirements.to_vec();
         for observation in &contract.scalar_observations {
             let Some(value) = &observation.value else {
                 continue;
@@ -158,7 +189,7 @@ pub(super) fn close(
         let checked = proof_admission::check_predicate_denotations_with_value_equalities(
             &context,
             &predicate.proposition,
-            &contract.scalar_requirements,
+            requirements,
             &equations,
         );
         if checked.is_ok_and(|checked| {

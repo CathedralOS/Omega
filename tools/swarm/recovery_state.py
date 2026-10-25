@@ -60,11 +60,21 @@ def atomic_json(path, record, *, indent=2, with_digest=False):
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = (json.dumps(record, sort_keys=True, indent=indent, allow_nan=False) + "\n").encode()
+    encoder = json.JSONEncoder(sort_keys=True, indent=indent, allow_nan=False)
+    digest = hashlib.sha256() if with_digest else None
     descriptor, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
     try:
         with os.fdopen(descriptor, "wb") as stream:
-            stream.write(payload)
+            # Streaming avoids keeping another complete Unicode record and
+            # encoded byte payload beside the caller's decoded state.
+            for chunk in encoder.iterencode(record):
+                payload = chunk.encode("utf-8")
+                stream.write(payload)
+                if digest is not None:
+                    digest.update(payload)
+            stream.write(b"\n")
+            if digest is not None:
+                digest.update(b"\n")
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
@@ -77,8 +87,8 @@ def atomic_json(path, record, *, indent=2, with_digest=False):
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
-    if with_digest:
-        return hashlib.sha256(payload).hexdigest()
+    if digest is not None:
+        return digest.hexdigest()
 
 
 def read_json(path):

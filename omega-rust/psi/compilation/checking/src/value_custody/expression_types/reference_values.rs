@@ -1118,6 +1118,19 @@ fn selected_value_type(
                 projection,
             )?;
             let receiver = projection_receiver_type(program, receiver, substitutions, projection)?;
+            // Prepared storage owns its applied field types and the exact
+            // correspondence from retained template selectors. Reopening its
+            // declaration telescope loses that correspondence (including for
+            // compiler-issued accessor records). Check enclosing reference
+            // access above, then use the same closed-field owner as ordinary
+            // result typing and write-only projection. A mismatched selector
+            // must not recover by name or through the open-template path.
+            if program.closed_data_definition(receiver).is_some() {
+                return crate::value_custody::places::applied_data_member_field(
+                    program, receiver, member,
+                )
+                .map(|field| field.type_reference);
+            }
             let (symbol, arguments) = match program.type_reference_table.type_reference(receiver) {
                 TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
                 TypeReferenceNode::Generic {

@@ -638,18 +638,6 @@ pub fn declared_carriers_match(
     declared_carriers_match_under_application(program, left, right, &[])
 }
 
-/// Compare a declaration in its exact supplying telescope with an actual.
-/// The shared judgment applies substitutions only to its right-hand operand;
-/// reverse this caller's declaration/actual order rather than reimplement it.
-pub(crate) fn declared_carriers_match_with_substitutions(
-    program: &dyn crate::CheckingInput,
-    declaration: TypeReferenceHandle,
-    actual: TypeReferenceHandle,
-    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-) -> bool {
-    declared_carriers_match_under_application(program, actual, declaration, substitutions)
-}
-
 /// The same storage-carrier judgment under one exact authored application.
 /// Only right-hand declaration leaves see these simultaneous substitutions;
 /// constraint-shell weakening stays separate from arithmetic-policy admission.

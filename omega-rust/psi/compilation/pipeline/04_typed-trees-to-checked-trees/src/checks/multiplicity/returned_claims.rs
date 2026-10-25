@@ -33,6 +33,14 @@ pub(crate) struct ReturnedClaim {
     pub condition: SelectionCondition,
 }
 
+/// Operand completion precedes its enclosing store. Only the receiving cut
+/// may read the current destination after its owned frontier is established.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CompletedClaimLocation {
+    Expression,
+    ReceivingStorage,
+}
+
 /// One authentic consumer occurrence. The completed operand has its own
 /// evaluation prefix; the enclosing exit or invocation only names its owner.
 #[derive(Clone, Copy, Debug)]
@@ -120,6 +128,7 @@ pub(crate) fn current_returned_claims(
         consumer,
         operand,
         ClaimObservation::Consumed,
+        None,
         conditions,
     )
 }
@@ -144,6 +153,7 @@ pub(crate) fn consumed_operand_claims(
         consumer,
         operand,
         ClaimObservation::Consumed,
+        None,
         conditions,
     )
 }
@@ -176,11 +186,20 @@ impl ClaimObservation<'_> {
 pub(crate) fn completed_owned_claims(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    operand: &FlowOperandFact,
+    value: arena::Handle<FlowOperandFact>,
+    location: CompletedClaimLocation,
     places: &[LinearPlace],
     evaluation_events: &[checked_trees::FlowPermissionEventFact],
     conditions: &mut SelectionConditions,
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
+    if !facts.flow.control.operands.is_valid(value) {
+        return Err("completed owner has no exact value capture");
+    }
+    let operand = facts.flow.control.operands.get(value);
+    let destination = match location {
+        CompletedClaimLocation::Expression => None,
+        CompletedClaimLocation::ReceivingStorage => receiving_destination(program, facts, value)?,
+    };
     let owner = facts
         .flow
         .control
@@ -209,8 +228,45 @@ pub(crate) fn completed_owned_claims(
             events: evaluation_events,
             parent: Default::default(),
         },
+        destination.as_ref(),
         conditions,
     )
+}
+
+/// A retained store handle and destination identify the receiving occurrence.
+/// A malformed actual store withholds custody; a non-store completion keeps its
+/// expression coordinate. The live frontier still supplies every identity.
+fn receiving_destination(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    value: arena::Handle<FlowOperandFact>,
+) -> Result<Option<validation::CanonicalPlace>, &'static str> {
+    let capture = facts.flow.control.operands.get(value);
+    let owner = program
+        .machine_holding_state(capture.state_symbol)
+        .ok_or("completed store has no declared machine owner")?;
+    let state = facts
+        .flow
+        .control
+        .state(owner.symbol, capture.state_symbol)
+        .ok_or("completed store has no state flow")?;
+    let Some(statement) = facts.flow.state_statement(state, capture.statement_index) else {
+        // Entry/implicit return completions need not be stored statements.
+        return Ok(None);
+    };
+    if statement.stored_value != value {
+        return Ok(None);
+    }
+    if !facts.semantic.places.is_valid(statement.stored_destination) {
+        return Err("completed store has no exact receiving destination");
+    }
+    crate::flow::canonical_place_from_semantic_place(
+        program,
+        &facts.semantic,
+        facts.semantic.places.get(statement.stored_destination),
+    )
+    .map(Some)
+    .ok_or("completed store destination has no canonical identity")
 }
 
 fn captured_claims(
@@ -219,6 +275,7 @@ fn captured_claims(
     consumer: ClaimConsumption,
     operand: &FlowOperandFact,
     observation: ClaimObservation<'_>,
+    receiving: Option<&validation::CanonicalPlace>,
     conditions: &mut SelectionConditions,
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
     if !operand.type_reference.is_valid() || operand.state_symbol != consumer.state {
@@ -261,6 +318,7 @@ fn captured_claims(
                 consumer,
                 facts.flow.control.operands.get(alternative.value),
                 observation,
+                receiving,
                 conditions,
             )? {
                 claim.condition = conditions.all(choice, claim.condition);
@@ -286,7 +344,7 @@ fn captured_claims(
         None
     };
     let has_carrier_transfer = transferred_place.is_some();
-    let mut source_place = transferred_place.or_else(|| {
+    let mut source_place = receiving.cloned().or(transferred_place).or_else(|| {
         validation::ownership_place_from_expression_in_state(
             program,
             operand.state_symbol,
@@ -443,7 +501,7 @@ fn captured_claims(
             }
         }
     }
-    {
+    if receiving.is_none() {
         // A whole anonymous transfer publishes its live identities, while an
         // absent payload has no resource transfer. Retain those live rows and
         // complete only uncovered paths from the actual construction children.
@@ -487,6 +545,7 @@ fn captured_claims(
                 consumer.for_construction_child(),
                 child_operand,
                 observation.for_child(operand.expression),
+                None,
                 conditions,
             )? {
                 let mut path = destination.to_vec();
@@ -514,7 +573,8 @@ fn captured_claims(
         if claims.iter().any(|claim| claim.path == expected.path) {
             continue;
         }
-        if expected.conditional
+        if receiving.is_none()
+            && expected.conditional
             && crate::flow::literal_value_path_is_inactive(
                 program,
                 operand.expression,
@@ -534,7 +594,8 @@ fn captured_claims(
         // capture may retain its prior debt-free establishment, provided the
         // source stayed unchanged through this statement. A missing claim or
         // Unknown identity alone never supplies this positive absence proof.
-        if expected.conditional
+        if receiving.is_none()
+            && expected.conditional
             && let Some(mut place) = source_place.clone()
             && let Some(state) = program.state_by_symbol(operand.state_symbol)
         {
@@ -686,6 +747,7 @@ fn stored_claims(
                     consumer.for_operand(saved),
                     saved,
                     ClaimObservation::Consumed,
+                    None,
                     conditions,
                 )?;
                 let mut selected = Vec::new();

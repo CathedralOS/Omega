@@ -41,6 +41,47 @@ pub(crate) fn completed_statement_values(
     }
 }
 
+/// A receiving cut also completes stored values. The flow producer retains
+/// the exact evaluated RHS, so named destinations and assignments participate
+/// without rediscovering an initializer or replaying its expression.
+pub(crate) fn completed_receiving_values(
+    program: &dyn ::validation::CheckingInput,
+    facts: &checked_trees::CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+) -> Vec<(
+    typed_trees::expression::ExpressionHandle,
+    checked_trees::FlowPermissionEvaluation,
+)> {
+    let mut values = completed_statement_values(program, statement);
+    if let Some(stored) = facts
+        .flow
+        .control
+        .state(machine, state)
+        .and_then(|state| facts.flow.state_statement(state, statement_index))
+        .and_then(|statement| {
+            facts
+                .flow
+                .control
+                .operands
+                .is_valid(statement.stored_value)
+                .then(|| facts.flow.control.operands.get(statement.stored_value))
+        })
+        && stored.expression.is_valid()
+    {
+        let completed = (
+            stored.expression,
+            checked_trees::FlowPermissionEvaluation::Statement,
+        );
+        if !values.contains(&completed) {
+            values.push(completed);
+        }
+    }
+    values
+}
+
 pub(crate) fn written_linear_targets(
     program: &dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,

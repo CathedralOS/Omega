@@ -1,0 +1,16 @@
+// Must reject need_two: result is the input formal, not the reserved return binder.
+machine wrong(result: &[u8], start: u64, end: u64) -> &[u8]
+requires result.len == 2 && start == 0 && end == 2
+ensures result.len == end - start
+{
+    result[0..1]
+}
+machine need_two(bytes: &[u8]) requires bytes.len == 2 {}
+machine main() crashes Trap {
+    let bytes: [u8; 2];
+    let selected: &[u8] = wrong(&bytes, 0, 2);
+    need_two(selected);
+    transition selected.len == 1 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

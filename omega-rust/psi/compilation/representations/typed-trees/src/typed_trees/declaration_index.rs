@@ -18,10 +18,8 @@ use crate::{data, machine};
 use arena::{Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
-mod place_occurrences;
 mod relationships;
 mod requirement_applications;
-use place_occurrences::PlaceOccurrenceRevision;
 use relationships::{DataMemberIndex, StateDeclarationIndex};
 use requirement_applications::RequirementApplicationIndex;
 
@@ -211,8 +209,6 @@ pub struct DomainCandidateIndex {
 /// must not cancel an arena mutation or hide a root generation change.
 #[derive(Clone, Default)]
 pub struct DeclarationIndexes {
-    place_occurrences:
-        OwnedIndex<Vec<crate::expression::ExpressionHandle>, PlaceOccurrenceRevision>,
     machines: OwnedIndex<MachinePositionIndex, (u64, HandleSpan<machine::Machine>)>,
     states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
     state_declarations: OwnedIndex<StateDeclarationIndex>,
@@ -248,7 +244,6 @@ impl super::TypedTrees {
     /// without locking. Verdict memos that grow per query stay lazy.
     pub(super) fn seal_declaration_indexes(&mut self) {
         let any_symbol = self.symbols.root();
-        self.with_place_occurrences(|_| ());
         self.with_machine_position_index(|_| ());
         self.with_state_position_index(|_| ());
         self.with_state_declarations(|_| ());
@@ -260,7 +255,6 @@ impl super::TypedTrees {
         self.with_call_target_index(|_| ());
         self.with_requirement_application_index(|_| ());
         let indexes = &mut self.declaration_indexes;
-        indexes.place_occurrences.seal();
         indexes.machines.seal();
         indexes.states.seal();
         indexes.state_declarations.seal();
@@ -276,7 +270,6 @@ impl super::TypedTrees {
     /// Return sealed indexes to their lazy slots before the program mutates.
     pub(super) fn unseal_declaration_indexes(&mut self) {
         let indexes = &mut self.declaration_indexes;
-        indexes.place_occurrences.unseal();
         indexes.machines.unseal();
         indexes.states.unseal();
         indexes.state_declarations.unseal();

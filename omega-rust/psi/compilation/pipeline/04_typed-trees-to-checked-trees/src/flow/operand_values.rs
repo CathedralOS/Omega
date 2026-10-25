@@ -31,6 +31,9 @@ pub(crate) struct CapturedValue<'capture> {
     pub operand: CapturedOperand<'capture>,
     pub type_reference: TypeReferenceHandle,
     pub projection: super::LiteralExpressionProjection,
+    /// The exact read that detached contents from a live producer view.
+    /// Later copies retain this epoch, independently of their own observation.
+    pub producer_epoch: Option<CapturedOperand<'capture>>,
     /// Correlated selections traversed to obtain this observation. Every
     /// candidate remains an obligation; these coordinates never license a
     /// consumer to merge facts from mutually exclusive arms.
@@ -43,6 +46,28 @@ pub(crate) struct CapturedValueChoice {
     /// of that completed selection retain the same span, unlike syntax keys.
     pub selection: arena::HandleSpan<checked_trees::FlowOperandAlternative>,
     pub alternative: arena::Handle<checked_trees::FlowOperandAlternative>,
+}
+
+impl CapturedValue<'_> {
+    /// Reaching view evidence belongs to the read that detached its contents.
+    /// Observation evidence still uses the consumer's own captured namespace.
+    pub(crate) fn producer_invocation(
+        &self,
+        invocation: arena::HandleSpan<checked_trees::FlowConstraintRef>,
+    ) -> arena::HandleSpan<checked_trees::FlowConstraintRef> {
+        self.producer_epoch
+            .map_or(invocation, |epoch| epoch.constraints)
+    }
+
+    pub(crate) fn producer_frontier(
+        &self,
+        state: symbols::SymbolHandle,
+        statement: usize,
+    ) -> (symbols::SymbolHandle, usize) {
+        self.producer_epoch.map_or((state, statement), |epoch| {
+            (epoch.state_symbol, epoch.statement_index)
+        })
+    }
 }
 
 /// Project evidence onto the storage this completed value actually denotes.
@@ -253,6 +278,7 @@ pub(crate) fn captured_operand_values<'capture>(
                     destination: Vec::new(),
                 },
                 choices: Vec::new(),
+                producer_epoch: None,
             }]);
         }
         let source = CapturedOperand::recorded(control, copy.source)?;
@@ -378,11 +404,31 @@ pub(crate) fn captured_operand_values<'capture>(
             type_reference: selected_type,
             projection,
             choices: Vec::new(),
+            producer_epoch: None,
         };
         if let Some(mut stored) =
             reaching_store_values(program, flow, semantic, state, &value, None)
         {
+            let observed_type = validation::project_type_reference_from_segments(
+                program,
+                value.type_reference,
+                &value.projection.remaining,
+            )?;
+            let detached =
+                !super::operand_contexts::operand_binds_live_view(program, observed_type);
             for origin in &mut stored {
+                // Crossing from a live descriptor into a detached value freezes
+                // the referent read here. Outer copies must not move that read
+                // to a later consumer's invocation.
+                if detached
+                    && origin.producer_epoch.is_none()
+                    && super::operand_contexts::operand_binds_live_view(
+                        program,
+                        origin.type_reference,
+                    )
+                {
+                    origin.producer_epoch = Some(value.observation);
+                }
                 origin.observation = value.observation;
                 origin.observation_type = value.observation_type;
                 origin.observation_projection = value.observation_projection.clone();
@@ -408,7 +454,8 @@ pub(crate) fn observe_captured_values<'capture>(
 ) -> Vec<CapturedValue<'capture>> {
     let mut observed = Vec::new();
     for value in values {
-        if super::operand_contexts::operand_binds_live_view(program, value.type_reference)
+        if value.producer_epoch.is_none()
+            && super::operand_contexts::operand_binds_live_view(program, value.type_reference)
             && let Some(mut stored) =
                 reaching_store_values(program, flow, semantic, state, &value, Some(epoch))
         {
@@ -498,9 +545,20 @@ fn reaching_store_values<'capture>(
             .is_some_and(|projected| {
                 let selected_descriptor =
                     super::operand_contexts::operand_binds_live_view(program, projected);
-                selected_descriptor == descriptor
-                    && (selected_descriptor
-                        || super::operand_contexts::operand_binds_stable_copy(program, projected))
+                if descriptor {
+                    selected_descriptor
+                } else {
+                    super::operand_contexts::operand_binds_stable_copy(program, projected)
+                        // An admitted value read can dereference a resident view.
+                        // Retain its actual producer and freeze the referent at
+                        // this read; provenance supplies no permission to copy.
+                        || (selected_descriptor
+                            && program.normalized_type_identity(
+                                program.type_reference_table.peeled_type_reference(projected),
+                            ) == program.normalized_type_identity(
+                                program.type_reference_table.peeled_type_reference(observed_type),
+                            ))
+                }
             })
         {
             return None;

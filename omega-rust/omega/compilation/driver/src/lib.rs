@@ -33,9 +33,9 @@ mod terminal;
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, CompilationSession, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PackageCompilationRequest, PackageCompileFailure, RestrictedBuildGrants,
-    checked_compilation_call_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    PackageBuild, PackageCompilationRequest, PackageCompileFailure, PreparedPackageProduct,
+    RestrictedBuildGrants, checked_compilation_call_count, preliminary_check_totals,
+    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::{

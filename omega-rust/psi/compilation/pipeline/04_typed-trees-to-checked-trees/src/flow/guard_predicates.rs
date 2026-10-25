@@ -10,6 +10,82 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
+/// Observations still true when the selected transition arm arrives. Dispatch
+/// precedes arm operands: both direct predicates and saved decisions must name
+/// reads preserved through those operands. Loop candidates consume this same
+/// capture/effect judgment as ordinary flow, rather than substituting a local's
+/// initializer without its observation epoch.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn transition_guard_observations<'program>(
+    program: &dyn validation::CheckingInput,
+    machine: &'program Machine,
+    state: &State,
+    statement_index: usize,
+    transition: &typed_trees::statement::TableTransition,
+    value: bool,
+    frames: &validation::CallFrameResolver<'program>,
+) -> Option<Vec<(ExpressionHandle, bool)>> {
+    let TransitionGuardNode::When(guard) = transition.guard else {
+        return Some(Vec::new());
+    };
+    let target = if value {
+        transition.target
+    } else {
+        transition.continuation
+    };
+    let mut later_writes = Vec::new();
+    if target.is_valid() {
+        let operands = match program.statement_table.transition_target(target) {
+            typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => program
+                .statement_table
+                .expression_handles(*arguments)
+                .to_vec(),
+            typed_trees::statement::TransitionTargetNode::Value(expression) => vec![*expression],
+            typed_trees::statement::TransitionTargetNode::Terminal => Vec::new(),
+        };
+        for operand in operands {
+            later_writes.extend(
+                frames
+                    .expression_write_frame(machine, operand)
+                    .into_complete_paths()?,
+            );
+        }
+    }
+    let mut writes = frames
+        .expression_write_frame(machine, guard)
+        .into_complete_paths()?;
+    writes.extend_from_slice(&later_writes);
+    let mut observations = vec![(guard, value)];
+    guard_observations(program, machine, state, guard, value, &mut observations);
+    observations.retain(|(predicate, _)| {
+        expression_is_stable_predicate(program, *predicate)
+            && reads_survive(
+                program,
+                machine,
+                state,
+                statement_index,
+                *predicate,
+                &writes,
+                frames,
+            )
+    });
+    for observation in saved_guard_observations(
+        program,
+        machine,
+        state,
+        statement_index,
+        guard,
+        value,
+        &later_writes,
+        Some(frames),
+    ) {
+        if !observations.contains(&observation) {
+            observations.push(observation);
+        }
+    }
+    Some(observations)
+}
+
 /// Current observations of a saved predicate. The root is included when all
 /// its reads survive; independently preserved conjuncts remain useful when a
 /// disjoint effect prevents repeating the complete original computation. Extra
@@ -215,7 +291,60 @@ fn reads_survive(
         return true;
     }
     let mut nodes = Vec::new();
-    validation::expression_traversal::collect_expression_tree(program, expression, &mut nodes);
+    let mut pending = vec![(expression, true)];
+    while let Some((node, reads_value)) = pending.pop() {
+        if !node.is_valid() {
+            continue;
+        }
+        if !reads_value {
+            let Some(reference) = validation::expression_type_reference_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                node,
+            ) else {
+                // Missing type information cannot prove an address path free
+                // of loaded reference descriptors. Keep the complete footprint.
+                validation::expression_traversal::collect_expression_tree(
+                    program, node, &mut nodes,
+                );
+                continue;
+            };
+            if let Some(reference) = validation::reference_shell(program, reference) {
+                let fixed_address = frames.expression_borrows_fixed_parameter_address(state, node)
+                    && validation::reference_shell(program, reference.referee).is_none();
+                if !fixed_address {
+                    // Loaded descriptors can be replaced through a different
+                    // alias of their holder. A final referent resolved at this
+                    // use would see the replacement, not the captured load.
+                    // Retain complete base footprints across that boundary;
+                    // maximal scalar leaf precision never authenticates a slot.
+                    validation::expression_traversal::collect_expression_tree(
+                        program, node, &mut nodes,
+                    );
+                    continue;
+                }
+            }
+        }
+        if reads_value {
+            nodes.push(node);
+        }
+        // A projection evaluates its base address, not the whole aggregate's
+        // contents. The maximal place below still covers replacement of every
+        // descriptor prefix; its frame origin separately covers aliased backing.
+        // Index operands remain value observations even on an address path.
+        match program.expression_table.expression(node) {
+            ExpressionNode::Member(member) => pending.push((member.receiver, false)),
+            ExpressionNode::Indexed(indexed) => {
+                pending.push((indexed.collection, false));
+                pending.push((indexed.index, true));
+            }
+            ExpressionNode::Name(_) if !reads_value => {}
+            other => validation::expression_traversal::children(program, other, |child| {
+                pending.push((child, true));
+            }),
+        }
+    }
     nodes.into_iter().all(|node| {
         // Canonical rvalues have expression roots too. They are identities,
         // not storage reads: inspect only place-shaped nodes here, while the
@@ -295,17 +424,39 @@ fn reads_survive(
             statement_index,
             node,
         );
-        if !reference
-            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-        {
-            return true;
-        }
         let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
             return false;
         };
-        let Some(reads) =
+        let reads = if reference
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+        {
             frames.reference_expression_read_paths_before_statement(machine, statement, node)
-        else {
+        } else if matches!(
+            program.expression_table.expression(node),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) {
+            // The same borrowable-place origin query accepts scalar leaves by
+            // implicit borrow. Normalize the leaf, not its reference-valued base:
+            // a write through another loan must still invalidate this observation.
+            // A builtin extent has no declared field; its collection supplies a
+            // conservative footprint, never an exact descriptor/value identity.
+            let source =
+                validation::collection_length_receiver(program, machine, Some(state), node)
+                    .unwrap_or(node);
+            frames
+                .reference_expression_origins_before_statement(machine, statement, source)
+                .and_then(|origins| {
+                    origins
+                        .into_iter()
+                        .map(|(root, segments)| {
+                            validation::frame_coordinate_path(program, root, &segments)
+                        })
+                        .collect()
+                })
+        } else {
+            return true;
+        };
+        let Some(reads) = reads else {
             return false;
         };
         reads.iter().all(|read| {

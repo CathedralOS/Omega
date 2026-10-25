@@ -79,6 +79,7 @@ pub(super) fn state_preserves_path(
 pub(super) fn source_arm_to_head_upper_bound(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
+    call_frames: &validation::CallFrameResolver<'_>,
     source: &State,
     head: SymbolHandle,
     counter: SymbolHandle,
@@ -86,6 +87,7 @@ pub(super) fn source_arm_to_head_upper_bound(
     single_head_bound_edge(
         program,
         machine,
+        call_frames,
         source,
         head,
         |program, machine, source, guard| {
@@ -105,11 +107,10 @@ pub(super) fn parse_counter_upper_bound(
     guard: ExpressionHandle,
     counter: SymbolHandle,
 ) -> Option<i64> {
-    let Some(binary) = program.expression_table.binary_node(guard) else {
-        // A subject spelled by name stands for its capture's initializer.
-        let subject = boolean_subject_definition(program, source, guard)?;
-        return parse_counter_upper_bound(program, machine, source, subject, counter);
-    };
+    if !validation::has_builtin_bound_expression_meaning(program, machine, Some(source), guard) {
+        return None;
+    }
+    let binary = program.expression_table.binary_node(guard)?;
     if binary.operator == BinaryOperator::Equal {
         // `subject == true` -> parse the subject; `== false` is a negation (no upper bound).
         let inner = boolean_equality_inner(program, binary.left, binary.right)?;

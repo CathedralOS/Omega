@@ -17,6 +17,7 @@ mod route_substitution;
 mod summary_predicates;
 
 mod entry_equations;
+mod float_observations;
 
 use crate::facts::crash_calls::private_summaries::{
     infer_private_body_summaries, requirement_signature,

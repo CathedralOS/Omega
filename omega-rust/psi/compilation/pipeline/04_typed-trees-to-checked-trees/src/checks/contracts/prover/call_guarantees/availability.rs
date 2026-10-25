@@ -202,7 +202,7 @@ pub(in crate::checks) fn available<'program>(
             continue;
         }
         if !owns_guarantee(program, &supplied, source, expression)
-            || !stable_predicate_inputs(program, &supplied, expression)
+            || !stable_predicate_inputs(program, facts, caller, &supplied, expression)
             || !capture_preserved(
                 program,
                 &facts.borrow,

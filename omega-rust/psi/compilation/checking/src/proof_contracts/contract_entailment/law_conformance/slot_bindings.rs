@@ -297,10 +297,10 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
         || term.any_child(|child| term_mentions_variable(child, variable))
 }
 
-/// First-order matching for the SUGGESTION diagnostic only (the proving
-/// path never pattern-matches -- citations instantiate at written
-/// operands): occurrences of `variables` in `pattern` bind consistently
-/// against the goal's subterms; everything else must agree exactly.
+/// First-order correspondence for law conformance and advisory citations.
+/// Occurrences of `variables` bind consistently against the goal's subterms;
+/// consumers separately require universal binder correspondence and proved
+/// source guarantees. Diagnostic text cannot supply a missing term identity.
 pub(crate) fn diagnostic_shape_match(
     pattern: &StructuralTerm,
     term: &StructuralTerm,
@@ -355,7 +355,10 @@ pub(crate) fn diagnostic_shape_match(
                         diagnostic_shape_match(argument, argument_t, variables, bindings)
                     })
         }
-        (StructuralTerm::Opaque(left), StructuralTerm::Opaque(right)) => left == right,
+        // An unsupported projection may hide its result binder and selected
+        // operator scope. Equal display text is not correspondence between a
+        // requirement's law and the provider's independently proved contract.
+        (StructuralTerm::Opaque(_), StructuralTerm::Opaque(_)) => false,
         (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => left == right,
         (
             StructuralTerm::CallProjection {

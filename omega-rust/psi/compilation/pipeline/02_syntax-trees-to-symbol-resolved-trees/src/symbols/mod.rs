@@ -632,15 +632,18 @@ pub(crate) fn assign_lexical_inputs(
         &lowerer.pending_static_module_calls,
         &lowerer.pending_static_module_statement_calls,
     );
-    Ok(inputs
-        .into_iter()
-        .flat_map(|input| {
-            input.calls.into_iter().map(move |(_, expression)| {
-                crate::selection::body_calls::CallSelectionInput {
-                    machine: input.machine,
-                    expression,
-                }
-            })
-        })
-        .collect())
+    let mut calls = Vec::new();
+    for input in &mut inputs {
+        for (_, expression) in input.calls.drain(..) {
+            calls.push(crate::selection::body_calls::CallSelectionInput {
+                machine: input.machine,
+                expression,
+            });
+        }
+    }
+    // One-shot probing does not install a body, but constant argument slots
+    // still name these actual resolved parents. Keep their declaration and
+    // preceding-local scope custody until constant finalization consumes it.
+    lowerer.resolved_lexical_inputs.extend(inputs);
+    Ok(calls)
 }

@@ -11,6 +11,7 @@ mod domain_premises;
 mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
+mod returned_fields;
 mod selected_contracts;
 mod storage_effects;
 mod value_correspondence;
@@ -22,7 +23,7 @@ use licenses::{
     sorted_multiset_subtract, term_uses_application,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum StructuralJudgment {
     Proven,
     Refuted,
@@ -350,6 +351,9 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    // Declaration-level field correspondence never recursively re-enters an
+    // active body. This belongs to the query, including all cloned path judges.
+    returned_field_owners: Arc<Vec<SymbolHandle>>,
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
@@ -414,6 +418,7 @@ impl Clone for StructuralJudge<'_> {
             body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            returned_field_owners: Arc::clone(&self.returned_field_owners),
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
@@ -582,6 +587,7 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            returned_field_owners: Arc::new(Vec::new()),
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
@@ -2025,7 +2031,11 @@ impl<'program> StructuralJudge<'program> {
                 if let ExpressionNode::Call(call) =
                     program.expression_table.expression(member.receiver)
                     && (!call.receiver.is_valid()
-                        || super::structural_terms::static_call_receiver(program, call))
+                        || super::structural_terms::static_call_receiver(
+                            program,
+                            scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                            call,
+                        ))
                     && call.evidence_arguments.is_empty()
                     && call.static_requirement_dispatch.is_none()
                     && !self.runtime_body_values
@@ -2142,10 +2152,18 @@ impl<'program> StructuralJudge<'program> {
             }
             ExpressionNode::Call(call) => {
                 if (self.runtime_body_values
-                    && !normal_returns::call_has_mathematical_denotation(program, call)
+                    && !normal_returns::call_has_mathematical_denotation(
+                        program,
+                        scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                        call,
+                    )
                     && !self.specification_call_candidate(call))
                     || (call.receiver.is_valid()
-                        && !super::structural_terms::static_call_receiver(program, call))
+                        && !super::structural_terms::static_call_receiver(
+                            program,
+                            scope.map_or(self.machine_symbol, |(machine, _, _)| machine.symbol),
+                            call,
+                        ))
                     || !call.evidence_arguments.is_empty()
                     || (call.static_requirement_dispatch.is_some()
                         && super::structural_terms::realized_requirement_state(call).is_none())
@@ -2205,7 +2223,15 @@ impl<'program> StructuralJudge<'program> {
                     result_type,
                     target: realization.clone().unwrap_or_else(|| {
                         selected_target.map_or_else(
-                            || super::structural_terms::structural_call_target(program, call),
+                            || {
+                                super::structural_terms::structural_call_target(
+                                    program,
+                                    scope.map_or(self.machine_symbol, |(machine, _, _)| {
+                                        machine.symbol
+                                    }),
+                                    call,
+                                )
+                            },
                             |selected| selected.symbol,
                         )
                     }),

@@ -5,13 +5,16 @@
 //! `build.rs` owns output admission, project preparation, product requests and
 //! publication. Project compilation admits a package batch, invokes the compiler,
 //! and returns its outcomes to package-owned identity reconciliation and disposal.
-//! Review and compiler-internal dependency scheduling remain separate migration
-//! work. This entrance is not yet the Terminal Build activation scheduler.
+//! `build_execution.rs` schedules dependency Builds, joins generated source and
+//! waits for demanded components before their consumers. Review scheduling and
+//! Terminal Build/helper suspension remain separate migration work.
 
 mod build;
 mod build_directory;
+mod build_execution;
 mod check_project;
 mod native_project;
+mod package_compilation;
 mod products;
 mod project_compilation;
 pub mod publication;
@@ -30,6 +33,7 @@ pub use native_project::{
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
     compile_prepared_local_project_for_native_targets,
 };
+pub use package_compilation::{compile_packages, join_dependency_builds, prepare_package};
 
 use artifacts::compile_timings::CompileTimings;
 use compiler::{CompileReport, OptimizationRollback};

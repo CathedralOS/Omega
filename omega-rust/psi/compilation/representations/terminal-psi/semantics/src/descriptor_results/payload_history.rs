@@ -8,39 +8,45 @@ mod entry_snapshots;
 use super::contents::select_payload_memberships;
 use super::*;
 use crate::descriptor_lifetimes::descriptor_path;
+use std::borrow::Borrow;
 use std::collections::VecDeque;
+use std::sync::Arc;
 
 #[derive(Clone, Default, PartialEq, Eq)]
 struct State {
     values: BTreeMap<PlaceId, PayloadMembershipContract>,
     // Published snapshots keep all premise rosters sorted and unique. An
     // edge join only removes evidence, so ordered intersection is sufficient.
-    scalar_requirements: Vec<semantic_vocabulary::Proposition>,
+    scalar_requirements: Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
+    // Published payloads contain their local roster plus this shared roster.
+    // Shared premises are always a subset of the ambient premises above.
+    // Entry starts with none: an entry assumption need not occur in an input
+    // payload's own contract. Ordinary publication attaches ambient premises
+    // to every payload, so transfers need not expand that theory per SSA value.
+    // Successive pre-operation snapshots usually keep the same complete theory.
+    // Sharing only across payloads still copied its expression trees twice per
+    // position. Keep the published roster immutable across positions as well;
+    // writers detach at additions, removals or necessary normalization. Ambient
+    // and payload retirement differ even when their input allocation agrees.
+    // Each immutable proposition is shared too: detaching a changed roster
+    // copies its handles, rather than every retained expression tree. Ordering
+    // and equality still compare the complete proposition values.
+    shared_requirements: Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
 }
 
-// Every transfer works on complete premise rosters. Retained positions factor
-// their exact common intersection out of the payloads: copying the same growing
-// theory into every SSA payload at every position otherwise multiplies memory
-// by both the number of values and the length of the control-flow prefix.
-// Do not assume the state's ambient premises occur in every payload (notably at
-// entry). Compute the actual intersection, then restore it before any consumer.
-struct Snapshot {
-    state: State,
-    common_requirements: Vec<semantic_vocabulary::Proposition>,
-}
-
-impl Snapshot {
-    fn capture(mut state: State) -> Self {
-        let mut contracts = state.values.values();
-        let mut common_requirements = contracts
-            .next()
-            .map(|contract| contract.scalar_requirements.clone())
-            .unwrap_or_default();
-        for contract in contracts {
-            retain_common_premises(&mut common_requirements, &contract.scalar_requirements);
-        }
-        for contract in state.values.values_mut() {
-            let mut common = common_requirements.iter().peekable();
+impl State {
+    /// Publish only after the transfer has normalized its ambient/local rows.
+    /// Previous shared rows survive in the new ambient theory: retirement uses
+    /// the payload filter on shared rows, and joins intersect both theories.
+    /// Newly produced or rebound payloads remain raw until this publication;
+    /// their transfer suffix has no premise reader before this point.
+    fn publish_requirements(&mut self) {
+        for contract in self.values.values_mut() {
+            let mut common = self
+                .scalar_requirements
+                .iter()
+                .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+                .peekable();
             contract.scalar_requirements.retain(|premise| {
                 while common.peek().is_some_and(|candidate| *candidate < premise) {
                     common.next();
@@ -49,34 +55,89 @@ impl Snapshot {
             });
             contract.scalar_requirements.shrink_to_fit();
         }
-        Self {
-            state,
-            common_requirements,
-        }
+        self.shared_requirements = self.scalar_requirements.clone();
     }
 
-    fn expand(&self) -> State {
-        let mut state = self.state.clone();
-        for contract in state.values.values_mut() {
-            self.restore(contract);
+    /// Materialize only an actual reader's complete theory. A predicate edge
+    /// appends its whole predicate after the ordered local/shared union, just
+    /// as the former eager expansion did before final edge normalization.
+    fn contract(
+        &self,
+        root: PlaceId,
+        predicate: Option<&semantic_vocabulary::Proposition>,
+    ) -> Option<PayloadMembershipContract> {
+        let mut contract = self.values.get(&root)?.clone();
+        extend_canonical_premises(&mut contract.scalar_requirements, &self.shared_requirements);
+        if let Some(predicate) = predicate
+            && !contract.scalar_requirements.contains(predicate)
+        {
+            contract.scalar_requirements.push(predicate.clone());
         }
-        state
-    }
-
-    fn contract(&self, root: PlaceId) -> Option<PayloadMembershipContract> {
-        let mut contract = self.state.values.get(&root)?.clone();
-        self.restore(&mut contract);
         Some(contract)
     }
 
-    fn restore(&self, contract: &mut PayloadMembershipContract) {
-        extend_canonical_premises(&mut contract.scalar_requirements, &self.common_requirements);
+    fn meet(&mut self, mut arrival: State) -> bool {
+        let previous_shared = std::mem::take(&mut self.shared_requirements);
+        let mut shared = previous_shared.clone();
+        retain_common_snapshot(&mut shared, &arrival.shared_requirements);
+        let mut changed =
+            retain_common_snapshot(&mut self.scalar_requirements, &arrival.scalar_requirements);
+        let previous_values = self.values.len();
+        self.values.retain(|place, contract| {
+            let Some(mut incoming) = arrival.values.remove(place) else {
+                return false;
+            };
+            if contract.carrier != incoming.carrier {
+                return false;
+            }
+            let previous_premises = contract.scalar_requirements.len() + previous_shared.len();
+            // Keep every cross term of (old local + old shared) intersected
+            // with (incoming local + incoming shared). A fact can be shared
+            // on one path and local on the other. Only shared/shared becomes
+            // the new shared roster; the other terms remain payload-local.
+            retain_captured_premises(
+                &mut contract.scalar_requirements,
+                &incoming.scalar_requirements,
+                &arrival.shared_requirements,
+            );
+            retain_common_premises(&mut incoming.scalar_requirements, &previous_shared);
+            extend_canonical_premises(
+                &mut contract.scalar_requirements,
+                &incoming.scalar_requirements,
+            );
+            changed |= contract.scalar_requirements.len() + shared.len() != previous_premises;
+            let previous_counts = (
+                contract.qualifications.len(),
+                contract.projected_qualifications.len(),
+            );
+            // Executable expressions and entry identities meet independently.
+            // Losing one component can change a row without changing its count.
+            changed |= super::PayloadScalarObservation::intersect(
+                &mut contract.scalar_observations,
+                &incoming.scalar_observations,
+            );
+            retain_common_memberships(&mut contract.qualifications, &incoming.qualifications);
+            retain_common_memberships(
+                &mut contract.projected_qualifications,
+                &incoming.projected_qualifications,
+            );
+            changed |= previous_counts
+                != (
+                    contract.qualifications.len(),
+                    contract.projected_qualifications.len(),
+                );
+            true
+        });
+        self.shared_requirements = shared;
+        // All logical changes are losses. Moving a fact between local and
+        // shared storage alone must not enqueue another worklist iteration.
+        changed || self.values.len() != previous_values
     }
 }
 
 struct CachedHistory {
     relevant: super::payload_reachability::Reachability,
-    snapshots: BTreeMap<DescriptorPosition, Snapshot>,
+    snapshots: BTreeMap<DescriptorPosition, State>,
 }
 
 /// Exact declaration data in one current executable representation. Prepared
@@ -122,8 +183,11 @@ impl PayloadSources<'_> {
 pub struct PayloadMembershipHistory<'input> {
     types: &'input [StructuralTypeDeclaration],
     domains: &'input [terminal_psi::StructuralDomainDeclaration],
-    graph: &'input [DescriptorMachine],
+    descriptor: Option<&'input DescriptorMachine>,
     sources: PayloadSources<'input>,
+    // Queries and payload transfers share this immutable pre-operation replay.
+    // Normal-completion queries use their separate borrowed-slot replay below.
+    analysis: DescriptorAnalysis<'input>,
     cached: Option<CachedHistory>,
     /// Materialized only for an exact scalar-snapshot query. Ordinary numeric
     /// membership sweeps keep their existing input and allocation profile.
@@ -139,8 +203,9 @@ impl<'input> PayloadMembershipHistory<'input> {
         Self {
             types,
             domains,
-            graph,
+            descriptor: descriptor_machine(graph, machine.id),
             sources: PayloadSources::Terminal(machine),
+            analysis: DescriptorAnalysis::new(types, graph),
             cached: None,
             entry_snapshots: None,
         }
@@ -170,7 +235,8 @@ impl<'input> PayloadMembershipHistory<'input> {
         Ok(Self {
             types,
             domains,
-            graph,
+            descriptor: Some(current),
+            analysis: DescriptorAnalysis::new(types, graph),
             sources: PayloadSources::Current {
                 identity,
                 parameters,
@@ -192,19 +258,20 @@ impl<'input> PayloadMembershipHistory<'input> {
         let root_contract = source(root).ok_or("selected payload root is absent")?;
         let query = descriptor_contents_query(self.types, root, root_contract.carrier, path, None)
             .ok_or("selected payload path has no typed coordinate")?;
-        let mut analysis = DescriptorAnalysis::new(self.types, self.graph);
-        let targets = analysis
+        let targets = self
+            .analysis
             .payload_targets(identity, position, &query)
             .ok_or("selected payload backing is unresolved")?;
         let mut failure = None;
         let entry_snapshots = self.entry_snapshots.as_deref().unwrap_or(&[]);
         let cached = &mut self.cached;
+        let analysis = &mut self.analysis;
         let contract = payload_memberships(self.types, self.domains, targets, |place| {
             current_payload_contract_reusing(
                 self.types,
                 self.domains,
-                self.graph,
-                identity,
+                self.descriptor,
+                analysis,
                 position,
                 place,
                 &source,
@@ -225,13 +292,12 @@ impl<'input> PayloadMembershipHistory<'input> {
         position: DescriptorPosition,
         root: PlaceId,
     ) -> Result<PayloadMembershipContract, &'static str> {
-        let identity = self.sources.identity();
         let sources = &self.sources;
         current_payload_contract_reusing(
             self.types,
             self.domains,
-            self.graph,
-            identity,
+            self.descriptor,
+            &mut self.analysis,
             position,
             root,
             &|place| sources.contract(place),
@@ -306,9 +372,19 @@ pub fn current_selected_payload_contract(
         .ok_or("selected payload backing is unresolved")?;
     let mut history_failure = None;
     let contract = payload_memberships(types, domains, targets, |place| {
-        current_payload_contract(types, domains, graph, identity, position, place, source)
-            .map_err(|reason| history_failure = Some(reason))
-            .ok()
+        current_payload_contract_reusing(
+            types,
+            domains,
+            descriptor_machine(graph, identity),
+            &mut analysis,
+            position,
+            place,
+            source,
+            &[],
+            &mut None,
+        )
+        .map_err(|reason| history_failure = Some(reason))
+        .ok()
     });
     contract.ok_or(history_failure.unwrap_or("selected payload memberships are unresolved"))
 }
@@ -326,11 +402,12 @@ pub fn current_payload_contract(
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
 ) -> Result<PayloadMembershipContract, &'static str> {
+    let mut analysis = DescriptorAnalysis::new(types, graph);
     current_payload_contract_reusing(
         types,
         domains,
-        graph,
-        identity,
+        descriptor_machine(graph, identity),
+        &mut analysis,
         position,
         root,
         source,
@@ -359,11 +436,12 @@ pub(crate) fn completed_payload_contract(
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
 ) -> Result<PayloadMembershipContract, &'static str> {
+    let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(types, graph);
     payload_contract_at_cut(
         types,
         domains,
-        graph,
-        identity,
+        descriptor_machine(graph, identity),
+        &mut analysis,
         position,
         root,
         source,
@@ -376,8 +454,8 @@ pub(crate) fn completed_payload_contract(
 fn current_payload_contract_reusing(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
-    graph: &[DescriptorMachine],
-    identity: MachineId,
+    descriptor: Option<&DescriptorMachine>,
+    analysis: &mut DescriptorAnalysis<'_>,
     position: DescriptorPosition,
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
@@ -387,8 +465,8 @@ fn current_payload_contract_reusing(
     payload_contract_at_cut(
         types,
         domains,
-        graph,
-        identity,
+        descriptor,
+        analysis,
         position,
         root,
         source,
@@ -402,8 +480,8 @@ fn current_payload_contract_reusing(
 fn payload_contract_at_cut(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
-    graph: &[DescriptorMachine],
-    identity: MachineId,
+    descriptor: Option<&DescriptorMachine>,
+    analysis: &mut DescriptorAnalysis<'_>,
     position: DescriptorPosition,
     root: PlaceId,
     source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
@@ -413,7 +491,8 @@ fn payload_contract_at_cut(
 ) -> Result<PayloadMembershipContract, &'static str> {
     let mut failure = "descriptor machine is absent";
     let result = (|| {
-        let machine = descriptor_machine(graph, identity)?;
+        let machine = descriptor?;
+        let identity = machine.id;
         failure = "payload query reachability is invalid or exceeds its finite budget";
         let relevant = super::payload_reachability::predecessors(machine, position)?;
         let previous = cached.take();
@@ -432,11 +511,14 @@ fn payload_contract_at_cut(
             drop(previous);
             let mut initial = State::default();
             if let Some((_, requirements)) = &machine.payload_entry_predicates {
-                initial.scalar_requirements =
-                    super::scalar_contracts::scalar_conjuncts(requirements);
+                initial.scalar_requirements = Arc::new(
+                    super::scalar_contracts::scalar_conjuncts(requirements)
+                        .into_iter()
+                        .map(Arc::new)
+                        .collect(),
+                );
             }
-            initial.scalar_requirements.sort();
-            initial.scalar_requirements.dedup();
+            canonicalize_snapshot(&mut initial.scalar_requirements);
             for place in &machine.places {
                 if matches!(place.definition, DescriptorDefinition::Parameter { .. }) {
                     failure = "entry payload contract is absent";
@@ -462,15 +544,9 @@ fn payload_contract_at_cut(
                 }
             }
             (
-                BTreeMap::from([(machine.entry, Snapshot::capture(initial))]),
+                BTreeMap::from([(machine.entry, initial)]),
                 VecDeque::from([machine.entry]),
             )
-        };
-        let mut analysis = match cut {
-            PayloadMembershipCut::BeforeOperation => DescriptorAnalysis::new(types, graph),
-            PayloadMembershipCut::NormalCompletion => {
-                DescriptorAnalysis::with_borrowed_storage_slots(types, graph)
-            }
         };
         let mut completed = None;
         let mut remaining = 65_536usize;
@@ -481,7 +557,7 @@ fn payload_contract_at_cut(
                 continue;
             }
             failure = "payload history flow position is absent";
-            let mut before = snapshots.get(&current)?.expand();
+            let mut before = snapshots.get(&current)?.clone();
             if let Some(definitions) = machine.payload_scalar_definitions.get(&current) {
                 retire_scalar_instances(&mut before, definitions);
             }
@@ -501,9 +577,14 @@ fn payload_contract_at_cut(
                     continue;
                 }
                 if let Some(contract) = before.values.get(&actual.root) {
-                    source_values
-                        .entry(actual.root)
-                        .or_insert_with(|| contract.clone());
+                    source_values.entry(actual.root).or_insert_with(|| {
+                        let mut contract = contract.clone();
+                        extend_canonical_premises(
+                            &mut contract.scalar_requirements,
+                            &before.shared_requirements,
+                        );
+                        contract
+                    });
                 }
             }
             let mut after = before;
@@ -656,6 +737,9 @@ fn payload_contract_at_cut(
                         produced.projected_qualifications.dedup();
                     }
                 }
+                // No later suffix operation reads this raw producer's
+                // premises. Scalar writes/reads inspect observations only;
+                // publication below attaches the current ambient theory.
                 after.values.insert(*producer, produced);
             }
             drop(source_values);
@@ -708,35 +792,35 @@ fn payload_contract_at_cut(
                 for (location, value) in reads {
                     if let Some(contract) = after.values.get_mut(&location.root) {
                         if let Some(equality) = observe_scalar(contract, &location.path, value) {
-                            after.scalar_requirements.push(equality);
+                            Arc::make_mut(&mut after.scalar_requirements).push(Arc::new(equality));
                         }
                     }
                 }
             }
-            if let Some(requirements) = machine.payload_scalar_postconditions.get(&current) {
-                after
-                    .scalar_requirements
-                    .extend(requirements.iter().cloned());
+            if let Some(requirements) = machine.payload_scalar_postconditions.get(&current)
+                && !requirements.is_empty()
+            {
+                Arc::make_mut(&mut after.scalar_requirements)
+                    .extend(requirements.iter().cloned().map(Arc::new));
             }
             // Reads can add equations even when this step has no postcondition.
             // Normalize at publication, after all local append operations.
-            after.scalar_requirements.sort();
-            after.scalar_requirements.dedup();
+            canonicalize_snapshot(&mut after.scalar_requirements);
+            after.publish_requirements();
             for contract in after.values.values_mut() {
-                // Snapshot restoration, retirement, selected stores and the
-                // normalized producer preserve canonical payload rosters. Do
-                // not rescan every unchanged payload with sort/dedup per step.
-                extend_canonical_premises(
-                    &mut contract.scalar_requirements,
-                    &after.scalar_requirements,
+                super::payload_predicates::close_with_shared_requirements(
+                    types,
+                    domains,
+                    contract,
+                    &after.shared_requirements,
+                    None,
                 );
-                super::payload_predicates::close(types, domains, contract);
             }
             if cut == PayloadMembershipCut::NormalCompletion && current == position {
                 // The worklist may revisit a loop cut. Replace this observation
                 // only after all incoming rows have met and this transfer has
                 // run again; the final value is the fixed-point completion.
-                completed = Some(Snapshot::capture(after.clone()));
+                completed = Some(after.clone());
             }
             // Only distinct arrivals need independent state. Move the completed
             // transfer into the last relevant edge instead of cloning every
@@ -759,18 +843,20 @@ fn payload_contract_at_cut(
                     .and_then(|rows| rows.get(ordinal))
                     .and_then(Option::as_ref);
                 if let Some(predicate) = edge_predicate {
-                    arrival
-                        .scalar_requirements
-                        .extend(super::scalar_contracts::scalar_conjuncts(
-                            std::slice::from_ref(predicate),
-                        ));
-                    arrival.scalar_requirements.sort();
-                    arrival.scalar_requirements.dedup();
+                    Arc::make_mut(&mut arrival.scalar_requirements).extend(
+                        super::scalar_contracts::scalar_conjuncts(std::slice::from_ref(predicate))
+                            .into_iter()
+                            .map(Arc::new),
+                    );
+                    canonicalize_snapshot(&mut arrival.scalar_requirements);
                     for contract in arrival.values.values_mut() {
-                        if !contract.scalar_requirements.contains(predicate) {
-                            contract.scalar_requirements.push(predicate.clone());
-                        }
-                        super::payload_predicates::close(types, domains, contract);
+                        super::payload_predicates::close_with_shared_requirements(
+                            types,
+                            domains,
+                            contract,
+                            &arrival.shared_requirements,
+                            Some(predicate),
+                        );
                     }
                 }
                 // Snapshot only actual binding results before retiring any
@@ -783,9 +869,13 @@ fn payload_contract_at_cut(
                     if !parameter.path.is_empty() {
                         return None;
                     }
-                    if let Some(contract) = arrival.values.get(&actual.root).and_then(|contract| {
-                        select_payload_memberships(types, domains, contract, &actual.path)
-                    }) {
+                    if let Some(contract) =
+                        arrival
+                            .contract(actual.root, edge_predicate)
+                            .and_then(|contract| {
+                                select_payload_memberships(types, domains, &contract, &actual.path)
+                            })
+                    {
                         // Exact descriptor bindings also carry reference access
                         // conversions. Memberships are carrier-specific: an
                         // incompatible row supplies no evidence for that formal,
@@ -812,7 +902,7 @@ fn payload_contract_at_cut(
                         .arrival_payload_targets(identity, current, query)
                         .and_then(|targets| {
                             payload_memberships(types, domains, targets, |root| {
-                                arrival.values.get(&root).cloned()
+                                arrival.contract(root, edge_predicate)
                             })
                         });
                     if let Some(contract) = contract {
@@ -825,10 +915,30 @@ fn payload_contract_at_cut(
                         bindings.push((binding.parameter.root, contract));
                     }
                 }
+                // Readers above see exactly the old ordered union plus its
+                // unsorted predicate tail. Retain only that tail in old locals,
+                // before replacing formals, so subsequent retirement still
+                // removes old instances without copying the shared theory into
+                // every unrelated payload. Captured RHS contracts already own
+                // their complete pre-rebinding theory.
+                if let Some(predicate) = edge_predicate {
+                    for contract in arrival.values.values_mut() {
+                        if !contract.scalar_requirements.contains(predicate)
+                            && !arrival
+                                .shared_requirements
+                                .iter()
+                                .any(|premise| premise.as_ref() == predicate)
+                        {
+                            contract.scalar_requirements.push(predicate.clone());
+                        }
+                    }
+                }
                 for parameter in &edge.parameters {
                     arrival.values.remove(&parameter.root);
                 }
                 for (parameter, contract) in bindings {
+                    // All RHS readers have finished. The rebound formals are
+                    // retired and published before another premise read.
                     arrival.values.insert(parameter, contract);
                 }
                 // Only an actual block arrival rebinds its formals. Ordinary
@@ -843,15 +953,21 @@ fn payload_contract_at_cut(
                         .get(&current)
                         .and_then(|edges| edges.get(ordinal))
                     {
-                        arrival.scalar_requirements.extend(
-                            super::scalar_contracts::arrival_requirements(
-                                &incoming_requirements,
-                                bindings,
-                                parameters,
-                            ),
+                        let rebound = super::scalar_contracts::arrival_requirements(
+                            &incoming_requirements,
+                            bindings,
+                            parameters,
                         );
-                        arrival.scalar_requirements.sort();
-                        arrival.scalar_requirements.dedup();
+                        // Rebinding can return the complete incoming theory
+                        // unchanged. Appending it would detach and deep-clone
+                        // a snapshot only to deduplicate it immediately below.
+                        // Still compute every substitution: even an empty map
+                        // can normalize a proposition into a genuinely new row.
+                        if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
+                            Arc::make_mut(&mut arrival.scalar_requirements)
+                                .extend(rebound.into_iter().map(Arc::new));
+                        }
+                        canonicalize_snapshot(&mut arrival.scalar_requirements);
                     }
                 }
                 for contract in arrival.values.values_mut() {
@@ -865,63 +981,21 @@ fn payload_contract_at_cut(
                         contract.scalar_requirements.sort();
                         contract.scalar_requirements.dedup();
                     }
-                    extend_canonical_premises(
-                        &mut contract.scalar_requirements,
-                        &arrival.scalar_requirements,
+                }
+                arrival.publish_requirements();
+                for contract in arrival.values.values_mut() {
+                    super::payload_predicates::close_with_shared_requirements(
+                        types,
+                        domains,
+                        contract,
+                        &arrival.shared_requirements,
+                        None,
                     );
-                    super::payload_predicates::close(types, domains, contract);
                 }
                 let changed = if let Some(snapshot) = snapshots.get_mut(&edge.target) {
-                    let mut existing = snapshot.expand();
-                    let mut changed = retain_common_premises(
-                        &mut existing.scalar_requirements,
-                        &arrival.scalar_requirements,
-                    );
-                    let previous_values = existing.values.len();
-                    existing.values.retain(|place, contract| {
-                        let Some(incoming) = arrival.values.get(place) else {
-                            return false;
-                        };
-                        if contract.carrier != incoming.carrier {
-                            return false;
-                        }
-                        changed |= retain_common_premises(
-                            &mut contract.scalar_requirements,
-                            &incoming.scalar_requirements,
-                        );
-                        let previous_counts = (
-                            contract.scalar_observations.len(),
-                            contract.qualifications.len(),
-                            contract.projected_qualifications.len(),
-                        );
-                        changed |= super::PayloadScalarObservation::intersect(
-                            &mut contract.scalar_observations,
-                            &incoming.scalar_observations,
-                        );
-                        retain_common_memberships(
-                            &mut contract.qualifications,
-                            &incoming.qualifications,
-                        );
-                        retain_common_memberships(
-                            &mut contract.projected_qualifications,
-                            &incoming.projected_qualifications,
-                        );
-                        changed |= previous_counts
-                            != (
-                                contract.scalar_observations.len(),
-                                contract.qualifications.len(),
-                                contract.projected_qualifications.len(),
-                            );
-                        true
-                    });
-                    // Membership rosters only remove rows. Scalar observations
-                    // additionally meet their expression and entry components;
-                    // their changed flag above covers equal-cardinality loss.
-                    let changed = changed || existing.values.len() != previous_values;
-                    *snapshot = Snapshot::capture(existing);
-                    changed
+                    snapshot.meet(arrival)
                 } else {
-                    snapshots.insert(edge.target, Snapshot::capture(arrival));
+                    snapshots.insert(edge.target, arrival);
                     true
                 };
                 if changed && !pending.contains(&edge.target) {
@@ -935,10 +1009,12 @@ fn payload_contract_at_cut(
         });
         failure = "requested payload root has no reached incoming membership history";
         let mut current = match cut {
-            PayloadMembershipCut::BeforeOperation => {
-                cached.as_ref()?.snapshots.get(&position)?.contract(root)?
-            }
-            PayloadMembershipCut::NormalCompletion => completed.as_ref()?.contract(root)?,
+            PayloadMembershipCut::BeforeOperation => cached
+                .as_ref()?
+                .snapshots
+                .get(&position)?
+                .contract(root, None)?,
+            PayloadMembershipCut::NormalCompletion => completed.as_ref()?.contract(root, None)?,
         };
         if cut == PayloadMembershipCut::NormalCompletion {
             // The completed state already applied writes and closed its actual
@@ -982,33 +1058,68 @@ fn payload_contract_at_cut(
     result.ok_or(failure)
 }
 
+/// Rebinding usually preserves the incoming roster's order. Check that order
+/// before testing its complete theory by a single ordered scan. Normalization
+/// can reorder IEEE/math propositions, so unordered results retain the exact
+/// binary-search path. Equal duplicates reuse one retained row; no input moves.
+fn contains_rebound_premises(
+    retained: &[Arc<semantic_vocabulary::Proposition>],
+    rebound: &[semantic_vocabulary::Proposition],
+) -> bool {
+    if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
+        return rebound.iter().all(|premise| {
+            retained
+                .binary_search_by(|stored| stored.as_ref().cmp(premise))
+                .is_ok()
+        });
+    }
+    let mut remaining = retained.iter().map(Arc::as_ref).peekable();
+    rebound.iter().all(|premise| {
+        while remaining
+            .peek()
+            .is_some_and(|candidate| *candidate < premise)
+        {
+            remaining.next();
+        }
+        remaining
+            .peek()
+            .is_some_and(|candidate| *candidate == premise)
+    })
+}
+
 /// Union two sorted, unique premise rosters without cloning and then discarding
 /// every ambient premise already present in each live payload. Callers normalize
 /// newly produced or rebound contracts before this operation; retained snapshots
 /// already satisfy that invariant. Preserve the existing proposition on equality,
 /// just as stable append/sort/dedup did. No new proposition is established here.
-fn extend_canonical_premises(
+pub(super) fn extend_canonical_premises<Additional: Borrow<semantic_vocabulary::Proposition>>(
     retained: &mut Vec<semantic_vocabulary::Proposition>,
-    additional: &[semantic_vocabulary::Proposition],
+    additional: &[Additional],
 ) {
     let mut existing = retained.iter().peekable();
-    let introduces_premise = additional.iter().any(|premise| {
-        while existing
-            .peek()
-            .is_some_and(|candidate| *candidate < premise)
-        {
-            existing.next();
-        }
-        !existing
-            .peek()
-            .is_some_and(|candidate| *candidate == premise)
-    });
+    let introduces_premise = additional
+        .iter()
+        .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+        .any(|premise| {
+            while existing
+                .peek()
+                .is_some_and(|candidate| *candidate < premise)
+            {
+                existing.next();
+            }
+            !existing
+                .peek()
+                .is_some_and(|candidate| *candidate == premise)
+        });
     if !introduces_premise {
         return;
     }
     let mut combined = Vec::with_capacity(retained.len() + additional.len());
     let mut existing = std::mem::take(retained).into_iter().peekable();
-    let mut additional = additional.iter().peekable();
+    let mut additional = additional
+        .iter()
+        .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+        .peekable();
     while let (Some(left), Some(right)) = (existing.peek(), additional.peek()) {
         match left.cmp(right) {
             std::cmp::Ordering::Less => combined.extend(existing.next()),
@@ -1026,13 +1137,52 @@ fn extend_canonical_premises(
 
 /// Intersect canonical premise rosters without searching the whole arrival for
 /// every retained premise. The caller publishes sorted, unique snapshots.
-fn retain_common_premises(
-    retained: &mut Vec<semantic_vocabulary::Proposition>,
-    incoming: &[semantic_vocabulary::Proposition],
+fn retain_common_snapshot(
+    retained: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>,
+    incoming: &[Arc<semantic_vocabulary::Proposition>],
+) -> bool {
+    let mut remaining = incoming.iter().peekable();
+    let unchanged = retained.iter().all(|premise| {
+        while remaining
+            .peek()
+            .is_some_and(|candidate| *candidate < premise)
+        {
+            remaining.next();
+        }
+        remaining
+            .peek()
+            .is_some_and(|candidate| *candidate == premise)
+    });
+    if unchanged {
+        return false;
+    }
+    retain_common_premises(Arc::make_mut(retained), incoming)
+}
+
+/// Preserve a published allocation when normalization would change no row.
+/// The check uses the same complete proposition ordering as sort/dedup.
+fn canonicalize_snapshot(premises: &mut Arc<Vec<Arc<semantic_vocabulary::Proposition>>>) {
+    if premises.windows(2).any(|pair| pair[0] >= pair[1]) {
+        let premises = Arc::make_mut(premises);
+        premises.sort();
+        premises.dedup();
+    }
+}
+
+fn retain_common_premises<
+    Retained: Borrow<semantic_vocabulary::Proposition>,
+    Incoming: Borrow<semantic_vocabulary::Proposition>,
+>(
+    retained: &mut Vec<Retained>,
+    incoming: &[Incoming],
 ) -> bool {
     let previous = retained.len();
-    let mut remaining = incoming.iter().peekable();
+    let mut remaining = incoming
+        .iter()
+        .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+        .peekable();
     retained.retain(|premise| {
+        let premise: &semantic_vocabulary::Proposition = premise.borrow();
         while remaining
             .peek()
             .is_some_and(|candidate| *candidate < premise)
@@ -1044,6 +1194,37 @@ fn retain_common_premises(
             .is_some_and(|candidate| *candidate == premise)
     });
     retained.len() != previous
+}
+
+/// Intersect an owned incoming roster with a snapshot's disjoint local and
+/// common rosters, without expanding that common theory into every payload.
+/// Equal propositions have the same complete value, including scalar identity.
+fn retain_captured_premises<
+    Local: Borrow<semantic_vocabulary::Proposition>,
+    Common: Borrow<semantic_vocabulary::Proposition>,
+>(
+    incoming: &mut Vec<semantic_vocabulary::Proposition>,
+    local: &[Local],
+    common: &[Common],
+) {
+    let mut local = local
+        .iter()
+        .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+        .peekable();
+    let mut common = common
+        .iter()
+        .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+        .peekable();
+    incoming.retain(|premise| {
+        while local.peek().is_some_and(|candidate| *candidate < premise) {
+            local.next();
+        }
+        while common.peek().is_some_and(|candidate| *candidate < premise) {
+            common.next();
+        }
+        local.peek().is_some_and(|candidate| *candidate == premise)
+            || common.peek().is_some_and(|candidate| *candidate == premise)
+    });
 }
 
 /// A large qualified aggregate can carry thousands of projected memberships.
@@ -1171,9 +1352,21 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
     if definitions.is_empty() {
         return;
     }
-    state
+    if state
         .scalar_requirements
-        .retain(|premise| !premise.any_value_id(|value| definitions.contains(&value)));
+        .iter()
+        .any(|premise| premise.any_value_id(|value| definitions.contains(&value)))
+    {
+        Arc::make_mut(&mut state.scalar_requirements)
+            .retain(|premise| !premise.any_value_id(|value| definitions.contains(&value)));
+    }
+    if state
+        .shared_requirements
+        .iter()
+        .any(|premise| !survives_payload_retirement(premise, definitions))
+    {
+        retire_payload_premises(Arc::make_mut(&mut state.shared_requirements), definitions);
+    }
     for contract in state.values.values_mut() {
         contract.scalar_observations.retain_mut(|observation| {
             if observation
@@ -1185,23 +1378,315 @@ fn retire_scalar_instances(state: &mut State, definitions: &[semantic_vocabulary
             }
             observation.value.is_some() || observation.entry.is_some()
         });
-        contract.scalar_requirements.retain(|premise| {
-            let mut changed = false;
-            let closed = premise.visit_value_ids(|value| {
-                changed |= definitions.contains(&value);
-            });
-            closed && !changed
-        });
+        retire_payload_premises(&mut contract.scalar_requirements, definitions);
     }
+}
+
+fn retire_payload_premises<Premise: Borrow<semantic_vocabulary::Proposition>>(
+    premises: &mut Vec<Premise>,
+    definitions: &[semantic_vocabulary::ValueId],
+) {
+    // Payloads also forget unknown/unclosed premises. The ambient filter is
+    // deliberately different; applying it here would preserve stale theory.
+    premises.retain(|premise| survives_payload_retirement(premise.borrow(), definitions));
+}
+
+fn survives_payload_retirement(
+    premise: &semantic_vocabulary::Proposition,
+    definitions: &[semantic_vocabulary::ValueId],
+) -> bool {
+    let mut changed = false;
+    let closed = premise.visit_value_ids(|value| {
+        changed |= definitions.contains(&value);
+    });
+    closed && !changed
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::descriptor_lifetimes::DescriptorPathSegment;
+    use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorPathSegment};
     use semantic_vocabulary::{
-        IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+        BlockId, IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
     };
+
+    fn position(block: u64) -> DescriptorPosition {
+        (BlockId::new(block).unwrap(), 0)
+    }
+
+    fn condition(value: u64) -> Proposition {
+        Proposition::Equal(
+            ScalarTerm::Boolean(true),
+            ScalarTerm::value(ValueId::new(value).unwrap(), ScalarType::Boolean),
+        )
+    }
+
+    fn forked_history(branches: &[u64]) -> (DescriptorMachine, PayloadMembershipContract) {
+        let root = PlaceId::new(1).unwrap();
+        let carrier = StructuralTypeId::new(1).unwrap();
+        let step = |targets: &[u64]| DescriptorFlowStep {
+            successors: targets
+                .iter()
+                .map(|target| DescriptorFlowEdge {
+                    target: position(*target),
+                    parameters: Vec::new(),
+                    bindings: Vec::new(),
+                })
+                .collect(),
+            ..Default::default()
+        };
+        let machine = DescriptorMachine {
+            id: MachineId::new(1).unwrap(),
+            returns: None,
+            places: vec![DescriptorPlace {
+                place: root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::Owned,
+                    structural_type: carrier,
+                },
+            }],
+            place_types: BTreeMap::from([(root, carrier)]),
+            entry: position(1),
+            flow: BTreeMap::from([
+                (position(1), step(branches)),
+                (position(2), step(&[4])),
+                (position(3), step(&[4])),
+                (position(4), step(&[])),
+            ]),
+            originations: BTreeMap::new(),
+            projections: BTreeMap::new(),
+            contents_queries: BTreeMap::new(),
+            contents_transfers: BTreeMap::new(),
+            payload_producers: BTreeMap::new(),
+            payload_entry_predicates: Some((
+                semantic_vocabulary::PropositionContext::from_value_types([
+                    (ValueId::new(1).unwrap(), ScalarType::Boolean),
+                    (ValueId::new(2).unwrap(), ScalarType::Boolean),
+                ])
+                .unwrap(),
+                vec![condition(2)],
+            )),
+            payload_scalar_definitions: BTreeMap::new(),
+            payload_scalar_postconditions: BTreeMap::from([(position(2), vec![condition(1)])]),
+            payload_scalar_parameters: BTreeMap::new(),
+            scalar_payload_reads: BTreeMap::new(),
+            payload_edge_predicates: BTreeMap::new(),
+            payload_scalar_bindings: BTreeMap::new(),
+            scalar_payload_writes: BTreeMap::new(),
+            payload_invalidations: BTreeMap::new(),
+            payload_arrivals: BTreeMap::new(),
+            unresolved_contents_writes: BTreeSet::new(),
+            storage_derivations: BTreeSet::new(),
+            calls: BTreeMap::new(),
+            normal_exits: vec![position(4)],
+        };
+        let contract = PayloadMembershipContract {
+            carrier,
+            scalar_requirements: vec![condition(1)],
+            scalar_observations: Vec::new(),
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        (machine, contract)
+    }
+
+    #[test]
+    fn entry_observation_does_not_inherit_an_unpublished_ambient_premise() {
+        let (machine, source) = forked_history(&[2, 3]);
+        let observed = current_payload_contract(
+            &[],
+            &[],
+            std::slice::from_ref(&machine),
+            machine.id,
+            machine.entry,
+            PlaceId::new(1).unwrap(),
+            &|_| Some(source.clone()),
+        )
+        .unwrap();
+        assert_eq!(observed.scalar_requirements, vec![condition(1)]);
+    }
+
+    #[test]
+    fn joined_payload_keeps_both_paths_facts_but_not_a_retired_instance() {
+        for branches in [[2, 3], [3, 2]] {
+            for retire in [false, true] {
+                let (mut machine, source) = forked_history(&branches);
+                if retire {
+                    machine
+                        .payload_scalar_definitions
+                        .insert(position(3), vec![ValueId::new(1).unwrap()]);
+                }
+                let observed = current_payload_contract(
+                    &[],
+                    &[],
+                    std::slice::from_ref(&machine),
+                    machine.id,
+                    position(4),
+                    PlaceId::new(1).unwrap(),
+                    &|_| Some(source.clone()),
+                )
+                .unwrap();
+                let mut expected = vec![condition(2)];
+                if !retire {
+                    expected.push(condition(1));
+                }
+                expected.sort();
+                assert_eq!(observed.scalar_requirements, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn predicate_edge_captures_both_arrival_routes_before_instance_retirement() {
+        use terminal_psi::{StructuralTypeShape, TerminalIdentityIndex};
+
+        let root = PlaceId::new(1).unwrap();
+        let selected = PlaceId::new(2).unwrap();
+        let predicate = Proposition::Conjunction(vec![condition(3), condition(4)]);
+        for retire in [false, true] {
+            let (mut machine, source) = forked_history(&[2]);
+            let types = [StructuralTypeDeclaration {
+                quotient_carrier: None,
+                id: source.carrier,
+                identity: TerminalIdentityIndex(1),
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: false,
+                descriptor_cleanup: true,
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                scalar_restriction: None,
+            }];
+            machine.places.push(DescriptorPlace {
+                place: selected,
+                definition: DescriptorDefinition::Local,
+            });
+            machine.place_types.insert(selected, source.carrier);
+            let edge = &mut machine.flow.get_mut(&position(2)).unwrap().successors[0];
+            edge.parameters = vec![
+                DescriptorLocation::whole(root),
+                DescriptorLocation::whole(selected),
+            ];
+            edge.bindings = vec![(
+                DescriptorLocation::whole(root),
+                DescriptorLocation::whole(root),
+            )];
+            machine.payload_arrivals.insert(
+                position(2),
+                vec![vec![PayloadMembershipBinding {
+                    parameter: selected,
+                    source: Some(DescriptorContentsQuery {
+                        root,
+                        steps: Vec::new(),
+                    }),
+                }]],
+            );
+            machine
+                .payload_edge_predicates
+                .insert(position(2), vec![Some(predicate.clone())]);
+            if retire {
+                machine
+                    .payload_scalar_parameters
+                    .insert(position(4).0, vec![ValueId::new(3).unwrap()]);
+            }
+            let mut expected = vec![condition(1), condition(2), condition(4)];
+            if !retire {
+                expected.extend([condition(3), predicate.clone()]);
+            }
+            expected.sort();
+            for payload in [root, selected] {
+                let observed = current_payload_contract(
+                    &types,
+                    &[],
+                    std::slice::from_ref(&machine),
+                    machine.id,
+                    position(4),
+                    payload,
+                    &|_| Some(source.clone()),
+                )
+                .unwrap();
+                assert_eq!(observed.scalar_requirements, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn retained_payload_snapshot_survives_later_writes_retirement_and_closure() {
+        use semantic_vocabulary::{PropositionId, StructuralDomainId};
+
+        let root = PlaceId::new(1).unwrap();
+        let path = vec![DescriptorPathSegment::FixedIndex(0)];
+        let value = |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::Boolean);
+        let domain = |id| StructuralDomainId::new(id).unwrap();
+        let mut requirements = vec![
+            condition(1),
+            Proposition::Atom(PropositionId::new(1).unwrap()),
+        ];
+        requirements.sort();
+        let original = PayloadMembershipContract {
+            carrier: StructuralTypeId::new(1).unwrap(),
+            scalar_observations: vec![super::super::PayloadScalarObservation {
+                path: path.clone(),
+                value: Some(value(1)),
+                entry: None,
+            }],
+            scalar_requirements: requirements,
+            qualifications: vec![domain(2), domain(1), domain(2)],
+            projected_qualifications: Vec::new(),
+        };
+        let retained = State {
+            values: BTreeMap::from([(root, original.clone())]),
+            ..Default::default()
+        };
+        enum Change {
+            Store,
+            UnknownWrite,
+            RetireInstance,
+            Close,
+        }
+        for change in [
+            Change::Store,
+            Change::UnknownWrite,
+            Change::RetireInstance,
+            Change::Close,
+        ] {
+            let mut later = retained.clone();
+            let mut expected = original.clone();
+            match change {
+                Change::Store => {
+                    let contract = later.values.get_mut(&root).unwrap();
+                    retire(contract, &[StructuralPathSegment::FixedIndex(0)], &path);
+                    assert_eq!(observe_scalar(contract, &path, &value(2)), None);
+                    expected.scalar_observations[0].value = Some(value(2));
+                    expected.qualifications.clear();
+                }
+                Change::UnknownWrite => {
+                    clear(&mut later.values);
+                    expected.scalar_observations.clear();
+                    expected.qualifications.clear();
+                }
+                Change::RetireInstance => {
+                    retire_scalar_instances(&mut later, &[ValueId::new(1).unwrap()]);
+                    expected.scalar_observations.clear();
+                    // Opaque local premises also retire; the ambient filter is
+                    // deliberately insufficient for this payload-local theory.
+                    expected.scalar_requirements.clear();
+                }
+                Change::Close => {
+                    super::super::payload_predicates::close_with_shared_requirements::<Proposition>(
+                        &[],
+                        &[],
+                        later.values.get_mut(&root).unwrap(),
+                        &[],
+                        None,
+                    );
+                    expected.qualifications = vec![domain(1), domain(2)];
+                }
+            }
+            assert_eq!(retained.contract(root, None).unwrap(), original);
+            assert_eq!(later.contract(root, None).unwrap(), expected);
+        }
+    }
 
     #[test]
     fn rereads_preserve_common_observation_but_writes_and_instances_retire_it() {
@@ -1244,7 +1729,8 @@ mod tests {
         let root = PlaceId::new(1).unwrap();
         let mut state = State {
             values: BTreeMap::from([(root, other_branch)]),
-            scalar_requirements: Vec::new(),
+            scalar_requirements: Arc::default(),
+            shared_requirements: Arc::default(),
         };
         retire_scalar_instances(&mut state, &[ValueId::new(1).unwrap()]);
         assert_eq!(

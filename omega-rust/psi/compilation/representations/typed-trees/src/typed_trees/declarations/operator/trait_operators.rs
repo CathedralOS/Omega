@@ -489,3 +489,76 @@ pub fn trait_operator_operand_signature(
         .collect::<Vec<_>>()
         .join(", ")
 }
+
+/// A raw requirement does not retain every applied bound telescope. A bound
+/// that may supply this token must therefore prevent borrowing builtin laws.
+/// An unrelated policy bound, however, cannot change comparison meaning merely
+/// by existing: its complete declaration closure may prove the token absent.
+///
+/// Absence depends only on declared spellings, not on operand substitutions.
+/// Walk inheritance, transparent refinements and nested bounds without making
+/// an applied type or selecting a conformance. A matching spelling or an
+/// unresolved declaration keeps the conservative veto; actual operand matching
+/// and all other operator authorities remain the caller's responsibility.
+pub(super) fn abstract_requirement_may_have_operator_bound(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    spelling: OperatorSpelling,
+) -> bool {
+    if !owner.is_valid() {
+        return false;
+    }
+    let parent = program.symbols.get(owner).parent;
+    let Some(declaration) = program.trait_definition_by_symbol(parent) else {
+        return parent.is_valid() && program.symbols.get(parent).kind == symbols::SymbolKind::Trait;
+    };
+    let signatures = program.trait_machine_signatures(declaration);
+    if signatures.len() != declaration.machines.len()
+        || !signatures.iter().any(|signature| signature.symbol == owner)
+    {
+        return true;
+    }
+    // The owning trait's own operators already receive complete operand
+    // matching. Only operators reached through a lexical bound need this
+    // additional veto, including bounds inherited from the owning trait.
+    let mut pending = vec![(declaration.symbol, false)];
+    let mut visited = Vec::new();
+    while let Some((symbol, through_bound)) = pending.pop() {
+        if visited.contains(&(symbol, through_bound)) {
+            continue;
+        }
+        visited.push((symbol, through_bound));
+        let Some(declaration) = program.trait_definition_by_symbol(symbol) else {
+            return true;
+        };
+        let requirements = program.trait_requirements(declaration);
+        let signatures = program.trait_machine_signatures(declaration);
+        // These accessors return an empty slice for a missing arena span. Such
+        // a slice proves absence only when the declared roster is empty too.
+        if requirements.len() != declaration.requires.len()
+            || signatures.len() != declaration.machines.len()
+        {
+            return true;
+        }
+        if through_bound
+            && signatures
+                .iter()
+                .any(|requirement| requirement.spelling == Some(spelling))
+        {
+            return true;
+        }
+        pending.extend(
+            declaration
+                .conformance_bounds
+                .iter()
+                .map(|bound| (bound.trait_symbol, true)),
+        );
+        pending.extend(
+            requirements
+                .iter()
+                .chain(declaration.refines.iter())
+                .map(|parent| (parent.symbol, through_bound)),
+        );
+    }
+    false
+}

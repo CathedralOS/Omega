@@ -84,48 +84,51 @@ impl ExitScalars<'_, '_> {
                     return Some(length);
                 }
                 if let Some((selected, remaining)) = self.result_projection(occurrence) {
-                    if remaining.is_empty() {
-                        // An executed call is an opaque completed value, not a
-                        // specification call to replay under fresh actuals.
-                        // Join the exact outgoing operand and authored call
-                        // before giving goal and normal guarantee one atom.
-                        if matches!(
-                            self.program.expression_table.expression(selected),
-                            ExpressionNode::Call(_)
-                        ) && let Some(capture) =
-                            super::super::super::return_values::completed_return_operand(
-                                self.program,
-                                self.facts,
-                                self.exit,
-                            )
-                            && capture.expression == selected
-                            && self
-                                .program
-                                .primitive_type_reference(capture.type_reference)
-                                == Some(primitive)
-                        {
-                            let mut calls = self
-                                .facts
-                                .flow
-                                .control
-                                .calls
-                                .span_or_empty(caller.calls)
-                                .iter()
-                                .filter(|call| {
-                                    call.statement_index == self.exit.statement_index
-                                        && call.authored_expression == selected
-                                        && call.authored_source_custody_valid
-                                });
-                            if calls.next().is_some() && calls.next().is_none() {
-                                return Some(arithmetic::atom(
-                                    CanonicalPlace {
-                                        root: PlaceRoot::Expression(selected),
-                                        segments: Vec::new(),
-                                    },
-                                    primitive,
-                                ));
-                            }
+                    // The whole outgoing value and each typed projection use
+                    // one authenticated completed occurrence. Restricting this
+                    // join to primitive returns drops aggregate field equations
+                    // even though the same normal guarantee already owns them.
+                    if matches!(
+                        self.program.expression_table.expression(selected),
+                        ExpressionNode::Call(_)
+                    ) && let Some(capture) =
+                        super::super::super::return_values::completed_return_operand(
+                            self.program,
+                            self.facts,
+                            self.exit,
+                        )
+                        && capture.expression == selected
+                        && validation::project_type_reference_from_segments(
+                            self.program,
+                            capture.type_reference,
+                            &remaining,
+                        )
+                        .and_then(|reference| self.program.primitive_type_reference(reference))
+                            == Some(primitive)
+                    {
+                        let mut calls = self
+                            .facts
+                            .flow
+                            .control
+                            .calls
+                            .span_or_empty(caller.calls)
+                            .iter()
+                            .filter(|call| {
+                                call.statement_index == self.exit.statement_index
+                                    && call.authored_expression == selected
+                                    && call.authored_source_custody_valid
+                            });
+                        if calls.next().is_some() && calls.next().is_none() {
+                            return Some(arithmetic::atom(
+                                CanonicalPlace {
+                                    root: PlaceRoot::Expression(selected),
+                                    segments: remaining,
+                                },
+                                primitive,
+                            ));
                         }
+                    }
+                    if remaining.is_empty() {
                         let value = arithmetic::scalar_term(
                             self.program,
                             self.facts,

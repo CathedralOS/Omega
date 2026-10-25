@@ -6,15 +6,15 @@ machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u
     slot.bytes = replacement;
     0
 }
-data Holder<'storage> { view: View<'storage>; }
+data Holder<'storage> { view: [View<'storage>; 2]; }
 data Counter { called: bool; }
 machine replacement<'storage>(source: &'storage [u8], destination: &mut Holder<'storage>, counter: &mut Counter) -> &'storage [u8]
 requires source.len == 9
 ensures result.len == 9
 {
     counter.called = !counter.called;
-    destination.view.bytes = source;
-    let returned: &[u8] = destination.view.bytes;
+    destination.view[0].bytes = source;
+    let returned: &[u8] = destination.view[0].bytes;
     returned
 }
 machine install_selected<'storage>(slot: &mut View<'storage>, selected: View<'storage>, ignored: u64) -> u64 {
@@ -48,7 +48,7 @@ machine main() crashes Trap {
     let mut counter: Counter = Counter { called: false };
     let first: &[u8] = "123456789";
     let mut original: View = View { bytes: first, sibling: "tail" };
-    let mut other: Holder = Holder { view: View { bytes: "abcdefgh", sibling: "tail" } };
+    let mut other: Holder = Holder { view: [View { bytes: "abcdefgh", sibling: "tail" }, View { bytes: "second", sibling: "tail" }] };
     let observed: u64 = receive(original, overwrite(&mut original, replacement("123456789", &mut other, &mut counter)));
     let mut pure_original: View = View { bytes: "1234567", sibling: "tail" };
     let pure_observed: u64 = receive(pure_original, overwrite(&mut pure_original, pure_replacement()));
@@ -77,7 +77,7 @@ machine main() crashes Trap {
     let returned_difference: u64 = returned_observed - 7;
     let pure_difference: u64 = pure_observed - 7;
     let difference: u64 = observed - 7;
-    transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 && other.view.bytes.len == 9 && other.view.sibling.len == 4 && counter.called
+    transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 && other.view[0].bytes.len == 9 && other.view[0].sibling.len == 4 && other.view[1].bytes.len == 6 && other.view[1].sibling.len == 4 && counter.called
         && pure_difference == 0 && pure_original.bytes.len == 9 && pure_original.sibling.len == 4
         && staged_difference == 0 && staged_original.bytes.len == 9 && staged_original.sibling.len == 4 && staged_source.bytes.len == 8 && staged_source.sibling.len == 4
         && direct_difference == 0 && direct_original.bytes.len == 9 && direct_original.sibling.len == 4 && direct_source.bytes.len == 8

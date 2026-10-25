@@ -17,10 +17,10 @@
 
 mod float_implication;
 
-use super::law_conformance::{indexed_law_binder_arguments, term_mentions_variable};
+use super::law_conformance::indexed_law_binder_arguments;
 use super::structural_terms::structural_term;
 use super::{
-    RESULT_BINDER, ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
+    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
     scoped_arithmetic_implication_for_declaration,
 };
@@ -141,7 +141,10 @@ pub(crate) fn check_contract_refinement(
                 .is_some_and(|edge| edge.same_application(program.typed_program(), application))
         });
     for conclusion in &required.ensures {
-        if owes_through_edge
+        if crate::proof_contracts::contract_results::fact_has_source_builtin_index_meaning(
+            program,
+            &conclusion.fact,
+        ) && (owes_through_edge
             || crate::boundary_qualification_authorization(
                 program,
                 trait_definition.symbol,
@@ -151,7 +154,7 @@ pub(crate) fn check_contract_refinement(
             )
             .is_some()
             || conclusion.law_checked
-            || entailed(program, &member.ensures, &member, conclusion, &required)
+            || entailed(program, &member.ensures, &member, conclusion, &required))
         {
             continue;
         }
@@ -296,6 +299,7 @@ impl ContractFacts {
                     _ => conjuncts.push(fact.clone()),
                 }
                 for fact in conjuncts {
+                    let source_index_meaning = crate::proof_contracts::contract_results::fact_has_source_builtin_index_meaning(program, &fact);
                     let law_checked = match &fact {
                         ProofFact::Expression(expression) => is_law_conjunct(program, *expression),
                         ProofFact::Proposition(_) => true,
@@ -303,9 +307,11 @@ impl ContractFacts {
                     };
                     target.push(Conjunct {
                         identity: correspondence_fact(program, &fact, &binders),
-                        float: FloatObservation::collect(
-                            program, owner, parameters, &binders, &fact,
-                        ),
+                        float: if source_index_meaning {
+                            FloatObservation::collect(program, owner, parameters, &binders, &fact)
+                        } else {
+                            None
+                        },
                         fact,
                         law_checked,
                     });
@@ -411,6 +417,11 @@ fn entailed(
     goal: &Conjunct,
     goal_scope: &ContractFacts,
 ) -> bool {
+    if !crate::proof_contracts::contract_results::fact_has_source_builtin_index_meaning(
+        program, &goal.fact,
+    ) {
+        return false;
+    }
     if let Some(identity) = &goal.identity
         && premises
             .iter()
@@ -437,6 +448,12 @@ fn entailed(
     let hypotheses = premises
         .iter()
         .filter_map(|premise| {
+            if !crate::proof_contracts::contract_results::fact_has_source_builtin_index_meaning(
+                program,
+                &premise.fact,
+            ) {
+                return None;
+            }
             let ProofFact::Expression(expression) = premise.fact else {
                 return None;
             };
@@ -473,22 +490,24 @@ fn split_conjuncts(
 }
 
 fn is_law_conjunct(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+    if crate::proof_contracts::contract_results::expression_uses_reserved_result(
+        program, expression,
+    ) {
+        return false;
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
     if binary.operator != BinaryOperator::Equal {
         return false;
     }
-    let result = RESULT_BINDER.to_owned();
-    match (
-        structural_term(program, None, None, binary.left, None),
-        structural_term(program, None, None, binary.right, None),
-    ) {
-        (Some(left), Some(right)) => {
-            !term_mentions_variable(&left, &result) && !term_mentions_variable(&right, &result)
-        }
-        _ => false,
-    }
+    matches!(
+        (
+            structural_term(program, None, None, binary.left, None),
+            structural_term(program, None, None, binary.right, None),
+        ),
+        (Some(_), Some(_))
+    )
 }
 
 fn render(program: &dyn crate::CheckingInput, fact: &ProofFact) -> String {

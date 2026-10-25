@@ -173,7 +173,16 @@ fn captured_contract_proven(
     // replace them. It is therefore a capture proof, not a source fallback.
     if let typed_trees::domain::ProofFact::Expression(required) =
         program.proof_facts.get(contract.fact)
-        && (phase_profile::scope("05.d.7.3b.1.cap.1_current_values", || {
+        && (phase_profile::scope("05.d.7.3b.1.cap.0_call_guarantees", || {
+            // Normal-return equations name these completed occurrences. They
+            // may compose through intermediate results that are not themselves
+            // actuals of this call. This capture-owned proof must precede the
+            // source-substitution fence; repeatability of either runtime call
+            // is neither necessary nor inferred.
+            super::super::prover::call_guarantees::proves(
+                program, facts, state, call, contexts, *required, frames,
+            )
+        }) || phase_profile::scope("05.d.7.3b.1.cap.1_current_values", || {
             super::super::current_values::proves_call(program, state, call, *required, frames)
         }) || phase_profile::scope("05.d.7.3b.1.cap.2_structural_req", || {
             super::super::entailment::structural_call_requirement(
@@ -354,7 +363,7 @@ fn captured_expression_proven(
                             &facts.semantic,
                             value.operand.row(),
                             value.type_reference,
-                            call.entry_constraints,
+                            value.producer_invocation(call.entry_constraints),
                         );
                         // A view observes the descriptor's completed referent,
                         // not the storage slot from which its pointer was read.
