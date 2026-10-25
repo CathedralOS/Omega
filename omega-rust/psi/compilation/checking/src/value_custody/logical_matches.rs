@@ -166,6 +166,32 @@ pub fn expression_has_closed_value_captures(
     }
     let mut expressions = Vec::new();
     crate::expression_traversal::collect_expression_tree(program, expression, &mut expressions);
+    // Ordinary executable traversal deliberately omits nominal pattern heads.
+    // A custody inventory also owns the complete pattern dependency graph.
+    let mut position = 0;
+    while position < expressions.len() {
+        let current = expressions[position];
+        position += 1;
+        if let ExpressionNode::Match(dispatch) = program.expression_table.expression(current) {
+            let dependencies = program
+                .expression_table
+                .match_arms(dispatch.arms)
+                .iter()
+                .flat_map(|arm| {
+                    program
+                        .expression_table
+                        .match_pattern_dependencies(arm.pattern)
+                })
+                .collect::<Vec<_>>();
+            for dependency in dependencies {
+                crate::expression_traversal::collect_expression_tree(
+                    program,
+                    dependency,
+                    &mut expressions,
+                );
+            }
+        }
+    }
     expressions.iter().all(|expression| {
         let ExpressionNode::SavedSubject(saved) = program.expression_table.expression(*expression)
         else {
