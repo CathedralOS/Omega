@@ -89,22 +89,29 @@ fn normalized_calls(
     effects: &[TerminalEffect],
     expected: usize,
 ) -> Result<Vec<TerminalEffect>, String> {
-    if effects.len() != expected {
+    let actual = effects
+        .iter()
+        .filter(|effect| matches!(effect, TerminalEffect::ComponentCall { .. }))
+        .count();
+    if actual != expected {
         return Err(format!(
             "component call count {} differs from oracle {expected}",
-            effects.len()
+            actual
         ));
     }
     let mut namespaces = BTreeSet::new();
     let mut normalized = effects.to_vec();
-    for (ordinal, effect) in normalized.iter_mut().enumerate() {
+    let mut ordinal = 0_u64;
+    for effect in &mut normalized {
         let TerminalEffect::ComponentCall {
             instance_namespace,
             effects,
             ..
         } = effect
         else {
-            return Err("component resume oracle requires actual component effects".into());
+            // Direct caller boundary effects remain in the observation and
+            // compare exactly. Only fresh component instance labels change.
+            continue;
         };
         if !namespaces.insert(*instance_namespace)
             || effects.len() != 1
@@ -114,7 +121,8 @@ fn normalized_calls(
                 "component invocation lacks its distinct instance or actual boundary effect".into(),
             );
         }
-        *instance_namespace = u64::try_from(ordinal).map_err(|error| error.to_string())?;
+        *instance_namespace = ordinal;
+        ordinal = ordinal.checked_add(1).ok_or("component ordinal overflow")?;
     }
     Ok(normalized)
 }
