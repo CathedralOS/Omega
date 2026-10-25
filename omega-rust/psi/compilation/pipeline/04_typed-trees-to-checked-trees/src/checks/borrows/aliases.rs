@@ -312,6 +312,51 @@ fn resolve_descriptor_places_with_loans(
     (!places.is_empty()).then_some(places)
 }
 
+/// Forming a lifetime debt retains an already supplied input; it does not
+/// borrow that input again. Authenticate every supplier before admitting its
+/// formation alongside a common ancestor. This query is only for formation:
+/// ordinary descriptor access still rejects LifetimeDependency as a source.
+pub(in crate::checks::borrows) fn formation_lineage(
+    borrow: &BorrowFacts,
+    state: &StateBorrowFact,
+    handle: Handle<BorrowLoanFact>,
+) -> Option<Vec<Handle<BorrowLoanFact>>> {
+    if !borrow.state_owns_loan(state, handle) {
+        return None;
+    }
+    let loan = borrow.loans.get(handle);
+    if loan.lineage != BorrowLoanLineage::LifetimeDependency {
+        return retained_lineage(borrow, state, handle);
+    }
+    let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
+    if suppliers.is_empty() || !loan.source_owner_symbol.is_valid() {
+        return None;
+    }
+    let mut common = Vec::new();
+    for (position, supplier) in suppliers.iter().enumerate() {
+        if !borrow.state_owns_loan(state, *supplier) {
+            return None;
+        }
+        let source = borrow.loans.get(*supplier);
+        if source.owner_symbol != loan.source_owner_symbol
+            || source.kind.direct_reborrow_effect(&loan.kind).is_none()
+        {
+            return None;
+        }
+        let lineage = retained_lineage(borrow, state, *supplier)?;
+        if position == 0 {
+            common = lineage;
+        } else {
+            common.retain(|ancestor| {
+                lineage
+                    .iter()
+                    .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
+            });
+        }
+    }
+    Some(common)
+}
+
 pub(in crate::checks::borrows) fn retained_lineage(
     borrow: &BorrowFacts,
     state: &StateBorrowFact,

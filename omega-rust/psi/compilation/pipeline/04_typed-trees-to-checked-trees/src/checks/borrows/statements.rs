@@ -92,7 +92,7 @@ pub(super) fn check_statement_borrows<'p>(
                 loan.formation_expression,
             );
             let retained_lineage =
-                super::aliases::retained_lineage(&facts.borrow, borrow_state, loan_handle);
+                super::aliases::formation_lineage(&facts.borrow, borrow_state, loan_handle);
             let formation_constraints = if loan.established_by_call.is_valid() {
                 if !facts.borrow.calls.is_valid(loan.established_by_call) {
                     diagnostics.push(Diagnostic::error(
