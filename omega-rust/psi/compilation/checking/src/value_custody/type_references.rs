@@ -680,8 +680,10 @@ fn validate_type_reference_node(
     }
     // Generic-argument sites below validate every spelled argument under the
     // application owner's custody.
-    let mut validate_generic_argument =
-        |argument: TypeReferenceHandle, diagnostics: &mut Vec<Diagnostic>| {
+    let validate_generic_argument =
+        |argument: TypeReferenceHandle,
+         diagnostics: &mut Vec<Diagnostic>,
+         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>| {
             validate_type_reference_node(
                 program,
                 argument,
@@ -854,7 +856,7 @@ fn validate_type_reference_node(
                 // schema, not a data-generic argument.
                 if parameters.is_empty() {
                     for argument in argument_handles {
-                        validate_generic_argument(*argument, diagnostics);
+                        validate_generic_argument(*argument, diagnostics, formation_obligations);
                     }
                     return;
                 }
@@ -918,7 +920,11 @@ fn validate_type_reference_node(
                                 )));
                                 continue;
                             }
-                            validate_generic_argument(*argument, diagnostics);
+                            validate_generic_argument(
+                                *argument,
+                                diagnostics,
+                                formation_obligations,
+                            );
                         }
                     }
                 }
@@ -943,7 +949,7 @@ fn validate_type_reference_node(
                 );
             } else {
                 for argument in argument_handles {
-                    validate_generic_argument(*argument, diagnostics);
+                    validate_generic_argument(*argument, diagnostics, formation_obligations);
                 }
             }
         }
