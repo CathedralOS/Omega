@@ -2,7 +2,7 @@
 
 Owning outcome: **FINITE-GENERIC-DISPATCH**.
 
-A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input.
+A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
 
 This row exercises [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), and [runtime index identity](../../../../wiki/spec/language/generics.md#runtime-index-identity-and-storage). Declaring requirements own the full correlated roster. A call's exact closed tuple owns operand/result types; it cannot erase another row from the table or select a provider's private shape as public authority.
 
@@ -16,4 +16,4 @@ Final fixed-candidate qualification, independent review and verified normal merg
 
 Additional controls challenge the row's assumptions. `authored_sum` supplies the common concrete result ABI for runtime-selected sizes; `nested_static` keeps identically named nested const binders distinct. `runtime_shape/invalid` and `nested_runtime_shape/invalid` reject runtime extents in inline storage, including an ordinary machine without a finite call. This is a general storage check rather than a family-call recognizer. References, erased fields and explicit storage retain their independent contracts; absence of a diagnostic is never layout authority.
 
-`uncalled_target` calls only row 16 while row 32 requires a target-specific helper. Its invalid twin supplies that helper only on Linux ARM64; realizing Linux x86-64 must still reject the uncalled row. `argument_effect/invalid` changes an index in an earlier operand, then passes its new value to a finite call; the returned carrier cannot be assigned the stale saved index.
+`uncalled_target` calls only row 16 while row 32 requires a target-specific helper. Its invalid twin supplies that helper only on Linux ARM64; realizing Linux x86-64 must still reject the uncalled row. `argument_effect` supplies the focused nested-producer reproduction. Its invalid twin retains a runtime index subject across an overlapping operand write; that observation cannot supply an unqualified result-index equality.

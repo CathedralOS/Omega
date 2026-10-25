@@ -1,4 +1,4 @@
-// A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input.
+// A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
 // Expected exit: 0
 // Place: match_join.
 data Prepared<const Width: u64> { bytes: [u8; Width]; }
@@ -10,10 +10,19 @@ Selected satisfies Family { Family::row = produce; }
 Other satisfies Family { Family::row = produce; }
 machine row16(selected: dyn Family, value: Prepared<16>) -> Prepared<16> { Family::row<16>(selected, value) }
 machine row32(selected: dyn Family, value: Prepared<32>) -> Prepared<32> { Family::row<32>(selected, value) }
+machine input16(value: Prepared<16>, calls: &mut [u64; 1]) -> Prepared<16> {
+    calls[0] = ((calls[0] as u64 in Wrapping) + 1) as u64;
+    value
+}
+machine input32(value: Prepared<32>, calls: &mut [u64; 1]) -> Prepared<32> {
+    calls[0] = ((calls[0] as u64 in Wrapping) + 1) as u64;
+    value
+}
 machine check(first: Prepared<16>, second: Prepared<32>) crashes Trap {
-    let a: Prepared<16> = row16(Selected as dyn Family, first);
-    let b: Prepared<32> = row32(Other as dyn Family, second);
-    transition a.bytes[0] == 11 && a.bytes[15] == 23 && b.bytes[0] == 17 && b.bytes[31] == 29 {
+    let mut calls: [u64; 1] = [0];
+    let a: Prepared<16> = Family::row<16>(Selected as dyn Family, input16(first, &mut calls));
+    let b: Prepared<32> = Family::row<32>(Other as dyn Family, input32(second, &mut calls));
+    transition calls[0] == 2 && a.bytes[0] == 11 && a.bytes[15] == 23 && b.bytes[0] == 17 && b.bytes[31] == 29 {
         true -> done() false -> bad()
     }
     state done() {}
