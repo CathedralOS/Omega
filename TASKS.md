@@ -4878,7 +4878,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   all nine places with Linux native/Terminal agreement and cleanup twins;
   canonical macOS checking realizes separate dylib products, and the nine
   independent places now run on macOS ARM64 at native 0 with Terminal
-  agreement. Selected satisfied exports are retained independently
+  agreement. The same nine places run on windows_x86_64: publication emits a
+  PE shared component, the executable imports that content-addressed DLL, and
+  the component's classful `inet_makeaddr` / `inet_lnaof` calls resolve
+  `omega_host.dll`, with Terminal agreement and cleanup-only rejects.
+  Selected satisfied exports are retained independently
   of outgoing calls. Real child suspension preserves the captured owned input
   and disjoint sibling without replaying effects or ownership tokens.
   Same-layout carrier drift rejects at the exact composition join. Copy,

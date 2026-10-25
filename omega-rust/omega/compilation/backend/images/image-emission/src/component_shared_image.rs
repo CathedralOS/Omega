@@ -1,4 +1,4 @@
-//! Separately emitted callable image custody for ordinary ELF and Mach-O loaders.
+//! Separately emitted callable image custody for ordinary ELF, Mach-O, and Windows PE loaders.
 //!
 //! This owns the original object/bridge beside its distinct shared container.
 //! It cannot enter the process ExecutableImage or InstalledCode routes merely
@@ -14,6 +14,7 @@ use machine_emission::native_entry_bridge::NativeEntryBridge;
 pub enum ComponentSharedContainer {
     Elf(image_elf::ElfSharedComponentImage),
     MachO(image_macho::MachoSharedComponentImage),
+    Pe(image_pe::PeSharedComponentImage),
 }
 
 impl ComponentSharedContainer {
@@ -21,12 +22,14 @@ impl ComponentSharedContainer {
         match self {
             Self::Elf(image) => image.image(),
             Self::MachO(image) => image.image(),
+            Self::Pe(image) => image.image(),
         }
     }
     pub fn contents(&self) -> &[u8] {
         match self {
             Self::Elf(image) => image.contents(),
             Self::MachO(image) => image.contents(),
+            Self::Pe(image) => image.contents(),
         }
     }
 }
@@ -116,9 +119,26 @@ pub fn emit_component_shared_image(
             let (image, _, diagnostic) = error.into_parts();
             (image, diagnostic)
         }),
+        target::ObjectFormat::Coff if image.target == target::NativeTarget::windows_x64() => {
+            image_pe::emit_pe_shared_component(
+                image,
+                vec![image_pe::PeComponentExport {
+                    symbol: export_symbol,
+                    name,
+                    slot_commitment,
+                }],
+            )
+            .map(ComponentSharedContainer::Pe)
+            .map_err(|error| {
+                let (image, _, diagnostic) = error.into_parts();
+                (image, diagnostic)
+            })
+        }
         _ => Err((
             image,
-            Diagnostic::error("shared component requires an admitted ELF or Mach-O container"),
+            Diagnostic::error(
+                "shared component requires an admitted ELF, Mach-O, or Windows PE container",
+            ),
         )),
     };
     match emitted {

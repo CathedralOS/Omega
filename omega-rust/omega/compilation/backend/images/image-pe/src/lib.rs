@@ -73,6 +73,12 @@ mod imports;
 mod layout;
 mod relocations;
 mod sections;
+mod shared_component;
+
+pub use shared_component::{
+    PeComponentExport, PeSharedComponentEmissionError, PeSharedComponentImage,
+    emit_pe_shared_component,
+};
 
 #[cfg(test)]
 mod tests;
@@ -86,16 +92,52 @@ use imports::{
 };
 use sections::{plan_pe_sections, rdata_rva_after_text};
 
+pub(crate) enum PeImageKind {
+    Executable,
+    SharedComponent { exports: Vec<PeComponentExport> },
+}
+
 pub fn emit_pe_x86_64_executable(
+    image: FinalImage,
+    subsystem: u16,
+) -> Result<ExecutableImageOutput, Diagnostic> {
+    emit_pe_x86_64(image, subsystem, PeImageKind::Executable)
+}
+
+pub(crate) fn emit_pe_x86_64(
     mut image: FinalImage,
     subsystem: u16,
+    kind: PeImageKind,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let import_thunks = install_import_thunks(&mut image, subsystem)?;
     // One layout pass: `.rdata`'s RVA depends only on the final text length, so
     // the import table is built against it and planning then carries the
-    // `.reloc` bytes it built while measuring that section.
-    let import_table = build_import_table(&import_thunks, rdata_rva_after_text(&image));
-    let sections = plan_pe_sections(&image, import_table.bytes.len());
+    // `.reloc` bytes it built while measuring that section. A shared component
+    // appends its export directory after that table; those RVAs use the same
+    // placement and do not move the import directory.
+    let rdata_rva = rdata_rva_after_text(&image);
+    let import_table = build_import_table(&import_thunks, rdata_rva);
+    let (export_bytes, export_directory_rva, export_directory_size) = match &kind {
+        PeImageKind::Executable => (Vec::new(), 0, 0),
+        PeImageKind::SharedComponent { exports } => {
+            let aligned = import_table.bytes.len().div_ceil(4) * 4;
+            let directory_rva = rdata_rva
+                .checked_add(
+                    u32::try_from(aligned)
+                        .map_err(|_| Diagnostic::error("PE export directory RVA overflows"))?,
+                )
+                .ok_or_else(|| Diagnostic::error("PE export directory RVA overflows"))?;
+            let bytes = shared_component::export_directory_bytes(&image, exports, directory_rva)?;
+            let size = bytes.len();
+            (bytes, directory_rva, size)
+        }
+    };
+    let mut rdata_bytes = import_table.bytes.clone();
+    if !export_bytes.is_empty() {
+        rdata_bytes.resize(rdata_bytes.len().div_ceil(4) * 4, 0);
+        rdata_bytes.extend_from_slice(&export_bytes);
+    }
+    let sections = plan_pe_sections(&image, rdata_bytes.len());
     let layout = sections.final_image_layout();
 
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
@@ -130,7 +172,14 @@ pub fn emit_pe_x86_64_executable(
         )?
     };
 
-    let entry_rva = pe_entry_rva(&image)?;
+    let entry_rva = match &kind {
+        PeImageKind::Executable => pe_entry_rva(&image)?,
+        PeImageKind::SharedComponent { .. } => 0,
+    };
+    let file_characteristics = match &kind {
+        PeImageKind::Executable => 0x0022,
+        PeImageKind::SharedComponent { .. } => 0x2022,
+    };
 
     let (reloc_directory_rva, reloc_directory_size) = if sections.has_reloc {
         (sections.reloc_rva, sections.reloc.bytes.len())
@@ -157,6 +206,9 @@ pub fn emit_pe_x86_64_executable(
             reloc_directory_size,
             has_reloc: sections.has_reloc,
             subsystem,
+            file_characteristics,
+            export_directory_rva,
+            export_directory_size,
         },
     );
     write_section_header(
@@ -220,7 +272,7 @@ pub fn emit_pe_x86_64_executable(
     bytes.resize(sections.text_raw + sections.text_raw_size, 0);
     if sections.has_rdata {
         bytes.resize(sections.rdata_raw, 0);
-        bytes.extend(&import_table.bytes);
+        bytes.extend(&rdata_bytes);
         bytes.resize(sections.rdata_raw + sections.rdata_raw_size, 0);
     }
     if sections.has_data {

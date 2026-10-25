@@ -189,9 +189,10 @@ Each twin changes only the producing carrier's nominal cleanup obligation in
 [the invalid producing package](independent/producer_invalid/main.omg). Its
 consumer source is identical to the positive. The four hosted entries remain
 in every positive build. Execution observations for this exchange are Linux
-x86-64 and macOS ARM64. On windows_x86_64 the producer declares the same
-`omega_host.dll` binding, and publication rejects before execution because a
-shared component still requires an admitted ELF or Mach-O container.
+x86-64, macOS ARM64, and Windows x86-64. On windows_x86_64 the producer
+declares the same `omega_host.dll` binding, publication emits a PE shared
+component beside the executable, and all nine places exit 0 under
+`omega run --both`.
 The paired sources are pinned under
 `tests/omega/{pass,fail}/facts/opaque_independent_closed_carrier_through_*`.
 
@@ -250,6 +251,12 @@ The applicable requirement categories above extend through the component edge:
   The macOS files have been produced on Linux; their macOS execution is now
   observed: the nine independent places run natively at exit 0 with Terminal
   agreement on `macos_arm64` under the shared producer at `9ff26a87`.
+  Windows x86-64 emits the same selected export as a PE32+ DLL
+  (`IMAGE_FILE_DLL`, no loader entry, one export directory) and imports it
+  from the executable by the content-addressed sibling name. The component's
+  foreign `omega_host.dll` import is published beside that executable. The
+  nine independent places exit 0 natively with Terminal agreement on
+  `windows_x86_64`.
   This initial process route does not establish hot replacement, stable-handle
   eras or cross-host loading.
 
@@ -257,7 +264,7 @@ Raw observations remain in the existing swarm qualification record, bound to
 actual producer revisions and accepted project locks. Full provider/carrier/
 target/lifecycle/multiplicity/historical-selection mismatch controls, Copy,
 qualified or linear component inputs, materialized/view-backed inputs, and
-matching-host execution on the other hosted targets remain separate acceptance
+matching-host execution on Linux ARM64 remain separate acceptance
 until demonstrated. The fact row and focused fuel witness do not close those
 remaining parent requirements.
 
