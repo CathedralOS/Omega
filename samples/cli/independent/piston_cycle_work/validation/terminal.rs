@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (name, input) in cases {
         std::fs::write(output.join(format!("terminal-{name}.stdin")), &input)?;
         let observed = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             provider_proposal: None,
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             fuel_allowance: 10_000_000,

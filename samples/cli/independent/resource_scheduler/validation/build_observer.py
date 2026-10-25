@@ -19,7 +19,6 @@ project.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(sample / 'validation' / 'observe.rs', project / 'observe.rs')
 shutil.copyfile(repository / 'Cargo.lock', project / 'Cargo.lock')
 packages = {
-    'omega': 'omega-rust/omega/application/cli',
     'omega-build': 'omega-rust/omega/application/build',
     'compiler': 'omega-rust/omega/compilation/driver',
     'terminal-runtime': 'omega-rust/omega/application/terminal-runtime',

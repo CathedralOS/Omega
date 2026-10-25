@@ -44,6 +44,7 @@ fn main() {
             .unwrap().trim().parse().unwrap();
         let started = Instant::now();
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),

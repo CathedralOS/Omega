@@ -245,6 +245,7 @@ fn validate(sample: &Path, output: &Path, resume: bool) -> Result<(), String> {
             .ok_or("non-UTF8 fixture name")?;
         let input = std::fs::read(&fixture).map_err(|error| error.to_string())?;
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             // Match the CLI: use the native report's retained installation.
             provider_proposal: None,
             artifact,

@@ -89,8 +89,7 @@ fn verify_value_equality_selection(root: &Path, evidence: &Path) {
     let checked = compiler::CompilationSession::default()
         .check(request)
         .result
-        .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"))
-        .into_program();
+        .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"));
     let program = &checked.typed;
     let machines = program
         .machines()
@@ -319,6 +318,7 @@ fn main() {
             }
         });
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact: terminal,
             provisions: report.runtime_provisions(),
             provider_proposal: None,

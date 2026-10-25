@@ -42,6 +42,7 @@ fn validate() -> Result<(), String> {
         ("truncated", 0), ("oversized", 3), ("limit", 3)] {
         let input = fs::read(root.join(format!("data/{name}.stdin"))).map_err(|e| e.to_string())?;
         let observed = execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             provider_proposal: None,
             // Finite exhaustive replay: fixed 2000-record cap, 25 candidates per frame.

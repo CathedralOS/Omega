@@ -842,7 +842,9 @@ dependencies = [
  "effects",
  "image-emission",
  "mimalloc",
+ "optimization-core",
  "package-compilation",
+ "package-evidence",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbols",
@@ -1241,7 +1243,6 @@ name = "new087-terminal-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega",
  "omega-build",
  "package-manager",
  "target",
@@ -2096,7 +2097,6 @@ name = "spectral-power-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega",
  "omega-build",
  "package-manager",
  "target",
@@ -2407,7 +2407,6 @@ name = "thin-film-reflectometry-validation"
 version = "0.1.0"
 dependencies = [
  "compiler",
- "omega",
  "omega-build",
  "package-manager",
  "target",
@@ -2573,7 +2572,6 @@ version = "0.1.0"
 dependencies = [
  "bounded-process",
  "compiler",
- "omega",
  "omega-build",
  "package-manager",
  "target",

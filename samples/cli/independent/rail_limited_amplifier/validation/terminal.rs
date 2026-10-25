@@ -28,6 +28,7 @@ fn run() {
     for fixture in fixtures {
         let name = fixture.file_stem().unwrap().to_str().unwrap();
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             provider_proposal: None,
             fuel_allowance: 10_000_000,

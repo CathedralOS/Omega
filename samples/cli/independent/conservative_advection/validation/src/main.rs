@@ -113,6 +113,7 @@ fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
             return Err("unexpected case name".into());
         }
         let observation = execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             provider_proposal: None,
             artifact: artifact.psi_artifact(),
             target: Some("linux_x86_64"),

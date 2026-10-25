@@ -11,6 +11,8 @@ path = "validation_driver.rs"
 compiler = { path = "../../../../omega-rust/omega/compilation/driver" }
 terminal-runtime = { path = "../../../../omega-rust/omega/application/terminal-runtime" }
 compilation-products = { path = "../../../../omega-rust/omega/compilation/products" }
+package-evidence = { path = "../../../../omega-rust/omega/packages/review-evidence" }
+optimization-core = { path = "../../../../omega-rust/omega/foundation/optimization-core" }
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
 package-compilation = { path = "../../../../omega-rust/omega/packages/compilation-inputs", features = ["test-support"] }
 semantic-vocabulary = { path = "../../../../omega-rust/psi/foundation/semantic-vocabulary" }
