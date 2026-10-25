@@ -591,7 +591,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
 }
 
 #[test]
-fn full_build_reserves_actual_byte_backings_and_retains_storage_faults() {
+fn full_build_reserves_owned_storage_and_retains_storage_faults() {
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
@@ -599,19 +599,26 @@ fn full_build_reserves_actual_byte_backings_and_retains_storage_faults() {
     let (produced, admission, initial) = produce("build");
     let artifact = produced.artifact();
     let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
-    let execute = |limit, competing_byte: bool| {
+    let execute = |cell_limit, byte_limit, competing_cells, competing_bytes| {
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
             fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
-            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, 100_000, limit, 100_000, 100_000)
-                .unwrap(),
+            BuildEvaluationSponsorLimits::new(
+                100_000, 8, 2, 2, cell_limit, byte_limit, 100_000, 100_000,
+            )
+            .unwrap(),
             measurement,
         )
         .unwrap();
         let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
-        let competing = competing_byte.then(|| account.reserve_storage(0, 1).unwrap());
+        let should_refuse = competing_cells != 0 || competing_bytes != 0;
+        let competing = should_refuse.then(|| {
+            account
+                .reserve_storage(competing_cells, competing_bytes)
+                .unwrap()
+        });
         let original = TerminalStructuralValue::minted(
             79,
             program.entry().unwrap().structural_parameters[0].structural_type,
@@ -646,9 +653,16 @@ fn full_build_reserves_actual_byte_backings_and_retains_storage_faults() {
                 .bind_import(boundary, host.adapter(declaration.into()))
                 .unwrap();
         }
-        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None).unwrap();
-        let result = instance.invoke(&mut meter);
-        if competing_byte {
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
+                    meter.replenish(1).unwrap();
+                }
+                result => break result,
+            }
+        };
+        if should_refuse {
             let refusal = result.unwrap_err();
             assert!(
                 format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
@@ -690,6 +704,7 @@ fn full_build_reserves_actual_byte_backings_and_retains_storage_faults() {
             );
             instance.close().unwrap();
             assert_eq!(sponsor.live_payload_bytes(), 0);
+            assert_eq!(sponsor.live_storage_cells(), 0);
         }
         drop(instance);
         assert_eq!(
@@ -697,18 +712,35 @@ fn full_build_reserves_actual_byte_backings_and_retains_storage_faults() {
             0,
             "all byte owners retire with the instance"
         );
-        let bindings = host.into_executed().unwrap();
-        if !competing_byte {
-            assert_eq!(bindings.len(), 4);
+        assert_eq!(
+            sponsor.live_storage_cells(),
+            0,
+            "runtime rows retire with the instance"
+        );
+        let bindings = host.into_executed();
+        if !should_refuse {
+            assert_eq!(bindings.unwrap().len(), 4);
+        } else if let Err(error) = bindings {
+            // Refusal may leave a designated request issued but not committed.
+            // That host state must not be published as completed Build output.
+            assert!(error.contains("uncommitted request"), "{error}");
         }
         let usage = account.snapshot().unwrap();
         assert!(usage.record().fuel_units > 0);
-        usage.record().peak_live_payload_bytes
+        *usage.record()
     };
-    let peak = execute(100_000, false);
-    assert!(peak > 1);
-    assert_eq!(execute(peak, false), peak);
-    assert!(execute(peak, true) <= peak);
+    let baseline = execute(100_000, 100_000, 0, 0);
+    let bytes = baseline.peak_live_payload_bytes;
+    let cells = baseline.peak_live_storage_cells;
+    assert!(bytes > 1);
+    assert!(
+        cells > 1,
+        "source-produced Build must fund its runtime rows"
+    );
+    assert_eq!(execute(100_000, bytes, 0, 0).peak_live_payload_bytes, bytes);
+    assert!(execute(100_000, bytes, 0, 1).peak_live_payload_bytes <= bytes);
+    assert_eq!(execute(cells, 100_000, 0, 0).peak_live_storage_cells, cells);
+    assert!(execute(cells, 100_000, 1, 0).peak_live_storage_cells <= cells);
 }
 
 #[test]

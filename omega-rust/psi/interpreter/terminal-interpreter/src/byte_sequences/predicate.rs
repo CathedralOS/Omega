@@ -23,7 +23,7 @@ impl TerminalExecution<'_> {
         let bytes = self.byte_sequence_operand_view(operand)?;
         let verdict = predicate.holds_for(bytes.bytes());
         self.values
-            .insert(result.id, TerminalScalarValue::Boolean(verdict));
+            .insert(result.id, TerminalScalarValue::Boolean(verdict))?;
         Ok(OperationFlow::Advance)
     }
 }

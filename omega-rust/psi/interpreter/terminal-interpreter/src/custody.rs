@@ -17,11 +17,13 @@ mod tests;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::LiveClaim;
 use crate::reference;
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
 use crate::values::{
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use evaluation_accounting::EvaluationInvocationAccount;
 use semantic_vocabulary::{
     ClaimId, PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
@@ -83,7 +85,7 @@ pub(crate) fn commit_cleanup_action(
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
-    structural_values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
@@ -178,7 +180,7 @@ pub(crate) fn commit_cleanup_action(
 /// the complete ordered disposal partition.
 pub(crate) fn begin_nominal_cleanup(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
@@ -248,7 +250,7 @@ pub(crate) fn validate_nominal_cleanup_action(
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     frontier: &BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
@@ -331,7 +333,7 @@ pub(crate) fn validate_nominal_cleanup_action(
 /// A hook returns to the same pending subject. Remove its reservation only;
 /// the surrounding carrier remains until its last sibling obligation ends.
 pub(crate) fn complete_nominal_cleanup(
-    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     cleanup: &NominalAffineCleanup,
@@ -370,7 +372,7 @@ pub(crate) fn complete_nominal_cleanup(
 /// This event is not a wildcard disposal, claim discharge, or loan restoration;
 /// backing retained by captured outgoing values survives the frame binding.
 pub(crate) fn retire_cleanup_home(
-    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     claims: &BTreeMap<ClaimId, LiveClaim>,
     place: PlaceId,
@@ -390,14 +392,15 @@ pub(crate) fn retire_cleanup_home(
 pub(crate) fn bind_arguments(
     parameters: &[terminal_psi::ValueDeclaration],
     arguments: &[TerminalScalarValue],
-) -> Result<BTreeMap<ValueId, TerminalScalarValue>, TerminalInterpretError> {
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<RuntimeRows<ValueId, TerminalScalarValue>, TerminalInterpretError> {
     if arguments.len() != parameters.len() {
         return Err(TerminalInterpretError::ArgumentCount {
             expected: parameters.len(),
             actual: arguments.len(),
         });
     }
-    let mut values = BTreeMap::new();
+    let mut values = RuntimeRows::new(account);
     for (parameter, argument) in parameters.iter().zip(arguments) {
         if parameter.scalar_type != argument.scalar_type() {
             return Err(TerminalInterpretError::ArgumentType {
@@ -413,7 +416,7 @@ pub(crate) fn bind_arguments(
                 value: parameter.id,
             });
         }
-        values.insert(parameter.id, *argument);
+        values.insert(parameter.id, *argument)?;
     }
     Ok(values)
 }
@@ -444,9 +447,10 @@ pub(crate) fn bind_active_structural_arguments(
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
-) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     let active = active_structural_parameters(parameters, arguments, types, cases)?;
-    bind_structural_arguments(&active, arguments)
+    bind_structural_arguments(&active, arguments, account)
 }
 
 /// An internal edge relabels already established storage in one activation.
@@ -463,12 +467,13 @@ pub(crate) fn bind_active_block_arguments(
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
     >,
-) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if sources.len() != parameters.len() || source_parameters.len() != parameters.len() {
         return Err(malformed());
     }
     let active = active_structural_parameters(parameters, arguments, types, cases)?;
-    bind_existing_structural_places(&active, arguments, sources, source_parameters)
+    bind_existing_structural_places(&active, arguments, sources, source_parameters, account)
 }
 
 fn active_structural_parameters(
@@ -502,8 +507,9 @@ fn active_structural_parameters(
 pub(crate) fn bind_structural_arguments(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
-) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
-    bind_existing_structural_places(parameters, arguments, &[], &[])
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    bind_existing_structural_places(parameters, arguments, &[], &[], account)
 }
 
 /// A fresh reborrow names the owner's actual source place. A forwarded loan
@@ -560,14 +566,15 @@ fn bind_existing_structural_places(
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
     source_parameters: &[Option<&StructuralParameterDeclaration>],
-) -> Result<BTreeMap<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if arguments.len() != parameters.len() {
         return Err(TerminalInterpretError::StructuralArgumentCount {
             expected: parameters.len(),
             actual: arguments.len(),
         });
     }
-    let mut values = BTreeMap::new();
+    let mut values = RuntimeRows::new(account);
     for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         if argument
             .qualifications
@@ -642,7 +649,7 @@ fn bind_existing_structural_places(
                 ));
             }
         }
-        if values.insert(parameter.place, argument.clone()).is_some() {
+        if values.insert(parameter.place, argument.clone())?.is_some() {
             return Err(malformed());
         }
     }
@@ -652,7 +659,7 @@ fn bind_existing_structural_places(
 pub(crate) fn bind_structural_primitive_values(
     machine: &TerminalMachine,
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralPrimitiveValue],
     mut storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],
@@ -742,7 +749,7 @@ pub(crate) fn bind_structural_primitive_values(
 
 pub(crate) fn bind_affine_frontier(
     parameters: &[StructuralParameterDeclaration],
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
 ) -> Result<BTreeSet<StructuralAffineDiscard>, TerminalInterpretError> {
     bind_affine_frontier_types(parameters, structural_types, |place| {
@@ -895,7 +902,7 @@ pub(crate) fn projected_ownership_claims(
 /// Missing affine custody is legal only when an authenticated claim moves.
 pub(crate) fn consume_projected_ownership(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
@@ -931,7 +938,7 @@ pub(crate) fn consume_projected_ownership(
 /// Disposal still requires the intact-region check in consume_affine_projection.
 pub(crate) fn consume_projected_affine_complement(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
@@ -976,7 +983,7 @@ pub(crate) fn consume_projected_affine_complement(
 /// Runtime membership and frontier splitting retain selected case custody.
 pub(crate) fn consume_affine_discard(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
@@ -1010,7 +1017,7 @@ pub(crate) fn consume_affine_discard(
 
 pub(crate) fn consume_affine_projection(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     structural_cases: &BTreeMap<
         StructuralRuntimePlace,
         crate::structural_inputs::case_membership::StructuralCaseContents,
@@ -1279,7 +1286,7 @@ pub(crate) fn bind_entry_claims(
     entry_claims: &[EntryClaim],
     content_entry_claims: &[terminal_psi::ContentEntryClaim],
     parameters: &[StructuralParameterDeclaration],
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
 ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
     let mut claims = BTreeMap::new();
     for entry_claim in entry_claims {
@@ -1322,7 +1329,7 @@ pub(crate) fn bind_entry_claims(
 
 pub(crate) fn resolve_structural_arguments(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[StructuralArgument],
 ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
     arguments
@@ -1336,11 +1343,12 @@ pub(crate) fn resolve_structural_arguments(
 
 /// The value admitted at `place` — admission proves the key exists, so a
 /// miss reports a defect through the verified arm.
-pub(crate) fn verified_structural_place<'v, V>(
-    values: &'v BTreeMap<PlaceId, V>,
+pub(crate) fn verified_structural_place<'v, V: 'v>(
+    values: &'v impl std::borrow::Borrow<BTreeMap<PlaceId, V>>,
     place: PlaceId,
 ) -> Result<&'v V, TerminalInterpretError> {
     values
+        .borrow()
         .get(&place)
         .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
             place,
@@ -1350,7 +1358,7 @@ pub(crate) fn verified_structural_place<'v, V>(
 /// The one structural value `argument` resolves to — a batch of one.
 pub(crate) fn resolve_single_structural_argument(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     argument: &StructuralArgument,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
     resolve_structural_arguments(structural_types, values, std::slice::from_ref(argument))?
@@ -1453,7 +1461,7 @@ pub(crate) fn transfer_claims(
     callee_parameters: &[StructuralParameterDeclaration],
     callee_entry_claims: &[EntryClaim],
     callee_content_entry_claims: &[terminal_psi::ContentEntryClaim],
-    callee_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    callee_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
 ) -> Result<(BTreeMap<ClaimId, LiveClaim>, BTreeMap<ClaimId, LiveClaim>), TerminalInterpretError> {
     if caller_arguments.len() != callee_parameters.len()
         || transfers

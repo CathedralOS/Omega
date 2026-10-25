@@ -3,7 +3,7 @@
 
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildEvaluationUsageError,
-    EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
+    EvaluationAccountingError, EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 use std::sync::{Arc, Barrier};
@@ -130,6 +130,49 @@ fn growth_refusal_and_excess_shrink_preserve_held_storage() {
     assert_eq!(sponsor.live_payload_bytes(), 6);
     drop(lease);
     assert_eq!(sponsor.live_storage_cells(), 0);
+}
+
+#[test]
+fn joining_leases_transfers_both_dimensions_without_recharging() {
+    let sponsor = sponsor(4, 8);
+    let invocation = sponsor.begin_invocation(terminal(), 10).unwrap();
+    let mut left = invocation.reserve_storage(2, 3).unwrap();
+    let mut right = invocation.reserve_storage(2, 5).unwrap();
+    let before = *invocation.snapshot().unwrap().record();
+    left.absorb(&mut right).unwrap();
+    drop(right);
+    assert_eq!(*invocation.snapshot().unwrap().record(), before);
+    assert_eq!(sponsor.live_storage_cells(), 4);
+    assert_eq!(sponsor.live_payload_bytes(), 8);
+    left.truncate_cells(u64::MAX);
+    assert_eq!(sponsor.live_storage_cells(), 4);
+    left.truncate_cells(1);
+    assert_eq!(sponsor.live_storage_cells(), 1);
+    assert_eq!(sponsor.live_payload_bytes(), 8);
+    drop(left);
+    assert_eq!(sponsor.live_storage_cells(), 0);
+    assert_eq!(sponsor.live_payload_bytes(), 0);
+}
+
+#[test]
+fn joining_sibling_leases_refuses_without_moving_either_reservation() {
+    let sponsor = sponsor(4, 8);
+    let first = sponsor.begin_invocation(terminal(), 10).unwrap();
+    let second = sponsor.begin_invocation(terminal(), 10).unwrap();
+    let mut left = first.reserve_storage(1, 3).unwrap();
+    let mut right = second.reserve_storage(2, 4).unwrap();
+    assert_eq!(
+        left.absorb(&mut right),
+        Err(EvaluationAccountingError::LeaseAccountMismatch)
+    );
+    assert_eq!(sponsor.live_storage_cells(), 3);
+    assert_eq!(sponsor.live_payload_bytes(), 7);
+    drop(right);
+    assert_eq!(sponsor.live_storage_cells(), 1);
+    assert_eq!(sponsor.live_payload_bytes(), 3);
+    drop(left);
+    assert_eq!(sponsor.live_storage_cells(), 0);
+    assert_eq!(sponsor.live_payload_bytes(), 0);
 }
 
 #[test]

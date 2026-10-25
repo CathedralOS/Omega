@@ -160,7 +160,7 @@ impl TerminalExecution<'_> {
         self.live_affine_frontier = frontier;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 }

@@ -94,7 +94,7 @@ impl TerminalExecution<'_> {
             }
             _ => return Err(malformed()),
         };
-        self.values.insert(result.id, value);
+        self.values.insert(result.id, value)?;
         Ok(OperationFlow::Advance)
     }
 

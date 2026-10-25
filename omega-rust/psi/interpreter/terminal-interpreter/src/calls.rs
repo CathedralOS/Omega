@@ -21,6 +21,7 @@ use crate::effects::{TerminalEffect, TerminalEffectHandler};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution};
 use crate::results::TerminalExecutionStatus;
+use crate::runtime_rows::RuntimeRows;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
@@ -45,8 +46,8 @@ impl<'artifact> TerminalExecution<'artifact> {
         self.call_stack.push(SuspendedCall {
             placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
             loan_completions: Vec::new(),
-            values: std::mem::take(&mut self.values),
-            structural_values: std::mem::take(&mut self.structural_values),
+            values: self.values.take(),
+            structural_values: self.structural_values.take(),
             aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
@@ -143,7 +144,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 scalar_type,
                 value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(table)),
             },
-        );
+        )?;
         Ok(OperationFlow::Advance)
     }
 
@@ -483,6 +484,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &boundary_arguments.values,
                 &self.program.structural_types(),
                 &self.structural_cases,
+                self.account.as_ref(),
             )?;
             validate_boundary_requirements(boundary_declaration, |index| {
                 opaque_positions
@@ -506,6 +508,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &select_positions(&callee.structural_parameters, &opaque_positions)?,
                 &self.program.structural_types(),
                 &self.structural_cases,
+                self.account.as_ref(),
             )?;
             for position in owned_arrays {
                 let formal = callee
@@ -604,6 +607,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_arguments.values,
             &self.program.structural_types(),
             &self.structural_cases,
+            self.account.as_ref(),
         )?;
         validate_boundary_requirements(boundary_declaration, |index| {
             boundary_arguments.values.get(index)
@@ -761,13 +765,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             return Err(malformed());
         }
-        let values = bind_arguments(&callee.parameters, &arguments)?;
+        let values = bind_arguments(&callee.parameters, &arguments, self.account.as_ref())?;
         self.next_operation += 1;
         self.suspend_with(SuspendedCallResult::Scalar(
             operation.result.expect_scalar().id,
         ));
         self.values = values;
-        self.structural_values = BTreeMap::new();
+        self.structural_values = RuntimeRows::new(self.account.as_ref());
         self.live_affine_frontier = BTreeSet::new();
         self.live_claims = BTreeMap::new();
         self.current_machine = callee_id;

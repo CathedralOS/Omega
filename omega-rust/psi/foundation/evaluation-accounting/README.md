@@ -15,7 +15,9 @@ aggregate-before-local transaction before engine execution. Refusal changes
 neither counter; dropping the returned lease releases only live storage. Engine
 storage owners move leases across frames/maps and share an owning backing lease
 through `Arc`; copy-on-write must reserve the overlapping replacement before it
-allocates. Result publication must reserve copied live storage and charge
+allocates. `EvaluationStorageLease::absorb` joins existing reservations only
+within the exact invocation, without charging again. `truncate_cells` retires
+that owner's removed rows without changing its payload reservation. Result publication must reserve copied live storage and charge
 cumulative result custody before allocating or exposing a result. Custody is not
 refunded on teardown or retry.
 
@@ -43,8 +45,12 @@ and one-unit-short refusal across two activations with ordered binding effects.
 Terminal byte backings now carry leases selected before entry allocation.
 Aliases share the full backing reservation; copy-on-write reserves the overlapping
 replacement, and boundary buffers transfer the same owner at writeback. Actual
-Build execution tests exact and one-byte-short live payload budgets. Runtime rows,
-other storage families and result custody still need their real lifetime hooks.
+Build execution tests exact and one-byte-short live payload budgets. Scalar and
+structural runtime tables now reserve each new row and overlapping copy; frame
+moves and joins transfer leases, and retiring rows releases their cells. The same
+Build control checks exact and one-cell-short budgets through fuel pauses.
+Descriptor maps, frame headers, array payload elements, other storage families
+and result custody still need their real lifetime hooks.
 These partial snapshots are not complete Build usage or storage budgeting; do
 not publish them as production Build accounting receipts. The ordinary
 package-aware CLI remains on the checked Build evaluator until accounting and
