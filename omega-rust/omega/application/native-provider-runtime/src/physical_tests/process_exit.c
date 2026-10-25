@@ -1,3 +1,7 @@
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+// These fixed test inputs use the standard C environment/file interfaces.
+#define _CRT_SECURE_NO_WARNINGS
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
