@@ -1,0 +1,42 @@
+// Expected exit: 0
+// A checked issued opaque result retains its exact Issued membership across independent component result and input transport while observing host 66051 and distinct sibling host 513.
+use producer::main;
+
+linux_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge {
+    let original: InternetAddress in Issued = AddressBridge::make(10, 66051);
+    let sent: InternetAddress in Issued = original;
+    let sibling: InternetAddress in Issued = AddressBridge::make(44048, 513);
+    let sent_host: u32 = AddressBridge::host(sent);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    sent_host == 66051 && sibling_host == 513
+}
+linux_arm64 machine observe() -> bool reaches AddressParts, AddressBridge {
+    let original: InternetAddress in Issued = AddressBridge::make(10, 66051);
+    let sent: InternetAddress in Issued = original;
+    let sibling: InternetAddress in Issued = AddressBridge::make(44048, 513);
+    let sent_host: u32 = AddressBridge::host(sent);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    sent_host == 66051 && sibling_host == 513
+}
+windows_x86_64 machine observe() -> bool reaches AddressParts, AddressBridge {
+    let original: InternetAddress in Issued = AddressBridge::make(10, 66051);
+    let sent: InternetAddress in Issued = original;
+    let sibling: InternetAddress in Issued = AddressBridge::make(44048, 513);
+    let sent_host: u32 = AddressBridge::host(sent);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    sent_host == 66051 && sibling_host == 513
+}
+macos_arm64 machine observe() -> bool reaches AddressParts, AddressBridge {
+    let original: InternetAddress in Issued = AddressBridge::make(10, 66051);
+    let sent: InternetAddress in Issued = original;
+    let sibling: InternetAddress in Issued = AddressBridge::make(44048, 513);
+    let sent_host: u32 = AddressBridge::host(sent);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    sent_host == 66051 && sibling_host == 513
+}
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+    transition observe() { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

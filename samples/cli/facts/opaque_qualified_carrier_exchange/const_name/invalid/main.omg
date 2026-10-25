@@ -1,0 +1,22 @@
+// Expected exit: 0
+// A checked issued opaque result retains its exact Issued membership across independent component result and input transport while observing host 66051 and distinct sibling host 513.
+use producer::main;
+
+const NETWORK: u32 = 10;
+const ORIGINAL_HOST: u32 = 66051;
+const SIBLING_NETWORK: u32 = 44048;
+const SIBLING_HOST: u32 = 513;
+machine observe() -> bool reaches AddressParts, AddressBridge {
+    let original: InternetAddress in Issued = AddressBridge::make(NETWORK, ORIGINAL_HOST);
+    let sent: InternetAddress in Issued = original;
+    let sibling: InternetAddress in Issued = AddressBridge::make(SIBLING_NETWORK, SIBLING_HOST);
+    let sent_host: u32 = AddressBridge::host(sent);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    sent_host == ORIGINAL_HOST && sibling_host == SIBLING_HOST
+}
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+    transition observe() { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}
