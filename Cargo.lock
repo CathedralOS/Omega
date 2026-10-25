@@ -1288,6 +1288,7 @@ dependencies = [
  "compiler",
  "diagnostics",
  "mimalloc",
+ "omega-build",
  "package-compilation",
  "package-manager",
  "package-source",
@@ -1300,6 +1301,19 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
+]
+
+[[package]]
+name = "omega-build"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "compilation-products",
+ "compiler",
+ "diagnostics",
+ "package-manager",
+ "platform-custody",
+ "target",
 ]
 
 [[package]]

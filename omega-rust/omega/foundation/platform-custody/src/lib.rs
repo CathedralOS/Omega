@@ -13,6 +13,7 @@
 pub mod file_publication;
 pub mod lock_file;
 pub mod record_file;
+pub mod temporary_directory;
 
 use std::fs::File;
 use std::io;

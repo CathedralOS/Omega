@@ -2791,8 +2791,10 @@ crash and native exit behavior.
   or folder move does not establish this outcome. Native body sequencing is
   shared by roots and callables, including explicit stages 07-09; backend frame
   construction and evidence joins remain cohesive backend operations. Product
-  orchestration retains identities with ordered work. Psi facade completion,
-  application Build ownership, the common
+  orchestration retains identities with ordered work. The application Build
+  entrance owns project preparation, directory admission and product publication;
+  package dependency/Build activation scheduling still needs migration. Psi
+  facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
   once over every authored target body; one canonical Terminal Psi product is

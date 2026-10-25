@@ -9,9 +9,9 @@ mod standard_input;
 
 pub use process_exit::ProcessExitObservation;
 
-use crate::temporary_directory::TemporaryDirectory;
 use compiler::{CompileOptions, CompileReport};
 use diagnostics::Diagnostic;
+use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
@@ -166,7 +166,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         .map_err(RunError::ReferenceOutput)?;
     }
     let (report, executable) =
-        crate::compilation::publication::publish_native_artifact(report, &build_dir)
+        omega_build::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
@@ -303,7 +303,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
     )
     .map_err(RunError::Compilation)?;
     let (report, executable) =
-        crate::compilation::publication::publish_native_artifact(report, &build_dir)
+        omega_build::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
     let mut interpretations = interpretations.into_iter();
     let mut cases = Vec::new();

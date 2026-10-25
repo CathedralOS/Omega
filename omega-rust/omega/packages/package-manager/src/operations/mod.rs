@@ -34,10 +34,9 @@ pub(crate) use package_change::{
     PackageChangeError, PackageChangeReview, review_package_change_reusing,
 };
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
-pub(crate) use prepare_project::PreparedLocalProject;
 pub use prepare_project::{
-    LocalProjectPreparationOptions, PrepareLocalProjectError, prepare_local_project,
-    prepare_local_project_for_targets,
+    LocalProjectPreparationOptions, PrepareLocalProjectError, PreparedLocalProject,
+    prepare_local_project, prepare_local_project_for_targets,
 };
 pub(crate) use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,

@@ -1,4 +1,4 @@
-//! Build-directory ownership and occupancy records.
+//! Application Build-directory ownership and occupancy records.
 //!
 //! A product compile publishes into a caller-visible build directory. Two
 //! source roots defaulting to the same directory, one directory reached
@@ -17,6 +17,48 @@ const OWNER_FILE: &str = ".omega-owner";
 const OCCUPANT_FILE: &str = ".omega-occupant";
 const OWNER_MAGIC: &str = "omega-build-directory-owner 1";
 const OCCUPANT_MAGIC: &str = "omega-build-directory-occupant 1";
+
+pub(crate) struct TargetWork {
+    pub profile: target::TargetProfile,
+    pub directory: Result<PathBuf, crate::BuildError>,
+}
+
+/// Guards live for the entire invocation, independently of target report order.
+/// A target retains its admitted canonical destination or its own refusal.
+pub(crate) fn admit_outputs(
+    profiles: &[target::TargetProfile],
+    base: &Path,
+    root: &Path,
+    per_target: bool,
+    private: bool,
+) -> (Vec<TargetWork>, Vec<BuildDirOccupancy>) {
+    let mut work = Vec::with_capacity(profiles.len());
+    let mut occupancies = Vec::new();
+    for profile in profiles {
+        let directory = if per_target {
+            base.join(profile.target_name())
+        } else {
+            base.to_path_buf()
+        };
+        let directory = if private {
+            Ok(directory)
+        } else {
+            match acquire(&directory, root) {
+                Ok(occupancy) => {
+                    let directory = occupancy.directory().to_path_buf();
+                    occupancies.push(occupancy);
+                    Ok(directory)
+                }
+                Err(error) => Err(crate::BuildError::BuildDirectory(error.to_string())),
+            }
+        };
+        work.push(TargetWork {
+            profile: *profile,
+            directory,
+        });
+    }
+    (work, occupancies)
+}
 
 /// A build directory refused this invocation before any output was written.
 #[derive(Debug, PartialEq, Eq)]
