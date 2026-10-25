@@ -66,8 +66,8 @@ impl FunctionHomeReuse {
             self.functions.clear();
         }
         if let Some(Some(prior)) = self.functions.get(index)
-            && prior.legality == *legality
-            && prior.ranges == *ranges
+            && (Arc::ptr_eq(&prior.legality, legality) || prior.legality == *legality)
+            && (Arc::ptr_eq(&prior.ranges, ranges) || prior.ranges == *ranges)
         {
             let homes = prior.homes.clone();
             return Ok(homes);
@@ -95,6 +95,10 @@ impl FunctionHomeReuse {
             return Err(RegisterHomeError::RootMismatch);
         }
         self.pressure.clear();
+        if self.register_environment != Some(register_environment) {
+            self.register_environment = Some(register_environment);
+            self.functions.clear();
+        }
         for (index, (legality, ranges)) in legality_functions
             .iter()
             .zip(range_functions)
@@ -102,6 +106,12 @@ impl FunctionHomeReuse {
         {
             if legality.machine != ranges.machine {
                 return Err(RegisterHomeError::FunctionMismatch { function: index });
+            }
+            if let Some(Some(prior)) = self.functions.get(index)
+                && (Arc::ptr_eq(&prior.legality, legality) || prior.legality == *legality)
+                && (Arc::ptr_eq(&prior.ranges, ranges) || prior.ranges == *ranges)
+            {
+                continue;
             }
             self.compute(register_environment, index, legality, ranges, physical)?;
         }

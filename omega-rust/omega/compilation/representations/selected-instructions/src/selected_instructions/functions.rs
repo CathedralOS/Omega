@@ -17,8 +17,11 @@ use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
 
-use super::SelectedFunction;
 use super::plan_identity::{CachedFunctionPrefix, selected_function_digest_with_prefix};
+use super::{
+    SelectedBlocks, SelectedBoundarySettlement, SelectedFunction, SelectedLocalStorageSlot,
+    VirtualRegister,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectedFunctions(Vec<Arc<FunctionEntry>>);
@@ -32,6 +35,7 @@ pub struct FunctionEntry {
     digest: OnceLock<[u8; 32]>,
     prefix: OnceLock<Arc<CachedFunctionPrefix>>,
     previous_prefix: Option<Arc<CachedFunctionPrefix>>,
+    previous_prefix_verified: bool,
 }
 
 impl FunctionEntry {
@@ -41,6 +45,7 @@ impl FunctionEntry {
             digest: OnceLock::new(),
             prefix: OnceLock::new(),
             previous_prefix: None,
+            previous_prefix_verified: false,
         })
     }
 
@@ -49,6 +54,7 @@ impl FunctionEntry {
             let (digest, prefix) = selected_function_digest_with_prefix(
                 &self.function,
                 self.previous_prefix.as_deref(),
+                self.previous_prefix_verified,
             );
             let _ = self.prefix.set(prefix);
             digest
@@ -78,6 +84,7 @@ fn detach(entry: &mut Arc<FunctionEntry>) -> &mut SelectedFunction {
     let entry = Arc::make_mut(entry);
     entry.digest.take();
     entry.prefix.take();
+    entry.previous_prefix_verified = false;
     if prior_prefix.is_some() {
         entry.previous_prefix = prior_prefix;
     }
@@ -103,6 +110,39 @@ impl SelectedFunctions {
 
     pub fn get_mut(&mut self, index: usize) -> Option<&mut SelectedFunction> {
         self.0.get_mut(index).map(detach)
+    }
+
+    /// Mutate `index`'s dynamic storage slots, boundary settlements, blocks, and
+    /// virtual-register tail without touching static function contracts or
+    /// previously declared virtual registers, preserving verified prefix pages.
+    pub fn mutate_preserving_register_prefix<R>(
+        &mut self,
+        index: usize,
+        f: impl FnOnce(
+            &mut Vec<SelectedLocalStorageSlot>,
+            &mut Vec<VirtualRegister>,
+            &mut Vec<SelectedBoundarySettlement>,
+            &mut SelectedBlocks,
+        ) -> R,
+    ) -> R {
+        let entry_arc = &mut self.0[index];
+        let prior_prefix = entry_arc.prefix.get().cloned();
+        let entry = Arc::make_mut(entry_arc);
+        entry.digest.take();
+        entry.prefix.take();
+        if prior_prefix.is_some() {
+            entry.previous_prefix = prior_prefix;
+            entry.previous_prefix_verified = true;
+        }
+        let old_len = entry.function.virtual_registers.len();
+        let result = f(
+            &mut entry.function.local_storage_slots,
+            &mut entry.function.virtual_registers,
+            &mut entry.function.boundary_settlements,
+            &mut entry.function.blocks,
+        );
+        debug_assert!(entry.function.virtual_registers.len() >= old_len);
+        result
     }
 
     pub fn iter(&self) -> impl ExactSizeIterator<Item = &SelectedFunction> + DoubleEndedIterator {

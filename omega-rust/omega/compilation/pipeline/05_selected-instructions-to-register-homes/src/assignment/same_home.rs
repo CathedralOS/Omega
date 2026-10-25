@@ -12,6 +12,8 @@ pub(super) struct SameHomeComponents {
     registers: Vec<VirtualRegisterId>,
     roots: Vec<usize>,
     leader_by_id: Vec<u32>,
+    member_offsets: Vec<u32>,
+    member_targets: Vec<VirtualRegisterId>,
 }
 
 impl SameHomeComponents {
@@ -44,15 +46,31 @@ impl SameHomeComponents {
         }
         let max_id = registers.last().map_or(0, |reg| reg.0 as usize + 1);
         let mut leader_by_id = vec![u32::MAX; max_id];
+        let mut counts = vec![0u32; registers.len()];
         for position in 0..roots.len() {
             let r = root(&roots, position);
             roots[position] = r;
             leader_by_id[registers[position].0 as usize] = registers[r].0;
+            counts[r] += 1;
+        }
+        let mut member_offsets = vec![0u32; registers.len() + 1];
+        for i in 0..registers.len() {
+            member_offsets[i + 1] = member_offsets[i] + counts[i];
+        }
+        let mut cursors = member_offsets.clone();
+        let mut member_targets = vec![VirtualRegisterId(0); registers.len()];
+        for (position, &reg) in registers.iter().enumerate() {
+            let r = roots[position];
+            let cursor = &mut cursors[r];
+            member_targets[*cursor as usize] = reg;
+            *cursor += 1;
         }
         Self {
             registers,
             roots,
             leader_by_id,
+            member_offsets,
+            member_targets,
         }
     }
 
@@ -69,12 +87,28 @@ impl SameHomeComponents {
         let Ok(position) = self.registers.binary_search(&register) else {
             return vec![register];
         };
-        self.registers
-            .iter()
-            .copied()
-            .zip(&self.roots)
-            .filter_map(|(member, root)| (*root == self.roots[position]).then_some(member))
-            .collect()
+        let r = self.roots[position];
+        let start = self.member_offsets[r] as usize;
+        let end = self.member_offsets[r + 1] as usize;
+        self.member_targets[start..end].to_vec()
+    }
+
+    #[inline]
+    pub(super) fn visit_members(
+        &self,
+        register: VirtualRegisterId,
+        mut f: impl FnMut(VirtualRegisterId),
+    ) {
+        let Ok(position) = self.registers.binary_search(&register) else {
+            f(register);
+            return;
+        };
+        let r = self.roots[position];
+        let start = self.member_offsets[r] as usize;
+        let end = self.member_offsets[r + 1] as usize;
+        for &member in &self.member_targets[start..end] {
+            f(member);
+        }
     }
 }
 

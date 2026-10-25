@@ -170,9 +170,10 @@ fn encode_registers_and_trailer(
 pub(crate) fn selected_function_digest_with_prefix(
     function: &SelectedFunction,
     previous: Option<&CachedFunctionPrefix>,
+    prefix_verified: bool,
 ) -> ([u8; 32], std::sync::Arc<CachedFunctionPrefix>) {
     let (header, header_reused) = match previous {
-        Some(prev) if prev.header.key.matches(function) => {
+        Some(prev) if prefix_verified || prev.header.key.matches(function) => {
             (std::sync::Arc::clone(&prev.header), true)
         }
         _ => {
@@ -192,13 +193,19 @@ pub(crate) fn selected_function_digest_with_prefix(
     let full_pages = function.virtual_registers.len() / REGISTER_PAGE_SIZE;
     let mut pages = Vec::with_capacity(full_pages);
     if header_reused && let Some(prev) = previous {
-        for (page_idx, page) in prev.pages.iter().take(full_pages).enumerate() {
-            let chunk = &function.virtual_registers
-                [page_idx * REGISTER_PAGE_SIZE..(page_idx + 1) * REGISTER_PAGE_SIZE];
-            if page.registers.as_slice() == chunk {
+        if prefix_verified {
+            for page in prev.pages.iter().take(full_pages) {
                 pages.push(std::sync::Arc::clone(page));
-            } else {
-                break;
+            }
+        } else {
+            for (page_idx, page) in prev.pages.iter().take(full_pages).enumerate() {
+                let chunk = &function.virtual_registers
+                    [page_idx * REGISTER_PAGE_SIZE..(page_idx + 1) * REGISTER_PAGE_SIZE];
+                if page.registers.as_slice() == chunk {
+                    pages.push(std::sync::Arc::clone(page));
+                } else {
+                    break;
+                }
             }
         }
     }
@@ -250,41 +257,114 @@ pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] 
     crate::digest_encoder::content_identity(&bytes)
 }
 
-/// Canonical block content only; the storage's memo is never an input.
-pub(crate) fn selected_block_digest(block: &crate::SelectedBlock) -> [u8; 32] {
-    let mut bytes = Vec::with_capacity(128 + block.instructions.len() * 64);
+const INSTRUCTION_PAGE_SIZE: usize = 64;
+
+#[derive(Clone)]
+pub(crate) struct CachedBlockEncoding {
+    pages: Vec<std::sync::Arc<[u8]>>,
+}
+
+fn encode_block_header(bytes: &mut Vec<u8>, block: &crate::SelectedBlock) {
     bytes.extend_from_slice(b"omega.terminal-selected-instruction-block.v1\0");
-    crate::codec_bytes::push_encoded(&mut bytes, block.id.0.to_le_bytes());
+    crate::codec_bytes::push_encoded(bytes, block.id.0.to_le_bytes());
     match block.origin {
         crate::SelectedBlockOrigin::Source(source) => {
             bytes.push(0);
-            crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
         }
         crate::SelectedBlockOrigin::Operation { source, operation } => {
             bytes.push(3);
-            crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, operation.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
         }
         crate::SelectedBlockOrigin::CaseDispatch {
             source,
             case_ordinal,
         } => {
             bytes.push(2);
-            crate::codec_bytes::push_encoded(&mut bytes, source.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, case_ordinal.to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, case_ordinal.to_le_bytes());
         }
         crate::SelectedBlockOrigin::EdgeTransfer { edge, target } => {
             bytes.push(1);
-            crate::codec_bytes::push_encoded(&mut bytes, edge.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(&mut bytes, target.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, edge.get().to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, target.get().to_le_bytes());
         }
     }
-    crate::codec_bytes::encode_len(&mut bytes, block.instructions.len());
-    for instruction in &block.instructions {
-        encode_instruction(&mut bytes, instruction);
+    crate::codec_bytes::encode_len(bytes, block.instructions.len());
+}
+
+std::thread_local! {
+    static BLOCK_DIGEST_BUFFER: std::cell::RefCell<Vec<u8>> =
+        std::cell::RefCell::new(Vec::with_capacity(64 * 1024));
+}
+
+pub(crate) fn selected_block_digest_with_encoding(
+    block: &crate::SelectedBlock,
+    previous: Option<(&CachedBlockEncoding, usize)>,
+) -> ([u8; 32], std::sync::Arc<CachedBlockEncoding>) {
+    let full_pages = block.instructions.len() / INSTRUCTION_PAGE_SIZE;
+    if full_pages == 0 {
+        let digest = BLOCK_DIGEST_BUFFER.with(|cell| {
+            let mut bytes = cell.borrow_mut();
+            bytes.clear();
+            encode_block_header(&mut bytes, block);
+            for instruction in &block.instructions {
+                encode_instruction(&mut bytes, instruction);
+            }
+            ordinary::encode_terminator(&mut bytes, &block.terminator);
+            crate::digest_encoder::content_identity(&bytes)
+        });
+        return (
+            digest,
+            std::sync::Arc::new(CachedBlockEncoding { pages: Vec::new() }),
+        );
     }
-    ordinary::encode_terminator(&mut bytes, &block.terminator);
-    crate::digest_encoder::content_identity(&bytes).into()
+    let mut pages = Vec::with_capacity(full_pages);
+    if let Some((prev_enc, unchanged_prefix)) = previous {
+        let reusable_pages = (unchanged_prefix / INSTRUCTION_PAGE_SIZE)
+            .min(prev_enc.pages.len())
+            .min(full_pages);
+        for page in prev_enc.pages.iter().take(reusable_pages) {
+            pages.push(std::sync::Arc::clone(page));
+        }
+    }
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(b"");
+    BLOCK_DIGEST_BUFFER.with(|cell| {
+        let mut bytes = cell.borrow_mut();
+        bytes.clear();
+        encode_block_header(&mut bytes, block);
+        hasher.raw(&bytes);
+        for page in &pages {
+            hasher.raw(page);
+        }
+        for page_idx in pages.len()..full_pages {
+            bytes.clear();
+            let chunk = &block.instructions
+                [page_idx * INSTRUCTION_PAGE_SIZE..(page_idx + 1) * INSTRUCTION_PAGE_SIZE];
+            for instruction in chunk {
+                encode_instruction(&mut bytes, instruction);
+            }
+            hasher.raw(&bytes);
+            pages.push(std::sync::Arc::from(bytes.as_slice()));
+        }
+        bytes.clear();
+        for instruction in &block.instructions[full_pages * INSTRUCTION_PAGE_SIZE..] {
+            encode_instruction(&mut bytes, instruction);
+        }
+        ordinary::encode_terminator(&mut bytes, &block.terminator);
+        hasher.raw(&bytes);
+    });
+    (
+        hasher.finish(),
+        std::sync::Arc::new(CachedBlockEncoding { pages }),
+    )
+}
+
+/// Canonical block content only; the storage's memo is never an input.
+#[allow(dead_code)]
+pub(crate) fn selected_block_digest(block: &crate::SelectedBlock) -> [u8; 32] {
+    selected_block_digest_with_encoding(block, None).0
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
