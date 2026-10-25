@@ -65,6 +65,14 @@ impl Resolver<'_, '_> {
         {
             return self.enclosing(profile.enclosing_storage);
         }
+        if path.is_empty()
+            && capture.alternatives.is_empty()
+            && crate::reference_shell(self.program, capture.type_reference).is_some()
+            && let Some(profile) = self.profile(capture)
+            && !profile.enclosing_regions.is_empty()
+        {
+            return self.regions(profile.enclosing_regions);
+        }
         let Some(selected) = super::reference_captures_at_path(
             self.program,
             self.control,
@@ -98,6 +106,10 @@ impl Resolver<'_, '_> {
                     && profile.enclosing_storage.is_valid()
                 {
                     self.enclosing(profile.enclosing_storage)?
+                } else if let Some(profile) = profile
+                    && !profile.enclosing_regions.is_empty()
+                {
+                    self.regions(profile.enclosing_regions)?
                 } else if !descriptor.referents.is_empty() {
                     self.referents(descriptor)?
                 } else {
@@ -146,6 +158,32 @@ impl Resolver<'_, '_> {
             .operand_retentions
             .is_valid(capture.retention)
             .then(|| *self.control.operand_retentions.get(capture.retention))
+    }
+
+    /// Every candidate contributes to the conservative footprint. One missing
+    /// candidate withholds coverage; no region is an exact pointer or permission.
+    fn regions(
+        &mut self,
+        regions: arena::HandleSpan<checked_trees::FlowOperandRetainedRegion>,
+    ) -> Option<Vec<CapturedPlace>> {
+        let mut output = Vec::new();
+        for region in self
+            .control
+            .operand_retained_regions
+            .span(regions)?
+            .to_vec()
+        {
+            let projection = self
+                .control
+                .operand_retained_paths
+                .span(region.projection)?;
+            for place in self.places(region.operand, projection)? {
+                if !output.contains(&place) {
+                    output.push(place);
+                }
+            }
+        }
+        Some(output)
     }
 
     fn enclosing(&mut self, enclosing: Handle<FlowOperandFact>) -> Option<Vec<CapturedPlace>> {

@@ -666,15 +666,16 @@ defines the complete product bar.
     copies, retained local-array backing and untouched sibling descriptors.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
-    Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships. Retain the computed-descriptor
-    row's ranked identity return, including a local carrier copy, contextual
-    literal window and disjoint descriptor writes. Finite descriptor-leaf
-    equations retain exact immutable input-slot metadata; growing pointee paths,
-    changed inputs and divergent return identities must not acquire equalities. Preserve copied returns
-    from mutated borrowed record fields and stored array elements through the
-    existing computed-descriptor fact row, including saved descriptors returned
-    after their former slot changes again and untouched element/sibling storage.
+    Complete remaining cyclic, opaque/provider and dependent result composition
+    through the same producer and custody relationships. Retain copied returns
+    through ranked identities and public local-dyn slots, including immutable
+    local copies, contextual windows, disjoint writes, borrowed record fields,
+    stored array elements and later replacement of former slots. Descriptor-leaf
+    equations preserve exact immutable input metadata; admitted dynamic regions
+    supply conservative backing independently of scalar identity and permission
+    ancestry. Reject growing pointee paths, changed inputs, divergent identities
+    and writes to any possible retained backing. Nonzero-window result extent
+    establishment and multi-input callable-region refinement remain unqualified.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.

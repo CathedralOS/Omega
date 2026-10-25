@@ -210,6 +210,47 @@ The changed-input, swapped-field and shortened-window controls under
 `tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
 own length guarantee. Ranking and recursive premise checks remain independent.
 
+
+## Public local dispatch results
+
+The computed-byte-view row carries the same first-argument snapshot through
+`Preserving::retain`, selected at runtime from two implementations. Its public
+contract preserves both descriptor lengths. One implementation returns the
+input; the other copies it through a local. Each place executes both selections
+before a later argument overwrites the former descriptor home. The source-9 twin
+still changes only the first extent and refuses `receive`'s unchanged 7 obligation.
+
+At baseline `032e85a7991`, all nine positives wrongly refuse a staged backing
+overlap. Result capture retained lifetime roots but lost the completed input
+regions promised by the local dynamic slot. The repair retains those regions for
+conservative exclusion and write invalidation. Slot admission independently checks
+every implementation's returned origins against that public region contract;
+this does not turn arbitrary provider lifetime relations into spatial evidence.
+Region rows grant neither descriptor equality, pointee contents nor loan ancestry,
+and remain separate from exact supplier rows used by permission construction.
+Unknown candidates still withhold coverage. Immutable image returns remain legal
+and retain the public input debt; their image backing grants no exclusive access.
+
+Public result declarations and receiving calls also use the same materialized
+carrier multiplicity. A source-copyable record can still own affine descriptor
+retirement. The common structural-operand query includes direct, boundary and
+dynamic calls, so transferred copies do not receive a second caller cleanup.
+
+`controls/dynamic_window/main.omg` returns a shorter window from either of two
+captured input regions, checks its actual first byte and consumes its declared
+extent 7 directly. `controls/dynamic_image/main.omg` retains the legal immutable
+image alternative. Their pins are
+`pass/borrows/runtime_dyn_{result_region,image_result}_snapshot_exit`.
+`fail/borrows/dyn_result_retains_actual_backing` and
+`dyn_result_retains_all_public_regions` replace the former descriptor home before
+attempting a write to actual or same-lifetime sibling backing; both must reject.
+
+Acceptance is native/Terminal exit 0 for all nine computed places and both
+controls, with all nine source-9 twins and backing controls rejecting. These runs
+are for macOS ARM64. Other-host execution, general opaque/provider and dependent
+results remain open. Separate baseline probes retain nonzero-window extent and
+multi-input callable-region refusals; they are not qualified by this repair.
+
 ## Requirements and evidence
 
 - Establishment: initial 7 and the completed operand capture establish the fact; checked call/arrival contracts carry it, never the later 9 or an unproved goal.

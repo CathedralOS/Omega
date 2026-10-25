@@ -997,6 +997,18 @@ fail/borrows/dropped_reference_refresh_does_not_restore_payload rejected 580ms e
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket.number == 7; no exact incoming reference origin for ticket
 fail/borrows/duplicate_retained_subject_arguments rejected 1502ms expected @5f668826adf3
 	state `take` receives `main` as mutable more than once
+fail/borrows/dyn_result_retains_actual_backing rejected 951ms expected @032e85a7991d+wt
+	state `receive` receives `storage` while local borrow `original` is still active
+	state `after` receives `storage` while local borrow `original` is still active
+	state `mutate` receives `storage` while local borrow `original` is still active
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 2
+	statement 2 mutates `storage[0]` while local borrow `original` is still active (borrowed at statement 1)
+fail/borrows/dyn_result_retains_all_public_regions rejected 886ms expected @032e85a7991d+wt
+	state `receive` receives `sibling` while local borrow `original` is still active
+	state `after` receives `sibling` while local borrow `original` is still active
+	state `mutate` receives `sibling` while local borrow `original` is still active
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 3
+	statement 3 mutates `sibling[0]` while local borrow `original` is still active (borrowed at statement 2)
 fail/borrows/dynamic_byte_result_retains_first_candidate rejected 1646ms expected @5f668826adf3
 	statement 2 mutates `main.first[0]` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/dynamic_byte_result_retains_second_candidate rejected 2885ms expected @5f668826adf3
@@ -5253,27 +5265,27 @@ fail/facts/compound_index_guard_through_target_body_rejected rejected 7427ms exp
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-fail/facts/computed_byte_view_argument_snapshot_through_call_result_rejected rejected 1744ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_const_name_rejected rejected 1646ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_field_rejected rejected 1685ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_local_rejected rejected 1564ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_match_join_rejected rejected 1387ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_other_machine_rejected rejected 1725ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_other_state_rejected rejected 1416ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_parameter_rejected rejected 1324ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from drive: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_target_body_rejected rejected 1399ms expected @b50066b75303+wt
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive from main: retain_view(original, 2).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_call_result_rejected rejected 1496ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_const_name_rejected rejected 1355ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_field_rejected rejected 1352ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_local_rejected rejected 1366ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_match_join_rejected rejected 1347ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_other_machine_rejected rejected 1383ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_other_state_rejected rejected 1349ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_parameter_rejected rejected 1315ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from drive: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_target_body_rejected rejected 1201ms expected @032e85a7991d+wt
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/computed_constant_array_extent_index rejected 12852ms expected @7d49d2c3a6f2+wt
 	cannot prove index `1` is within length 1
 fail/facts/computed_constant_array_extent_mismatch rejected 535ms expected @7d49d2c3a6f2+wt
@@ -19963,6 +19975,8 @@ pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 10347ms check-tar
 pass/borrows/runtime_discarded_reference_release_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 10390ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_dropped_reference_qualification_exit checked 976ms check-target:macos_arm64 @147c3a05de1b
+pass/borrows/runtime_dyn_image_result_snapshot_exit checked 1838ms check-target:macos_arm64 @032e85a7991d+wt
+pass/borrows/runtime_dyn_result_region_snapshot_exit checked 1749ms check-target:macos_arm64 @032e85a7991d+wt
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit checked 892ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_expired_call_carrier_selection_exit checked 2356ms check-target:macos_arm64 @b35a8336954a+wt
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit checked 27142ms check-target:macos_arm64 @5d70318dade2
@@ -22088,15 +22102,15 @@ pass/facts/compound_index_guard_through_other_machine_exit checked 81376ms check
 pass/facts/compound_index_guard_through_other_state_exit checked 54653ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_parameter_exit checked 54193ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_target_body_exit checked 54819ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/computed_byte_view_argument_snapshot_through_call_result_exit checked 15415ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_const_name_exit checked 15052ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_field_exit checked 15379ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_local_exit checked 14862ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_match_join_exit checked 14859ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_other_machine_exit checked 15056ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_other_state_exit checked 14633ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_parameter_exit checked 10057ms check-target:macos_arm64 @b50066b75303+wt
-pass/facts/computed_byte_view_argument_snapshot_through_target_body_exit checked 14982ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/computed_byte_view_argument_snapshot_through_call_result_exit checked 10875ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_const_name_exit checked 10344ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_field_exit checked 10199ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_local_exit checked 10395ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_match_join_exit checked 10338ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_other_machine_exit checked 10332ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_other_state_exit checked 10310ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_parameter_exit checked 3801ms check-target:macos_arm64 @032e85a7991d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_target_body_exit checked 9505ms check-target:macos_arm64 @032e85a7991d+wt
 pass/facts/computed_constant_array_extent_exit checked 32318ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_constant_array_extent_through_call_result_exit checked 47400ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_constant_array_extent_through_const_name_exit checked 33605ms check-target:macos_arm64 @7d49d2c3a6f2+wt
