@@ -78,7 +78,14 @@ and overlapping copies reserve first; replacements retain their cell, frame move
 carry the lease, and table joins transfer reservations without charging again.
 Removal and teardown release only retired rows. The complete source-produced
 Build control checks exact and one-cell-short budgets across fuel pauses, retaining
-faults without replaying effects. Descriptor maps, frame headers, array payload
+faults without replaying effects. Root activations and suspended call headers
+each reserve one cell before creation. The shared frame capture in
+[frames.rs](src/calls/frames.rs) handles scalar, structural and cleanup calls;
+return restores the caller and releases its saved header. The root activation
+remains reserved through result readback until close. A refused capture retains
+its outgoing cleanup continuation in that failed activation, including byte
+backing and returned claims; it allocates no unpaid saved frame and does not
+advance the caller's instruction position. Descriptor maps, array payload
 elements, other storage families and result publication are not yet completely accounted;
 these partial snapshots must not become production Build usage receipts.
 
@@ -116,17 +123,17 @@ neither instruction semantics nor environment correspondence. End-to-end
 instruction coverage remains **INTERPRETED-ASSEMBLY** on the execution board;
 this contract is not a claim that all catalog entries already run here.
 
-The source-free [embedding lifetime probes](tests/unit/embedding_lifetimes.rs)
-cover owned artifact lifetime, separate host contexts, once-only scalar effects
-across fuel stops, rejection after an effect, response shape, and a host result
-returned through the guest. They also demonstrate that the raw hook can switch
-host handlers between resumes: that is a missing public-binding constraint, not
-permission to rebind an invocation. They do not demonstrate source-generated
-adapters, borrowed host-resource safety, pending host completion, or component
-replacement. Run the focused mechanics with:
+The source-produced [embedding tests](../../../omega/compilation/driver/tests/terminal_entry_writeback.rs)
+cover retained/loaded artifacts, borrowed-entry readback, once-only Build effects,
+resource refusal and frame retirement across fuel pauses. Two sequential empty
+call trees complete with exactly three live header cells; a two-cell allowance
+refuses the nested call, and an occupied allowance refuses root instantiation.
+Normal return retains one root header until close; fault retries cannot resume.
+These controls do not establish pending host completion or component replacement.
+Run them with:
 
 ```text
-cargo nextest run -p terminal-interpreter --test unit -E 'test(embedding_lifetimes::)' --no-tests fail --no-fail-fast
+mbx nextest run -p compiler --test terminal_entry_writeback --test-threads 1
 ```
 
 ## Cyclic execution

@@ -1004,8 +1004,10 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     with shared view leases and copy-on-write/staging transfers. Scalar and
     structural runtime tables reserve new rows and overlapping copies, carry
     leases with frames/joins, and retire removed cells; source-produced Build
-    exercises exact and short cell budgets across fuel pauses. Descriptor maps,
-    frame headers, array payload elements and result custody remain. Connect those
+    exercises exact and short cell budgets across fuel pauses. Root and saved
+    call headers now reserve before creation; one frame-capture owner preserves
+    scalar/structural/cleanup custody and retires saved headers on return.
+    Descriptor maps, array payload elements and result custody remain. Connect those
     admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build

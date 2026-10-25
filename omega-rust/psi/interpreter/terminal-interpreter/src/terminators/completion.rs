@@ -65,11 +65,14 @@ impl TerminalExecution<'_> {
             .0
             .cleanup_receiver
             .map(|place| (place, completed.1.clone()));
-        self.suspend_with(SuspendedCallResult::NominalCleanups {
-            completed,
-            remaining,
-            continuation,
-        });
+        self.suspend_with(
+            SuspendedCallResult::NominalCleanups {
+                completed,
+                remaining,
+                continuation,
+            },
+            Vec::new(),
+        )?;
         if let Some((place, value)) = receiver {
             self.structural_values.insert(place, value)?;
         }

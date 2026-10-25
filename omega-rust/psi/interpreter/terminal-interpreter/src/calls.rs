@@ -39,29 +39,6 @@ fn select_positions<T: Clone>(
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
-    /// Suspend the live frame onto the call stack: every place map, the affine
-    /// frontier, claims, and the instruction position move into a
-    /// `SuspendedCall` carrying `result` as its continuation.
-    pub(crate) fn suspend_with(&mut self, result: SuspendedCallResult) {
-        self.call_stack.push(SuspendedCall {
-            placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
-            loan_completions: Vec::new(),
-            values: self.values.take(),
-            structural_values: self.structural_values.take(),
-            aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
-            live_claims: std::mem::take(&mut self.live_claims),
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result,
-        });
-    }
-
     pub(crate) fn execute_call_unit(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -766,10 +743,11 @@ impl<'artifact> TerminalExecution<'artifact> {
             return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, &arguments, self.account.as_ref())?;
-        self.next_operation += 1;
-        self.suspend_with(SuspendedCallResult::Scalar(
-            operation.result.expect_scalar().id,
-        ));
+        let caller = self.suspend_with(
+            SuspendedCallResult::Scalar(operation.result.expect_scalar().id),
+            Vec::new(),
+        )?;
+        caller.next_operation += 1;
         self.values = values;
         self.structural_values = RuntimeRows::new(self.account.as_ref());
         self.live_affine_frontier = BTreeSet::new();
