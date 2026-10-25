@@ -147,6 +147,7 @@ dependencies = [
  "numerics",
  "optimization-core",
  "semantic-vocabulary",
+ "source-audit",
  "terminal-psi",
 ]
 
@@ -589,6 +590,7 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-audit",
  "symbols",
  "target",
  "terminal-installation",
@@ -1594,6 +1596,7 @@ dependencies = [
  "optimization-core",
  "post-handoff-writer-plan",
  "semantic-vocabulary",
+ "source-audit",
  "target",
  "terminal-psi",
  "terminal-semantics",
@@ -1653,6 +1656,7 @@ dependencies = [
  "representation-planning",
  "semantic-vocabulary",
  "source",
+ "source-audit",
  "symbols",
  "target",
  "task-plans",
@@ -2119,6 +2123,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "source-audit"
+version = "0.1.0"
+
+[[package]]
 name = "source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
@@ -2290,6 +2298,7 @@ dependencies = [
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
+ "source-audit",
  "symbols",
  "terminal-psi",
 ]

@@ -8,72 +8,16 @@
 //! the manifest guard fails the build if a banned dependency line returns,
 //! and the source guard fails if typed vocabulary is spelled without the
 //! `checked_trees` facade on the same line. Split needles keep the guards'
-//! own source from matching forbidden spellings.
+//! own source from matching forbidden spellings. The scan itself is shared
+//! (`source_audit`); this file owns only its needles and the manifest rule.
 
 use std::fs;
 use std::path::Path;
 
-/// Every `(file, line number, line)` of this crate's non-test sources, outside
-/// line comments.
-fn source_lines() -> Vec<(String, usize, String)> {
-    let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut directories = vec![source_root.clone()];
-    let mut lines = Vec::new();
-    while let Some(directory) = directories.pop() {
-        let entries = fs::read_dir(&directory)
-            .unwrap_or_else(|error| panic!("cannot read {}: {error}", directory.display()));
-        for entry in entries {
-            let path = entry
-                .unwrap_or_else(|error| panic!("cannot list {}: {error}", directory.display()))
-                .path();
-            let name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or_default();
-            if path.is_dir() {
-                if !name.starts_with('.') && !matches!(name, "tests" | "examples" | "target") {
-                    directories.push(path);
-                }
-                continue;
-            }
-            if path.extension().and_then(|extension| extension.to_str()) != Some("rs")
-                || name == "tests.rs"
-                || name.ends_with("_tests.rs")
-            {
-                continue;
-            }
-            let source = fs::read_to_string(&path)
-                .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
-            let file = path
-                .strip_prefix(&source_root)
-                .expect("scanned source stays within the crate")
-                .display()
-                .to_string();
-            for (line_number, line) in source.lines().enumerate() {
-                if line.trim_start().starts_with("//") {
-                    continue;
-                }
-                lines.push((file.clone(), line_number + 1, line.to_owned()));
-            }
-        }
-    }
-    lines
-}
+use source_audit::{source_lines, violations};
 
-/// Every `file:line: name` in this crate's non-test sources, outside line
-/// comments, that names one of `forbidden`.
-fn violations(forbidden: &[&str]) -> Vec<String> {
-    let mut violations = Vec::new();
-    for (file, line_number, line) in source_lines() {
-        for name in forbidden {
-            if line.contains(name) {
-                violations.push(format!("{file}:{line_number}: {name}"));
-            }
-        }
-    }
-    violations.sort();
-    violations
-}
+/// The crate whose sources these guards pin.
+const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
 /// The crate may not re-declare the removed source-input dependency edges:
 /// `typed-trees`, `typed-trees-to-checked-trees` and `validation` are
@@ -114,7 +58,7 @@ fn typed_vocabulary_spells_through_checked_custody() {
     let typed = concat!("typed", "_trees");
     let facade = concat!("checked", "_trees");
     let mut violations = Vec::new();
-    for (file, line_number, line) in source_lines() {
+    for (file, line_number, line) in source_lines(CRATE_ROOT, "") {
         if line.contains(typed) && !line.contains(facade) {
             violations.push(format!("{file}:{line_number}: {typed}"));
         }
@@ -131,10 +75,15 @@ fn typed_vocabulary_spells_through_checked_custody() {
 /// reintroduce it under its crate-name spelling.
 #[test]
 fn sources_never_name_the_conversion_stage() {
-    let violations = violations(&[
-        concat!("typed", "_trees", "_to", "_checked", "_trees"),
-        concat!("typed", "-trees", "-to", "-checked", "-trees"),
-    ]);
+    let violations = violations(
+        CRATE_ROOT,
+        "",
+        &[
+            concat!("typed", "_trees", "_to", "_checked", "_trees"),
+            concat!("typed", "-trees", "-to", "-checked", "-trees"),
+        ],
+        &[],
+    );
     assert!(
         violations.is_empty(),
         "provider-planning consumes the checked product, not the conversion stage: {violations:?}"
@@ -143,11 +92,16 @@ fn sources_never_name_the_conversion_stage() {
 
 #[test]
 fn provider_realization_does_not_decode_source_selection_calls() {
-    let violations = violations(&[
-        concat!("fn ", "harvest_provider_selections("),
-        concat!("fn ", "collect_executed_provider_selections("),
-        concat!("fn ", "retain_provider_defaults("),
-    ]);
+    let violations = violations(
+        CRATE_ROOT,
+        "",
+        &[
+            concat!("fn ", "harvest_provider_selections("),
+            concat!("fn ", "collect_executed_provider_selections("),
+            concat!("fn ", "retain_provider_defaults("),
+        ],
+        &[],
+    );
     assert!(
         violations.is_empty(),
         "source decoding belongs to Psi: {violations:?}"
