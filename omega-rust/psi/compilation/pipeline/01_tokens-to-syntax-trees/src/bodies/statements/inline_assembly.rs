@@ -426,15 +426,11 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let statement = syntax_trees
         .statements
         .insert(StatementNode::Assembly(graph));
-    let mut start = arena::Handle::invalid();
-    let count = bindings.len() as u32 + 1;
+    let mut statements = crate::handle_spans::HandleSpanBuilder::new();
     for statement in bindings.into_iter().chain(std::iter::once(statement)) {
-        let handle = syntax_trees.items.append_statement_handle(statement);
-        if !start.is_valid() {
-            start = handle;
-        }
+        statements.push(syntax_trees.items.append_statement_handle(statement));
     }
-    Ok((HandleSpan::from_parts(start, count), input))
+    Ok((statements.finish(), input))
 }
 
 #[derive(Default)]

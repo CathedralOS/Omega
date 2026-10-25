@@ -1,9 +1,9 @@
 use crate::bodies::transitions::guards::{
     DestructureBindings, rewrite_destructure_guard_expression,
 };
-use crate::bodies::transitions::targets::copy::{
-    append_statement_identifier_path_member, copy_expression_handles_to_statement_table,
-    copy_expression_identifier_path_to_statement_table,
+use crate::bodies::{
+    append_identifier_path_member_to_statement_table, copy_expression_handles_to_statement_table,
+    copy_expression_to_statement_identifier_path,
 };
 use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::context::ExpressionContext;
@@ -120,10 +120,13 @@ fn classify_call_target_handle(
         ));
     }
     let path = if call.receiver.is_valid() {
-        let receiver =
-            copy_expression_identifier_path_to_statement_table(syntax_trees, call.receiver)
-                .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
-        append_statement_identifier_path_member(syntax_trees, receiver, call.target.clone())
+        let receiver = copy_expression_to_statement_identifier_path(syntax_trees, call.receiver)
+            .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
+        append_identifier_path_member_to_statement_table(
+            syntax_trees,
+            receiver,
+            call.target.clone(),
+        )
     } else {
         let handle = syntax_trees
             .statements

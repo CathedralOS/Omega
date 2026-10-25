@@ -3,7 +3,6 @@ use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_parameters::parse_callable_signature;
 use crate::type_syntax::parse_type::parse_type_reference_handle;
-use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
@@ -17,8 +16,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, CapabilityDefinition> {
     let (name, mut input) = input.take_identifier()?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut member_start = Handle::invalid();
-    let mut member_count = 0u32;
+    let mut members = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_contextual("entry") {
@@ -39,12 +37,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_capability_member(CapabilityMember::State(state));
-            if member_count == 0 {
-                member_start = handle;
-            }
-            member_count = member_count
-                .checked_add(1)
-                .expect("capability member span count overflow");
+            members.push(handle);
             input = rest;
         } else {
             let (field_name, rest) = input.take_identifier()?;
@@ -61,18 +54,18 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
                     name: field_name,
                     type_reference,
                 }));
-            if member_count == 0 {
-                member_start = handle;
-            }
-            member_count = member_count
-                .checked_add(1)
-                .expect("capability member span count overflow");
+            members.push(handle);
         }
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let members = HandleSpan::from_parts_or_empty(member_start, member_count);
-    Ok((CapabilityDefinition { name, members }, input))
+    Ok((
+        CapabilityDefinition {
+            name,
+            members: members.finish(),
+        },
+        input,
+    ))
 }
 
 fn parse_capability_state<'tokens, 'source>(
@@ -80,8 +73,7 @@ fn parse_capability_state<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityState> {
     let (signature, mut input) = parse_callable_signature(syntax_trees, input)?;
-    let mut contract_start = Handle::invalid();
-    let mut contract_count = 0u32;
+    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
 
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
@@ -92,12 +84,7 @@ fn parse_capability_state<'tokens, 'source>(
         while !input.at_punctuation(PunctuationKind::RightBrace) {
             let (contract, rest) = parse_capability_contract(syntax_trees, input)?;
             let handle = syntax_trees.items.append_capability_contract(contract);
-            if contract_count == 0 {
-                contract_start = handle;
-            }
-            contract_count = contract_count
-                .checked_add(1)
-                .expect("capability contract span count overflow");
+            contracts.push(handle);
             input = rest;
         }
         input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -109,22 +96,15 @@ fn parse_capability_state<'tokens, 'source>(
         {
             let (contract, rest) = parse_capability_contract(syntax_trees, input)?;
             let handle = syntax_trees.items.append_capability_contract(contract);
-            if contract_count == 0 {
-                contract_start = handle;
-            }
-            contract_count = contract_count
-                .checked_add(1)
-                .expect("capability contract span count overflow");
+            contracts.push(handle);
             input = rest;
         }
     }
 
-    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
-
     Ok((
         CapabilityState {
             signature,
-            contracts,
+            contracts: contracts.finish(),
         },
         input,
     ))

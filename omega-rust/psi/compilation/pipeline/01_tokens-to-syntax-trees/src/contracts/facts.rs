@@ -2,7 +2,7 @@ use crate::diagnostics::parse_error::ParseError;
 use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals_or_membership;
 use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, parse_path_handle_span};
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
@@ -16,8 +16,7 @@ fn copy_item_path_to_expression_path(
     syntax_trees: &mut SyntaxTrees,
     span: HandleSpan<syntax_trees::identifier::Identifier>,
 ) -> HandleSpan<syntax_trees::identifier::Identifier> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut copy = crate::handle_spans::HandleSpanBuilder::new();
     let members = syntax_trees
         .tables
         .items
@@ -25,19 +24,15 @@ fn copy_item_path_to_expression_path(
         .to_vec();
 
     for member in members {
-        let handle = syntax_trees
-            .tables
-            .expressions
-            .append_identifier_path_member(member);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("expression identifier path span count overflow");
+        copy.push(
+            syntax_trees
+                .tables
+                .expressions
+                .append_identifier_path_member(member),
+        );
     }
 
-    HandleSpan::from_parts_or_empty(start, count)
+    copy.finish()
 }
 
 /// One authored membership domain and its indexed application, if any.
@@ -105,8 +100,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
 ) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
     let mut input = input;
     let body_start_tokens = input.tokens.len();
-    let mut fact_start = Handle::invalid();
-    let mut fact_count = 0u32;
+    let mut facts = crate::handle_spans::HandleSpanBuilder::new();
 
     while !is_terminator(input) {
         if input.tokens.is_empty() {
@@ -199,12 +193,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                         .items
                         .append_proof_fact(ProofFact::Expression(chain_expression));
                     authored_fact_handles.push(handle);
-                    if fact_count == 0 {
-                        fact_start = handle;
-                    }
-                    fact_count = fact_count
-                        .checked_add(1)
-                        .expect("proof fact span count overflow");
+                    facts.push(handle);
                 } else {
                     for (domain, domain_arguments) in
                         expand_carry_portable_item_paths(syntax_trees, membership_domains)
@@ -217,12 +206,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                             },
                         ));
                         authored_fact_handles.push(handle);
-                        if fact_count == 0 {
-                            fact_start = handle;
-                        }
-                        fact_count = fact_count
-                            .checked_add(1)
-                            .expect("proof fact span count overflow");
+                        facts.push(handle);
                     }
                 }
             } else {
@@ -251,12 +235,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                     .items
                     .append_proof_fact(ProofFact::Expression(range_fact));
                 authored_fact_handles.push(handle);
-                if fact_count == 0 {
-                    fact_start = handle;
-                }
-                fact_count = fact_count
-                    .checked_add(1)
-                    .expect("proof fact span count overflow");
+                facts.push(handle);
             }
         } else {
             // A same-line name is a state predicate applied to the fact's
@@ -288,12 +267,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                 .items
                 .append_proof_fact(ProofFact::Expression(expression));
             authored_fact_handles.push(handle);
-            if fact_count == 0 {
-                fact_start = handle;
-            }
-            fact_count = fact_count
-                .checked_add(1)
-                .expect("proof fact span count overflow");
+            facts.push(handle);
         }
 
         let authored_source_span = fact_input.source_span_until(input);
@@ -334,9 +308,8 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     }
 
     let token_count = body_start_tokens.saturating_sub(input.tokens.len());
-    let facts = HandleSpan::from_parts_or_empty(fact_start, fact_count);
 
-    Ok(((facts, token_count), input))
+    Ok(((facts.finish(), token_count), input))
 }
 
 fn range_membership_expression(
