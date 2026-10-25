@@ -53,8 +53,10 @@ returning the wrong same-typed input still rejects. These controls establish
 this row's proof and custody path. Operator applicability uses exact closed
 generic multiplicity bindings; projecting a computed copy does not select
 builtin storage. Extent guarantees retain their actual result/formal binders
-and selected Exact arithmetic. Windows/Linux ordered-cleanup qualification
-remains separate. The projected nominal cleanup fixture's portable provision
+and selected Exact arithmetic. Producer `b457b1978b87` refreshes all nine
+places and reject twins on macOS ARM64. The separate ordered-edge controls run
+on Linux x86-64 and Windows x86-64; this indexed row's native execution coverage
+remains macOS ARM64. The projected nominal cleanup fixture's portable provision
 owns the existing fuel/retry acceptance.
 
 Authority: [proof contracts](../../../../wiki/spec/proofs/contracts.md),

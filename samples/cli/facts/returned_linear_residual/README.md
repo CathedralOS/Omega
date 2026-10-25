@@ -58,10 +58,13 @@ Recorded rows: 9 `checked` (`check-target:macos_arm64`), 9 `rejected` carrying
 the expected fragment, 9 native `built ... exit:0`, and 9 both-leg rows reading
 `exit:0 interpreter-exit:0 interpreter:agrees`.
 
-Parent outcome: **CML4** in [TASKS.md](../../../../TASKS.md), which keeps
-`samples/cli/facts/returned_linear_residual/` and its pinned pass/reject pairs
-for selected by-value linear-child consumption and original-owner residual
-cleanup. Windows/Linux ordered-cleanup qualification remains separate.
+Completed CML4 requirement: selected by-value linear-child consumption and
+original-owner residual cleanup. Producer `b457b1978b87` runs all nine pinned
+places with native and Terminal exit 0 on macOS ARM64, Linux x86-64 and
+Windows x86-64; every residual-hook reject twin matches its diagnostic.
+The [matching-host run](https://github.com/CathedralOS/Omega/actions/runs/40189006798)
+also covers ordered edges, abandoned prefixes and field replacement.
+Linux ARM64 native execution remains unmeasured.
 
 ## Eight-layer acceptance obligations
 
