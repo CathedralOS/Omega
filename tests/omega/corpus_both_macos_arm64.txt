@@ -813,6 +813,15 @@ pass/facts/case_where_equality_through_other_machine_exit built 53034ms exit:0 i
 pass/facts/case_where_equality_through_other_state_exit built 52603ms exit:0 interpreter-exit:0 interpreter:agrees @8b7f477d5ec0
 pass/facts/case_where_equality_through_parameter_exit built 52547ms exit:0 interpreter-exit:0 interpreter:agrees @8b7f477d5ec0
 pass/facts/case_where_equality_through_target_body_exit built 52746ms exit:0 interpreter-exit:0 interpreter:agrees @8b7f477d5ec0
+pass/facts/computed_byte_view_argument_snapshot_through_call_result_exit built 14399ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_const_name_exit built 13247ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_field_exit built 13364ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_local_exit built 13166ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_match_join_exit built 13659ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_other_machine_exit built 13754ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_other_state_exit built 13199ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_parameter_exit built 6555ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
+pass/facts/computed_byte_view_argument_snapshot_through_target_body_exit built 13191ms exit:0 interpreter-exit:0 interpreter:agrees @333ee6f8bed0
 pass/facts/computed_record_window_original_exit built 8596ms exit:0 interpreter-exit:0 interpreter:agrees @408e4fc23fbc
 pass/facts/computed_subslice_extent_through_call_result_exit built 5536ms exit:0 interpreter-exit:0 interpreter:agrees @a93651a39273+wt
 pass/facts/computed_subslice_extent_through_const_name_exit built 5727ms exit:0 interpreter-exit:0 interpreter:agrees @a93651a39273+wt
