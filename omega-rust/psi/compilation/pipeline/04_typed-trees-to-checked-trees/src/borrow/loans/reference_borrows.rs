@@ -224,7 +224,15 @@ pub(super) fn reference_local_borrow_loans(
                 .expression(local_data.initial_value),
             checked_trees::expression::ExpressionNode::Call(_)
         );
-    let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+    let rebased = rebase_reference_formation_places(
+        program,
+        state.symbol,
+        statement_index,
+        local_data.initial_value,
+        local_data.type_reference,
+        place,
+        loan_trackers,
+    );
     rebased
         .iter()
         .map(|source| StatementBorrowLoan {

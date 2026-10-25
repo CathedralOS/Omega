@@ -69,7 +69,10 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
     loan_trackers: &[StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     match initializer.kind {
-        BorrowedInitializerKind::Reference { access } => {
+        BorrowedInitializerKind::Reference {
+            access,
+            type_reference,
+        } => {
             let kind = checked_trees::BorrowAccessKind::from(access);
             if let Some(mut loans) = super::returned_carriers::result_loans(
                 program,
@@ -110,7 +113,15 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             ) else {
                 return Vec::new();
             };
-            let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+            let rebased = rebase_reference_formation_places(
+                program,
+                state_symbol,
+                statement_index,
+                initializer.expression,
+                type_reference,
+                place,
+                loan_trackers,
+            );
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {

@@ -106,7 +106,14 @@ Supplemental [`affine`](owned_arrivals/affine/main.omg),
 [`borrowed ingress reborrow`](owned_arrivals/borrowed_reborrow/main.omg), and
 [`owned input replacement`](owned_arrivals/owned_input_replacement/main.omg) programs test
 cleanup retention and descriptor identity. Their missing-origin twins are beside
-each program. Both productions also reject replaced slots and stale contents
+each program. The [`frozen ingress`](owned_arrivals/frozen_ingress/main.omg),
+[`repeated rebinding`](owned_arrivals/repeated_rebind/main.omg),
+[`replacement helper`](owned_arrivals/replacement_helper/main.omg), and
+[`mixed ingress`](owned_arrivals/mixed_ingress/main.omg) controls retain captured
+bindings and every local supplier independently. Rebinding a formal retires its
+new descriptor at its receiving event; the old copied pointer stays unchanged.
+A local descriptor borrowed by another reference remains protected from replacement.
+Both productions also reject replaced slots and stale contents
 under their `controls/` directories. These are real progress-premise refusals;
 a runtime equality guard does not re-establish qualification.
 

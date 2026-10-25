@@ -7,6 +7,26 @@ use super::{
     CheckedUnitStructuralPathSegment, Retirement, SymbolHandle, transfers,
 };
 
+fn storage_source(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    owner: SymbolHandle,
+) -> Option<CheckedUnitStructuralArgumentSourcePlan> {
+    let parameters = program.state_parameters(state);
+    if let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == owner)
+    {
+        return Some(CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index:
+                crate::execution::terminal_unit::types::dense_structural_parameter_index(
+                    program, parameters, position,
+                )?,
+        });
+    }
+    Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner })
+}
+
 /// Resolve a current named binding, keeping authored formal positions separate
 /// from the dense structural argument lane. This names storage, not proof that
 /// a descriptor was installed there; `named_place_loans` requires its activation.
@@ -307,13 +327,16 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     let Some(groups) = loans(retirement, operation) else {
         return Some(Vec::new());
     };
+    // Receiving formals retain their parameter namespace for subsequent
+    // transfers. A local spelling would miss a moved parameter occurrence.
+    let owner_source = storage_source(retirement.program, retirement.state, owner)?;
     let mut output = Vec::new();
     for (source, group) in groups.into_iter().rev() {
         let moved = transfers::from_storage(
             retirement.program,
             retirement.facts,
             retirement.results,
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner },
+            owner_source.clone(),
             formation,
             &source.path,
             retirement.operations,
@@ -344,10 +367,10 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
         }
         output.push(CheckedUnitEffectOperationPlan::ReleaseReference {
             statement_index: retirement.statement_index,
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: owner },
+            source: owner_source.clone(),
             path: source.path,
             select_evaluated_storage: false,
-            defer_to_exit: false,
+            defer_to_exit: retirement.at_exit,
             loans: group,
             selection_complements: Vec::new(),
             case_conditions: Default::default(),
