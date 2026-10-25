@@ -26,7 +26,7 @@ pub(crate) fn validate_plans(
             continue;
         }
         data_symbols.push(plan.data_symbol);
-        if !crate::layout_checking::layout_family_is_complete(program, plan) {
+        if !crate::layout_checking::layout_application_is_complete(program, plan) {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` lost its complete exact target-family application roster",
                 plan.data_name

@@ -264,6 +264,7 @@ fn close_constant_values(
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
     closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);
     closed_typed.plan_laid_target_layouts = std::mem::take(&mut evaluated.plan_laid_target_layouts);
+    closed_typed.plan_laid_contexts = std::mem::take(&mut evaluated.plan_laid_contexts);
     closed_typed.plan_laid_schema_fields = std::mem::take(&mut evaluated.plan_laid_schema_fields);
     if !layout_queries.is_empty() {
         // Preparation can append specialized query occurrences after the

@@ -659,6 +659,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,
+        plan_laid_contexts: _,
         plan_laid_schema_fields: _,
         placed_view_plans: _,
         placement_lifecycle_plans: _,

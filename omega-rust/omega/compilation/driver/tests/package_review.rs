@@ -15,7 +15,13 @@ fn policy_layout_queries_preserve_input_values_and_branching() {
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("policy query fixture has admitted package inputs");
     let inputs = prepared.package_inputs.clone().expect("root custody");
-    for entry in ["main.omg", "skipped.omg", "computed_extent.omg"] {
+    for entry in [
+        "main.omg",
+        "skipped.omg",
+        "computed_extent.omg",
+        "target_geometry.omg",
+        "guarded_contexts.omg",
+    ] {
         let request = CheckedCompileRequest {
             package_inputs: Some(inputs.clone()),
             ..CheckedCompileRequest::new(&prepared.root_path.with_file_name(entry), Some(target))
@@ -45,12 +51,23 @@ fn policy_layout_queries_preserve_input_values_and_branching() {
     let request = CheckedCompileRequest {
         package_inputs: Some(inputs),
         ..CheckedCompileRequest::new(
-            &prepared.root_path.with_file_name("target_geometry.omg"),
+            &prepared
+                .root_path
+                .with_file_name("invalid_guarded_contract.omg"),
             Some(target),
         )
     };
-    fixture_package_inputs::check_fixture_request(&mut prepared, request)
-        .expect("target-dependent policy input retains its exact geometry guard");
+    let refused = fixture_package_inputs::check_fixture_request(&mut prepared, request)
+        .expect_err("identical output geometry cannot erase another context's policy precondition");
+    let rendered = refused
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("call require_extent from Policy::plan: 4 > 4"),
+        "{rendered}"
+    );
 }
 
 #[test]

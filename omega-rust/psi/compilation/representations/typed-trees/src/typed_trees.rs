@@ -162,6 +162,7 @@ pub struct TypedTrees {
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
     /// Guarded exact policy-member geometries owned by application spans.
     pub plan_laid_target_layouts: Arena<PlanLaidTargetLayout>,
+    pub plan_laid_contexts: Arena<crate::name::Identifier>,
     /// Exact active Schema argument rows retained by family applications.
     pub plan_laid_schema_fields: Arena<PlanLaidSchemaField>,
     /// Canonical source `Placed<P, T>` derivations. Each record binds the
@@ -503,6 +504,7 @@ impl TypedTrees {
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),
+            plan_laid_contexts: Arena::new(),
             plan_laid_schema_fields: Arena::new(),
             placed_view_plans: Vec::new(),
             placement_lifecycle_plans: Arena::new(),

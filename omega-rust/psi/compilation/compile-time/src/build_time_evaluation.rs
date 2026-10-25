@@ -16,6 +16,22 @@ pub trait LayoutQueryPreparation {
         program: &mut typed_trees::TypedTrees,
         selection: &DeclarationSelection,
     ) -> Result<(), Vec<diagnostics::Diagnostic>>;
+    /// Exact executed Product entries and their contexts, before output filtering.
+    /// Psi follows each root's dependencies; an unrelated entry grants no
+    /// evaluation context to an application elsewhere in the catalog.
+    fn context_roots(
+        &self,
+    ) -> Result<
+        Vec<(typed_trees::name::Identifier, symbols::SymbolHandle)>,
+        Vec<diagnostics::Diagnostic>,
+    >;
+    /// Close only this private evaluation input under the exact named context.
+    fn prepare_context(
+        &self,
+        program: &mut typed_trees::TypedTrees,
+        selection: &DeclarationSelection,
+        target: &str,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>>;
 }
 
 /// Work ownership is narrower than executable lookup. Product work excludes

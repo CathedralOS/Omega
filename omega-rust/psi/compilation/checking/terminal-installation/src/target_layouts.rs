@@ -16,7 +16,7 @@ use semantic_vocabulary::{MachineId, StructuralTypeId};
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::{
     LayoutApplicationId, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
-    TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity,
+    TargetLayoutPolicy, TargetMachineCallable, TargetMachineSupply, TerminalPsiIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,6 +111,10 @@ pub enum TargetLayoutSelectionError {
         target: String,
     },
     StaleApplication(LayoutApplicationId),
+    PolicyBody {
+        application: LayoutApplicationId,
+        reason: TargetMachineSelectionError,
+    },
 }
 impl std::fmt::Display for TargetLayoutSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -130,6 +134,14 @@ impl std::fmt::Display for TargetLayoutSelectionError {
             Self::StaleApplication(application) => write!(
                 formatter,
                 "layout application {} has stale geometry or family custody",
+                application.0
+            ),
+            Self::PolicyBody {
+                application,
+                reason,
+            } => write!(
+                formatter,
+                "layout application {} has no admitted policy body: {reason}",
                 application.0
             ),
         }
@@ -152,12 +164,36 @@ pub fn admit_target_layouts(
             target: selections.target().to_owned(),
         };
         let stale = || TargetLayoutSelectionError::StaleApplication(application.id);
-        let selected = match selections.member(application.family) {
-            Ok(selected) => selected,
-            // Like callable-family selection, retain unrelated alternatives
-            // without turning every catalog row into an execution demand.
-            Err(TargetMachineSelectionError::MissingMember { .. }) => continue,
-            Err(_) => return Err(missing()),
+        let (head, expected_member) = match &application.policy {
+            TargetLayoutPolicy::Body { machine, contexts } => {
+                if contexts
+                    .binary_search_by(|target| target.as_str().cmp(selections.target()))
+                    .is_err()
+                {
+                    continue;
+                }
+                let head = TargetMachineCallable::Machine(*machine);
+                let selected = selections
+                    .entry(artifact.identity(), artifact.module(), head)
+                    .map_err(|reason| TargetLayoutSelectionError::PolicyBody {
+                        application: application.id,
+                        reason,
+                    })?;
+                (head, TargetMachineCallable::Machine(selected))
+            }
+            TargetLayoutPolicy::Family(family) => {
+                let selected = match selections.member(*family) {
+                    Ok(selected) => selected,
+                    // Like callable-family selection, retain unrelated alternatives
+                    // without turning every catalog row into an execution demand.
+                    Err(TargetMachineSelectionError::MissingMember { .. }) => continue,
+                    Err(_) => return Err(missing()),
+                };
+                if selected.supply() != TargetMachineSupply::CheckedBody {
+                    return Err(stale());
+                }
+                (*family, selected.callable())
+            }
         };
         let realization = application
             .realizations
@@ -165,9 +201,7 @@ pub fn admit_target_layouts(
             .ok()
             .map(|position| &application.realizations[position])
             .ok_or_else(missing)?;
-        if selected.callable() != TargetMachineCallable::Machine(realization.member)
-            || selected.supply() != TargetMachineSupply::CheckedBody
-        {
+        if expected_member != TargetMachineCallable::Machine(realization.member) {
             return Err(stale());
         }
         let mut record = artifact
@@ -197,7 +231,7 @@ pub fn admit_target_layouts(
         closures.push(TargetLayoutClosure {
             application: application.id,
             record: application.record,
-            head: application.family,
+            head,
             member: realization.member,
         });
         records.push(record);

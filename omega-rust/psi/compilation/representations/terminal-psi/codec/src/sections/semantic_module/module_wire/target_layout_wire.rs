@@ -17,7 +17,17 @@ pub(super) fn encode(
     writer.id(application.record);
     writer.id(application.schema);
     writer.u32(application.policy_identity.0);
-    encode_callable(writer, application.family);
+    match &application.policy {
+        TargetLayoutPolicy::Family(family) => {
+            writer.u8(0);
+            encode_callable(writer, *family);
+        }
+        TargetLayoutPolicy::Body { machine, contexts } => {
+            writer.u8(1);
+            writer.id(*machine);
+            writer.strings("layout contexts", contexts)?;
+        }
+    }
     writer.u16(application.schema_argument.abi_version);
     writer.len(
         "layout schema fields",
@@ -59,7 +69,14 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TargetLayoutApplication,
         record: reader.id("StructuralTypeId")?,
         schema: reader.id("StructuralTypeId")?,
         policy_identity: TerminalIdentityIndex(reader.u32()?),
-        family: decode_callable(reader)?,
+        policy: match reader.u8()? {
+            0 => TargetLayoutPolicy::Family(decode_callable(reader)?),
+            1 => TargetLayoutPolicy::Body {
+                machine: reader.id("MachineId")?,
+                contexts: decode_counted(reader, |reader| reader.string("layout context"))?,
+            },
+            tag => return Err(CodecError::InvalidTag("TargetLayoutPolicy", tag)),
+        },
         schema_argument: TargetLayoutSchemaArgument {
             abi_version: reader.u16()?,
             fields: decode_counted(reader, |reader| {

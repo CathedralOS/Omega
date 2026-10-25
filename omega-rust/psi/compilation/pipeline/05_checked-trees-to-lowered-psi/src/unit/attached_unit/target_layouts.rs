@@ -12,14 +12,16 @@ use symbols::SymbolHandle;
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralFieldDeclaration, StructuralRecordStorage,
     StructuralTypeDeclaration, StructuralTypeShape, TargetLayoutApplication,
-    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
-    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind, TargetMachineCallable,
-    TargetMachineFamily, TargetMachineSupply,
+    TargetLayoutFieldStorage, TargetLayoutPolicy, TargetLayoutRealization,
+    TargetLayoutSchemaArgument, TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
+    TargetMachineCallable, TargetMachineFamily, TargetMachineSupply,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
 pub(super) fn lower(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     plans: UnitPlans<'_>,
     types: &[StructuralTypeDeclaration],
     type_ids: &[(TypeIdentityId, StructuralTypeId)],
@@ -62,8 +64,10 @@ pub(super) fn lower(
                 .ok_or(LoweringError::Unsupported(
                     "target layout application lost its typed policy result",
                 ))?;
-        let typed_trees::PlanLaidRealizations::TargetFamily(span) = plan.realizations else {
-            return unsupported("target layout marker names an invariant application");
+        let span = match plan.realizations {
+            typed_trees::PlanLaidRealizations::TargetFamily(span)
+            | typed_trees::PlanLaidRealizations::TargetContexts { layouts: span, .. } => span,
+            _ => return unsupported("target layout marker names an unguarded application"),
         };
         let alternatives =
             checked
@@ -146,59 +150,119 @@ pub(super) fn lower(
                 },
             });
         }
-        let typed_family = checked
-            .typed
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == plan.policy_plan_machine_symbol)
-            .ok_or(LoweringError::Unsupported(
-                "target layout application lost its policy family",
-            ))?;
-        let canonical = super::target_families::callable(
-            typed_family.canonical,
-            machines,
-            boundary_parameters,
-        )?;
-        let family = families
-            .iter()
-            .find(|family| family.canonical == canonical)
-            .ok_or(LoweringError::Unsupported(
-                "target layout policy family was not emitted",
-            ))?;
-        let TargetMachineCallable::Boundary(head) = canonical else {
-            return unsupported("target layout family has no independent emitted contract head");
-        };
-        let policy_identity = boundaries
-            .iter()
-            .find(|boundary| boundary.id == head)
-            .map(|boundary| boundary.identity.clone())
-            .ok_or(LoweringError::Unsupported(
-                "target layout policy head lost its emitted identity",
-            ))?;
-        if alternatives.is_empty()
-            || alternatives.len() != typed_family.members.len()
-            || alternatives.len() != family.members.len()
-        {
-            return unsupported(
-                "target layout application does not cover its complete policy family",
-            );
+        let (policy, policy_identity, expected) =
+            if let typed_trees::PlanLaidRealizations::TargetContexts { contexts, .. } =
+                plan.realizations
+            {
+                let contexts = checked.typed.plan_laid_contexts.span(contexts).ok_or(
+                    LoweringError::Unsupported("target layout body lost its declared contexts"),
+                )?;
+                let callable = super::target_families::callable(
+                    plan.policy_plan_machine_symbol,
+                    machines,
+                    boundary_parameters,
+                )?;
+                let TargetMachineCallable::Machine(machine) = callable else {
+                    return unsupported("contextual layout policy has no exact checked body");
+                };
+                // Body declarations are attached after closure assembly. Use
+                // their existing identity producer now; final codec admission
+                // joins this identity to that exact emitted declaration.
+                let declaration = crate::machine_lowering::declarations::identity(
+                    identities,
+                    checked,
+                    exact_toolchain_sources,
+                    plan.policy_plan_machine_symbol,
+                )
+                .map_err(LoweringError::Unsupported)?;
+                let expected = contexts
+                    .iter()
+                    .map(|target| {
+                        (
+                            target.as_str().to_owned(),
+                            plan.policy_plan_machine_symbol,
+                            callable,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                (
+                    TargetLayoutPolicy::Body {
+                        machine,
+                        contexts: contexts
+                            .iter()
+                            .map(|target| target.as_str().to_owned())
+                            .collect(),
+                    },
+                    declaration.semantic_declaration,
+                    expected,
+                )
+            } else {
+                let typed_family = checked
+                    .typed
+                    .target_machine_families
+                    .iter()
+                    .find(|family| family.canonical == plan.policy_plan_machine_symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout application lost its policy family",
+                    ))?;
+                let canonical = super::target_families::callable(
+                    typed_family.canonical,
+                    machines,
+                    boundary_parameters,
+                )?;
+                let family = families
+                    .iter()
+                    .find(|family| family.canonical == canonical)
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout policy family was not emitted",
+                    ))?;
+                let TargetMachineCallable::Boundary(head) = canonical else {
+                    return unsupported(
+                        "target layout family has no independent emitted contract head",
+                    );
+                };
+                let policy_identity = boundaries
+                    .iter()
+                    .find(|boundary| boundary.id == head)
+                    .map(|boundary| boundary.identity)
+                    .ok_or(LoweringError::Unsupported(
+                        "target layout policy head lost its emitted identity",
+                    ))?;
+                if typed_family.members.len() != family.members.len() {
+                    return unsupported(
+                        "target layout application does not cover its complete policy family",
+                    );
+                }
+                let mut expected = Vec::with_capacity(family.members.len());
+                for (typed_member, member) in typed_family.members.iter().zip(&family.members) {
+                    if typed_member.target.as_str() != member.target
+                        || member.supply != TargetMachineSupply::CheckedBody
+                    {
+                        return unsupported("target layout family lost its exact checked roster");
+                    }
+                    expected.push((member.target.clone(), typed_member.machine, member.callable));
+                }
+                (
+                    TargetLayoutPolicy::Family(canonical),
+                    policy_identity,
+                    expected,
+                )
+            };
+        if alternatives.is_empty() || alternatives.len() != expected.len() {
+            return unsupported("target layout application omits a declared evaluation context");
         }
         let mut realizations = Vec::with_capacity(alternatives.len());
-        for ((alternative, typed_member), member) in alternatives
-            .iter()
-            .zip(&typed_family.members)
-            .zip(&family.members)
+        for (alternative, (target, source_machine, expected_callable)) in
+            alternatives.iter().zip(&expected)
         {
             let callable = super::target_families::callable(
                 alternative.machine,
                 machines,
                 boundary_parameters,
             )?;
-            if alternative.target != typed_member.target
-                || alternative.machine != typed_member.machine
-                || alternative.target.as_str() != member.target
-                || callable != member.callable
-                || member.supply != TargetMachineSupply::CheckedBody
+            if alternative.target.as_str() != target
+                || alternative.machine != *source_machine
+                || callable != *expected_callable
             {
                 return unsupported(
                     "target layout alternative changed exact family member custody",
@@ -257,7 +321,7 @@ pub(super) fn lower(
             record: record.id,
             schema: schema.id,
             policy_identity,
-            family: canonical,
+            policy,
             schema_argument: TargetLayoutSchemaArgument {
                 abi_version: argument.abi_version,
                 fields: captured_fields,

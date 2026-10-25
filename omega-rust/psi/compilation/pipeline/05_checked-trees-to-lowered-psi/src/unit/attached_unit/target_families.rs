@@ -62,10 +62,10 @@ pub(super) fn callable(
                 .map(|boundary| TargetMachineCallable::Boundary(boundary.id)),
         );
     let owner = owners.next().ok_or(LoweringError::Unsupported(
-        "target-family member has no emitted callable",
+        "retained declaration has no emitted callable",
     ))?;
     if owners.next().is_some() {
-        return unsupported("target-family member has multiple emitted callables");
+        return unsupported("retained declaration has multiple emitted callables");
     }
     Ok(owner)
 }

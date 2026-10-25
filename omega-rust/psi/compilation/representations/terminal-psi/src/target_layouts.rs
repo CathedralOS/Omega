@@ -32,9 +32,20 @@ pub struct TargetLayoutApplication {
     pub record: StructuralTypeId,
     pub schema: StructuralTypeId,
     pub policy_identity: TerminalIdentityIndex,
-    pub family: TargetMachineCallable,
+    pub policy: TargetLayoutPolicy,
     pub schema_argument: TargetLayoutSchemaArgument,
     pub realizations: Vec<TargetLayoutRealization>,
+}
+
+/// Policy code and evaluation context are independent. A source family owns
+/// its member roster; an ordinary checked body retains its declared contexts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetLayoutPolicy {
+    Family(TargetMachineCallable),
+    Body {
+        machine: MachineId,
+        contexts: Vec<String>,
+    },
 }
 
 /// Version 1 is the compiler's record Schema ABI: active fields followed by

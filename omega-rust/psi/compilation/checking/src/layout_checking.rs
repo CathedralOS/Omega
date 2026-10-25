@@ -63,12 +63,29 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     }
 }
 
-pub(crate) fn layout_family_is_complete(
+pub(crate) fn layout_application_is_complete(
     program: &dyn CheckingInput,
     layout: &PlanLaidLayout,
 ) -> bool {
-    let PlanLaidRealizations::TargetFamily(span) = layout.realizations else {
-        return true;
+    let span = match layout.realizations {
+        PlanLaidRealizations::TargetFamily(span) => span,
+        PlanLaidRealizations::TargetContexts { contexts, layouts } => {
+            let (Some(contexts), Some(rows)) = (
+                program.plan_laid_contexts.span(contexts),
+                program.plan_laid_target_layouts.span(layouts),
+            ) else {
+                return false;
+            };
+            return !contexts.is_empty()
+                && contexts.len() == rows.len()
+                && contexts
+                    .windows(2)
+                    .all(|pair| pair[0].as_str() < pair[1].as_str())
+                && contexts.iter().zip(rows).all(|(context, row)| {
+                    context == &row.target && row.machine == layout.policy_plan_machine_symbol
+                });
+        }
+        _ => return true,
     };
     let Some(rows) = program.plan_laid_target_layouts.span(span) else {
         return false;
@@ -181,7 +198,7 @@ fn discover_layout_checking_targets(
                     continue;
                 };
                 if let Some(layout) = program.plan_laid_layout(data.symbol) {
-                    if !layout_family_is_complete(program, layout) {
+                    if !layout_application_is_complete(program, layout) {
                         return Err(());
                     }
                     for row in layout.target_layouts(program.typed_program()) {

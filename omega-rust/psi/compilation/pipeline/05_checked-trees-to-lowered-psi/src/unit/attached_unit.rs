@@ -558,7 +558,9 @@ pub(crate) fn lower_unit_closure(
     let target_machine_families =
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
     let target_layout_applications = target_layouts::lower(
+        identities,
         checked,
+        exact_toolchain_sources,
         plans,
         &structural_types,
         &type_ids,

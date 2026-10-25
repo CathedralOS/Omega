@@ -8,6 +8,12 @@ use typed_trees::{
 
 use super::PlanLaidRecord;
 
+enum ApplicationPrerequisites {
+    Ready,
+    LayoutQueries,
+    Other(Vec<String>),
+}
+
 /// Bind source recipes once, before deciding which inputs can be evaluated.
 /// A pending application is a real policy requirement, never ordinary packing.
 fn bind_applications(
@@ -87,22 +93,85 @@ pub(crate) fn prepare_plan_laid_layouts_in(
     domain: &mut crate::build_time_evaluation::EvaluationDomain,
     queries: Option<&dyn crate::LayoutQueryPreparation>,
 ) -> Result<Vec<PlanLaidRecord>, Vec<Diagnostic>> {
+    if records.is_empty() {
+        return Ok(Vec::new());
+    }
     let applications = bind_applications(typed, records)?;
+    let mut context_roots = queries
+        .map(|queries| queries.context_roots())
+        .transpose()?
+        .unwrap_or_default();
+    // Every authored body must form even when no image for its target is
+    // requested. Portable bodies inherit the context of exact calling roots.
+    for machine in typed.machines() {
+        if queries.is_some()
+            && let Some(target) = typed.machine_authored_target(machine)
+        {
+            context_roots.push((typed_trees::name::Identifier::from(target), machine.symbol));
+        }
+    }
     let mut pending: Vec<_> = records.iter().zip(applications).collect();
     loop {
+        // Several slots may select the same body. Its dependency closure is
+        // independent of the slot's context and is prepared once per root.
+        let mut context_demands = Vec::new();
+        for (_, root) in &context_roots {
+            if !context_demands.iter().any(|(owner, _)| owner == root) {
+                context_demands.push((
+                    *root,
+                    crate::syntax_probes::PreparedEvaluationInputs::domain_for_program(
+                        typed,
+                        &[*root],
+                        &[],
+                    ),
+                ));
+            }
+        }
         let input_revision = typed.type_reference_table.revision();
         let previous_work = domain.work().clone();
         let mut waiting = Vec::new();
         let mut completed = false;
         for (record, application) in pending {
-            if !application_prerequisites(typed, application, authority.clone(), domain, queries)?
-                .is_empty()
-            {
+            let prerequisites =
+                application_prerequisites(typed, application, authority.clone(), domain, queries)?;
+            let contexts = match (prerequisites, queries) {
+                (ApplicationPrerequisites::Ready, _) => Vec::new(),
+                (ApplicationPrerequisites::LayoutQueries, Some(_)) => {
+                    let mut contexts: Vec<_> = context_roots
+                        .iter()
+                        .filter(|(_, root)| {
+                            context_demands.iter().any(|(owner, demand)| {
+                                owner == root && demand.contains(application)
+                            })
+                        })
+                        .map(|(target, _)| target.clone())
+                        .collect();
+                    contexts.sort_by(|left, right| left.as_str().cmp(right.as_str()));
+                    contexts.dedup();
+                    if contexts.is_empty() {
+                        waiting.push((record, application));
+                        continue;
+                    }
+                    contexts
+                }
+                _ => {
+                    waiting.push((record, application));
+                    continue;
+                }
+            };
+            if install_plan_laid_layout(
+                typed,
+                record,
+                application,
+                authority.clone(),
+                domain,
+                queries,
+                &contexts,
+            )? {
+                completed = true;
+            } else {
                 waiting.push((record, application));
-                continue;
             }
-            install_plan_laid_layout(typed, record, application, authority.clone(), domain)?;
-            completed = true;
         }
         let inputs_changed = typed.type_reference_table.revision() != input_revision
             || domain.work() != &previous_work;
@@ -137,7 +206,13 @@ pub(crate) fn compute_plan_laid_layouts_in(
             })?;
         let application = data.symbol;
         let prerequisites =
-            application_prerequisites(typed, application, authority.clone(), domain, None)?;
+            match application_prerequisites(typed, application, authority.clone(), domain, None)? {
+                ApplicationPrerequisites::Ready => Vec::new(),
+                ApplicationPrerequisites::LayoutQueries => {
+                    vec!["layout-query values in the policy input closure".to_owned()]
+                }
+                ApplicationPrerequisites::Other(prerequisites) => prerequisites,
+            };
         diagnostics.push(Diagnostic::error(format!(
             "plan-laid value type `{}` has unresolved prerequisites: {}",
             record.synthetic_name,
@@ -153,13 +228,16 @@ fn install_plan_laid_layout(
     application: symbols::SymbolHandle,
     selection_authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &crate::build_time_evaluation::EvaluationDomain,
-) -> Result<(), Vec<Diagnostic>> {
+    queries: Option<&dyn crate::LayoutQueryPreparation>,
+    contexts: &[typed_trees::name::Identifier],
+) -> Result<bool, Vec<Diagnostic>> {
     let execution = domain.execution_program(typed);
     // One continuation owns only its recorded applications. Other cohorts'
     // validated rows and arena coordinates remain part of this same program.
     // Publish the complete replacement only after every new result validates.
     let mut layouts = typed.plan_laid_layouts.clone();
     let mut target_layouts = typed.plan_laid_target_layouts.clone();
+    let mut context_rosters = typed.plan_laid_contexts.clone();
     let mut captured_schema_fields = typed.plan_laid_schema_fields.clone();
     let data_symbol = application;
     let application = typed.plan_laid_layout(data_symbol).ok_or_else(|| {
@@ -209,8 +287,8 @@ fn install_plan_laid_layout(
             record.synthetic_name
         ))]);
     }
-    let family_schema = family
-        .map(|_| {
+    let guarded_schema = (family.is_some() || !contexts.is_empty())
+        .then(|| {
             let pending = execution
                 .plan_laid_layouts
                 .iter()
@@ -231,15 +309,30 @@ fn install_plan_laid_layout(
                 record.synthetic_name
             ))]
         })?;
-    let schema_argument = family_schema.as_ref().map(|(fields, _, retained)| {
+    let schema_argument = guarded_schema.as_ref().map(|(fields, _, retained)| {
         debug_assert_eq!(fields.len(), retained.len());
         PlanLaidSchemaArgument {
             abi_version: 1,
             fields: captured_schema_fields.insert_many(retained.iter().cloned()),
         }
     });
-    let admission = crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
-    let evaluate = |machine_symbol| {
+    let evaluate = |machine_symbol, target: Option<&str>| {
+        let mut contextual;
+        let execution = if let (Some(queries), Some(target)) = (queries, target) {
+            contextual = execution.clone();
+            let selected = domain.demanded_roots(typed, &[schema_symbol, machine_symbol]);
+            queries.prepare_context(&mut contextual, selected.work(), target)?;
+            if crate::const_evaluation::data_layout_queries::pending_layout_queries_need_operator_selection(
+                &contextual, selected.work(),
+            ) {
+                return Ok(None);
+            }
+            &contextual
+        } else {
+            &execution
+        };
+        let admission =
+            crate::BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
         let machine = execution.machine_by_symbol(machine_symbol).ok_or_else(|| {
             vec![Diagnostic::error(
                 "layout policy lost its exact machine declaration",
@@ -248,7 +341,7 @@ fn install_plan_laid_layout(
         for source in &record.invocation_sources {
             admission
                 .require_common_floor_for_invocation(
-                    &execution,
+                    execution,
                     machine,
                     crate::BuildTimeInvocationCustody::Source(*source),
                 )
@@ -261,10 +354,10 @@ fn install_plan_laid_layout(
                 authority,
                 custody: crate::BuildTimeInvocationCustody::Source(*source),
             });
-        let report = match &family_schema {
+        let report = match &guarded_schema {
             Some((fields, fingerprint, _)) => {
                 super::super::layout_plans::compute_native_layout_plan_with_schema(
-                    &execution,
+                    execution,
                     machine_symbol,
                     &record.schema_data,
                     fields,
@@ -273,14 +366,14 @@ fn install_plan_laid_layout(
                 )
             }
             None => super::super::layout_plans::compute_native_layout_plan_for_machine(
-                &execution,
+                execution,
                 machine_symbol,
                 &record.schema_data,
                 selection,
             ),
         }
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        install_geometry(&execution, record, &schema_fields, report)
+        install_geometry(execution, record, &schema_fields, report).map(Some)
     };
     let realizations =
         if let Some(family) = family {
@@ -292,8 +385,8 @@ fn install_plan_laid_layout(
             })?;
             let mut alternatives = Vec::with_capacity(family.members.len());
             for member in &family.members {
-                let geometry =
-                    evaluate(member.machine).map_err(|diagnostics| {
+                let Some(geometry) = evaluate(member.machine, Some(member.target.as_str()))
+                    .map_err(|diagnostics| {
                         diagnostics.into_iter().map(|diagnostic| {
                         Diagnostic::error(format!(
                             "plan-laid value type `{}` target `{}` member `{}`: {diagnostic}",
@@ -302,7 +395,10 @@ fn install_plan_laid_layout(
                             execution.symbols.name(member.machine),
                         ))
                     }).collect::<Vec<_>>()
-                    })?;
+                    })?
+                else {
+                    return Ok(false);
+                };
                 alternatives.push(PlanLaidTargetLayout {
                     target: member.target.clone(),
                     machine: member.machine,
@@ -310,20 +406,43 @@ fn install_plan_laid_layout(
                 });
             }
             PlanLaidRealizations::TargetFamily(target_layouts.insert_many(alternatives))
+        } else if !contexts.is_empty() {
+            let mut alternatives = Vec::with_capacity(contexts.len());
+            for context in contexts {
+                let Some(geometry) = evaluate(policy_plan_machine_symbol, Some(context.as_str()))?
+                else {
+                    return Ok(false);
+                };
+                alternatives.push(PlanLaidTargetLayout {
+                    target: context.clone(),
+                    machine: policy_plan_machine_symbol,
+                    geometry,
+                });
+            }
+            PlanLaidRealizations::TargetContexts {
+                contexts: context_rosters.insert_many(contexts.iter().cloned()),
+                layouts: target_layouts.insert_many(alternatives),
+            }
         } else {
-            PlanLaidRealizations::Invariant(evaluate(policy_plan_machine_symbol).map_err(
-                |diagnostics| {
-                    diagnostics
-                        .into_iter()
-                        .map(|diagnostic| {
-                            Diagnostic::error(format!(
-                                "plan-laid value type `{}`: {diagnostic}",
-                                record.synthetic_name
-                            ))
-                        })
-                        .collect::<Vec<_>>()
-                },
-            )?)
+            PlanLaidRealizations::Invariant(
+                evaluate(policy_plan_machine_symbol, None)
+                    .map_err(|diagnostics| {
+                        diagnostics
+                            .into_iter()
+                            .map(|diagnostic| {
+                                Diagnostic::error(format!(
+                                    "plan-laid value type `{}`: {diagnostic}",
+                                    record.synthetic_name
+                                ))
+                            })
+                            .collect::<Vec<_>>()
+                    })?
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "portable policy evaluation retained target inputs",
+                        )]
+                    })?,
+            )
         };
     let layout = PlanLaidLayout {
         data_name: record.synthetic_name.clone(),
@@ -357,8 +476,9 @@ fn install_plan_laid_layout(
     }
     typed.plan_laid_layouts = layouts;
     typed.plan_laid_target_layouts = target_layouts;
+    typed.plan_laid_contexts = context_rosters;
     typed.plan_laid_schema_fields = captured_schema_fields;
-    Ok(())
+    Ok(true)
 }
 
 /// Read actual dependency edges, not the presence of a query elsewhere in the
@@ -370,7 +490,7 @@ fn application_prerequisites(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &mut crate::build_time_evaluation::EvaluationDomain,
     queries: Option<&dyn crate::LayoutQueryPreparation>,
-) -> Result<Vec<String>, Vec<Diagnostic>> {
+) -> Result<ApplicationPrerequisites, Vec<Diagnostic>> {
     let layout = typed.plan_laid_layout(application).ok_or_else(|| {
         vec![Diagnostic::error(
             "layout readiness lost its bound application",
@@ -409,7 +529,7 @@ fn application_prerequisites(
         }
     }
     if !pending.is_empty() {
-        return Ok(pending);
+        return Ok(ApplicationPrerequisites::Other(pending));
     }
     if let Some(queries) = queries {
         queries.prepare(typed, demanded.work())?;
@@ -445,7 +565,7 @@ fn application_prerequisites(
         pending.push("selected const arguments".to_owned());
     }
     if !pending.is_empty() {
-        return Ok(pending);
+        return Ok(ApplicationPrerequisites::Other(pending));
     }
     // Reflection consumes the normalized schema, including computed ranges
     // and const arguments. Use their existing producers in their normal order;
@@ -473,7 +593,9 @@ fn application_prerequisites(
     if typed.type_reference_table.revision() != previous_types {
         // New instances may introduce lengths, domains or further applications.
         // Revisit their exact input closure before reflecting any geometry.
-        return Ok(vec!["newly realized schema inputs".to_owned()]);
+        return Ok(ApplicationPrerequisites::Other(vec![
+            "newly realized schema inputs".to_owned(),
+        ]));
     }
     if let Some(queries) = queries {
         queries.prepare(typed, demanded.work())?;
@@ -489,12 +611,10 @@ fn application_prerequisites(
             ));
         }
     }
-    if crate::const_evaluation::data_layout_queries::pending_layout_queries_need_operator_selection(
+    let layout_queries = crate::const_evaluation::data_layout_queries::pending_layout_queries_need_operator_selection(
         typed,
         demanded.work(),
-    ) {
-        pending.push("layout-query values in the policy input closure".to_owned());
-    }
+    );
 
     let mut records = vec![schema];
     let mut visited = Vec::new();
@@ -509,7 +629,8 @@ fn application_prerequisites(
                     pending.push(format!("layout `{}`", layout.data_name));
                     continue;
                 }
-                PlanLaidRealizations::TargetFamily(_) => {
+                PlanLaidRealizations::TargetFamily(_)
+                | PlanLaidRealizations::TargetContexts { .. } => {
                     return Err(vec![Diagnostic::error(format!(
                         "schema contains target-dependent layout `{}`; nested target-dependent schema arguments are not yet supported",
                         layout.data_name
@@ -543,7 +664,18 @@ fn application_prerequisites(
             }
         }
     }
-    Ok(pending)
+    if pending.is_empty() {
+        Ok(if layout_queries {
+            ApplicationPrerequisites::LayoutQueries
+        } else {
+            ApplicationPrerequisites::Ready
+        })
+    } else {
+        if layout_queries {
+            pending.push("layout-query values in the policy input closure".to_owned());
+        }
+        Ok(ApplicationPrerequisites::Other(pending))
+    }
 }
 
 /// The structural roster is authoritative, including deployment target names

@@ -111,7 +111,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Whole-value placement demands retain normalized geometry without requiring a view.
 // Content reunion retains completed producer operations and exact claim frontiers.
 // Logical source copy permission is separate from descriptor retirement.
-pub(crate) const FORMAT_MARKER: u16 = 187;
+pub(crate) const FORMAT_MARKER: u16 = 188;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

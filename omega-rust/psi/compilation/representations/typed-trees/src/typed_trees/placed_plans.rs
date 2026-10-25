@@ -321,6 +321,12 @@ pub enum PlanLaidRealizations {
     Pending,
     Invariant(PlanLaidGeometry),
     TargetFamily(arena::HandleSpan<PlanLaidTargetLayout>),
+    /// One ordinary policy body evaluated under every declared context.
+    /// The input roster is independent of the results it requires.
+    TargetContexts {
+        contexts: arena::HandleSpan<crate::name::Identifier>,
+        layouts: arena::HandleSpan<PlanLaidTargetLayout>,
+    },
 }
 
 /// Exact member identity accompanies its geometry even for literal-only policies.
@@ -341,7 +347,9 @@ impl PlanLaidLayout {
     pub fn invariant_geometry(&self) -> Option<&PlanLaidGeometry> {
         match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::Pending | PlanLaidRealizations::TargetFamily(_) => None,
+            PlanLaidRealizations::Pending
+            | PlanLaidRealizations::TargetFamily(_)
+            | PlanLaidRealizations::TargetContexts { .. } => None,
         }
     }
 
@@ -355,7 +363,8 @@ impl PlanLaidLayout {
         match &self.realizations {
             PlanLaidRealizations::Pending => None,
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::TargetFamily(span) => {
+            PlanLaidRealizations::TargetFamily(span)
+            | PlanLaidRealizations::TargetContexts { layouts: span, .. } => {
                 let target = target?;
                 typed
                     .plan_laid_target_layouts
@@ -374,7 +383,9 @@ impl PlanLaidLayout {
     ) -> impl Iterator<Item = &'a PlanLaidGeometry> {
         let invariant = match &self.realizations {
             PlanLaidRealizations::Invariant(geometry) => Some(geometry),
-            PlanLaidRealizations::Pending | PlanLaidRealizations::TargetFamily(_) => None,
+            PlanLaidRealizations::Pending
+            | PlanLaidRealizations::TargetFamily(_)
+            | PlanLaidRealizations::TargetContexts { .. } => None,
         };
         invariant
             .into_iter()
@@ -386,7 +397,8 @@ impl PlanLaidLayout {
     pub fn target_layouts<'a>(&self, typed: &'a crate::TypedTrees) -> &'a [PlanLaidTargetLayout] {
         match self.realizations {
             PlanLaidRealizations::Pending | PlanLaidRealizations::Invariant(_) => &[],
-            PlanLaidRealizations::TargetFamily(span) => {
+            PlanLaidRealizations::TargetFamily(span)
+            | PlanLaidRealizations::TargetContexts { layouts: span, .. } => {
                 typed.plan_laid_target_layouts.span_or_empty(span)
             }
         }

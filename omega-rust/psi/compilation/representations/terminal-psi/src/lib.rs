@@ -39,8 +39,8 @@ pub use terminal_module::*;
 mod target_layouts;
 pub use target_layouts::{
     LayoutApplicationId, StructuralRecordStorage, TargetLayoutApplication,
-    TargetLayoutFieldStorage, TargetLayoutRealization, TargetLayoutSchemaArgument,
-    TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
+    TargetLayoutFieldStorage, TargetLayoutPolicy, TargetLayoutRealization,
+    TargetLayoutSchemaArgument, TargetLayoutSchemaField, TargetLayoutSchemaFieldKind,
 };
 
 pub use terminal_module::quotients::{

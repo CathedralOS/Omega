@@ -643,7 +643,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 187 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 188 + `u16` vocabulary
 marker 130 + the entry callable, followed by the module tables in the
 declaration order below. The entry callable uses its ordinary machine-or-boundary
 tag and identifier encoding.
@@ -853,12 +853,18 @@ a nonzero layout-application `u32`, and its counted structural fields. It has
 no packed or host-selected geometry in the portable artifact.
 
 A layout application encodes its `u32` id, record and schema type ids, policy
-identity string, family callable, and `u16` Schema ABI version. Its counted
+identity-table index, policy selection, and `u16` Schema ABI version. Marker 185
+encodes policy selection with a `u8` tag: `0` carries the authored family
+callable; `1` carries an ordinary checked machine id and counted deployment
+strings in strictly increasing order. An ordinary body retains its exact
+checked declaration identity across contexts without creating an authored family.
+Its alternatives must cover exactly that independent context roster and all
+name that same body. Its counted
 Schema fields each carry record-field and schema-field ids, `u64` key, optional
 `u64` identity, `u64` byte size and alignment, and a kind byte (`0` scalar,
 `1` nested). Counted alternatives follow: deployment string, member machine id,
 `u64` record size and alignment, then counted field ids with non-absent authored
-field storage. The codec requires a complete exact family roster and validates
+field storage. The codec requires a complete exact policy roster and validates
 every alternative against the retained invariant Schema argument. This is
 representation validation; semantic checking remains the producer's obligation.
 Deployment selection consumes one retained alternative without changing the

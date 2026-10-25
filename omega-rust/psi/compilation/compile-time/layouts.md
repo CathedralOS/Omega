@@ -86,6 +86,17 @@ Terminal execution. The receipt keeps the original canonical artifact identity;
 selection neither rewrites that artifact nor supplies new proof authority. The
 complete artifact conservatively retains the policy bodies and their dependencies.
 
+An ordinary policy whose inputs need target geometry retains that same checked
+body with an independent context roster. Executed entry bindings and authored
+target bodies supply exact roots; their dependency closure associates contexts
+with applications before source formation. Equal result bytes never remove a
+context or its policy contract. Terminal encoding distinguishes these body
+applications from authored families, retains the producing body in the callable
+catalog, and joins its checked declaration during codec admission. Selection
+uses the exact body and context under the original artifact identity. Adapter
+profiles need explicit physical deployment geometry; source preparation does
+not derive it from the compiler host.
+
 The current family Schema ABI supports records with at most 32 nonzero live
 fields of scalar or fixed nested-record shape. Active cases, retired identities,
 nested target-dependent schemas and nested policy geometry that has not yet been

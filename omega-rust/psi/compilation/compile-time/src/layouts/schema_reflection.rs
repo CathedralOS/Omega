@@ -201,6 +201,7 @@ fn require_schema_layouts(
             matches!(
                 layout.realizations,
                 typed_trees::PlanLaidRealizations::TargetFamily(_)
+                    | typed_trees::PlanLaidRealizations::TargetContexts { .. }
             )
         }) {
             return Err(format!(
@@ -359,7 +360,8 @@ fn reflected_record_layout(
                 geometry.validated_layout.align,
             )),
             typed_trees::PlanLaidRealizations::Pending
-            | typed_trees::PlanLaidRealizations::TargetFamily(_) => None,
+            | typed_trees::PlanLaidRealizations::TargetFamily(_)
+            | typed_trees::PlanLaidRealizations::TargetContexts { .. } => None,
         };
     }
     if data.quotient.is_some()

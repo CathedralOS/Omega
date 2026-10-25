@@ -5,7 +5,7 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::{
-    StructuralRecordStorage, StructuralTypeShape, TargetLayoutSchemaFieldKind,
+    StructuralRecordStorage, StructuralTypeShape, TargetLayoutPolicy, TargetLayoutSchemaFieldKind,
     TargetMachineCallable, TargetMachineSupply, TerminalIdentityIndex, TerminalModule,
 };
 
@@ -116,32 +116,68 @@ pub(super) fn validate(
                 return malformed("layout schema argument differs from invariant field geometry");
             }
         }
-        let Some(family) = module
-            .target_machine_families
-            .iter()
-            .find(|family| family.canonical == application.family)
-        else {
-            return malformed("layout application has no exact target family");
+        let expected = match &application.policy {
+            TargetLayoutPolicy::Body { machine, contexts } => {
+                let Some(declaration) = module
+                    .machines
+                    .iter()
+                    .find(|body| body.id == *machine)
+                    .and_then(|body| body.declaration.as_ref())
+                else {
+                    return malformed("layout application has no exact checked policy body");
+                };
+                if declaration.semantic_declaration != application.policy_identity
+                    || contexts.is_empty()
+                    || contexts.iter().any(String::is_empty)
+                    || !contexts.windows(2).all(|pair| pair[0] < pair[1])
+                {
+                    return malformed("layout policy body has stale identity or context roster");
+                }
+                contexts
+                    .iter()
+                    .map(|target| (target.as_str(), *machine))
+                    .collect::<Vec<_>>()
+            }
+            TargetLayoutPolicy::Family(canonical) => {
+                let Some(family) = module
+                    .target_machine_families
+                    .iter()
+                    .find(|family| family.canonical == *canonical)
+                else {
+                    return malformed("layout application has no exact target family");
+                };
+                let TargetMachineCallable::Boundary(head) = *canonical else {
+                    return malformed("layout application has no independent policy contract head");
+                };
+                let Some(policy) =
+                    terminal_psi::find_boundary_machine(&module.boundary_machines, head)
+                else {
+                    return malformed("layout application has no policy contract declaration");
+                };
+                if policy.identity != application.policy_identity {
+                    return malformed(
+                        "layout application policy identity differs from its exact head",
+                    );
+                }
+                let mut expected = Vec::with_capacity(family.members.len());
+                for member in &family.members {
+                    let TargetMachineCallable::Machine(machine) = member.callable else {
+                        return malformed("layout policy family has no exact checked body");
+                    };
+                    if member.supply != TargetMachineSupply::CheckedBody {
+                        return malformed("layout policy family member has no checked supply");
+                    }
+                    expected.push((member.target.as_str(), machine));
+                }
+                expected
+            }
         };
-        let TargetMachineCallable::Boundary(head) = application.family else {
-            return malformed("layout application has no independent policy contract head");
-        };
-        let Some(policy) = terminal_psi::find_boundary_machine(&module.boundary_machines, head)
-        else {
-            return malformed("layout application has no policy contract declaration");
-        };
-        if policy.identity != application.policy_identity {
-            return malformed("layout application policy identity differs from its exact head");
-        }
-        if application.realizations.len() != family.members.len()
-            || application.realizations.is_empty()
-        {
+        if application.realizations.len() != expected.len() || application.realizations.is_empty() {
             return malformed("layout application omits family alternatives");
         }
-        for (realization, member) in application.realizations.iter().zip(&family.members) {
-            if realization.target != member.target
-                || TargetMachineCallable::Machine(realization.member) != member.callable
-                || member.supply != TargetMachineSupply::CheckedBody
+        for (realization, (target, machine)) in application.realizations.iter().zip(&expected) {
+            if realization.target != *target
+                || realization.member != *machine
                 || realization.fields.len() != live_fields.len()
                 || realization
                     .fields

@@ -82,6 +82,21 @@ pub(super) fn discover(
         .iter()
         .copied()
         .chain(native_roots)
+        // Guarded geometry retains its exact producing bodies as semantic
+        // inputs. Ordinary policies need the same callable namespace as
+        // authored family members, even without a runtime call to the policy.
+        .chain(
+            checked
+                .typed
+                .plan_laid_layouts
+                .iter()
+                .flat_map(|application| {
+                    application
+                        .target_layouts(&checked.typed)
+                        .iter()
+                        .map(|row| row.machine)
+                }),
+        )
         .chain(
             super::target_families::runtime_families(checked)?
                 .into_iter()

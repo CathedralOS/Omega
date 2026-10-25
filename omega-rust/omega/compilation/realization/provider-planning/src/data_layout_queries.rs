@@ -32,12 +32,13 @@ use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedInt
 /// Post-Build representation choices are inputs to the layout authority,
 /// never a host target selection. Only answers the layout producer computes
 /// without reading target geometry may enter the portable source judgment.
-pub struct InvariantLayoutQueries<'a> {
+pub struct SourceLayoutQueries<'a> {
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
+    pub root_bindings: &'a [crate::program_entry::RootBinding],
 }
 
-impl build_time_evaluation::LayoutQueryPreparation for InvariantLayoutQueries<'_> {
+impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
     fn prepare(
         &self,
         program: &mut TypedTrees,
@@ -48,6 +49,56 @@ impl build_time_evaluation::LayoutQueryPreparation for InvariantLayoutQueries<'_
             self.opaque_representation_selections,
             selection,
             QueryScope::Invariant,
+        )
+    }
+
+    fn context_roots(
+        &self,
+    ) -> Result<Vec<(typed_trees::name::Identifier, symbols::SymbolHandle)>, Vec<Diagnostic>> {
+        let mut roots = Vec::new();
+        for binding in self.root_bindings {
+            let (owner, _) = binding.slot.rsplit_once("::").ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "root slot `{}` lost its target owner",
+                    binding.slot
+                ))]
+            })?;
+            let profile = target::TargetProfile::from_root_slot_owner(owner)
+                .map_err(|diagnostic| vec![diagnostic])?;
+            roots.push((
+                typed_trees::name::Identifier::from(profile.target_name()),
+                binding.implementation_symbol,
+            ));
+        }
+        // A library with no entry has no implicit deployment. Its authored
+        // target bodies still supply contexts through Psi's dependency owner.
+        Ok(roots)
+    }
+
+    fn prepare_context(
+        &self,
+        program: &mut TypedTrees,
+        selection: &typed_trees::references::DeclarationSelection,
+        target: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let profile = target::TargetProfile::from_canonical_target_name(target)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        if matches!(
+            profile,
+            target::TargetProfile::CrossPlatformCli
+                | target::TargetProfile::LocalUnchecked
+                | target::TargetProfile::AlphaBootstrap
+        ) {
+            return Err(vec![Diagnostic::error(format!(
+                "layout context `{target}` requires an explicit physical deployment target"
+            ))]);
+        }
+        fold_data_layout_queries(
+            program,
+            profile,
+            self.opaque_representation_selections,
+            true,
+            selection,
         )
     }
 }
@@ -138,6 +189,7 @@ fn fold_queries(
                 matches!(
                     plan.realizations,
                     checked_trees::typed_trees::PlanLaidRealizations::TargetFamily(_)
+                        | checked_trees::typed_trees::PlanLaidRealizations::TargetContexts { .. }
                 )
             })
         })
