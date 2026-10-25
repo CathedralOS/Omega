@@ -7,6 +7,78 @@ use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
 #[test]
+fn dependency_review_retains_constant_values_without_admitting_new_callers() {
+    let target = "linux_x86_64";
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/reviewed_dependency_constants/main.omg");
+    let prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("constant dependency fixture has admitted package inputs");
+    let inputs = prepared.package_inputs.clone().expect("root custody");
+    let request = CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+    };
+    let occurrences = fixture_package_inputs::fixture_occurrences(&prepared, request)
+        .expect("dependency-first fixture occurrences");
+    assert_eq!(occurrences.len(), 2, "one dependency and its consumer");
+
+    // Ordinary fixture compilation prepares dependency Builds but checks only
+    // the consumer Product. Review must check each dependency first, in this
+    // same session, so the consumer extends its resolved/typed source cohort.
+    let mut session = CompilationSession::default();
+    let root_package = inputs.root();
+    let mut dependency_bundles = Vec::new();
+    for mut occurrence in occurrences {
+        occurrence.package_inputs = Some(
+            occurrence
+                .package_inputs
+                .take()
+                .expect("occurrence custody")
+                .with_complete_dependency_generated_sources(dependency_bundles.clone())
+                .expect("complete dependency Build outputs, including empty bundles"),
+        );
+        let build = session
+            .prepare_package_build(occurrence)
+            .expect("prepare dependency or consumer Build");
+        if build.package_inputs().root() != root_package {
+            dependency_bundles.push(build.generated_source_bundle().clone());
+        }
+        session
+            .review_package_build(build, usize::MAX)
+            .expect("review retained constant dependency and consumer");
+    }
+
+    // This entry lives in the same sealed source inventory. Only the lower
+    // bound changes: a retained dependency value is not proof of a new call's
+    // precondition, even after the valid consumer has also been reviewed.
+    let invalid = prepared.root_path.with_file_name("invalid_bounds.omg");
+    let refused = session
+        .prepare_package_build(CheckedCompileRequest {
+            package_inputs: Some(
+                inputs
+                    .with_complete_dependency_generated_sources(dependency_bundles)
+                    .expect("invalid caller uses the same dependency Build outputs"),
+            ),
+            ..CheckedCompileRequest::new(&invalid, Some(target))
+        })
+        .map_err(PackageReviewFailure::Compilation)
+        .and_then(|build| session.review_package_build(build, usize::MAX));
+    let diagnostics = match refused {
+        Err(PackageReviewFailure::Compilation(failure)) => failure.into_diagnostics(),
+        Err(failure) => panic!("bounds control reached an unrelated review failure: {failure:?}"),
+        Ok(_) => panic!("a dependency judgment admitted inverted bounds in a new caller"),
+    };
+    let rendered = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(rendered.contains("lower <= upper"), "{rendered}");
+    assert!(rendered.contains("4 <= 3"), "{rendered}");
+}
+
+#[test]
 fn review_product_keeps_exact_custody_and_policy_budget() {
     let target = "linux_x86_64";
     let fixture = fixture_package_inputs::repo_root()

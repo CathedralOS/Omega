@@ -1,0 +1,13 @@
+machine base() -> u64 { 3u64 }
+const Hidden: u64 = base();
+public const Ceiling: u64 = Hidden;
+
+public machine clamp(value: u64, lower: u64, upper: u64) -> u64
+requires lower <= upper
+{
+    transition {
+        value < lower -> (lower)
+        value > upper -> (upper)
+        _ -> (value)
+    }
+}

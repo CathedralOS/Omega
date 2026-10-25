@@ -1,0 +1,11 @@
+// Only the lower bound differs from main.omg; it must reject 4 <= 3.
+use reviewed_constant_kit::math;
+
+const Width: u64 = clamp(Ceiling + 1u64, 4u64, Ceiling);
+
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let bytes: [u8; Width] = [1, 2, 7];
+    transition bytes[2] == 7 { true -> good() _ -> bad() }
+}
