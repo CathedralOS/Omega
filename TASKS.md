@@ -2884,6 +2884,8 @@ crash and native exit behavior.
   export; it consumes source-free retained provisions from their native owner.
   Ordinary prepared-project compilation is scheduled by Build from package-admitted
   plans; package completion retains custody, identity reconciliation and disposal.
+  Package frontiers, source cohorts and component publication carry caller identity
+  with work and results, rather than reconstructing parallel result tables.
   Candidate review and compiler-internal dependency/Build activation scheduling
   still need migration. Psi
   facade completion, the common
