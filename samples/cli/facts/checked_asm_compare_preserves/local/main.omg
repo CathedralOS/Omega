@@ -1,0 +1,21 @@
+// Expected exit: 0.
+// Comparing a register with itself establishes ZF without changing its value; both label edges preserve the original register.
+machine main() crashes Trap {
+    let mut output: u32 = 0;
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, 37;
+        cmp eax, eax;
+        jz equal;
+    different requires eax == 37:
+        mov output, 1;
+        jmp done;
+    equal requires eax == 37:
+        mov output, eax;
+    done requires output == 37:
+        nop
+    }
+    transition output == 37 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
