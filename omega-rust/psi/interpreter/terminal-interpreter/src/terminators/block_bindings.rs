@@ -834,11 +834,8 @@ impl TerminalExecution<'_> {
                         .position(|binding| binding.path == claim.path)
                         .ok_or(TerminalInterpretError::ClaimTransferMismatch)?;
                     let binding = active.swap_remove(matching);
-                    let expected_multiplicity = if binding.path.is_empty() {
-                        parameter.multiplicity
-                    } else {
-                        StructuralMultiplicity::Linear
-                    };
+                    let expected_multiplicity =
+                        LiveClaim::path_multiplicity(&binding.path, parameter.multiplicity);
                     if claim.multiplicity != Some(expected_multiplicity) {
                         return Err(TerminalInterpretError::ClaimTransferMismatch);
                     }
