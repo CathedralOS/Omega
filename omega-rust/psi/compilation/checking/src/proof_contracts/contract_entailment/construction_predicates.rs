@@ -13,13 +13,12 @@
 //! Only an entirely proven result skips prefix observation; independent field,
 //! omission and nested-construction admission still runs in the caller.
 
-use super::citations::CitationFacts;
 use super::refuted_requires::instantiated_selected_fact_judgment;
-use super::structural_case_arms::structural_arm_judge;
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_prefix::{
-    StructuralPrefixSite, StructuralPrefixVisitor, expression_is_transition_target,
-    observe_acyclic_invocation_prefix, observe_runtime_state_prefix,
+    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor,
+    expression_is_transition_target, observe_acyclic_invocation_prefix,
+    observe_runtime_state_prefix,
 };
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::signature::StateParameter;
@@ -251,38 +250,29 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
         self.site
     }
 
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
+    fn unresolved(&mut self, machine: &Machine) {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT construction no entries machine={} site={:?} expression={:?}",
+                machine.name, self.site.state, self.expression
+            );
         }
-        guarantees.intake(&mut judge);
-        let entries = program
-            .state_in_machine(machine, self.site.state)
-            .and_then(|state| {
-                let reference = crate::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    self.expression,
-                )
+        for predicate_index in 0..self.predicates.len() {
+            self.retain(predicate_index, StructuralJudgment::Unknown);
+        }
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, judge, environment) = observation;
+        let reference =
+            crate::expression_result_type_reference(program, machine, state, self.expression)
                 .unwrap_or_default();
-                judge.normal_operation_entries(
-                    self.site.statement_index,
-                    self.expression,
-                    environment,
-                    (machine, state, reference),
-                )
-            });
+        let entries = judge.normal_operation_entries(
+            self.site.statement_index,
+            self.expression,
+            environment,
+            (machine, state, reference),
+        );
         let Some(entries) = entries else {
             if super::struct_trace() {
                 eprintln!(

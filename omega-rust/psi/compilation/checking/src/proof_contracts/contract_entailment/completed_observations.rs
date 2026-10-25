@@ -5,11 +5,9 @@
 //! of later siblings or statements. Consumers judge that captured value; they
 //! cannot import a machine's eventual guarantees as premises at an earlier cut.
 
-use super::citations::CitationFacts;
-use super::structural_case_arms::structural_arm_judge;
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use super::structural_prefix::{
-    StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
+    PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor, observe_runtime_state_prefix,
 };
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -130,25 +128,12 @@ where
         self.site
     }
 
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
-        let Some(state) = program.state_in_machine(machine, self.site.state) else {
-            self.complete = false;
-            return;
-        };
+    fn unresolved(&mut self, _machine: &Machine) {
+        self.complete = false;
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (_, machine, state, judge, environment) = observation;
         let Some(outcomes) = judge.completed_statement_paths(
             self.site.statement_index,
             self.expression,
