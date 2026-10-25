@@ -8,7 +8,7 @@
 //! same ordered complement. This pass neither invents hooks nor disposes a
 //! transferred subtree to make the remaining partition fit.
 use super::{LoweringError, block_position, unsupported};
-use crate::direct_calls::call_structural_arguments;
+use crate::call_operands::structural_arguments;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{
@@ -416,7 +416,7 @@ pub(crate) fn operands(kind: &OperationKind) -> impl Iterator<Item = &Structural
     };
     kind.constructor_arguments()
         .chain(stored)
-        .chain(call_structural_arguments(kind))
+        .chain(structural_arguments(kind))
 }
 
 fn transfer(

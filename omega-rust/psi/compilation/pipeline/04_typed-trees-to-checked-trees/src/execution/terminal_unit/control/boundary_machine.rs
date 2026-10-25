@@ -927,7 +927,12 @@ pub(crate) fn boundary_result_plan(
     // body still owes their separately checked settlement.
     Some(CheckedBoundaryMachineResultPlan::Structural {
         type_identity: shapes.add_type(type_reference, binders, substitutions)?,
-        multiplicity: crate::checks::type_multiplicity(program, type_reference),
+        // Source copyability does not settle a materialized loan carrier.
+        // Public declarations and ordinary receiving calls share its custody.
+        multiplicity: validation::reference_result_custody::result_multiplicity(
+            program,
+            type_reference,
+        ),
         qualifications: parameter_qualifications(program, shapes, type_reference, binders)?,
         projected_qualifications: projected_result_qualifications(
             program,
