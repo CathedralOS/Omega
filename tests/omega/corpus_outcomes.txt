@@ -10367,31 +10367,31 @@ fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected reje
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/open_record_const_implementation_through_call_result_rejected rejected 1615ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_call_result_rejected rejected 1367ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_const_name_rejected rejected 88ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_const_name_rejected rejected 157ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_field_rejected rejected 1477ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_field_rejected rejected 1387ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_local_rejected rejected 2329ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_local_rejected rejected 1143ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_match_join_rejected rejected 2897ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_match_join_rejected rejected 1059ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_other_machine_rejected rejected 2498ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_other_machine_rejected rejected 1221ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_other_state_rejected rejected 2198ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_other_state_rejected rejected 1044ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_parameter_rejected rejected 2417ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_parameter_rejected rejected 1199ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_target_body_rejected rejected 2591ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_target_body_rejected rejected 1087ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/record_layout_geometry_unproved_call_result rejected 3932ms expected @45cbafd80d9c
@@ -24107,23 +24107,15 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 22317ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 22767ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 21843ms check-target:macos_arm64 @8f970335dca4+wt
-pass/facts/open_record_const_implementation_through_call_result_exit checked 806ms check-target:macos_arm64 @e250c3425d3f+wt
-pass/facts/open_record_const_implementation_through_const_name_exit rejected 97ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_field_exit rejected 2730ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_local_exit rejected 1707ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_match_join_exit rejected 2151ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_machine_exit rejected 1880ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_state_exit rejected 2388ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_parameter_exit rejected 3002ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_target_body_exit rejected 2345ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/facts/open_record_const_implementation_through_call_result_exit checked 3095ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_const_name_exit checked 10223ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_field_exit checked 3080ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_local_exit checked 3085ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_match_join_exit checked 3067ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_other_machine_exit checked 3077ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_other_state_exit checked 3067ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_parameter_exit checked 3068ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_target_body_exit checked 3101ms check-target:macos_arm64 @3ddc7d1455f1+wt
 pass/facts/record_layout_geometry_through_call_result_exit checked 7952ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_const_name_exit checked 7761ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_field_exit checked 7941ms check-target:macos_arm64 @45cbafd80d9c
