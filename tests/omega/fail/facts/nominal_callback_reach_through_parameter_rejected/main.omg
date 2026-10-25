@@ -1,0 +1,38 @@
+// Invalid: `noise` has no `satisfies StepContract::step`, so the selection
+// cannot establish the binder contract. A nominal Step callback selection contributes its specialized reach row;
+// its result is passed as a parameter and read there.
+// Place: parameter.
+// Expected exit: 0
+trait StepContract {
+    machine step(value: u64) -> u64;
+}
+
+machine noise(value: u64) -> u64
+{
+    7
+}
+
+machine bump(value: u64) -> u64
+satisfies StepContract::step
+{
+    42
+}
+
+machine walk<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+{
+    Step(value)
+}
+
+machine consume(observed: u64) -> u64 {
+    observed
+}
+
+machine main() crashes Trap {
+    transition consume(walk<noise>(35)) == 42u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}
