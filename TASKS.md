@@ -407,8 +407,7 @@ defines the complete product bar.
   - **Computed calls and state transfers:** finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results, cyclic/opaque/provider/dependent result
-    composition (public mutating-provider post-state contracts consumed by dependent
-    producers, copied returns through ranked identities and public local-dyn slots, and returned
+    composition (copied returns through ranked identities and public local-dyn slots, and returned
     window extents as mathematical endpoint differences), and runtime-dispatched
     value construction on the common `EstablishStructuralValue` route through
     ordinary argument evaluation. Preserve once-only field/operand order,
@@ -416,7 +415,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
@@ -1022,8 +1021,23 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     staging. Publication funds and validates receiving rows before retiring
     sources, including activation split/merge result cases. Exact/short-budget
     source controls exercise cases, byte fields and claim division through fuel
-    pauses, sticky refusal and teardown. Provider/activation ledgers and
-    descriptors, and cumulative result custody remain.
+    pauses, sticky refusal and teardown. Activation ledgers, live claims and
+    descriptor/owner rows now retain reservations through construction, transport,
+    division and retirement; division stages both outcomes before source custody
+    changes. Provider allocation/resident records and descriptor/profile rows
+    now reserve through entry binding, constructor transport and lifecycle
+    completion before byte writes or source retirement. Source-produced resident
+    initialization/extraction preserves original backing through borrowed/loaded
+    execution, exact/short budgets, fuel pauses and handback. Compiler-owned
+    initialization/extraction image payloads now reserve before allocation through encoding,
+    nested/array staging and decoding; caller-owned codec scratch removes the
+    hidden duplicate image. Exact/short payload controls separately refuse
+    initialization and extraction without publishing custody. Provider field-access
+    transfer windows use the same payload owner through the single external
+    write; caller-private scalar staging removes the duplicate codec image and
+    scalar decoding uses bounded inline storage. External read/write source
+    controls cover exact/short budgets, borrowed/loaded artifacts, fuel pauses
+    and sticky refusal. Cumulative result custody remains.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build

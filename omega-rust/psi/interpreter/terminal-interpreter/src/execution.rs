@@ -486,7 +486,9 @@ impl<'artifact> TerminalExecution<'artifact> {
         let mut execution = Self {
             failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
-            activation_storage: Default::default(),
+            activation_storage: crate::activation_storage::RuntimeActivationStorage::new(
+                account.as_ref(),
+            ),
             program: std::sync::Arc::clone(&program),
             boundary_supplies: installation
                 .map(|installation| installation.supplies.clone())
@@ -509,7 +511,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_scalar_collection_identity: 1024,
             structural_scalar_fields: RuntimeRows::new(account.as_ref()),
             private_entry_ram: Vec::new(),
-            provider_storage: Default::default(),
+            provider_storage: crate::provider_storage::RuntimeProviderStorage::new(
+                account.as_ref(),
+            ),
             entry_storage_open: true,
             structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_storage: RuntimeRows::new(account.as_ref()),

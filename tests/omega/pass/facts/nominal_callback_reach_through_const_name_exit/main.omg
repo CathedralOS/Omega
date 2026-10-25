@@ -1,0 +1,35 @@
+// A nominal Step callback selection contributes its specialized reach row;
+// a const name supplies the argument the selected callback matches on.
+// Place: const name.
+// Expected exit: 0
+trait StepContract {
+    machine step(value: u64) -> u64;
+}
+
+const BASE: u64 = 35;
+
+machine bump(value: u64) -> u64
+satisfies StepContract::step
+{
+    transition value == 35u64 {
+        true -> hit()
+        _ -> miss()
+    }
+    state hit() -> u64 { 42 }
+    state miss() -> u64 { 0 }
+}
+
+machine walk<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+{
+    Step(value)
+}
+
+machine main() crashes Trap {
+    transition walk<bump>(BASE) == 42u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

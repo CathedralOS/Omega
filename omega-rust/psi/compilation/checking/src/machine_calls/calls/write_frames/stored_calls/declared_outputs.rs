@@ -1,6 +1,7 @@
-//! Capture an admitted output's lifetime dependencies from the same pre-call
-//! inventory as ordinary stored-reference effects. The output's pointer is not
-//! any of these places: opaque admission, not input geometry, establishes it.
+//! Capture signature outputs' lifetime dependencies at the actual pre-call cut.
+//! A checked body or provider admission separately establishes backing/access.
+//! These debts never locate the output inside an input; ordinary public region
+//! coverage is published separately by completed-value flow.
 use super::*;
 use crate::borrow_contracts::{
     ProviderOutputDestination, ViewReturnInputSource, resolve_provider_outputs,

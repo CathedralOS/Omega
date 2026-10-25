@@ -13,6 +13,12 @@ pub(crate) struct ByteSequenceStorage {
     account: Option<EvaluationInvocationAccount>,
 }
 
+impl AsRef<[u8]> for ByteSequenceStorage {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes()
+    }
+}
+
 impl ByteSequenceStorage {
     pub(crate) fn zeroed(
         length: usize,

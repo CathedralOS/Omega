@@ -29,6 +29,7 @@ use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
+use super::structural_prefix::PrefixObservation;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -626,6 +627,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for SelectedReferentGoal<
             guarantees,
         );
     }
+
+    /// This visitor forwards to the inner requirement, which owns the premises
+    /// intake and the observation of the site's arm.
+    fn observe<'program>(&mut self, _observation: PrefixObservation<'_, 'program>) {}
 }
 
 fn expression_contains_match(
@@ -951,6 +956,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_>
         self.terms
             .extend(entries.into_iter().map(|entry| entry.arguments));
     }
+
+    /// Captured arguments owe no premises: this visitor reads operand rosters
+    /// and deliberately skips the arm's hypotheses, equations and guarantees.
+    fn observe<'program>(&mut self, _observation: PrefixObservation<'_, 'program>) {}
 }
 
 fn overlay_environment(
@@ -997,56 +1006,46 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        let _s = phase_profile::guard("05.d.7.3b.1.cap.2e_visit");
+    fn entered(&mut self) {
         self.seen = true;
-        let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if site_judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut site_judge);
-        if !judge.has_runtime_body_values()
-            && let Some(state) = program.state_in_machine(machine, self.state)
-        {
+    }
+
+    fn unresolved(&mut self, _machine: &Machine) {
+        self.proven = false;
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (program, machine, state, mut judge, environment) = observation;
+        let _s = phase_profile::guard("05.d.7.3b.1.cap.2e_visit");
+        // Runtime invocations transport only checked tag guarantees. Their saved
+        // results are individual values, not mathematical applications or an IH.
+        if !judge.has_runtime_body_values() {
             intake_state_induction(
                 program,
                 machine,
                 state,
                 self.statement_index,
                 environment,
-                &mut site_judge,
+                &mut judge,
             );
         }
-        let Some(caller_state) = program.state_in_machine(machine, self.state) else {
-            self.proven = false;
-            return;
-        };
         let entries = if self.call_expression.is_valid() {
-            let Some(entries) = site_judge.normal_operation_entries(
+            let Some(entries) = judge.normal_operation_entries(
                 self.statement_index,
                 self.call_expression,
                 environment,
-                (machine, caller_state, caller_state.return_type),
+                (machine, state, state.return_type),
             ) else {
                 self.proven = false;
                 return;
             };
             entries
         } else {
-            let Some(entries) = site_judge.normal_argument_entries(
+            let Some(entries) = judge.normal_argument_entries(
                 self.arguments,
                 self.parameters,
                 environment,
-                (machine, caller_state, caller_state.return_type),
+                (machine, state, state.return_type),
                 self.call_site,
             ) else {
                 self.proven = false;
@@ -1081,7 +1080,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                             site,
                             &entry.arguments,
                             machine,
-                            caller_state,
+                            state,
                         )
                     },
                 ) else {
@@ -1105,7 +1104,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.proven = false;
                     return;
                 };
-                site_judge.frame_resolver().and_then(|frames| {
+                judge.frame_resolver().and_then(|frames| {
                     frames.expression_call_reference_subjects(
                         owner_machine,
                         self.call_expression,
@@ -1147,7 +1146,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                                     subject,
                                     value,
                                     environment,
-                                    (machine, caller_state, caller_state.return_type),
+                                    (machine, state, state.return_type),
                                 )
                             }),
                     )
@@ -1192,7 +1191,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     self.inherited
                         .as_ref()
                         .map_or(&[], |predicate| predicate.selections.as_slice()),
-                    Some((machine, caller_state)),
+                    Some((machine, state)),
                 ),
                 StructuralJudgment::Proven,
             );

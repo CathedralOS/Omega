@@ -236,22 +236,52 @@ impl TerminalExecution<'_> {
             }
         };
         let length = allocation.extent().length();
-        let allocation = self
-            .provider_storage
-            .allocations
-            .insert(ProviderStorageSlot::Live {
-                allocation,
-                profile,
-            });
-        self.provider_storage.descriptors.insert(
-            home,
-            ProviderStorageBinding {
-                allocation,
-                offset: 0,
-                length,
-                resident: arena::Handle::default(),
-            },
-        );
+        // No allocation handle is published until both owned records are paid.
+        // Returning the original inputs on refusal leaves entry binding retryable.
+        let lease = self
+            .account
+            .as_ref()
+            .map(|account| account.reserve_storage(1, 0))
+            .transpose()
+            .map_err(crate::errors::TerminalInterpretError::Storage);
+        let receiving = lease.and_then(|lease| {
+            self.provider_storage
+                .descriptors
+                .insert_vacant(
+                    home,
+                    ProviderStorageBinding {
+                        allocation: arena::Handle::default(),
+                        offset: 0,
+                        length,
+                        resident: arena::Handle::default(),
+                    },
+                )
+                .map(|descriptor| (lease, descriptor))
+        });
+        let (lease, descriptor) = match receiving {
+            Ok(receiving) => receiving,
+            Err(reason) => {
+                let (extent, bytes) = allocation.into_parts();
+                return Err(TerminalProviderStorageRejection {
+                    input: TerminalProviderStorageInput {
+                        argument_index,
+                        path,
+                        extent,
+                        profile,
+                        bytes,
+                    },
+                    reason: format!("provider storage admission: {reason:?}"),
+                });
+            }
+        };
+        descriptor.allocation =
+            self.provider_storage
+                .allocations
+                .insert(ProviderStorageSlot::Live {
+                    allocation,
+                    profile,
+                    _lease: lease,
+                });
         Ok(())
     }
 

@@ -273,6 +273,22 @@ impl<'program> CallFrameResolver<'program> {
         .and_then(super::stored_calls::public_effects)
     }
 
+    /// Closed dispatch joins the checked slot-output relation of every possible
+    /// realization. These are custody suppliers, never private predicate facts.
+    pub fn dynamic_stored_reference_effects(
+        &self,
+        target: SymbolHandle,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        let slot = self.program.dynamic_slot_by_symbol(target)?;
+        super::stored_calls::dynamic_effects(
+            self.program,
+            slot,
+            &self.tables.symbols,
+            &mut FrameInference::default(),
+        )
+        .and_then(super::stored_calls::public_effects)
+    }
+
     /// Complete normal-exit reference-slot relation, reconstructed from the
     /// selected body and instantiated in this exact caller prefix. Unknown
     /// evidence is not an empty effect set.
