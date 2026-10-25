@@ -30,6 +30,7 @@ public data SplitResult {
 
 public boundary trait RegionSplit {
     machine split(whole: Region in Owned, head: u64) -> SplitResult
+    reaches
     requires whole.start <= head && head <= whole.end
     ensures
         Owned::content(old(&whole))
@@ -42,7 +43,7 @@ public boundary trait RegionSplit {
 // The custody exit: a selected boundary accepts a residual outright. It
 // admits acceptance of custody, never the partition arithmetic.
 public boundary trait RegionSink {
-    machine accept(piece: Region in Owned);
+    machine accept(piece: Region in Owned) reaches;
 }
 
 // The checked provider must prove the interval partition from its body.
