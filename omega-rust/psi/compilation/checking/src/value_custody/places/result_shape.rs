@@ -63,17 +63,23 @@ pub(crate) fn expression_result_is_reference(
                 let Projection::Field(field) = projections.pop()? else {
                     return None;
                 };
-                let mut definitions = program.data_definitions().iter().filter(|definition| {
-                    if literal.type_symbol.is_valid() {
-                        definition.symbol == literal.type_symbol
-                    } else {
-                        definition.name == literal.type_name
+                // The declaration index owns the row a retained symbol
+                // selects; an unstamped literal keeps its authored spelling.
+                // Either premise refuses a second matching row, so no
+                // same-shaped definition can stand in for the literal's type.
+                let definition = if literal.type_symbol.is_valid() {
+                    program.unique_data_definition_by_symbol(literal.type_symbol)
+                } else {
+                    let mut definitions = program
+                        .data_definitions()
+                        .iter()
+                        .filter(|definition| definition.name == literal.type_name);
+                    let definition = definitions.next()?;
+                    if definitions.next().is_some() {
+                        return None;
                     }
-                });
-                let definition = definitions.next()?;
-                if definitions.next().is_some() {
-                    return None;
-                }
+                    Some(definition)
+                }?;
                 let reference = crate::value_custody::struct_literals::construction_field_type(
                     program,
                     definition,

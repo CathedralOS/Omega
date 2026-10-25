@@ -227,7 +227,7 @@ pub(crate) fn data_definition_for_type(
     // An application without a uniquely retained closed instance still names
     // its exact template. Its fields stay open: this query neither invents a
     // specialization nor supplies a concrete extent from incomplete evidence.
-    super::data_definition_by_symbol(program, symbol)
+    super::unique_data_definition_by_symbol(program, symbol)
 }
 
 /// Resolve a bare local-data or state-parameter name to its declared type.

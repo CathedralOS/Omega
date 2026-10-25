@@ -23,32 +23,22 @@ pub fn declaration_type_reference(
     }
     // Parent links select the declaration's current owner. generated_from is
     // provenance, not a fallback to a template's potentially different type.
+    // The declaring row and both member kinds come from the representation's
+    // indexed tables, whose first-match order the roster walk repeated.
     let data_owner = if owner.kind == SymbolKind::Variant {
         owner.parent
     } else {
         parent
     };
-    for data in program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == data_owner)
-    {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return Some(field.type_reference);
-                }
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
-                    if let Some(type_reference) = program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .find_map(|field| (field.symbol == symbol).then_some(field.type_reference))
-                    {
-                        return Some(type_reference);
-                    }
-                }
-                _ => {}
-            }
+    if let Some(data) = program.data_definition_by_symbol(data_owner) {
+        if let Some(field) = program.data_field(data, symbol) {
+            return Some(field.type_reference);
+        }
+        if owner.kind == SymbolKind::Variant
+            && let Some(variant) = program.data_variant(data, parent)
+            && let Some(field) = program.data_payload_field_by_symbol(variant, symbol)
+        {
+            return Some(field.type_reference);
         }
     }
     let machine_owner = if owner.kind == SymbolKind::State {
