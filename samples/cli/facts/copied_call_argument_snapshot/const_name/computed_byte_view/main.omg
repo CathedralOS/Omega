@@ -14,7 +14,8 @@ ensures result.len == 9
 {
     counter.called = !counter.called;
     destination.bytes = source;
-    source
+    let returned: &[u8] = destination.bytes;
+    returned
 }
 machine install_selected<'storage>(slot: &mut View<'storage>, selected: View<'storage>, ignored: u64) -> u64 {
     slot.bytes = selected.bytes;

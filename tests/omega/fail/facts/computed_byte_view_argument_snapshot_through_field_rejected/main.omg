@@ -13,7 +13,8 @@ ensures result.len == 9
 {
     counter.called = !counter.called;
     destination.bytes = source;
-    source
+    let returned: View = View { bytes: destination.bytes, sibling: "tail" };
+    returned.bytes
 }
 machine install_selected<'storage>(slot: &mut View<'storage>, selected: View<'storage>, ignored: u64) -> u64 {
     slot.bytes = selected.bytes;
