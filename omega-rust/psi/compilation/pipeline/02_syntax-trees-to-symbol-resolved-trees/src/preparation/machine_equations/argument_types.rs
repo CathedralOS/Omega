@@ -220,26 +220,69 @@ fn expression_types<'trees>(
                 return None;
             };
             let mut fields = Vec::new();
-            for (_, mut reference) in receivers {
+            for (authored, resolved) in receivers {
+                // A generic result's resolved declaration still describes its
+                // open binder. The completed syntax type instead selects its
+                // exact nominal owner; lowering retained the item/ordinal join.
+                let mut reference = authored;
                 loop {
-                    reference = match reference {
-                        types::TypeReference::Reference(reference) => {
-                            trees.child_type_reference(reference.referee)
+                    reference = match syntax.type_references.type_reference(reference) {
+                        syntax_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                            *referee
                         }
-                        types::TypeReference::Constrained(reference) => {
-                            trees.child_type_reference(reference.base_type)
-                        }
+                        syntax_trees::types::TypeReferenceNode::Constrained {
+                            base_type, ..
+                        } => *base_type,
                         _ => break,
                     };
                 }
-                let types::TypeReference::Named { symbol, .. } = reference else {
-                    return None;
-                };
-                if trees.data_definition_by_symbol(*symbol).is_none() {
+                let selected = (|| {
+                    let syntax_trees::types::TypeReferenceNode::Named(name) =
+                        syntax.type_references.type_reference(reference)
+                    else {
+                        return None;
+                    };
+                    let declaration = super::super::generic_data::selected_data_item(
+                        syntax,
+                        Some(selection),
+                        name,
+                    )?;
+                    let (_, ordinal) = sources
+                        .data_declarations
+                        .iter()
+                        .find(|(item, _)| *item == declaration)?;
+                    (*ordinal < trees.data_definitions.len())
+                        .then(|| trees.data_definitions[*ordinal].symbol)
+                })();
+                // Retained external declarations already carry their exact
+                // resolved owner. Only a closed observation can use that lane;
+                // an open result binder must use its completed syntax above.
+                let symbol = selected.or_else(|| {
+                    if !closed_type(trees, resolved) {
+                        return None;
+                    }
+                    let mut reference = resolved;
+                    loop {
+                        reference = match reference {
+                            types::TypeReference::Reference(reference) => {
+                                trees.child_type_reference(reference.referee)
+                            }
+                            types::TypeReference::Constrained(reference) => {
+                                trees.child_type_reference(reference.base_type)
+                            }
+                            _ => break,
+                        };
+                    }
+                    match reference {
+                        types::TypeReference::Named { symbol, .. } => Some(*symbol),
+                        _ => None,
+                    }
+                })?;
+                if trees.data_definition_by_symbol(symbol).is_none() {
                     return None;
                 }
                 let Some(field) = trees.symbols.find_child_by_name_and_kind(
-                    *symbol,
+                    symbol,
                     member.member.as_str(),
                     SymbolKind::Field,
                 ) else {

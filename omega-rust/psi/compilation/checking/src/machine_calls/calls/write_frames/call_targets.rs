@@ -36,6 +36,20 @@ pub(super) fn call_argument_types(
             .map(|parameter| parameter.type_reference)
             .collect();
     }
+    if let super::caller_aliases::CallerWriteSite::Expression(expression) = site
+        && let Some(call) = program.expression_table.call_node(expression)
+        && program.call_has_no_runtime_receiver_for_target(call)
+        && let Some(operator) = program.operator_definition_by_symbol(target_symbol)
+        && program.operator_parameters(operator).len() == call.arguments.count() as usize
+    {
+        // This roster contains only explicit operands. A value receiver has
+        // its own origin lane and must never shift argument zero onto self.
+        return program
+            .operator_parameters(operator)
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
+    }
     let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
         receiver
             .is_empty()

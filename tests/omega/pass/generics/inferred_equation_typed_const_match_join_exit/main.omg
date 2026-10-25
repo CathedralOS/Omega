@@ -1,0 +1,22 @@
+// Fact: a selected const call establishes Capacity=2 before an exact array equation and inferred consumer tuple.
+// Expected exit: 0
+machine extent() -> u64 { 2 }
+data IndexedPacket<Value [copy], const Capacity: u64> [copy]
+where Value == [u8; Capacity]
+{ items: Value; }
+machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
+where Length == [u8; Capacity]
+{ Capacity }
+machine joined(flag: bool) -> u64 {
+    let left: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [7, 11] };
+    let right: IndexedPacket<[u8; 2], extent()> = IndexedPacket { items: [19, 23] };
+    let items: IndexedPacket<[u8; 2], extent()> = match flag { true -> left, false -> right };
+    capacity(forward(items).items)
+}
+machine forward<Value [copy]>(value: Value) -> Value { value }
+machine main() crashes Trap {
+    let left_result: u64 = joined(true);
+    let right_result: u64 = joined(false);
+    transition left_result == 2 && right_result == 2 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

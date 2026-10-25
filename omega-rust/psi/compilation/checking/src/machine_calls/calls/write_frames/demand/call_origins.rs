@@ -146,8 +146,10 @@ impl<'program> CallFrameResolver<'program> {
                 let Some(call) = program.expression_table.call_node(expression) else {
                     return None;
                 };
+                let target = typed_trees::operator::resolve_named_expression_call(program, call)
+                    .map_or(call.target_symbol, |operator| operator.symbol);
                 (
-                    call.target_symbol,
+                    target,
                     call.target.as_str(),
                     call.receiver,
                     frames::receiver_member_chain(program, call.receiver).unwrap_or_default(),
@@ -211,7 +213,16 @@ impl<'program> CallFrameResolver<'program> {
                 // data through explicit operands. A trait namespace retained
                 // on the call is not an implicit receiver storage origin.
                 let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
-                    || program.dynamic_slot_by_symbol(target).is_some();
+                    || program.dynamic_slot_by_symbol(target).is_some()
+                    || match site {
+                        CallerWriteSite::Expression(expression) => program
+                            .expression_table
+                            .call_node(expression)
+                            .is_some_and(|call| {
+                                program.call_has_no_runtime_receiver_for_target(call)
+                            }),
+                        _ => false,
+                    };
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
