@@ -48,5 +48,18 @@ NEGATIVES = tuple("fail/drops/" + name for name in (
 )) + tuple(f"fail/facts/returned_linear_residual_through_{place}_rejected" for place in PLACES)
 
 
+def positives_for_target(target):
+    # These existing descriptor controls bind the 64-bit C imports on macOS
+    # and Linux. Windows cleanup uses its separate CRT declaration and ABI.
+    if target in ("macos_arm64", "linux_x86_64"):
+        return POSITIVES + (
+            "pass/host/runtime_descriptor_output_streams_exit",
+            "pass/host/runtime_descriptor_direct_array_exit",
+        )
+    return POSITIVES
+
+
 if __name__ == "__main__":
-    sys.exit(compiler_pilot.run_suite("compiler-cleanup", POSITIVES, NEGATIVES))
+    sys.exit(compiler_pilot.run_suite("compiler-cleanup",
+                                    positives_for_target(compiler_pilot.corpus_gate.host_target()),
+                                    NEGATIVES))

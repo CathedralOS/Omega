@@ -13,6 +13,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -103,6 +104,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
             digest.update(block)
     summary["runner_sha256"] = digest.hexdigest()
     summary["runner_profile"] = corpus_gate.require_optimized(retained)
+    captures = Path(tempfile.mkdtemp(prefix="artifacts-", dir=output))
+    summary["artifact_directory"] = str(captures)
 
     def corpus(name, fixtures, both=False):
         report_path = output / f"{name}.json"
@@ -110,7 +113,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES):
                      "--filter", ",".join(fixtures), "--json", str(report_path)]
         if both:
             arguments.append("--both")
-        result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL)
+        result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
+                                env=dict(os.environ, OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(captures / name)))
         if result.returncode not in (0, 1):
             raise ValueError(f"{name}: corpus gate exited {result.returncode}")
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,

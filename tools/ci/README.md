@@ -43,7 +43,7 @@ python tools/tests/test_compiler_pilot.py -v
 python tools/ci/compiler_pilot.py
 ```
 
-Reports, the exact corpus runner and its build-profile receipt upload as
+Reports, captured Terminal/native artifacts, the exact corpus runner and its build-profile receipt upload as
 `compiler-regression-OS-SHA-attempt`,
 retained seven days. `summary.json` separates build and test timing and identifies
 the producer. The 30-minute job does not cancel a running predecessor; pending
@@ -57,6 +57,8 @@ ordered parent/child hooks, partial construction, replacements and the nine
 returned-linear-child places with their reject twins; it uses the same corpus
 execution and report validator as smoke. Authored output must be observed by
 both engines. It does not change admission, scheduled smoke or any golden.
+The macOS/Linux roster also preserves the existing descriptor output controls
+for C pointer/count pairs, projected storage and separate stdout/stderr.
 
 ```text
 gh workflow run compiler-regression.yml --ref BRANCH -f cleanup=true
