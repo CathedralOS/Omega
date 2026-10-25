@@ -59,5 +59,8 @@ on another host are not claimed. No substitute operation supplies portability.
 The parent's Linux ARM64, other-host indirect result, borrowed-descriptor and
 retained-backing requirements remain open.
 
-Current implementation and witness checkpoint: final optimized public runs,
-bounded corpus validation, independent review and publication are pending.
+The root and all nine places execute with native/Terminal agreement at exit 0
+on macOS ARM64. Their ten copy-only controls reject after consumption. The
+matching corpus pins enforce the same authored outcomes; other-host integer
+record regressions exercise the shared admission without claiming CoreGraphics
+execution there.
