@@ -92,7 +92,7 @@ enum Position {
 /// that origin lets an instance meet the same application spelled directly.
 /// The instance may carry lifetime arguments of its own; they supply no type
 /// argument.
-fn application_form(
+pub(super) fn application_form(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> TypeReferenceHandle {

@@ -407,8 +407,8 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
             {
                 literals.push(literal);
             }
-            // Every named type operand needs its carrier, including phantom
-            // caller binders used only in static arguments. Consult the binder
+            // Every named binder operand needs its reference, including phantom
+            // caller binders used only in application arguments. Consult the binder
             // declaration, not forwarded_type: that query requires the very
             // Named node this producer is responsible for materializing.
             if argument.application.is_none()
@@ -418,7 +418,12 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
                     SymbolKind::Data | SymbolKind::BuiltinType
                 ) || program.data_type_parameters.iter().any(|(_, parameter)| {
                     parameter.symbol == argument.symbol
-                        && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                        && matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Type
+                                | typed_trees::data::TypeParameterKind::Const { .. }
+                                | typed_trees::data::TypeParameterKind::Value { .. }
+                        )
                 }))
                 && let Some(name) = argument.path.last()
                 && !types.iter().any(|(symbol, _)| *symbol == argument.symbol)

@@ -1944,6 +1944,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   pass `omega run --both` across hosts with invalid construction/bounds/retag
   twins rejecting.
 
+  Linux x86-64 now has native/Terminal agreement for both existing nine-place
+  rows, the named acceptance fixtures, and the forwarded descriptor production
+  under `runtime_index_application/forwarded` (including same-index mutable
+  loans and reference forwarding). Construction/bounds/retag and static-kind
+  controls reject. Keep this outcome open: the other three hosted execution
+  environments have not been observed; explicit-target image production is not
+  native/Terminal execution on those hosts.
+
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
@@ -2037,10 +2045,10 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   and `omega-rust/psi/compilation/checking/src/borrow_contracts.rs`) under
   [invocation contracts](wiki/spec/language/state_contracts.md) and
   [subject preservation](wiki/spec/language/termination.md#subject-preservation):
-  - Complete ordinary parser-gate package admission without bypassing the
-    standard library's `FloatMeaning` proof contracts: `omega update --project
-    tests/psi/parser --target linux_x86_64` refuses ten unsupported entailments
-    in `source/library/std/math.omg` on the current baseline as well.
+  - Complete ordinary parser-gate package admission through the normal project
+    authority review without bypassing the standard library's `FloatMeaning`
+    proof contracts: `omega update --project tests/psi/parser --target
+    linux_x86_64` must publish accepted inputs before the parser check.
     Retain the may-write nine-place fact rows and their overlapping rejects.
 
   Acceptance: all R5 nine-place fact rows and finite write-cycle / parameter-permutation
