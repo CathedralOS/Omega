@@ -237,10 +237,10 @@ conversation. Include:
 - Claim with `python3 tools/claims.py` before editing, and keep the note
   current: parent task, requirement removed, remaining acceptance, witness,
   current failure, next action, prerequisites
-- Publish only through `python3 tools/landing.py`. A Cursor branch or pull
-  request for that branch is the worker's checkout, not the landing. Leave
-  the pull request unmerged. After `landing.py` has fast-forwarded main,
-  delete the candidate branch as AGENTS.md requires
+- Publish the validated Cursor branch as a PR through the native merge queue
+  in tools/landing.md. Enqueue it, wait for MERGED, and verify its source head
+  and published commit in fetched main. An open PR is not completion. No local
+  lease or repeated author build/review merely for a queue-generated SHA
 - Report the actual OS. State Windows, macOS, and QEMU acceptance as
   unavailable on a Linux machine
 - Jev advisories run when the worker environment already has
@@ -254,7 +254,7 @@ conversation. Include:
 
 The worker keeps one Rust build active on its own machine. The coordinator
 does not build a compiler to warm the workers. Batch that machine's whole
-gate-and-landing chain into its own single hold
+local build/test chain into its own single hold, releasing it before GitHub waits
 ([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain));
 separate VMs cannot share or upload a build pool, so per-machine batching is
 the play.
@@ -292,7 +292,8 @@ because a witness landed or a worker ended its turn.
 
 Release a claim only for a slot whose owner has stopped and whose outcome has
 landed or been abandoned. Keep dirty unpublished work. Remove only a clean
-worktree whose head is an ancestor of fetched main.
+worktree whose head matches the merged PR source and whose published commit is
+in fetched main; squash publication does not preserve source-head ancestry.
 
 Report the requested count, the launched count, each linked session, the base
 SHA, the parent capability, requirement removed, remaining acceptance, sample,

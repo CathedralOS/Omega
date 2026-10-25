@@ -11,7 +11,7 @@ overlapping paths is reported as an overlap, and the sessions reconcile their
 changes at rebase. --allow-overlap remains accepted for older callers and
 changes nothing.
 Expired unresolved records remain until explicit release/recovery. Automatic
-reserve excludes duplicate outcome/session dispatch; ordinary claim stays advisory. Every mutation compares the prior object like tools/landing.py; see
+reserve excludes duplicate outcome/session dispatch; ordinary claim stays advisory. Every mutation compares the prior object; see
 claims.md.
 """
 

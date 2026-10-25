@@ -310,20 +310,14 @@ cancellation; interruption alone does not prove child processes stopped.
 
 ## Integrate only within authorization
 
-Keep native workers' candidates in local branches; their commits are already
-available on the shared filesystem. No remote worker branch or force-push is
-needed. Review and integrate one verified candidate at a time in an isolated
-integration worktree, preserving both intents in conflicts. Resolve substantive
-ambiguities with the owner rather than guessing.
-
-For authorized publication, use the current `tools/landing.py` workflow: prepare
-and validate, obtain the required exact-commit receipt, enqueue/claim, rebase onto
-the reserved base, and revalidate changed inputs. If rebasing changes HEAD, run
-`python3 tools/landing.py verify --base <reserved-base>` again for that exact candidate SHA
-even when ordinary test evidence is reusable, then publish. Respect its lease and
-clean-tree requirements. Never use merge commits, direct main pushes or a batch-merge bypass. A lane is
-`landed` only after its candidate is verified as an ancestor of fetched
-`origin/main`; local integration is `candidate_ready`.
+Each implementation owner validates its submitted change, pushes an owned PR
+branch, and uses the native merge queue in tools/landing.md. GitHub integrates
+current main; do not recreate the old lease/rebase/build-receipt loop around it.
+Resolve actual conflicts or failed checks while preserving both intents.
+Substantive ambiguities require investigation, not a guessed merge.
+A lane is `landed` only after its PR is MERGED, its submitted head matches, and
+the published commit is in fetched main. Squash publication may change commit
+identity; preserve source evidence separately. Never push main directly.
 
 Coordinator-owned board updates follow actual evidence: remove an item only when
 its program acceptance passes, otherwise replace its frontier rather than append

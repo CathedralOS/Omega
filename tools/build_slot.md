@@ -35,21 +35,18 @@ longer than any per-step re-acquisition pattern can survive inside a
 
 ## One hold for a whole chain
 
-Cover every step a chain needs — checks, tests, corpus runs, builds and the
-scripted landing sequence — with a single acquisition:
+Cover local checks, tests, corpus runs and builds with a single acquisition:
 
 ```sh
 python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash chain.sh
 ```
 
 `hold()` exports `OMEGA_BUILD_SLOT_HELD=1` into everything it wraps, and the
-flag is inherited: a nested `build_slot.py`, `corpus_gate.py`'s runner build,
-and `landing.py`'s verify checks all see it and short-circuit instead of
-queueing again, so the whole chain costs one slot wait and the landing
-re-verify cannot lose its lease to the queue
-([landing](landing.md#land-from-one-scripted-invocation)). Run the chain's
-steps strictly sequentially; a candidate whose verify checks no packages
-(docs-only changes) needs no hold at all.
+flag is inherited: nested `build_slot.py` and `corpus_gate.py` runner builds
+short-circuit instead of queueing again. Run the local steps sequentially.
+Release the slot before pushing a PR or waiting for GitHub's merge queue;
+[landing](landing.md) runs its integration check on GitHub, not in this pool.
+Docs-only changes need no compiler-build hold.
 
 ## Diagnostics don't queue with chains
 

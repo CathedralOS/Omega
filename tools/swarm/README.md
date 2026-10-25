@@ -180,7 +180,7 @@ before dispatch under [AGENTS.md](../../AGENTS.md#delegation).
 `worktree_status.py` is the local wave's `status`/`report` equivalent. At
 drain, collect worker evidence notes first: `python3 tools/claims.py notes`
 lists findings workers attached to their claim tickets; fold what they
-justify into one board sweep commit (landing it takes `--board-update`), then
+justify into one board sweep PR through the native merge queue, then
 `python3 tools/claims.py sweep --owner <wave>` marks this wave's notes
 consumed while leaving sibling waves' pending evidence alone. Finish with
 `python3 tools/swarm/fill.py --manifest tools/swarm/waves/<wave>.json close`
@@ -218,7 +218,7 @@ the registry's 480-minute default.
 
 The local template differs from the cloud one where the waves proved it
 matters: outcome ownership with advisory path overlap, `mbx` instead of Cargo,
-the worktree/`git stash` rules, validate-before-claim landing order, and a
+the worktree/`git stash` rules, validate-once PR submission, and a
 per-host block generated from `platform` (Intel macOS gets the
 `--target linux_x86_64` workaround).
 
@@ -238,8 +238,8 @@ composes with `local --sessions` for partial relaunches.
 The agent-side lessons from macw1–macw3 are baked into
 `prompt_template_local.md` — keep it authoritative rather than re-teaching
 them per prompt: outcome handoffs and advisory path overlaps, no `TASKS*.md` in
-claimed paths, never `git stash` in a wave worktree, validate before claiming
-the landing queue, `mbx gc` on disk exhaustion. What remains genuinely
+claimed paths, never `git stash` in a wave worktree, validate before PR submission,
+release build slots before queue waiting, `mbx gc` on disk exhaustion. What remains genuinely
 coordinator-side:
 
 - Every session on every machine — local subagents, cloud waves, other hosts —

@@ -148,15 +148,16 @@ Reports name outcome, revision, host, commands/results, ticket, commits, remaini
 acceptance and background processes. A source checkpoint is not a passing gate.
 Count completed outcomes, not commits or occupied slots.
 
-Use landing.py and linear history. Rebase current main, preserve incoming behavior
-and revalidate affected inputs. No direct main push or batch-merge bypass.
+Use the native PR/merge queue in tools/landing.md. Validate the submitted change;
+GitHub owns current-main integration. Resolve actual conflicts or failures, not
+every new integration SHA. No direct main push or batch-merge bypass.
 Two advisories order that verification: `tools/jev_attribute.py` ranks a
 commit window for a failing signature before a bisect, and
 `corpus_gate.py --jev` gives the record-safety verdict before any `--record`
 (tools/testing.md).
 Shared executors use local worktrees. Authorized end-to-end owners on independent
 executors publish completed paths through the same queue; do not
-invent remote worker branches or force-push workflows.
+add a second publication path. Each owner pushes its PR branch; no main force-push.
 
 Artifact transport supports review and recovery, not completion or transfer of
 unfinished implementation. The outcome owner retains its context until the

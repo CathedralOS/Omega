@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Native regression watch — the scheduled full native corpus run.
 
-Landing proves a change compiles (`landing.py verify`), and routine validation
+The merge queue checks integration compiles, and routine validation
 runs the native corpus leg only under `--filter` for the behavior an author
 changed (testing.md). Nothing ran the whole native leg, so a program the flow
 had turned green could go red again unnoticed: on 2026-09-29 a snapshot found

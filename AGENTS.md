@@ -424,8 +424,8 @@ profiles bound to the actual binary digests. See
   becomes `mbx check`, `cargo test` becomes `mbx nextest run` (needs
   cargo-nextest 0.9.140 or newer). If `mbx` is unavailable, use Cargo without
   asking. Nextest does not run doctests; use `mbx test --doc`.
-- Wrap a lane's whole gate-and-landing chain in one `tools/build_slot.py`
-  hold: the pool is a race, not a queue, and nested holds short-circuit
+- Wrap a lane's local build/test chain in one `tools/build_slot.py`
+  hold; release it before waiting on GitHub. Nested holds short-circuit
   ([build slots](tools/build_slot.md#one-hold-for-a-whole-chain)).
 - Keep using `cargo fmt` and `cargo clean` directly — `mbx clean` differs.
   Whole-workspace formatting is `python tools/fmt.py`: `cargo fmt --all`
@@ -584,13 +584,16 @@ are byte-sensitive.
 - Overlap is expected and needs no permission. A Git conflict is a design
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
-  breakage lands without one, which is why main must stay green on every host
-  (below).
-- Main stays green on every supported host, for the corpus and for the
-  representative samples. No machine runs all three OSes, so each host with
+  breakage can still land without one; post-merge checks detect those regressions.
+- Keep regressions visible and repair or revert them. Required merge admission is
+  the small GitHub `compiler-check`, not the entire corpus or customer matrix.
+  The hosted Compiler regression workflow runs Linux native/Terminal smoke after
+  merge and nightly. The regressing PR's author owns repair/revert; until
+  attributed, the first observer records the failure and takes triage ownership.
+  No machine runs all three OSes, so each host with
   a native golden runs `python tools/native_watch.py` on a
   schedule ([testing](tools/testing.md#corpus-outcome-gate)). The watch runs
-  the corpus only, and landing requires only a build receipt, so the Windows
+  the corpus only, and admission checks compilation only, so the Windows
   x86-64 development host also runs the full
   `python tools/sample_native_gate.py --programs-only` once a day from Task
   Scheduler ([testing](tools/testing.md#corpus-outcome-gate)); a sample that
@@ -599,8 +602,8 @@ are byte-sensitive.
   programs-only run for this check. Between 1483ea14d01 and 50ace165363, at
   least 10 passing samples, including `basics/print_number`, stopped
   building and no check saw it. Whoever sees a
-  regression bisects it to its first bad commit and repairs it before landing
-  more capability work. Record it in `TASKS.md` only when it cannot be
+  regression attributes it to its first bad commit and drives a focused repair
+  or revert through the queue. Record it in `TASKS.md` only when it cannot be
   repaired in that session, and say exactly what prevents the repair.
 - After landing a sample, an agent may take a bounded
   iteration-performance or test-environment outcome based on an experienced
@@ -694,7 +697,7 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `library` | Bundled packages in `source/library/`, including `core`, `alloc`, `std`, and ordinary domain packages. A compiler semantic fix exercised by library code keeps its compiler lane. |
 | `samples` | Standalone sample/example content and presentation in `samples/` or example directories. A regression fixture for an implementation fix keeps that implementation's lane. |
 | `tests` | Shared test infrastructure, corpus registration, fixtures, or architecture gates spanning multiple owners. Tests for one responsibility use that responsibility's lane, even in a test-only commit. |
-| `tools` | Repository maintenance/development utilities in `tools/`, including landing reservations and sample-refresh scripts. Bootstrap tools follow the rung/chain rules above; shipped tooling uses `tooling`. |
+| `tools` | Repository maintenance/development utilities in `tools/`, including merge-queue clients and sample-refresh scripts. Bootstrap tools follow the rung/chain rules above; shipped tooling uses `tooling`. |
 | `repo` | Repository-wide workflow, agent instructions/skills, CI, workspace/dependency configuration, formatting policy, and Git settings. Includes standalone policy changes in `AGENTS.md` and `.claude/`. |
 | `docs` | Explanatory documentation-only changes in `wiki/`, README files, or guides. Executable agent instructions use `repo`; documentation accompanying an implementation change keeps its implementation lane. |
 
@@ -753,18 +756,17 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   replays or rebuilds output the same compile just produced. Verifiers stay
   exercised by the corpus runner and tests, off the default compile path. See
   [verification placement](omega-rust/pipeline.md#verification-placement).
-- **Never push to `main` directly.** Reserve and publish through
-  `tools/landing.py` ([tools/landing.md](tools/landing.md)); history is
-  linear — rebase onto `main` and fast-forward, never merge
-  (`git config pull.rebase true`). Once a publish completes, remove the
-  worktree and delete the candidate branch — a landed lane is dead
-  bookkeeping, not a record. Land only finished work: every commit builds on
-  its own, because main is bisected one commit at a time, and no commit says
-  its own validation or review is still pending. `landing.py` refuses both.
-  The owner-authorized [GitHub queue pilot](tools/ci/README.md) may publish
-  `ci-pilot/*` branches and PRs targeting only `integration-pilot`. This is an
-  isolated experiment, not authorization to bypass main's landing path or
-  switch other agents before the queue's acceptance is demonstrated.
+- **Never push to `main` directly.** Publish a finished branch as a PR and use
+  GitHub's native merge queue ([tools/landing.md](tools/landing.md)). The queue
+  checks the integrated candidate and squash-merges one PR into one main commit.
+  Do focused validation and any required review on the submitted change; do not
+  repeat author rebase/build/review merely because main or the integration SHA
+  moved. Resolve actual conflicts, failures and changed semantic premises.
+  `tools/landing.py` only observes/enqueues the native queue: no local lease,
+  exact-SHA build receipt or direct-publication path remains. An open PR is not
+  completion. Verify MERGED, its exact submitted head and published main commit,
+  then remove only task-owned clean worktrees/branches without later unpublished
+  edits. Preserve run identities; CI admission is not full runtime qualification.
 - Before editing shared paths, check `python tools/claims.py status` and
   record a claim for your work ([tools/claims](tools/claims.md)) so other
   sessions can see it. Claims never grant or block work. If coordination is

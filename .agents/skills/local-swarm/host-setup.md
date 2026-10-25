@@ -158,12 +158,10 @@ Wrap the chain instead — one acquisition, strictly sequential steps:
     python3 tools/build_slot.py --slots 2 --timeout 5400 -- bash chain.sh
 
 `hold()` exports `OMEGA_BUILD_SLOT_HELD=1` into everything it wraps, and
-nested pool users — a nested `build_slot.py`, `corpus_gate.py`'s runner build,
-`landing.py`'s verify checks — inherit it and short-circuit, so check → crate
-tests → scoped corpus gate → the scripted landing sequence (verify → enqueue →
-claim → rebase → re-verify → note → publish → remote ancestor check) costs one
-acquisition and the in-lease re-verify cannot lose its 180-second lease to the
-queue
+nested pool users — a nested `build_slot.py` and `corpus_gate.py`'s runner build —
+inherit it and short-circuit. Local check → crate tests → scoped corpus gate
+costs one acquisition. Release the hold before submitting or waiting for
+GitHub's merge queue; integration builds run on GitHub
 ([build slots](../../../tools/build_slot.md#one-hold-for-a-whole-chain)).
 
 Two habits keep a killed lane cheap to resume, learned across two host
@@ -185,27 +183,21 @@ The fix loop is not the chain. Repairing a compile error or a red test is a
 minutes-scale check-edit-check loop; running each iteration as its own chain
 attempt pays the multi-hour wait for a one-line fix. Do the loop inside the
 ONE chain hold when you have it (acquire once, iterate until green, then
-continue straight through the gates and the landing lease in the same hold),
+continue through the local gates, then release before PR submission),
 and run quick single-crate checks in the separate diag pool
 ([build slots](../../../tools/build_slot.md#diagnostics-dont-queue-with-chains))
 when you need one before a chain, so diag work never contends with the two
 chain slots.
 
-## Fold the queue-bound tail into one loop
+## Submit once to the merge queue
 
-When the queue is the bottleneck — waiters roughly two or more times the
-slots — stop giving every lane its own driver. Prepared lanes (commit ready,
-evidence recorded, no live owner) go through ONE loop calling one canonical
-tool, [lane_land](../../../tools/lane_land.md); each lane then costs one pool
-acquisition with no per-lane script to reinvent the lease, the guard, or the
-ticket plumbing. Agents earn their keep for parallel *thinking* — exploration,
-diagnosis, edits across independent crates — not for parallel *waiting*: a
-parked child produces nothing a waiter line cannot. Measured 2026-10-24:
-agent-carried ready lanes waited 8-16 h each, several unlanded; lanes of the
-same kind through the folded loop landed in ~11 minutes to 1.5 h with zero
-child management, including two lanes whose per-lane chains had failed all
-day. Keep queue depth near the slot count by folding; spend the freed agents
-on work that needs them.
+After focused validation and required review, push the source branch, open a PR,
+and follow [landing](../../../tools/landing.md). GitHub checks the integrated
+candidate and serializes publication. Main advancing does not send the author
+back through a rebase/build/review loop. Resolve actual conflicts or failed
+checks, and verify the merged PR's source head and published squash commit.
+Do not keep local build slots occupied while waiting. The old `lane_land`
+lease driver is retired; do not recreate it in per-lane scripts.
 
 ## Bound the shared disk safely
 

@@ -1099,7 +1099,7 @@ def bind_existing(record, value):
     resources = prior["resources"]
     require(fresh(resources) and resources.get("evidence")
             and resources.get("claims_state") in {"claimed", "available"}
-            and resources.get("landing_state") in {"available", "queued", "reserved", "expired", "legacy_queue", "legacy_reserved"}
+            and resources.get("landing_state") in {"github-merge-queue", "available", "queued", "reserved", "expired", "legacy_queue", "legacy_reserved"}
             and resources.get("claims") == []
             and resources.get("landing_tickets") == [] and isinstance(resources.get("workspaces"), list)
             and resources["workspaces"], "prior resource ownership not reconciled")

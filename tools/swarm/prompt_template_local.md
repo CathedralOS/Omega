@@ -119,11 +119,9 @@ its frontier in the claim note and the sample README first.
   across worktrees, so one worktree's `stash pop` can consume another's
   stash. Baseline comparisons belong in a WIP commit or a separate scratch
   worktree.
-- Validate before claiming the landing queue. The head lease is a fixed
-  180 seconds starting at promotion, and a post-enqueue rebase that rebuilds
-  dependencies burns it. Claim the queue only when your rebase will be a
-  no-op: validate, `git fetch origin && git rebase origin/main`, re-validate
-  if anything moved, then claim.
+- Validate the source before PR submission. Release local build slots before
+  waiting for GitHub's merge queue. Main movement alone requires no author
+  rebase, rebuild or repeated review; address actual conflicts or failed checks.
 - Check actual free disk before builds. On pressure, coordinate supported MBX
   GC with the coordinator; inspect `mbx gc --dry-run` first. Cache budgets do not
   bound unmanaged outputs. Do not delete another slot's active targets,
@@ -145,24 +143,19 @@ reasoning (AGENTS.md commit convention).
 
 ## Landing
 
-Publish only through `python3 tools/landing.py` with
-`--owner "{owner_label}"` — never a direct push. Rebase onto current
-`origin/main` and validate immediately before claiming the head. On lease
-expiry, release the ticket and rejoin the queue; never bypass the
-reservation. `landing.py` requires full lowercase 40-character SHAs for
-`--base` and `--candidate`; `publish` takes `--claim <ticket>`, and its
-`--base` must equal the reserved base the claim printed (main may move
-between `enqueue` and `claim` — rebase onto the reserved base, not the
-base you enqueued with); an expired head leaves your commit intact —
-re-enqueue it after the queue clears.
+Follow `tools/landing.md`: validate and review the submitted source, push its
+branch, open a PR, then `python3 tools/landing.py enqueue NUMBER --expected-head
+FULL_SOURCE_SHA`. GitHub checks integration and squash-merges; never push main.
+Verify the merged PR's source head and published commit on fetched main before
+cleanup. Source HEAD itself need not be an ancestor of main after squash.
 When a rebase or merge conflicts, first ask which abstraction both sides are
 trying to express. If one general operation covers both, implement that and
 delete the superseded path in the same commit, as AGENTS.md requires for
 touched operations. If no single abstraction covers both, name in the commit
 body the two cases it cannot unify. A conflict-free merge can still break the
-build or a sibling outcome, so rebuild every commit you carry after resolving.
-Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
-(or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
+build or a sibling outcome, so validate affected inputs after resolving.
+Record owner `{owner_label}`, actual model/effort when known, validation and
+required review in the PR body. Do not invent unavailable provenance.
 
 ## Report
 
