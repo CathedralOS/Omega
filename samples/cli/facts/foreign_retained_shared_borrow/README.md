@@ -26,9 +26,10 @@ observed output has its own explicit `&mut u64` contract.
 
 ## Reproduce on Linux
 
-The fixture declares imports for all four hosted target slots. Only Linux x86-64 was exercised.
-All positive builds bind the four hosted program-entry slots; the other hosts
-have no execution evidence here.
+The fixture declares imports and program-entry bindings for all four hosted
+target slots. Its preparation script builds the matching ELF, Mach-O or PE
+library and checks the same C lifecycle. Native execution is observed on Linux
+x86-64 and macOS ARM64; Windows and Linux ARM64 remain unmeasured here.
 
 ```sh
 python3 samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py
@@ -36,11 +37,25 @@ export LD_LIBRARY_PATH="$PWD/build/foreign_retained_fixture${LD_LIBRARY_PATH:+:$
 build/gate-cli/debug/omega run --both samples/cli/facts/foreign_retained_shared_borrow/local/main.omg
 ```
 
+On macOS ARM64, prepare the same fixture and supply its dylib search directory:
+
+```sh
+python3 samples/cli/facts/foreign_retained_shared_borrow/fixture/prepare.py
+DYLD_LIBRARY_PATH="$PWD/build/foreign_retained_fixture" omega run --both samples/cli/facts/foreign_retained_shared_borrow/local/main.omg
+```
+
 Native execution must report `native exit 0`. The default Terminal host currently
 **declines this custom foreign binding** because it has no trusted implementation.
 That is not interpreter execution or agreement. This row's Terminal acceptance
 and the larger capability remain open. The same compiled native path is exercised
 through all nine places; no host adapter is recognized by sample name in the CLI.
+
+Fresh optimized published-main producer `d313552268ce` checks the local witness
+and runs all nine places natively at exit zero on macOS ARM64. Each corresponding
+Terminal invocation still declines the unoffered foreign implementation. The
+matching-host C self-test passes, and all nine invalid lifecycle subprocesses
+terminate at their deliberate ARM64 trap. These observations establish the
+native prerequisite only; they do not close this row.
 
 | Place | Positive | Invalid twin |
 | --- | --- | --- |
@@ -85,8 +100,8 @@ foreign effects and executes in both engines.
   pointer. Protocol tokens remain ordinary transparent one-word records.
 - Omega 03–06: native calls use ordinary register/stack and activation homes;
   suspended callers retain their frame backing while helpers transport tokens.
-- Omega 07–09/emission: Linux ELF imports execute the authored C lifecycle and
-  native oracle. Windows, macOS and Linux ARM64 execution is unverified.
+- Omega 07–09/emission: Linux ELF and macOS Mach-O imports execute the authored
+  C lifecycle and native oracle. Windows and Linux ARM64 execution is unverified.
 
 This covers the direct shared fixed-record rung. Moved backing, explicit
 snapshots, mutable retention, wider/recursive graphs, more general retained
