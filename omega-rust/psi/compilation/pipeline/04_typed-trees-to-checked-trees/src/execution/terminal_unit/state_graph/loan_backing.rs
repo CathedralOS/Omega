@@ -72,7 +72,7 @@ pub(super) fn retained_storage(
         .handles()
         .nth(argument_position)
         .ok_or("state loan: captured operand position")?;
-    let (parents, operand_parents) = retained_parents(
+    let (parents, mut operand_parents) = retained_parents(
         program,
         facts,
         machine,
@@ -109,18 +109,30 @@ pub(super) fn retained_storage(
             operand_parents,
         });
     };
-    // Every origin must agree on the state-owned home retained for cleanup.
-    // Distinct caller-owned referents all require no local home; their captured
-    // descriptor supplies the address and their complete parent resources above
-    // retain permission. Never choose one referent from the origin alternatives.
+    // A unique backing may use the ordinary whole-home transport. A selected
+    // descriptor can instead name several independently owned homes: retain
+    // every captured possibility through its target parameter, without choosing
+    // one home or granting relocation of any of them. Their checked lifetime
+    // and disposal dependencies remain separate from the selected address.
+    let roots = std::iter::once(root).chain(roots).collect::<Vec<_>>();
     let backing = local_backing_binding(program, facts, state, statement, operations, root)?;
-    for candidate in roots {
-        if local_backing_binding(program, facts, state, statement, operations, candidate)?
-            != backing
-        {
-            return Err("state loan: distinct backing alternatives");
+    let mut common_backing = true;
+    for candidate in &roots {
+        common_backing &=
+            local_backing_binding(program, facts, state, statement, operations, *candidate)?
+                == backing;
+    }
+    if !common_backing {
+        for root in roots {
+            if let Some(parent) =
+                owned_parent_binding(program, facts, state, statement, operations, root)?
+                && !operand_parents.contains(&parent)
+            {
+                operand_parents.push(parent);
+            }
         }
     }
+    let backing = common_backing.then_some(backing).flatten();
     Ok(RetainedStorage {
         backing,
         parents,

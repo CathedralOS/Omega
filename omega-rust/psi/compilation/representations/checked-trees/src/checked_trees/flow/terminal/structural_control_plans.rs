@@ -180,8 +180,9 @@ pub struct CheckedStructuralControlTransferPlan {
     /// loans. Each pair is (dependent result binding, parent result binding).
     /// These lifetime edges grant neither relocation nor disposal authority.
     pub retained_loan_parents: Vec<(u32, u32)>,
-    /// Local parents of this completed by-value operand's stored reference
-    /// leaves. The target parameter, not a constructor spelling, owns them.
+    /// Local parents retained by this completed operand, including every
+    /// possible home of a selected reference. The exact target parameter
+    /// retains their lifetime; it gains no ownership or disposal authority.
     pub retained_operand_parents: Vec<u32>,
 }
 
