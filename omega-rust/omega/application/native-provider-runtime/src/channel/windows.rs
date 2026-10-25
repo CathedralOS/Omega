@@ -95,10 +95,14 @@ impl PreparedChannel {
             hEvent: event.as_raw_handle(),
             ..Default::default()
         };
-        let started = unsafe { ConnectNamedPipe(self.pipe.handle.as_raw_handle(), &mut operation) };
+        let operation = &raw mut operation;
+        let started = unsafe { ConnectNamedPipe(self.pipe.handle.as_raw_handle(), operation) };
         let error = io::Error::last_os_error();
         if started == 0 && error.raw_os_error() != Some(ERROR_PIPE_CONNECTED as i32) {
-            self.pipe.complete(&operation, started, error)?;
+            unsafe {
+                self.pipe
+                    .complete(operation, event.as_raw_handle(), started, error)?;
+            }
         }
         let mut actual = 0;
         if unsafe { GetNamedPipeClientProcessId(self.pipe.handle.as_raw_handle(), &mut actual) }
@@ -144,13 +148,21 @@ pub(crate) fn receive(name: &str, parent_process: u32, timeout: Duration) -> io:
 impl Channel {
     /// An outstanding operation borrows stack state and the caller's buffer.
     /// On timeout, cancel and observe completion before either is released.
-    fn complete(&self, operation: &OVERLAPPED, started: i32, error: io::Error) -> io::Result<u32> {
+    /// SAFETY: operation, its event, and the I/O buffer remain alive and at
+    /// fixed addresses until this function observes completion. Windows may
+    /// mutate the operation meanwhile; no Rust reference to it may be formed.
+    unsafe fn complete(
+        &self,
+        operation: *mut OVERLAPPED,
+        event: windows_sys::Win32::Foundation::HANDLE,
+        started: i32,
+        error: io::Error,
+    ) -> io::Result<u32> {
         if started == 0 && error.raw_os_error() != Some(ERROR_IO_PENDING as i32) {
             return Err(error);
         }
         if started == 0 {
-            let waited =
-                unsafe { WaitForSingleObject(operation.hEvent, milliseconds(self.timeout)) };
+            let waited = unsafe { WaitForSingleObject(event, milliseconds(self.timeout)) };
             if waited != WAIT_OBJECT_0 {
                 let reason = if waited == WAIT_TIMEOUT {
                     io::Error::new(io::ErrorKind::TimedOut, "native worker channel timed out")
@@ -184,17 +196,18 @@ impl Read for Channel {
             hEvent: event.as_raw_handle(),
             ..Default::default()
         };
+        let operation = &raw mut operation;
         let started = unsafe {
             ReadFile(
                 self.handle.as_raw_handle(),
                 output.as_mut_ptr(),
                 output.len().min(u32::MAX as usize) as u32,
                 std::ptr::null_mut(),
-                &mut operation,
+                operation,
             )
         };
         let error = io::Error::last_os_error();
-        match self.complete(&operation, started, error) {
+        match unsafe { self.complete(operation, event.as_raw_handle(), started, error) } {
             Err(error) if error.raw_os_error() == Some(ERROR_BROKEN_PIPE as i32) => Ok(0),
             result => result.map(|count| count as usize),
         }
@@ -210,17 +223,18 @@ impl Write for Channel {
             hEvent: event.as_raw_handle(),
             ..Default::default()
         };
+        let operation = &raw mut operation;
         let started = unsafe {
             WriteFile(
                 self.handle.as_raw_handle(),
                 input.as_ptr(),
                 input.len().min(u32::MAX as usize) as u32,
                 std::ptr::null_mut(),
-                &mut operation,
+                operation,
             )
         };
         let error = io::Error::last_os_error();
-        self.complete(&operation, started, error)
+        unsafe { self.complete(operation, event.as_raw_handle(), started, error) }
             .map(|count| count as usize)
     }
     fn flush(&mut self) -> io::Result<()> {

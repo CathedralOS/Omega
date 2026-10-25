@@ -7,6 +7,7 @@ use std::{
     alloc::{Layout, alloc_zeroed, dealloc},
     ffi::CString,
     io,
+    mem::ManuallyDrop,
     path::Path,
     ptr::NonNull,
 };
@@ -66,19 +67,22 @@ impl Drop for NativeValue {
 
 pub(crate) struct LoadedFrame {
     entry: FrameEntry,
-    _library: Library,
+    // Native constructors can register callbacks that outlive a failed symbol
+    // lookup or this adapter. The dedicated worker exits with code resident;
+    // unloading before process-exit callbacks is not a valid retirement path.
+    _library: ManuallyDrop<Library>,
 }
 impl LoadedFrame {
     /// SAFETY: the isolated worker has authenticated its producing parent;
     /// that parent admitted these exact bytes and this fixed-frame export.
     pub(crate) unsafe fn load(path: &Path, export: &str) -> io::Result<Self> {
-        let library = Library::open(path)?;
         let export = CString::new(export).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "native frame export contains NUL",
             )
         })?;
+        let library = ManuallyDrop::new(Library::open(path)?);
         let address = library.symbol(&export)?;
         // The product export has one fixed signature for every foreign plan.
         // This is not a cast from a runtime-discovered foreign C signature.

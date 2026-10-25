@@ -296,8 +296,9 @@ impl NativeProviderProcess {
         self.exchange(packet)
     }
 
-    /// Retire the physical provider incarnation after native destructors have
-    /// acknowledged closing while their mappings remain live. This is never
+    /// Retire the physical provider incarnation after its close request is
+    /// acknowledged and actual process exit is observed. The worker retains
+    /// libraries and homes throughout native exit callbacks. This is never
     /// a normal completion or release receipt for a guest ownership claim.
     pub fn close(mut self) -> Result<(), NativeProviderError> {
         self.exchange(Packet::new(4))?;
@@ -313,7 +314,7 @@ impl NativeProviderProcess {
             if Instant::now() >= deadline {
                 return Err(io::Error::new(
                     io::ErrorKind::TimedOut,
-                    "native provider did not exit after physical retirement",
+                    "native provider did not exit after retirement request acknowledgement",
                 )
                 .into());
             }
@@ -322,7 +323,7 @@ impl NativeProviderProcess {
         self.retire_process()?;
         if !status.success() {
             return Err(NativeProviderError {
-                reason: "native provider failed after physical retirement acknowledgement".into(),
+                reason: "native provider failed during physical process retirement".into(),
                 status: Some(status),
             });
         }

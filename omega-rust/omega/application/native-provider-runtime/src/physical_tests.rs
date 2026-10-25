@@ -11,9 +11,7 @@ mod native_calls;
 
 #[test]
 fn internal_native_provider_worker() {
-    if let Some(result) = crate::run_worker_if_requested() {
-        result.unwrap();
-    }
+    crate::run_worker_if_requested();
 }
 
 #[test]

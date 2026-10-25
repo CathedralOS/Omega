@@ -45,6 +45,12 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
         ObjectFormat::Coff => "omega_retention_fixture.dll",
     };
     let library = directory.join(name);
+    let version_script = directory.join("provider.map");
+    std::fs::write(
+        &version_script,
+        "RETAIN_1.0 { global: retention_*; local: *; };\n",
+    )
+    .unwrap();
     let compiler = std::env::var_os("CC").unwrap_or_else(|| {
         if cfg!(windows) {
             "clang".into()
@@ -61,10 +67,9 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
                 .arg(format!("-Wl,-install_name,{}", library.display()));
         }
         ObjectFormat::Elf => {
-            command.args(["-shared", "-fPIC"]).arg(format!(
-                "-Wl,--version-script={}",
-                fixture.join("provider.map").display()
-            ));
+            command
+                .args(["-shared", "-fPIC"])
+                .arg(format!("-Wl,--version-script={}", version_script.display()));
         }
         ObjectFormat::Coff => {
             command.arg("-shared");
@@ -73,6 +78,7 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     compile(
         command
             .arg(fixture.join("provider.c"))
+            .arg(manifest.join("src/physical_tests/process_exit.c"))
             .arg("-o")
             .arg(&library),
     );
@@ -100,6 +106,7 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
         ("retention_register", vec![word, pointer], Some(word)),
         ("retention_complete", vec![word, pointer], Some(word)),
         ("retention_release", vec![word], None),
+        ("retention_exit_register", vec![pointer], None),
     ]
     .into_iter()
     .enumerate()
@@ -248,6 +255,8 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
         "physical_tests::internal_native_provider_worker",
         "--nocapture",
     ]);
+    let exit_witness = directory.join("exit-value.bin");
+    command.env("OMEGA_NATIVE_EXIT_WITNESS", &exit_witness);
     #[cfg(windows)]
     {
         let mut paths = vec![directory.clone()];
@@ -259,6 +268,7 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     let mut fresh = NativeProviderProcess::launch(command, TIMEOUT).unwrap();
     let acquire = fresh.install(&products[0]).unwrap();
     let release = fresh.install(&products[3]).unwrap();
+    let retain_until_exit = fresh.install(&products[4]).unwrap();
     let home = fresh.create_home(8, 8).unwrap();
     assert_ne!(home, original);
     assert!(fresh.call(installed[0], &[]).is_err());
@@ -267,6 +277,14 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
     fresh
         .call(release, &[NativeArgument::Value(&capacity)])
         .unwrap();
+    fresh.write_home(home, 0, &91_u64.to_le_bytes()).unwrap();
+    fresh
+        .call(
+            retain_until_exit,
+            &[NativeArgument::Borrowed { home, offset: 0 }],
+        )
+        .unwrap();
     fresh.close().unwrap();
+    assert_eq!(std::fs::read(exit_witness).unwrap(), 91_u64.to_le_bytes());
     std::fs::remove_dir_all(directory).unwrap();
 }

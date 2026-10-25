@@ -71,6 +71,9 @@ jobs:
       - name: Execute ordered cleanup with rejection controls
         if: ${{ inputs.cleanup && !inputs.foreign_records }}
         run: python tools/ci/compiler_cleanup.py
+      - name: Check native provider frames and retained mapped homes
+        if: inputs.foreign_records
+        run: cargo test --locked -p native-production -p machine-emission -p native-provider-runtime
       - name: Check typed scalar aggregate result boundaries
         if: inputs.foreign_records
         run: |

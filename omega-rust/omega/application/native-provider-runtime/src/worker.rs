@@ -1,6 +1,6 @@
 //! One isolated provider incarnation: load exact adapter images, map original
-//! homes, then serve serialized calls. Code remains loaded across registration
-//! and completion. Adapter destructors run before mapped homes are retired.
+//! homes, then serve serialized calls. Code and mappings remain resident until
+//! actual process exit, including native process-exit and TLS callbacks.
 //! A failed call or decoder closes the incarnation; it is never replayed.
 
 use crate::{
@@ -14,6 +14,7 @@ use std::{
     collections::BTreeMap,
     fs::OpenOptions,
     io::{self, Write},
+    mem::ManuallyDrop,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -29,8 +30,9 @@ struct Adapter {
     result: Option<Geometry>,
 }
 struct Worker {
-    // Keep every imported provider/code object alive until the incarnation
-    // closes; a Pending never silently moves into a reloaded library's state.
+    // A Pending never silently moves into a reloaded library's state. The
+    // whole worker is retained through native process teardown, not dropped
+    // before atexit/TLS callbacks can use retained pointers or code.
     adapters: Vec<Adapter>,
     homes: BTreeMap<u64, SharedBacking>,
     directory: PathBuf,
@@ -40,9 +42,11 @@ struct Worker {
 /// child. Absence is an ordinary CLI/test invocation. The private endpoint,
 /// exact parent identity and owned directory come from the launcher; standard
 /// streams carry no control requests and cannot forge a successful response.
-pub fn run_worker_if_requested() -> Option<io::Result<()>> {
-    let endpoint = std::env::var_os(CHANNEL_ENV)?;
-    Some((|| {
+pub fn run_worker_if_requested() {
+    let Some(endpoint) = std::env::var_os(CHANNEL_ENV) else {
+        return;
+    };
+    let result = (|| {
         configure_failure_reporting()?;
         let endpoint = endpoint
             .into_string()
@@ -73,20 +77,21 @@ pub fn run_worker_if_requested() -> Option<io::Result<()>> {
                 .map_err(|_| invalid("native worker parent identity is malformed"))?,
             timeout,
         )?;
-        let mut worker = Worker {
+        let mut worker = ManuallyDrop::new(Worker {
             adapters: Vec::new(),
             homes: BTreeMap::new(),
             directory: directory.into(),
-        };
+        });
         loop {
             let packet = wire::receive(&mut stream)?;
             let mut cursor = Cursor::new(&packet);
             let tag = cursor.byte()?;
             if tag == 4 {
                 cursor.finish()?;
-                // Close native libraries while their retained homes still exist.
-                // This acknowledges physical retirement only, not semantic completion.
-                drop(worker);
+                // Acknowledge the retirement request, then exit the dedicated
+                // process with every native library and home still resident.
+                // The sponsor must observe actual exit before retiring its
+                // mappings. This is never a semantic completion receipt.
                 let mut response = Packet::new(0);
                 response.bytes(&[])?;
                 wire::send(&mut stream, &response.0)?;
@@ -112,7 +117,12 @@ pub fn run_worker_if_requested() -> Option<io::Result<()>> {
                 }
             }
         }
-    })())
+    })();
+    // Never return into an arbitrary embedding runtime after loading native
+    // code. process::exit runs native exit callbacks while the intentionally
+    // retained Worker remains intact; the OS reclaims its mappings afterward.
+    // Errors likewise cannot unmap pointers already retained by a provider.
+    std::process::exit(if result.is_ok() { 0 } else { 1 });
 }
 
 impl Worker {
