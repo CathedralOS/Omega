@@ -33,7 +33,8 @@ use std::collections::BTreeSet;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralArgument, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralTypeShape, TerminalMachine, TerminalModule, Terminator, find_structural_case,
+    StructuralTypeShape, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    find_structural_case,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -56,6 +57,21 @@ pub(super) fn declared_scalar_type(
         }))
         .find(|declaration| declaration.id == value)
         .map(|declaration| declaration.scalar_type)
+}
+
+/// Every value a machine declares: machine parameters, block parameters and
+/// operation scalar results, in machine order. Consumers resolving a `ValueId`
+/// read this roster instead of rebuilding the walk.
+pub(super) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
+    machine
+        .parameters
+        .iter()
+        .chain(machine.block_parameters())
+        .chain(
+            machine
+                .operations()
+                .filter_map(|operation| operation.result.scalar_ref()),
+        )
 }
 
 /// Validate the closed representation foundation needed before the independent

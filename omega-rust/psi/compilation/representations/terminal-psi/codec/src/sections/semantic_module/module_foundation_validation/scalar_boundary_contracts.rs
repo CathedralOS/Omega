@@ -89,15 +89,7 @@ pub(super) fn validate_arguments(
                 "boundary scalar domain requirement has no actual argument",
             ),
         )?;
-        let actual = machine
-            .parameters
-            .iter()
-            .chain(machine.block_parameters())
-            .chain(
-                machine
-                    .operations()
-                    .filter_map(|operation| operation.result.scalar_ref()),
-            )
+        let actual = super::values(machine)
             .find(|value| value.id == *argument)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "boundary scalar membership has no exact value declaration",

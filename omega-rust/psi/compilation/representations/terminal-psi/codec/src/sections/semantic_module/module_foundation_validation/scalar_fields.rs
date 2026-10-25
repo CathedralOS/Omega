@@ -7,7 +7,6 @@ use super::{CodecError, TerminalMachine, TerminalModule, malformed};
 use semantic_vocabulary::{ScalarDomainId, ScalarQualificationSetId, StructuralFieldId, ValueId};
 use terminal_psi::{
     OperationKind, RecordFieldValue, StructuralFieldDeclaration, StructuralTypeShape,
-    ValueDeclaration,
 };
 fn fields(module: &TerminalModule) -> impl Iterator<Item = &StructuralFieldDeclaration> {
     module.structural_types.iter().flat_map(|owner| {
@@ -41,18 +40,6 @@ fn domains(
         ))
 }
 
-fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {
-    machine
-        .parameters
-        .iter()
-        .chain(machine.block_parameters())
-        .chain(
-            machine
-                .operations()
-                .filter_map(|operation| operation.result.scalar_ref()),
-        )
-}
-
 fn required(
     module: &TerminalModule,
     field: StructuralFieldId,
@@ -77,7 +64,7 @@ fn validate_write(
     if required.is_empty() {
         return Ok(());
     }
-    let value = values(machine).find(|row| row.id == value).ok_or(
+    let value = super::values(machine).find(|row| row.id == value).ok_or(
         CodecError::MalformedStructuralFoundation("scalar field write lost its exact SSA source"),
     )?;
     let actual = domains(module, value.qualifications)?;
