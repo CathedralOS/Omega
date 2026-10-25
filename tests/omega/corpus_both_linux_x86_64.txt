@@ -3266,6 +3266,15 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit built 1786ms 
 pass/facts/inferred_array_equation_call_through_other_state_exit built 1947ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/inferred_array_equation_call_through_parameter_exit built 1981ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/inferred_array_equation_call_through_target_body_exit built 1985ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit built 1840ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit built 2014ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_field_exit built 1882ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_local_exit built 1998ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit built 1921ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit built 2042ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit built 1862ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit built 1816ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit built 2138ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/inferred_record_equation_call/call_result built 1909ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/inferred_record_equation_call/const_name built 2129ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/inferred_record_equation_call/field built 1934ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -6854,6 +6863,11 @@ pass/generics/generic_result_parameter_receipt checked 1995ms @a92f16431042
 pass/generics/generic_seq_consuming_map_filter checked 3915ms @a92f16431042
 pass/generics/generic_seq_map_filter checked 2602ms @a92f16431042
 pass/generics/higher_order_schema checked 2449ms @a92f16431042
+pass/generics/inferred_equation_inferred_array_result_exit built 2031ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/generics/inferred_equation_machine_binder_context_exit built 2028ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/generics/inferred_equation_nested_forwarding_exit built 2325ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/generics/inferred_equation_outer_context_exit built 2001ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/generics/inferred_equation_reference_compatibility_exit built 1869ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/generics/inferred_machine_array_equation_deferred_bodies_exit built 1711ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/inferred_machine_array_equation_generic_owner_field_exit built 2138ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/inferred_machine_array_equation_named_extent_exit built 1994ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
