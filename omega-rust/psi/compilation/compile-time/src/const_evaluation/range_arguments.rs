@@ -7,22 +7,17 @@
 //! proof-integer predecessor. Only structured values return to syntax; original
 //! bounds remain available to declaration checking and application custody.
 
-use std::sync::Arc;
-
 use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLiteral, IntegerRadix};
-use source::SourceMap;
-use symbols::SourceScopedTopLevelBinding;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::types::{IntegerRangeNormalization, TypeConstraintNode, TypeReferenceNode};
 
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: &[SourceScopedTopLevelBinding],
-    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let authority = context.selection_authority.clone();
     let mut pending = syntax.type_references.generic_nodes();
     for (_, expression) in syntax.expressions.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
@@ -84,11 +79,7 @@ pub(crate) fn evaluate(
     // runtime parameter into a same-spelled constant visible at the probe root.
     let original =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_const_argument_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: syntax.clone(),
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(syntax.clone()),
         )?;
     let mut probe = syntax.clone();
     let mut probes = Vec::new();
@@ -210,14 +201,15 @@ pub(crate) fn evaluate(
         .collect::<Vec<_>>();
     let frontier =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_numeric_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe,
-                sources,
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(probe),
         )?;
-    let (typed, evaluation_domain) =
-        crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
+    let (typed, evaluation_domain) = crate::syntax_probes::prepare_evaluation(
+        frontier,
+        &probe_sources,
+        &[],
+        &[],
+        context.predecessor.clone(),
+    )?;
     // A call endpoint is a constant position exactly as a fixed-array length
     // is: run the shared endpoint admission on a working copy so a
     // `u64[0..=limit()]` argument retains the same canonical range a literal

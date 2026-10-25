@@ -46,6 +46,19 @@ impl std::ops::Deref for SelectionBase<'_> {
 }
 
 impl<'base> ConstantSelection<'base> {
+    pub(crate) fn retained_base(&self) -> Option<&symbol_resolved_trees::SymbolResolvedTrees> {
+        self.retained.as_deref()
+    }
+
+    pub(crate) fn shared_retained_base(
+        &self,
+    ) -> Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>> {
+        match &self.retained {
+            Some(SelectionBase::Shared(base)) => Some(Arc::clone(base)),
+            _ => None,
+        }
+    }
+
     /// The namespace boundary for early declaration consistency, including
     /// dependency purpose. A logical path alone is not a foreign owner.
     pub(super) fn same_checked_package(
@@ -1206,8 +1219,10 @@ pub fn select_data_declarations(
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<SourceScopedTopLevelBinding>,
     references: &[Identifier],
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
-    let selection = ConstantSelection::new(syntax, sources, bindings)?;
+    let selection =
+        ConstantSelection::with_retained_base(syntax, sources, bindings, retained_base)?;
     Ok(references
         .iter()
         .map(|reference| {

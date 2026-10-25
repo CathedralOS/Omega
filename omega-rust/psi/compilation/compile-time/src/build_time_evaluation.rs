@@ -117,23 +117,11 @@ use crate::{
     layouts::plan_laid, layouts::wire_plans,
 };
 
-/// Inputs retained by package-aware probes and generated extension evaluation.
-///
-/// Source-scoped bindings are borrowed for this run; the source map and selection
-/// authority can be retained by evaluators. An extension may select nominal
-/// arguments from its predecessor, never re-normalize that predecessor's templates.
-pub struct BuildTimeSourceContext<'source> {
-    pub sources: Arc<source::SourceMap>,
-    pub source_scoped_top_level_bindings: &'source [symbols::SourceScopedTopLevelBinding],
-    pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-    pub retained_base: Option<&'source symbol_resolved_trees::SymbolResolvedTrees>,
-}
-
 /// One pre-resolution evaluation request. Standalone syntax has no source
 /// context; source-bound runs keep loader bindings and authority together.
 pub struct BuildTimeEvaluationRequest<'source> {
     pub syntax_trees: syntax_trees::SyntaxTrees,
-    pub source_context: Option<BuildTimeSourceContext<'source>>,
+    pub source_context: BuildTimeSources<'source>,
 }
 
 /// Evaluate syntax before resolution and retain the matching typed continuation.
@@ -144,86 +132,39 @@ pub fn evaluate_pre_resolution(
         syntax_trees,
         source_context,
     } = request;
-    let (sources, source_scoped_top_level_bindings, selection_authority, retained_base) =
-        match source_context {
-            Some(context) => (
-                Some(context.sources),
-                context.source_scoped_top_level_bindings,
-                context.selection_authority,
-                context.retained_base,
-            ),
-            None => (None, &[][..], None, None),
-        };
-    let syntax_trees = const_initializers::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.clone(),
-    )?;
-    let syntax_trees = const_generic_expressions::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.as_deref(),
-    )?;
-    let syntax_trees = crate::const_evaluation::const_qualifications::prove_ready(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-    )?;
+    // Every job sees the same declaration context. Source custody without its
+    // retained declarations would turn an ordinary imported constant call into
+    // Unknown; restarting just that job on fresh syntax loses the same bodies.
+    let syntax_trees = const_initializers::evaluate(syntax_trees, &source_context)?;
+    let syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
+    let syntax_trees =
+        crate::const_evaluation::const_qualifications::prove_ready(syntax_trees, &source_context)?;
     // Canonical ranges must exist before the const-call probe normalizes its
     // syntax clone: that clone's generic synthesis is itself an equation
     // customer, so retained endpoints cannot arrive after it.
-    let syntax_trees = range_arguments::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.clone(),
-    )?;
-    let mut syntax_trees = const_generic_calls::evaluate_const_generic_calls(
-        syntax_trees,
-        BuildTimeSources {
-            sources: sources.clone(),
-            source_scoped_top_level_bindings,
-            selection_authority: selection_authority.clone(),
-        },
-    )?;
+    let syntax_trees = range_arguments::evaluate(syntax_trees, &source_context)?;
+    let mut syntax_trees =
+        const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
         &mut syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings.to_vec(),
+        source_context.sources.clone(),
+        source_context.source_scoped_top_level_bindings.to_vec(),
+        source_context.retained_base(),
     )?;
-    let placed_view_records = placed_views::desugar_placed_views(
-        &mut syntax_trees,
-        BuildTimeSources {
-            sources: sources.clone(),
-            source_scoped_top_level_bindings,
-            selection_authority: selection_authority.clone(),
-        },
-    )?;
+    let placed_view_records =
+        placed_views::desugar_placed_views(&mut syntax_trees, source_context.clone())?;
     let mut syntax_trees = crate::syntax_probes::normalize_generic_data(
         syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        retained_base,
+        source_context.sources.clone(),
+        source_context.source_scoped_top_level_bindings,
+        source_context.retained_base(),
     )?;
     // Generic field extents become owned constant uses only after their exact
     // instance tuple has been copied. Close them through the same expression
     // and invocation admission used by ordinary static arguments.
-    syntax_trees = const_generic_expressions::evaluate(
-        syntax_trees,
-        sources.clone(),
-        source_scoped_top_level_bindings,
-        selection_authority.as_deref(),
-    )?;
-    syntax_trees = const_generic_calls::evaluate_const_generic_calls(
-        syntax_trees,
-        BuildTimeSources {
-            sources: sources.clone(),
-            source_scoped_top_level_bindings,
-            selection_authority: selection_authority.clone(),
-        },
-    )?;
+    syntax_trees = const_generic_expressions::evaluate(syntax_trees, &source_context)?;
+    syntax_trees =
+        const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
     let plan_laid_records = plan_laid::desugar_plan_laid_value_types(&mut syntax_trees)?;
     Ok(PreResolutionEvaluation {
         syntax_trees,
@@ -232,7 +173,7 @@ pub fn evaluate_pre_resolution(
             wire_schema_frontier: 0,
             placed_view_records,
             plan_laid_records,
-            selection_authority,
+            selection_authority: source_context.selection_authority,
             selected_operators: Vec::new(),
             provider_bodies: Vec::new(),
         },
@@ -253,13 +194,39 @@ pub struct SelectedBuildTimeOperators<'a> {
     pub provider_bodies: &'a [SelectedBuildTimeProviderBody],
 }
 
-/// The sources one syntax-phase evaluation resolves against: the source map,
-/// the source-scoped top-level bindings, and the selection authority.
+/// One source activation's lookup and invocation context. A predecessor lends
+/// exact declarations and bodies, not its historical invocation authority.
+/// Every syntax job borrows this same context; generated siblings share the
+/// predecessor but never participate in each other's normalization.
 #[derive(Clone, Default)]
 pub struct BuildTimeSources<'a> {
     pub sources: Option<Arc<source::SourceMap>>,
     pub source_scoped_top_level_bindings: &'a [symbols::SourceScopedTopLevelBinding],
     pub selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    pub predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+}
+
+impl BuildTimeSources<'_> {
+    pub(crate) fn retained_base(&self) -> Option<&symbol_resolved_trees::SymbolResolvedTrees> {
+        self.predecessor
+            .as_ref()
+            .map(|predecessor| predecessor.resolved())
+    }
+
+    pub(crate) fn resolution_request(
+        &self,
+        syntax: syntax_trees::SyntaxTrees,
+    ) -> syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax,
+            sources: self.sources.clone(),
+            top_level_bindings: self.source_scoped_top_level_bindings.to_vec(),
+            retained_base: self
+                .predecessor
+                .as_ref()
+                .map(|predecessor| predecessor.shared_resolved()),
+        }
+    }
 }
 
 /// A selection authority together with the invocation custody it admitted:
@@ -283,7 +250,7 @@ impl PreResolutionEvaluation {
     pub fn evaluate_extension(
         units: Vec<syntax_trees::SyntaxTrees>,
         first_source: source::SourceId,
-        context: BuildTimeSourceContext<'_>,
+        context: BuildTimeSources<'_>,
     ) -> Result<(syntax_trees::SyntaxTrees, Vec<PreCheckEvaluation>), Vec<diagnostics::Diagnostic>>
     {
         let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
@@ -291,12 +258,7 @@ impl PreResolutionEvaluation {
         for unit in units {
             let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
                 syntax_trees: unit,
-                source_context: Some(BuildTimeSourceContext {
-                    sources: context.sources.clone(),
-                    source_scoped_top_level_bindings: context.source_scoped_top_level_bindings,
-                    selection_authority: context.selection_authority.clone(),
-                    retained_base: context.retained_base,
-                }),
+                source_context: context.clone(),
             })?;
             let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
             match &mut syntax {

@@ -232,6 +232,7 @@ fn declaration_custody(
         record.authored,
         &owner.declared_type,
         purpose,
+        None,
     )
     .map_err(|reason| error(record.declaration, &reason))
 }

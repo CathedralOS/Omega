@@ -22,12 +22,14 @@ pub(crate) fn prepare_evaluation(
     probe_sources: &[SourceSpan],
     expression_sources: &[SourceSpan],
     declaration_roots: &[SymbolHandle],
+    predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
 ) -> Result<(TypedTrees, EvaluationDomain), Vec<Diagnostic>> {
     let preparation = prepare_evaluation_inputs(
         frontier,
         probe_sources,
         expression_sources,
         declaration_roots,
+        predecessor,
     )?;
     Ok((preparation.typed, preparation.domain))
 }
@@ -72,6 +74,7 @@ pub(crate) fn prepare_evaluation_inputs(
     probe_sources: &[SourceSpan],
     expression_sources: &[SourceSpan],
     declaration_roots: &[SymbolHandle],
+    predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
 ) -> Result<PreparedEvaluationInputs, Vec<Diagnostic>> {
     prepare_evaluation_inputs_with_owners(
         frontier,
@@ -79,6 +82,7 @@ pub(crate) fn prepare_evaluation_inputs(
         expression_sources,
         declaration_roots,
         &[],
+        predecessor,
     )
 }
 
@@ -88,8 +92,16 @@ pub(crate) fn prepare_owned_probe_evaluation(
     frontier: syntax_trees_to_symbol_resolved_trees::DeferredResolvedFrontier,
     owners: &[SymbolHandle],
     expression_sources: &[SourceSpan],
+    predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
 ) -> Result<PreparedEvaluationInputs, Vec<Diagnostic>> {
-    prepare_evaluation_inputs_with_owners(frontier, &[], expression_sources, &[], owners)
+    prepare_evaluation_inputs_with_owners(
+        frontier,
+        &[],
+        expression_sources,
+        &[],
+        owners,
+        predecessor,
+    )
 }
 
 fn prepare_evaluation_inputs_with_owners(
@@ -98,6 +110,7 @@ fn prepare_evaluation_inputs_with_owners(
     expression_sources: &[SourceSpan],
     declaration_roots: &[SymbolHandle],
     owners: &[SymbolHandle],
+    predecessor: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
 ) -> Result<PreparedEvaluationInputs, Vec<Diagnostic>> {
     let mut roots = owners.to_vec();
     if owners.iter().any(|owner| {
@@ -170,11 +183,19 @@ fn prepare_evaluation_inputs_with_owners(
             .complete_machine_bodies(&demand.deferred_machines)?
             .into_resolved_frontier();
     };
-    let mut typing =
+    let mut typing = if let Some(predecessor) = predecessor {
+        // Resolve and type this cohort against the same opaque pair. Retyping
+        // its predecessor would reinterpret already finalized source custody.
+        let extension = frontier.into_extension()?;
+        let (typing, rebased) = predecessor.append_deferred(extension)?;
+        frontier = rebased;
+        typing
+    } else {
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
             frontier.shared_trees(),
         )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        .map_err(|diagnostic| vec![diagnostic])?
+    };
     let mut execution = execution;
     validate_declaration_roots(typing.typed(), declaration_roots)?;
     let (work, selection) = loop {

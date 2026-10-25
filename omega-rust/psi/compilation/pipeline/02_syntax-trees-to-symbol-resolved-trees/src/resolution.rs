@@ -48,6 +48,10 @@ pub struct ResolutionRequest {
     /// has none, and those checks stay permissive for it.
     pub sources: Option<Arc<SourceMap>>,
     pub top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    /// Immutable declarations selected by this source activation. Early probes
+    /// and complete resolution use the same namespace and executable bodies;
+    /// retaining source coordinates alone cannot supply either.
+    pub retained_base: Option<Arc<SymbolResolvedTrees>>,
 }
 
 impl ResolutionRequest {
@@ -57,6 +61,7 @@ impl ResolutionRequest {
             syntax,
             sources: None,
             top_level_bindings: Vec::new(),
+            retained_base: None,
         }
     }
 }
@@ -72,16 +77,8 @@ pub struct ExtensionRequest {
 
 /// Resolve every name in the forest to its exact declaration.
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin_complete(request, None)?;
+    let (syntax, lowerer) = begin_complete(request)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
-}
-
-/// Index declarations without granting their implementations execution. The
-/// returned owner retains the exact prepared source for subsequent body demand.
-pub fn resolve_deferred(
-    request: ResolutionRequest,
-) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
-    resolve_deferred_from(request, None)
 }
 
 /// Append authored declarations to an already activated source base. Their
@@ -96,27 +93,27 @@ pub fn resolve_deferred_extension(
         top_level_bindings,
     } = request;
     let predecessor = Arc::new(base);
-    let successor = resolve_deferred_from(
-        ResolutionRequest {
-            syntax,
-            sources: Some(sources),
-            top_level_bindings,
-        },
-        Some(Arc::clone(&predecessor)),
-    )?;
+    let successor = resolve_deferred(ResolutionRequest {
+        syntax,
+        sources: Some(sources),
+        top_level_bindings,
+        retained_base: Some(Arc::clone(&predecessor)),
+    })?;
     Ok(DeferredResolvedExtension {
         successor,
         predecessor,
     })
 }
 
-fn resolve_deferred_from(
+/// Index declarations without granting their implementations execution. The
+/// returned owner retains the exact prepared source for subsequent body demand.
+pub fn resolve_deferred(
     request: ResolutionRequest,
-    base: Option<Arc<SymbolResolvedTrees>>,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete, base.clone())?;
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
     if preparation::machine_equations::required(&syntax, base.as_deref()) {
         // Header applications need exact declaration selection, not executable
         // bodies. Body applications retain their syntax and complete on demand.
@@ -146,9 +143,6 @@ fn resolve_deferred_from(
             }
         }
         lowerer.equation_sources = Some(Default::default());
-    }
-    if let Some(base) = base {
-        lowerer.seed_resolved_base(base)?;
     }
     lowerer.structural_type_equations_pending = false;
     index_deferred(syntax, lowerer, sources, bindings)
@@ -190,7 +184,7 @@ pub fn resolve_deferred_numeric_probe(
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete, None)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
     index_deferred(syntax, lowerer, sources, bindings)
 }
 
@@ -250,7 +244,7 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
 pub fn resolve_const_argument_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection, None)?;
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
     crate::symbols::assign_lexical_inputs(
         &mut lowerer,
@@ -267,7 +261,7 @@ pub fn resolve_const_argument_selection(
 pub fn resolve_numeric_probe(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete, None)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
@@ -280,7 +274,7 @@ pub fn resolve_deferred_initializer_probe(
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection, None)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
     index_deferred(syntax, lowerer, sources, bindings)
 }
 
@@ -296,7 +290,7 @@ pub fn prepare_const_initializer_selection(
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection, None)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
     let mut frontier = index_deferred(syntax, lowerer, sources, bindings)?;
     let initializers = frontier
         .trees()
@@ -361,8 +355,9 @@ pub fn resolve_extension(
         syntax,
         sources: Some(sources),
         top_level_bindings,
+        retained_base: Some(Arc::new(base)),
     };
-    let (syntax, lowerer) = begin_complete(request, Some(base))?;
+    let (syntax, lowerer) = begin_complete(request)?;
     let (trees, _) = drive(lowerer, &syntax)?;
     Ok(SeededSymbolResolvedTrees {
         trees,
@@ -373,14 +368,11 @@ pub fn resolve_extension(
 
 /// Equation completion uses ordinary selection with identical source and base
 /// custody. Its private links are discarded before the final lowering pass.
-fn begin_complete(
-    request: ResolutionRequest,
-    base: Option<SymbolResolvedTrees>,
-) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
-    let base = base.map(Arc::new);
+fn begin_complete(request: ResolutionRequest) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+    let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete, base.clone())?;
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
     if preparation::machine_equations::required(&syntax, base.as_deref()) {
         let mut provisional = Lowerer::new(sources, bindings);
         provisional.constant_selection = lowerer.constant_selection.take();
@@ -398,9 +390,6 @@ fn begin_complete(
         )?;
         lowerer.constant_selection = Some(selection);
     }
-    if let Some(base) = base {
-        lowerer.seed_resolved_base(base)?;
-    }
     lowerer.structural_type_equations_pending = false;
     Ok((syntax, lowerer))
 }
@@ -410,24 +399,27 @@ fn begin_complete(
 fn begin(
     request: ResolutionRequest,
     constants: ConstResolutionMode,
-    base: Option<Arc<SymbolResolvedTrees>>,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let ResolutionRequest {
         syntax,
         sources,
         top_level_bindings,
+        retained_base,
     } = request;
     let prepared = preparation::prepare(
         syntax,
         sources.clone(),
         top_level_bindings.clone(),
         constants,
-        base,
+        retained_base.clone(),
     )?;
     preparation::machine_equations::validate_declarations(&prepared.syntax)?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);
     lowerer.constant_selection = Some(prepared.constant_selection);
     lowerer.const_resolution_mode = constants;
+    if let Some(base) = retained_base {
+        lowerer.seed_resolved_base(base)?;
+    }
     Ok((prepared.syntax, lowerer))
 }
 
@@ -550,7 +542,7 @@ fn finish_resolved_tables(
 pub fn resolve_call_result_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection, None)?;
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
     index_declarations(&mut lowerer, &syntax)?;
     let inputs = crate::symbols::assign_lexical_inputs(
         &mut lowerer,

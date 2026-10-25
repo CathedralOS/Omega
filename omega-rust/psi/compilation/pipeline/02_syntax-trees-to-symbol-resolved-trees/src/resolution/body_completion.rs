@@ -140,6 +140,21 @@ impl PartialEq for DeferredResolvedFrontier {
 impl Eq for DeferredResolvedFrontier {}
 
 impl DeferredResolvedFrontier {
+    /// Resume typing against the exact predecessor owned by this resolver.
+    /// Ordinary probes append to that pair; they must not retype its completed
+    /// declarations or reinterpret its finalized authored selections.
+    pub fn into_extension(self) -> Result<super::DeferredResolvedExtension, Vec<Diagnostic>> {
+        let predecessor = self.selection.shared_retained_base().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "deferred resolution has no owned predecessor for typing",
+            )]
+        })?;
+        Ok(super::DeferredResolvedExtension {
+            successor: self,
+            predecessor,
+        })
+    }
+
     /// Transfer probe-only input custody on this exact completed declaration
     /// roster. Symbol handles remain those consumed by its seeded typed base.
     pub fn into_pending_type_inputs(
@@ -455,6 +470,7 @@ mod tests {
                 syntax,
                 sources: Some(std::sync::Arc::new(sources)),
                 top_level_bindings: Vec::new(),
+                retained_base: None,
             })
             .unwrap();
         let pending: Vec<_> = frontier.pending_machines().collect();

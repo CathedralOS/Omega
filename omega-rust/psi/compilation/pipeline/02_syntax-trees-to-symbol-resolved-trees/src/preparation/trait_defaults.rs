@@ -91,10 +91,15 @@ pub fn synthesize_trait_defaults(
     syntax: &mut SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
     bindings: Vec<SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let selection = crate::preparation::declaration_selection::ConstantSelection::new(
-        syntax, sources, bindings,
-    )?;
+    let selection =
+        crate::preparation::declaration_selection::ConstantSelection::with_retained_base(
+            syntax,
+            sources,
+            bindings,
+            retained_base,
+        )?;
     crate::preparation::generic_data::domain_heads::normalize(syntax, Some(&selection))?;
     crate::preparation::module_normalization::validate_with_selection(syntax, &selection)?;
     synthesize_trait_defaults_after_module_validation(syntax, &selection)

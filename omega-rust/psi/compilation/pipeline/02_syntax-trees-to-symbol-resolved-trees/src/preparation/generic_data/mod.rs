@@ -98,9 +98,14 @@ pub fn closed_data_const_argument_expressions(
     syntax: &SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let selection =
-        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
+    let selection = declaration_selection::ConstantSelection::with_retained_base(
+        syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    )?;
     let positions = collect_data_type_reference_positions(syntax, false);
     let public_positions = collect_data_type_reference_positions(syntax, true);
     Ok(collect_closed_const_arguments(
@@ -181,9 +186,14 @@ pub fn closed_machine_const_arguments(
     syntax: &SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
+    retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
-    let selection =
-        declaration_selection::ConstantSelection::new(syntax, sources, top_level_bindings)?;
+    let selection = declaration_selection::ConstantSelection::with_retained_base(
+        syntax,
+        sources,
+        top_level_bindings,
+        retained_base,
+    )?;
     let (positions, public_positions) = collect_machine_type_reference_positions(syntax);
     let mut arguments =
         collect_closed_const_arguments(syntax, &selection, &positions, &public_positions, true);

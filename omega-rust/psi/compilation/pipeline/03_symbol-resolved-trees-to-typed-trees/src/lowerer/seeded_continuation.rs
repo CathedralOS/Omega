@@ -31,6 +31,16 @@ pub struct SeededTypingBase {
 }
 
 impl SeededTypingBase {
+    /// Read the immutable resolver paired with these typed arenas. Consumers
+    /// may extend it only through the resolver's checked continuation carrier.
+    pub fn resolved(&self) -> &SymbolResolvedTrees {
+        &self.resolved
+    }
+
+    pub fn shared_resolved(&self) -> Arc<SymbolResolvedTrees> {
+        Arc::clone(&self.resolved)
+    }
+
     /// Type a newly indexed authored cohort without completing its bodies or
     /// retyping retained declarations. Body completion resumes the returned
     /// frontier on the same rebased resolved allocation.

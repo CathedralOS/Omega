@@ -49,13 +49,11 @@
 //! layout may provide the encoded value.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use diagnostics::Diagnostic;
 use language_core::constant_value::EvaluatedConstant;
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use source::{SourceMap, SourceSpan};
-use symbols::SourceScopedTopLevelBinding;
+use source::SourceSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{
@@ -98,12 +96,13 @@ struct Declaration {
 
 pub(crate) fn evaluate(
     mut syntax: SyntaxTrees,
-    sources: Option<Arc<SourceMap>>,
-    bindings: &[SourceScopedTopLevelBinding],
-    authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    context: &crate::BuildTimeSources<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let sources = context.sources.clone();
+    let bindings = context.source_scoped_top_level_bindings;
+    let authority = context.selection_authority.clone();
     use syntax_trees_to_symbol_resolved_trees::pre_resolution::requires_const_initializer_evaluation;
-    syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
+    syntax = super::const_qualifications::prove_ready(syntax, context)?;
     if !syntax.root_items().any(|item| {
         matches!(item, Item::Const(definition)
         if requires_const_initializer_evaluation(&syntax, definition))
@@ -121,6 +120,7 @@ pub(crate) fn evaluate(
             &syntax,
             sources.clone(),
             bindings.to_vec(),
+            context.retained_base(),
         )?;
     crate::syntax_probes::defer_pending_const_qualifications(
         &mut selection_syntax,
@@ -131,11 +131,7 @@ pub(crate) fn evaluate(
     );
     let preparation =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_initializer_selection(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: selection_syntax,
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(selection_syntax),
         )?;
     let resolved = preparation.trees();
     let mut declarations = Vec::new();
@@ -384,22 +380,23 @@ pub(crate) fn evaluate(
             probe,
             sources.clone(),
             bindings,
-            None,
+            context.retained_base(),
             &probe_declarations,
         )?;
         let frontier = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: probe,
-                sources: sources.clone(),
-                top_level_bindings: bindings.to_vec(),
-            },
+            context.resolution_request(probe),
         )?;
         // Ready values still need real helper implementations and their type,
         // proof and operator dependencies. Reuse the scalar probe's retained
         // body demand; unrelated implementations remain with their owners and
         // never enter the private execution program or its ordinary checks.
-        let (typed, domain) =
-            crate::syntax_probes::prepare_evaluation(frontier, &probe_sources, &[], &[])?;
+        let (typed, domain) = crate::syntax_probes::prepare_evaluation(
+            frontier,
+            &probe_sources,
+            &[],
+            &[],
+            context.predecessor.clone(),
+        )?;
         let mut authored_probes = Vec::new();
         for ordinal in &ready {
             for leaf in &declarations[*ordinal].leaves {
@@ -741,7 +738,7 @@ pub(crate) fn evaluate(
             );
             declarations[ordinal].leaves.clear();
         }
-        syntax = super::const_qualifications::prove_ready(syntax, sources.clone(), bindings)?;
+        syntax = super::const_qualifications::prove_ready(syntax, context)?;
         for declaration in &mut declarations {
             if let Item::Const(definition) = syntax.root_item(declaration.item) {
                 declaration.definition = definition.clone();

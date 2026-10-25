@@ -95,6 +95,7 @@ pub(crate) fn collect_declaration(
     root: ExpressionHandle,
     destination: &symbol_resolved_trees::types::TypeReference,
     purpose: DependencyPurpose,
+    retained_base: Option<&SymbolResolvedTrees>,
 ) -> Result<ConstInitializerDependencies, String> {
     let mut collector = Collector {
         expressions: vec![root],
@@ -121,6 +122,16 @@ pub(crate) fn collect_declaration(
         } else {
             *symbol
         };
+        // Normalization work belongs to this syntax cohort. A selected owner
+        // already resolved in the predecessor supplies its real declarations
+        // and bodies to the probe, not syntax that this cohort must recreate.
+        // Its calls/constants remain in the dependency and admission rosters.
+        if retained_base.is_some_and(|base| {
+            base.symbols.symbols().nodes().is_valid(owner)
+                && base.symbols.symbol_source_is_selected(owner)
+        }) {
+            continue;
+        }
         let source = collector
             .program
             .symbols

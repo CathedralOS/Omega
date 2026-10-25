@@ -123,16 +123,17 @@ impl SourceCompilationRequest {
         let resolved_base = retained
             .as_mut()
             .map(|typing| typing.resolved_base_for_extension())
-            .transpose()?;
+            .transpose()?
+            .map(Arc::new);
         let evaluated = build_time_evaluation::evaluate_pre_resolution(
             build_time_evaluation::BuildTimeEvaluationRequest {
                 syntax_trees: self.syntax,
-                source_context: Some(build_time_evaluation::BuildTimeSourceContext {
-                    sources: Arc::clone(&self.sources),
+                source_context: build_time_evaluation::BuildTimeSources {
+                    sources: Some(Arc::clone(&self.sources)),
                     source_scoped_top_level_bindings: &self.top_level_bindings,
                     selection_authority: self.selection_authority,
-                    retained_base: resolved_base.as_ref(),
-                }),
+                    predecessor: retained.clone(),
+                },
             },
         )?;
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
@@ -141,7 +142,7 @@ impl SourceCompilationRequest {
                 let extension = observer.record_result(PsiCompilationStage::Resolution, || {
                     syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
                         syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
-                            base,
+                            base: Arc::unwrap_or_clone(base),
                             syntax,
                             sources: self.sources,
                             top_level_bindings: self.top_level_bindings,
@@ -158,6 +159,7 @@ impl SourceCompilationRequest {
                             syntax,
                             sources: Some(self.sources),
                             top_level_bindings: self.top_level_bindings,
+                            retained_base: None,
                         },
                     )
                 })?;
@@ -300,22 +302,22 @@ impl CompletedSource {
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<Arc<PreparedSource>, Vec<Diagnostic>> {
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
-        let resolved_base = self.typing.resolved_base_for_extension()?;
+        let resolved_base = Arc::new(self.typing.resolved_base_for_extension()?);
         let (syntax, pre_checks) =
             build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
                 extension.units,
                 extension.first_source,
-                build_time_evaluation::BuildTimeSourceContext {
-                    sources: Arc::clone(&extension.sources),
+                build_time_evaluation::BuildTimeSources {
+                    sources: Some(Arc::clone(&extension.sources)),
                     source_scoped_top_level_bindings: &[],
                     selection_authority: Some(Arc::clone(&extension.selection_authority)),
-                    retained_base: Some(&resolved_base),
+                    predecessor: Some(self.typing.clone()),
                 },
             )?;
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {
             syntax_trees_to_symbol_resolved_trees::resolve_extension(
                 syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
-                    base: resolved_base,
+                    base: Arc::unwrap_or_clone(resolved_base),
                     syntax,
                     sources: extension.sources,
                     top_level_bindings: Vec::new(),
