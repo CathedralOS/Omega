@@ -82,6 +82,21 @@ impl IntegerOperation {
     }
 }
 
+/// The `ScalarTerm` → `IntegerOperation` projection table: every row names
+/// one term variant, the operation its application denotes, and the two
+/// operands the application consumes, so the projection is one data table
+/// rather than a body per variant.
+macro_rules! integer_operation_table {
+    ($term:expr; $( $variant:ident { $($field:ident),+ $(,)? } => ($operation:expr, $left:expr, $right:expr) ),+ $(,)?) => {
+        match $term {
+            $(
+                ScalarTerm::$variant { $($field),+ } => ($operation, $left, $right),
+            )+
+            _ => return Ok(None),
+        }
+    };
+}
+
 impl Denotation {
     /// `operation : Π(_ : Int). … . R` — the shared assumption constant one
     /// operation denotes, pushed once per operation identity. `R` is `Int`
@@ -126,228 +141,30 @@ impl Denotation {
         &mut self,
         term: &ScalarTerm,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let (operation, left, right) = match term {
-            ScalarTerm::IntegerBitwiseNot {
-                scalar_type,
-                operand,
-            } => (IntegerOperation::BitwiseNot(*scalar_type), operand, None),
-            ScalarTerm::IntegerWiden {
-                source_type,
-                target_type,
-                operand,
-            } => (
-                IntegerOperation::Widen {
-                    source: *source_type,
-                    target: *target_type,
-                },
-                operand,
-                None,
-            ),
-            ScalarTerm::IntegerExactCast {
-                source_type,
-                target_type,
-                operand,
-            } => (
-                IntegerOperation::ExactCast {
-                    source: *source_type,
-                    target: *target_type,
-                },
-                operand,
-                None,
-            ),
-            ScalarTerm::IntegerBitwiseAnd {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::BitwiseAnd(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::IntegerBitwiseOr {
-                scalar_type,
-                left,
-                right,
-            } => (IntegerOperation::BitwiseOr(*scalar_type), left, Some(right)),
-            ScalarTerm::IntegerBitwiseXor {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::BitwiseXor(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::WrappingIntegerShiftLeft {
-                value_type,
-                count_type,
-                value,
-                count,
-            } => (
-                IntegerOperation::WrappingShiftLeft {
-                    value: *value_type,
-                    count: *count_type,
-                },
-                value,
-                Some(count),
-            ),
-            ScalarTerm::WrappingIntegerShiftRight {
-                value_type,
-                count_type,
-                value,
-                count,
-            } => (
-                IntegerOperation::WrappingShiftRight {
-                    value: *value_type,
-                    count: *count_type,
-                },
-                value,
-                Some(count),
-            ),
-            ScalarTerm::ExactIntegerShiftLeft {
-                value_type,
-                count_type,
-                value,
-                count,
-            } => (
-                IntegerOperation::ExactShiftLeft {
-                    value: *value_type,
-                    count: *count_type,
-                },
-                value,
-                Some(count),
-            ),
-            ScalarTerm::ExactIntegerShiftRight {
-                value_type,
-                count_type,
-                value,
-                count,
-            } => (
-                IntegerOperation::ExactShiftRight {
-                    value: *value_type,
-                    count: *count_type,
-                },
-                value,
-                Some(count),
-            ),
-            ScalarTerm::ExactIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::ExactMultiply(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::ExactIntegerDivide {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::ExactDivide(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::ExactIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::ExactRemainder(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::WrappingIntegerAdd {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::WrappingAdd(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::WrappingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::WrappingSubtract(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::WrappingIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::WrappingMultiply(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::WrappingIntegerDivide {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::WrappingDivide(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::WrappingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::WrappingRemainder(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::SaturatingIntegerAdd {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::SaturatingAdd(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::SaturatingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::SaturatingSubtract(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::SaturatingIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::SaturatingMultiply(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::SaturatingIntegerDivide {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::SaturatingDivide(*scalar_type),
-                left,
-                Some(right),
-            ),
-            ScalarTerm::SaturatingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => (
-                IntegerOperation::SaturatingRemainder(*scalar_type),
-                left,
-                Some(right),
-            ),
-            _ => return Ok(None),
+        let (operation, left, right) = integer_operation_table! { term;
+            IntegerBitwiseNot { scalar_type, operand } => (IntegerOperation::BitwiseNot(*scalar_type), operand, None),
+            IntegerWiden { source_type, target_type, operand } => (IntegerOperation::Widen { source: *source_type, target: *target_type }, operand, None),
+            IntegerExactCast { source_type, target_type, operand } => (IntegerOperation::ExactCast { source: *source_type, target: *target_type }, operand, None),
+            IntegerBitwiseAnd { scalar_type, left, right } => (IntegerOperation::BitwiseAnd(*scalar_type), left, Some(right)),
+            IntegerBitwiseOr { scalar_type, left, right } => (IntegerOperation::BitwiseOr(*scalar_type), left, Some(right)),
+            IntegerBitwiseXor { scalar_type, left, right } => (IntegerOperation::BitwiseXor(*scalar_type), left, Some(right)),
+            WrappingIntegerShiftLeft { value_type, count_type, value, count } => (IntegerOperation::WrappingShiftLeft { value: *value_type, count: *count_type }, value, Some(count)),
+            WrappingIntegerShiftRight { value_type, count_type, value, count } => (IntegerOperation::WrappingShiftRight { value: *value_type, count: *count_type }, value, Some(count)),
+            ExactIntegerShiftLeft { value_type, count_type, value, count } => (IntegerOperation::ExactShiftLeft { value: *value_type, count: *count_type }, value, Some(count)),
+            ExactIntegerShiftRight { value_type, count_type, value, count } => (IntegerOperation::ExactShiftRight { value: *value_type, count: *count_type }, value, Some(count)),
+            ExactIntegerMultiply { scalar_type, left, right } => (IntegerOperation::ExactMultiply(*scalar_type), left, Some(right)),
+            ExactIntegerDivide { scalar_type, left, right } => (IntegerOperation::ExactDivide(*scalar_type), left, Some(right)),
+            ExactIntegerRemainder { scalar_type, left, right } => (IntegerOperation::ExactRemainder(*scalar_type), left, Some(right)),
+            WrappingIntegerAdd { scalar_type, left, right } => (IntegerOperation::WrappingAdd(*scalar_type), left, Some(right)),
+            WrappingIntegerSubtract { scalar_type, left, right } => (IntegerOperation::WrappingSubtract(*scalar_type), left, Some(right)),
+            WrappingIntegerMultiply { scalar_type, left, right } => (IntegerOperation::WrappingMultiply(*scalar_type), left, Some(right)),
+            WrappingIntegerDivide { scalar_type, left, right } => (IntegerOperation::WrappingDivide(*scalar_type), left, Some(right)),
+            WrappingIntegerRemainder { scalar_type, left, right } => (IntegerOperation::WrappingRemainder(*scalar_type), left, Some(right)),
+            SaturatingIntegerAdd { scalar_type, left, right } => (IntegerOperation::SaturatingAdd(*scalar_type), left, Some(right)),
+            SaturatingIntegerSubtract { scalar_type, left, right } => (IntegerOperation::SaturatingSubtract(*scalar_type), left, Some(right)),
+            SaturatingIntegerMultiply { scalar_type, left, right } => (IntegerOperation::SaturatingMultiply(*scalar_type), left, Some(right)),
+            SaturatingIntegerDivide { scalar_type, left, right } => (IntegerOperation::SaturatingDivide(*scalar_type), left, Some(right)),
+            SaturatingIntegerRemainder { scalar_type, left, right } => (IntegerOperation::SaturatingRemainder(*scalar_type), left, Some(right)),
         };
         let left = self.fixed_scalar_term(left)?;
         let right = match right {
