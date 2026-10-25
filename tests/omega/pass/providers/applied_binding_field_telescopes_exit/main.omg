@@ -53,3 +53,10 @@ linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetPro
     TargetProviders::select_provider<UnsignedReading, UnsignedMap>(defaults);
     TargetProviders::select_provider<BooleanReading, BooleanMap>(defaults);
 }
+
+// The root owns ordinary local storage and supplies its borrow explicitly.
+machine entry_start<'activation>()
+reaches Reading + UnsignedReading + BooleanReading crashes Trap {
+    let mut entry_storage: Main<u64>;
+    Main::main(&mut entry_storage);
+}

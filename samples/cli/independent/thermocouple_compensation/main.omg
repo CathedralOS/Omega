@@ -78,5 +78,5 @@ machine Application::main(application: &mut Application) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Application;
-    Application::main(&mut entry_storage);
+    block Application::main(&mut entry_storage);
 }

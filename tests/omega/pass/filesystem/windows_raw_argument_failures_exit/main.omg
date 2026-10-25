@@ -41,5 +41,5 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    block Main::main(&mut entry_storage);
 }

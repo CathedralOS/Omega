@@ -91,5 +91,5 @@ machine Main::main(main: &mut Main) reaches PacketIo, ByteIo blocks; crashes Tra
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches PacketIo, ByteIo blocks; crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    block Main::main(&mut entry_storage);
 }

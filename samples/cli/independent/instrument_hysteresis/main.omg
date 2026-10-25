@@ -119,5 +119,5 @@ machine Instrument::run(instrument: &mut Instrument) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Instrument;
-    Instrument::run(&mut entry_storage);
+    block Instrument::run(&mut entry_storage);
 }

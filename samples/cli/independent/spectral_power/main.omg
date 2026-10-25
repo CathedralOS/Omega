@@ -196,5 +196,5 @@ machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wr
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console crashes Trap {
     let mut entry_storage: Application;
-    Application::main(&mut entry_storage);
+    block Application::main(&mut entry_storage);
 }

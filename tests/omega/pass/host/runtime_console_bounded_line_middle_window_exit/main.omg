@@ -46,5 +46,5 @@ machine entry_start()
 reaches Console
 {
     let mut entry_storage: Main;
-    Main::repeat(&mut entry_storage);
+    block Main::repeat(&mut entry_storage);
 }

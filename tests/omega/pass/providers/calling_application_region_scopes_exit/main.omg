@@ -36,3 +36,10 @@ reaches Reading crashes Trap {
 linux_x86_64 machine Providers::provider_defaults(defaults: &mut Providers) {
     Providers::select_provider<Reading, Reader>(defaults);
 }
+
+// The root owns ordinary local storage and supplies its borrow explicitly.
+machine entry_start<'activation>()
+reaches Reading crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

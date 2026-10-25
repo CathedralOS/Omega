@@ -36,5 +36,5 @@ machine Game::main(game: &mut Game) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Game;
-    Game::main(&mut entry_storage);
+    block Game::main(&mut entry_storage);
 }

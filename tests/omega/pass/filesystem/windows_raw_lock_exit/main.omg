@@ -113,5 +113,5 @@ machine close_if_present(handle: u64) -> i32 {
 machine entry_start()
 reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    block Main::main(&mut entry_storage);
 }

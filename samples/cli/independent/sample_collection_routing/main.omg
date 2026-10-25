@@ -52,5 +52,5 @@ machine Collection::main(collection: &mut Collection) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Collection;
-    Collection::main(&mut entry_storage);
+    block Collection::main(&mut entry_storage);
 }

@@ -78,5 +78,5 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    block Main::main(&mut entry_storage);
 }

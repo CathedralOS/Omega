@@ -111,5 +111,5 @@ macos_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    block Main::main(&mut entry_storage);
 }

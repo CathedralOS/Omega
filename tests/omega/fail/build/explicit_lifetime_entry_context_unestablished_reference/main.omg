@@ -1,2 +1,8 @@
 data Main<'entry> { view: &'entry i32; }
 machine Main::main<'entry>(main: &'entry mut Main<'entry>) {}
+
+// The root owns ordinary local storage and supplies its borrow explicitly.
+machine entry_start<'entry>() {
+    let mut entry_storage: Main<'entry>;
+    Main::main(&mut entry_storage);
+}

@@ -161,5 +161,5 @@ machine malformed_target() -> [u16; 64] in FixtureTarget {
 machine entry_start()
 reaches Console + FilesystemNamespaceMutation + FilesystemMetadataMutation + FilesystemMetadataQuery {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    block Main::main(&mut entry_storage);
 }
