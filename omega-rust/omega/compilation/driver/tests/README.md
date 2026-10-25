@@ -307,3 +307,16 @@ reject without a normal-return observation. Run with
 `OMEGA_CORPUS_HOST_PROVISIONS=1`; without opt-in it records `unrequested`.
 This is Terminal embedding evidence, not a claim that production Build execution
 has left the checked-tree engine.
+
+`runtime portable build-bindings <slots> <entry> <identifier-or->` supplies the
+Build binding imports with source-issued designated operands. Slots are an
+ordered comma-separated list. Both borrowed and loaded artifacts must retain
+the original receiver, produce those inert selections exactly once through fuel
+pauses, and preserve the requested identifier readback. Replayed tickets,
+unissued operation identities and a foreign receiver refuse. The conditional
+Build fixture checks that an unexecuted binding has no effect; the receiver
+fixture also exercises explicit reborrowing. Run with
+`OMEGA_CORPUS_HOST_PROVISIONS=1`; without opt-in it records `unrequested`.
+The companion is not reconstructed from external artifact bytes or debug names.
+Description-query execution and production Build scheduling still use the tree
+engine and are not established by this provision.

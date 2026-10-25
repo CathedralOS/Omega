@@ -201,9 +201,7 @@ pub fn build_proof_plan(program: &dyn ::validation::CheckingInput) -> ProofPlan<
                             &mut proof_plan,
                         );
                     }
-                    StatementNode::RootBinding(_)
-                    | StatementNode::AssemblyFact(_)
-                    | StatementNode::Expression(_) => {}
+                    StatementNode::AssemblyFact(_) | StatementNode::Expression(_) => {}
                 }
                 // Calls and aggregate fields receive evaluated operands just
                 // like statement calls and local initializers. One structural

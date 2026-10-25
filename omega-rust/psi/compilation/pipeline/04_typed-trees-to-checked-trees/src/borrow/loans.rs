@@ -431,7 +431,6 @@ fn value_borrow_loans(
             )
         }
         StatementNode::Call(_)
-        | StatementNode::RootBinding(_)
         | StatementNode::AssemblyFact(_)
         | StatementNode::Expression(_)
         | StatementNode::Transition(_) => Vec::new(),

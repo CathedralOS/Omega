@@ -26,7 +26,7 @@ pub(super) fn observe(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     )
 }
 
-fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
+pub(super) fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
     let program = TerminalProgram::borrow(artifact.view());
     let entry = program.entry().unwrap();
     let root = entry.structural_parameters[0].structural_type;

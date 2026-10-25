@@ -58,34 +58,6 @@ pub(crate) fn validate_relevance(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assembly(_) => {}
-                    StatementNode::RootBinding(binding) => {
-                        // A root binding is a Build declaration, not a
-                        // runtime call, but its two expression operands are
-                        // read at build evaluation exactly like runtime
-                        // places: the receiver supplies the `&mut Build`
-                        // cell and a delegated operand supplies the
-                        // `ProductEntryRef` description of the installed
-                        // entry. Neither is reachable through a call's
-                        // argument list, so the walker must visit them here.
-                        validate_expression(
-                            program,
-                            &proof_only,
-                            machine,
-                            state,
-                            binding.receiver,
-                            machine_context,
-                            diagnostics,
-                        );
-                        validate_expression(
-                            program,
-                            &proof_only,
-                            machine,
-                            state,
-                            binding.implementation_operand,
-                            machine_context,
-                            diagnostics,
-                        );
-                    }
                     StatementNode::AssemblyFact(fact) => {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
                             validate_expression(

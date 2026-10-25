@@ -39,7 +39,8 @@ pub use source_compilation::{
 pub use psi_terminal_production::{
     ProducedTerminalArtifact, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
     PsiCompilationStage, RetainedCallableSignature, TerminalApplicationCustody,
-    TerminalArtifactProductionError, TerminalCompositionAdmission, TerminalMachineSelection,
+    TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    TerminalBuildBindings, TerminalCompositionAdmission, TerminalMachineSelection,
     TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
     UnmeasuredProduction, retained_callable_signature,
 };

@@ -256,6 +256,7 @@ fn prepare_entry(program: &mut TypedTrees, origin: EntryContextOrigin) -> Result
             private_layout_operation: None,
             layout_query: None,
             native_code_layout: None,
+            root_binding: Default::default(),
             arguments,
             evidence_arguments: Box::default(),
             operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {

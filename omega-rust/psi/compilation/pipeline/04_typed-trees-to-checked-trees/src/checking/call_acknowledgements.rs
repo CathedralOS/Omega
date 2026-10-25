@@ -59,22 +59,6 @@ fn validate_statement(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    // Binding still has work to do after its operand returns;
-                    // it is not a terminal suspension/call position.
-                    validate_child(
-                        program,
-                        expression,
-                        statement_index,
-                        operational_calls,
-                        call_ordinal,
-                        diagnostics,
-                    );
-                }
-            }
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             validate_child(

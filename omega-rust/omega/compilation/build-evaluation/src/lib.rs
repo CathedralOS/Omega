@@ -78,6 +78,7 @@ mod admitted_build_program;
 mod build_evaluation;
 mod completed_pure_build;
 mod execution;
+pub mod terminal_bindings;
 
 pub use admission::target_helpers::select_build_helpers;
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};

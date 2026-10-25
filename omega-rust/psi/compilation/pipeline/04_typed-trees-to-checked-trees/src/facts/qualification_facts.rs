@@ -297,22 +297,6 @@ pub(crate) fn build_qualification_facts(
                     u32::try_from(statement_index).expect("qualification statement index overflow");
                 let mut visited = HashSet::default();
                 match statement {
-                    StatementNode::RootBinding(binding) => {
-                        for expression in [binding.receiver, binding.implementation_operand] {
-                            if expression.is_valid() {
-                                collect_casts(
-                                    program,
-                                    machine.symbol,
-                                    state.symbol,
-                                    statement_index,
-                                    expression,
-                                    &mut committed,
-                                    &mut vacuous_uses,
-                                    &mut visited,
-                                );
-                            }
-                        }
-                    }
                     StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
                     StatementNode::Assignment(assignment) => {
                         collect_casts(

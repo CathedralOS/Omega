@@ -93,7 +93,6 @@ fn statement_site(
         StatementNode::Transition(transition) => {
             (CoverageForm::TransitionForm, transition.source_span)
         }
-        StatementNode::RootBinding(binding) => (CoverageForm::StatementForm, binding.source_span),
         StatementNode::Assignment(assignment) => (
             CoverageForm::StatementForm,
             joined(expression(assignment.target), expression(assignment.value)),

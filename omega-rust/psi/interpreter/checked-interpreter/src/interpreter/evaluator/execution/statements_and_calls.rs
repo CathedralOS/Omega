@@ -18,9 +18,6 @@ impl<'program> Evaluator<'program> {
             // Assembly facts are compile-time assertions and have no runtime
             // evaluation in either interpreter or native execution.
             StatementNode::AssemblyFact(_) => Ok(()),
-            StatementNode::RootBinding(_) => Err(Halt::Trap(
-                "root binding requires its executed statement identity".to_owned(),
-            )),
             StatementNode::Assignment(assignment) => {
                 self.assign(statement_index, assignment, frame)
             }

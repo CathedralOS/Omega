@@ -538,11 +538,6 @@ pub fn collect_statement_expression_trees(
 ) {
     match statement {
         typed_trees::statement::StatementNode::Assembly(_) => {}
-        typed_trees::statement::StatementNode::RootBinding(binding) => {
-            if binding.implementation_operand.is_valid() {
-                collect_expression_tree(program, binding.implementation_operand, handles);
-            }
-        }
         typed_trees::statement::StatementNode::AssemblyFact(fact) => {
             for expression in program.tables.proof_fact_expression_roots(fact.fact) {
                 collect_expression_tree(program, expression, handles);

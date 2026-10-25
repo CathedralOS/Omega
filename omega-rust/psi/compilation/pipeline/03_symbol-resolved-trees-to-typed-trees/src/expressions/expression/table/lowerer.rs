@@ -544,6 +544,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                             private_layout_operation,
                             layout_query,
                             native_code_layout,
+                            root_binding: Default::default(),
                             arguments,
                             evidence_arguments: call
                                 .evidence_arguments

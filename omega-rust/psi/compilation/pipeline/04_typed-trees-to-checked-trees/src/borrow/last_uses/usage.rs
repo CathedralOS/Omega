@@ -18,15 +18,6 @@ pub(super) fn statement_uses_local_name(
     local_name: &str,
 ) -> bool {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            expression_uses_local_name(program, binding.receiver, local_name)
-                || (binding.implementation_operand.is_valid()
-                    && expression_uses_local_name(
-                        program,
-                        binding.implementation_operand,
-                        local_name,
-                    ))
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_local_name(program, assignment.target, local_name)
@@ -88,11 +79,6 @@ pub(super) fn statement_uses_owner_path(
         )
     };
     match statement {
-        StatementNode::RootBinding(binding) => {
-            uses(binding.receiver)
-                || (binding.implementation_operand.is_valid()
-                    && uses(binding.implementation_operand))
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => uses(assignment.target) || uses(assignment.value),
         StatementNode::Call(call) => {

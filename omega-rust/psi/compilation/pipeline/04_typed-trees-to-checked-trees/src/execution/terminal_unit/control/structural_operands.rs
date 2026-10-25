@@ -78,14 +78,13 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
                 parameter.type_reference,
             )
             .is_some()
-                && validation::reference_formation_source(program, argument)
-                    .is_some_and(|formation| formation.view_type.is_valid()) =>
+                && validation::reference_formation_source(program, argument).is_some() =>
         {
             let machine = program.machine_by_symbol(machine)?;
             let state = program.state_by_symbol(state)?;
             (
                 argument,
-                crate::values::reference_sources::formed_view_type(
+                crate::values::reference_sources::formed_reference_type(
                     program, machine, state, argument,
                 )?,
             )

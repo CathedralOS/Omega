@@ -1131,13 +1131,14 @@ impl ArrivalWalk<'_, '_> {
                         self.expression(source, condition, environment);
                     }
                     if target_needs_walk {
-                        let mut selected_env =
-                            selected.unwrap_or_else(|| environment.clone());
+                        let mut selected_env = selected.unwrap_or_else(|| environment.clone());
                         self.target(source, transition.target, &mut selected_env);
                     }
                     if continuation_needs_walk {
-                        let mut fallback_env =
-                            fallback.as_ref().cloned().unwrap_or_else(|| environment.clone());
+                        let mut fallback_env = fallback
+                            .as_ref()
+                            .cloned()
+                            .unwrap_or_else(|| environment.clone());
                         self.target(source, transition.continuation, &mut fallback_env);
                     }
                     if transition.continuation.is_valid()
@@ -1394,10 +1395,6 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Expression(expression) => {
                     self.expression(source, *expression, environment)
                 }
-                StatementNode::RootBinding(binding) => {
-                    self.expression(source, binding.receiver, environment);
-                    self.expression(source, binding.implementation_operand, environment);
-                }
                 StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             }
         }
@@ -1432,10 +1429,6 @@ impl ArrivalWalk<'_, '_> {
             }
             StatementNode::Expression(expression) => {
                 self.expression(source, *expression, environment);
-            }
-            StatementNode::RootBinding(binding) => {
-                self.expression(source, binding.receiver, environment);
-                self.expression(source, binding.implementation_operand, environment);
             }
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         }
@@ -1674,10 +1667,6 @@ fn state_has_in_machine_arrivals(
                 stack.extend_from_slice(program.statement_table.expression_handles(call.arguments));
             }
             StatementNode::Expression(expression) => stack.push(*expression),
-            StatementNode::RootBinding(binding) => {
-                stack.push(binding.receiver);
-                stack.push(binding.implementation_operand);
-            }
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         }
     }
@@ -1700,7 +1689,8 @@ fn state_has_in_machine_arrivals(
                     return true;
                 }
                 stack.push(call.receiver);
-                stack.extend_from_slice(program.expression_table.expression_handles(call.arguments));
+                stack
+                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
             }
             ExpressionNode::Binary(binary) => {
                 stack.push(binary.left);

@@ -880,20 +880,6 @@ fn validate_statement<'p>(
     let state = state_definition.name.as_str();
     match statement {
         StatementNode::Assembly(_) => {}
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    validate_expression(
-                        program,
-                        machine_definition,
-                        state_definition,
-                        expression,
-                        roots,
-                        diagnostics,
-                    );
-                }
-            }
-        }
         StatementNode::AssemblyFact(fact) => {
             for expression in program.tables.proof_fact_expression_roots(fact.fact) {
                 validate_expression(
