@@ -1,0 +1,5 @@
+machine outer(value: u32) -> u32 {
+    transition { _ -> received() }
+    machine received() -> u32 { value }
+}
+machine main() { let result: u32 = outer(37); }

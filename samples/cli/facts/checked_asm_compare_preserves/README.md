@@ -35,7 +35,13 @@ The [upper AArch64 register probe](arm_probe/main.omg) exercises the same fact a
 
 ## Remaining acceptance
 
-Validation is recorded in the task's qualification/evidence ledger. This source row is not yet declared complete. `other_state` still uses the compiler's existing legacy `state` spelling and does not establish the ratified nested-machine migration. Saved-subject snapshot goals retain their source assertions but are not exported without exact capture custody; that composition remains open. Privileged effects, catalog families beyond this comparison, AArch64 countdown parity, environment interpretation, and the full parent task remain open. No merge or publication is authorized.
+Validation is recorded in the task's qualification/evidence ledger. The original
+scalar comparison repair is published; the modern nested-machine witness and
+closed saved-subject production are being qualified. Ambient completed-capture
+transport, other flag-producing catalog families, AArch64 countdown parity,
+privileged effect settlement, supplied-environment interpretation, and the
+integration canaries remain requirements of the full parent task. Completed,
+reviewed repairs may be published through the normal PR and merge queue.
 
 
 The `saved_subject/` production in each of these same nine places preserves the
