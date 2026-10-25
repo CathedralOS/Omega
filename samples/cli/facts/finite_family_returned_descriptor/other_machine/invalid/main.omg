@@ -30,10 +30,9 @@ requires width == 16 || width == 32;
     state bad() { crash Trap; }
 }
 
-data Helper {}
-machine Helper::forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
+machine helper_forward(packet: Packet) crashes Trap { check(&packet, 16); check(&packet, 32); }
 machine main() crashes Trap {
     let backing: [u8; 3] = [11, 22, 33];
     let packet: Packet = Packet { bytes: &backing[..] };
-    Helper::forward(packet);
+    helper_forward(packet);
 }

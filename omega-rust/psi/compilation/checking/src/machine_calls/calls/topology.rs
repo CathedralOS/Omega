@@ -324,6 +324,9 @@ pub fn call_target_return_type(
     if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
         return Some(slot.return_type);
     }
+    if let Some(application) = program.closed_requirement_application(target_state_symbol) {
+        return Some(application.signature.return_type);
+    }
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
         return Some(signature.return_type);
     }

@@ -173,6 +173,7 @@ pub(super) fn emit_state(
             crate::emission::operation_emission::dynamic_calls::emit_completed_dynamic_call(
                 &call.interface_identity,
                 &call.requirement_identity,
+                &call.family_tuple,
                 &operands,
                 &family_actuals,
                 structural_arguments,

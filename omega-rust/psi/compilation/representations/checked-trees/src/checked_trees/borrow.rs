@@ -247,6 +247,11 @@ pub struct BorrowLoanFact {
     /// its statement. Zero denotes a statement-call completion. Source replay
     /// reconstructs this identity; equal storage does not imply equal timing.
     pub formation_expression: ExpressionHandle,
+    /// Exact leaf relative to the completed formation result, before any
+    /// enclosing destination prefix. None withholds that association; an empty
+    /// path is a valid root descriptor. This identifies an existing checked
+    /// loan and supplies no new referent geometry or access.
+    pub formation_owner_path: Option<HandleSpan<BorrowLoanOwnerSegment>>,
     /// Input storage held by the originating call, distinct from this leaf's
     /// exact referent. Transport keeps the occurrence and captured prefix.
     pub retained_operand: Option<BorrowRetainedOperand>,
@@ -718,10 +723,11 @@ impl BorrowFacts {
         &self,
         state: &StateBorrowFact,
     ) -> impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)> {
-        state
-            .loans
-            .handles()
-            .filter_map(|handle| self.loans.is_valid(handle).then(|| (handle, self.loans.get(handle))))
+        state.loans.handles().filter_map(|handle| {
+            self.loans
+                .is_valid(handle)
+                .then(|| (handle, self.loans.get(handle)))
+        })
     }
 
     /// Membership retains the loan arena's generation, not just its index.

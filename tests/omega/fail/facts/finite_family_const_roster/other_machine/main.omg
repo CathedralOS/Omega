@@ -12,10 +12,9 @@ Other satisfies Family {
 }
 machine selected_width(selection: dyn Family) -> u32 { Family::row<64>(selection) }
 
-data Helper {}
-machine Helper::forward(selected: dyn Family) -> u32 { selected_width(selected) }
+machine helper_forward(selected: dyn Family) -> u32 { selected_width(selected) }
 machine main() crashes Trap {
-    let observed: u32 = Helper::forward(Selected as dyn Family);
+    let observed: u32 = helper_forward(Selected as dyn Family);
     transition observed == 16 { true -> done() false -> bad() }
     state done() {}
     state bad() { crash Trap; }

@@ -111,7 +111,7 @@ impl CurrentScalarValues<'_> {
         Some(values)
     }
 
-    fn static_argument_value(
+    pub(crate) fn static_argument_value(
         &self,
         argument: &StaticMachineArgument,
     ) -> Option<ScopedArithmeticValue> {

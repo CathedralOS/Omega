@@ -320,10 +320,20 @@ pub(crate) fn validate_applied_trait_signature(
         return;
     }
     let mut required_generic_types = trait_type_parameters.to_vec();
+    // Value and const parameters may occur as named index arguments in a
+    // dependent result too. Their positional bindings above must participate
+    // in matching just as type binders do; declaration-local symbols differ.
     required_generic_types.extend(
         requirement_type_parameters
             .iter()
-            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
+                )
+            })
             .cloned(),
     );
     let applied_generic_types = applied_type_parameters
