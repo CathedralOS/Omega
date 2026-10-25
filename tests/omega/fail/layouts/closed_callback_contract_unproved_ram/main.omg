@@ -222,11 +222,12 @@ machine SortPolicies::argument_register(register: u64) -> MachineRegister {
 
 public data Elements { first: Registers; second: Registers; }
 public boundary trait Comparator: Calling<ComparatorCalling> {
-    machine compare(first: &Placed<RegPlacement, Registers>, second: &Placed<RegPlacement, Registers>) -> i32;
+    machine compare(first: &Placed<RegPlacement, Registers>, second: &Placed<RegPlacement, Registers>) -> i32 reaches;
 }
 public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<Unused, machine Handler>(elements: &mut Elements, count: u64, width: u64, native callback compare from Handler)
     where machine Handler satisfies Comparator::compare;
+    reaches
     invokes Comparator;
     requires count == 2 && width == 8;
 }
@@ -260,4 +261,13 @@ invokes Console;
     let mut elements: Elements = Elements { first: Registers { status: 41, transmit: 3 }, second: Registers { status: 73, transmit: 5 } };
     SortRegistrar::sort<u64, Ordering::compare>(&mut elements, 2, 8);
     Console::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches SortRegistrar + Comparator + Console
+invokes SortRegistrar;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

@@ -12,10 +12,12 @@ satisfies Content<Region, CountedQuantity<ByteUnit>>::project {
 // write-only subject. The enclosing storage matters as well as the leaf.
 boundary trait Direct {
     machine observe(whole: &write Region in Owned)
+    reaches
     ensures Owned::content(old(whole)) == Owned::content(whole);
 }
 data Envelope { region: Region in Owned; }
 boundary trait Nested {
     machine observe(whole: &write Envelope)
+    reaches
     ensures Owned::content(old(&whole.region)) == Owned::content(&whole.region);
 }

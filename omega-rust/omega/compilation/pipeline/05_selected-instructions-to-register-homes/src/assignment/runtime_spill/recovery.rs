@@ -34,15 +34,15 @@ use selected_instructions::{
     FunctionLiveRanges, SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_selected_instructions::{
-    FixedViewCopyPolicy, RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
-    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    FixedViewCopyPolicy, RecoveryReanalysisError, RuntimeSpillError, RuntimeSpillSpanPolicy,
+    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-    ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
-    analyze_allocation_legality_reusing, analyze_live_ranges_reusing, analyze_liveness_reusing,
-    materialize_selected_fixed_occurrences, rematerialize_selected_runtime_value,
-    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
-    split_selected_runtime_value,
+    UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
+    ValidatedLiveRanges, ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+    ValidatedSelectedAnalysis, analyze_allocation_legality_reusing, analyze_live_ranges_reusing,
+    analyze_liveness_reusing, materialize_selected_fixed_occurrences,
+    rematerialize_selected_runtime_value, spill_selected_runtime_value,
+    spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
 };
 
 pub(crate) fn assign_source(
@@ -121,6 +121,58 @@ pub(super) fn analyze(
     })
 }
 
+fn reanalyze_unsealed(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    availability: &ValidatedAllocatorAvailability,
+    previous: &impl ValidatedSelectedAnalysis,
+    current_facts: &UnsealedRecoveryFacts,
+    selected: &impl ValidatedSelectedAnalysis,
+) -> Result<UnsealedRecoveryFacts, RuntimeSpillAllocationError> {
+    current_facts
+        .reanalyze_changed_functions(
+            previous,
+            selected,
+            availability,
+            environment.physical(),
+            environment.reservations(),
+        )
+        .map_err(|error| match error {
+            RecoveryReanalysisError::Liveness(error) => {
+                RuntimeSpillAllocationError::Liveness(error)
+            }
+            RecoveryReanalysisError::Ranges(error) => RuntimeSpillAllocationError::Ranges(error),
+            RecoveryReanalysisError::Legality(error) => {
+                RuntimeSpillAllocationError::Legality(error)
+            }
+        })
+}
+
+fn seal_recovery_facts(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    availability: &ValidatedAllocatorAvailability,
+    anchor_selected: &impl ValidatedSelectedAnalysis,
+    anchor_facts: &RuntimeSpillFacts,
+    unsealed: UnsealedRecoveryFacts,
+    selected: &impl ValidatedSelectedAnalysis,
+) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
+    let (liveness, ranges, legality) = unsealed
+        .seal(
+            anchor_selected,
+            &anchor_facts.liveness,
+            &anchor_facts.ranges,
+            &anchor_facts.legality,
+            selected,
+            availability,
+            environment.identity(),
+        )
+        .map_err(RuntimeSpillAllocationError::Legality)?;
+    Ok(RuntimeSpillFacts {
+        liveness,
+        ranges,
+        legality,
+    })
+}
+
 /// A failed crossing probe belongs only to the current victim attempt. The
 /// bounded policy must still construct and independently validate its rewrite;
 /// equal complete plans and receipts then mean allocation has exactly the same
@@ -129,7 +181,7 @@ pub(super) fn analyze(
 /// This is producer work reuse, never evidence for final independent replay.
 struct SpillPressureProbe {
     rewrite: ValidatedRuntimeSpill,
-    facts: RuntimeSpillFacts,
+    facts: UnsealedRecoveryFacts,
     failure: crate::RegisterHomeError,
 }
 
@@ -137,7 +189,7 @@ impl SpillPressureProbe {
     fn reuse_for(
         self,
         bounded: &ValidatedRuntimeSpill,
-    ) -> Option<(RuntimeSpillFacts, crate::RegisterHomeError)> {
+    ) -> Option<(UnsealedRecoveryFacts, crate::RegisterHomeError)> {
         (self.rewrite.receipt() == bounded.receipt()
             && self.rewrite.transformed() == bounded.transformed())
         .then_some((self.facts, self.failure))
@@ -195,6 +247,7 @@ fn is_recovery_candidate(
 /// through a fresh reload per step, each step a whole-function analysis.
 /// A split's fresh register is the only minted register that joins the pool.
 /// The step rewrote `function` alone, so only its registers can be new.
+#[allow(dead_code)]
 pub(super) fn retire_minted(
     retired: &mut std::collections::BTreeSet<(usize, VirtualRegisterId)>,
     function: usize,
@@ -256,6 +309,90 @@ pub(super) fn transformations(
     prefix.iter().chain(recorded).cloned().collect()
 }
 
+/// Precomputed per-batch live-range index for one function, avoiding repeated
+/// `SameHomeComponents` construction and full `ranges.interference` /
+/// `ranges.virtual_registers` scans across intra-batch recovery steps.
+pub(super) struct BatchFunctionIndex {
+    components: crate::assignment::same_home::SameHomeComponents,
+    neighbor_offsets: Vec<u32>,
+    neighbor_targets: Vec<VirtualRegisterId>,
+    live_points: Vec<u64>,
+}
+
+impl BatchFunctionIndex {
+    pub(super) fn new(ranges: &FunctionLiveRanges) -> Self {
+        let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
+        let max_reg_id = ranges
+            .virtual_registers
+            .iter()
+            .map(|r| r.virtual_register.0 as usize)
+            .chain(
+                ranges
+                    .interference
+                    .iter()
+                    .flat_map(|p| [p.lower.0 as usize, p.higher.0 as usize]),
+            )
+            .max()
+            .unwrap_or(0);
+        let mut counts = vec![0u32; max_reg_id + 1];
+        for pair in &ranges.interference {
+            counts[pair.lower.0 as usize] += 1;
+            counts[pair.higher.0 as usize] += 1;
+        }
+        let mut neighbor_offsets = vec![0u32; max_reg_id + 2];
+        for i in 0..=max_reg_id {
+            neighbor_offsets[i + 1] = neighbor_offsets[i] + counts[i];
+        }
+        let mut cursors = neighbor_offsets.clone();
+        let mut neighbor_targets =
+            vec![VirtualRegisterId(0); neighbor_offsets[max_reg_id + 1] as usize];
+        for pair in &ranges.interference {
+            let l_idx = pair.lower.0 as usize;
+            let h_idx = pair.higher.0 as usize;
+            let lc = &mut cursors[l_idx];
+            neighbor_targets[*lc as usize] = pair.higher;
+            *lc += 1;
+            let hc = &mut cursors[h_idx];
+            neighbor_targets[*hc as usize] = pair.lower;
+            *hc += 1;
+        }
+        for reg_idx in 0..=max_reg_id {
+            let start = neighbor_offsets[reg_idx] as usize;
+            let end = neighbor_offsets[reg_idx + 1] as usize;
+            let slice = &mut neighbor_targets[start..end];
+            if slice.len() > 1 && slice.windows(2).any(|w| w[0] > w[1]) {
+                slice.sort_unstable();
+            }
+        }
+        let mut live_points = vec![0u64; max_reg_id + 1];
+        for range in &ranges.virtual_registers {
+            let points: u64 = range
+                .fragments
+                .iter()
+                .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
+                .sum();
+            live_points[range.virtual_register.0 as usize] = points;
+        }
+        Self {
+            components,
+            neighbor_offsets,
+            neighbor_targets,
+            live_points,
+        }
+    }
+
+    #[inline]
+    fn register_neighbors(&self, register: VirtualRegisterId) -> &[VirtualRegisterId] {
+        let idx = register.0 as usize;
+        if idx + 1 >= self.neighbor_offsets.len() {
+            return &[];
+        }
+        let start = self.neighbor_offsets[idx] as usize;
+        let end = self.neighbor_offsets[idx + 1] as usize;
+        &self.neighbor_targets[start..end]
+    }
+}
+
 /// The pressure domain one recovery step must relieve: the function and
 /// leader a placement failure names, with the leader's member fragments
 /// collected once. Every roster candidate is scored against this one
@@ -264,18 +401,31 @@ pub(super) fn transformations(
 pub(super) struct FailedDomain<'ranges> {
     function: usize,
     ranges: &'ranges FunctionLiveRanges,
+    index: Option<&'ranges BatchFunctionIndex>,
     members: Vec<VirtualRegisterId>,
-    components: crate::assignment::same_home::SameHomeComponents,
+    components: Option<crate::assignment::same_home::SameHomeComponents>,
     pressure: Vec<(VirtualRegisterId, usize)>,
+    direct_pressure: Vec<(VirtualRegisterId, usize)>,
     intrinsic: bool,
 }
 
 impl<'ranges> FailedDomain<'ranges> {
+    fn components(&self) -> &crate::assignment::same_home::SameHomeComponents {
+        if let Some(index) = self.index {
+            &index.components
+        } else {
+            self.components
+                .as_ref()
+                .expect("FailedDomain carries either BatchFunctionIndex or owned components")
+        }
+    }
+
     /// A placement-pressure component or a value-local empty common domain;
     /// unrelated failures never enter recovery.
-    pub(super) fn of(
+    pub(super) fn of_indexed(
         failure: &crate::RegisterHomeError,
-        ranges: &'ranges ValidatedLiveRanges,
+        range_functions: &'ranges [std::sync::Arc<FunctionLiveRanges>],
+        batch_indices: &'ranges std::collections::BTreeMap<usize, BatchFunctionIndex>,
     ) -> Option<Self> {
         let (function, register, intrinsic) = match failure {
             crate::RegisterHomeError::NoCompatibleHome { function, register } => {
@@ -287,16 +437,73 @@ impl<'ranges> FailedDomain<'ranges> {
             } => (*function, *register, true),
             _ => return None,
         };
-        let function_ranges = ranges.plan().functions.get(function)?;
-        let mut domain = Self::in_function(function, function_ranges, VirtualRegisterId(register));
+        let function_ranges = range_functions.get(function)?;
+        let mut domain = if let Some(index) = batch_indices.get(&function) {
+            Self::in_function_indexed(function, function_ranges, index, VirtualRegisterId(register))
+        } else {
+            Self::in_function(function, function_ranges, VirtualRegisterId(register))
+        };
         if intrinsic {
             // Empty point-domain intersections and retained entry transitions
             // belong to this exact source value. Spilling neighbours cannot
             // change its pinned uses, clobbers or preservation obligation.
             domain.members = vec![VirtualRegisterId(register)];
+            domain.direct_pressure = vec![(VirtualRegisterId(register), 1)];
             domain.intrinsic = true;
         }
         Some(domain)
+    }
+
+    pub(super) fn in_function_indexed(
+        function: usize,
+        ranges: &'ranges FunctionLiveRanges,
+        index: &'ranges BatchFunctionIndex,
+        leader: VirtualRegisterId,
+    ) -> Self {
+        let members = index.components.members(leader);
+        let mut covered = Vec::new();
+        let mut direct_covered = Vec::new();
+        for &member in &members {
+            direct_covered.push((member, member));
+            for &other in index.register_neighbors(member) {
+                covered.push((index.components.leader(other), member));
+                direct_covered.push((other, member));
+            }
+        }
+        covered.sort_unstable();
+        covered.dedup();
+        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
+        for (component, _) in covered {
+            if let Some((previous, count)) = pressure.last_mut()
+                && *previous == component
+            {
+                *count += 1;
+            } else {
+                pressure.push((component, 1));
+            }
+        }
+        direct_covered.sort_unstable();
+        direct_covered.dedup();
+        let mut direct_pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
+        for (reg, _) in direct_covered {
+            if let Some((previous, count)) = direct_pressure.last_mut()
+                && *previous == reg
+            {
+                *count += 1;
+            } else {
+                direct_pressure.push((reg, 1));
+            }
+        }
+        Self {
+            function,
+            ranges,
+            index: Some(index),
+            members,
+            components: None,
+            pressure,
+            direct_pressure,
+            intrinsic: false,
+        }
     }
 
     pub(super) fn in_function(
@@ -307,10 +514,15 @@ impl<'ranges> FailedDomain<'ranges> {
         let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
         let members = components.members(leader);
         let mut covered = Vec::new();
+        let mut direct_covered = Vec::new();
+        for &member in &members {
+            direct_covered.push((member, member));
+        }
         for pair in &ranges.interference {
             for (member, other) in [(pair.lower, pair.higher), (pair.higher, pair.lower)] {
                 if members.binary_search(&member).is_ok() {
                     covered.push((components.leader(other), member));
+                    direct_covered.push((other, member));
                 }
             }
         }
@@ -328,12 +540,26 @@ impl<'ranges> FailedDomain<'ranges> {
                 pressure.push((component, 1));
             }
         }
+        direct_covered.sort_unstable();
+        direct_covered.dedup();
+        let mut direct_pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
+        for (reg, _) in direct_covered {
+            if let Some((previous, count)) = direct_pressure.last_mut()
+                && *previous == reg
+            {
+                *count += 1;
+            } else {
+                direct_pressure.push((reg, 1));
+            }
+        }
         Self {
             function,
             ranges,
+            index: None,
             members,
-            components,
+            components: Some(components),
             pressure,
+            direct_pressure,
             intrinsic: false,
         }
     }
@@ -353,7 +579,7 @@ impl<'ranges> FailedDomain<'ranges> {
             return 0;
         }
         self.pressure
-            .binary_search_by_key(&self.components.leader(register), |(component, _)| {
+            .binary_search_by_key(&self.components().leader(register), |(component, _)| {
                 *component
             })
             .map_or(0, |position| self.pressure[position].1)
@@ -366,11 +592,35 @@ impl<'ranges> FailedDomain<'ranges> {
         victim: VirtualRegisterId,
         pending: &mut Vec<crate::RegisterHomeError>,
     ) {
-        let component = self.components.leader(victim);
+        if pending.is_empty() {
+            return;
+        }
+        let components = self.components();
+        let component = components.leader(victim);
+        if let Some(index) = self.index {
+            let mut relieved = vec![component];
+            for member in components.members(component) {
+                for &other in index.register_neighbors(member) {
+                    relieved.push(components.leader(other));
+                }
+            }
+            relieved.sort_unstable();
+            relieved.dedup();
+            pending.retain(|failure| match failure {
+                crate::RegisterHomeError::NoCompatibleHome { function, register } => {
+                    *function == self.function
+                        && relieved
+                            .binary_search(&components.leader(VirtualRegisterId(*register)))
+                            .is_err()
+                }
+                _ => false,
+            });
+            return;
+        }
         let mut relieved = vec![component];
         for pair in &self.ranges.interference {
-            let lower = self.components.leader(pair.lower);
-            let higher = self.components.leader(pair.higher);
+            let lower = components.leader(pair.lower);
+            let higher = components.leader(pair.higher);
             if lower == component {
                 relieved.push(higher);
             }
@@ -384,7 +634,7 @@ impl<'ranges> FailedDomain<'ranges> {
             crate::RegisterHomeError::NoCompatibleHome { function, register } => {
                 *function == self.function
                     && relieved
-                        .binary_search(&self.components.leader(VirtualRegisterId(*register)))
+                        .binary_search(&components.leader(VirtualRegisterId(*register)))
                         .is_err()
             }
             _ => false,
@@ -399,40 +649,39 @@ impl<'ranges> FailedDomain<'ranges> {
     // peers. Both are eligible, but moving the directly live value removes
     // pressure here without depending on how much of its peer's range survives.
     fn direct_relief(&self, register: VirtualRegisterId) -> usize {
-        self.members
-            .iter()
-            .filter(|member| {
-                **member == register || {
-                    let (lower, higher) = if register < **member {
-                        (register, **member)
-                    } else {
-                        (**member, register)
-                    };
-                    self.ranges
-                        .interference
-                        .binary_search(&selected_instructions::VirtualInterference {
-                            lower,
-                            higher,
-                        })
-                        .is_ok()
-                }
-            })
-            .count()
+        self.direct_pressure
+            .binary_search_by_key(&register, |&(reg, _)| reg)
+            .map_or(0, |pos| self.direct_pressure[pos].1)
+    }
+
+    fn visit_overlapping_registers(&self, mut f: impl FnMut(VirtualRegisterId)) {
+        for &member in &self.members {
+            f(member);
+        }
+        if !self.intrinsic {
+            let components = self.components();
+            for &(component, _) in &self.pressure {
+                components.visit_members(component, &mut f);
+            }
+        }
     }
 
     fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
-        let points = self
-            .ranges
-            .virtual_registers
-            .iter()
-            .find(|range| range.virtual_register == register)
-            .map_or(0, |range| {
-                range
-                    .fragments
-                    .iter()
-                    .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
-                    .sum()
-            });
+        let points = if let Some(index) = self.index {
+            index.live_points.get(register.0 as usize).copied().unwrap_or(0)
+        } else {
+            self.ranges
+                .virtual_registers
+                .iter()
+                .find(|range| range.virtual_register == register)
+                .map_or(0, |range| {
+                    range
+                        .fragments
+                        .iter()
+                        .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
+                        .sum()
+                })
+        };
         (
             if function == self.function {
                 self.direct_relief(register)
@@ -450,6 +699,7 @@ impl<'ranges> FailedDomain<'ranges> {
 // Long-lived blockers otherwise force recovery through many short failed
 // leaders and a whole-function analysis per victim. Equal scores retain roster
 // order. Intrinsic constraints still admit only the exact failed value.
+#[allow(dead_code)]
 fn candidate_position<Priority: Ord + Copy>(
     failure: &crate::RegisterHomeError,
     roster: &[(usize, VirtualRegisterId)],
@@ -477,15 +727,128 @@ fn candidate_position<Priority: Ord + Copy>(
         .map(|(position, _)| position)
 }
 
+struct FunctionRoster {
+    function: usize,
+    entries: Vec<(usize, VirtualRegisterId)>,
+    pos_by_reg: Vec<u32>,
+    split_inadmissible_bits: Vec<u64>,
+}
+
+impl FunctionRoster {
+    fn new(function: usize, entries: Vec<(usize, VirtualRegisterId)>) -> Self {
+        let max_reg = entries
+            .iter()
+            .map(|&(_, reg)| reg.0 as usize)
+            .max()
+            .unwrap_or(0);
+        let mut pos_by_reg = vec![u32::MAX; max_reg + 1];
+        for (idx, &(_, reg)) in entries.iter().enumerate() {
+            pos_by_reg[reg.0 as usize] = idx as u32;
+        }
+        Self {
+            function,
+            entries,
+            pos_by_reg,
+            split_inadmissible_bits: Vec::new(),
+        }
+    }
+
+    #[inline]
+    fn active_position(&self, register: VirtualRegisterId) -> Option<u32> {
+        self.pos_by_reg
+            .get(register.0 as usize)
+            .copied()
+            .filter(|&pos| pos != u32::MAX)
+    }
+
+    #[inline]
+    fn remove_register(&mut self, register: VirtualRegisterId) {
+        if let Some(slot) = self.pos_by_reg.get_mut(register.0 as usize) {
+            *slot = u32::MAX;
+        }
+    }
+
+    #[inline]
+    fn is_split_inadmissible(&self, register: VirtualRegisterId) -> bool {
+        let word = (register.0 as usize) >> 6;
+        self.split_inadmissible_bits
+            .get(word)
+            .is_some_and(|&bits| (bits & (1u64 << (register.0 & 63))) != 0)
+    }
+
+    #[inline]
+    fn mark_split_inadmissible(&mut self, register: VirtualRegisterId) {
+        let word = (register.0 as usize) >> 6;
+        if word >= self.split_inadmissible_bits.len() {
+            self.split_inadmissible_bits.resize(word + 1, 0);
+        }
+        self.split_inadmissible_bits[word] |= 1u64 << (register.0 & 63);
+    }
+
+    fn clear_split_inadmissible(&mut self) {
+        self.split_inadmissible_bits.clear();
+    }
+
+    fn extend(&mut self, iter: impl IntoIterator<Item = (usize, VirtualRegisterId)>) {
+        for (func, reg) in iter {
+            let pos = self.entries.len() as u32;
+            self.entries.push((func, reg));
+            let reg_idx = reg.0 as usize;
+            if reg_idx >= self.pos_by_reg.len() {
+                self.pos_by_reg.resize(reg_idx + 1, u32::MAX);
+            }
+            self.pos_by_reg[reg_idx] = pos;
+        }
+    }
+}
+
+fn select_roster_candidate(
+    failure: &crate::RegisterHomeError,
+    roster: &FunctionRoster,
+    domain: Option<&FailedDomain<'_>>,
+) -> Option<(usize, VirtualRegisterId)> {
+    match failure {
+        crate::RegisterHomeError::NoCompatibleHome { .. } => {}
+        crate::RegisterHomeError::NoCommonCandidate { function, register }
+        | crate::RegisterHomeError::UnresolvedEntryTransitions {
+            function, register, ..
+        } => {
+            if *function != roster.function {
+                return None;
+            }
+            let pos = roster.active_position(VirtualRegisterId(*register))?;
+            return Some(roster.entries[pos as usize]);
+        }
+        _ => return None,
+    };
+    let domain = domain?;
+    if domain.function() != roster.function {
+        return None;
+    }
+    let mut best: Option<((std::cmp::Reverse<(usize, u64)>, u32), VirtualRegisterId)> = None;
+    domain.visit_overlapping_registers(|reg| {
+        if let Some(pos) = roster.active_position(reg) {
+            let key = (
+                std::cmp::Reverse(domain.spill_priority(roster.function, reg)),
+                pos,
+            );
+            if best.is_none_or(|(best_key, _)| key < best_key) {
+                best = Some((key, reg));
+            }
+        }
+    });
+    best.map(|(_, reg)| (roster.function, reg))
+}
+
 /// The split decision at one step: among the still-available roster
 /// candidates overlapping the failed domain, in most-relief-then-roster
 /// order, the first whose fixed-view definition
 /// the split rewrite admits. `None` means no split is admissible and the step
 /// falls through to rematerialization or storage.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn admissible_split<'roster>(
+fn admissible_split_indexed(
     domain: Option<&FailedDomain<'_>>,
-    available: impl Iterator<Item = &'roster (usize, VirtualRegisterId)>,
+    roster: &mut FunctionRoster,
     selected: &impl ValidatedSelectedAnalysis,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
@@ -494,19 +857,49 @@ pub(super) fn admissible_split<'roster>(
     let Some(domain) = domain else {
         return Ok(None);
     };
-    let mut ordered: Vec<(usize, (usize, VirtualRegisterId))> = available
-        .copied()
-        .filter_map(|candidate| {
-            let relief = domain.relief(candidate.0, candidate.1);
-            (relief > 0).then_some((domain.direct_relief(candidate.1), candidate))
-        })
-        .collect();
-    // A stable sort keeps roster order among equal relief.
-    ordered.sort_by_key(|(relief, _)| std::cmp::Reverse(*relief));
+    if domain.function() != roster.function {
+        return Ok(None);
+    }
+    let plan = selected.selected_plan();
+    let can_prefilter = plan.target == environment.target()
+        && environment
+            .constraint(environment.selected_keys().copy_i64)
+            .is_some();
+    let function_body = if can_prefilter {
+        plan.functions.get(domain.function())
+    } else {
+        None
+    };
+    let mut ordered: Vec<((std::cmp::Reverse<usize>, u32), (usize, VirtualRegisterId))> =
+        Vec::new();
+    domain.visit_overlapping_registers(|reg| {
+        let Some(pos) = roster.active_position(reg) else {
+            return;
+        };
+        if roster.is_split_inadmissible(reg) {
+            return;
+        }
+        if let Some(body) = function_body
+            && !body.blocks.has_fixed_definition(reg)
+        {
+            roster.mark_split_inadmissible(reg);
+            return;
+        }
+        ordered.push((
+            (std::cmp::Reverse(domain.direct_relief(reg)), pos),
+            (roster.function, reg),
+        ));
+    });
+    if ordered.is_empty() {
+        return Ok(None);
+    }
+    ordered.sort_unstable_by_key(|&(key, _)| key);
     for (_, (function, register)) in ordered {
         match split_selected_runtime_value(selected, function, register, environment, budget) {
             Ok(split) => return Ok(Some(((function, register), split))),
-            Err(error) if error.is_inadmissible() => {}
+            Err(error) if error.is_inadmissible() => {
+                roster.mark_split_inadmissible(register);
+            }
             Err(error) => return Err(RuntimeSpillAllocationError::Split(error)),
         }
     }
@@ -603,10 +996,9 @@ fn recover_over(
     // others keep the homes their unchanged rows already received.
     let mut home_reuse = FunctionHomeReuse::default();
     let budget = resolved.legality_stage.budget_per_pass();
-    let rewrite = RuntimeSpillStepRewrite::FixedOccurrences(
-        materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
-            .map_err(RuntimeSpillAllocationError::FixedOccurrences)?,
-    );
+    let rewrite = materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
+        .map(RuntimeSpillStepRewrite::FixedOccurrences)
+        .map_err(RuntimeSpillAllocationError::FixedOccurrences)?;
     let facts = analyze(
         environment,
         availability,
@@ -642,6 +1034,8 @@ fn recover_over(
         Err(error) if error.admits_runtime_recovery() => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
     };
+    let anchor_rewrite = rewrite.clone();
+    let anchor_facts = facts;
     let mut current = rewrite;
     // Analysis facts remain bound to this exact batch source. Every intermediate
     // rewrite is independently admitted, but only the completed batch is analyzed.
@@ -649,11 +1043,15 @@ fn recover_over(
     let mut pending_pressure = home_reuse.take_pressure();
     pending_pressure.reverse();
     pending_pressure.pop();
-    let mut tried: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
-        std::collections::BTreeSet::new();
-    let mut current_ranges = facts.ranges;
-    let mut current_liveness = facts.liveness;
-    let mut current_legality = facts.legality;
+    let mut current_facts = UnsealedRecoveryFacts::from_validated(
+        &anchor_facts.liveness,
+        &anchor_facts.ranges,
+        &anchor_facts.legality,
+    );
+    let mut batch_indices: std::collections::BTreeMap<usize, BatchFunctionIndex> =
+        std::collections::BTreeMap::new();
+    let mut rosters: std::collections::BTreeMap<usize, FunctionRoster> =
+        std::collections::BTreeMap::new();
     loop {
         let selected = current.selected();
         // Committed rewrites mint registers the original plan never had: a
@@ -666,7 +1064,22 @@ fn recover_over(
         // minted and never join.
         // Only the failed function's registers can relieve its pressure, so
         // the roster and every score below stay within that function.
-        let domain = FailedDomain::of(&failure, &current_ranges);
+        let failure_function = match &failure {
+            crate::RegisterHomeError::NoCompatibleHome { function, .. }
+            | crate::RegisterHomeError::NoCommonCandidate { function, .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { function, .. } => {
+                Some(*function)
+            }
+            _ => None,
+        };
+        if let Some(func_idx) = failure_function
+            && !batch_indices.contains_key(&func_idx)
+            && let Some(func_ranges) = current_facts.range_functions().get(func_idx)
+        {
+            batch_indices.insert(func_idx, BatchFunctionIndex::new(func_ranges));
+        }
+        let domain =
+            FailedDomain::of_indexed(&failure, current_facts.range_functions(), &batch_indices);
         let Some(pressured) = domain.as_ref().map(FailedDomain::function).or_else(|| {
             if let crate::RegisterHomeError::NoCommonCandidate { function, .. } = &failure {
                 Some(*function)
@@ -676,18 +1089,22 @@ fn recover_over(
         }) else {
             break;
         };
-        let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan(), pressured)
-            .into_iter()
-            .filter(|entry| !tried.contains(entry))
-            .collect();
+        let old_vreg_len = selected
+            .plan()
+            .functions
+            .get(pressured)
+            .map_or(0, |body| body.virtual_registers.len());
+        let roster: &mut FunctionRoster = rosters
+            .entry(pressured)
+            .or_insert_with(|| FunctionRoster::new(pressured, candidates(selected.plan(), pressured)));
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
         // whenever admitted. It replaces one live range by two disjoint ones
         // joined at the copy, so no point gains a live value; the pinned
         // segment the failed domain overlapped now ends at the copy.
-        let split = admissible_split(
+        let split = admissible_split_indexed(
             domain.as_ref(),
-            roster.iter(),
+            roster,
             &selected,
             environment,
             budget,
@@ -715,7 +1132,6 @@ fn recover_over(
         } else {
             None
         };
-        let used_before_use = before_use.is_some();
         let mut failed_crossing = None;
         let rewritten_candidate;
         let rewrite = if let Some(split) = before_use {
@@ -729,43 +1145,55 @@ fn recover_over(
             RuntimeSpillStepRewrite::Split(split)
         } else if let Some((candidate, split)) = split {
             rewritten_candidate = candidate;
-            tried.insert(candidate);
+            roster.remove_register(candidate.1);
+            if let Some(body) = split.transformed().functions.get(pressured)
+                && let Some(appended) = body.virtual_registers.get(old_vreg_len..)
+            {
+                roster.extend(
+                    appended
+                        .iter()
+                        .filter(|register| is_recovery_candidate(body, register))
+                        .map(|register| (pressured, register.id)),
+                );
+            }
             RuntimeSpillStepRewrite::Split(split)
         } else {
-            let Some(position) = candidate_position(
-                &failure,
-                &roster,
-                |(function, register)| {
-                    domain
-                        .as_ref()
-                        .is_some_and(|domain| domain.relief(*function, *register) > 0)
-                },
-                |(function, register)| {
-                    domain
-                        .as_ref()
-                        .map_or((0, 0), |domain| domain.spill_priority(*function, *register))
-                },
-            ) else {
+            let Some((function, register)) =
+                select_roster_candidate(&failure, roster, domain.as_ref())
+            else {
                 // A hint can become unrewritable after earlier batch edits.
                 // Flush the actual current program before concluding recovery
                 // failed; those admitted edits may already have solved it.
                 if selected.selected_identity() != analysis_source.selected().selected_identity() {
-                    let facts = analyze(
+                    let unsealed = reanalyze_unsealed(
                         environment,
                         availability,
                         &analysis_source.selected(),
-                        &current_liveness,
-                        &current_ranges,
-                        &current_legality,
+                        &current_facts,
                         &selected,
                     )?;
-                    match assign_reusing(
-                        environment,
-                        &facts.ranges,
-                        &facts.legality,
-                        Some(&mut home_reuse),
+                    match home_reuse.probe_all(
+                        environment.identity(),
+                        unsealed.legality_functions(),
+                        unsealed.range_functions(),
+                        environment.physical(),
                     ) {
-                        Ok(homes) => {
+                        Ok(()) => {
+                            let facts = seal_recovery_facts(
+                                environment,
+                                availability,
+                                &anchor_rewrite.selected(),
+                                &anchor_facts,
+                                unsealed,
+                                &selected,
+                            )?;
+                            let homes = assign_reusing(
+                                environment,
+                                &facts.ranges,
+                                &facts.legality,
+                                Some(&mut home_reuse),
+                            )
+                            .map_err(RuntimeSpillAllocationError::Homes)?;
                             let manifest = project_recovery_manifest(
                                 &base,
                                 &recorded,
@@ -783,9 +1211,11 @@ fn recover_over(
                         }
                         Err(error) if error.admits_runtime_recovery() => {
                             failure = error;
-                            current_ranges = facts.ranges;
-                            current_liveness = facts.liveness;
-                            current_legality = facts.legality;
+                            current_facts = unsealed;
+                            batch_indices.clear();
+                            for r in rosters.values_mut() {
+                                r.clear_split_inadmissible();
+                            }
                             analysis_source = current.clone();
                             pending_pressure = home_reuse.take_pressure();
                             pending_pressure.reverse();
@@ -797,9 +1227,8 @@ fn recover_over(
                 }
                 break;
             };
-            let (function, register) = roster.remove(position);
+            roster.remove_register(register);
             rewritten_candidate = (function, register);
-            tried.insert((function, register));
             // The cost decision: regenerating one pure immediate materialization
             // per use is strictly cheaper than private storage plus reload pairs,
             // so rematerialization is attempted first. Its admission failure does
@@ -813,83 +1242,96 @@ fn recover_over(
             ) {
                 Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
                 Err(_) => {
-                    // The call-surviving shape first: where a clobber-set-reduced
-                    // view of the victim's class survives every unit written
-                    // inside a flexible-use span, the still-open reload reaches
-                    // across the call — or any other unit-writing instruction —
-                    // and the allocator proves whether that surviving, most often
-                    // callee-saved, home is actually free. Only an assignment
-                    // that succeeds commits the step, ending recovery one reload
-                    // pair earlier; anything else falls back to the bounded
-                    // shape, so a committed step never strands an unhomeable
-                    // interval. Each candidate's fresh analyses and final
-                    // home assignment establish whether it can commit.
-                    if pending_pressure.is_empty()
-                        && let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
+                    let mut bounded_already = None;
+                    if pending_pressure.is_empty() {
+                        match spill_selected_runtime_value_with_crossing_status(
                             &selected,
                             function,
                             register,
                             environment,
                             budget,
                             RuntimeSpillSpanPolicy::UnitWriteCrossing,
-                        )
-                    {
-                        let probe = analyze(
-                            environment,
-                            availability,
-                            &analysis_source.selected(),
-                            &current_liveness,
-                            &current_ranges,
-                            &current_legality,
-                            &SelectedProgramRef::new(&crossing),
-                        )?;
-                        match assign_reusing(
-                            environment,
-                            &probe.ranges,
-                            &probe.legality,
-                            Some(&mut home_reuse),
                         ) {
-                            Ok(homes) => {
-                                let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
-                                recorded.push(rewrite.transformation());
-                                let manifest = project_recovery_manifest(
-                                    &base,
-                                    &recorded,
-                                    &probe.ranges,
-                                    &probe.legality,
-                                    &homes,
+                            Ok((crossing, false)) => {
+                                bounded_already = Some(crossing);
+                            }
+                            Ok((crossing, true)) => {
+                                let probe = reanalyze_unsealed(
+                                    environment,
+                                    availability,
+                                    &analysis_source.selected(),
+                                    &current_facts,
+                                    &SelectedProgramRef::new(&crossing),
                                 )?;
-                                let result = RuntimeSpillAllocation {
-                                    source,
-                                    last: RuntimeSpillStep { rewrite },
-                                    facts: probe,
-                                    homes,
-                                    manifest,
-                                };
-                                return Ok(result);
+                                match home_reuse.probe_all(
+                                    environment.identity(),
+                                    probe.legality_functions(),
+                                    probe.range_functions(),
+                                    environment.physical(),
+                                ) {
+                                    Ok(()) => {
+                                        let facts = seal_recovery_facts(
+                                            environment,
+                                            availability,
+                                            &anchor_rewrite.selected(),
+                                            &anchor_facts,
+                                            probe,
+                                            &SelectedProgramRef::new(&crossing),
+                                        )?;
+                                        let homes = assign_reusing(
+                                            environment,
+                                            &facts.ranges,
+                                            &facts.legality,
+                                            Some(&mut home_reuse),
+                                        )
+                                        .map_err(RuntimeSpillAllocationError::Homes)?;
+                                        let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
+                                        recorded.push(rewrite.transformation());
+                                        let manifest = project_recovery_manifest(
+                                            &base,
+                                            &recorded,
+                                            &facts.ranges,
+                                            &facts.legality,
+                                            &homes,
+                                        )?;
+                                        let result = RuntimeSpillAllocation {
+                                            source,
+                                            last: RuntimeSpillStep { rewrite },
+                                            facts,
+                                            homes,
+                                            manifest,
+                                        };
+                                        return Ok(result);
+                                    }
+                                    Err(error) if error.admits_runtime_recovery() => {
+                                        failed_crossing = Some(SpillPressureProbe {
+                                            rewrite: crossing,
+                                            facts: probe,
+                                            failure: error,
+                                        });
+                                    }
+                                    Err(error) => {
+                                        return Err(RuntimeSpillAllocationError::Homes(error));
+                                    }
+                                }
                             }
-                            Err(error) if error.admits_runtime_recovery() => {
-                                failed_crossing = Some(SpillPressureProbe {
-                                    rewrite: crossing,
-                                    facts: probe,
-                                    failure: error,
-                                });
-                            }
-                            Err(error) => {
-                                return Err(RuntimeSpillAllocationError::Homes(error));
-                            }
+                            Err(_) => {}
                         }
                     }
-                    match spill_selected_runtime_value(
-                        &selected,
-                        function,
-                        register,
-                        environment,
-                        budget,
-                    ) {
-                        Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
-                        Err(error) if inadmissible(&error) => continue,
-                        Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+                    if let Some(rewrite) = bounded_already {
+                        RuntimeSpillStepRewrite::Spill(rewrite)
+                    } else {
+                        match spill_selected_runtime_value(
+                            &selected,
+                            function,
+                            register,
+                            environment,
+                            budget,
+                        ) {
+                            Ok(rewrite) => RuntimeSpillStepRewrite::Spill(rewrite),
+                            Err(error) if inadmissible(&error) => continue,
+                            Err(error) => return Err(RuntimeSpillAllocationError::Rewrite(error)),
+                        }
                     }
                 }
             };
@@ -905,14 +1347,6 @@ fn recover_over(
             pending_pressure.clear();
         }
         if let Some(next_failure) = pending_pressure.pop() {
-            if used_before_use || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
-                retire_minted(
-                    &mut tried,
-                    pressured,
-                    selected.plan(),
-                    rewrite.selected().plan(),
-                );
-            }
             recorded.push(rewrite.transformation());
             current = rewrite;
             failure = next_failure;
@@ -924,37 +1358,42 @@ fn recover_over(
             }
             _ => None,
         };
-        let (facts, homes) = if let Some((facts, pressure)) = reused_pressure {
-            (facts, Err(pressure))
+        let (unsealed, probe_result) = if let Some((unsealed, pressure)) = reused_pressure {
+            (unsealed, Err(pressure))
         } else {
-            let facts = analyze(
+            let unsealed = reanalyze_unsealed(
                 environment,
                 availability,
                 &analysis_source.selected(),
-                &current_liveness,
-                &current_ranges,
-                &current_legality,
+                &current_facts,
                 &rewrite.selected(),
             )?;
-            let homes = assign_reusing(
-                environment,
-                &facts.ranges,
-                &facts.legality,
-                Some(&mut home_reuse),
+            let probe_result = home_reuse.probe_all(
+                environment.identity(),
+                unsealed.legality_functions(),
+                unsealed.range_functions(),
+                environment.physical(),
             );
-            (facts, homes)
+            (unsealed, probe_result)
         };
-        if used_before_use || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
-            retire_minted(
-                &mut tried,
-                pressured,
-                selected.plan(),
-                rewrite.selected().plan(),
-            );
-        }
         recorded.push(rewrite.transformation());
-        match homes {
-            Ok(homes) => {
+        match probe_result {
+            Ok(()) => {
+                let facts = seal_recovery_facts(
+                    environment,
+                    availability,
+                    &anchor_rewrite.selected(),
+                    &anchor_facts,
+                    unsealed,
+                    &rewrite.selected(),
+                )?;
+                let homes = assign_reusing(
+                    environment,
+                    &facts.ranges,
+                    &facts.legality,
+                    Some(&mut home_reuse),
+                )
+                .map_err(RuntimeSpillAllocationError::Homes)?;
                 let manifest = project_recovery_manifest(
                     &base,
                     &recorded,
@@ -973,9 +1412,11 @@ fn recover_over(
             }
             Err(error) if error.admits_runtime_recovery() => {
                 failure = error;
-                current_ranges = facts.ranges;
-                current_legality = facts.legality;
-                current_liveness = facts.liveness;
+                current_facts = unsealed;
+                batch_indices.clear();
+                for r in rosters.values_mut() {
+                    r.clear_split_inadmissible();
+                }
                 current = rewrite;
                 analysis_source = current.clone();
                 pending_pressure = home_reuse.take_pressure();

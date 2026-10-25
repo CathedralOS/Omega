@@ -26,6 +26,7 @@ public data SplitResult {
 
 public boundary trait RegionSplit {
     machine split(mut whole: Region in Owned, head: u64) -> SplitResult
+    reaches
     requires head <= whole.remaining
     ensures
         Owned::content(old(&whole))

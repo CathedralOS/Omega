@@ -2,7 +2,7 @@ data Token { value: u64; }
 data Word {}
 domain<Value> Token::Issued<Value> established by Supply::confirm;
 boundary trait Supply<Value> {
-    machine confirm(value: &mut Token) -> () ensures value in Issued<Value>;
+    machine confirm(value: &mut Token) -> () reaches ensures value in Issued<Value>;
 }
 machine refresh<Value>(value: &mut Token) -> () reaches Supply
 ensures value in Issued<Value>;

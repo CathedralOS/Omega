@@ -36,7 +36,7 @@ pub(super) fn validate_selectors(
                 // The capture definition authenticates this selector root;
                 // physical ownership and copied-value identity are selected
                 // independently by the ordinary frame-coordinate query.
-                program.expression_table.saved_subject_source(saved)?;
+                program.saved_value_source(saved)?;
                 return Some(());
             }
             ExpressionNode::Name(_) => return Some(()),

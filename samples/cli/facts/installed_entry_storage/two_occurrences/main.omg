@@ -1,0 +1,95 @@
+// Two explicitly installed occurrences preserve their distinct original backing and declared argument order.
+// Expected exit: 0
+use omega::language::core::layout;
+
+public data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+public data RegPlacement {}
+
+machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let status_key: u64 = schema.fields[0].key;
+        transition { _ -> place_transmit(
+            schema,
+            AccessPlan::with(
+                access,
+                status_key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            AccessPlan::with(
+                access,
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        let mut services: [u64; 32];
+        services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+
+machine start(first: &Placed<RegPlacement, Registers>, second: &mut Placed<RegPlacement, Registers>) crashes Trap {
+    let first_status: u32 = first.status.read(&first.status);
+    let second_status: u32 = second.status.read(&second.status);
+    transition first_status == 41u32 && second_status == 53u32 { true -> write(second) _ -> bad() }
+    state write(second: &mut Placed<RegPlacement, Registers>) { second.transmit.write(&mut second.transmit, 9); }
+    state bad() { crash Trap; }
+}

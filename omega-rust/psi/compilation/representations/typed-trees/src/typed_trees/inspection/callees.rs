@@ -80,7 +80,6 @@ fn collect_statement_callees(
                 collect_transition_target_callees(typed, target, visited, called);
             }
         }
-        StatementNode::RootBinding(_) => {}
     }
 }
 

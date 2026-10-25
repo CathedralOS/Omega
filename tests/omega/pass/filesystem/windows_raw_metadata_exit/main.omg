@@ -10,6 +10,7 @@ use omega::language::core::external_binding;
 // must classify it before entering a native query that excludes pipes.
 boundary trait FixturePipe {
     machine create(read: &mut u64, write: &mut u64, security: u64, size: u32) -> i32
+    reaches
     requires security == 0 && size == 0
     blocks;
 }
@@ -160,4 +161,11 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
     }
     state good() { Console::exit_process(70); }
     state bad(code: i32) { Console::exit_process(code); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
 }

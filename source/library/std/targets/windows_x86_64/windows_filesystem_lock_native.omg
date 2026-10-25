@@ -21,12 +21,14 @@ data WindowsFilesystemLockImports {}
 
 boundary trait WindowsFilesystemLockIo {
     machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: &mut WindowsNativeLockRequest) -> i32
+    reaches
     requires handle != 0 && flags <= 3 && reserved == 0
         && length_low == 4294967295 && length_high == 4294967295
         && request.internal == 0 && request.transferred == 0
         && request.offset_low == 0 && request.offset_high == 0 && request.event == 0
     blocks;
     machine release(handle: i64 in WindowsSynchronousFileOrAbsent, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32
+    reaches
     requires handle != 0 && offset_low == 0 && offset_high == 0
         && length_low == 4294967295 && length_high == 4294967295
     blocks;

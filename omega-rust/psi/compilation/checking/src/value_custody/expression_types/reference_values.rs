@@ -1059,10 +1059,10 @@ fn selected_value_type(
             // This query checks a declared access ceiling, never loan origin.
             // The definition authenticates the completed capture; do not
             // substitute the supplier's current place for its value anchor.
-            let source = program.expression_table.saved_subject_source(saved)?;
+            let source = program.saved_value_source(saved)?;
             let anchor = program
                 .expression_table
-                .match_subject(saved.capture)
+                .value_capture(saved.capture)
                 .value_anchor;
             if let Some((root, reference)) = forwarding_root {
                 return (root == facts::PlaceRoot::Expression(anchor)).then_some(reference);

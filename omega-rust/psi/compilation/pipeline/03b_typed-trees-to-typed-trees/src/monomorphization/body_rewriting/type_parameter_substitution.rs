@@ -197,15 +197,10 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
     Ok(())
 }
 
-/// Rebind a runtime-bound `Value` binder that survives in a clone's
-/// state-scoped range endpoints onto that state's realized trailing
-/// parameter. `Bound` in `-> u64[0..=Bound]` qualifies the realized subject
-/// exactly like an authored `[0..=param]` dependent bound, so the clone's
-/// result range stays related to the captured caller argument instead of
-/// rejecting under the static-position fence. Binder names in machine-owned
-/// types, domain arguments, fixed-array extents, or `const` expressions are
-/// left alone for `reject_runtime_bound_static_occurrences` to reject.
-pub(crate) fn rebind_state_scoped_range_endpoints(
+/// Rebind state-owned runtime value positions to the state's realized formal.
+/// Ranges and ordinary data Value operands use that same formal; const slots,
+/// inline extents, domain-family arguments and type positions remain static.
+pub(crate) fn rebind_state_value_parameters(
     program: &mut TypedTrees,
     cloned: &typed_trees::machine::Machine,
     state_realized_parameters: &[Vec<(SymbolHandle, SymbolHandle)>],
@@ -248,24 +243,89 @@ pub(crate) fn rebind_state_scoped_range_endpoints(
             }
         }
         for root in roots {
-            rebind_range_endpoint_names(program, root, realized);
+            rebind_type_value_subjects(program, root, realized);
         }
     }
 }
 
-/// Walk one type root like `runtime_bound_occurrence_in`, but remap every
-/// name leaf inside range endpoints from the binder onto its realized
-/// parameter instead of testing membership. The endpoints are clone-owned
-/// copies, so remapping them cannot write into the retained template.
-fn rebind_range_endpoint_names(
+/// The receiving declaration determines argument roles. Merely occurring
+/// inside a type does not make a data Value operand a static computation.
+fn rebind_type_value_subjects(
     program: &mut TypedTrees,
     root: TypeReferenceHandle,
     realized: &[(SymbolHandle, SymbolHandle)],
 ) {
-    let endpoints = crate::monomorphization::type_reference_endpoints(program, root);
-    for (minimum, maximum) in endpoints {
-        program.expression_table.remap_symbols_in(minimum, realized);
-        program.expression_table.remap_symbols_in(maximum, realized);
+    let mut pending = vec![root];
+    let mut visited = Vec::new();
+    while let Some(reference) = pending.pop() {
+        if !reference.is_valid() || visited.contains(&reference) {
+            continue;
+        }
+        visited.push(reference);
+        match program
+            .type_reference_table
+            .type_reference(reference)
+            .clone()
+        {
+            TypeReferenceNode::Reference { referee, .. } => pending.push(referee),
+            TypeReferenceNode::Slice { element_type }
+            | TypeReferenceNode::FixedArray { element_type, .. } => pending.push(element_type),
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                pending.push(base_type);
+                for constraint in program
+                    .type_reference_table
+                    .constraints(constraints)
+                    .to_vec()
+                {
+                    if let typed_trees::types::TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } = constraint
+                    {
+                        program.expression_table.remap_symbols_in(minimum, realized);
+                        program.expression_table.remap_symbols_in(maximum, realized);
+                    }
+                }
+            }
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                let roles = program
+                    .unique_data_definition_by_symbol(base_symbol)
+                    .map(|data| {
+                        program
+                            .data_type_parameters(data)
+                            .iter()
+                            .map(|parameter| parameter.kind.clone())
+                            .collect::<Vec<_>>()
+                    });
+                let arguments = program
+                    .type_reference_table
+                    .type_reference_handles(arguments)
+                    .to_vec();
+                if let Some(roles) = roles {
+                    for (argument, role) in arguments.into_iter().zip(roles) {
+                        match role {
+                            typed_trees::data::TypeParameterKind::Value { .. } => {
+                                let tables = &mut program.tables;
+                                tables.type_reference_table.remap_symbols_in(
+                                    argument,
+                                    &mut tables.expression_table,
+                                    realized,
+                                );
+                            }
+                            typed_trees::data::TypeParameterKind::Type => pending.push(argument),
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 }
 

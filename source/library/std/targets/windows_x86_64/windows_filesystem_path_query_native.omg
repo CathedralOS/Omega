@@ -22,6 +22,7 @@ boundary trait WindowsFilesystemPathIo {
 boundary trait WindowsFilesystemUtf8Io {
     machine utf8<const Units: u64, const Bytes: u64>(code_page: u32, flags: u32, source: &[u16; Units], characters: i32,
         output: &mut [u8; Bytes], capacity: i32, default_character: u64, used_default: u64) -> i32
+    reaches
     requires code_page == 65001 && flags == 128 && characters > 0 && characters <= Units
         && capacity > 0 && capacity <= Bytes && default_character == 0 && used_default == 0;
 }

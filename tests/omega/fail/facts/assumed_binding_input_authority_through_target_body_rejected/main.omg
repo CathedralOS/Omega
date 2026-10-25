@@ -1,0 +1,22 @@
+// The root-assumed input qualification value <= 1 indexes [7, 11] of length 2, observing 11; Supplied::get retains its own contract.
+// Expected rejection: cannot prove index at the length-2 indexing operation.
+data Index [copy] { value: u32; }
+domain Index::Bounded(index) requires index.value <= 2;
+boundary trait Required { machine get(index: Index) -> u32 reaches; }
+boundary trait Supplied { machine get(index: Index) -> u32 reaches requires index in Bounded; }
+Actual satisfies Supplied {
+    machine get(index: Index) -> u32 requires index in Bounded {
+        let values: [u32; 2] = [7, 11];
+        values[index.value]
+    }
+}
+linux_x86_64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+linux_arm64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+windows_x86_64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+macos_arm64 machine exercise() -> u32 reaches Required { Required::get(Index { value: 1 }) }
+machine main() reaches Required crashes Trap {
+    let observed: u32 = exercise();
+    transition observed == 11 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

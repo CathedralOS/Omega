@@ -3,6 +3,7 @@ mod writeback;
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_active_structural_arguments;
 use crate::effects::storage_inputs::BoundaryStorageInputs;
@@ -932,9 +933,9 @@ impl TerminalExecution<'_> {
             .immutable()?;
         let bytes = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),
-            ByteSequenceCarrier::BoundedOwned { .. } => {
-                ByteSequenceView::new(bytes.bytes().to_vec())
-            }
+            ByteSequenceCarrier::BoundedOwned { .. } => ByteSequenceView::new(
+                ByteSequenceStorage::copy(bytes.bytes(), self.account.as_ref())?,
+            ),
             ByteSequenceCarrier::BoundedView { .. } => {
                 return Err(malformed());
             }

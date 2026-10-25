@@ -4,7 +4,7 @@ data Cell { value: AtomicU64; }
 data Envelope { word: &Cell; }
 data Ack [linear] { nonce: u64; }
 boundary trait Completion {
- machine complete(ack: Ack, envelope: &Envelope);
+ machine complete(ack: Ack, envelope: &Envelope) reaches;
 }
 proposition acknowledged(ack: Ack, envelope: &Envelope) = atomic_release_written<AtomicU64, u64>(&envelope.word.value, ack.nonce);
 machine write_nonce(envelope: &Envelope, nonce: u64)

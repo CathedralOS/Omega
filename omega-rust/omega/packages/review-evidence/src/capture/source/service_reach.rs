@@ -15,10 +15,11 @@ pub(crate) fn validate_machine_service_reach(
     checked_machine_service_reach(compilation, machine, inferred).map(|_| ())
 }
 
-fn checked_machine_service_reach<'a>(
+/// The exact authored row, including an explicitly empty clause. Publication
+/// may infer a callable surface without manufacturing source custody.
+pub(crate) fn authored_machine_service_reach<'a>(
     compilation: &'a PackageReviewInput<'a>,
     machine: &typed_trees::machine::Machine,
-    inferred: &ServiceReachInferencePlan,
 ) -> Result<Option<&'a typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
     let authored = exact_authored_service_reach_row(
         compilation,
@@ -38,6 +39,15 @@ fn checked_machine_service_reach<'a>(
         ))]);
     }
 
+    Ok(authored)
+}
+
+fn checked_machine_service_reach<'a>(
+    compilation: &'a PackageReviewInput<'a>,
+    machine: &typed_trees::machine::Machine,
+    inferred: &ServiceReachInferencePlan,
+) -> Result<Option<&'a typed_trees::signature::AuthoredServiceReachRow>, Vec<Diagnostic>> {
+    let authored = authored_machine_service_reach(compilation, machine)?;
     let checked = exactly_one(
         compilation
             .facts

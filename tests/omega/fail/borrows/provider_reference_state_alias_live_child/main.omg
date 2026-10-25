@@ -3,7 +3,7 @@
 public data Token { generation: u64; }
 public data Cell { value: u8; }
 public boundary trait Acquire {
-    machine view<'owner>(owner: &'owner mut Token) -> &'owner mut Cell;
+    machine view<'owner>(owner: &'owner mut Token) -> &'owner mut Cell reaches;
 }
 machine exercise(owner: &mut Token) -> u8 reaches Acquire {
     let reference: &mut Cell = Acquire::view(owner);

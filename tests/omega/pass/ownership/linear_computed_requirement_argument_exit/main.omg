@@ -7,7 +7,7 @@ public data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
 
 public boundary trait Settlement {
-    machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32;
+    machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32 reaches;
 }
 
 Settler satisfies Settlement {
@@ -46,4 +46,10 @@ machine main(context: &mut Context) reaches Settlement crashes Trap {
     // Statement and computed applications transfer each caller receipt once.
     let statement: i32 = Settlement::settle(2, Receipt { code: 10 }, 3);
     verify(result == 13 && forwarded == 14 && borrowed == 15 && statement == 15);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Settlement crashes Trap {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
 }

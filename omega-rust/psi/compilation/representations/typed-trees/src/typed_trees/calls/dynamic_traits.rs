@@ -243,7 +243,7 @@ impl TypedTrees {
             }
             ExpressionNode::SavedSubject(saved) => {
                 self.collect_expression_symbols(
-                    self.expression_table.match_subject(saved.capture).subject,
+                    self.expression_table.value_capture(saved.capture).subject,
                     symbols,
                 );
                 self.collect_expression_symbols(saved.pattern_head, symbols);

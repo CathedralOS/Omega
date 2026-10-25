@@ -10,6 +10,7 @@
 
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
+use typed_trees::product_operand::{ProductEntryCompatibility, ProductEntryDeclaration};
 
 mod discovery;
 mod extent_layout;
@@ -42,33 +43,15 @@ pub struct SelectedProgramEntry<'config> {
 /// a query may name any recognized target's slot; each is a row keyed by
 /// that target.
 ///
-/// Whether a data declaration's all-zero image is a valid value is a checking
-/// judgment — the zero-admission proof replay is checking machinery, so the
-/// judgment is supplied by the driving stage that owns the checking edge
-/// rather than called across the realization boundary.
-pub struct ProductEntryQueryCompatibility {
-    requires_establishment:
-        fn(&TypedTrees, &checked_trees::typed_trees::data::DataDefinition) -> bool,
-}
+/// Compatibility depends on the selected schema and source signature alone.
+/// Entry selection performs no construction or default-domain establishment.
+pub struct ProductEntryQueryCompatibility;
 
-impl ProductEntryQueryCompatibility {
-    pub fn new(
-        requires_establishment: fn(
-            &TypedTrees,
-            &checked_trees::typed_trees::data::DataDefinition,
-        ) -> bool,
-    ) -> Self {
-        Self {
-            requires_establishment,
-        }
-    }
-}
-
-impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompatibility {
+impl ProductEntryCompatibility for ProductEntryQueryCompatibility {
     fn validate_entry(
         &self,
         typed: &TypedTrees,
-        declaration: checked_interpreter::ProductEntryDeclaration<'_>,
+        declaration: ProductEntryDeclaration<'_>,
         slot: &str,
     ) -> Result<(), String> {
         let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
@@ -86,19 +69,15 @@ impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompati
         let slot = required.program_entry().ok_or_else(|| {
             format!("root slot `{slot}` does not have a supported ProgramEntry signature")
         })?;
-        validate_program_entry_source_compatibility(
-            typed,
-            declaration,
-            slot,
-            self.requires_establishment,
+        validate_program_entry_source_compatibility(typed, declaration, slot).map_err(
+            |diagnostics| {
+                diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.message)
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            },
         )
-        .map_err(|diagnostics| {
-            diagnostics
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect::<Vec<_>>()
-                .join("; ")
-        })
     }
 }
 
@@ -215,21 +194,16 @@ pub fn selected_program_entry_machine<'config>(
 }
 
 /// Validate only the static source compatibility of `ProgramEntry`.
-/// schema. Hosted targets expose no arrival parameters: the selected machine
-/// is either free or has exactly one mutable context parameter for later bridge
-/// provisioning. Freestanding parameters must exactly match the canonical
+/// schema. Hosted targets expose no arrival parameters. Freestanding
+/// parameters must exactly match the canonical
 /// typed positions on the target-selected arrival requirement.
 ///
 /// Both description issuance and final admission use this decision. It does
 /// not require the provider or layout choices the build is still computing.
 fn validate_program_entry_source_compatibility(
     typed: &TypedTrees,
-    declaration: checked_interpreter::ProductEntryDeclaration<'_>,
+    declaration: ProductEntryDeclaration<'_>,
     slot: target::ProgramEntrySlotDeclaration,
-    requires_establishment: fn(
-        &TypedTrees,
-        &checked_trees::typed_trees::data::DataDefinition,
-    ) -> bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let machine_name = declaration.name;
     let Some(entry) = declaration.entry else {
@@ -251,24 +225,9 @@ fn validate_program_entry_source_compatibility(
     }
 
     let parameters = entry.parameters;
-    let context = provisioned_entry_context_from_parameters(typed, machine_name, parameters)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    if let Some(context) = &context
-        && requires_establishment(typed, context.definition)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "entry machine `{machine_name}` requests a provisioned `{}` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
-            context.definition.name.as_str()
-        )));
-    }
-
-    // A `&Placed<P, T>` / `&mut Placed<P, T>` entry parameter is a custody
-    // input — the roster row demands an establishment the hosted entry
-    // boundary lends for the invocation — not an arrival parameter the loader
-    // hands in. Keeping it out of `visible` lets the slot's arrival-shape
-    // checks count only real arrival parameters; the row itself still answers
-    // native input admission and fails closed there while no bridge lends it.
-    let visible = visible_entry_parameters(typed, parameters, &context);
+    // Entry selection grants no storage. Only schema-declared arrivals are
+    // supplied; a mutable reference is an ordinary required argument.
+    let visible = visible_entry_parameters(typed, parameters);
     match slot.visible_parameters {
         target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
             diagnostics.push(Diagnostic::error(format!(
@@ -332,108 +291,12 @@ fn validate_program_entry_source_compatibility(
     Ok(())
 }
 
-/// Borrowed source coordinates shared by entry selection and service discovery.
-pub struct ProvisionedEntryContext<'program> {
-    pub source_position: u32,
-    pub parameter: &'program checked_trees::typed_trees::signature::StateParameter,
-    pub definition: &'program checked_trees::typed_trees::data::DataDefinition,
-}
-
-/// The source occurrence provisioned by the entry bridge is not a physical
-/// arrival argument and is unrelated to the machine's namespace qualifier.
-/// Placed views keep their own custody-input role.
-pub fn provisioned_entry_context<'program>(
-    typed: &'program TypedTrees,
-    machine: &checked_trees::typed_trees::machine::Machine,
-    entry: &checked_trees::typed_trees::state::State,
-) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
-    provisioned_entry_context_from_parameters(
-        typed,
-        machine.name.as_str(),
-        typed.state_parameters(entry),
-    )
-}
-
-fn provisioned_entry_context_from_parameters<'program>(
-    typed: &'program TypedTrees,
-    machine_name: &str,
-    parameters: &'program [checked_trees::typed_trees::signature::StateParameter],
-) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
-    use checked_trees::typed_trees::types::TypeReferenceNode;
-
-    let mut candidates = parameters.iter().enumerate().filter(|(_, parameter)| {
-        !parameter.relevance.is_erased()
-            && typed
-                .placed_view_plan_for_input_type_reference(parameter.type_reference)
-                .is_none()
-            && matches!(
-                typed
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                TypeReferenceNode::Reference { .. }
-            )
-    });
-    let Some((source_position, parameter)) = candidates.next() else {
-        return Ok(None);
-    };
-    if candidates.next().is_some() {
-        return Err(Diagnostic::error(format!(
-            "entry machine `{machine_name}` declares multiple context candidates; `ProgramEntry` provisions at most one ordinary mutable context parameter"
-        )));
-    }
-    if parameter.is_const || parameter.relevance.is_erased() {
-        return Err(Diagnostic::error(format!(
-            "entry machine `{machine_name}` context must be an ordinary runtime parameter"
-        )));
-    }
-    let context_reference = {
-        let TypeReferenceNode::Reference {
-            access: language_core::ReferenceAccess::Mutable,
-            referee,
-            ..
-        } = typed
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        else {
-            return Err(Diagnostic::error(format!(
-                "entry machine `{machine_name}` context `{}` requires an exclusive mutable borrow",
-                parameter.name
-            )));
-        };
-        *referee
-    };
-    // Entry provisioning consumes the same retained closed carrier as other
-    // nominal operations. A lifetime application changes semantic borrowing,
-    // not the context's storage declaration; requiring a bare Named node here
-    // rejected valid applications before the ordinary loan checks could run.
-    // Keep the full parameter reference for signature and establishment custody.
-    let definition = typed
-        .closed_data_definition(context_reference)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "entry machine `{machine_name}` context `{}` has no exact data declaration",
-                parameter.name
-            ))
-        })?;
-    let source_position = u32::try_from(source_position)
-        .map_err(|_| Diagnostic::error("program-entry context source position exceeds u32"))?;
-    Ok(Some(ProvisionedEntryContext {
-        source_position,
-        parameter,
-        definition,
-    }))
-}
-
 /// Recheck the selected source signature and retain its final layout evidence.
 /// An earlier product description neither settles providers nor authorizes
 /// omission of this check against the completed product.
 fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-    requires_establishment: fn(
-        &TypedTrees,
-        &checked_trees::typed_trees::data::DataDefinition,
-    ) -> bool,
 ) -> Result<SelectedEntryDeclaration, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     // Description issuance only needs an interface. Final admission still
@@ -449,29 +312,12 @@ fn validate_selected_program_entry_shape(
     })?;
     validate_program_entry_source_compatibility(
         typed,
-        checked_interpreter::ProductEntryDeclaration::from_machine(typed, machine),
+        ProductEntryDeclaration::from_machine(typed, machine),
         selected.slot,
-        requires_establishment,
     )?;
     let parameters = typed.state_parameters(entry);
-    let context =
-        provisioned_entry_context(typed, machine, entry).map_err(|diagnostic| vec![diagnostic])?;
-    // Same exclusion as source compatibility: placed-view inputs are custody
-    // rows, not arrival parameters, so they never occupy the signature's
-    // visible-parameter roles.
-    let visible = visible_entry_parameters(typed, parameters, &context);
-    // The signature's identity table mints its indices beside the checked
-    // program, before a Terminal module exists; native consumers rejoin them
-    // through the text.
+    let visible = visible_entry_parameters(typed, parameters);
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-    let receiver = context.as_ref().map_or(
-        program_entry_plan::ProgramEntryReceiverSignature::Free,
-        |context| program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable {
-            source_position: context.source_position,
-            normalized_type_identity: identities
-                .intern(&typed.normalized_type_identity_text(context.parameter.type_reference)),
-        },
-    );
     let visible_parameters = visible
         .iter()
         .enumerate()
@@ -506,12 +352,7 @@ fn validate_selected_program_entry_shape(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|diagnostic| vec![diagnostic])?;
-    if !machine.symbol.is_valid()
-        || !entry.symbol.is_valid()
-        || context
-            .as_ref()
-            .is_some_and(|context| !context.parameter.symbol.is_valid())
-    {
+    if !machine.symbol.is_valid() || !entry.symbol.is_valid() {
         return Err(vec![Diagnostic::error(
             "selected source signature contains an invalid declaration coordinate",
         )]);
@@ -546,7 +387,6 @@ fn validate_selected_program_entry_shape(
                 .machine_callable_identity_text(machine)
                 .expect("selected entry has one checked executable state"),
         ),
-        receiver,
         visible_parameters,
         identities.build(),
     )
@@ -554,8 +394,6 @@ fn validate_selected_program_entry_shape(
     Ok(SelectedEntryDeclaration {
         machine: machine.symbol,
         state: entry.symbol,
-        context_parameter: context
-            .map_or_else(Default::default, |context| context.parameter.symbol),
         signature,
     })
 }
@@ -566,7 +404,6 @@ fn validate_selected_program_entry_shape(
 struct SelectedEntryDeclaration {
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    context_parameter: symbols::SymbolHandle,
     signature: program_entry_plan::SelectedProgramEntrySignature,
 }
 
@@ -694,10 +531,6 @@ impl SelectedCompilerProgramEntry {
         self.declaration.state
     }
 
-    pub const fn context_parameter(&self) -> symbols::SymbolHandle {
-        self.declaration.context_parameter
-    }
-
     pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
         self.calling_plans.as_ref()
     }
@@ -710,45 +543,12 @@ impl SelectedCompilerProgramEntry {
 
     pub fn bind_fused_service_establishments(
         &mut self,
-        mut establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
+        establishments: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
     ) -> Result<(), &'static str> {
-        if establishments.is_empty() {
-            self.fused_service_establishments.clear();
-            return Ok(());
+        if !establishments.is_empty() {
+            return Err("ProgramEntry cannot synthesize application record service fields");
         }
-        let source_identity = self.source_signature().identity();
-        let target_slot = self.source_signature().target_slot();
-        let receiver_identity = self
-            .source_signature()
-            .receiver()
-            .normalized_type_identity()
-            .ok_or("a free ProgramEntry cannot establish receiver fields")?;
-        // Key on the field ROUTE, not the leaf name. A service carrier
-        // contributes one establishment at whatever depth the receiver's
-        // record-field tree places it, which is how the producer both orders
-        // and de-duplicates them, so two bindings that differ only in their
-        // owning record -- `Main::console` and `Main::banner::console` --
-        // share a leaf name and are not a repeat.
-        let identities = self.source_signature().identities();
-        establishments.sort_by_cached_key(|establishment| {
-            establishment
-                .field_path()
-                .iter()
-                .map(|segment| identities.text(*segment).unwrap_or_default().to_owned())
-                .collect::<Vec<_>>()
-        });
-        if establishments
-            .windows(2)
-            .any(|pair| pair[0].field_path() == pair[1].field_path())
-            || establishments.iter().any(|establishment| {
-                establishment.source_signature_identity() != source_identity
-                    || establishment.target_slot() != target_slot
-                    || establishment.receiver_type_identity() != receiver_identity
-            })
-        {
-            return Err("Fused root establishments drifted from their selected ProgramEntry");
-        }
-        self.fused_service_establishments = establishments;
+        self.fused_service_establishments.clear();
         Ok(())
     }
 }
@@ -764,10 +564,6 @@ fn check_unrequested_program_entry_rows(
     typed: &TypedTrees,
     root_bindings: &[RootBinding],
     selected_profile: Option<target::TargetProfile>,
-    requires_establishment: fn(
-        &TypedTrees,
-        &checked_trees::typed_trees::data::DataDefinition,
-    ) -> bool,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     for binding in root_bindings {
@@ -813,7 +609,6 @@ fn check_unrequested_program_entry_rows(
                 machine_symbol,
                 slot,
             },
-            requires_establishment,
         ) {
             diagnostics.append(&mut rejected);
         }
@@ -835,18 +630,9 @@ pub fn select_compiler_program_entry(
     selected_profile: Option<target::TargetProfile>,
     realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-    requires_establishment: fn(
-        &TypedTrees,
-        &checked_trees::typed_trees::data::DataDefinition,
-    ) -> bool,
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
-    check_unrequested_program_entry_rows(
-        typed,
-        root_bindings,
-        selected_profile,
-        requires_establishment,
-    )?;
+    check_unrequested_program_entry_rows(typed, root_bindings, selected_profile)?;
     let Some(mut selected) = selected else {
         return Ok(None);
     };
@@ -874,8 +660,7 @@ pub fn select_compiler_program_entry(
             })?;
         selected.machine_symbol = member.machine;
     }
-    let source_signature =
-        validate_selected_program_entry_shape(typed, selected, requires_establishment)?;
+    let source_signature = validate_selected_program_entry_shape(typed, selected)?;
     // Only an exact selected target activates an entry. Resolve its physical
     // contract's accepted package role here, never from the host or a caller-
     // chosen binding for another target. Calling-plan validation still rejoins
@@ -1450,19 +1235,14 @@ fn arrival_requirement_contract(
     })
 }
 
-/// The entry's arrival-visible parameters: the roster minus the provisioned
-/// context parameter and any placed-view custody rows, which lend custody
-/// rather than arrive as parameters.
+/// Schema arrival parameters exclude separately installed placed-view loans.
+/// An ordinary reference remains visible and must be supplied by the schema.
 fn visible_entry_parameters<'program>(
     typed: &TypedTrees,
     parameters: &'program [checked_trees::typed_trees::signature::StateParameter],
-    context: &Option<ProvisionedEntryContext<'program>>,
 ) -> Vec<&'program checked_trees::typed_trees::signature::StateParameter> {
     parameters
         .iter()
-        .filter(|parameter| {
-            Some(parameter.symbol) != context.as_ref().map(|context| context.parameter.symbol)
-        })
         .filter(|parameter| {
             typed
                 .placed_view_plan_for_input_type_reference(parameter.type_reference)

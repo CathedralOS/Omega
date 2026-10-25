@@ -16,3 +16,9 @@ machine main(context: &mut Context) reaches Console {
     state good(context: &mut Context) { Console::exit_process(70); }
     state bad(context: &mut Context) { Console::exit_process(71); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
+}

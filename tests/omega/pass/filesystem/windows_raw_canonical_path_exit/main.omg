@@ -75,3 +75,10 @@ machine canonical_spelling(bytes: &[u8; 1024]) -> bool {
         bytes[length - 3] == 231 && bytes[length - 2] == 149 && bytes[length - 1] == 140
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

@@ -1,9 +1,9 @@
 // Different policy implementations publishing the same normalized promise
 // cannot suppress the competing owners of their inherited receiver.
 use omega_language_std::calling;
-public boundary trait Parent { machine value() -> u64; }
-public boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64; }
-public boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64; }
+public boundary trait Parent { machine value() -> u64 reaches; }
+public boundary trait FirstRoot: Parent + Calling<FirstCalling> { machine selected() -> u64 reaches; }
+public boundary trait SecondRoot: Parent + Calling<SecondCalling> { machine selected() -> u64 reaches; }
 public FirstCalling satisfies CallingPolicy { CallingPolicy::plan = first_plan; }
 public SecondCalling satisfies CallingPolicy { CallingPolicy::plan = second_plan; }
 FirstMap satisfies FirstRoot { Parent::value = first_value; FirstRoot::selected = first_value; }
@@ -62,4 +62,10 @@ machine Main::main(main: &mut Main) reaches FirstRoot + SecondRoot crashes Trap 
     }
     state done() { }
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches FirstRoot + SecondRoot crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

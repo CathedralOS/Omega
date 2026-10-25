@@ -1,8 +1,8 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "package_qualified_membership");
     Build::depend_as(builder, "leaf", Source::Path { location: "leaf" });
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

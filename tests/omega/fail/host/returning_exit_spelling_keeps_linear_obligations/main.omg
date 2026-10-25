@@ -1,5 +1,5 @@
 // A returning lookalike is not an admitted process-domain completion.
-boundary trait OtherExit { machine exit_process(status: i32); }
+boundary trait OtherExit { machine exit_process(status: i32) reaches; }
 data Token [linear] { value: u64; }
 machine main() reaches OtherExit {
     let token: Token = Token { value: 42 };

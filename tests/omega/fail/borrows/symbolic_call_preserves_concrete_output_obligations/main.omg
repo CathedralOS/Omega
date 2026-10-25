@@ -2,9 +2,9 @@
 data Slot<'data> { target: &'data u64; }
 data Writer<'owner, 'data> { destination: &'owner mut Slot<'data>; }
 data Reply<T> { value: T; status: u64; }
-boundary trait Forward<T> { machine call(value: T) -> T; }
+boundary trait Forward<T> { machine call(value: T) -> T reaches; }
 boundary trait Replace {
-    machine call<'owner, 'data>(writer: Writer<'owner, 'data>) -> u64;
+    machine call<'owner, 'data>(writer: Writer<'owner, 'data>) -> u64 reaches;
 }
 machine symbolic_first<'owner, 'data, T>(
     value: T, writer: Writer<'owner, 'data>

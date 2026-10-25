@@ -133,14 +133,13 @@ nine places and the root, on Linux x86_64, with Terminal Psi and native
 agreement. Each empty-ceiling twin rejects with
 `reaches undeclared service \`Mark\``.
 
-### Still open on OPTIONAL-REACH-CEILINGS
+### Remaining acceptance after the original direct-call row
 
-Unannotated transitive calls. A pinned service-free empty ceiling, and
-rejection of a hidden transitive service. A present clause as a bound on the
-complete derived row rather than an additive union. `A + B` accepts `A` and
-rejects `C`. Injected, generic, dynamic, and target-specific refinement.
-Public bodies that omit `reaches`. Boundary requirements that omit their own
-ceiling. Audit slack and package-review round trips.
+The original row established direct calls only. The productions below retain
+that same Mark fact through transitive, generic, dynamic, injected-provider,
+imported-public and recursive calls. They also distinguish absent versus empty
+ceilings, require boundary requirements to publish their contract, and exercise
+package review, conservative slack and exact service identities.
 
 ## Complete derived reach (current repair)
 
@@ -256,8 +255,8 @@ worktree-bound build receipt retains exact input blobs and profile queries.
   every invalid control rejected with its authored fragment.
 - The scoped both-engine corpus recorded 41 built positives, each with exit 0
   and native/Terminal agreement. This includes all original and new transported
-  positives and the executable contract probes; the package-round-trip fixture
-  also executes to its authored exit 0.
+  positives and the executable contract probes. Package acceptance round-trip
+  behavior remains separately required by the parent task.
 - `omega audit packages --project contracts/declared_slack --details` after
   ordinary project review reports `requires-review false`. Its fresh policy
   retains published Mark + Unused, checked Mark, and one ConsumerAudit Unused
@@ -268,3 +267,216 @@ The corpus records carry `@b50066b75303+wt`, preserving their actual published
 base plus the staged source delta instead of claiming an untested later main
 revision. The existing broader corpus has unrelated pinned failures; these
 scoped records neither overwrite nor qualify them.
+
+## Explicit boundary requirement ceilings
+
+The same nine original positive places retain `Mark::read`'s explicit `Mark`
+ceiling. Each place's [`invalid_missing_requirement/main.omg`](local/invalid_missing_requirement/main.omg)
+removes only that requirement clause, keeping the selected checked implementation
+and the consuming program unchanged. The twins are pinned as
+`tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_<place>_rejected`.
+They require `Mark::read`'s missing explicit-ceiling diagnostic, independently of
+whether the caller itself requests inference or declares a ceiling.
+
+| Place | Positive | Missing-ceiling twin |
+| --- | --- | --- |
+| local | [program](local/main.omg) | [reject](local/invalid_missing_requirement/main.omg) |
+| field | [program](field/main.omg) | [reject](field/invalid_missing_requirement/main.omg) |
+| parameter | [program](parameter/main.omg) | [reject](parameter/invalid_missing_requirement/main.omg) |
+| call_result | [program](call_result/main.omg) | [reject](call_result/invalid_missing_requirement/main.omg) |
+| match_join | [program](match_join/main.omg) | [reject](match_join/invalid_missing_requirement/main.omg) |
+| const_name | [program](const_name/main.omg) | [reject](const_name/invalid_missing_requirement/main.omg) |
+| other_state | [program](other_state/main.omg) | [reject](other_state/invalid_missing_requirement/main.omg) |
+| other_machine | [program](other_machine/main.omg) | [reject](other_machine/invalid_missing_requirement/main.omg) |
+| target_body | [program](target_body/main.omg) | [reject](target_body/invalid_missing_requirement/main.omg) |
+
+This establishes the declaration-side obligation in
+[effects, declarations](../../../../wiki/spec/language/effects.md#declarations):
+a boundary requirement publishes its own ceiling, including when it supplies a
+default body. An empty ceiling is retained as a real authored clause; omission
+on a checked implementation remains inference. A nested static binder's ceiling
+belongs to that binder and cannot annotate the enclosing requirement.
+Memberless boundary identities have no operation requiring an annotation.
+
+The source migration adds explicit empty ceilings to formerly empty boundary
+requirement contracts. It preserves their parameters, results, facts, bodies,
+provider selections and runtime oracles. The product Psi parser retains the same
+empty-row distinction and refuses omitted requirement ceilings. Its native parser
+gate also covers the declaration terminator, a following clause and a default
+body as distinct delimiters. The requirement's static rejection occurs before
+Terminal production; the original positive places retain their native/Terminal
+execution obligations.
+
+## Checked realizers and imported public summaries
+
+`provider/` and `imported/` are further productions of the same Mark fact.
+They retain the identical nine transport places and the authored exit 0.
+
+The provider production gives `Mark::read` a pinned Mark ceiling. Its selected
+checked realizer omits its own clause and calls `Backend::read`, whose explicit
+row is also Mark. `Backend` is an interface identity; calling it does not add
+Backend to the service row. Each twin changes only that realizer call to
+`Forbidden::read` and requires the trait-refinement rejection. The requirement
+permits both synchronous invocation identities, so the rejection isolates the
+service ceiling rather than missing invocation permission. Both providers still
+return the same 7; a runtime equality cannot hide the contract violation.
+
+The imported production calls a dependency's public `fetch_mark`, which omits
+its own reach clause and calls a private helper. The root supplies the selected
+Mark realizer. Each twin changes only the original consuming callable's clause
+to empty; its support package and provider selection remain identical. This
+checks that an imported public summary propagates Mark through ordinary package
+checking and accepted-input compilation. Omission is preserved separately from
+the explicit empty boundary requirement/caller cases.
+
+| Place | Provider positive / twin | Imported positive / twin |
+| --- | --- | --- |
+| local | [positive](provider/local/main.omg), [reject](provider/local/invalid/main.omg) | [positive](imported/local/main.omg), [reject](imported/local/invalid/main.omg) |
+| field | [positive](provider/field/main.omg), [reject](provider/field/invalid/main.omg) | [positive](imported/field/main.omg), [reject](imported/field/invalid/main.omg) |
+| parameter | [positive](provider/parameter/main.omg), [reject](provider/parameter/invalid/main.omg) | [positive](imported/parameter/main.omg), [reject](imported/parameter/invalid/main.omg) |
+| call_result | [positive](provider/call_result/main.omg), [reject](provider/call_result/invalid/main.omg) | [positive](imported/call_result/main.omg), [reject](imported/call_result/invalid/main.omg) |
+| match_join | [positive](provider/match_join/main.omg), [reject](provider/match_join/invalid/main.omg) | [positive](imported/match_join/main.omg), [reject](imported/match_join/invalid/main.omg) |
+| const_name | [positive](provider/const_name/main.omg), [reject](provider/const_name/invalid/main.omg) | [positive](imported/const_name/main.omg), [reject](imported/const_name/invalid/main.omg) |
+| other_state | [positive](provider/other_state/main.omg), [reject](provider/other_state/invalid/main.omg) | [positive](imported/other_state/main.omg), [reject](imported/other_state/invalid/main.omg) |
+| other_machine | [positive](provider/other_machine/main.omg), [reject](provider/other_machine/invalid/main.omg) | [positive](imported/other_machine/main.omg), [reject](imported/other_machine/invalid/main.omg) |
+| target_body | [positive](provider/target_body/main.omg), [reject](provider/target_body/invalid/main.omg) | [positive](imported/target_body/main.omg), [reject](imported/target_body/invalid/main.omg) |
+
+The corpus copies each complete project under
+`tests/omega/{pass,fail}/facts/unannotated_{provider,imported}_boundary_call_through_<place>_{exit,rejected}`.
+The frozen f5c producer already executes the minimal provider and imported
+probes with native exit 0 and Terminal exit 0 and rejects their exact controls.
+These establish remaining acceptance of the existing inference/selection
+mechanisms; the demonstrated repair in this change is the missing explicit
+boundary requirement obligation, not a manufactured failure in these probes.
+
+## Ranked recursive summaries and ordinary exits
+
+`recursive/` carries the same Mark fact through a ranked mutual tail-call
+component. Both machines count down from the same `u64` measure, each internal
+edge strictly decreases it, and the Mark-reaching checked helper sits outside
+the component. The boundary requirement supplies an explicit termination
+premise for that helper. These independent progress obligations are proved;
+an empty reach ceiling neither supplies nor weakens them.
+
+The local positive is the frozen current-main-integrated defect witness:
+source checking succeeds, but native realization refuses the helper call in
+`second::entry` because scalar-call availability asks for that state's flow
+under `first`, the component's dispatch owner. Fusion retains the exact authored
+state symbol and owner. The repair derives that owner from the state before
+replaying the call's ordinary arguments, claims and contract evidence. It does
+not fabricate another callee plan or skip availability checking.
+
+Every recursive place has an empty-ceiling twin pinned under
+`tests/omega/fail/facts/unannotated_recursive_boundary_call_through_<place>_rejected`.
+The positive copies are pinned in the corresponding pass folders.
+[The foreign-owner exit](contracts/recursive_foreign_exit/main.omg) starts at the
+other countdown parity so runtime execution also exits through the non-root
+owner's helper call. Both exits preserve the same service row and result 7.
+
+| Place | Recursive positive | Empty-ceiling twin |
+| --- | --- | --- |
+| local | [positive](recursive/local/main.omg) | [reject](recursive/local/invalid/main.omg) |
+| field | [positive](recursive/field/main.omg) | [reject](recursive/field/invalid/main.omg) |
+| parameter | [positive](recursive/parameter/main.omg) | [reject](recursive/parameter/invalid/main.omg) |
+| call result | [positive](recursive/call_result/main.omg) | [reject](recursive/call_result/invalid/main.omg) |
+| match join | [positive](recursive/match_join/main.omg) | [reject](recursive/match_join/invalid/main.omg) |
+| const name | [positive](recursive/const_name/main.omg) | [reject](recursive/const_name/invalid/main.omg) |
+| another state | [positive](recursive/other_state/main.omg) | [reject](recursive/other_state/invalid/main.omg) |
+| another machine | [positive](recursive/other_machine/main.omg) | [reject](recursive/other_machine/invalid/main.omg) |
+| target body | [positive](recursive/target_body/main.omg) | [reject](recursive/target_body/invalid/main.omg) |
+
+## Package review custody
+
+A public checked helper that omits `reaches` has an inferred published contract;
+review must not manufacture an authored clause. The imported support package's
+ordinary `main.omg` review entry loads its exported values module. Its
+`fetch_mark` policy retains no declared clause and a checked/published Mark row.
+The explicit wider contract keeps Mark + Unused even when its body checks as
+Mark. The public helpers in [the empty control](contracts/empty/main.omg) retain
+`Some(empty)` versus inference while both execute to 7 without a service.
+
+`compiler`'s `package_review` integration gate reviews the pinned corpus copies,
+encodes and recovers source-free policy, and asserts these distinctions.
+Authority consumers use the explicit/governing ceiling or the checked realized
+row for inference. They never substitute a narrower concrete row or infer a
+contract for an unknown body. Declared slack continues to use an actual ceiling.
+Opaque/bodyless supplies preserve their governing published contract.
+
+The package workflow also keeps a fresh accepted project, changes only a private
+helper from a Mark-reaching call to an Extra-reaching call, observes ordinary
+compilation reject stale inputs, revalidates, and observes inferred Extra in the
+public wrapper and native/Terminal exit 0. A caller constrained to Mark rejects
+Extra after the same change. Invocation permissions and provider selections
+permit both calls throughout, isolating reach rather than another obligation.
+These workflow outputs retain exact producer, source, policy and execution
+artifacts in the qualification record; acceptance is not claimed by a source
+presence count or historical lock alone.
+
+## Current macOS ARM64 evidence
+
+The second repair's immutable optimized producer is built from compiler revision
+`1759dd244876856c7833b9ad87de746e7d72eb50` on published base
+`daf76df20a9df4bfcd0f9587c4e1545036ab8764`. Its build receipt retains full
+compiler/library input blobs, executable digests and verified build profiles.
+These are observations of that producer, not executions of later main commits.
+
+- The sample gate measured all 69 positives in this folder, including its root,
+  with native exit 0, and all 76 authored reject controls with matching reasons.
+- The pinned both-engine gate measured 68 corresponding positive fixtures plus
+  the existing reviewed-service-row control: all 69 native and Terminal
+  executions exited 0 and agreed. The sample root separately ran with
+  `omega run --both --keep`, also native/Terminal 0.
+- The 1,041-fixture affected checked pass retained the migration's broader
+  consumers. A focused comparison measured the 43 moved or historically red
+  fixtures against the actual published base. A Windows metadata fixture that
+  exceeded the busy broad pass's time limit subsequently checked with matching
+  Terminal inspections in a focused run; no outcome was reclassified by raising
+  an oracle bound.
+- The 480-project affected sample pass retained 195 native passes and 244
+  fact-sensitive rejections. Its 21 failures were reproduced on the exact
+  published-base compiler/library or attributed to the unchanged, absent macOS
+  foreign-retention dylib. Ten foreign-host projects and ten library projects
+  supplied no host runtime oracle. Those cases are not new green observations.
+- Strict package update/review/resume, fresh and cached audit, private-helper
+  source invalidation, revised inference and constrained-caller rejection pass.
+  Fresh audit preserves core filesystem classification, same-named user-trait
+  separation, custom audit registration and explicit conservative slack.
+
+Independent semantic review accepted the exact compiler candidate. Broad raw
+observations, source/producer identities, baseline comparisons and review are
+retained in the implementation qualification record. Native observations on
+other development hosts remain unverified; four hosted entry bindings and
+checking of every target body do not claim those executions.
+
+### Integrated requirement migration
+
+Published main `a9e0628deefea9471e49ff8b055e36c70577ee07` added another 77
+omitted requirement ceilings in 39 files while the first measurements ran.
+Those declarations now explicitly preserve their original empty contracts.
+The integrated compiler revision `a5b6463056a9c3e818e10c1f6628306cc27702e3`
+passes the two package policy integration tests and the strict package workflow.
+Its final scoped check records 77 checked positives and 85 matching rejects;
+all 78 pinned runtime positives agree at native/Terminal exit 0. Its sample
+gate observes 79 native positives and 87 matching rejects, and both sample
+roots separately agree at native/Terminal exit 0. These records include the
+newly migrated input-authority row as regression evidence, not a new reach fact.
+
+The records use the published base plus the staged delta (`@a9e0628deef+wt`).
+Independent review found the added ceilings insertion-only and verified that
+all 17 reviewed implementation files retain their exact bytes.
+
+The Omega-written parser's new cases are retained in its existing black-box
+gate. That full harness previously refused loan-chain lowering. A separate
+finite probe reaches native execution but fails at initial Lexer storage
+(native signal 11 and Terminal's zeroed-structural-backing refusal), before the
+new parser branch. Product-parser native execution is therefore unverified;
+these reach witnesses do not claim that unfinished product pipeline is green.
+
+The final compatibility step preserves the empty contract of the newly published
+Build observer requirement on base `5f1191d434382cdf52a6c397d58af723d077fa68`.
+Producer `8ad1ae9751330a18ef4c670205524d579342a510` records 78 checked positives,
+85 matching rejects and 79 successful pinned native/Terminal executions; its
+166-project sample pass retains 79 positives and 87 matching rejects. The finite
+product-parser probe's initial-storage failures were also replayed on the exact
+published `daf76df20a9d` compiler and archived Psi/library sources. They remain
+attributed product-pipeline limitations, before the changed parser branch.

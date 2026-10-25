@@ -3,11 +3,11 @@
 use omega::language::core::external_binding;
 
 public boundary trait DescriptorIo {
-    machine read_word(descriptor: i32, word: &mut u32, count: u64) -> i64 blocks;
-    machine read_half(descriptor: i32, half: &mut u16, count: u64) -> i64 blocks;
-    machine write_word(descriptor: i32, word: &u32, count: u64) -> i64;
-    machine write_half(descriptor: i32, half: &u16, count: u64) -> i64;
-    machine write_discarded(descriptor: i32, word: &u32, count: u64);
+    machine read_word(descriptor: i32, word: &mut u32, count: u64) -> i64 reaches blocks;
+    machine read_half(descriptor: i32, half: &mut u16, count: u64) -> i64 reaches blocks;
+    machine write_word(descriptor: i32, word: &u32, count: u64) -> i64 reaches;
+    machine write_half(descriptor: i32, half: &u16, count: u64) -> i64 reaches;
+    machine write_discarded(descriptor: i32, word: &u32, count: u64) reaches;
 }
 public data DescriptorImports { }
 data Main { word: u32; half: u16; }
@@ -74,4 +74,10 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
 }

@@ -14,7 +14,7 @@ machine acquire(identity: u64) -> Resource in Open requires identity != 0 {
     Resource { identity: identity }
 }
 public boundary trait Source {
-    machine open() -> Acquisition;
+    machine open() -> Acquisition reaches;
 }
 public CheckedSource satisfies Source {
     machine open() -> Acquisition {
@@ -38,4 +38,10 @@ machine Main::main(context: &mut Main) reaches Source invokes Source; crashes Tr
     }
     state done() {}
     state wrong() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Source invokes Source; crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

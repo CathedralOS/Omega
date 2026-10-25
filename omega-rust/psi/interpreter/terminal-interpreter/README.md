@@ -37,12 +37,48 @@ now has its public surface here rather than only the raw hook. `TerminalProgram:
 decodes canonical semantic bytes; `load_envelope` consumes the portable envelope;
 `borrow` uses an existing canonical artifact view. All retain immutable shared
 code; `instantiate` starts an independent instance without re-reading bytes.
+Its `TerminalInstantiation` request carries scalar/structural inputs, optional
+admitted installation and optional Terminal invocation account; there is no
+separate installed-instantiation route. The account is selected before entry
+backing allocation and follows nested component instances.
 `TerminalInstance::bind_import` establishes each demanded import slot against a
 checked adapter before `invoke` runs any guest operation — a missing, unknown,
 provider-realized, duplicate, or signature-mismatched supply rejects without
 effects — and `close` releases the instance's runtime state once the activation
 settles. `TerminalImportAdapter` is the contract a host object declares;
 `TerminalScalarImport` and `TerminalUnitImport` wrap the common leaf signatures.
+
+After normal return, `TerminalInstance::observe_borrowed_entry` reads a semantic
+leaf of an original host-lent structural argument by dense argument index and
+canonical declaration path. The original home survives retired helper/entry
+frames; owned inputs are not retained for readback. Observation returns plain
+scalar/case contents or borrowed byte readers, never a qualified guest value or
+opaque host capability. Paused, crashed, externally terminated and closed
+instances cannot report a normal borrowed result. Source-produced ordinary and
+Build helpers exercise this route in `compiler`'s `terminal_entry_writeback`
+integration test, with retained and externally loaded artifacts. This supplies
+Build settings observation; it does not migrate Build effects or activation
+scheduling from the legacy evaluator.
+
+Byte readback retains a Rust borrow of the instance, not another payload copy.
+`TerminalByteRead::len` lets the host validate size and reserve live storage and
+result custody before allocating its output; `copy_to` fills that caller-owned
+buffer. A scalar-backed byte window stays scalar-backed during observation.
+This is a publication prerequisite, not completed Terminal storage accounting.
+
+Owned byte backing now reserves its full logical length before allocation.
+Aliases share the backing's lease; even a small window keeps the full backing
+reserved. Copy-on-write reserves the overlapping replacement before copying.
+Boundary byte buffers own the same storage type: capture and growth reserve
+before copying, and whole-owner writeback moves the reservation with the bytes.
+Retirement releases live bytes, not consumed fuel. Runtime descriptor/array rows,
+other storage families and result publication are not yet completely accounted;
+these partial snapshots must not become production Build usage receipts.
+
+A failed execution retains its exact host fault and unfinished custody. Calling
+it again returns that fault without charging or reexecuting the site, even if
+resource capacity later becomes available. Only an explicit pause is resumable.
+Failure does not create normal-return readback or make a busy instance closable.
 
 Retained checked-provider candidates describe availability, not the receiving
 host's selection. `TerminalProgram::admit_runtime_supplies` joins explicit normal

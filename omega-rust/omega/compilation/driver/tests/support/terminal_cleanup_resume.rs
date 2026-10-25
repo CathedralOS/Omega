@@ -163,7 +163,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
         }
     );
     assert!(matches!(
-        program.instantiate(&[], TerminalStructuralInputs::default()),
+        program.instantiate(terminal_interpreter::TerminalInstantiation { scalar_arguments: &[], structural_inputs: TerminalStructuralInputs::default(), ..Default::default() }),
         Err(TerminalArtifactInterpretError::Execution(
             TerminalInterpretError::ProviderInstallationMissing(boundary)
         )) if boundary == *slot
@@ -183,7 +183,12 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     assert!(installed.missing_providers.is_empty() && installed.external_completions.is_empty());
     let instantiate = |bytes: &Arc<Mutex<Vec<u8>>>| {
         let mut instance = program
-            .instantiate_installed(&[], TerminalStructuralInputs::default(), &installation)
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs::default(),
+                installation: Some(&installation),
+                ..Default::default()
+            })
             .expect("instantiate Unit cleanup helper");
         let slots = instance.unbound_imports().collect::<Vec<_>>();
         assert_eq!(
@@ -253,13 +258,21 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
                 assert!(paused.result().is_none());
                 assert_eq!(paused.close(), Err(TerminalInstanceCloseError::Busy));
                 assert!(!paused.is_closed(), "Busy retains the live activation");
-                let meter_before_retry = meter.clone();
+                let usage_before_retry = meter.usage().clone();
+                let allowance_before_retry = meter.remaining_allowance();
+                let schedule_before_retry = meter.schedule();
                 let effects_before_retry = paused.effects().to_vec();
                 assert_eq!(
                     paused.invoke(&mut meter).unwrap(),
                     TerminalExecutionStatus::SponsorExhausted(exhaustion)
                 );
-                assert_eq!(meter, meter_before_retry, "unfunded retry charges nothing");
+                assert_eq!(
+                    meter.usage(),
+                    &usage_before_retry,
+                    "unfunded retry charges nothing"
+                );
+                assert_eq!(meter.remaining_allowance(), allowance_before_retry);
+                assert_eq!(meter.schedule(), schedule_before_retry);
                 assert_eq!(paused.effects(), effects_before_retry.as_slice());
                 assert_eq!(
                     *paused_bytes.lock().unwrap(),

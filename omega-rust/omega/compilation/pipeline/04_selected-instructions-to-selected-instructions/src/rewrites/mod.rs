@@ -215,7 +215,7 @@ pub use runtime_rematerialization::{
 
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_span_policy,
+    spill_selected_runtime_value_with_crossing_status, spill_selected_runtime_value_with_span_policy,
 };
 pub use runtime_split::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
 pub(crate) use selected_lowering::enabled_pair_rules;
@@ -288,17 +288,7 @@ pub(crate) fn required_rewrite_budget(
     function: &SelectedFunction,
     budget: OptimizationWorkBudget,
 ) -> Option<OptimizationWorkBudget> {
-    let operands = function.blocks.iter().try_fold(0usize, |total, block| {
-        block
-            .instructions
-            .iter()
-            .chain(std::iter::once(
-                selected_instructions::terminator_instruction(&block.terminator),
-            ))
-            .try_fold(total, |total, instruction| {
-                total.checked_add(instruction.operands.len())
-            })
-    })?;
+    let operands = function.blocks.total_operand_count()?;
     let extent = rewrite_scan(plan, function)?
         .checked_add(operands)?
         .checked_add(function.memory_accesses.len())?
@@ -310,15 +300,7 @@ pub(crate) fn required_rewrite_budget(
 /// structural binding, and a structural case's tag with each of its
 /// payloads. An audit that reads the edges reads each of these once.
 pub(crate) fn function_transports(function: &SelectedFunction) -> Option<usize> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| selected_instructions::terminator_successors(&block.terminator))
-        .try_fold(0usize, |total, successor| {
-            total
-                .checked_add(crate::rewrites::block_edges::edge_surface(successor))?
-                .checked_add(usize::from(successor.structural_case.is_some()))
-        })
+    function.blocks.total_transport_count()
 }
 
 /// One step per block plus one per instruction in one function — the

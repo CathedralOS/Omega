@@ -250,3 +250,9 @@ machine Main::number(main: &mut Main, value: u64 in Wrapping) reaches Console {
     Console::write_byte((value % 10) as i32 + 48);
     Console::write_byte(10);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

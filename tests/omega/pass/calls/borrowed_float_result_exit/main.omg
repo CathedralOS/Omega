@@ -11,3 +11,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let outcome: i32 = match result { 2.5f32 -> 70, _ -> 71 };
     Console::exit_process(outcome);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

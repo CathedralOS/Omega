@@ -1,6 +1,6 @@
 public data Token [linear, carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: u64; }
-public boundary trait Flow { machine forward(token: Token) -> Token; }
-public boundary trait Scheduler { machine park() suspends; }
+public boundary trait Flow { machine forward(token: Token) -> Token reaches; }
+public boundary trait Scheduler { machine park() reaches suspends; }
 data Provider {}
 machine Provider::forward(token: Token) -> Token satisfies Flow::forward { token }
 data Harness { }

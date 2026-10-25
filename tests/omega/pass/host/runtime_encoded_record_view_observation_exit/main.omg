@@ -56,7 +56,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data NarrowByte [copy] where -128 <= value, value <= 127 { value: i64; }
 data ByteView { value: u8; }
 public boundary trait ByteOutput {
-    machine write(descriptor: i32, value: &u8, count: u64) -> i64;
+    machine write(descriptor: i32, value: &u8, count: u64) -> i64 reaches;
 }
 public data ByteImports {}
 public macos_arm64 machine write_binding() -> ForeignBinding<26, 6, 0> {
@@ -96,4 +96,10 @@ machine Main::main(main: &mut Main) reaches ByteOutput crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ByteOutput crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

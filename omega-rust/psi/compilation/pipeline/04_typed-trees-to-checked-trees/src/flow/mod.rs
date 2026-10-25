@@ -54,9 +54,10 @@ mod expression;
 mod operand_contexts;
 mod operand_values;
 pub(crate) use operand_values::{
-    CapturedValue, captured_lifetime_roots, captured_observation_places, captured_operand_at_path,
-    captured_operand_child_at_path, captured_operand_values, captured_value_places,
-    observe_captured_values, project_captured_view_place,
+    CapturedValue, captured_lifetime_roots, captured_observation_places,
+    captured_observation_roots, captured_operand_at_path, captured_operand_child_at_path,
+    captured_operand_values, captured_value_places, observe_captured_values,
+    project_captured_view_place,
 };
 mod operator_calls;
 pub(crate) use operand_contexts::{
@@ -115,7 +116,7 @@ pub(crate) use cleanup_effect_dependencies::{
 pub(crate) use reference_places::{
     assignment_preserves_reference_binding, local_reference_candidate_storages_at_call,
     local_reference_storage_at_call, local_reference_storage_before_statement,
-    reference_expression_storage_places, reference_expression_storage_places_including_shared,
+    reference_expression_storage_places_including_shared,
     reference_result_candidates_before_statement, reference_route_source,
 };
 pub(crate) use value_origins::{

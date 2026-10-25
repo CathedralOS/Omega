@@ -75,6 +75,15 @@ impl PackagePolicyCallable {
         self.declared_service_reach.as_deref()
     }
 
+    /// A callable publishes its explicit/governing ceiling, or the full
+    /// checked realized row when its body requests inference. Concrete
+    /// realization cannot attenuate that contract; unknown bodies supply no
+    /// inferred fallback.
+    pub fn published_service_reach(&self) -> Option<&[PackageReviewNominalIdentity]> {
+        self.declared_service_reach()
+            .or_else(|| self.checked_service_reach().realized())
+    }
+
     pub const fn checked_service_reach(&self) -> &PackageReviewCheckedServiceReach {
         &self.checked_service_reach
     }

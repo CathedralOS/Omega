@@ -8,7 +8,7 @@ machine Mark::drop(mark: &mut Mark) requires mark.code == 7 {
 }
 machine settle(mark: &Mark) {}
 data Holder { code: u64; }
-machine start(unprovided: u64) crashes Trap {
+machine start(unprovided: &mut Unprovided) crashes Trap {
     let holder: Holder = Holder { code: 7 };
     let mut tally: Tally = Tally { total: 0 };
     settle(&Mark { slot: &mut tally, code: holder.code });
@@ -16,3 +16,6 @@ machine start(unprovided: u64) crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

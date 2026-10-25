@@ -1,0 +1,2 @@
+Trailer::window
+result.bytes.len == 7

@@ -6,15 +6,22 @@ findings beside accepted lock policy. It does not accept changes, certify an
 audit, or publish native artifacts.
 
 ```text
-inspect_packages.rs  public options, result, and storage entrances
+inspect_packages.rs  transaction, target admission, policy/report joins and completion
 inspect_packages/
-├── execution.rs     load accepted state, resolve pinned sources, check, compare
+├── sources.rs       pinned source resolution, review and comparison
 ├── report.rs        bounded graph and policy presentation
 └── report/
     ├── policy.rs        typed policy summary and full-detail delegation
     ├── policy/callables.rs  callable reach, invocation, and checked behavior
     └── tests.rs         identity, history, unknown analysis, and output limits
 ```
+
+Application Build's [`package_inspection.rs`](../../../../../application/build/src/package_inspection.rs)
+owns session creation/disposal and the ordered target loop. It calls the same
+dependency review executor as install/update. Package completion requires every
+admitted target, in order, and rechecks the original project files before returning
+the report. A failed target produces unavailable findings without hiding later
+targets; a reporting failure stops further work.
 
 With a lock, dependency requests and content stay pinned. Git acquisition may
 fetch an absent exact accepted commit, never refresh its branch or tag. The
@@ -56,7 +63,7 @@ Exit status:
 
 - `0`: selected targets checked; no policy decisions are required.
 - `1`: inspection or fresh checking unavailable.
-- `2`: invalid command arguments.
+- `64`: invalid command arguments.
 - `3`: checking completed, but policy changes require review through install/update.
 
 Inspection holds the existing project transaction guard while loading and
@@ -64,6 +71,7 @@ checking accepted state. Pending publication intent must be recovered by an
 ordinary package operation first; inspection never completes that write.
 Pending review proposals and editable review files are left untouched. Builds
 still execute through the scoped evaluator and may write disposable diagnostics
-under `build/package-manager/audit-<target>/`. This is not a no-execution parser
-mode. The complete multi-target report is bounded to 8 MiB and source-controlled
+under private invocation staging in `build/package-manager/`, disposed on return.
+This is not a no-execution parser mode. The complete multi-target report is bounded
+to 64 MiB and source-controlled
 strings remain escaped data.

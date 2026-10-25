@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "checked_completion_changed_status");
     Build::depend(builder, Source::Path { location: "provider" });
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

@@ -16,3 +16,6 @@ machine start() crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

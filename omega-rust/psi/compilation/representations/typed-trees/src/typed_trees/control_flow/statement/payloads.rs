@@ -18,8 +18,9 @@ impl TypedTreeTables {
         let source = &source_tables.statement_table;
         let mut copied = Vec::new();
         let mut assembly_blocks = Vec::new();
+        let mut operand_captures = Vec::new();
 
-        for statement in source.statements(statements) {
+        for (source_handle, statement) in statements.handles().zip(source.statements(statements)) {
             let statement = match statement {
                 StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) => {
                     let target = self.statement_table.copy_assembly_from(source, *handle);
@@ -59,20 +60,6 @@ impl TypedTreeTables {
                         .expect("assembly window copying includes its owning header");
                     StatementNode::Assembly(AssemblyControlPoint::Label(target))
                 }
-                StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
-                    receiver: self
-                        .expression_table
-                        .copy_from(&source_tables.expression_table, binding.receiver),
-                    implementation_operand: if binding.implementation_operand.is_valid() {
-                        self.expression_table.copy_from(
-                            &source_tables.expression_table,
-                            binding.implementation_operand,
-                        )
-                    } else {
-                        crate::expression::ExpressionHandle::invalid()
-                    },
-                    ..binding.clone()
-                }),
                 StatementNode::AssemblyFact(fact) => {
                     StatementNode::AssemblyFact(TableAssemblyFact {
                         kind: fact.kind,
@@ -95,21 +82,14 @@ impl TypedTreeTables {
                         .statement_table
                         .name_path_members
                         .insert_many(source.name_path_members(call.receiver).iter().cloned());
-                    let arguments = call
-                        .arguments
-                        .is_empty()
-                        .then(HandleSpan::empty)
-                        .unwrap_or_else(|| {
-                            self.statement_table.expression_handles.insert_many(
-                                source
-                                    .expression_handles(call.arguments)
-                                    .iter()
-                                    .map(|argument| {
-                                        self.expression_table
-                                            .copy_from(&source_tables.expression_table, *argument)
-                                    }),
-                            )
-                        });
+                    let (arguments, captures) = self.expression_table.copy_call_operands_from(
+                        &source_tables.expression_table,
+                        source.expression_handles(call.arguments),
+                    );
+                    let arguments = self.statement_table.insert_expression_handles(
+                        self.expression_table.expression_handles(arguments).to_vec(),
+                    );
+                    operand_captures.push((copied.len(), source_handle, captures));
                     let (authored_machine_application, static_requirement_dispatch) =
                         self.expression_table.copy_call_static_applications_from(
                             &source_tables.expression_table,
@@ -203,7 +183,16 @@ impl TypedTreeTables {
             copied.push(statement);
         }
 
-        self.statement_table.insert_statements(copied)
+        let copied = self.statement_table.insert_statements(copied);
+        let handles = copied.handles().collect::<Vec<_>>();
+        for (position, source, captures) in operand_captures {
+            self.expression_table.rebind_statement_operand_captures(
+                &captures,
+                source,
+                handles[position],
+            );
+        }
+        copied
     }
     /// Remap lexical symbols in a copied statement graph. Expression and type
     /// payloads are delegated to their owning tables so no arena internals
@@ -232,14 +221,6 @@ impl TypedTreeTables {
                     }
                 }
                 StatementNode::Assembly(AssemblyControlPoint::Label(_)) => {}
-                StatementNode::RootBinding(binding) => {
-                    self.expression_table
-                        .remap_symbols_in(binding.receiver, symbols);
-                    if binding.implementation_operand.is_valid() {
-                        self.expression_table
-                            .remap_symbols_in(binding.implementation_operand, symbols);
-                    }
-                }
                 StatementNode::AssemblyFact(fact) => {
                     self.remap_proof_fact_symbols(fact.fact, symbols);
                 }
@@ -327,10 +308,6 @@ impl TypedTreeTables {
         let mut roots = Vec::new();
         match statement {
             StatementNode::Assembly(_) => {} // Owned instructions follow in the lexical window.
-            StatementNode::RootBinding(binding) => {
-                roots.push((Role::BindingReceiver, binding.receiver));
-                roots.push((Role::BindingImplementation, binding.implementation_operand));
-            }
             StatementNode::AssemblyFact(fact) => roots.extend(
                 self.proof_fact_expression_roots(fact.fact)
                     .into_iter()

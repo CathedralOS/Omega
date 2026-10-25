@@ -2,7 +2,7 @@
 // without inventing a result place in the boundary scalar contract namespace.
 public data Resource [copy] { identity: u64; }
 public boundary trait Factory {
-    machine acquire() -> Resource ensures result.identity == 19;
+    machine acquire() -> Resource reaches ensures result.identity == 19;
 }
 RealFactory satisfies Factory {
     machine acquire() -> Resource ensures result.identity == 19 {

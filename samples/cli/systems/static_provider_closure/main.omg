@@ -4,11 +4,11 @@
 public data Observation { value: i32; }
 
 public boundary trait RawSource {
-    machine read() -> i32;
-    machine fill(destination: &mut Observation);
+    machine read() -> i32 reaches;
+    machine fill(destination: &mut Observation) reaches;
 }
 public boundary trait PortableSource {
-    machine read() -> i32 invokes RawSource;
+    machine read() -> i32 reaches invokes RawSource;
 }
 data RawProvider {}
 data OtherRawProvider {}
@@ -52,4 +52,10 @@ machine Main::main(context: &mut Main) crashes Trap {
     transition answer == 41 { true -> done() false -> wrong() }
     state done() {}
     state wrong() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

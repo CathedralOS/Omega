@@ -2,7 +2,7 @@
 // empty. Exercise direct, bound and helper calls without inventing an effect.
 use omega_language_std::console;
 
-public boundary trait Pure { machine evaluate(value: i32) -> i32; }
+public boundary trait Pure { machine evaluate(value: i32) -> i32 reaches; }
 data Provider {}
 machine Provider::evaluate(value: i32) -> i32 satisfies Pure::evaluate { value }
 
@@ -19,4 +19,10 @@ machine Main::main(main: &mut Main) reaches Console {
 
 ProviderPureImplementation satisfies Pure {
     Pure::evaluate = Provider::evaluate;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

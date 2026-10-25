@@ -44,6 +44,7 @@ public data Token {
 
 public boundary trait TokenIssuer {
     machine issue(id: u64) -> Token
+    reaches
     ensures
         result in Carry::AcrossSuspend;
 }

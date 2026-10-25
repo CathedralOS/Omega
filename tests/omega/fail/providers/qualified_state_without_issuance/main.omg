@@ -3,7 +3,7 @@ data Root [linear] { value: u64; }
 machine Root::drop(root: &mut Root) {}
 domain Root::Granted established by Grant::grant;
 boundary trait Grant {
-    machine grant(root: Root) -> Root ensures result in Root::Granted;
+    machine grant(root: Root) -> Root reaches ensures result in Root::Granted;
 }
 data Main {}
 machine Main::main(context: &mut Main) {

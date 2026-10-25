@@ -47,12 +47,21 @@ pub(super) fn bitwise_known_unsigned(
                 bitwise_known_unsigned(program, environment, primitive, unary.operand, depth + 1)?,
             )
         }
-        ExpressionNode::Binary(binary) => bitwise::binary_unsigned_value(
-            binary.operator,
-            primitive,
-            bitwise_known_unsigned(program, environment, primitive, binary.left, depth + 1)?,
-            bitwise_known_unsigned(program, environment, primitive, binary.right, depth + 1)?,
-        ),
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                typed_trees::expression::BinaryOperator::BitwiseAnd
+                    | typed_trees::expression::BinaryOperator::BitwiseOr
+                    | typed_trees::expression::BinaryOperator::BitwiseXor
+            ) =>
+        {
+            bitwise::binary_unsigned_value(
+                binary.operator,
+                primitive,
+                bitwise_known_unsigned(program, environment, primitive, binary.left, depth + 1)?,
+                bitwise_known_unsigned(program, environment, primitive, binary.right, depth + 1)?,
+            )
+        }
         _ => None,
     }
 }

@@ -1,1 +1,1 @@
-cannot derive a complete type/const/machine/conformance specialization tuple
+const parameter `Count` of `prefix_count` requires a normalized closed value

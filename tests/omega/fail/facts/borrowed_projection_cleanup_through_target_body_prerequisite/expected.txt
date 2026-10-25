@@ -1,2 +1,3 @@
 cannot prove automatic cleanup requires
 CapturedReceipt::drop clause
+CapturedToken::drop clause

@@ -2,6 +2,7 @@
 // when the selected implementation does not block.
 public boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
+    reaches
     where Count == 4 || Count == 8 || Count == 12
     blocks;
 }

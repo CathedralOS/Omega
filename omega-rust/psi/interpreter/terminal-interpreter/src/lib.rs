@@ -68,6 +68,7 @@ pub use adapters::{
     TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
+pub use byte_sequences::read::TerminalByteRead;
 pub use capabilities::{
     TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
 };
@@ -90,10 +91,11 @@ pub use errors::{
 };
 pub use execution::TerminalExecution;
 pub use instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalProcessExitAdmission,
+    TerminalBindingRejection, TerminalComponentBinding, TerminalEntryStorageError,
+    TerminalEntryStorageValue, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+    TerminalProcessExitAdmission,
 };
-pub use program::{TerminalProgram, TerminalProgramEntry};
+pub use program::{TerminalInstantiation, TerminalProgram, TerminalProgramEntry};
 pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };
@@ -114,6 +116,6 @@ pub use terminal_installation::{
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use values::{
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };

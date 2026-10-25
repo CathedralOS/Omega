@@ -152,10 +152,10 @@ impl TerminalEffectHandler for NumericImport {
                 }
                 numerics::float_semantics::FloatClass::Zero { negative } => (4, Some(negative)),
             };
-            return Ok(TerminalEffectResult::ScalarCase(
-                terminal_interpreter::TerminalScalarCaseValue {
+            return Ok(TerminalEffectResult::ScalarAggregate(
+                terminal_interpreter::TerminalScalarAggregateValue {
                     structural_type: classification.structural_type,
-                    result_case: classification.cases[ordinal],
+                    result_case: Some(classification.cases[ordinal]),
                     fields: sign
                         .map(|negative| {
                             vec![(

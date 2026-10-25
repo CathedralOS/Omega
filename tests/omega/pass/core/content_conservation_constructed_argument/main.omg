@@ -8,15 +8,16 @@ public machine Held::content(value: &Chunk) -> CountedQuantity<ByteUnit>
 satisfies Content<Chunk, CountedQuantity<ByteUnit>>::project
 { CountedQuantity { magnitude: embed(value.length) as Nat } }
 public boundary trait ChunkRoot {
-    machine grant(value: Chunk) -> Chunk in Held;
+    machine grant(value: Chunk) -> Chunk in Held reaches;
 }
 public data Pair { left: Chunk in Held; right: Chunk in Held; }
 public boundary trait Join {
     machine merge(parts: Pair) -> Chunk in Held
+    reaches
     ensures separate(Held::content(old(&parts.left)), Held::content(old(&parts.right)))
         == Held::content(&result);
 }
-public boundary trait Sink { machine accept(value: Chunk in Held); }
+public boundary trait Sink { machine accept(value: Chunk in Held) reaches; }
 public machine combine(left: Chunk in Held, right: Chunk in Held)
 reaches Join, Sink
     invokes Join;
@@ -30,6 +31,7 @@ machine main() {}
 public data Shell { parts: Pair; }
 public boundary trait NestedJoin {
     machine merge(shell: Shell) -> Chunk in Held
+    reaches
     ensures separate(Held::content(old(&shell.parts.left)), Held::content(old(&shell.parts.right)))
         == Held::content(&result);
 }

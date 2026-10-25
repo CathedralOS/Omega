@@ -43,12 +43,31 @@ python tools/tests/test_compiler_pilot.py -v
 python tools/ci/compiler_pilot.py
 ```
 
-Reports and the exact corpus runner upload as `compiler-regression-SHA-attempt`,
+Reports, captured Terminal/native artifacts, the exact corpus runner and its build-profile receipt upload as
+`compiler-regression-OS-SHA-attempt`,
 retained seven days. `summary.json` separates build and test timing and identifies
-the producer. The 30-minute job does not cancel a running predecessor; pending
+the producer. The 45-minute job does not cancel a running predecessor; pending
 push runs coalesce to the newest revision. This is a bounded Linux smoke, not
 all supported hosts, the full corpus, or Cathedral UEFI boot. Host/customer and
 release qualification remain explicit separate acceptance.
+
+Manual dispatch with `cleanup=true` instead runs the existing CML4 cleanup
+controls on both Ubuntu and Windows. `tools/ci/compiler_cleanup.py` selects
+ordered parent/child hooks, partial construction, replacements and the nine
+returned-linear-child places with their reject twins; it uses the same corpus
+execution and report validator as smoke. Authored output must be observed by
+both engines. It does not change admission, scheduled smoke or any golden.
+The macOS/Linux roster also preserves the existing descriptor output controls
+for C pointer/count pairs and separate stdout/stderr.
+
+```text
+gh workflow run compiler-regression.yml --ref BRANCH -f cleanup=true
+python tools/ci/compiler_cleanup.py
+```
+
+Read each host's `build/compiler-cleanup/summary.json`, `checking.json` and
+`both.json`; a completed job and its actual producer identify that host's
+measurement. Pending, cancelled and failed jobs do not establish qualification.
 
 A regression belongs to the author of the regressing change; the first observer
 claims triage until attribution is established. Repair or revert promptly through
@@ -106,3 +125,19 @@ workflow are disabled; their definitions and observations remain historical.
 These are measured jobs, not a performance guarantee for compiler-changing PRs.
 The compile-error refusal control remains in the isolated pilot record; no broken
 source was pushed to main to demonstrate it.
+
+Manual dispatch with `foreign_records=true` instead measures the nine-place
+libc `lldiv` scalar-record result row and its nine copy-custody rejects on
+Ubuntu and Windows. `tools/ci/compiler_foreign_records.py` uses the same corpus
+validator, profiles and retained products as smoke. On Windows it additionally
+loads the exact SDK API-set DLL/export, observes real two-i64 C return values,
+and records the resolved image digest. This is Windows indirect-result evidence
+only after actual execution; macOS/Linux return this pair in registers. It
+never records goldens or grants unmeasured Linux ARM64 acceptance.
+
+```text
+gh workflow run compiler-regression.yml --ref BRANCH -f foreign_records=true
+```
+
+Read `build/compiler-foreign-records/{summary,checking,both}.json` and the
+Windows-only `windows-lldiv.json`; failures and absent engine facts remain red.

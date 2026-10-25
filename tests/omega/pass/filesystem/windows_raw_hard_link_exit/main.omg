@@ -68,3 +68,10 @@ machine close_present(handle: u64) -> i32 {
     transition handle != 0 { true -> release(handle) false -> 0 }
     state release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

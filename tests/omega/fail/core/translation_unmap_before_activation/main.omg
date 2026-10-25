@@ -54,16 +54,18 @@ public boundary trait TranslationAuthority {
         install: TranslationInstallObligations,
         release: TranslationReleaseObligations
     ) -> Mapping
+    reaches
     requires
         source.length == destination.length
     ensures
         result in Mapping::Pending;
 
     machine activate(pending: Mapping in Pending) -> Mapping
+    reaches
     ensures
         result in Mapping::Installed;
 
-    machine unmap(active: Mapping in Installed) -> Unmapped;
+    machine unmap(active: Mapping in Installed) -> Unmapped reaches;
 }
 
 machine unmap_early(source: Extent in Granted, destination: Extent in Granted) -> Unmapped

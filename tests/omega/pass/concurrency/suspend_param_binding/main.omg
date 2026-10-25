@@ -16,7 +16,7 @@ data Message {
     value: i32;
 }
 
-public boundary trait Scheduler { machine park() suspends; }
+public boundary trait Scheduler { machine park() reaches suspends; }
 
 machine inspect(message: Message)
 suspends; reaches Scheduler {

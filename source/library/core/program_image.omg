@@ -4,7 +4,7 @@
 // Exclude the entire suffix, including alignment and image padding, before
 // passing the remaining image extent to the semantic continuation.
 public boundary trait ProgramImage {
-    machine retained_suffix_start() -> addr;
+    machine retained_suffix_start() -> addr reaches;
 }
 
 public data ProgramImageNativeProvider {}

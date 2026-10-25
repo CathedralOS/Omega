@@ -1,1 +1,1 @@
-hosted receiver requires a checked ZII-valid value
+open default-domain invariant window

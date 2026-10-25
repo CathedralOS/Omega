@@ -1,6 +1,6 @@
 // Expected rejection: incompatible runtime carriers, parameter order or passing modes
-boundary trait Required { machine get(value: &u32) -> u32 ensures result <= 1; }
-boundary trait Supplied { machine get(value: &mut u32) -> u32; }
+boundary trait Required { machine get(value: &u32) -> u32 reaches ensures result <= 1; }
+boundary trait Supplied { machine get(value: &mut u32) -> u32 reaches; }
 Actual satisfies Supplied { machine get(value: &mut u32) -> u32 { 1 } }
 machine main() reaches Required crashes Trap {
     let seed: u32 = 0;

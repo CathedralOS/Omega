@@ -3,6 +3,7 @@ pub(crate) mod storage;
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -158,7 +159,10 @@ impl TerminalExecution<'_> {
             }
             let mut array = StructuralRuntimePlace::from(root);
             array.path.extend_from_slice(&argument.path);
-            let bytes = ByteSequenceView::new(argument.bytes.clone());
+            let bytes = ByteSequenceView::new(ByteSequenceStorage::copy(
+                &argument.bytes,
+                self.account.as_ref(),
+            )?);
             // A whole bounded input is a descriptor over the supplied storage,
             // just as an ordinary call argument is. Publish both together so
             // collection operations see the same custody at either entry.
@@ -371,7 +375,10 @@ impl TerminalExecution<'_> {
             )
             .map_err(|_| malformed())?;
             let mut path = source.path.clone();
-            let mut bytes = Vec::with_capacity(usize::try_from(count).map_err(|_| malformed())?);
+            let mut bytes = ByteSequenceStorage::zeroed(
+                usize::try_from(count).map_err(|_| malformed())?,
+                self.account.as_ref(),
+            )?;
             for index in 0..count {
                 path.push(StructuralPathSegment::FixedIndex(index));
                 let value =
@@ -384,7 +391,8 @@ impl TerminalExecution<'_> {
                 else {
                     return Err(malformed());
                 };
-                bytes.push(u8::try_from(byte).map_err(|_| malformed())?);
+                bytes.bytes_mut()[usize::try_from(index).map_err(|_| malformed())?] =
+                    u8::try_from(byte).map_err(|_| malformed())?;
             }
             return Ok((
                 TerminalStructuralValue {

@@ -125,7 +125,7 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     /// Actual completed dispatch subjects in lexical evaluation scope. Alias
     /// reads borrow these captures; they never replay their source operands.
     match_subjects: Vec<(
-        Handle<typed_trees::expression::MatchSubjectCapture>,
+        Handle<typed_trees::expression::CompletedValueCapture>,
         checked_trees::FlowOperandFact,
     )>,
 }
@@ -287,12 +287,6 @@ pub(super) fn append_statement_calls<'plans>(
                 contexts,
                 constraints,
             );
-        }
-        StatementNode::RootBinding(binding) => {
-            execution.expression(binding.receiver, contexts, constraints);
-            if binding.implementation_operand.is_valid() {
-                execution.expression(binding.implementation_operand, contexts, constraints);
-            }
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }

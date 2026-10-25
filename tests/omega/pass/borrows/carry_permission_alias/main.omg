@@ -12,6 +12,7 @@ use omega::language::core::drop;
 public domain Token::SuspensionSafe = Carry::AcrossSuspend;
 boundary trait ClaimProvider {
     machine grant(token: Token) -> Token
+    reaches
     ensures
         result in Token::SuspensionSafe;
 }

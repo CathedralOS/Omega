@@ -9,3 +9,9 @@ machine Main::main<'entry>(main: &'entry mut Main<'entry>) crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+// The root owns ordinary local storage; its region is not allocation authority.
+machine entry_start<'entry>() crashes Trap {
+    let mut entry_storage: Main<'entry>;
+    Main::main(&mut entry_storage);
+}

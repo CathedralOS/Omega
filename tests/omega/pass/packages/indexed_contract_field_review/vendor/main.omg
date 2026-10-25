@@ -14,14 +14,18 @@ public data TaggedPacket where bytes[0] == 42 {
 
 public boundary trait Inspect {
     machine inspect(packet: &Packet)
+    reaches
     requires packet.tag == 42 && packet.bytes[0] == 42 && packet.bytes[7] == 7;
 
     machine nested(envelope: &Envelope, packet: &Packet)
+    reaches
     requires envelope.packet.bytes[1] == 11 && packet.bytes[1] == 12;
 
     machine produce() -> Packet
+    reaches
     ensures result.bytes[0] == 42 && result.bytes[7] == 7;
 
     machine batch(batch: &PacketBatch)
+    reaches
     requires batch.packets[0].tag == 41 && batch.packets[1].tag == 42;
 }

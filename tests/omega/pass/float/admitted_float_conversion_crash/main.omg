@@ -14,3 +14,9 @@ machine Main::main(main: &mut Main) reaches Console + ProcessExit {
     let converted: i32 in Trapping = I32::from_f64(main.value);
     ProcessExit::exit_process(converted as i32);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console + ProcessExit {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -1,5 +1,5 @@
 // The selected requirement may call back even when the satisfier omits invokes.
-public boundary trait Callback { machine run(); }
+public boundary trait Callback { machine run() reaches; }
 public boundary trait Output { machine emit_byte(byte: i32) reaches Output invokes Callback; }
 public data Provider {}
 boundary machine Provider::emit_byte(byte: i32) satisfies Output::emit_byte;

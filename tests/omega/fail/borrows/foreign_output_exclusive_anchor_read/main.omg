@@ -2,7 +2,7 @@
 public data Output<'source> { value: &'source u8; }
 public data Input { value: u8; }
 public boundary trait ReadView {
-    machine acquire<'source>(source: &'source mut Input, output: &mut Output<'source>);
+    machine acquire<'source>(source: &'source mut Input, output: &mut Output<'source>) reaches;
 }
 machine observe(source: &Input) -> u8 { source.value }
 machine exercise() -> u8 reaches ReadView {

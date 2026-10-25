@@ -1,5 +1,7 @@
 //! Evaluator work, observed effects, and returned-result custody.
 
+use language_semantics::declaration_selection::ExecutedRootBinding;
+
 use crate::{
     FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemGrantRootIdentity,
     FilesystemOperationAttempt,
@@ -308,67 +310,6 @@ impl BuildIncludedSource {
     pub const fn filesystem_attempt_ordinal(&self) -> usize {
         self.filesystem_attempt_ordinal
     }
-}
-
-/// One product-entry description issued by the compiler-owned
-/// `Build.product.entry` query during build evaluation. The evaluator keeps
-/// this semantic payload in a private side table; the `ProductEntryRef` value
-/// handed to evaluated code carries only an opaque index into it, so source
-/// cannot read, convert, or fabricate the selection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DescribedProductEntry {
-    /// Exact product machine the description selected in its query's lexical
-    /// package scope. Final admission rejoins this symbol; it never reselects
-    /// by spelling.
-    pub machine_symbol: symbols::SymbolHandle,
-    /// The selected machine's authored name, retained for diagnostics only.
-    pub machine_name: String,
-    /// The root slot spelling the description was selected for. A later
-    /// `Build::bind` must spell the same slot path.
-    pub slot: String,
-}
-
-/// One product-type-schema description issued by the compiler-owned
-/// `Build.product.schema` query during build evaluation. Same marker
-/// discipline as `DescribedProductEntry`: the evaluator keeps this payload
-/// in a private side table and the `ProductTypeSchema` value handed to
-/// evaluated code carries only an opaque index into it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DescribedProductSchema {
-    /// Exact product data declaration the description selected in its
-    /// query's lexical package scope.
-    pub schema_symbol: symbols::SymbolHandle,
-    /// The selected declaration's canonical path, retained for `path()`
-    /// inspection and diagnostics.
-    pub canonical_path: String,
-}
-
-/// One product-provider description issued by the compiler-owned
-/// `Build.product.provider` query during build evaluation. Same marker
-/// discipline as `DescribedProductSchema`: the evaluator keeps this payload
-/// in a private side table and the `ProductProviderRef` value handed to
-/// evaluated code carries only an opaque index into it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DescribedProductProvider {
-    /// Exact provider data declaration the description selected in its
-    /// query's lexical package scope. A provider declaration is the nominal
-    /// data type owning at least one `satisfies` machine.
-    pub provider_symbol: symbols::SymbolHandle,
-    /// The selected declaration's canonical path, retained for `path()`
-    /// inspection and diagnostics.
-    pub canonical_path: String,
-}
-
-/// One executed `Build::bind` declaration plus, when its implementation
-/// operand was a delegated description, the exact product entry the compiler
-/// issued for it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExecutedRootBinding {
-    /// The exact `Build::bind` statement that executed.
-    pub statement: typed_trees::statement::StatementHandle,
-    /// `Some` when the implementation operand evaluated to a compiler-issued
-    /// `ProductEntryRef` description instead of a product machine path.
-    pub described: Option<DescribedProductEntry>,
 }
 
 /// A provider choice executed against the activation's original Build cell.

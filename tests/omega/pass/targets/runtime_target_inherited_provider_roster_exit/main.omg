@@ -3,10 +3,11 @@
 // for a second choice, and shared code does not merge their choosing owners.
 boundary trait Parent {
     machine echo<const Count: u64>(value: i32) -> i32
+    reaches
     where Count == 4 || Count == 8;
-    machine spare() -> i32;
+    machine spare() -> i32 reaches;
 }
-boundary trait Child: Parent { machine choose() -> i32; }
+boundary trait Child: Parent { machine choose() -> i32 reaches; }
 
 FirstMap satisfies Child {
     Parent::echo = echo;

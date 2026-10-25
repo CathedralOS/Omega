@@ -11,9 +11,16 @@ The counter is zero while the call reads and one after normal completion;
 `verify_captured` checks the value and that once-only cleanup in both engines.
 It does not supply the hook's static code prerequisite.
 
+A third composition reads `CapturedPairView.pair.second.code`. The projected
+linear `CapturedToken` contains no references, but its read still needs the
+original Pair storage. Its captured address keeps that backing alive through
+the read; the completed scalar detaches afterward. The wrapper dies before the
+parent hook and both linear-child hooks, and the parent counter becomes one.
+
 Each invalid twin changes only the transported code to 6, keeping both hooks'
 code-7 prerequisites. The pinned invalid oracles require the new
-`CapturedReceipt::drop` refusal as well as automatic-cleanup rejection. The root
+`CapturedReceipt::drop` and `CapturedToken::drop` refusals as well as
+automatic-cleanup rejection. The root
 retains ordered construction, explicit/implicit loans, returned aggregates and
 fixed-array projections alongside these descriptor compositions.
 
@@ -44,7 +51,7 @@ and [loan closure](../../../../wiki/spec/terminal-psi/loans.md#reborrow-lineage-
 | --- | --- |
 | Establishment | The transported code enters the anonymous value before borrowing; the hook must prove code 7 at its actual death. |
 | Identity and lifetime | Returned descriptors keep original backing. A copied scalar detaches from its carrier; independently live references keep their loans. Counter observations distinguish premature, missing and duplicate hooks. |
-| Composition | Both descriptor productions occur at the consuming site in all nine places, retaining the original Unit-call/linear-sibling control. |
+| Composition | All three descriptor productions occur at the consuming site in all nine places, retaining the original Unit-call/linear-sibling control. Reference-free projected children preserve their observed storage until the scalar read completes. |
 | Soundness | All nine code-6 twins reject at the unchanged cleanup prerequisites. Separate borrow controls retain a live descendant and reject early backing access. |
 | Psi 05–07 | Checked completion contexts and ordered actions survive into Terminal Psi; actual execution must return 0. |
 | Omega 00–02 | Each public project binds all four hosted entries. The measured host realizes pointer, record and fixed-array geometry and calling plans. Foreign entry bindings alone are not execution evidence. |
@@ -53,13 +60,18 @@ and [loan closure](../../../../wiki/spec/terminal-psi/loans.md#reborrow-lineage-
 
 ## Measured run record
 
-Producer `00e629d9481e09e3db2be7896a087109e664450e`, opt-level 1,
-`macos_arm64`, integrated on published base `7a96cd9a433`:
+Producer `116d5550a53f899c0c069e9c3c436ab38a5541db`, opt-level 1,
+`macos_arm64`, integrated on published base `daf76df20a9`:
 
 - Root plus all nine public places run with native exit 0 and Terminal exit 0;
-  all nine public invalids require and match `CapturedReceipt::drop clause`.
+  all nine public invalids require and match both captured cleanup-hook clauses.
 - The nine mirrored corpus places and the two retained descriptor-completion
-  fixtures run at 0 in both engines. At baseline `d25dcf177ece`, the added
+  fixtures run at 0 in both engines. The retained linear-Pair supplier also
+  runs at 0 in both engines. At baseline `daf76df20a9`, the new nine-place
+  composition source-checks, but the corpus target auditor refuses
+  `ReferenceDisposalConflict`; the normal public CLI runs native 0 and then
+  fails Terminal `AffineFrontierMismatch`. Both instruments now accept it.
+  At the earlier baseline `d25dcf177ece`, the added
   direct composition refused for missing exact context, and the larger existing
   call compositions refused disposal while a wrapper reference remained live.
 - The affected source comparison covers 128 fixtures without lost outcomes.
@@ -77,12 +89,13 @@ Producer `00e629d9481e09e3db2be7896a087109e664450e`, opt-level 1,
 Earlier Unit-call records at `cc2f948d148` and `9ff26a87021` are historical
 coverage of that production, not execution of these new compositions.
 
-## Remaining scope
+## Execution scope
 
-CML4's cross-host qualification and suspension acceptance stay open. A separate
-retained linear-`Pair` scalar-supplier composition still produces native exit 0
-but Terminal `AffineFrontierMismatch` at block 8 on this producer, as it did at
-baseline. This repair does not claim that residual-claim composition is complete.
+This completed CML4 row establishes normal death after borrowed supplier reads.
+Its nine places run on macOS ARM64, including the reference-free projected
+supplier. The separate ordered-edge controls run on Linux x86-64 and Windows
+x86-64. Producer `b457b1978b87` refreshes the macOS row and fuel/retry provision;
+the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
 
 ```sh
 omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg

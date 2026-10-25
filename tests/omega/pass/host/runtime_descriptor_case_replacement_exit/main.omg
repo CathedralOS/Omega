@@ -7,8 +7,8 @@ public data Choice {
     case Empty;
 }
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, choice: &mut Choice, count: u64) -> i64 blocks;
-    machine write(descriptor: i32, choice: &Choice, count: u64) -> i64;
+    machine read(descriptor: i32, choice: &mut Choice, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, choice: &Choice, count: u64) -> i64 reaches;
 }
 public data DescriptorImports {}
 data Holder { prefix: u32; choice: Choice; suffix: u32; }
@@ -111,4 +111,10 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
 }

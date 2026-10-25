@@ -4,7 +4,7 @@ use crate::effects::TerminalEffect;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::results::{TerminalCrash, TerminalCrashSite};
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
 use terminal_psi::BoundaryMachineDeclaration;
@@ -22,9 +22,9 @@ pub enum TerminalEffectResult {
     Crash(CrashCause),
     Unit,
     Scalar(TerminalScalarValue),
-    /// An exact selected sum case and its actual scalar payload. No opaque
+    /// An exact scalar record or selected sum case and its actual scalar payload. No opaque
     /// host allocation identity, grants, claims or qualifications are inferred.
-    ScalarCase(TerminalScalarCaseValue),
+    ScalarAggregate(TerminalScalarAggregateValue),
     /// The same opaque, target-neutral value used for structural entry inputs.
     /// This does not provide a sum discriminator or materialized payload fields.
     Structural(TerminalStructuralValue),
@@ -101,7 +101,7 @@ impl TerminalExecution<'_> {
         }
         if let Some(result) = result.as_structural()
             && ((requires_materialized_host_custody(&self.program.structural_types(), result.structural_type)
-                && !self.supports_scalar_case_result(result))
+                && !self.supports_scalar_aggregate_result(result))
                 || self.structural_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -118,7 +118,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    fn supports_scalar_case_result(
+    fn supports_scalar_aggregate_result(
         &self,
         result: &terminal_psi::StructuralOperationResult,
     ) -> bool {
@@ -134,9 +134,18 @@ impl TerminalExecution<'_> {
                 .structural_types()
                 .get(&result.structural_type)
                 .is_some_and(|declaration| {
-                    matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
-                    if cases.iter().all(|case| case.fields.iter().all(|field|
-                        !field.relevance.is_erased() && field.field_type.scalar_type().is_some())))
+                    let scalar_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
+                        fields.iter().all(|field| {
+                            !field.relevance.is_erased() && field.field_type.scalar_type().is_some()
+                        })
+                    };
+                    match &declaration.shape {
+                        StructuralTypeShape::Record { fields, .. } => scalar_fields(fields),
+                        StructuralTypeShape::Sum { cases } => {
+                            cases.iter().all(|case| scalar_fields(&case.fields))
+                        }
+                        _ => false,
+                    }
                 })
     }
 }
@@ -222,15 +231,15 @@ impl TerminalExecution<'_> {
             (
                 OperationResult::Structural(declaration),
                 BoundaryMachineResult::Structural(expected),
-                TerminalEffectResult::ScalarCase(value),
+                TerminalEffectResult::ScalarAggregate(value),
             ) if declaration.structural_type == expected.structural_type
                 && declaration.multiplicity == expected.multiplicity
                 && declaration.qualifications == expected.qualifications
                 && declaration.projected_qualifications.is_empty()
                 && expected.projected_qualifications.is_empty()
-                && self.supports_scalar_case_result(declaration) =>
+                && self.supports_scalar_aggregate_result(declaration) =>
             {
-                self.publish_scalar_case(declaration, value)?;
+                self.publish_scalar_aggregate(declaration, value)?;
             }
             (
                 OperationResult::Structural(declaration),

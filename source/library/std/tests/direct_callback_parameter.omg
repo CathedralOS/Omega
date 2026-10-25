@@ -69,7 +69,7 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
 }
 
 boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
-    machine call(message: u64) -> u64;
+    machine call(message: u64) -> u64 reaches;
 }
 
 data RegistrarPolicy { }
@@ -167,6 +167,7 @@ boundary trait HookRegistrar: Calling<RegistrarPolicyCallingPolicy> {
         module: u64
     )
     where machine Handler satisfies HookProcedure::call;
+    reaches;
 }
 
 data HookProvider { }

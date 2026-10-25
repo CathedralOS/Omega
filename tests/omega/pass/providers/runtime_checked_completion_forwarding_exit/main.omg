@@ -5,3 +5,9 @@ machine Main::main(main: &mut Main) reaches Console {
     main.code = 70;
     Console::exit_process(main.code);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

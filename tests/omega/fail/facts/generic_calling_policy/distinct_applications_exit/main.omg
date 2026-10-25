@@ -9,7 +9,7 @@ public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
 }
 public const PolicyWidth: u64 = 8;
 public boundary trait LocalEntry: Calling<GenericPolicy<Box<u64>, PolicyWidth>> {
-    machine value() -> u64;
+    machine value() -> u64 reaches;
 }
 LocalMap satisfies LocalEntry {
     machine value() -> u64 { 42 }
@@ -51,7 +51,7 @@ machine value_plan(signature: BoundarySignature, allow_vectors: bool, width: u64
 
 public const OtherWidth: u64 = 8;
 public boundary trait SecondEntry: Calling<GenericPolicy<Box<u32>, OtherWidth>> {
-    machine value() -> u32;
+    machine value() -> u32 reaches;
 }
 SecondMap satisfies SecondEntry {
     machine value() -> u32 { 7 }

@@ -7,8 +7,8 @@
 use omega_language_std::console;
 
 public boundary trait Gate {
-    machine open() -> i32;
-    machine close(ticket: i32) -> i32;
+    machine open() -> i32 reaches;
+    machine close(ticket: i32) -> i32 reaches;
 }
 GateProvider satisfies Gate {
     Gate::open = open_gate;
@@ -42,4 +42,10 @@ machine Main::main(main: &mut Main) reaches Gate + Console {
     transition main.code == 70 { true -> good() _ -> bad() }
     state good() { Console::exit_process(70); }
     state bad() { Console::exit_process(72); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Gate + Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

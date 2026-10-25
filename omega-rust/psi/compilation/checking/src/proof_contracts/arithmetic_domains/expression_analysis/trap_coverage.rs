@@ -135,7 +135,13 @@ impl ExpressionWalk<'_> {
         if !self.checks_trap_coverage {
             return;
         }
-        let TrapCeiling::Guarded(routes) = trap_ceiling(self.program, self.machine) else {
+        let Some(machine) = self.machine else {
+            if !forms_on_this_path() {
+                diagnostics.push(Diagnostic::error(format!("uncovered Trap crash in {}: {} has no executable crash route in this declaration", self.owner, site())));
+            }
+            return;
+        };
+        let TrapCeiling::Guarded(routes) = trap_ceiling(self.program, machine) else {
             return;
         };
         if forms_on_this_path() {
@@ -154,7 +160,7 @@ impl ExpressionWalk<'_> {
         let coverage = if routes.is_empty() {
             format!(
                 "the published crash ceiling of machine `{}` names no `crashes Trap` route",
-                self.machine.name,
+                machine.name,
             )
         } else {
             "no published `crashes Trap` route covers that condition over these operands".to_owned()
@@ -189,7 +195,8 @@ impl ExpressionWalk<'_> {
         routes: &[ExpressionHandle],
     ) -> Option<ValueEnvironment> {
         let state = self.state?;
-        let entry = self.program.machine_states(self.machine).first()?;
+        let machine = self.machine?;
+        let entry = self.program.machine_states(machine).first()?;
         if entry.symbol != state.symbol {
             return None;
         }
@@ -201,7 +208,7 @@ impl ExpressionWalk<'_> {
             }
             narrow_environment_by_condition(
                 self.program,
-                self.machine,
+                machine,
                 Some(entry),
                 &mut complement,
                 route,

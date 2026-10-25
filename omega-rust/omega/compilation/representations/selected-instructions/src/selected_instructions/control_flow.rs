@@ -37,6 +37,13 @@ impl SelectedFunction {
 
     /// The virtual register keyed `register`, when the function declares it.
     pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
+        if let Some(pos) = self
+            .virtual_registers
+            .binary_search_by_key(&register, |row| row.id)
+            .ok()
+        {
+            return Some(&self.virtual_registers[pos]);
+        }
         self.virtual_registers.iter().find(|row| row.id == register)
     }
 

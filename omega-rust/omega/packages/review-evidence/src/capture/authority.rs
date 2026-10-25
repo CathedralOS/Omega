@@ -105,6 +105,9 @@ pub(crate) fn dangerous_authority_class(
             .package_root
             .file_name()
             .is_some_and(|namespace| namespace == "core")
+            // Virtual toolchain declarations (including Build operations) have
+            // digest custody but are not filesystem modules in omega::core.
+            && !crate::capture::semantics::declarations::is_canonical_virtual_toolchain_path(&source.path)
         {
             let relative = source
                 .path

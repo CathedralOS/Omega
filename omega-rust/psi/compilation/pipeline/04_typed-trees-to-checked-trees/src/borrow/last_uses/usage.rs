@@ -18,15 +18,6 @@ pub(super) fn statement_uses_local_name(
     local_name: &str,
 ) -> bool {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            expression_uses_local_name(program, binding.receiver, local_name)
-                || (binding.implementation_operand.is_valid()
-                    && expression_uses_local_name(
-                        program,
-                        binding.implementation_operand,
-                        local_name,
-                    ))
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_local_name(program, assignment.target, local_name)
@@ -88,11 +79,6 @@ pub(super) fn statement_uses_owner_path(
         )
     };
     match statement {
-        StatementNode::RootBinding(binding) => {
-            uses(binding.receiver)
-                || (binding.implementation_operand.is_valid()
-                    && uses(binding.implementation_operand))
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => uses(assignment.target) || uses(assignment.value),
         StatementNode::Call(call) => {
@@ -183,10 +169,9 @@ fn expression_uses_owner_path(
         )
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
-            .is_some_and(recurse),
+        ExpressionNode::SavedSubject(saved) => {
+            program.saved_value_source(saved).is_some_and(recurse)
+        }
         ExpressionNode::Match(dispatch) => program
             .expression_table
             .match_deep_any(dispatch, |handle| recurse(handle)),

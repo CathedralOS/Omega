@@ -12,7 +12,7 @@ requires counter.remaining == 24 && first == 16 && second == 8
 { counter.remaining == 24 && first == 16 && second == 8 }
 
 boundary trait Mutator {
-    machine change(counter: &mut Counter, value: u64) -> u64 ensures result == value;
+    machine change(counter: &mut Counter, value: u64) -> u64 reaches ensures result == value;
 }
 machine exercise() -> bool reaches Mutator {
     let mut counter: Counter = Counter { remaining: 48 };

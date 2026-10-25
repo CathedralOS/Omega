@@ -265,6 +265,11 @@ impl crate::execution::TerminalExecution<'_> {
             return;
         }
         let mut roots = BTreeSet::new();
+        roots.extend(
+            self.borrowed_entry_storage
+                .iter()
+                .map(|(_, _, value)| value.opaque_identity),
+        );
         // A placed view lends an explicit qualified backing. Preserve its
         // whole containing identity, including paths outside the lent subtree;
         // the occurrence's custody and retirement remain unchanged.

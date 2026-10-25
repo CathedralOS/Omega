@@ -10,6 +10,13 @@ pub(super) fn derive(
     selected: &SelectedFunction,
     live: &FunctionLiveness,
 ) -> Result<Vec<EdgeRegisterTransfer>, LiveRangeError> {
+    if !selected
+        .blocks
+        .iter()
+        .any(|block| !terminator_successors(&block.terminator).is_empty())
+    {
+        return Ok(Vec::new());
+    }
     let mut rows = Vec::new();
     let index = crate::analyses::liveness::edge_values::FunctionIndex::new(selected);
     for block in &selected.blocks {

@@ -4,6 +4,7 @@
 // The equality stays a relation between the two argument places.
 public boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
+    reaches
     ensures size == cap && cap <= 8;
 }
 data Main {

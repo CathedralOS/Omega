@@ -1081,7 +1081,7 @@ def root_declaration_cases(program: str) -> None:
 
     # Traits: generic parameters, header and body parents, and member
     # machines contained by the trait.
-    source = b"pub boundary trait Clock<T>: Service + Order<T> { requires Base; machine now(clock: T) -> u64 {} }"
+    source = b"pub boundary trait Clock<T>: Service + Order<T> { requires Base; machine now(clock: T) -> u64 reaches {} }"
     declaration_accepted(
         program, "boundary-trait", source,
         roots=((TRAIT, 0, *whole(source)),),
@@ -1097,7 +1097,8 @@ def root_declaration_cases(program: str) -> None:
         type_arguments=(1,),
         trait_parents=(0, 2, 3),
         machines=(machine(source, b"now", through(source, b"machine", b"{}"), parameters=(0, 1), return_type=5,
-                          container=1, generics=(1, 0)),),
+                          container=1, generics=(1, 0), clauses=(0, 1)),),
+        clauses=((1, 0, 0, 0, 0, *span(source, b"reaches")),),
         traits=((*span(source, b"Clock"), 0, 1, 0, 3, 0, 1, 1, 1, *whole(source)),),
     )
     # A machine's return type may follow its clauses, more clauses after it
@@ -1169,17 +1170,18 @@ def root_declaration_cases(program: str) -> None:
 
     # A trait member without a body is a requirement; one with a body is
     # its default.
-    source = b"pub boundary trait Clock { machine now() -> u64 reaches Clock; machine later(value: u64) -> u64 { value } }"
+    source = b"pub boundary trait Clock { machine now() -> u64 reaches Clock; machine later(value: u64) -> u64 reaches { value } }"
     declaration_accepted(
         program, "boundary-trait-requirements", source,
         roots=((TRAIT, 0, *whole(source)),),
         type_references=(named(source, b"u64"), named(source, b"u64", 2), named(source, b"u64", 3)),
-        clauses=((1, 0, 1, 1, 0, *span(source, b"reaches Clock")),),
+        clauses=((1, 0, 1, 1, 0, *span(source, b"reaches Clock")),
+                 (1, 1, 0, 0, 0, *span(source, b"reaches", 2))),
         machines=(
             machine(source, b"now", span(source, b"machine now() -> u64 reaches Clock;"), return_type=0,
                     clauses=(0, 1), body=False, container=1),
             machine(source, b"later", through(source, b"machine later", b"}"), parameters=(0, 1), return_type=2,
-                    clauses=(1, 0), statements=(0, 1), expressions=(0, 1), container=1),
+                    clauses=(1, 1), statements=(0, 1), expressions=(0, 1), container=1),
         ),
         traits=((*span(source, b"Clock"), 0, 0, 0, 0, 0, 2, 1, 1, *whole(source)),),
     )
@@ -1201,6 +1203,29 @@ def root_declaration_cases(program: str) -> None:
         roots=((TRAIT, 0, *whole(source)),),
         traits=((*span(source, b"Empty"), 0, 0, 0, 0, 0, 0, 0, 0, *whole(source)),),
     )
+
+    # Boundary requirements pin ceilings even for defaults. An empty row
+    # remains a real clause; ordinary requirements and checked realizers may
+    # still omit it. Every delimiter belongs to the following grammar owner.
+    for name, source in (
+        ("empty-boundary-ceiling", b"boundary trait Mark { machine read() reaches; }"),
+        ("empty-before-next-clause", b"boundary trait Mark { machine read() reaches terminates; }"),
+        ("empty-before-default-body", b"boundary trait Mark { machine read() reaches {} }"),
+        ("empty-checked-body", b"machine read() reaches {}"),
+        ("empty-before-result-type", b"machine read() reaches -> u64 { 7 }"),
+        ("ordinary-requirement-omission", b"trait Mark { machine read(); }"),
+        ("memberless-boundary-identity", b"boundary trait Mark {}"),
+    ):
+        actual = declaration_accepted(program, name, source)
+        if b"reaches" in source:
+            assert actual.clauses[0][0:3] == (1, 0, 0), actual.clauses
+    for name, source in (
+        ("missing-boundary-ceiling", b"boundary trait Mark { machine read(); }"),
+        ("missing-default-ceiling", b"boundary trait Mark { machine read() {} }"),
+    ):
+        status, payload = run(program, source)
+        actual = decode(payload)
+        assert status != 0 and not actual.accepted and actual.diagnostic == 200, (name, status, actual)
 
     # Named conformances: checked members and reference rows.
     source = (

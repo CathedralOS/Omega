@@ -218,3 +218,9 @@ machine render_ledger(ledger: &Ledger) reaches Console {
     }
     state stop() { }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

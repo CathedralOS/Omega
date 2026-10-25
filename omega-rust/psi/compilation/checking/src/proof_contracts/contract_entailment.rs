@@ -107,7 +107,10 @@ mod ranking_range;
 mod refuted_requires;
 mod result_bounds;
 mod scalar_observations;
-pub use call_projection_identity::{captured_call_subject_identity, owned_contract_subject};
+pub use call_projection_identity::{
+    captured_call_argument_index_matches, captured_call_index_value,
+    captured_call_subject_identity, owned_contract_subject,
+};
 mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;
@@ -449,11 +452,20 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 StatementNode::LocalData(local) => {
                     let mut next = Vec::new();
                     for (environment, judge) in frames {
-                        for outcome in judge.normal_return_paths(
+                        for mut outcome in judge.normal_return_paths(
                             local.initial_value,
                             &environment,
                             (machine, root, local.type_reference),
                         )? {
+                            // Publish the newly completed binding through the
+                            // same storage owner as the general statement walk.
+                            // Earlier call writes may have retired its entry
+                            // observation, never this post-call initialization.
+                            outcome.judge.observe_completed_binding(
+                                local.symbol,
+                                local.type_reference,
+                                outcome.value.clone(),
+                            );
                             let mut environment = environment.clone();
                             environment.push((local.name.as_str().to_owned(), outcome.value));
                             next.push((environment, outcome.judge));

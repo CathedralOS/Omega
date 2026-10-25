@@ -35,3 +35,6 @@ machine start() crashes Trap {
     let mut tally: Tally = Tally { total: 0 };
     finish(&mut tally, 7);
 }
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

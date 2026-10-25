@@ -61,7 +61,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
     fn lower_destructure_pattern(
         &mut self,
         pattern: resolved::expression::TableDestructurePattern,
-        capture: Handle<typed::expression::MatchSubjectCapture>,
+        capture: Handle<typed::expression::CompletedValueCapture>,
     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic> {
         let program = self.program.ok_or_else(|| {
             Diagnostic::error(

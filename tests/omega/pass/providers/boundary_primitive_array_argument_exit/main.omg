@@ -4,7 +4,7 @@
 use omega_language_std::console;
 
 public boundary trait Thing {
-    machine take(first: u64, values: [u8; 4], last: u64) -> i32;
+    machine take(first: u64, values: [u8; 4], last: u64) -> i32 reaches;
 }
 
 data ThingProvider {}
@@ -43,4 +43,10 @@ machine Main::main(main: &mut Main) reaches Console, Thing {
 
 ThingProviderThingImplementation satisfies Thing {
     Thing::take = ThingProvider::take;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console, Thing {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

@@ -16,7 +16,7 @@ use typed_trees::expression::{
 };
 use typed_trees::proof_only::ProofOnlyClassification;
 use typed_trees::proposition::{PropositionBody, PropositionFormula};
-use typed_trees::statement::{StatementNode, StatementRootRole};
+use typed_trees::statement::StatementNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use crate::expression_traversal::collect_expression_nodes;
@@ -503,14 +503,8 @@ fn collect_statement_nodes(
 ) {
     // Statement and expression argument spans have distinct arena owners.
     // Borrow the statement table's roots rather than interpreting its handles
-    // in the expression table. Static root bindings supply no executable value.
-    for (role, expression) in program.tables.expression_roots(statement) {
-        if matches!(
-            role,
-            StatementRootRole::BindingReceiver | StatementRootRole::BindingImplementation
-        ) {
-            continue;
-        }
+    // in the expression table. Inert designated operands are not expressions.
+    for (_, expression) in program.tables.expression_roots(statement) {
         collect_expression_nodes(program, expression, nodes, seen);
     }
 }

@@ -2,5 +2,5 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "external_leaf_dllimport_compile");
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

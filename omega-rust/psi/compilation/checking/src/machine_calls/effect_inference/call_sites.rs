@@ -80,13 +80,6 @@ fn visit_statement(
     visitor: &mut impl CallSiteVisitor,
 ) {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    visit_expression(program, expression, statement_index, ordinal, visitor);
-                }
-            }
-        }
         // Assembly contract facts are proof obligations, never runtime calls.
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {

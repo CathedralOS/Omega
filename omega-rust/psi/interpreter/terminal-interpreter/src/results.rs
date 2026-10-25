@@ -3,7 +3,7 @@
 
 use crate::errors::TerminalInterpretError;
 use crate::scalar_array::TerminalScalarArrayResult;
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{BlockId, BoundaryMachineId, ClaimId, MachineId, OperationId};
 use terminal_fuel::{FuelExhaustion, FuelMeterError};
 use terminal_psi::CrashCause;
@@ -30,7 +30,7 @@ pub struct TerminalStructuralResult {
 /// A returned selected case whose primitive payload carries no structural claims.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarCaseResult {
-    pub value: TerminalScalarCaseValue,
+    pub value: TerminalScalarAggregateValue,
 }
 
 pub(crate) fn meter_status(

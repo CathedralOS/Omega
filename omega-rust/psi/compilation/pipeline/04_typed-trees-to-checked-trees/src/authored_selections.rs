@@ -17,6 +17,7 @@ mod contract_resolution;
 mod finalization;
 mod member_targets;
 mod operator_targets;
+mod root_bindings;
 mod selection_collection;
 
 pub(crate) use contract_resolution::{

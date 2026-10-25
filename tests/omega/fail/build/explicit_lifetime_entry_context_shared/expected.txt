@@ -1,1 +1,1 @@
-requires an exclusive mutable borrow
+hosted `ProgramEntry` exposes no arrival parameters

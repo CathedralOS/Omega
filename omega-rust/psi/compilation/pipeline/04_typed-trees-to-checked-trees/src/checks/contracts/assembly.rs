@@ -220,10 +220,9 @@ pub(super) fn expression_reads_overlapping_place(
         )
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
-            .is_none_or(recurse),
+        ExpressionNode::SavedSubject(saved) => {
+            program.saved_value_source(saved).is_none_or(recurse)
+        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value),
         ExpressionNode::Match(dispatch) => program
             .expression_table

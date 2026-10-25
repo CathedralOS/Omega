@@ -2,8 +2,8 @@
 // `--check` passes; `omega run` rejects 'no provider is selected for boundary
 // requirement `Required::get`' at realization (provider admission is not a
 // source-check obligation).
-boundary trait Required { machine get() -> u32 ensures result <= 1; }
-boundary trait Supplied { machine get() -> u32; }
+boundary trait Required { machine get() -> u32 reaches ensures result <= 1; }
+boundary trait Supplied { machine get() -> u32 reaches; }
 Actual satisfies Supplied { machine get() -> u32 { 1 } }
 machine main() reaches Required crashes Trap {
     let values: [u32; 2] = [7, 11];

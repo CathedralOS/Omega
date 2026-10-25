@@ -14,7 +14,7 @@ pub(crate) struct FunctionCounts {
 }
 
 impl FunctionCounts {
-    pub(super) fn new(
+    pub(crate) fn new(
         function: &FunctionAllocationLegality,
         function_index: usize,
     ) -> Result<Self, AllocationLegalityError> {

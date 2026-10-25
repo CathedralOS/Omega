@@ -5,3 +5,10 @@ machine Main::main(main: &mut Main)
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
     let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(".", 0);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

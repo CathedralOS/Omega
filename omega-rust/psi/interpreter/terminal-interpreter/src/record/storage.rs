@@ -5,6 +5,7 @@
 //! storage. No child mutates or publishes until the whole constructor's type,
 //! qualification and custody checks succeed.
 use crate::byte_sequences::ByteSequenceView;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -475,7 +476,11 @@ impl ConstructorStorage {
         Ok(())
     }
 
-    pub(crate) fn stage_byte_array(&mut self, destination: StructuralRuntimePlace, bytes: Vec<u8>) {
+    pub(crate) fn stage_byte_array(
+        &mut self,
+        destination: StructuralRuntimePlace,
+        bytes: crate::byte_sequences::storage::ByteSequenceStorage,
+    ) {
         // Byte arrays have one backing, never duplicate primitive cells. This
         // uses the same publication shape as constructor array establishment.
         self.primitives.retain(|home, _| {
@@ -616,22 +621,24 @@ impl ConstructorStorage {
                         if carrier.bits() == 8 && !carrier.is_address()
                             && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                 {
-                    let bytes = elements
-                        .iter()
-                        .map(|value| {
-                            if value.scalar_type() != scalar_type {
-                                return Err(malformed());
-                            }
-                            let TerminalScalarValue::Integer {
-                                value: semantic_vocabulary::IntegerValue::Unsigned(byte),
-                                ..
-                            } = value
-                            else {
-                                return Err(malformed());
-                            };
-                            u8::try_from(*byte).map_err(|_| malformed())
-                        })
-                        .collect::<Result<Vec<_>, TerminalInterpretError>>()?;
+                    let values = elements.iter().map(|value| {
+                        if value.scalar_type() != scalar_type {
+                            return Err(malformed());
+                        }
+                        let TerminalScalarValue::Integer {
+                            value: semantic_vocabulary::IntegerValue::Unsigned(byte),
+                            ..
+                        } = value
+                        else {
+                            return Err(malformed());
+                        };
+                        u8::try_from(*byte).map_err(|_| malformed())
+                    });
+                    let bytes = ByteSequenceStorage::from_values(
+                        elements.len(),
+                        values,
+                        execution.account.as_ref(),
+                    )?;
                     self.byte_arrays
                         .insert(destination.clone(), ByteSequenceView::new(bytes));
                 } else {

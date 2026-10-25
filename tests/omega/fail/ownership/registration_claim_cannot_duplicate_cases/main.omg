@@ -8,7 +8,7 @@ satisfies Content<Capacity, CountedQuantity<Slot>>::project {
  CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 data Pair { left: Capacity in Capacity::Held; right: Capacity in Capacity::Held; }
-boundary trait Duplicate { machine duplicate(capacity: Capacity in Capacity::Held) -> Pair; }
+boundary trait Duplicate { machine duplicate(capacity: Capacity in Capacity::Held) -> Pair reaches; }
 machine duplicate(capacity: Capacity in Capacity::Held) -> Pair reaches Duplicate {
  Duplicate::duplicate(capacity)
 }

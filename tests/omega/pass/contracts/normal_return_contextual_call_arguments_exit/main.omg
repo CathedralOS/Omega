@@ -3,7 +3,7 @@
 data Main { record: [u8; 146]; }
 
 public boundary trait Writer {
-    machine write(path: &[u8], bytes: &mut [u8]) -> i32;
+    machine write(path: &[u8], bytes: &mut [u8]) -> i32 reaches;
 }
 
 public ByteWriter satisfies Writer {
@@ -20,7 +20,7 @@ public ByteWriter satisfies Writer {
 }
 
 public boundary trait GenericWriter<Element> {
-    machine write(path: &[Element], bytes: &mut [u8]) -> i32;
+    machine write(path: &[Element], bytes: &mut [u8]) -> i32 reaches;
 }
 public GenericByteWriter satisfies GenericWriter<u8> {
     machine write(path: &[u8], bytes: &mut [u8]) -> i32 {
@@ -29,7 +29,7 @@ public GenericByteWriter satisfies GenericWriter<u8> {
 }
 
 public boundary trait NestedWriter {
-    machine write(paths: [&[u8]; 1], bytes: &mut [u8]) -> i32;
+    machine write(paths: [&[u8]; 1], bytes: &mut [u8]) -> i32 reaches;
 }
 public NestedByteWriter satisfies NestedWriter {
     machine write(paths: [&[u8]; 1], bytes: &mut [u8]) -> i32 {
@@ -59,4 +59,13 @@ invokes Writer; invokes GenericWriter; invokes NestedWriter;
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap
+reaches Writer + GenericWriter + NestedWriter
+invokes Writer; invokes GenericWriter; invokes NestedWriter;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

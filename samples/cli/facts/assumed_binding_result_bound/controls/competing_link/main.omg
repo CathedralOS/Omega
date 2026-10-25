@@ -1,6 +1,6 @@
 // Expected rejection: competing explicit supply
-boundary trait Required { machine get() -> u32 ensures result <= 1; }
-boundary trait Supplied { machine get() -> u32; }
+boundary trait Required { machine get() -> u32 reaches ensures result <= 1; }
+boundary trait Supplied { machine get() -> u32 reaches; }
 Actual satisfies Supplied { machine get() -> u32 { 1 } }
 machine main() reaches Required crashes Trap {
     let values: [u32; 2] = [7, 11];

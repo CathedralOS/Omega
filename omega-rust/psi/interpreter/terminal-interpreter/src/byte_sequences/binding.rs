@@ -309,6 +309,49 @@ impl ByteSequenceBinding {
 }
 
 impl TerminalExecution<'_> {
+    /// Observe an authenticated field without copying its payload or retaining
+    /// a second backing owner. Exclusive descriptors keep their original
+    /// referent checks before exposing a shared host borrow.
+    pub(crate) fn byte_field_read(
+        &self,
+        field: &StructuralByteSequenceRuntimeField,
+    ) -> Result<super::read::TerminalByteRead<'_>, TerminalInterpretError> {
+        use super::read::TerminalByteRead;
+        let binding = self
+            .structural_byte_sequence_fields
+            .get(field)
+            .ok_or_else(malformed)?;
+        if let ByteSequenceBinding::Immutable(bytes) = binding {
+            return Ok(TerminalByteRead::contiguous(bytes.bytes()));
+        }
+        binding.validate_presented_referent(self)?;
+        match binding {
+            ByteSequenceBinding::MutableArray {
+                array,
+                offset,
+                length,
+                ..
+            } => self.stored_byte_array_read_view(
+                array,
+                usize::try_from(*offset).map_err(|_| malformed())?,
+                usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
+                    .map_err(|_| malformed())?,
+            ),
+            ByteSequenceBinding::MutableField { field, .. } => {
+                let bytes = self
+                    .structural_byte_sequence_fields
+                    .get(field)
+                    .ok_or_else(malformed)?
+                    .immutable()?;
+                Ok(TerminalByteRead::contiguous(bytes.bytes()))
+            }
+            ByteSequenceBinding::MutableOwner { home, .. } => Ok(TerminalByteRead::contiguous(
+                self.byte_owner_bytes(home)?.bytes(),
+            )),
+            ByteSequenceBinding::Immutable(_) => Err(malformed()),
+        }
+    }
+
     /// Field lookup has already authenticated the parent and declaration. Read
     /// metadata from the retained binding without observing payload contents.
     pub(crate) fn byte_field_length(

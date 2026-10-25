@@ -25,6 +25,7 @@ mod buffered_output;
 pub(super) mod clock;
 mod descriptor_io;
 mod descriptor_mode;
+mod integer_division;
 mod native_word;
 mod network_address;
 mod numeric;
@@ -288,6 +289,15 @@ pub(super) fn bind<'host>(
                     provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = integer_division::IntegerDivisionImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

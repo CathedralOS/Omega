@@ -24,7 +24,7 @@ pub(super) struct CandidateViews<'a> {
     physical: &'a ValidatedPhysicalRegisterModel,
     reservations: &'a ValidatedRegisterReservationProfile,
     candidates: BTreeMap<(RegisterClassId, SelectedBlockId, usize), Vec<RegisterViewId>>,
-    boundaries: Vec<LiveRangePoint>,
+    boundaries_by_class: BTreeMap<RegisterClassId, Vec<LiveRangePoint>>,
 }
 
 impl<'a> CandidateViews<'a> {
@@ -33,34 +33,63 @@ impl<'a> CandidateViews<'a> {
         physical: &'a ValidatedPhysicalRegisterModel,
         reservations: &'a ValidatedRegisterReservationProfile,
     ) -> Self {
-        // Candidate availability can change only at a unit fragment edge or
-        // on either side of a one-phase architectural action. Points are
-        // function-global; unrelated block boundaries merely subdivide work.
-        let mut boundaries = Vec::new();
-        for unit in &function.architectural_units {
-            for fragment in &unit.fragments {
-                boundaries.extend([fragment.start, fragment.end]);
-            }
-            for action in &unit.actions {
-                boundaries.push(action.point);
-                if let Some(end) = action.point.0.checked_add(1) {
-                    boundaries.push(LiveRangePoint(end));
+        // Candidate availability for a register class can change only at a
+        // fragment edge or one-phase action of a non-reserved unit that belongs
+        // to an allocatable view of that class. Units outside the class (such
+        // as flags clobbers on integer/float classes) or permanently reserved
+        // units (such as the stack pointer) never alter unconstrained class
+        // availability and must not subdivide every fragment into thousands of
+        // identical cells.
+        let model = physical.model();
+        let reserved = reservations.reserved_units();
+        let mut boundaries_by_class = BTreeMap::new();
+        for class in &model.classes {
+            let mut class_units = std::collections::BTreeSet::new();
+            for &view_id in &class.views {
+                if let Some(view) = model.views.get(usize::from(view_id.0))
+                    && view.id == view_id
+                    && view.allocatable
+                {
+                    for &unit in view.units.iter().chain(&view.write_units) {
+                        if reserved.binary_search(&unit).is_err() {
+                            class_units.insert(unit);
+                        }
+                    }
                 }
             }
+            let mut boundaries = Vec::new();
+            for unit in &function.architectural_units {
+                if !class_units.contains(&unit.unit) {
+                    continue;
+                }
+                for fragment in &unit.fragments {
+                    boundaries.extend([fragment.start, fragment.end]);
+                }
+                for action in &unit.actions {
+                    boundaries.push(action.point);
+                    if let Some(end) = action.point.0.checked_add(1) {
+                        boundaries.push(LiveRangePoint(end));
+                    }
+                }
+            }
+            boundaries.sort_unstable();
+            boundaries.dedup();
+            boundaries_by_class.insert(class.id, boundaries);
         }
-        boundaries.sort_unstable();
-        boundaries.dedup();
         Self {
             function,
             physical,
             reservations,
             candidates: BTreeMap::new(),
-            boundaries,
+            boundaries_by_class,
         }
     }
 
-    pub(super) fn boundaries(&self) -> &[LiveRangePoint] {
-        &self.boundaries
+    pub(super) fn boundaries_for(&self, class: RegisterClassId) -> &[LiveRangePoint] {
+        self.boundaries_by_class
+            .get(&class)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 
     // The function caller validates one immutable availability input before
@@ -79,7 +108,7 @@ impl<'a> CandidateViews<'a> {
         fixed: Option<RegisterViewId>,
     ) -> Result<&[RegisterViewId], AllocationLegalityError> {
         let cell = self
-            .boundaries
+            .boundaries_for(class.id)
             .partition_point(|boundary| *boundary <= point);
         let candidates = self
             .candidates
@@ -186,18 +215,29 @@ fn conflicts(
     reservations: &ValidatedRegisterReservationProfile,
 ) -> bool {
     view.units.iter().chain(&view.write_units).any(|unit| {
-        reservations.reserved_units().binary_search(unit).is_ok()
-            || function
-                .architectural_units
-                .iter()
-                .find(|row| row.unit == *unit)
-                .is_some_and(|row| {
-                    row.fragments.iter().any(|fragment| {
-                        fragment.block == block && fragment.start <= point && point < fragment.end
-                    }) || row
-                        .actions
-                        .iter()
-                        .any(|action| action.block == block && action.point == point)
-                })
+        if reservations.reserved_units().binary_search(unit).is_ok() {
+            return true;
+        }
+        let Ok(unit_idx) = function
+            .architectural_units
+            .binary_search_by_key(unit, |row| row.unit)
+        else {
+            return false;
+        };
+        let row = &function.architectural_units[unit_idx];
+        let frag_pos = row
+            .fragments
+            .partition_point(|fragment| fragment.start <= point);
+        if frag_pos > 0 {
+            let fragment = &row.fragments[frag_pos - 1];
+            if fragment.block == block && point < fragment.end {
+                return true;
+            }
+        }
+        let act_pos = row.actions.partition_point(|action| action.point < point);
+        row.actions[act_pos..]
+            .iter()
+            .take_while(|action| action.point == point)
+            .any(|action| action.block == block)
     })
 }

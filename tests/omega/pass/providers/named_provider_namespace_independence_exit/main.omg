@@ -1,8 +1,8 @@
 // A named implementation owns its rows. Its implementation namespace and a
 // helper's data qualifier do not create additional selectable providers.
 boundary trait Numbers {
-    machine first() -> u64;
-    machine second() -> u64;
+    machine first() -> u64 reaches;
+    machine second() -> u64 reaches;
 }
 
 SelectedNumbers satisfies Numbers {

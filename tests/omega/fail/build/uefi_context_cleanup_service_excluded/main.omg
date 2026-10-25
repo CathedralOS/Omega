@@ -32,7 +32,7 @@ invokes ProgramStorageEntry;
 data KernelState { phase: u64; }
 
 public boundary trait CleanupAudit {
-    machine finish() terminates;
+    machine finish() reaches terminates;
 }
 
 QuietAudit satisfies CleanupAudit {
@@ -49,4 +49,10 @@ machine selected_continuation(image: Extent in Granted, context: &mut KernelStat
     state retain(image: Extent in Granted, storage: Extent in Granted) {
         transition { _ -> retain(image, storage) }
     }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start(image: Extent in Granted, storage: Extent in Granted) {
+    let mut entry_storage: KernelState;
+    selected_continuation(image, &mut entry_storage, storage);
 }

@@ -758,6 +758,63 @@ impl TypedTrees {
             })
     }
 
+    /// Pair an application's retained Value operands with its represented fields.
+    /// Prepared views have already consumed the source telescope; use the source
+    /// binder order and the producer-preserved leading descriptor order together.
+    /// Field symbols come from the exact prepared/nominal application, never a
+    /// name search or an unrelated instantiation of the same template.
+    pub fn data_application_value_fields(
+        &self,
+        reference: crate::types::TypeReferenceHandle,
+    ) -> Vec<(
+        &data::TypeParameter,
+        &data::DataField,
+        crate::types::TypeReferenceHandle,
+    )> {
+        use crate::types::TypeReferenceNode;
+        let table = &self.type_reference_table;
+        let reference = table.peeled_type_reference(reference);
+        let concrete = match table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                self.unique_data_definition_by_symbol(*symbol)
+            }
+            _ => None,
+        };
+        let application = concrete
+            .and_then(|data| data.generic_instance)
+            .unwrap_or(reference);
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = table.type_reference(application)
+        else {
+            return Vec::new();
+        };
+        let Some(template) = self.unique_data_definition_by_symbol(*base_symbol) else {
+            return Vec::new();
+        };
+        let parameters = self.data_type_parameters(template);
+        let arguments = table.type_reference_handles(*arguments);
+        if parameters.len() != arguments.len() {
+            return Vec::new();
+        }
+        let represented = self
+            .data_application_definition(reference)
+            .or(concrete)
+            .unwrap_or(template);
+        self.data_value_parameter_fields(template)
+            .enumerate()
+            .filter_map(|(ordinal, (binder, _))| {
+                let position = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == binder.symbol)?;
+                let field = self.data_members(represented).get(ordinal)?.as_field()?;
+                Some((binder, field, arguments[position]))
+            })
+            .collect()
+    }
+
     pub fn push_data_member(
         &mut self,
         data_definition: &mut data::DataDefinition,

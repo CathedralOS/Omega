@@ -3,10 +3,10 @@
 use omega_language_std::console;
 
 public boundary trait RawMeasure {
-    machine measure(value: i32) -> i32;
+    machine measure(value: i32) -> i32 reaches;
 }
 public boundary trait PortableMeasure {
-    machine measure(value: i32) -> i32 invokes RawMeasure;
+    machine measure(value: i32) -> i32 reaches invokes RawMeasure;
 }
 PortableMeasureProvider satisfies PortableMeasure {
     machine measure(value: i32) -> i32 invokes RawMeasure; {
@@ -25,4 +25,13 @@ invokes Console;
     }
     state good() { Console::exit_process(0); }
     state bad() { Console::exit_process(1); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console
+invokes PortableMeasure;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

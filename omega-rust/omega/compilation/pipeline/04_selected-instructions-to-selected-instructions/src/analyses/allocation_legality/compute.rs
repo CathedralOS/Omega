@@ -6,6 +6,8 @@ mod function;
 mod live_points;
 mod view_candidates;
 
+pub(crate) use function::compute as compute_function;
+
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,

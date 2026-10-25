@@ -924,7 +924,17 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_>
                 scope,
             )
         } else {
-            judge.normal_argument_entries(&self.arguments, self.parameters, &environment, scope)
+            judge.normal_argument_entries(
+                &self.arguments,
+                self.parameters,
+                &environment,
+                scope,
+                program
+                    .statement_table
+                    .statement_at(state, self.statement_index)
+                    .and_then(|statement| statement.as_call())
+                    .map(crate::CallSite::Statement),
+            )
         };
         let Some(entries) = entries else {
             self.complete = false;
@@ -1037,6 +1047,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 self.parameters,
                 environment,
                 (machine, caller_state, caller_state.return_type),
+                self.call_site,
             ) else {
                 self.proven = false;
                 return;
@@ -1048,41 +1059,47 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             .inherited
             .as_ref()
             .map_or(self.parameters, |predicate| predicate.parameters.as_slice());
-        let mut requirement_parameters = predicate_parameters.to_vec();
-        let mut static_substitution = Vec::new();
-        if let Some(site) = self.call_site {
-            let arguments = match site {
-                crate::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
-                crate::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-                crate::CallSite::TransitionNamed { .. } => &[],
-            };
-            let Some(owner) = super::specification_calls::selected_call_site_contract(
-                program,
-                machine.symbol,
-                site,
-            ) else {
-                self.proven = false;
-                return;
-            };
-            let Some(bindings) =
-                super::specification_calls::call_scalar_substitution(program, &owner, arguments)
-            else {
-                self.proven = false;
-                return;
-            };
-            for (parameter, value) in bindings {
-                static_substitution.push((parameter.name.to_string(), value));
-                requirement_parameters.push(parameter);
-            }
-        }
-        if let Some(predicate) = &self.inherited {
-            for (parameter, value) in &predicate.values {
-                static_substitution.push((parameter.name.to_string(), value.clone()));
-                requirement_parameters.push(parameter.clone());
-            }
-        }
         for entry in entries {
-            let mut substitution = static_substitution.clone();
+            let mut requirement_parameters = predicate_parameters.to_vec();
+            let mut static_substitution = Vec::new();
+            if let Some(site) = self.call_site {
+                let Some(owner) = super::specification_calls::selected_call_site_contract(
+                    program,
+                    machine.symbol,
+                    site,
+                ) else {
+                    self.proven = false;
+                    return;
+                };
+                let Some(bindings) = super::specification_calls::call_scalar_substitution(
+                    program,
+                    &owner,
+                    site,
+                    |subject| {
+                        entry.judge.completed_scalar_subject(
+                            subject,
+                            site,
+                            &entry.arguments,
+                            machine,
+                            caller_state,
+                        )
+                    },
+                ) else {
+                    self.proven = false;
+                    return;
+                };
+                for (parameter, value) in bindings {
+                    static_substitution.push((parameter.name.to_string(), value));
+                    requirement_parameters.push(parameter);
+                }
+            }
+            if let Some(predicate) = &self.inherited {
+                for (parameter, value) in &predicate.values {
+                    static_substitution.push((parameter.name.to_string(), value.clone()));
+                    requirement_parameters.push(parameter.clone());
+                }
+            }
+            let mut substitution = static_substitution;
             let subjects = if self.call_expression.is_valid() {
                 let Some(owner_machine) = program.machine(machine.symbol) else {
                     self.proven = false;

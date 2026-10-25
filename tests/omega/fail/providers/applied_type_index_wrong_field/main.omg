@@ -2,7 +2,7 @@ data Payload { value: u64; }
 domain<Value> Payload::Tagged<Value>;
 data Holder<Value> { value: Payload in Tagged<Value>; }
 boundary trait Identity<Value> {
-    machine identity(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>;
+    machine identity(value: Payload in Tagged<Value>) -> Payload in Tagged<Value> reaches;
 }
 machine wrong<Left, Right>(holder: Holder<Left>) -> Payload in Tagged<Right>
 reaches Identity

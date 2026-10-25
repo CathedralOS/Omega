@@ -1,4 +1,4 @@
-boundary trait Counter { machine count<const Answer: u64>(bytes: &[u8]) -> u64; }
+boundary trait Counter { machine count<const Answer: u64>(bytes: &[u8]) -> u64 reaches; }
 data ByteProvider {}
 Selected satisfies Counter { Counter::count = ByteProvider::count; }
 macos_arm64 machine ByteProvider::count<const Answer: u64>(bytes: &[u8]) -> u64 satisfies Counter::count { Answer }

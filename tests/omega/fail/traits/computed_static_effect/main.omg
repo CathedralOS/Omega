@@ -1,4 +1,4 @@
-boundary trait Console { machine print(); }
+boundary trait Console { machine print() reaches; }
 machine effect() -> i32 reaches Console { 7 }
 trait Arithmetic<Value> {
     operator + combine(left: Value, right: Value) -> Value blocks;

@@ -1,4 +1,4 @@
-boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Console { machine exit_process(return_code: i32) reaches; }
 
 machine loud_size() -> u64
 reaches

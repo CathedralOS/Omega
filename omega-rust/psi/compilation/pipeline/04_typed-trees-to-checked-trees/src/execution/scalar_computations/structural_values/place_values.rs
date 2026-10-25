@@ -326,7 +326,7 @@ impl Builder<'_, '_> {
         if let ExpressionNode::SavedSubject(saved) =
             self.program.expression_table.expression(expression)
         {
-            let source = self.program.expression_table.saved_subject_source(saved)?;
+            let source = self.program.saved_value_source(saved)?;
             let machine = self.program.machine_by_symbol(self.machine)?;
             let state = self.program.state_in_machine(machine, self.state)?;
             let actual =
@@ -339,7 +339,7 @@ impl Builder<'_, '_> {
             let anchor = self
                 .program
                 .expression_table
-                .match_subject(saved.capture)
+                .value_capture(saved.capture)
                 .value_anchor;
             return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
                 source:

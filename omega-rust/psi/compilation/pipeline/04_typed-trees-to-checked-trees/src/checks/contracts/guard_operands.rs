@@ -350,7 +350,7 @@ fn collect_root_mentions(
             }
         }
         ExpressionNode::SavedSubject(saved) => {
-            if let Some(source) = program.expression_table.saved_subject_source(saved) {
+            if let Some(source) = program.saved_value_source(saved) {
                 recurse(source);
             }
         }

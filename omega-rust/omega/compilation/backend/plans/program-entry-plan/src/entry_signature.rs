@@ -8,7 +8,7 @@
 
 use crate::ProgramStorageEntryRootRole;
 
-const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v3\0";
+const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v4\0";
 
 /// Source-path-free identity of one exact checked `ProgramEntry` signature.
 /// Exact declaration ownership, normalized callable/type identities and the
@@ -23,37 +23,6 @@ impl ProgramEntrySignatureIdentity {
 
     pub const fn bytes(self) -> [u8; 32] {
         self.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProgramEntryReceiverSignature {
-    Free,
-    ProvisionedMutable {
-        /// Formal declaration position, not a dense Terminal or ABI parameter index.
-        source_position: u32,
-        normalized_type_identity: terminal_psi::TerminalIdentityIndex,
-    },
-}
-
-impl ProgramEntryReceiverSignature {
-    pub const fn source_position(&self) -> Option<u32> {
-        match self {
-            Self::Free => None,
-            Self::ProvisionedMutable {
-                source_position, ..
-            } => Some(*source_position),
-        }
-    }
-
-    pub const fn normalized_type_identity(&self) -> Option<terminal_psi::TerminalIdentityIndex> {
-        match self {
-            Self::Free => None,
-            Self::ProvisionedMutable {
-                normalized_type_identity,
-                ..
-            } => Some(*normalized_type_identity),
-        }
     }
 }
 
@@ -204,7 +173,6 @@ pub struct SelectedProgramEntrySignature {
     machine_name: String,
     state_name: String,
     normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
-    receiver: ProgramEntryReceiverSignature,
     visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
     result: ProgramEntryResultSignature,
     /// Identity text every `TerminalIdentityIndex` on this signature and its
@@ -221,7 +189,6 @@ impl SelectedProgramEntrySignature {
         machine_name: String,
         state_name: String,
         normalized_callable_identity: terminal_psi::TerminalIdentityIndex,
-        receiver: ProgramEntryReceiverSignature,
         visible_parameters: Vec<ProgramEntryVisibleParameterSignature>,
         identities: terminal_psi::TerminalIdentityTable,
     ) -> Result<Self, String> {
@@ -231,7 +198,6 @@ impl SelectedProgramEntrySignature {
             machine_name,
             state_name,
             normalized_callable_identity,
-            receiver,
             visible_parameters,
             result: ProgramEntryResultSignature::Unit,
             identities,
@@ -272,10 +238,6 @@ impl SelectedProgramEntrySignature {
     /// share one ordering.
     pub fn set_identities(&mut self, identities: terminal_psi::TerminalIdentityTable) {
         self.identities = identities;
-    }
-
-    pub const fn receiver(&self) -> &ProgramEntryReceiverSignature {
-        &self.receiver
     }
 
     pub fn visible_parameters(&self) -> &[ProgramEntryVisibleParameterSignature] {
@@ -324,32 +286,13 @@ impl SelectedProgramEntrySignature {
             target::ProgramEntryVisibleParameters::None => 1,
             target::ProgramEntryVisibleParameters::ImageAndInitialStorage => 2,
         });
-        canonical.push(match self.target_slot.receiver {
-            target::ProgramEntryReceiverProvisioning::NoneOrProvisionedZii => 1,
-        });
         push_string(
             &mut canonical,
             self.identities
                 .text(self.normalized_callable_identity)
                 .unwrap_or_default(),
         );
-        match &self.receiver {
-            ProgramEntryReceiverSignature::Free => canonical.push(1),
-            ProgramEntryReceiverSignature::ProvisionedMutable {
-                source_position,
-                normalized_type_identity,
-                ..
-            } => {
-                canonical.push(2);
-                crate::codec_bytes::push_encoded(&mut canonical, source_position.to_le_bytes());
-                push_string(
-                    &mut canonical,
-                    self.identities
-                        .text(*normalized_type_identity)
-                        .unwrap_or_default(),
-                );
-            }
-        }
+
         canonical.extend_from_slice(
             &u64::try_from(self.visible_parameters.len())
                 .expect("ProgramEntry parameter count fits u64")
@@ -403,21 +346,16 @@ impl SelectedProgramEntrySignature {
         {
             return Err("selected source signature is not one exact typed Unit entry".into());
         }
-        if self
-            .receiver
-            .normalized_type_identity()
-            .is_some_and(terminal_psi::TerminalIdentityIndex::is_absent)
-            || self.visible_parameters.iter().any(|parameter| {
-                parameter.normalized_type_identity.is_absent()
-                    || parameter.value_shape.byte_size == 0
-                    || parameter.value_shape.alignment == 0
-                    || !parameter.value_shape.alignment.is_power_of_two()
-                    || parameter.is_const
-                    || parameter.is_mutable
-                    || parameter.extent_value_layout.validate_capture().is_err()
-                    || parameter.extent_value_layout.shape() != parameter.value_shape
-            })
-        {
+        if self.visible_parameters.iter().any(|parameter| {
+            parameter.normalized_type_identity.is_absent()
+                || parameter.value_shape.byte_size == 0
+                || parameter.value_shape.alignment == 0
+                || !parameter.value_shape.alignment.is_power_of_two()
+                || parameter.is_const
+                || parameter.is_mutable
+                || parameter.extent_value_layout.validate_capture().is_err()
+                || parameter.extent_value_layout.shape() != parameter.value_shape
+        }) {
             return Err(
                 "selected source signature contains an invalid parameter declaration".into(),
             );

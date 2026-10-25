@@ -486,5 +486,5 @@ public machine Vec::drain16(live: &mut Backing16, out: &mut Backing16) {
 // the same shape `vec_duplicate_cleanup` exercises. The handle is an ordinary
 // explicit argument of the trait's one row.
 public boundary trait VecDisposal {
-    machine close(vec: Vec);
+    machine close(vec: Vec) reaches;
 }

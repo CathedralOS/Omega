@@ -2,7 +2,7 @@
 // Place: const_name. The boundary call result subtracted against a named constant.
 // Expected exit: 0
 boundary trait Provider {
-    machine get() -> u64 ensures result >= 100u64 && result <= 100u64;
+    machine get() -> u64 reaches ensures result >= 100u64 && result <= 100u64;
 }
 
 Actual satisfies Provider {

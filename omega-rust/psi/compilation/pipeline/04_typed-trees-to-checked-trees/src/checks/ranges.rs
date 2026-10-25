@@ -250,10 +250,6 @@ fn statement_contains_indexed_expression(
 ) -> bool {
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
     match statement {
-        StatementNode::RootBinding(binding) => {
-            expression_contains_indexed(program, binding.receiver, 0)
-                || expression_contains_indexed(program, binding.implementation_operand, 0)
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_contains_indexed(program, assignment.target, 0)

@@ -9,3 +9,9 @@ machine Main::main(main: &mut Main) reaches ProcessExit {
     let item: A = A { value: 7 };
     ProcessExit::exit_process(item.value);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

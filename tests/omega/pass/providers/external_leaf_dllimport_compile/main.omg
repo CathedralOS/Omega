@@ -10,7 +10,7 @@
 use omega::language::core::external_binding;
 
 public boundary trait Leaf {
-    machine exit(code: i32) -> i32;
+    machine exit(code: i32) -> i32 reaches;
 }
 
 macos_arm64 machine leaf_binding() -> ForeignBinding<17, 5, 0> {
@@ -30,4 +30,12 @@ reaches Leaf
 {
     let rc: i32 = Leaf::exit(70);
     let keep: i32 = rc;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Leaf
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

@@ -248,8 +248,177 @@ attempting a write to actual or same-lifetime sibling backing; both must reject.
 Acceptance is native/Terminal exit 0 for all nine computed places and both
 controls, with all nine source-9 twins and backing controls rejecting. These runs
 are for macOS ARM64. Other-host execution, general opaque/provider and dependent
-results remain open. Separate baseline probes retain nonzero-window extent and
-multi-input callable-region refusals; they are not qualified by this repair.
+results remain open.
+
+### Returned window extents
+
+Each computed byte-view place also creates its snapshot through
+`initial_snapshot`, returning `source.bytes[2..2 + WINDOW_LENGTH]` from a
+record field. The completed result establishes length 7 before another operand
+replaces its former home with length 9. The consumer uses that retained length
+directly; the sentinel byte 49 checks the nonzero offset at runtime. Its twin
+changes the window bound to 9 and must reject `ranged_original.bytes.len == 7`,
+independently of the earlier twin obligation. All nine positive and negative
+places have matching fact pins.
+
+The fresh baseline refuses the helper’s own result-length contract in all nine
+places. The repair records builtin window length as a mathematical difference
+of its captured endpoints, embeds finite scalar endpoints in the existing
+mathematical judgment, and normalizes inclusive and omitted bounds there. It
+does not replay expressions, grant custom range machines builtin geometry,
+justify endpoint arithmetic, or establish storage access.
+
+`controls/dynamic_nonzero_window` retains the original failing dynamic-call
+witness; `controls/returned_window_extents` executes symbolic endpoints,
+inclusive bounds, open suffixes and empty windows. Their pins are
+`pass/slices/runtime_nonzero_window_result_snapshot_exit` and
+`runtime_observed_window_extents_exit`. The reject pins
+`fail/slices/returned_window_extent_mismatch`,
+`returned_inclusive_window_extent_mismatch`,
+`window_extent_does_not_establish_bounds` and
+`window_extent_does_not_form_endpoint` preserve false-length, bounds and overflow
+refusals. Acceptance is observed native/Terminal exit 0 on macOS ARM64 for both
+controls and all nine places, plus fact-sensitive rejection of their twins.
+Other-host execution remains unverified.
+
+### Applied callable field regions
+
+The computed byte-view row now composes the existing ranked/dynamic result’s
+`bytes` projection with a separate `sibling` input through `Composing::compose`.
+Both named implementations construct a `View` from two explicit references;
+the second returns an immutable local copy. Every place retains this same
+production, length 7, overwrite to 9 and consuming operation. The source-9
+reject twins require the `Composing::compose` result to fail at `receive`, as
+well as the existing returned-window obligation. Earlier producers and their
+once-only replacement counter remain exercised inside the composed expression.
+
+The fresh baseline rejects both conformance maps in all nine places. Preparing
+a declaration field retains its lexical owner; scoped lifetime traversal must
+use the active application frame for that schema, including its fresh invocation
+regions. That frame now carries its region map together with Type substitutions.
+A supplied operand outside the active frames still re-enters its captured scope.
+The result relation remains the conservative union of every matching input;
+field names and length guarantees cannot choose a referent. Nested-call result
+discovery also uses the shared completed-carrier classifier, removing a dynamic-only
+borrow-free restriction that had rejected a projection of the existing result.
+Call custody and cleanup still belong to the common call planner.
+
+`controls/dynamic_multi_input_window` is the original failing two-input dynamic
+window program, pinned as
+`pass/borrows/runtime_dyn_multi_input_window_snapshot_exit`.
+`controls/nested_applied_regions` applies one nested field schema twice with
+independent result lifetimes, pinned as
+`pass/borrows/runtime_nested_callable_field_regions_exit`.
+`fail/borrows/dyn_multi_input_result_retains_actual_backing` and
+`dyn_multi_input_result_retains_other_region` reject writes to either retained
+input while consuming just the result’s byte field. Swapped nested output
+regions, ambiguous two-input result elision and a shared candidate for mutable
+output reject in `nested_callable_field_regions_swapped`,
+`callable_multi_input_elision_needs_relation` and
+`callable_shared_candidate_cannot_supply_mutable_result`. Existing captured/fresh
+scope controls remain part of focused validation. Runtime qualification is
+macOS ARM64 native/Terminal agreement; other-host execution and the broader
+opaque/provider/dependent result acceptance remain open.
+
+### Static callable result contracts
+
+Each computed byte-view place now returns its existing composed value through
+`retain_callback<callback_keep>` before the later overwrite. The callback’s fresh
+invocation contract declares both descriptor-length guarantees; the wrapper
+proves those guarantees through that public signature. It does not inspect the
+selected callback body. All earlier ranked/dynamic producers, separate input
+regions, the length-7 consumer and the once-only replacement counter remain in
+the same expression. The source-9 twins still reject at that consumer and at the
+existing returned-window obligation.
+
+The fresh baseline rejects both wrapper guarantees in all nine places. Shared
+contract discovery now recognizes the static callable binder’s declared
+signature. Completed locals in the straight-line proof path publish through the
+same storage-binding operation as the general statement path. This preserves the
+executed result’s identity after a conservative call frame retires earlier
+storage observations; it does not revive an old initializer or pointee contents.
+No special field, callback implementation or source arrangement supplies an
+extra equation.
+
+`controls/static_callback` preserves the original failing wrapper, pinned as
+`pass/borrows/runtime_static_callback_snapshot_exit`.
+`controls/writing_static_callback` retains a named callback result while the
+callback toggles a mutable counter, pinned as
+`pass/borrows/runtime_writing_static_callback_snapshot_exit`. The runtime oracle
+checks that the callback ran once and that overwriting the original descriptor
+left the result’s length at 7.
+
+The reject controls are `fail/borrows/static_callback_requires_public_field_guarantee`
+(a stronger selected implementation cannot replace a missing public clause),
+`static_callback_body_must_establish_guarantee` (the body must prove its promise),
+`static_callback_guarantee_needs_entry_premise` (a guarantee cannot establish its
+own call’s precondition), and
+`static_callback_result_does_not_restore_entry_contents` (a returned reference
+does not restore facts about contents changed by the call). Qualification is
+native/Terminal agreement on macOS ARM64; other-host execution remains open.
+
+### Runtime-indexed byte-view results
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+Each of the nine places has an `indexed_byte_view/main.omg` witness and an
+`indexed_byte_view/invalid/main.omg` twin. Both direct and public `dyn` producers
+return `Counted<'storage, (source.bytes.len)>` from a local array-backed view.
+The receiver accepts `Counted<'storage, 7>` and consumes its own default-domain
+invariant through `seven`; it needs no redundant length precondition. The caller
+subtracts 7 and checks that the former home became 9 while its sibling stayed 4.
+Twins change only the initial array extent and contents to length 8. Pins are
+`tests/omega/{pass,fail}/facts/indexed_byte_view_argument_snapshot_through_*_exit`.
+
+Baseline `970629516baaa28053e7f4cdeb5eeebb0d6c3721` refuses the field-valued
+application during parsing. The repair retains the expression until binder-owned
+admission, uses the common arithmetic formation walk in its exact declaration
+scope, and joins source Value binders to their represented descriptor fields.
+Completed results retain index equations under their captured operands. Public
+slot preparation remaps that entire value telescope; storage identity remains
+separate from source index equality. The nine positives execute with native and
+Terminal exit 0 on macOS ARM64, and all nine twins reject index equality.
+Other-host execution remains unverified; Windows execution is owner-deferred.
+
+Formation controls reject unused overflowing recipes, wrong/refined carriers,
+a provider returning a different projection, forged descriptors and retagging an
+already admitted value. A bounded unused recipe remains valid. Those controls
+are under `tests/omega/{pass,fail}/generics/runtime_value_recipe_*`.
+
+### Inferred runtime indices
+
+The same nine places have `inferred_indexed_byte_view/main.omg` witnesses and
+`inferred_indexed_byte_view/invalid/main.omg` twins, pinned under
+`tests/omega/{pass,fail}/facts/inferred_indexed_byte_view_argument_snapshot_through_*_exit`.
+Their consumer infers an ordinary machine Value argument from the completed
+`Counted` operand. Both direct and public producers toggle a separate counter;
+the caller checks each counter to detect repeated execution. The false-length
+twins change only the initial array from seven to eight elements and reject
+`Count == 7`.
+
+The optimized baseline at `a600523a236621d61c5033f0bed399346a297f15` tries to
+specialize the runtime index as a closed constant and imports the producer-local
+`source` spelling. Inference now retains the exact call, operand ordinal and
+represented descriptor. Source checking and executable retargeting consume the
+same completed-value capture. The logical index remains a value, while the
+shared executable instance specializes only its carrier. Each prepared cloned call
+retains its own authenticated operand capture; hidden scalar arguments observe an
+already completed value, preserving evaluation order and once-only effects.
+All nine positives execute with native and Terminal exit 0 on macOS ARM64,
+and their nine twins reject. `controls/cloned_inferred_capture` exercises a
+generic caller, `controls/statement_inferred_capture` exercises statement calls,
+and `controls/repeated_inferred_capture` compares two independently completed
+indices. Its unequal-index twin rejects; equality uses the normal observer’s
+established equations rather than assuming two distinct captures are unequal.
+Other-host execution remains unverified.
+
+The parent remains open. An earlier mutable call also conservatively loses the post-state descriptor
+correspondence needed by a later indexed result: the normal observer declines
+both the valid post-write index and the stale one. That refusal is not evidence
+of correct support for the valid ordering. General provider and cyclic result
+composition remain required; this row establishes neither those paths nor the
+full RUNTIME-VALUE-GENERICS acceptance.
 
 ## Requirements and evidence
 

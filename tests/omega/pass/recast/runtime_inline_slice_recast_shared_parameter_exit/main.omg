@@ -30,3 +30,9 @@ machine Main::main(main: &mut Main) reaches Console {
     main.bytes[5] = 4;
     Console::exit_process(suffix_words(&main.bytes));
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -7,7 +7,7 @@ use omega::language::core::external_binding;
 use omega_language_std::console;
 
 public boundary trait Magnitude {
-    machine absolute(value: i32) -> i32;
+    machine absolute(value: i32) -> i32 reaches;
 }
 
 macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
@@ -52,4 +52,12 @@ crashes Trap
     Big::fill(&mut big, 70);
     let magnitude: i32 = external_absolute(0 - (big.bytes[65535] as i32));
     Console::exit_process(magnitude);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console + Magnitude
+crashes Trap
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

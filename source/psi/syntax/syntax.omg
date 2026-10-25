@@ -911,6 +911,7 @@ public data ParseDiagnosticCode [copy] {
     case ExpectedRangeEnd;
     case ExpectedArrayElement;
     case ExpectedArrayElementEnd;
+    case MissingBoundaryReachCeiling;
 }
 
 public data ParseDiagnostic [copy] {

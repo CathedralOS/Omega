@@ -103,8 +103,8 @@ mod tests {
     fn native_inet_struct_return_and_parameter_preserve_distinct_host_numbers() {
         for (network, host) in [(10, 66051), (44048, 513), (10, 1027)] {
             let made = HostInternetAddress::make(network, host).unwrap();
-            assert_eq!(made.host_number(), Some(host));
             assert_eq!(made.address, classful_internet_address(network, host));
+            assert_eq!(made.host_number(), Some(host));
         }
     }
 }

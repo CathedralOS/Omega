@@ -3,7 +3,7 @@
 // result and the interleaved owner cross the transition into the successor's
 // owned parameters, and the displaced source dies on the selected edge.
 
-public boundary trait Sink { machine record(value: u64); }
+public boundary trait Sink { machine record(value: u64) reaches; }
 
 data Choice {
     case Empty;

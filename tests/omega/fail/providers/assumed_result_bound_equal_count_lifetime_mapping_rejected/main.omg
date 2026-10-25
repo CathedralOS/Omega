@@ -1,6 +1,6 @@
 // Expected rejection: incompatible lifetime subject mapping
-boundary trait Required { machine get<'a, 'b>(left: &'a u32, right: &'b u32) -> u32 ensures result <= 1; }
-boundary trait Supplied { machine get<'x, 'y>(left: &'x u32, right: &'x u32) -> u32; }
+boundary trait Required { machine get<'a, 'b>(left: &'a u32, right: &'b u32) -> u32 reaches ensures result <= 1; }
+boundary trait Supplied { machine get<'x, 'y>(left: &'x u32, right: &'x u32) -> u32 reaches; }
 Actual satisfies Supplied { machine get<'x, 'y>(left: &'x u32, right: &'x u32) -> u32 { 1 } }
 machine main() reaches Required crashes Trap {
     let seed: u32 = 0;

@@ -20,6 +20,7 @@ machine Ticket::drop(ticket: &mut Ticket) {}
 
 boundary trait MarkReady {
     machine transfer(ticket: Ticket in Owned) -> Ticket
+    reaches
     ensures result in Owned & Ready,
             Owned::content(old(&ticket)) == Owned::content(&result);
 }
@@ -31,7 +32,7 @@ ReadyProvider satisfies MarkReady {
 }
 
 boundary trait ForwardOwned {
-    machine transfer(ticket: Ticket in Owned) -> Ticket in Owned;
+    machine transfer(ticket: Ticket in Owned) -> Ticket in Owned reaches;
 }
 OwnedProvider satisfies ForwardOwned {
     machine transfer(ticket: Ticket in Owned) -> Ticket in Owned { ticket }
@@ -40,6 +41,7 @@ OwnedProvider satisfies ForwardOwned {
 data Bundle { ready: Ticket in Owned & Ready; sibling: Ticket in Owned; }
 boundary trait ForwardBundle {
     machine transfer(bundle: Bundle) -> Bundle
+    reaches
     ensures separate(Owned::content(old(&bundle.ready)), Owned::content(old(&bundle.sibling)))
                 == separate(Owned::content(&result.ready), Owned::content(&result.sibling)),
             Ready::content(old(&bundle.ready)) == Ready::content(&result.ready);

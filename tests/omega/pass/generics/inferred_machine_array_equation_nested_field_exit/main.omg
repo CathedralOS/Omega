@@ -11,3 +11,9 @@ machine main(context: &mut Outer) crashes Trap {
     transition observed == 2 { true -> done() _ -> bad() }
     state done() {} state bad() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Outer;
+    main(&mut entry_storage);
+}

@@ -193,7 +193,7 @@ pub(super) fn exposes(
     service: &PackageReviewNominalIdentity,
 ) -> bool {
     callable
-        .declared_service_reach()
+        .published_service_reach()
         .is_some_and(|values| values.contains(service))
         || callable
             .checked_service_reach()

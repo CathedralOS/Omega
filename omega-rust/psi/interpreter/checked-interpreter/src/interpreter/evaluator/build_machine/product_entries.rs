@@ -14,6 +14,8 @@
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
+use language_semantics::declaration_selection::DescribedProductEntry;
+use typed_trees::product_operand::ProductEntryDeclaration;
 /// The compiler-created `Build.product` facet value inside the canonical
 /// Build activation. An authored `BuildProduct {}` has the same static shape
 /// but never this marker name, so it cannot perform the query.
@@ -73,7 +75,7 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn described_product_entry(
         &self,
         value: &Value,
-    ) -> EvalResult<crate::DescribedProductEntry> {
+    ) -> EvalResult<DescribedProductEntry> {
         let index = super::described_product_index(
             value,
             PRODUCT_ENTRY_DESCRIPTION_TYPE,
@@ -200,7 +202,7 @@ impl<'program> Evaluator<'program> {
         let mut rejection = None;
         for candidate in candidates {
             let declaration =
-                crate::ProductEntryDeclaration::from_machine(self.product_declarations, candidate);
+                ProductEntryDeclaration::from_machine(self.product_declarations, candidate);
             match compatibility.validate_entry(self.product_declarations, declaration, slot) {
                 Ok(()) => {
                     if selected.is_some() {
@@ -227,12 +229,11 @@ impl<'program> Evaluator<'program> {
             .map_err(|_| {
                 Halt::Resource("product-entry description allocation was refused".to_owned())
             })?;
-        self.product_entry_descriptions
-            .push(crate::DescribedProductEntry {
-                machine_symbol: machine.symbol,
-                machine_name: machine.name.as_str().to_owned(),
-                slot: slot.to_owned(),
-            });
+        self.product_entry_descriptions.push(DescribedProductEntry {
+            machine_symbol: machine.symbol,
+            machine_name: machine.name.as_str().to_owned(),
+            slot: slot.to_owned(),
+        });
         let index = i64::try_from(index)
             .map_err(|_| Halt::Resource("product-entry description index overflowed".to_owned()))?;
         let description = self.allocate_cell(Value::Int(index))?;

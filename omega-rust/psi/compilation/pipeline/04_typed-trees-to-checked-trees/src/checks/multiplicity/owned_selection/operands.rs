@@ -124,10 +124,6 @@ pub(super) fn statement_expressions(
         .tables
         .expression_roots(statement)
         .into_iter()
-        .filter(|(role, root)| {
-            *role != typed_trees::statement::StatementRootRole::BindingImplementation
-                || root.is_valid()
-        })
         .flat_map(|(_, root)| expression_nodes(program, root))
         .collect()
 }

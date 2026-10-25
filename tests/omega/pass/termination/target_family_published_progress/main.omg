@@ -1,7 +1,7 @@
 public data Handle [copy] { identity: u64; }
 public domain Handle::Ready satisfies ProgressProfile established by Grant::issue;
 public boundary trait Grant {
-    machine issue(value: Handle) -> Handle in Ready;
+    machine issue(value: Handle) -> Handle in Ready reaches;
 }
 
 // Each member's published premise belongs to its own parameter telescope.

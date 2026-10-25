@@ -1,115 +1,13 @@
 use diagnostics::Diagnostic;
 use source::{SourceFile, SourceOrigin};
-use std::path::{Component, Path};
 
 mod checked_sources;
 pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
 
-const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
 const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";
 
-/// Exact owner class of one source unit consumed by the final checked
-/// frontend closure.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ConsumedSourceUnitKind {
-    PackageAuthored,
-    PackageGenerated(source::DependencyScope),
-    ToolchainVirtual,
-    ToolchainOwned,
-}
-
-/// One path-stable, content-addressed source unit consumed by the final
-/// checked compilation.
-///
-/// Physical cache roots and compiler-local source IDs are deliberately absent.
-/// Package identity or toolchain namespace plus the canonical relative path
-/// owns the coordinate, with the checked import scope additionally distinguishing
-/// generated units; the collision-resistant content digest owns the exact
-/// bytes. The ordered set of these rows is the sole source projection used by
-/// both production manifests and source-consumption commitments.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ConsumedSourceUnit {
-    kind: ConsumedSourceUnitKind,
-    package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    toolchain_namespace: Option<String>,
-    relative_path: Vec<String>,
-    byte_count: u64,
-    content_digest: [u8; 32],
-}
-
-impl ConsumedSourceUnit {
-    /// Rebuild one retained row from its decoded coordinates. Same shape
-    /// contract as [`for_test`](Self::for_test) — persisted projections are
-    /// validated on the way in rather than trusted.
-    #[doc(hidden)]
-    pub fn from_retained(
-        kind: ConsumedSourceUnitKind,
-        package: Option<semantic_vocabulary::PackageKeyIdentity>,
-        toolchain_namespace: Option<String>,
-        relative_path: Vec<String>,
-        byte_count: u64,
-        content_digest: [u8; 32],
-    ) -> Result<Self, &'static str> {
-        let coordinates_match = match kind {
-            ConsumedSourceUnitKind::PackageAuthored
-            | ConsumedSourceUnitKind::PackageGenerated(_) => {
-                package.is_some() && toolchain_namespace.is_none()
-            }
-            ConsumedSourceUnitKind::ToolchainOwned => {
-                package.is_none()
-                    && toolchain_namespace
-                        .as_deref()
-                        .is_some_and(|namespace| !namespace.is_empty())
-            }
-            ConsumedSourceUnitKind::ToolchainVirtual => {
-                package.is_none() && toolchain_namespace.is_none()
-            }
-        };
-        if !coordinates_match {
-            return Err("consumed source unit kind disagrees with its retained coordinates");
-        }
-        if let Some(namespace) = &toolchain_namespace
-            && namespace.is_empty()
-        {
-            return Err("consumed source unit retains an empty toolchain namespace");
-        }
-        if relative_path.is_empty() || relative_path.iter().any(|component| component.is_empty()) {
-            return Err("consumed source unit retains a non-canonical relative path");
-        }
-        Ok(Self {
-            kind,
-            package,
-            toolchain_namespace,
-            relative_path,
-            byte_count,
-            content_digest,
-        })
-    }
-
-    pub const fn kind(&self) -> ConsumedSourceUnitKind {
-        self.kind
-    }
-
-    pub const fn package(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        self.package
-    }
-
-    pub fn toolchain_namespace(&self) -> Option<&str> {
-        self.toolchain_namespace.as_deref()
-    }
-
-    pub fn relative_path(&self) -> &[String] {
-        &self.relative_path
-    }
-
-    pub const fn byte_count(&self) -> u64 {
-        self.byte_count
-    }
-
-    pub const fn content_digest(&self) -> [u8; 32] {
-        self.content_digest
-    }
-}
+use source::source_identity::append_canonical_consumed_unit;
+pub use source::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
 
 /// Compiler-owned commitment to the reconciled package graph and exact
 /// authored/toolchain source bytes retained by one package-aware frontend run.
@@ -359,7 +257,9 @@ fn validate_generated_source_join(
                 source.path.display()
             ))]
         })?;
-    let logical_path = canonical_path_components(relative, &source.path)?.join("/");
+    let logical_path = source::source_identity::canonical_path_components(relative, &source.path)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
+        .join("/");
     let expected_path = [b".omega/generated/".as_slice(), generated.relative_path()].concat();
     if logical_path.as_bytes() != expected_path {
         return Err(vec![Diagnostic::error(format!(
@@ -393,228 +293,27 @@ fn consumed_source_unit(
     source: &SourceFile,
     generated: bool,
 ) -> Result<ConsumedSourceUnit, Vec<Diagnostic>> {
-    let (kind, package, toolchain_namespace, relative_path) = match source.origin {
-        SourceOrigin::User => {
-            let package = source.package_identity.ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "package-aware source `{}` has no reconciled package identity",
-                    source.path.display()
-                ))]
-            })?;
-            let relative = source
-                .path
-                .strip_prefix(&source.package_root)
-                .map_err(|_| {
-                    vec![Diagnostic::error(format!(
-                        "package-aware source `{}` is outside its reconciled root `{}`",
-                        source.path.display(),
-                        source.package_root.display()
-                    ))]
-                })?;
-            (
-                if generated {
-                    ConsumedSourceUnitKind::PackageGenerated(source.dependency_scope)
-                } else {
-                    ConsumedSourceUnitKind::PackageAuthored
-                },
-                Some(package),
-                None,
-                canonical_path_components(relative, &source.path)?,
-            )
-        }
-        SourceOrigin::Toolchain if generated => {
-            return Err(vec![Diagnostic::error(format!(
-                "generated-source custody cannot name toolchain source `{}`",
-                source.path.display()
-            ))]);
-        }
-        SourceOrigin::Toolchain if is_virtual_toolchain_path(&source.path) => (
-            ConsumedSourceUnitKind::ToolchainVirtual,
-            None,
-            None,
-            canonical_path_components(&source.path, &source.path)?,
-        ),
-        SourceOrigin::Toolchain => {
-            let namespace = source
-                .package_root
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "toolchain source root `{}` has no canonical UTF-8 namespace",
-                        source.package_root.display()
-                    ))]
-                })?;
-            let relative = source
-                .path
-                .strip_prefix(&source.package_root)
-                .map_err(|_| {
-                    vec![Diagnostic::error(format!(
-                        "toolchain source `{}` is outside its canonical root `{}`",
-                        source.path.display(),
-                        source.package_root.display()
-                    ))]
-                })?;
-            (
-                ConsumedSourceUnitKind::ToolchainOwned,
-                None,
-                Some(namespace.to_owned()),
-                canonical_path_components(relative, &source.path)?,
-            )
-        }
-    };
-    let byte_count = u64::try_from(source.source.len()).map_err(|_| {
-        vec![Diagnostic::error(format!(
-            "compiler-consumed source `{}` byte length exceeds the canonical range",
-            source.path.display()
-        ))]
-    })?;
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SOURCE_CONTENT_DOMAIN);
-    digest.u64(byte_count);
-    digest.raw(source.source.as_bytes());
-    Ok(ConsumedSourceUnit {
-        kind,
-        package,
-        toolchain_namespace,
-        relative_path,
-        byte_count,
-        content_digest: digest.finish(),
-    })
+    source::source_identity::consumed_source_unit(source, generated)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
 fn same_source_coordinate(left: &ConsumedSourceUnit, right: &ConsumedSourceUnit) -> bool {
-    left.kind == right.kind
-        && left.package == right.package
-        && left.toolchain_namespace == right.toolchain_namespace
-        && left.relative_path == right.relative_path
+    left.kind() == right.kind()
+        && left.package() == right.package()
+        && left.toolchain_namespace() == right.toolchain_namespace()
+        && left.relative_path() == right.relative_path()
 }
 
-fn canonical_consumed_unit_bytes(unit: &ConsumedSourceUnit) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    append_canonical_consumed_unit(&mut bytes, unit);
-    bytes
-}
-
-fn append_canonical_consumed_unit(bytes: &mut Vec<u8>, unit: &ConsumedSourceUnit) {
-    bytes.push(match unit.kind {
-        ConsumedSourceUnitKind::PackageAuthored => 0,
-        ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Product) => 1,
-        ConsumedSourceUnitKind::PackageGenerated(source::DependencyScope::Build) => 4,
-        ConsumedSourceUnitKind::ToolchainVirtual => 2,
-        ConsumedSourceUnitKind::ToolchainOwned => 3,
-    });
-    match unit.package {
-        None => bytes.push(0),
-        Some(package) => {
-            bytes.push(1);
-            append_field(bytes, &package.digest());
-        }
-    }
-    match &unit.toolchain_namespace {
-        None => bytes.push(0),
-        Some(namespace) => {
-            bytes.push(1);
-            append_field(bytes, namespace.as_bytes());
-        }
-    }
-    bytes.extend_from_slice(
-        &u64::try_from(unit.relative_path.len())
-            .expect("consumed source path component count fits u64")
-            .to_le_bytes(),
-    );
-    for component in &unit.relative_path {
-        append_field(bytes, component.as_bytes());
-    }
-    bytes.extend_from_slice(&unit.byte_count.to_le_bytes());
-    append_field(bytes, &unit.content_digest);
-}
-
-fn canonical_path_components(
-    relative: &Path,
-    diagnostic_path: &Path,
-) -> Result<Vec<String>, Vec<Diagnostic>> {
-    let components = relative.components().collect::<Vec<_>>();
-    if components.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "compiler-consumed source `{}` has an empty canonical path",
-            diagnostic_path.display()
-        ))]);
-    }
-    components
-        .into_iter()
-        .map(|component| {
-            let Component::Normal(component) = component else {
-                return Err(vec![Diagnostic::error(format!(
-                    "compiler-consumed source `{}` has a non-canonical relative path",
-                    diagnostic_path.display()
-                ))]);
-            };
-            component.to_str().map(str::to_owned).ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "compiler-consumed source `{}` has a non-UTF-8 path component",
-                    diagnostic_path.display()
-                ))]
-            })
-        })
-        .collect()
-}
-
-/// Exact source-backed toolchain owners retained for compiler source-free
-/// nominal and type identity. `SourceId` is only the compiler-internal join
-/// coordinate; canonical identity contains the collision-resistant digest.
-#[doc(hidden)]
+/// Exact retained toolchain identities, shared with early Psi production.
 pub fn toolchain_source_identities<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
 ) -> Result<Vec<(source::SourceId, [u8; 32])>, Vec<Diagnostic>> {
-    let mut identities = sources
-        .into_iter()
-        .filter(|source| source.origin == SourceOrigin::Toolchain)
-        .map(|source| Ok((source.source_id, toolchain_source_identity_digest(source)?)))
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    identities.sort_by_key(|(source_id, _)| source_id.0);
-    Ok(identities)
+    source::source_identity::toolchain_source_identities(sources)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
 }
 
 #[doc(hidden)]
 pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32], Vec<Diagnostic>> {
-    if source.origin != SourceOrigin::Toolchain {
-        return Err(vec![Diagnostic::error(format!(
-            "toolchain source identity requested for non-toolchain source `{}`",
-            source.path.display(),
-        ))]);
-    }
-    let custody_entry = canonical_source_entry(source)?;
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"OMEGA-PACKAGE-REVIEW-TOOLCHAIN-SOURCE\0");
-    digest.u64(
-        u64::try_from(custody_entry.len()).expect("canonical source custody entry length fits u64"),
-    );
-    digest.raw(&custody_entry);
-    Ok(digest.finish())
-}
-
-pub(super) fn canonical_source_entry(source: &SourceFile) -> Result<Vec<u8>, Vec<Diagnostic>> {
-    Ok(canonical_consumed_unit_bytes(&consumed_source_unit(
-        source, false,
-    )?))
-}
-
-fn append_field(output: &mut Vec<u8>, bytes: &[u8]) {
-    output.extend_from_slice(
-        &u64::try_from(bytes.len())
-            .expect("source commitment field length fits u64")
-            .to_le_bytes(),
-    );
-    output.extend_from_slice(bytes);
-}
-
-fn is_virtual_toolchain_path(path: &Path) -> bool {
-    let mut components = path.components();
-    let Some(Component::Normal(component)) = components.next() else {
-        return false;
-    };
-    components.next().is_none()
-        && component
-            .to_str()
-            .is_some_and(|component| component.starts_with('<') && component.ends_with('>'))
+    source::source_identity::toolchain_source_identity_digest(source)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
 }

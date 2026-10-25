@@ -845,6 +845,10 @@ fn argument_contract(
             let contract = (access == CheckedStructuralAccess::Owned)
                 .then(|| validation::structural_result_contract(program, source_type).ok())
                 .flatten();
+            // Source checking already proved this value's application at the
+            // consuming edge, including captured runtime-index equalities.
+            // Lowering compares physical storage and transferred qualifications;
+            // repeating syntactic index identity would discard that proof.
             phase("call result argument: anonymous receiving contract");
             if validation::reference_result_custody::result_multiplicity(program, source_type)
                 != result.multiplicity
@@ -852,12 +856,10 @@ fn argument_contract(
                     != result.type_identity
                 || (!projected
                     && access == CheckedStructuralAccess::Owned
-                    && (program.normalized_type_identity(source_type)
-                        != program.normalized_type_identity(referent)
-                        || contract?.qualifications
-                            != validation::structural_result_contract(program, referent)
-                                .ok()?
-                                .qualifications))
+                    && contract?.qualifications
+                        != validation::structural_result_contract(program, referent)
+                            .ok()?
+                            .qualifications)
             {
                 return None;
             }

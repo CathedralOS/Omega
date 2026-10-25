@@ -11,6 +11,7 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -18,7 +19,7 @@ use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use std::collections::BTreeMap;
 use terminal_psi::{
@@ -53,27 +54,27 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let value = TerminalScalarCaseValue {
+        let value = TerminalScalarAggregateValue {
             structural_type: result.structural_type,
-            result_case,
+            result_case: Some(result_case),
             fields: fields
                 .iter()
                 .map(|binding| Ok((binding.field, self.scalar_value(binding.value)?)))
                 .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
         };
-        self.publish_scalar_case(result, value)?;
+        self.publish_scalar_aggregate(result, value)?;
         Ok(OperationFlow::Advance)
     }
 
-    /// Import semantic scalar-case contents into the same placed storage as
-    /// every other constructed sum. The external payload supplies no identity,
+    /// Import scalar aggregate contents into ordinary placed record/sum storage.
+    /// The external payload supplies no identity,
     /// so publication allocates one home only after validating all contents.
-    pub(crate) fn publish_scalar_case(
+    pub(crate) fn publish_scalar_aggregate(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
-        case: TerminalScalarCaseValue,
+        aggregate: TerminalScalarAggregateValue,
     ) -> Result<(), TerminalInterpretError> {
-        if case.structural_type != result.structural_type
+        if aggregate.structural_type != result.structural_type
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
             || !result.qualifications.is_empty()
@@ -86,7 +87,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        case.validate_against(
+        aggregate.validate_against(
             self.program
                 .structural_types()
                 .get(&result.structural_type)
@@ -99,11 +100,17 @@ impl TerminalExecution<'_> {
         );
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::default();
-        storage.stage_case(root.clone(), case.structural_type, case.result_case);
-        for (field, scalar) in case.fields {
+        if let Some(selected) = aggregate.result_case {
+            storage.stage_case(root.clone(), aggregate.structural_type, selected);
+        }
+        for (field, scalar) in aggregate.fields {
             storage.stage_scalar_endpoint(
                 &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
-                    StructuralScalarRuntimeField::case_payload(root.clone(), field),
+                    if aggregate.result_case.is_some() {
+                        StructuralScalarRuntimeField::case_payload(root.clone(), field)
+                    } else {
+                        StructuralScalarRuntimeField::member(root.clone(), field)
+                    },
                 ),
                 scalar,
             )?;
@@ -360,7 +367,9 @@ impl TerminalExecution<'_> {
                 .byte_sequence_values
                 .insert(
                     destination,
-                    ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes.clone())),
+                    ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                        ByteSequenceStorage::copy(bytes, self.account.as_ref())?,
+                    )),
                 )
                 .is_some()
             {
@@ -508,7 +517,9 @@ impl TerminalExecution<'_> {
                             namespace: StructuralFieldNamespace::for_carrier(leaf.path()),
                             field: *field,
                         },
-                        ByteSequenceBinding::Immutable(ByteSequenceView::new(Vec::new())),
+                        ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                            ByteSequenceStorage::zeroed(0, self.account.as_ref())?,
+                        )),
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
@@ -531,12 +542,17 @@ impl TerminalExecution<'_> {
                     // Storing these bytes as separate scalar cells would make
                     // writes through a borrowed byte view invisible to the owner.
                     let length = usize::try_from(*length).map_err(|_| malformed())?;
-                    self.structural_byte_storage
-                        .entry(StructuralRuntimePlace {
+                    if let std::collections::btree_map::Entry::Vacant(entry) =
+                        self.structural_byte_storage.entry(StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
                             path: storage_path(),
                         })
-                        .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
+                    {
+                        entry.insert(ByteSequenceView::new(ByteSequenceStorage::zeroed(
+                            length,
+                            self.account.as_ref(),
+                        )?));
+                    }
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => {
                     self.structural_primitive_storage.insert(

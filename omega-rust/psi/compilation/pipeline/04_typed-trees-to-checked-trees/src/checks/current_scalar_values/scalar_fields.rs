@@ -17,9 +17,9 @@ pub(super) struct ScalarField {
 }
 
 pub(super) struct CapturedScalarField {
-    path: Vec<SymbolHandle>,
-    carrier: PrimitiveType,
-    value: ScopedArithmeticValue,
+    pub(super) path: Vec<SymbolHandle>,
+    pub(super) carrier: PrimitiveType,
+    pub(super) value: ScopedArithmeticValue,
 }
 
 impl ScalarField {

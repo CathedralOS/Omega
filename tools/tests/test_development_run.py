@@ -389,6 +389,29 @@ class DevelopmentRun(unittest.TestCase):
         for target in ("linux_x86_64", "macos_arm64"):
             self.assertIn(f"{target}: checked 1 source packages", result.stdout)
 
+    def test_package_audit_uses_review_execution_without_publishing(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assert_exit(result, 0)
+        self.assertIn("fresh-analysis complete", result.stdout)
+        self.assertIn("note=review_pass discovery", result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_package_audit_reports_failed_review_without_changing_lock(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        (self.project / "main.omg").write_text("this is deliberately not Omega")
+        result = self.invoke("audit", "packages", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assert_exit(result, 1)
+        self.assertIn("fresh-analysis unavailable", result.stdout)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
     def test_failed_review_target_cannot_publish_successful_sibling(self):
         self.accept_project()
         lock = (self.project / "omega.lock").read_bytes()
@@ -396,6 +419,42 @@ class DevelopmentRun(unittest.TestCase):
                              "--target", self.target, "--target", "uefi_x86_64")
         self.assert_exit(result, 1)
         self.assertNotIn("Published build.omg", result.stdout)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_unlocked_audit_keeps_success_after_failed_target(self):
+        # Canonical order puts UEFI first. Its unavailable entry must not hide
+        # the later hosted target, and neither report admits a new lock.
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", "windows_x86_64", "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        refused, accepted = result.stdout.split("target omega.target-profile.v1:windows_x86_64", 1)
+        self.assertIn("target omega.target-profile.v1:uefi_x86_64", refused)
+        self.assertIn("fresh-analysis unavailable", refused)
+        self.assertIn("fresh-analysis complete", accepted)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
+    def test_audit_duplicate_targets_reject_before_review(self):
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", self.target, "--target", self.target)
+        self.assert_exit(result, 64)
+        self.assertIn("duplicate target", result.stderr)
+        self.assertNotIn("note=review_pass", result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
+    def test_locked_audit_refuses_unaccepted_target(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        self.assertIn("no accepted target uefi_x86_64", result.stderr)
+        self.assertNotIn("note=review_pass", result.stderr)
         self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
         self.assertFalse((self.project / "build/package-manager/proposal").exists())
 

@@ -32,11 +32,23 @@ checks. Cache records retain the explicit engine, fuel and storage identities
 and reject unknown versions. The tree projection remains in checked-interpreter
 and cannot manufacture a Terminal observation.
 
-The Terminal engine currently has no live-storage insertion/readback hooks.
-This foundation's unit controls establish accounting atomicity and lifetime
-behavior only; they do not establish interpreter budgeting or enable sponsored
-Terminal Build execution. The ordinary package-aware CLI remains on the checked
-Build evaluator until real engine accounting and host adapters are connected.
+The common Terminal fuel meter can retain an exact invocation account and pay
+it at each operation/selected edge before execution. Local resumable allowance
+and the shared invocation/aggregate ceilings are independent: replenishment or
+meter cloning cannot enlarge that shared account. A refused shared charge
+commits neither local attribution nor account counters and remains a host error.
+The source-produced Build integration test checks both exact-budget completion
+and one-unit-short refusal across two activations with ordered binding effects.
+
+Terminal byte backings now carry leases selected before entry allocation.
+Aliases share the full backing reservation; copy-on-write reserves the overlapping
+replacement, and boundary buffers transfer the same owner at writeback. Actual
+Build execution tests exact and one-byte-short live payload budgets. Runtime rows,
+other storage families and result custody still need their real lifetime hooks.
+These partial snapshots are not complete Build usage or storage budgeting; do
+not publish them as production Build accounting receipts. The ordinary
+package-aware CLI remains on the checked Build evaluator until accounting and
+host adapters are complete.
 
 `BuildEvaluationSponsor::charge_pure_usage` atomically pays validated recorded
 cost for an already admitted pure result. It checks the exact engine/schedule,

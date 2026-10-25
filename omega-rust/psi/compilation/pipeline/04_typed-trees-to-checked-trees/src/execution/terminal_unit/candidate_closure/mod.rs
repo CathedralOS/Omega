@@ -409,7 +409,7 @@ pub(super) fn retain_available(
                         call,
                         || {
                             scalar_targets::ScalarCallSite::of_composed_operation(
-                                plan.machine,
+                                program,
                                 state,
                                 operation,
                             )

@@ -69,3 +69,107 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
         first.evidence.source_consumption_commitment
     );
 }
+
+#[test]
+fn review_policy_round_trip_preserves_authored_and_inferred_reach() {
+    use package_evidence::encoding::PackagePolicyRecoveryLimits;
+    use package_evidence::record::PackagePolicyBaseline;
+
+    let root = fixture_package_inputs::repo_root();
+    for (fixture, expected) in [
+        (
+            "tests/omega/pass/facts/unannotated_imported_boundary_call_through_local_exit/support/main.omg",
+            "inferred",
+        ),
+        (
+            "tests/omega/pass/effects/optional_reach_declared_slack_exit/main.omg",
+            "slack",
+        ),
+        (
+            "tests/omega/pass/effects/optional_reach_empty_exit/main.omg",
+            "empty",
+        ),
+    ] {
+        let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &root.join(fixture),
+            Some("macos_arm64"),
+        )
+        .expect("reviewable reach fixture");
+        let mut session = CompilationSession::default();
+        let build = session
+            .prepare_package_build(CheckedCompileRequest {
+                package_inputs: prepared.package_inputs,
+                ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
+            })
+            .expect("prepare reach review");
+        let reviewed = session
+            .review_package_build(build, usize::MAX)
+            .expect("reach review");
+        let bytes = reviewed
+            .evidence
+            .policy
+            .canonical_bytes()
+            .expect("encode reach policy");
+        let recovered = PackagePolicyBaseline::recover_canonical(
+            &bytes,
+            PackagePolicyRecoveryLimits::default(),
+        )
+        .expect("recover source-free reach policy");
+        // Provider identity tables retain construction interning beyond the
+        // rows they serialize. Compare persisted meaning, then inspect the
+        // recovered reach fields themselves below.
+        assert_eq!(
+            recovered.canonical_bytes().expect("re-encode policy"),
+            bytes
+        );
+        let callables = recovered.callables().callables().iter().collect::<Vec<_>>();
+        assert!(!callables.is_empty(), "{fixture}");
+        match expected {
+            "inferred" => {
+                let callable = callables
+                    .iter()
+                    .find(|callable| callable.identity().path().contains("fetch_mark"))
+                    .expect("exported inferred helper");
+                assert!(callable.declared_service_reach().is_none());
+                let realized = callable
+                    .checked_service_reach()
+                    .realized()
+                    .expect("checked body");
+                assert_eq!(realized.len(), 1);
+                assert_eq!(realized[0].path(), "Mark");
+                assert_eq!(callable.published_service_reach(), Some(realized));
+            }
+            "slack" => {
+                let callable = callables
+                    .iter()
+                    .find(|callable| callable.identity().path().contains("read_mark"))
+                    .expect("exported bounded helper");
+                let declared = callable
+                    .declared_service_reach()
+                    .expect("authored wider ceiling");
+                let realized = callable
+                    .checked_service_reach()
+                    .realized()
+                    .expect("checked body");
+                assert_eq!(declared.len(), 2);
+                assert_eq!(realized.len(), 1);
+                assert_eq!(callable.published_service_reach(), Some(declared));
+            }
+            "empty" => {
+                let explicit = callables
+                    .iter()
+                    .find(|callable| callable.identity().path().contains("read_mark"))
+                    .expect("explicit empty helper");
+                let inferred = callables
+                    .iter()
+                    .find(|callable| callable.identity().path().contains("inferred_empty"))
+                    .expect("inferred empty helper");
+                assert_eq!(explicit.declared_service_reach(), Some([].as_slice()));
+                assert!(inferred.declared_service_reach().is_none());
+                assert_eq!(explicit.published_service_reach(), Some([].as_slice()));
+                assert_eq!(inferred.published_service_reach(), Some([].as_slice()));
+            }
+            _ => unreachable!(),
+        }
+    }
+}

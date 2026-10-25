@@ -12,6 +12,7 @@ use crate::static_applications::{
     StaticMachineLifetimeBinding,
 };
 use arena::{Arena, Handle, HandleSpan};
+use language_semantics::declaration_selection::RootBindingRequest;
 use numerics::literals::IntegerLiteral;
 use source::SourceSpan;
 use std::ops::Deref;
@@ -90,6 +91,7 @@ pub struct AtomicExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
+    root_binding_requests: Arena<RootBindingRequest>,
     /// Iteration-visible expressions of this program. Backing rows remain at
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
@@ -112,7 +114,7 @@ pub struct ExpressionTable {
     struct_fields: Arena<TableStructLiteralField>,
     match_arms: Arena<TableMatchArm>,
     match_fields: Arena<TableMatchField>,
-    match_subjects: Arena<MatchSubjectCapture>,
+    completed_values: Arena<CompletedValueCapture>,
     match_proof_selectors: Arena<crate::statement::OutcomeProofSelector>,
     static_machine_applications: Arena<StaticMachineApplication>,
     static_machine_arguments: Arena<StaticMachineArgument>,
@@ -130,7 +132,7 @@ pub struct ExpressionTableCapacity {
     pub struct_fields: usize,
     pub match_arms: usize,
     pub match_fields: usize,
-    pub match_subjects: usize,
+    pub completed_values: usize,
     pub match_proof_selectors: usize,
 }
 
@@ -166,29 +168,45 @@ impl ExpressionTable {
     pub fn insert_match_subject(
         &mut self,
         subject: ExpressionHandle,
-    ) -> Handle<MatchSubjectCapture> {
-        self.match_subjects.insert(MatchSubjectCapture {
+    ) -> Handle<CompletedValueCapture> {
+        self.completed_values.insert(CompletedValueCapture {
             subject,
+            owner: ValueCaptureOwner::Match,
             definition: ExpressionHandle::invalid(),
             value_anchor: ExpressionHandle::invalid(),
         })
     }
 
-    pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
-        self.match_subjects.get(capture)
+    /// A call's inferred operand observes an earlier completed argument. The
+    /// caller owns the capture; this alias has no executable source edge.
+    pub fn insert_call_operand_capture(
+        &mut self,
+        subject: ExpressionHandle,
+        owner: ValueCaptureOwner,
+    ) -> Handle<CompletedValueCapture> {
+        self.completed_values.insert(CompletedValueCapture {
+            subject,
+            owner,
+            value_anchor: subject,
+            ..Default::default()
+        })
     }
 
-    pub fn contains_match_subject(&self, capture: Handle<MatchSubjectCapture>) -> bool {
-        self.match_subjects.is_valid(capture)
+    pub fn value_capture(&self, capture: Handle<CompletedValueCapture>) -> &CompletedValueCapture {
+        self.completed_values.get(capture)
+    }
+
+    pub fn contains_value_capture(&self, capture: Handle<CompletedValueCapture>) -> bool {
+        self.completed_values.is_valid(capture)
     }
 
     /// The definition supplying this alias. This is a dependency/type query,
     /// never an executable child edge or permission to evaluate the source.
     pub fn saved_subject_source(&self, saved: &TableSavedSubject) -> Option<ExpressionHandle> {
-        if !self.contains_match_subject(saved.capture) {
+        if !self.contains_value_capture(saved.capture) {
             return None;
         }
-        let capture = self.match_subject(saved.capture);
+        let capture = self.value_capture(saved.capture);
         if !self.expression_is_valid(capture.definition) {
             return None;
         }
@@ -328,6 +346,7 @@ impl ExpressionTable {
     pub fn revision(&self) -> u64 {
         self.expressions
             .revision()
+            .wrapping_add(self.root_binding_requests.revision())
             .wrapping_add(self.expression_roots.revision())
             .wrapping_add(self.index_expression_authorities.revision())
             .wrapping_add(self.authored_selection_occurrence_ids.revision())
@@ -337,7 +356,7 @@ impl ExpressionTable {
             .wrapping_add(self.struct_fields.revision())
             .wrapping_add(self.match_arms.revision())
             .wrapping_add(self.match_fields.revision())
-            .wrapping_add(self.match_subjects.revision())
+            .wrapping_add(self.completed_values.revision())
             .wrapping_add(self.match_proof_selectors.revision())
             .wrapping_add(self.static_machine_applications.revision())
             .wrapping_add(self.static_machine_arguments.revision())
@@ -367,6 +386,7 @@ impl ExpressionTable {
     pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
         Self {
             expressions: Arena::with_capacity(capacity.expressions),
+            root_binding_requests: Arena::default(),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
             constructed_value_types: Arena::default(),
@@ -385,7 +405,7 @@ impl ExpressionTable {
             struct_fields: Arena::with_capacity(capacity.struct_fields),
             match_arms: Arena::with_capacity(capacity.match_arms),
             match_fields: Arena::with_capacity(capacity.match_fields),
-            match_subjects: Arena::with_capacity(capacity.match_subjects),
+            completed_values: Arena::with_capacity(capacity.completed_values),
             match_proof_selectors: Arena::with_capacity(capacity.match_proof_selectors),
             static_machine_applications: Arena::default(),
             static_machine_arguments: Arena::default(),
@@ -396,6 +416,7 @@ impl ExpressionTable {
 
     pub fn clear(&mut self) {
         self.expressions.reset_retain_capacity();
+        self.root_binding_requests.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
         self.constructed_value_types.reset_retain_capacity();
@@ -413,7 +434,7 @@ impl ExpressionTable {
         self.struct_fields.reset_retain_capacity();
         self.match_arms.reset_retain_capacity();
         self.match_fields.reset_retain_capacity();
-        self.match_subjects.reset_retain_capacity();
+        self.completed_values.reset_retain_capacity();
         self.match_proof_selectors.reset_retain_capacity();
         self.static_machine_applications.reset_retain_capacity();
         self.static_machine_arguments.reset_retain_capacity();
@@ -615,14 +636,14 @@ impl ExpressionTable {
             _ => Handle::invalid(),
         };
         let handle = self.expressions.insert(expression);
-        if self.match_subjects.is_valid(alias_capture) {
-            let capture = self.match_subjects.get_mut(alias_capture);
+        if self.completed_values.is_valid(alias_capture) {
+            let capture = self.completed_values.get_mut(alias_capture);
             if !capture.value_anchor.is_valid() {
                 capture.value_anchor = handle;
             }
         }
-        if self.match_subjects.is_valid(capture) {
-            let subject = self.match_subjects.get_mut(capture);
+        if self.completed_values.is_valid(capture) {
+            let subject = self.completed_values.get_mut(capture);
             // A second definition never steals the first one's identity.
             // Formation/normalization can diagnose the conflicting owner.
             if !subject.definition.is_valid() {
@@ -643,6 +664,22 @@ impl ExpressionTable {
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
         self.source_spans[source_span_index(handle)]
+    }
+
+    pub fn insert_root_binding_request(
+        &mut self,
+        request: RootBindingRequest,
+    ) -> Handle<RootBindingRequest> {
+        self.root_binding_requests.insert(request)
+    }
+
+    pub fn root_binding_request(
+        &self,
+        request: Handle<RootBindingRequest>,
+    ) -> Option<&RootBindingRequest> {
+        self.root_binding_requests
+            .is_valid(request)
+            .then(|| self.root_binding_requests.get(request))
     }
 
     pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
@@ -1561,6 +1598,10 @@ pub struct CallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCallExpression {
+    /// Source-issued selection carried by an ordinary Build boundary call.
+    /// Zero denotes a call without designated product operands. The payload
+    /// belongs to this expression table, not to an interpreter side channel.
+    pub root_binding: Handle<RootBindingRequest>,
     /// Zero until specialization erases this call's authored static operands.
     pub authored_machine_application: StaticMachineApplicationHandle,
     /// An Exact carrier coercion elaborated to this conversion requirement.
@@ -2128,22 +2169,39 @@ pub struct StructLiteralField {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
-    pub capture: Handle<MatchSubjectCapture>,
+    pub capture: Handle<CompletedValueCapture>,
     pub arms: HandleSpan<TableMatchArm>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct MatchSubjectCapture {
+pub struct CompletedValueCapture {
     pub subject: ExpressionHandle,
+    pub owner: ValueCaptureOwner,
     pub definition: ExpressionHandle,
     /// One non-executable alias anchors this completed value's canonical
     /// identity. It is distinct from later reads of the supplying storage.
     pub value_anchor: ExpressionHandle,
 }
 
+/// The operation establishing one value. An argument owner is exact call
+/// identity and authored position; absence of a pattern never authorizes it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ValueCaptureOwner {
+    #[default]
+    Match,
+    ExpressionArgument {
+        call: ExpressionHandle,
+        position: u32,
+    },
+    StatementArgument {
+        call: crate::statement::StatementHandle,
+        position: u32,
+    },
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableSavedSubject {
-    pub capture: Handle<MatchSubjectCapture>,
+    pub capture: Handle<CompletedValueCapture>,
     pub pattern_head: ExpressionHandle,
 }
 

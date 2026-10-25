@@ -1,7 +1,7 @@
 module left;
 
 public boundary trait Sink {
-    machine emit(text: &[u8]);
+    machine emit(text: &[u8]) reaches;
 }
 
 public data QuietSink { }

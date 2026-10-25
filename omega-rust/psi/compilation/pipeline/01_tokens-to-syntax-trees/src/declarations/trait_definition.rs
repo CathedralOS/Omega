@@ -188,6 +188,18 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             ));
         }
         signature.is_default = is_default;
+        // A boundary requirement has no selected body from which its callers
+        // may infer reach. Its authored contract must state the ceiling,
+        // including the empty row; checked realizers retain optional clauses.
+        // This also applies to a default body: the requirement remains the
+        // caller's pinned contract, independently of that executable supply.
+        if is_boundary && clauses.service_reach_keyword_source_spans.is_empty() {
+            return Err(rest.error_here(format!(
+                "boundary-trait machine requirement `{}::{}` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach",
+                name.as_str(syntax_trees),
+                signature.name.as_str(syntax_trees),
+            )));
+        }
         if clauses.service_reach_is_installation_bound && (!is_boundary || is_default) {
             return Err(rest.error_here(
                 "`reaches <= Bound` is permitted only on a bodyless boundary-trait requirement",

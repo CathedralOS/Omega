@@ -20,10 +20,13 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::{CallFrameResolver, ScopedArithmeticValue};
 
 #[derive(Clone)]
-struct Application {
+struct Application<'program> {
     reference: TypeReferenceHandle,
     formation: usize,
     substitutions: Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
+    arguments: Vec<(SymbolHandle, Option<ExpressionHandle>)>,
+    call: Option<validation::CallSite<'program>>,
+    position: Option<usize>,
 }
 
 struct Scope<'a> {
@@ -75,8 +78,75 @@ impl Scope<'_> {
     fn index(
         &self,
         argument: TypeReferenceHandle,
-        application: &Application,
+        application: &Application<'_>,
     ) -> Option<ScopedArithmeticValue> {
+        let supplied = matches!(
+            self.program.type_reference_table.type_reference(argument),
+            TypeReferenceNode::ConstExpression(_)
+        ) || matches!(self.program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, .. }
+                if application.substitutions.iter().any(|(formal, _)| formal == symbol));
+        if supplied && let Some(site) = application.call {
+            let prefix_unchanged = if let validation::CallSite::Expression { expression, .. } = site
+            {
+                let statement = self
+                    .program
+                    .statement_table
+                    .statement_at(self.state, application.formation)?;
+                let roots = self
+                    .program
+                    .tables
+                    .expression_roots(statement)
+                    .into_iter()
+                    .map(|(_, expression)| expression)
+                    .collect::<Vec<_>>();
+                validation::expression_traversal::expressions_before_occurrence(
+                    self.program,
+                    &roots,
+                    expression,
+                )
+                .is_some_and(|prefix| {
+                    prefix.iter().all(|expression| {
+                        self.frames.is_some_and(|frames| {
+                            frames
+                                .expression_write_frame(self.machine, *expression)
+                                .complete_paths()
+                                .is_some_and(|paths| paths.is_empty())
+                        })
+                    })
+                })
+            } else {
+                true
+            };
+            let missing_scalar = matches!(self.program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, .. }
+                if application.substitutions.iter().any(|(formal, value)| formal == symbol && value.is_none()));
+            if !prefix_unchanged
+                || missing_scalar
+                || application
+                    .arguments
+                    .iter()
+                    .any(|(_, value)| value.is_none())
+            {
+                let target = site.target_symbol(self.program);
+                let parameters = validation::call_target_parameters(self.program, target)?;
+                return validation::captured_call_index_value(
+                    self.program,
+                    self.state.symbol,
+                    application.formation,
+                    site,
+                    parameters,
+                    target,
+                    argument,
+                );
+            }
+        }
+        if let TypeReferenceNode::ConstExpression(expression) =
+            *self.program.type_reference_table.type_reference(argument)
+        {
+            return self
+                .values(application.formation)?
+                .application_value(expression, &application.arguments)
+                .map(ScopedArithmeticValue::Term);
+        }
         let TypeReferenceNode::Named { symbol, name } =
             self.program.type_reference_table.type_reference(argument)
         else {
@@ -120,20 +190,17 @@ impl Scope<'_> {
         &self,
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[ExpressionHandle],
-    ) -> Vec<(SymbolHandle, Option<ScopedArithmeticValue>)> {
+    ) -> (
+        Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
+        Vec<(SymbolHandle, Option<ExpressionHandle>)>,
+    ) {
         let inert = arguments.iter().all(|argument| {
-            validation::expression_traversal::inert_value_tree_with_calls(
-                self.program,
-                *argument,
-                |call| {
-                    self.frames.is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(self.machine, call)
-                            .complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
-                    })
-                },
-            )
+            self.frames.is_some_and(|frames| {
+                frames
+                    .expression_write_frame(self.machine, *argument)
+                    .complete_paths()
+                    .is_some_and(|paths| paths.is_empty())
+            })
         });
         let values = self.values(self.statement);
         parameters
@@ -151,12 +218,15 @@ impl Scope<'_> {
                     .then(|| values.as_ref()?.current(*argument))
                     .flatten()
                     .map(ScopedArithmeticValue::Term);
-                (parameter.symbol, value)
+                (
+                    (parameter.symbol, value),
+                    (parameter.symbol, stable.then_some(*argument)),
+                )
             })
-            .collect()
+            .unzip()
     }
 
-    fn actual(&self, expression: ExpressionHandle) -> Option<Application> {
+    fn actual(&self, expression: ExpressionHandle) -> Option<Application<'_>> {
         if !expression.is_valid() {
             return None;
         }
@@ -177,6 +247,9 @@ impl Scope<'_> {
                     reference,
                     formation,
                     substitutions: Vec::new(),
+                    arguments: Vec::new(),
+                    call: None,
+                    position: None,
                 })
             }
             ExpressionNode::Call(call) => {
@@ -186,7 +259,8 @@ impl Scope<'_> {
                     .program
                     .expression_table
                     .expression_handles(call.arguments);
-                let substitutions = self.argument_substitutions(parameters, arguments);
+                let (substitutions, captured_arguments) =
+                    self.argument_substitutions(parameters, arguments);
                 Some(Application {
                     reference: validation::call_target_return_type(
                         self.program,
@@ -194,6 +268,9 @@ impl Scope<'_> {
                     )?,
                     formation: self.statement,
                     substitutions,
+                    arguments: captured_arguments,
+                    call: Some(validation::CallSite::Expression { expression, call }),
+                    position: None,
                 })
             }
             ExpressionNode::Member(member) => {
@@ -215,7 +292,7 @@ impl Scope<'_> {
         }
     }
 
-    fn compare(&self, actual: &Application, required: &Application, depth: usize) -> bool {
+    fn compare(&self, actual: &Application<'_>, required: &Application<'_>, depth: usize) -> bool {
         if depth > 128 {
             return false;
         }
@@ -306,6 +383,37 @@ impl Scope<'_> {
                                 (self.static_index(*left), self.static_index(*right))
                             {
                                 return left == right;
+                            }
+                            let closed_requirement = self.static_index(*right).is_some()
+                                || matches!(self.program.type_reference_table.type_reference(*right),
+                                    TypeReferenceNode::ConstExpression(expression)
+                                        if self.program.closed_integer_expression_value_in(*expression, self.machine.symbol).is_some());
+                            if !closed_requirement
+                                && let (Some(site), Some(position)) =
+                                    (required.call, required.position)
+                                && let Some((_, descriptor, _)) = self
+                                    .program
+                                    .data_application_value_fields(actual.reference)
+                                    .into_iter()
+                                    .find(|(binder, _, _)| binder.symbol == parameter.symbol)
+                            {
+                                let target = site.target_symbol(self.program);
+                                let Some(parameters) =
+                                    validation::call_target_parameters(self.program, target)
+                                else {
+                                    return false;
+                                };
+                                return validation::captured_call_argument_index_matches(
+                                    self.program,
+                                    self.state.symbol,
+                                    self.statement,
+                                    site,
+                                    parameters,
+                                    position,
+                                    actual.reference,
+                                    descriptor.symbol,
+                                    *right,
+                                );
                             }
                             let Some(left) = self.index(*left, actual) else {
                                 return false;
@@ -402,54 +510,12 @@ impl Scope<'_> {
     /// handle rather than treating an identically spelled ordinary field as an index.
     fn descriptor_arguments(
         &self,
-        application: &Application,
+        application: &Application<'_>,
     ) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
-        let reference = self
-            .program
-            .type_reference_table
-            .peeled_type_reference(application.reference);
-        let concrete = match self.program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                self.program.data_definition_by_symbol(*symbol)
-            }
-            _ => None,
-        };
-        let reference = concrete
-            .and_then(|data| data.generic_instance)
-            .unwrap_or(reference);
-        let TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } = self.program.type_reference_table.type_reference(reference)
-        else {
-            return Vec::new();
-        };
-        let Some(data) = self.program.data_definition_by_symbol(*base_symbol) else {
-            return Vec::new();
-        };
-        let arguments = self
-            .program
-            .type_reference_table
-            .type_reference_handles(*arguments);
-        let parameters = self.program.data_type_parameters(data);
         self.program
-            .data_value_parameter_fields(data)
-            .enumerate()
-            .filter_map(|(descriptor_ordinal, (parameter, field))| {
-                let ordinal = parameters
-                    .iter()
-                    .position(|candidate| candidate.symbol == parameter.symbol)?;
-                let field = if let Some(concrete) = concrete {
-                    self.program
-                        .data_members(concrete)
-                        .get(descriptor_ordinal)?
-                        .as_field()?
-                } else {
-                    field
-                };
-                Some((field.symbol, *arguments.get(ordinal)?))
-            })
+            .data_application_value_fields(application.reference)
+            .into_iter()
+            .map(|(_, field, argument)| (field.symbol, argument))
             .collect()
     }
 
@@ -457,7 +523,7 @@ impl Scope<'_> {
         &self,
         value: ExpressionHandle,
         argument: TypeReferenceHandle,
-        application: &Application,
+        application: &Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let static_equal = self.static_index(argument).is_some_and(|required| {
@@ -499,7 +565,7 @@ impl Scope<'_> {
     fn descriptor_target(
         &self,
         target: ExpressionHandle,
-    ) -> Option<(Application, TypeReferenceHandle)> {
+    ) -> Option<(Application<'_>, TypeReferenceHandle)> {
         let selected = match self.program.expression_table.expression(target) {
             ExpressionNode::Member(member) => self
                 .actual(member.receiver)
@@ -529,6 +595,9 @@ impl Scope<'_> {
                     reference,
                     formation,
                     substitutions: Vec::new(),
+                    arguments: Vec::new(),
+                    call: None,
+                    position: None,
                 };
                 for symbol in prefix.iter().skip(1) {
                     let reference = self
@@ -587,7 +656,7 @@ impl Scope<'_> {
     fn check_binding(
         &self,
         expression: ExpressionHandle,
-        required: Application,
+        required: Application<'_>,
         erased: bool,
         expected_proof_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -1221,7 +1290,7 @@ impl Scope<'_> {
     fn check(
         &self,
         expression: ExpressionHandle,
-        required: Application,
+        required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if !self.has_indices(required.reference, 0) {
@@ -1254,6 +1323,9 @@ impl Scope<'_> {
                         reference: cast.target_type,
                         formation: self.statement,
                         substitutions: Vec::new(),
+                        arguments: Vec::new(),
+                        call: None,
+                        position: None,
                     },
                     diagnostics,
                 );
@@ -1432,6 +1504,9 @@ pub(super) fn check(
                         reference: local.type_reference,
                         formation: statement,
                         substitutions: Vec::new(),
+                        arguments: Vec::new(),
+                        call: None,
+                        position: None,
                     },
                     local.relevance.is_erased(),
                     typed_trees::type_identity::applied_type_identity(
@@ -1449,6 +1524,9 @@ pub(super) fn check(
                             reference: state.return_type,
                             formation: 0,
                             substitutions: Vec::new(),
+                            arguments: Vec::new(),
+                            call: None,
+                            position: None,
                         },
                         diagnostics,
                     ),
@@ -1473,6 +1551,9 @@ pub(super) fn check(
                                     reference: state.return_type,
                                     formation: 0,
                                     substitutions: Vec::new(),
+                                    arguments: Vec::new(),
+                                    call: None,
+                                    position: None,
                                 },
                                 diagnostics,
                             );
@@ -1505,7 +1586,8 @@ pub(super) fn check(
                 target: TransitionTargetHandle::invalid(),
                 frames,
             };
-            let substitutions = scope.argument_substitutions(parameters, &arguments);
+            let (substitutions, captured_arguments) =
+                scope.argument_substitutions(parameters, &arguments);
             for (position, (parameter, argument)) in
                 parameters.iter().zip(arguments.iter()).enumerate()
             {
@@ -1515,6 +1597,9 @@ pub(super) fn check(
                         reference: parameter.type_reference,
                         formation: call.statement_index,
                         substitutions: substitutions.clone(),
+                        arguments: captured_arguments.clone(),
+                        call: Some(site),
+                        position: Some(position),
                     },
                     parameter.relevance.is_erased(),
                     (parameter.relevance.is_erased()

@@ -7,7 +7,7 @@ use crate::{AllocationLegalityError, ValidatedAllocatorAvailability};
 use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
 use selected_instructions::FunctionLiveRanges;
 
-pub(super) fn compute(
+pub(crate) fn compute(
     function_index: usize,
     function: &FunctionLiveRanges,
     availability: &ValidatedAllocatorAvailability,
@@ -15,6 +15,22 @@ pub(super) fn compute(
     reservations: &ValidatedRegisterReservationProfile,
 ) -> Result<FunctionAllocationLegality, AllocationLegalityError> {
     let mut candidates = CandidateViews::new(function, physical, reservations);
+    let max_early_reg = function
+        .early_clobbers
+        .iter()
+        .map(|early| early.def_virtual_register.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut early_by_register: Vec<Vec<&selected_instructions::EarlyClobberConstraint>> =
+        if function.early_clobbers.is_empty() {
+            Vec::new()
+        } else {
+            let mut grouped = vec![Vec::new(); max_early_reg + 1];
+            for early in &function.early_clobbers {
+                grouped[early.def_virtual_register.0 as usize].push(early);
+            }
+            grouped
+        };
     let virtual_registers = function
         .virtual_registers
         .iter()
@@ -48,9 +64,12 @@ pub(super) fn compute(
                 entry_point,
                 &mut candidates,
             )?;
+            let early_slice = early_by_register
+                .get(register.virtual_register.0 as usize)
+                .map_or(&[][..], Vec::as_slice);
             let early_clobber_points = early_clobbers::compute(
                 function_index,
-                function,
+                early_slice,
                 register,
                 class,
                 available,
@@ -66,6 +85,7 @@ pub(super) fn compute(
             })
         })
         .collect::<Result<Vec<_>, AllocationLegalityError>>()?;
+    let _ = &mut early_by_register;
     Ok(FunctionAllocationLegality {
         machine: function.machine,
         virtual_registers,

@@ -19,19 +19,20 @@ pub enum TerminalScalarValue {
 
 pub use terminal_installation::TerminalStructuralValue;
 
-/// Exact target-neutral host/result payload for a selected scalar sum case.
+/// Exact target-neutral scalar record or selected scalar sum-case contents.
 ///
+/// A missing discriminator denotes a record; a present one denotes a sum case.
 /// This payload contains no storage identity or custody. Import validates it
 /// before publishing an ordinary placed home; export snapshots that home's
-/// actual discriminator and scalar cells rather than keeping a second carrier.
+/// actual optional discriminator and scalar cells rather than keeping a second carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalScalarCaseValue {
+pub struct TerminalScalarAggregateValue {
     pub structural_type: StructuralTypeId,
-    pub result_case: StructuralCaseId,
+    pub result_case: Option<StructuralCaseId>,
     pub fields: Vec<(semantic_vocabulary::StructuralFieldId, TerminalScalarValue)>,
 }
 
-impl TerminalScalarCaseValue {
+impl TerminalScalarAggregateValue {
     /// Admit actual scalar payload contents, not a tag inferred from an opaque
     /// identity. Both ordinary construction and external completion use this
     /// join; carrier equality alone does not establish bounded field contents.
@@ -40,15 +41,27 @@ impl TerminalScalarCaseValue {
         declaration: &terminal_psi::StructuralTypeDeclaration,
     ) -> Result<(), crate::errors::TerminalInterpretError> {
         use crate::errors::malformed;
-        let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-            return Err(malformed());
+        let fields = match (&declaration.shape, self.result_case) {
+            (terminal_psi::StructuralTypeShape::Record { fields, storage }, None)
+                if !matches!(
+                    storage,
+                    terminal_psi::StructuralRecordStorage::PlacedView(_)
+                        | terminal_psi::StructuralRecordStorage::PlacedAccessor(_)
+                ) =>
+            {
+                fields
+            }
+            (terminal_psi::StructuralTypeShape::Sum { cases }, Some(case)) => {
+                &terminal_psi::find_structural_case(cases, case)
+                    .ok_or_else(malformed)?
+                    .fields
+            }
+            _ => return Err(malformed()),
         };
-        let selected =
-            terminal_psi::find_structural_case(cases, self.result_case).ok_or_else(malformed)?;
-        if declaration.id != self.structural_type
-            || selected.fields.len() != self.fields.len()
-            || selected
-                .fields
+        if declaration.quotient_carrier.is_some()
+            || declaration.id != self.structural_type
+            || fields.len() != self.fields.len()
+            || fields
                 .iter()
                 .zip(&self.fields)
                 .any(|(field, (identity, value))| {
@@ -215,5 +228,110 @@ pub(crate) fn scalar_view_value(
         TerminalScalarValue::IeeeFloat(value) => {
             terminal_semantics::ScalarViewValue::IeeeFloat(*value)
         }
+    }
+}
+
+#[cfg(test)]
+mod scalar_aggregate_tests {
+    use super::*;
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalIdentityIndex,
+    };
+
+    fn integer() -> IntegerType {
+        IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64).unwrap()
+    }
+    fn declaration() -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: StructuralTypeId::new(1).unwrap(),
+            identity: TerminalIdentityIndex(1),
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            shape: StructuralTypeShape::Record {
+                fields: (1..=2)
+                    .map(|id| StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(id).unwrap(),
+                        identity: TerminalIdentityIndex(id as u32),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(integer())),
+                        storage: None,
+                    })
+                    .collect(),
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+            },
+            scalar_restriction: None,
+        }
+    }
+    fn payload() -> TerminalScalarAggregateValue {
+        TerminalScalarAggregateValue {
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            result_case: None,
+            fields: (1..=2)
+                .map(|id| {
+                    (
+                        StructuralFieldId::new(id).unwrap(),
+                        TerminalScalarValue::Integer {
+                            scalar_type: integer(),
+                            value: IntegerValue::Signed(-(id as i128)),
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+    #[test]
+    fn scalar_record_requires_complete_ordered_typed_fields() {
+        let d = declaration();
+        let p = payload();
+        assert!(p.validate_against(&d).is_ok());
+        let mut bad = p.clone();
+        bad.fields.swap(0, 1);
+        assert!(bad.validate_against(&d).is_err());
+        let mut bad = p.clone();
+        bad.fields.pop();
+        assert!(bad.validate_against(&d).is_err());
+        let mut bad = p.clone();
+        bad.fields.push(p.fields[0]);
+        assert!(bad.validate_against(&d).is_err());
+        let mut bad = p.clone();
+        bad.fields[0].1 = TerminalScalarValue::Boolean(true);
+        assert!(bad.validate_against(&d).is_err());
+        let mut bad = p.clone();
+        bad.fields[0].1 = TerminalScalarValue::Integer {
+            scalar_type: integer(),
+            value: IntegerValue::Signed(i128::MAX),
+        };
+        assert!(bad.validate_against(&d).is_err());
+        let mut bad = p.clone();
+        bad.structural_type = StructuralTypeId::new(2).unwrap();
+        assert!(bad.validate_against(&d).is_err());
+    }
+    #[test]
+    fn record_and_sum_discriminators_cannot_be_interchanged() {
+        let record = declaration();
+        let p = payload();
+        let case = StructuralCaseId::new(1).unwrap();
+        let mut tagged = p.clone();
+        tagged.result_case = Some(case);
+        assert!(tagged.validate_against(&record).is_err());
+        let StructuralTypeShape::Record { fields, .. } = record.shape.clone() else {
+            unreachable!()
+        };
+        let mut sum = record;
+        sum.shape = StructuralTypeShape::Sum {
+            cases: vec![terminal_psi::StructuralCaseDeclaration {
+                id: case,
+                identity: TerminalIdentityIndex(3),
+                fields,
+            }],
+        };
+        assert!(p.validate_against(&sum).is_err());
+        assert!(tagged.validate_against(&sum).is_ok());
+        tagged.result_case = Some(StructuralCaseId::new(2).unwrap());
+        assert!(tagged.validate_against(&sum).is_err());
     }
 }
