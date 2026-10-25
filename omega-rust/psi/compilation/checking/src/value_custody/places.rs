@@ -484,7 +484,7 @@ pub use builtin_coordinates::{
 };
 pub use builtin_coordinates::{
     place_has_builtin_coordinates, value_element_has_builtin_coordinate,
-    value_has_builtin_coordinates,
+    value_has_builtin_coordinates, value_has_builtin_coordinates_with_types,
 };
 pub use exact_self_field::exact_attached_field;
 pub use exact_self_field::exact_self_field;

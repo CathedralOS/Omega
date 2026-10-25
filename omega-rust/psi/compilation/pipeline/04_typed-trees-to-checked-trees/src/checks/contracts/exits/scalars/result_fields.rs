@@ -18,6 +18,8 @@
 
 use validation::CanonicalPlace;
 
+mod descriptor_lengths;
+
 use super::{ExitScalars, ExpressionHandle, ScalarValue, exit_return_expression, stable_segments};
 use crate::flow::{self};
 use checked_trees::CheckedScalarExpression;
@@ -62,6 +64,9 @@ impl ExitScalars<'_, '_> {
             },
             expression,
             |occurrence, primitive| {
+                if let Some(length) = self.returned_descriptor_length(occurrence) {
+                    return Some(length);
+                }
                 if let Some(length) = arithmetic::collection_length_value(
                     self.program,
                     &Callable::Machine {

@@ -662,8 +662,11 @@ defines the complete product bar.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships: ranked structural returns still
-    lose descriptor-length equalities at recursive exits. Preserve copied returns
+    the same producer and custody relationships. Retain the computed-descriptor
+    row's ranked identity return, including a local carrier copy, contextual
+    literal window and disjoint descriptor writes. Finite descriptor-leaf
+    equations retain exact immutable input-slot metadata; growing pointee paths,
+    changed inputs and divergent return identities must not acquire equalities. Preserve copied returns
     from mutated borrowed record fields and stored array elements through the
     existing computed-descriptor fact row, including saved descriptors returned
     after their former slot changes again and untouched element/sibling storage.
