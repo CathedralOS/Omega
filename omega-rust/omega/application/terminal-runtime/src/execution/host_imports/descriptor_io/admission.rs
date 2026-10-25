@@ -58,7 +58,9 @@ pub(super) fn admit(
     let descriptor_type = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
     let width: u16 = match abi {
         DescriptorAbi::WindowsCrt => 32,
-        DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxKernel => 64,
+        DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc | DescriptorAbi::LinuxKernel => {
+            64
+        }
     };
     let count_type = IntegerType::new(IntegerSign::Unsigned, width).map_err(|_| invalid())?;
     let result_type = IntegerType::new(IntegerSign::Signed, width).map_err(|_| invalid())?;

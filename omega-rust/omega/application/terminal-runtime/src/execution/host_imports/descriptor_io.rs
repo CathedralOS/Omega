@@ -11,6 +11,9 @@
 //! The same transfer serves retained or discarded counts. Linux kernel errors
 //! are not libc errno: unknown descriptors and host replay failures reject,
 //! rather than manufacturing a raw kernel status or touching OS descriptors.
+//! Versioned Linux libc write uses the same private output and captured backing,
+//! with its own size_t/ssize_t ABI. Unsupported descriptors decline before output;
+//! this offer supplies neither libc read nor observable TLS errno state.
 
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -207,7 +210,11 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 // for supported 4K/16K/64K pages. Larger requests need that model;
                 // never silently report an impossible full-count write. This is
                 // interpreter availability, not a compiler count restriction.
-                if matches!(self.contract.abi, DescriptorAbi::LinuxKernel) && count > 0x7fff0000 {
+                if matches!(
+                    self.contract.abi,
+                    DescriptorAbi::LinuxKernel | DescriptorAbi::LinuxLibc
+                ) && count > 0x7fff0000
+                {
                     return Err(TerminalEffectRejection::new(
                         "transfer count requires the selected kernel page-size limit",
                     ));

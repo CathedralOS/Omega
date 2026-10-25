@@ -12,6 +12,7 @@ pub enum DescriptorOperation {
 pub enum DescriptorAbi {
     WindowsCrt,
     DarwinLibSystem,
+    LinuxLibc,
     LinuxKernel,
 }
 
@@ -22,6 +23,7 @@ pub fn descriptor_import(
     let abi = match target {
         TargetProfile::MacosArm64 | TargetProfile::MacosX64 => DescriptorAbi::DarwinLibSystem,
         TargetProfile::WindowsX64 => DescriptorAbi::WindowsCrt,
+        TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => DescriptorAbi::LinuxLibc,
         _ => return None,
     };
     for (symbol, operation) in [
@@ -37,7 +39,22 @@ pub fn descriptor_import(
                 library: b"msvcrt.dll".to_vec(),
                 export: symbol.to_vec(),
             },
-            DescriptorAbi::LinuxKernel => return None,
+            // The finite private-output adapter offers libc write, whose
+            // size_t/ssize_t contract is distinct from raw syscall errors.
+            // Libc read is not offered: recognizing it here would also admit
+            // native input-prefix guards and require an input/errno model.
+            DescriptorAbi::LinuxLibc if operation == DescriptorOperation::Write => {
+                ForeignLocatorCandidate::ElfVersioned {
+                    object: b"libc.so.6".to_vec(),
+                    symbol: b"write".to_vec(),
+                    version: match target {
+                        TargetProfile::LinuxX64 => b"GLIBC_2.2.5".to_vec(),
+                        TargetProfile::LinuxArm64 => b"GLIBC_2.17".to_vec(),
+                        _ => return None,
+                    },
+                }
+            }
+            DescriptorAbi::LinuxLibc | DescriptorAbi::LinuxKernel => continue,
         };
         if target::normalize_foreign_locator(candidate, target)
             .ok()
@@ -62,4 +79,73 @@ pub fn descriptor_system_call(
         _ => return None,
     };
     Some((DescriptorAbi::LinuxKernel, operation))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn libc(
+        target: TargetProfile,
+        object: &[u8],
+        symbol: &[u8],
+        version: &[u8],
+    ) -> NormalizedForeignLocator {
+        target::normalize_foreign_locator(
+            ForeignLocatorCandidate::ElfVersioned {
+                object: object.to_vec(),
+                symbol: symbol.to_vec(),
+                version: version.to_vec(),
+            },
+            target,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn libc_write_keeps_the_selected_version_and_syscall_contract_distinct() {
+        for (target, version, number) in [
+            (TargetProfile::LinuxX64, b"GLIBC_2.2.5".as_slice(), 1),
+            (TargetProfile::LinuxArm64, b"GLIBC_2.17".as_slice(), 64),
+        ] {
+            assert_eq!(
+                descriptor_import(&libc(target, b"libc.so.6", b"write", version)),
+                Some((DescriptorAbi::LinuxLibc, DescriptorOperation::Write))
+            );
+            assert_eq!(
+                descriptor_system_call(target, number),
+                Some((DescriptorAbi::LinuxKernel, DescriptorOperation::Write))
+            );
+            assert_eq!(
+                descriptor_import(&libc(target, b"libc.so.6", b"read", version)),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn a_lookalike_export_or_other_libc_version_is_not_an_offer() {
+        for (object, symbol, version) in [
+            (
+                b"other.so.6".as_slice(),
+                b"write".as_slice(),
+                b"GLIBC_2.2.5".as_slice(),
+            ),
+            (
+                b"libc.so.6".as_slice(),
+                b"_write".as_slice(),
+                b"GLIBC_2.2.5".as_slice(),
+            ),
+            (
+                b"libc.so.6".as_slice(),
+                b"write".as_slice(),
+                b"GLIBC_2.17".as_slice(),
+            ),
+        ] {
+            assert_eq!(
+                descriptor_import(&libc(TargetProfile::LinuxX64, object, symbol, version)),
+                None
+            );
+        }
+    }
 }
