@@ -91,14 +91,6 @@ pub(super) fn plan(
     let entry = trace.mark();
     let planned = plan_inner(planner, index, statement_index, local);
     if planned.is_none() {
-        if std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-            eprintln!(
-                "LOCAL_PRODUCTION_DECLINE statement={statement_index} initializer={:?} type={:?} entry={entry:?} refusal={:?}",
-                local.initial_value,
-                local.type_reference,
-                trace.mark(),
-            );
-        }
         trace.restore(&entry);
     }
     planned

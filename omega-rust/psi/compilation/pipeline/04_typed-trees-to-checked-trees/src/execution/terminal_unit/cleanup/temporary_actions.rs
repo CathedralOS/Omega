@@ -247,25 +247,19 @@ fn sequence_actions(
     completion: Option<(&CheckedUnitEffectOperationPlan, OperationSequence<'_>)>,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
 ) -> Option<OperationSelections> {
-    let mut phase = "sequence entry";
-    let mut position = None;
     let selected = (|| {
         let mut selected = OperationSelections::default();
         for operation_index in 0..sequence.len() {
-            position = Some(operation_index);
-            phase = "operation lookup";
             let operation = sequence.get(operation_index)?;
             if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } =
                 operation
             {
-                phase = "release owner roster";
                 let owners = shapes
                     .cleanup_control
                     .reference_owner_cleanups
                     .span(*owner_cleanups)?
                     .to_vec();
                 for (ordinal, owner) in owners.into_iter().enumerate() {
-                    phase = "release owner actions";
                     let actions = owner_group_actions(
                         program,
                         facts,
@@ -274,7 +268,6 @@ fn sequence_actions(
                         owner.disposition,
                         owner.owner.source,
                     )?;
-                    phase = "empty release owner actions";
                     if actions.is_empty() {
                         return None;
                     }
@@ -295,7 +288,6 @@ fn sequence_actions(
             {
                 let mut nested = Vec::new();
                 for (call_index, call) in calls.iter().enumerate() {
-                    phase = "retained value-call completion";
                     let actions = value_call_actions(
                         program,
                         facts,
@@ -320,7 +312,6 @@ fn sequence_actions(
                     boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
                     ..
                 } => {
-                    phase = "replacement actions";
                     selected.continuations.push((
                         operation_index,
                         super::replacements::actions(
@@ -333,7 +324,6 @@ fn sequence_actions(
                     cleanup_actions,
                     ..
                 } => {
-                    phase = "call continuation source correspondence";
                     let prior = sequence.prefix(operation_index)?;
                     // Retained nested calls keep their own invocation identities.
                     // The dependency inventory locates a source; it does not turn
@@ -358,7 +348,6 @@ fn sequence_actions(
                         (None, Some(completion)) => completion,
                         (None, None) => return None,
                     };
-                    phase = "call continuation actions";
                     let actions = call_actions(
                         program,
                         facts,
@@ -378,19 +367,6 @@ fn sequence_actions(
         }
         Some(selected)
     })();
-    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-        let operation = position.and_then(|position| sequence.get(position));
-        eprintln!(
-            "TEMPORARY_CLEANUP_SEQUENCE_REFUSAL machine={} state={} position={:?} phase={} statement={:?} call={:?} result={:?}",
-            program.symbols.name(machine),
-            program.symbols.name(state),
-            position,
-            phase,
-            operation.and_then(CheckedUnitEffectOperationPlan::source_statement_index),
-            operation.and_then(CheckedUnitEffectOperationPlan::invocation_coordinate),
-            operation.and_then(CheckedUnitEffectOperationPlan::structural_result_binding),
-        );
-    }
     selected
 }
 
@@ -448,19 +424,12 @@ fn call_actions(
     cleanup_actions: &[CheckedNormalCleanupAction],
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
 ) -> Option<SelectedActions> {
-    let mut phase = "call cleanup entry";
-    let mut current_source = None;
-    let mut current_root = None;
     let selected = (|| {
-        phase = "consumer coordinate";
         let coordinate = consumer.invocation_coordinate()?;
         let mut sources = Vec::new();
         let mut completed = Vec::new();
         for action in cleanup_actions {
             let source = action.source();
-            current_source = Some(source);
-            current_root = None;
-            phase = "source group";
             if sources.contains(source) {
                 continue;
             }
@@ -471,7 +440,6 @@ fn call_actions(
                     .structural_result_binding()
                     .is_some_and(|result| result.binding_ordinal == binding_ordinal)
             {
-                phase = "discarded result action kind";
                 // This call's discarded output has its own result disposition;
                 // it is not an operand owner and may have no expression root.
                 if cleanup_actions
@@ -489,7 +457,6 @@ fn call_actions(
                 );
                 continue;
             }
-            phase = "source producer correspondence";
             let root = match *source {
                 CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
                     // Rejoin the same exact binding selected at normal completion,
@@ -519,8 +486,6 @@ fn call_actions(
                 }
                 _ => return None,
             };
-            current_root = root;
-            phase = "contextual death presence";
             let contextual = root.is_some_and(|root| {
                 facts
                     .contextual_cleanup
@@ -538,7 +503,6 @@ fn call_actions(
                     })
             });
             if !contextual {
-                phase = "home retirement without contextual death";
                 // An existing independent disposal is not a contextual death.
                 // An unresolved home-retirement request cannot borrow its authority.
                 if cleanup_actions.iter().any(|action| {
@@ -558,7 +522,6 @@ fn call_actions(
             // A real retained release owns this complete source group, even when
             // it is later or nested in another value call's completion sequence.
             // Independent disposal above requires no contextual call association.
-            phase = "exact checked consumer";
             let consumer = facts.flow.control.call_at(
                 state,
                 coordinate.statement_index as usize,
@@ -579,7 +542,6 @@ fn call_actions(
             }
             // Row presence authorizes selection. An admitted empty complement is
             // not the absence of a disposition, and its shape is not re-derived.
-            phase = "contextual disposition actions";
             completed.extend(selected_actions(
                 program,
                 facts,
@@ -598,18 +560,6 @@ fn call_actions(
             selected_regions: Vec::new(),
         })
     })();
-    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-        eprintln!(
-            "TEMPORARY_CLEANUP_CALL_REFUSAL machine={} state={} coordinate={:?} phase={} source={:?} root={:?} cleanup={:?}",
-            program.symbols.name(machine),
-            program.symbols.name(state),
-            consumer.invocation_coordinate(),
-            phase,
-            current_source,
-            current_root,
-            cleanup_actions,
-        );
-    }
     selected
 }
 

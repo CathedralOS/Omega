@@ -34,9 +34,6 @@ pub(crate) fn retain_shapes(
     state: SymbolHandle,
     shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
 ) -> Option<()> {
-    let mut failure_phase = "initial inventory";
-    let mut failure_structural = arena::Handle::<checked_trees::CheckedStructuralValue>::invalid();
-    let mut failure_scalar = arena::Handle::<checked_trees::CheckedScalarComputation>::invalid();
     let retained = (|| {
         // A stored reference publishes only its pointer shape. Forming one also
         // demands actual backing storage, whether named or computed. Follow the
@@ -44,11 +41,7 @@ pub(crate) fn retain_shapes(
         // speculative arena nodes; recursive pointer catalogs stay finite.
         let mut retained_values = Vec::new();
         for root in structural_values.roots_for_state(state) {
-            failure_phase = "structural dependency inventory";
-            failure_structural = root.root;
             for value in structural_values.value_dependencies(root.root)? {
-                failure_phase = "structural dependency fields/reference shapes";
-                failure_structural = value;
                 if retained_values.contains(&value) {
                     continue;
                 }
@@ -123,8 +116,6 @@ pub(crate) fn retain_shapes(
         let mut pending = plans.roots_for_state(state);
         let mut visited = Vec::new();
         while let Some(handle) = pending.pop() {
-            failure_phase = "scalar node inventory";
-            failure_scalar = handle;
             if !plans.nodes.is_valid(handle) {
                 return None;
             }
@@ -132,7 +123,6 @@ pub(crate) fn retain_shapes(
                 continue;
             }
             visited.push(handle);
-            failure_phase = "scalar node dependencies/shapes";
             match &plans.nodes.get(handle).kind {
                 CheckedScalarComputationKind::CaseMembership {
                     subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
@@ -169,8 +159,6 @@ pub(crate) fn retain_shapes(
                     if !structural_values.nodes.is_valid(*receiver_value) {
                         return None;
                     }
-                    failure_phase = "scalar receiver exact root";
-                    failure_structural = *receiver_value;
                     let mut roots = structural_values.roots.iter().filter_map(|(_, root)| {
                         (root.state == state && root.root == *receiver_value).then_some(root)
                     });
@@ -325,8 +313,6 @@ pub(crate) fn retain_shapes(
                                 pending.push(*value)
                             }
                             checked_trees::CheckedScalarEvaluationOperand::Structural(value) => {
-                                failure_phase = "ordered evaluation structural operand exact root";
-                                failure_structural = *value;
                                 let root = structural_values.root_for_value(*value)?;
                                 retain_declarations(
                                     shapes,
@@ -347,69 +333,6 @@ pub(crate) fn retain_shapes(
         }
         Some(())
     })();
-    if retained.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-        let call_arguments = plans
-            .nodes
-            .is_valid(failure_scalar)
-            .then(|| match &plans.nodes.get(failure_scalar).kind {
-                CheckedScalarComputationKind::Call {
-                    structural_arguments,
-                    ..
-                } => plans.structural_arguments.span(*structural_arguments),
-                _ => None,
-            })
-            .flatten();
-        let argument_sources = call_arguments.map(|arguments| arguments.iter().filter_map(|argument| {
-            let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
-                return None;
-            };
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } = argument.source else {
-                return None;
-            };
-            let node = program.expression_table.expression_is_valid(expression)
-                .then(|| program.expression_table.expression(expression));
-            let saved_source = match node {
-                Some(typed_trees::expression::ExpressionNode::SavedSubject(saved)) => {
-                    program.expression_table.saved_subject_source(saved)
-                }
-                _ => None,
-            };
-            let saved_node = saved_source.filter(|expression| program.expression_table.expression_is_valid(*expression))
-                .map(|expression| program.expression_table.expression(expression));
-            Some((expression, node, saved_source, saved_node))
-        }).collect::<Vec<_>>());
-        eprintln!(
-            "VIEW_CONSTRUCTION_SHAPES_REFUSAL state={:?} phase={} structural={:?} structural_node={:?} structural_exact_roots={:?} scalar={:?} scalar_node={:?} retained_shape_count={} call_arguments={:?} argument_sources={:?} state_root_count={} state_roots_prefix={:?}",
-            state,
-            failure_phase,
-            failure_structural,
-            structural_values
-                .nodes
-                .is_valid(failure_structural)
-                .then(|| structural_values.nodes.get(failure_structural)),
-            structural_values
-                .roots
-                .iter()
-                .filter(|(_, root)| root.state == state && root.root == failure_structural)
-                .take(4)
-                .map(|(_, root)| root)
-                .collect::<Vec<_>>(),
-            failure_scalar,
-            plans
-                .nodes
-                .is_valid(failure_scalar)
-                .then(|| plans.nodes.get(failure_scalar)),
-            shapes.len(),
-            call_arguments,
-            argument_sources,
-            structural_values.roots_for_state(state).len(),
-            structural_values
-                .roots_for_state(state)
-                .iter()
-                .take(32)
-                .collect::<Vec<_>>(),
-        );
-    }
     retained
 }
 

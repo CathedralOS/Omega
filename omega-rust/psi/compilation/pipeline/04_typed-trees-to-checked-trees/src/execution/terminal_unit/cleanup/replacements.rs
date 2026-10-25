@@ -29,8 +29,6 @@ pub(super) fn actions(
     parameters: &[CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<super::temporary_actions::SelectedActions> {
-    let mut phase = "replacement boundary";
-    let mut current_disposition = None;
     let selected = (|| {
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary:
@@ -45,7 +43,6 @@ pub(super) fn actions(
         else {
             return None;
         };
-        phase = "destination root";
         let source = &destination.source;
         let root = match *source {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
@@ -110,7 +107,6 @@ pub(super) fn actions(
             &destination.path,
         );
         let carrier_discard = if let Some(carrier) = carrier_death {
-            phase = "stored reference carrier correspondence";
             let declaration = shapes.types.get(&destination.type_identity)?;
             let reference = validation::canonical_place_type_reference(
                 program,
@@ -179,8 +175,6 @@ pub(super) fn actions(
             .contextual_cleanup
             .state_disposition_handles(machine, state)
         {
-            current_disposition = Some(disposition_handle);
-            phase = "disposition path";
             let disposition = facts
                 .contextual_cleanup
                 .dispositions
@@ -219,7 +213,6 @@ pub(super) fn actions(
             if disposition.root != root && !replaced {
                 continue;
             }
-            phase = "typed old-value path";
             let path = if replaced {
                 destination.path.clone()
             } else {
@@ -250,7 +243,6 @@ pub(super) fn actions(
                 if displaced {
                     return None;
                 }
-                phase = "selected old-value region";
                 let mut region = super::actions::selected_region(
                     program,
                     facts,
@@ -266,7 +258,6 @@ pub(super) fn actions(
                     selected_regions.push(region);
                 }
             }
-            phase = "old-value disposition actions";
             let selected_actions = super::actions::disposition_actions(
                 program,
                 facts,
@@ -280,7 +271,6 @@ pub(super) fn actions(
             // Missing disposition evidence remains different from zero actions.
             selected_disposition = true;
             for mut action in selected_actions {
-                phase = "selected action boundary";
                 let action_path = match &action {
                     CheckedNormalCleanupAction::Discard(action) => &action.path,
                     CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
@@ -306,7 +296,6 @@ pub(super) fn actions(
                     );
                 }
                 if displaced {
-                    phase = "displaced action correspondence";
                     let conditions = shapes
                         .cleanup_control
                         .conditions
@@ -350,7 +339,6 @@ pub(super) fn actions(
         }
         // An occupied affine value cannot silently become a raw discard when its
         // source death is absent. The producer must supply that occurrence first.
-        phase = "replacement disposition coverage";
         if actions.is_empty() && !selected_disposition {
             return None;
         }
@@ -360,7 +348,6 @@ pub(super) fn actions(
         {
             // Owned selected replacements have no displaced temporary: these
             // paths still name the original containing owner before its store.
-            phase = "selected replacement cleanup order";
             super::order::merge(
                 program,
                 state,
@@ -387,40 +374,5 @@ pub(super) fn actions(
             selected_regions,
         })
     })();
-    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-        eprintln!(
-            "REPLACEMENT_CLEANUP_REFUSAL machine={} state={} phase={} disposition={:?} operation={:?}",
-            program.symbols.name(machine),
-            program.symbols.name(state),
-            phase,
-            current_disposition,
-            operation,
-        );
-        if let CheckedUnitEffectOperationPlan::ContinuationCleanup {
-            boundary:
-                checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                    statement_index, ..
-                },
-            ..
-        } = operation
-        {
-            for (handle, row) in facts.contextual_cleanup.dispositions.iter() {
-                if row.machine == machine
-                    && row.state == state
-                    && row.source
-                        == (PermissionEventSource::Statement {
-                            statement_index: *statement_index as usize,
-                        })
-                {
-                    eprintln!(
-                        "REPLACEMENT_CLEANUP_INPUT handle={handle:?} row={row:?} path={:?} exclusions={:?} inactive={:?}",
-                        facts.flow.ownership.segments.span(row.path),
-                        facts.contextual_cleanup.exclusions.span(row.exclusions),
-                        facts.contextual_cleanup.exclusions.span(row.inactive_cases),
-                    );
-                }
-            }
-        }
-    }
     selected
 }

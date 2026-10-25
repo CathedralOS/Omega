@@ -89,10 +89,8 @@ pub(super) fn selected_region(
     source: CheckedUnitStructuralArgumentSourcePlan,
     captured_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-    let mut phase = "cleanup disposition entry";
     let selected = (|| {
         let disposition = facts.contextual_cleanup.dispositions.get(handle);
-        phase = "disposed owner machine";
         let machine = program.machine_by_symbol(disposition.machine)?;
         let statement = match disposition.source {
             language_semantics::PermissionEventSource::Statement { statement_index }
@@ -110,7 +108,6 @@ pub(super) fn selected_region(
                 .span_or_empty(disposition.path)
                 .to_vec(),
         };
-        phase = "disposed source type";
         let reference = if disposition.disposed_type.is_valid() {
             disposition.disposed_type
         } else {
@@ -121,7 +118,6 @@ pub(super) fn selected_region(
                 &place,
             )?
         };
-        phase = "typed selected region path";
         let path = if let Some(path) = captured_path {
             path.to_vec()
         } else if place.segments.is_empty() {
@@ -137,7 +133,6 @@ pub(super) fn selected_region(
             )?
             .1
         };
-        phase = "selected region stored shape";
         Some(checked_trees::CheckedUnitStructuralArgumentPlan {
             projection_evaluations: Default::default(),
             source,
@@ -150,9 +145,6 @@ pub(super) fn selected_region(
             access: checked_trees::CheckedStructuralAccess::Owned,
         })
     })();
-    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-        trace_disposition_refusal(program, facts, handle, "selected_region", phase);
-    }
     selected
 }
 
@@ -165,7 +157,6 @@ pub(super) fn disposition_actions(
     source: CheckedUnitStructuralArgumentSourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
-    let mut phase = "cleanup disposition entry";
     let selected = (|| {
         let disposition = facts
             .contextual_cleanup
@@ -174,7 +165,6 @@ pub(super) fn disposition_actions(
         let selected_disposition = facts
             .contextual_cleanup
             .is_selected_disposition(disposition_handle);
-        phase = "disposed owner machine";
         let machine = program.machine_by_symbol(disposition.machine)?;
         let binders = machine_binders(program, machine);
         let statement_index = match disposition.source {
@@ -186,13 +176,10 @@ pub(super) fn disposition_actions(
             }
             _ => disposition.exit.statement_index,
         };
-        phase = "selected cleanup leaves";
         let selected = crate::flow::selected_cleanup_leaves(program, facts, disposition)?;
-        phase = "cleanup case evidence";
         let case_evidence = crate::flow::CleanupCaseEvidence::new(program, facts, disposition)?;
         let case_reachability =
             |segments: &[facts::PlaceSegment]| case_evidence.reachability(segments);
-        phase = "disposed path";
         let place = validation::CanonicalPlace {
             root: disposition.root,
             segments: facts
@@ -202,7 +189,6 @@ pub(super) fn disposition_actions(
                 .span(disposition.path)?
                 .to_vec(),
         };
-        phase = "disposed source type";
         let reference = if disposition.disposed_type.is_valid() {
             disposition.disposed_type
         } else {
@@ -216,12 +202,10 @@ pub(super) fn disposition_actions(
         // A disposed reference is its stored descriptor, not the referee beneath
         // its access shell. Use the same storage identity as fields and receiving
         // slots; ordinary value types retain their existing shape.
-        phase = "disposed stored shape";
         let type_identity = shapes.add_stored_type(reference, &binders, &[])?;
         // A caller that already holds the dying place in its own operand
         // namespace supplies it: a runtime-selected element has no static
         // argument path, but its store names the same place.
-        phase = "typed disposed region path";
         let path = if let Some(place_path) = place_path {
             place_path.to_vec()
         } else if place.segments.is_empty() {
@@ -238,14 +222,12 @@ pub(super) fn disposition_actions(
             .1
         };
         let mut moved = Vec::new();
-        phase = "excluded region correspondence";
         for removed in facts
             .contextual_cleanup
             .exclusions
             .span(disposition.exclusions)?
         {
             let excluded = facts.contextual_cleanup.segments.span(removed.segments)?;
-            phase = "excluded case reachability";
             // The shared selected-leaf query already checked disjointness
             // from exclusions outside this exact dying subtree. Sibling
             // geometry must not ask for an unrelated case observation.
@@ -283,7 +265,6 @@ pub(super) fn disposition_actions(
             if relative_segments.is_empty() {
                 return (removed.root == disposition.root && selected.is_empty()).then(Vec::new);
             }
-            phase = "typed moved region path";
             let (reference, relative_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
                     program,
@@ -299,7 +280,6 @@ pub(super) fn disposition_actions(
             moved.push((relative_path, shapes.add_type(reference, &binders, &[])?));
         }
         let mut hooks = Vec::new();
-        phase = "selected cleanup leaf kind";
         for leaf in selected {
             let crate::flow::CleanupLeaf::Nominal {
                 machine: hook,
@@ -312,7 +292,6 @@ pub(super) fn disposition_actions(
             // range in that captured prefix. Expand only array children inside
             // the value; expanding the prefix again would turn one selected view
             // element into several unrelated receivers and lose its occurrence.
-            phase = "nominal leaf correspondence";
             let relative_path = selected_path.strip_prefix(place.segments.as_slice())?;
             for relative_segments in crate::flow::concrete_cleanup_paths(relative_path)? {
                 let mut segments = place.segments.clone();
@@ -336,7 +315,6 @@ pub(super) fn disposition_actions(
                 let selected_type = shapes.add_type(selected_reference, &binders, &[])?;
                 let mut selected_path = path.clone();
                 selected_path.extend(relative_path);
-                phase = "nominal cleanup target";
                 let mut cleanup = selected_nominal(
                     program,
                     targets,
@@ -345,7 +323,6 @@ pub(super) fn disposition_actions(
                     selected_path,
                     selected_type,
                 )?;
-                phase = "nominal consumed claims";
                 cleanup.consumed_claims =
                     consumed_claims(program, facts, disposition, selected_disposition, &segments)?;
                 hooks.push(cleanup);
@@ -355,7 +332,6 @@ pub(super) fn disposition_actions(
         // boundary in the normal-death partition; it is neither an unconditional
         // exclusion nor permission to dispose the siblings at the value join.
         let mut partition_paths = Vec::new();
-        phase = "selected transfer partition";
         if disposition.selection.is_valid() {
             let ownership = &facts.flow.ownership;
             let receipt = ownership.owned_selections.get(disposition.selection);
@@ -399,7 +375,6 @@ pub(super) fn disposition_actions(
         // followed by structural children, not substituted for them. Refine only
         // the paths that reach hooks, preserving maximal ordinary residual
         // subtrees and the same reverse declaration/index order for every kind.
-        phase = "case-selected residual reconstruction";
         let residuals = if moved.is_empty() && hooks.is_empty() && partition_paths.is_empty() {
             vec![validation::CaseSelectedCleanupRegion {
                 disposition: CheckedUnitPartialAffineDiscardPlan {
@@ -482,21 +457,11 @@ pub(super) fn disposition_actions(
                 }
             })
             .collect::<Vec<_>>();
-        phase = "complete nominal hook coverage";
         if selected_hooks != hooks.len() {
             return None;
         }
         Some(actions)
     })();
-    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-        trace_disposition_refusal(
-            program,
-            facts,
-            disposition_handle,
-            "disposition_actions",
-            phase,
-        );
-    }
     selected
 }
 
@@ -721,56 +686,4 @@ fn consumed_claims(
         claims.push(event.claim_identity);
     }
     Some(claims)
-}
-
-/// Failure-only inventory of the existing selected occurrence. These queries
-/// introduce no facts and cannot authorize an action or repair a missing row.
-fn trace_disposition_refusal(
-    program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
-    handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
-    owner: &str,
-    phase: &str,
-) {
-    if !facts.contextual_cleanup.dispositions.is_valid(handle) {
-        eprintln!("CLEANUP_DISPOSITION_REFUSAL owner={owner} phase={phase} stale={handle:?}");
-        return;
-    }
-    let row = facts.contextual_cleanup.dispositions.get(handle);
-    let path = facts.flow.ownership.segments.span(row.path);
-    let evidence = crate::flow::CleanupCaseEvidence::new(program, facts, row);
-    eprintln!(
-        "CLEANUP_DISPOSITION_REFUSAL owner={owner} phase={phase} handle={handle:?} row={row:?} path={path:?} leaves={:?} contexts={:?}",
-        crate::flow::selected_cleanup_leaves(program, facts, row),
-        evidence.as_ref().map(|evidence| evidence.contexts()),
-    );
-    if let (Some(path), Some(evidence)) = (path, evidence) {
-        if row.disposed_type.is_valid() {
-            for claim in validation::linear_claim_frontier(program, row.disposed_type) {
-                let mut selected = path.to_vec();
-                selected.extend_from_slice(&claim.path);
-                eprintln!(
-                    "CLEANUP_DISPOSITION_CLAIM path={selected:?} conditional={} reachability={:?}",
-                    claim.conditional,
-                    evidence.reachability(&selected),
-                );
-            }
-        }
-        for removed in facts
-            .contextual_cleanup
-            .exclusions
-            .span_or_empty(row.exclusions)
-        {
-            eprintln!(
-                "CLEANUP_DISPOSITION_EXCLUSION root={:?} path={:?} reachability={:?}",
-                removed.root,
-                facts.contextual_cleanup.segments.span(removed.segments),
-                facts
-                    .contextual_cleanup
-                    .segments
-                    .span(removed.segments)
-                    .and_then(|path| evidence.reachability(path)),
-            );
-        }
-    }
 }

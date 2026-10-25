@@ -1214,26 +1214,6 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         let releases = retirement.backing_releases()?;
         if releases.is_empty() {
             if !pending.is_empty() {
-                if std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-                    eprintln!(
-                        "[completion-retirement] machine={machine:?} state={state:?} boundary={statement_index} pending={pending:#?} scheduled={scheduled:#?} transported={transported_loans:#?} results={results:#?} operations={operations:#?}"
-                    );
-                    if let Some(Some(borrowing)) =
-                        super::reference_retirement::unique_borrow_state(facts, machine, state)
-                        && let Some(loans) = facts.borrow.loan_group(borrowing.loans)
-                    {
-                        for (handle, loan) in loans {
-                            eprintln!(
-                                "[completion-retirement-loan] handle={handle:?} loan={loan:#?} holder_retired={} children_retired={} weakening={:#?}",
-                                retirement.holder_retired(handle),
-                                retirement.children_retired(handle),
-                                validation::reference_result_custody::loan_weakening(
-                                    facts, machine, state, handle,
-                                ),
-                            );
-                        }
-                    }
-                }
                 return None;
             }
             break;

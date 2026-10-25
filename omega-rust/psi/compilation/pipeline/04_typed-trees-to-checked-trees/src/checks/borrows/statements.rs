@@ -41,7 +41,6 @@ pub(super) fn check_statement_borrows<'p>(
         .ownership
         .storage_transfers
         .span_or_empty(state_flow.storage_transfers);
-    let mut traced_formation_conflicts = 0usize;
     for statement in facts
         .flow
         .control
@@ -180,46 +179,6 @@ pub(super) fn check_statement_borrows<'p>(
                     })
                 {
                     continue;
-                }
-
-                // Temporary failure imaging only: inspect the already computed
-                // pair and its retained suppliers without rerunning any query.
-                if traced_formation_conflicts < 4
-                    && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some()
-                {
-                    traced_formation_conflicts += 1;
-                    eprintln!(
-                        "VIEW_FORMATION_CONFLICT machine={:?} state={:?} statement={} forming_handle={:?} forming={:?} forming_owner_path={:?} forming_segments={:?} forming_suppliers={:?} active_handle={:?} active={:?} active_owner_path={:?} active_segments={:?} active_suppliers={:?} containment={:?} non_interfering={} compared_left={:?} compared_right={:?} retained_lineage={:?} resolved_sources={:?} constraints={:?}",
-                        state_flow.machine_symbol,
-                        state_flow.state_symbol,
-                        statement.statement_index,
-                        loan_handle,
-                        loan,
-                        facts.borrow.loan_owner_path(loan),
-                        facts.borrow.access_segments.span_or_empty(loan.segments),
-                        facts.borrow.loan_suppliers.span(loan.supplying_loans),
-                        active_loan_handle,
-                        active_loan,
-                        facts.borrow.loan_owner_path(active_loan),
-                        facts
-                            .borrow
-                            .access_segments
-                            .span_or_empty(active_loan.segments),
-                        facts
-                            .borrow
-                            .loan_suppliers
-                            .span(active_loan.supplying_loans),
-                        compatibility.containment,
-                        compatibility.non_interfering,
-                        compatibility.left,
-                        compatibility.right,
-                        retained_lineage,
-                        supplying_accesses.as_ref().map(|sources| sources
-                            .iter()
-                            .map(|source| (&source.place, &source.lineage))
-                            .collect::<Vec<_>>()),
-                        formation_constraints,
-                    );
                 }
 
                 diagnostics.push(Diagnostic::error(format!(

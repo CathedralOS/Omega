@@ -81,8 +81,6 @@ pub(in crate::borrow) fn from_effects(
     loan_trackers: &[super::StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
     let mut loans = Vec::new();
-    let mut traced_missing_sources = 0usize;
-    let trace_sources = std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some();
     for effect in effects {
         let owner = effect.destination.local_symbol;
         let owner_path =
@@ -197,10 +195,6 @@ pub(in crate::borrow) fn from_effects(
                 // Keep its zero-root unknown alternative below; deleting it
                 // would let a sibling source falsely prove a complete result.
             }
-            // This copy is diagnostic payload only, allocated only while the
-            // bounded unmatched-source probe is explicitly enabled.
-            let trace_carrier = (trace_sources && traced_missing_sources < 4)
-                .then(|| (source.carrier_symbol, source.carrier_segments.clone()));
             let captured = super::call_views::rebase_borrow_places_through_local_loans(
                 program,
                 checked_trees::CapturedPlace {
@@ -253,50 +247,6 @@ pub(in crate::borrow) fn from_effects(
             // actual descriptor. Preserve every supplier, never choose one
             // by position or erase their identities by deduplicating places.
             let matching = if matching.is_empty() {
-                if let Some(carrier) = trace_carrier {
-                    traced_missing_sources += 1;
-                    eprintln!(
-                        "VIEW_SLOT_SOURCE_UNMATCHED destination={:?} destination_segments={:?} output_access={:?} retains_incoming={} may_select={} carrier={:?} carrier_backing={:?} backing={:?} lifetime_access={:?} captured_count={} captured={:?} current_row_count={} current_rows_prefix={:?}",
-                        owner,
-                        effect.destination.local_segments,
-                        effect.access,
-                        effect.retains_incoming,
-                        effect.may_select,
-                        carrier,
-                        source.carrier_backing,
-                        backing,
-                        source.lifetime_access,
-                        captured.len(),
-                        captured
-                            .iter()
-                            .map(|candidate| (
-                                &candidate.source_place,
-                                &candidate.place,
-                                candidate.parent_loan,
-                                candidate.source_owner_symbol,
-                                candidate.parent_lineage_is_retained,
-                                candidate.lifetime_only,
-                                &candidate.representation_address,
-                                candidate.retained_operand
-                            ))
-                            .collect::<Vec<_>>(),
-                        loan_trackers.len(),
-                        loan_trackers
-                            .iter()
-                            .take(32)
-                            .map(|loan| (
-                                loan.handle,
-                                loan.storage_owner,
-                                &loan.owner_path,
-                                &loan.place,
-                                &loan.kind,
-                                &loan.lineage,
-                                loan.call_result,
-                                loan.retained_operand
-                            ))
-                            .collect::<Vec<_>>(),
-                    );
-                }
                 vec![None]
             } else {
                 matching
