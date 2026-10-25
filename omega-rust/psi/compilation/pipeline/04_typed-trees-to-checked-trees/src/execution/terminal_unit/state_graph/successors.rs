@@ -942,6 +942,13 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             arguments,
             parameter.position as usize,
             operations,
+            match &transfer.source {
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                    subject,
+                    ..
+                } => Some(subject.source.clone()),
+                _ => None,
+            },
         )
         .map_err(|reason| {
             trace.phase(reason);

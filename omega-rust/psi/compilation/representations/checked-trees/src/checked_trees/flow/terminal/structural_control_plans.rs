@@ -176,14 +176,17 @@ pub struct CheckedStructuralControlTransferPlan {
     /// Reference construction syntax and intermediate descriptors do not name
     /// the ultimate home; operand-completion provenance does.
     pub retained_loan_backing: Option<u32>,
-    /// Local owned storage reached through the captured backing's contained
-    /// loans. Each pair is (dependent result binding, parent result binding).
+    /// Owned storage reached through the captured backing's contained loans.
+    /// Each pair names the exact dependent and parent in the source frame.
     /// These lifetime edges grant neither relocation nor disposal authority.
-    pub retained_loan_parents: Vec<(u32, u32)>,
+    pub retained_loan_parents: Vec<(
+        crate::CheckedUnitStructuralArgumentSourcePlan,
+        crate::CheckedUnitStructuralArgumentSourcePlan,
+    )>,
     /// Local parents retained by this completed operand, including every
     /// possible home of a selected reference. The exact target parameter
     /// retains their lifetime; it gains no ownership or disposal authority.
-    pub retained_operand_parents: Vec<u32>,
+    pub retained_operand_parents: Vec<crate::CheckedUnitStructuralArgumentSourcePlan>,
 }
 
 impl Default for CheckedStructuralControlTransferPlan {

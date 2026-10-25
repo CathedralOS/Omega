@@ -110,12 +110,22 @@ impl StateGraphEmission<'_, '_> {
         // neither construction syntax nor the target's type supplies lifetime.
         for transfer in &edge.transfers {
             for (dependent, parent) in &transfer.retained_loan_parents {
-                let dependent = case_emission::result(state, *dependent, operations)?;
-                let parent = case_emission::result(state, *parent, operations)?;
-                if !dependent.path().is_empty() || !parent.path().is_empty() {
+                let dependent =
+                    edge_evaluation.value_storage(dependent, state_parameters, |binding| {
+                        Ok(case_emission::result(state, binding, operations)?
+                            .as_ref()
+                            .into())
+                    })?;
+                let parent =
+                    edge_evaluation.value_storage(parent, state_parameters, |binding| {
+                        Ok(case_emission::result(state, binding, operations)?
+                            .as_ref()
+                            .into())
+                    })?;
+                if !dependent.path.is_empty() || !parent.path.is_empty() {
                     return unsupported("state loan parent is not a complete owned home");
                 }
-                let relation = (dependent.place(), parent.place());
+                let relation = (dependent.place, parent.place);
                 if !self.retained_loan_parents.contains(&relation) {
                     self.retained_loan_parents.push(relation);
                 }
@@ -671,8 +681,13 @@ impl StateGraphEmission<'_, '_> {
                         }
                     };
                 for parent in &transfer.retained_operand_parents {
-                    let parent = case_emission::result(state, *parent, operations)?;
-                    if !parent.path().is_empty() {
+                    let parent =
+                        edge_evaluation.value_storage(parent, state_parameters, |binding| {
+                            Ok(case_emission::result(state, binding, operations)?
+                                .as_ref()
+                                .into())
+                        })?;
+                    if !parent.path.is_empty() {
                         return unsupported("state operand parent is not a complete owned home");
                     }
                     let dependent = self.state_contract_rosters[target]
@@ -682,7 +697,7 @@ impl StateGraphEmission<'_, '_> {
                         .ok_or(LoweringError::Unsupported(
                             "state operand parent lost its target carrier",
                         ))?;
-                    let relation = (dependent, parent.place());
+                    let relation = (dependent, parent.place);
                     if !self.retained_loan_parents.contains(&relation) {
                         self.retained_loan_parents.push(relation);
                     }

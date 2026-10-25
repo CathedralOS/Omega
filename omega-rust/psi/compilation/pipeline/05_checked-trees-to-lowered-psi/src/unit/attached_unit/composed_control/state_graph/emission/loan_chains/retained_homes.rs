@@ -51,6 +51,55 @@ pub(super) fn finish(
     parameters: &[PlaceId],
     next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
+    // A direct borrow of descriptor storage retains that physical owner,
+    // independently of the ultimate referent's checked logical loan. Loading
+    // through a reference does not borrow the descriptor bytes: stop at those
+    // crossings rather than inventing a dependency on the pointer container.
+    let owned_homes = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .filter(|parameter| {
+            parameter.access == terminal_psi::StructuralAccess::Owned
+                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        })
+        .map(|parameter| parameter.place)
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| match &operation.result {
+                    terminal_psi::OperationResult::Structural(result)
+                        if result.multiplicity != StructuralMultiplicity::Unrestricted =>
+                    {
+                        Some(result.place)
+                    }
+                    _ => None,
+                }),
+        )
+        .collect::<BTreeSet<_>>();
+    let mut parents = parents.to_vec();
+    for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        if let terminal_psi::OperationKind::EstablishReference { source, .. } = &operation.kind
+            && owned_homes.contains(&source.place)
+            && !source
+                .path
+                .iter()
+                .any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::Referent))
+            && let terminal_psi::OperationResult::Structural(result) = &operation.result
+            && result.place != source.place
+            && !parents.contains(&(result.place, source.place))
+        {
+            parents.push((result.place, source.place));
+        }
+    }
+    let parents = parents.as_slice();
     let availability = super::super::loaned_local_homes::HomeAvailability::new(machine)?;
     let mut homes: Vec<Home> = Vec::new();
     let mut supplied = carrier_lifetimes(machine, headers, parents)?;

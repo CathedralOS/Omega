@@ -102,7 +102,9 @@ result preserves both independently captured leaf suppliers.
 Supplemental [`affine`](owned_arrivals/affine/main.omg),
 [`owned parameter`](owned_arrivals/owned_parameter/main.omg),
 [`direct nested arrival`](owned_arrivals/reference_boundary/main.omg), and
-[`nested reborrow`](owned_arrivals/reference_reborrow/main.omg) programs test
+[`nested reborrow`](owned_arrivals/reference_reborrow/main.omg),
+[`borrowed ingress reborrow`](owned_arrivals/borrowed_reborrow/main.omg), and
+[`owned input replacement`](owned_arrivals/owned_input_replacement/main.omg) programs test
 cleanup retention and descriptor identity. Their missing-origin twins are beside
 each program. Both productions also reject replaced slots and stale contents
 under their `controls/` directories. These are real progress-premise refusals;
@@ -113,7 +115,12 @@ owned-home positive with `state loan: distinct backing alternatives`. The
 continuation retains every possible owned backing as a separate checked lifetime
 dependency. No selected descriptor chooses one static home or gains permission
 to relocate or dispose of a backing. Checked whole-home dispositions, formation
-order and availability still govern cleanup. Reference shapes retain the exact
+order and availability still govern cleanup. Owned inputs and local results
+retain the same occurrence-level parent relation. Direct borrows of descriptor
+storage retain their physical owner independently of ultimate logical loans;
+borrowed ingress remains caller-owned. Public target-family signatures share their authored
+entry requirements with composed bodies without exporting arrival-derived facts.
+Reference shapes retain the exact
 stored referent identity; ordinary formation stops at the authored referee.
 The common selected-operand path retains captured selector computations and all
 physical loads. Aggregate copies transfer the exact selected descriptor leaves,
