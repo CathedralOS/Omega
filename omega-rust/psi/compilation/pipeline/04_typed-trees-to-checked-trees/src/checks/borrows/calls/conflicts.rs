@@ -244,13 +244,6 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
     }
 
-    // Resolve pointer geometry only for an actual simultaneous-hold judgment.
-    // A sole reference operand needs no additional address proof merely to
-    // enter a call; its ordinary authority/lifetime checks still run below.
-    let mut held_places = (0..accesses.len())
-        .map(|_| super::held_places::HeldPlaces::default())
-        .collect::<Vec<_>>();
-
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
             // A local jump forwards the activation's exact data parent. It
@@ -327,27 +320,11 @@ pub(super) fn check_call_access_conflicts<'p>(
                 // of their pointer geometry. Authority checks remain separate.
                 continue;
             }
-            let (earlier, later) = held_places.split_at_mut(other_index);
-            let first = earlier[index].resolve(
-                program,
-                facts,
-                state_flow,
-                borrow_call,
-                access,
-                target_name,
-                diagnostics,
-            );
-            let second = later[0].resolve(
-                program,
-                facts,
-                state_flow,
-                borrow_call,
-                other_access,
-                target_name,
-                diagnostics,
-            );
-            let conflict = first.iter().find_map(|first| {
-                second.iter().find_map(|second| {
+            // The same authenticated frontier supplies ordinary live-loan
+            // checking and this pair judgment. It is a conservative held region,
+            // not an executable address recovered from a missing capture.
+            let conflict = super::held_places::places(&operand_backings[index]).find_map(|first| {
+                super::held_places::places(&operand_backings[other_index]).find_map(|second| {
                     simultaneous_hold_conflict(
                         program,
                         first,
@@ -482,6 +459,49 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE call-live-loan-conflict machine={:?} state={:?} statement={} ordinal={} call={:?} access_index={} access_count={} access={:?} access_segments={:?} loan_handle={:?} loan={:?} loan_segments={:?} loan_owner_path={:?} ended_before_call={:?}",
+                    state_flow.machine_symbol,
+                    state_flow.state_symbol,
+                    borrow_call.statement_index,
+                    borrow_call.call_ordinal,
+                    borrow_call,
+                    index,
+                    accesses.len(),
+                    access,
+                    facts.borrow.access_segments(access),
+                    loan_handle,
+                    loan,
+                    facts.borrow.loan_segments(loan),
+                    facts.borrow.loan_owner_path(loan),
+                    ended_before_call,
+                );
+                eprintln!(
+                    "CHECKSITE call-live-loan-slots current={:?}",
+                    facts
+                        .borrow
+                        .reference_slot_effects
+                        .span_or_empty(borrow_call.reference_slot_effects),
+                );
+                if facts.borrow.calls.is_valid(loan.established_by_call) {
+                    let supplier = facts.borrow.calls.get(loan.established_by_call);
+                    eprintln!(
+                        "CHECKSITE call-live-loan-supplier call={:?} slots={:?}",
+                        supplier,
+                        facts
+                            .borrow
+                            .reference_slot_effects
+                            .span_or_empty(supplier.reference_slot_effects),
+                    );
+                }
+                for backing in &operand_backings[index].places {
+                    eprintln!(
+                        "CHECKSITE call-live-loan-backing place={:?} lineage={:?}",
+                        backing.place, backing.lineage,
+                    );
+                }
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "state `{target_name}` receives `{}` while local borrow `{}` is still active{}",
                 borrow_access_label(program, &facts.borrow, access),

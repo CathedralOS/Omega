@@ -9,7 +9,7 @@ use super::{
 };
 use checked_trees::BorrowLoanFact;
 
-pub(super) use crate::borrow::carrier_path;
+pub(super) use crate::borrow::{carrier_path, named_carrier_path};
 
 /// Historical carrier transport, not a new loan descent. A copy and an owned
 /// move retain the supplying occurrence's immediate parents; neither makes
@@ -136,7 +136,13 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 machine,
                 state.symbol,
                 "receiver-carrier-path",
-                carrier_path(program, reference, facts.borrow.loan_owner_path(loan)),
+                named_carrier_path(
+                    program,
+                    state,
+                    owner,
+                    reference,
+                    facts.borrow.loan_owner_path(loan),
+                ),
                 &(receiver, owner, formation, reference, loan),
             )?;
             let sources = trace_query(
@@ -224,8 +230,10 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                         machine,
                         state.symbol,
                         "supplying-carrier-path",
-                        carrier_path(
+                        named_carrier_path(
                             program,
+                            state,
+                            source_owner,
                             supplying_type,
                             facts.borrow.loan_owner_path(candidate),
                         ),

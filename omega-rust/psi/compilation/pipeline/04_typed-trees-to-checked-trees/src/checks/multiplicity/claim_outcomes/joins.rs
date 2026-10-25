@@ -262,6 +262,24 @@ impl CallJoinPreparation {
                     .iter()
                     .find(|binding| binding.receiver == *receiver)
         });
+        // Temporary failure imaging: report changed retained data without
+        // re-running any semantic query or changing the preparation decision.
+        if changed && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
+            for receiver in &self.dependencies {
+                let before = self
+                    .bindings
+                    .iter()
+                    .find(|binding| binding.receiver == *receiver);
+                let after = bindings
+                    .iter()
+                    .find(|binding| binding.receiver == *receiver);
+                if before != after {
+                    eprintln!(
+                        "CLAIM_PREPARATION_JOIN receiver={receiver:?} before={before:?} after={after:?}"
+                    );
+                }
+            }
+        }
         self.bindings = bindings;
         changed
     }

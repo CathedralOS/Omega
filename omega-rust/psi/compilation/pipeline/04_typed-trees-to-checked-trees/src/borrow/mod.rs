@@ -52,6 +52,7 @@ pub(crate) use loans::returned_body_source_mismatch;
 pub(crate) use loans::store_destination_places;
 pub(crate) use loans::types::reference_borrow_access_kind;
 pub(crate) use owner_geometry::carrier_path;
+pub(crate) use owner_geometry::named_carrier_path;
 pub(crate) use owner_geometry::structural_owner_path;
 pub(crate) use tracker::BorrowOwnerSegment;
 

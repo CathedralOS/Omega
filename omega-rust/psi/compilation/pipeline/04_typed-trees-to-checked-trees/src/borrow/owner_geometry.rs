@@ -29,6 +29,34 @@ pub(crate) fn structural_owner_path(
         .collect()
 }
 
+/// A named formal presents its referee as borrowed storage; a named local
+/// retains its whole stored carrier. Authenticate that declaration before
+/// translating a loan's owner path. Only the formal's outer pointer is absent
+/// from the checked parameter shape: nested references remain stored boundaries.
+/// Canonical sequence descriptors already have their own presentation and do
+/// not acquire an invented pointer hop. This chooses geometry, not permission.
+pub(crate) fn named_carrier_path(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    owner: symbols::SymbolHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    owner_path: &[BorrowLoanOwnerSegment],
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let reference = if let Some(parameter) = program.state_parameter_by_symbol(state, owner) {
+        if program.state_local_declaration(state, owner).is_some()
+            || program.normalized_type_identity(parameter.type_reference)
+                != program.normalized_type_identity(reference)
+        {
+            return None;
+        }
+        validation::reference_result_custody::stored_loan_parts(program, parameter.type_reference)
+            .map_or(reference, |(referee, _)| referee)
+    } else {
+        reference
+    };
+    carrier_path(program, reference, owner_path)
+}
+
 /// Translate an occurrence's symbolic owner path through its declarations.
 /// Common fields and active payload fields keep distinct nominal namespaces.
 pub(crate) fn carrier_path(

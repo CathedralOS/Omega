@@ -47,8 +47,14 @@ pub(super) fn disposes_candidate(
         return false;
     };
     let path = retirement.facts.borrow.loan_owner_path(loan);
-    if super::transport::carrier_path(retirement.program, reference, path)
-        .is_none_or(|selected| selected != complement.path)
+    if super::transport::named_carrier_path(
+        retirement.program,
+        retirement.state,
+        loan.owner_symbol,
+        reference,
+        path,
+    )
+    .is_none_or(|selected| selected != complement.path)
     {
         return false;
     }

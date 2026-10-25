@@ -552,8 +552,10 @@ impl Retirement<'_> {
                 else {
                     return false;
                 };
-                let Some(path) = transport::carrier_path(
+                let Some(path) = transport::named_carrier_path(
                     self.program,
+                    self.state,
+                    loan.owner_symbol,
                     reference,
                     self.facts.borrow.loan_owner_path(loan),
                 ) else {
