@@ -13,7 +13,7 @@ use crate::codec_bytes::Envelope;
 
 const ALLOCATOR_AVAILABILITY_ENVELOPE: Envelope = Envelope::new(b"OMGAVA\0\0", 1);
 
-crate::identity_newtype!(pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]););
+crate::identity_newtype! { pub struct AllocatorAvailabilityIdentity(pub(crate) [u8; 32]); }
 
 /// Exact named policy controlling only unconstrained allocator candidates.
 /// Fixed ABI and instruction-operand requirements remain authoritative even
@@ -112,16 +112,7 @@ pub enum AllocatorAvailabilityDecodeError {
     IdentityMismatch,
 }
 
-impl std::fmt::Display for AllocatorAvailabilityDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid terminal allocator availability: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for AllocatorAvailabilityDecodeError {}
+crate::decode_error_display! { AllocatorAvailabilityDecodeError, "invalid terminal allocator availability" }
 
 optimization_core::truncated_from_adapter!(AllocatorAvailabilityDecodeError);
 

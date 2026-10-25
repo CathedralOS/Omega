@@ -12,7 +12,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::MachineId;
 
-crate::identity_newtype!(pub struct SpillChoiceIdentity(pub(crate) [u8; 32]););
+crate::identity_newtype! { pub struct SpillChoiceIdentity(pub(crate) [u8; 32]); }
 
 /// Stable structural policy for the first locally witnessed pressure point.
 /// This is not an optimization level or a target cost model.
@@ -94,13 +94,4 @@ optimization_core::truncated_from_adapter!(SpillChoiceDecodeError);
 
 optimization_core::take_error_from_adapter!(SpillChoiceDecodeError);
 
-impl std::fmt::Display for SpillChoiceDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid Terminal spill-choice encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for SpillChoiceDecodeError {}
+crate::decode_error_display! { SpillChoiceDecodeError, "invalid Terminal spill-choice encoding" }

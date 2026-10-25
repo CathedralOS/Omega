@@ -10,6 +10,7 @@
 
 pub mod codec;
 pub mod constraints;
+mod decode_error_display;
 pub mod identity;
 mod identity_newtype;
 pub mod post_allocation_manifest;
