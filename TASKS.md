@@ -2567,8 +2567,8 @@ then independent claimed restoration slices -> final closure.
   integration, using independent backend ABI/locator/mechanism libraries, not
   compiler stages. Hosted integration now lives in
   `omega-rust/omega/application/terminal-runtime`; finish the source-free
-  artifact execution boundary and retain exact foreign identity and ABI checks before
-  effects. CLI execution, embedding and corpus consume these owning APIs.
+  artifact execution boundary and retain exact foreign identity and ABI checks
+  before effects. CLI execution, embedding and corpus consume these owning APIs.
   Stdin/stdout/stderr, virtual clocks, provisions and observations are not
   compiler responsibilities. The CLI and corpus no longer use
   `compiler::runtime`; the CLI depends on the hosted runtime, not directly on

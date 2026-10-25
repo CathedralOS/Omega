@@ -56,7 +56,8 @@ native execution ends. The command forwards those original bytes without
 UTF-8 decoding, before its own diagnostics on stderr. A failed stream write or
 flush reports a command error (status 200), not a successful program result.
 
-Comparison runs the shared Terminal runtime on the native report's exact produced
+Comparison runs the shared [hosted Terminal runtime](../terminal-runtime/README.md)
+on the native report's exact produced
 artifact and retained entry/provider provisions before publication transfers that
 payload. It never interprets checked trees, recompiles source or repeats Build.
 The current runtime establishes an isolated hosted root and buffered output.
