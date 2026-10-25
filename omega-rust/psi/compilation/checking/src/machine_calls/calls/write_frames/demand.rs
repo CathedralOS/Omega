@@ -525,6 +525,36 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Exact structural referents in the original declaration interpretation.
+    /// Consumers that append declared field identities cannot discard a recast
+    /// or view representation and interpret its backing as the selected type.
+    pub(crate) fn structural_reference_origins_before_statement(
+        &self,
+        machine: &Machine,
+        statement: &StatementNode,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<(SymbolHandle, Vec<facts::PlaceSegment>)>> {
+        let origins = super::reference_subjects::expression_origins_before_statement(
+            self.program,
+            machine,
+            &self.tables.symbols,
+            statement,
+            expression,
+            &self.caches.state_write_shared_collections,
+        )?;
+        origins
+            .into_iter()
+            .map(|source| {
+                (source.root.is_valid()
+                    && source.builtin_coordinates
+                    && source.recasts.is_empty()
+                    && source.representation.is_none()
+                    && !source.is_static())
+                .then_some((source.root, source.segments))
+            })
+            .collect()
+    }
+
     /// Complete conservative backing reads for invalidation. Unlike exact
     /// origins, these may name a whole collection for a window. Callers may
     /// compare overlap only, never derive predicate or storage identity.

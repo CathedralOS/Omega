@@ -116,19 +116,48 @@ pub(crate) fn extend_normalization_owners(
             .iter()
             .copied()
             .filter(|item| {
+                let mut machines = Vec::new();
                 let name = match syntax.root_item(*item) {
-                    syntax_trees::item::Item::Const(definition) => &definition.name,
-                    syntax_trees::item::Item::Data(definition) => &definition.name,
-                    syntax_trees::item::Item::Machine(definition) => &definition.name,
-                    syntax_trees::item::Item::Conformance(definition) => {
-                        let Some(alias) = &definition.alias else {
-                            return false;
-                        };
-                        alias
+                    syntax_trees::item::Item::Const(definition) => Some(&definition.name),
+                    syntax_trees::item::Item::Data(definition) => Some(&definition.name),
+                    syntax_trees::item::Item::Machine(definition) => {
+                        machines.push(definition);
+                        None
                     }
-                    _ => return false,
+                    syntax_trees::item::Item::Conformance(definition) => {
+                        for member in syntax.items.conformance_members(definition.members) {
+                            match member {
+                                syntax_trees::item::ConformanceMember::Machine(machine)
+                                | syntax_trees::item::ConformanceMember::Synthesized(machine)
+                                | syntax_trees::item::ConformanceMember::TraitDefault {
+                                    machine,
+                                    ..
+                                } => machines.push(machine),
+                                _ => {}
+                            }
+                        }
+                        definition.alias.as_ref()
+                    }
+                    _ => None,
                 };
-                name.source_span() == *owner
+                if name.is_some_and(|name| name.source_span() == *owner) {
+                    return true;
+                }
+                // Normalize the exact containing root, including its static
+                // context; duplicated coordinates still fail uniqueness below.
+                while let Some(machine) = machines.pop() {
+                    if machine.name.source_span() == *owner {
+                        return true;
+                    }
+                    machines.extend(
+                        syntax
+                            .items
+                            .nested_machine_items(machine.nested_machines)
+                            .iter()
+                            .filter_map(syntax_trees::item::Item::as_machine),
+                    );
+                }
+                false
             })
             .collect::<Vec<_>>();
         let [item] = matches.as_slice() else {

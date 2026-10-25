@@ -1,6 +1,6 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "requires"
+    "violates required fact"
   ]
 }

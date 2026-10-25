@@ -284,8 +284,24 @@ impl TypedTrees {
         // visible during formation, not fresh binders of each invocation.
         let mut enclosing = self.declaration_scope_parent(machine.symbol);
         while enclosing.is_valid() {
-            if let Some(conformance) = self.conformance_by_symbol(enclosing) {
-                for parameter in self.conformance_type_parameters(conformance) {
+            let declaration = self
+                .machine_by_symbol(enclosing)
+                .map(|parent| {
+                    (
+                        self.machine_type_parameters(parent),
+                        &parent.lifetime_parameters,
+                    )
+                })
+                .or_else(|| {
+                    self.conformance_by_symbol(enclosing).map(|parent| {
+                        (
+                            self.conformance_type_parameters(parent),
+                            &parent.lifetime_parameters,
+                        )
+                    })
+                });
+            if let Some((parameters, lifetimes)) = declaration {
+                for parameter in parameters {
                     if !type_parameters
                         .iter()
                         .any(|existing| same_type_parameter(existing, parameter))
@@ -293,7 +309,7 @@ impl TypedTrees {
                         type_parameters.push(parameter.clone());
                     }
                 }
-                for parameter in &conformance.lifetime_parameters {
+                for parameter in lifetimes {
                     if !lifetime_parameters.contains(parameter) {
                         lifetime_parameters.push(parameter.clone());
                     }
@@ -397,8 +413,15 @@ impl TypedTrees {
                 return None;
             }
             visited.push(enclosing);
-            if let Some(map) = self.conformance_by_symbol(enclosing) {
-                parameters = self.conformance_type_parameters(map);
+            if let Some(declaration) = self
+                .machine_by_symbol(enclosing)
+                .map(|parent| self.machine_type_parameters(parent))
+                .or_else(|| {
+                    self.conformance_by_symbol(enclosing)
+                        .map(|parent| self.conformance_type_parameters(parent))
+                })
+            {
+                parameters = declaration;
                 if parameters.iter().any(|parameter| {
                     parameter.symbol == symbol
                         && own.iter().any(|local| local.name == parameter.name)
