@@ -1,0 +1,36 @@
+// Expected exit: 0
+use omega::language::core::layout;
+data Header { address: addr; }
+data Policy {}
+data Payload [copy] { value: u32; }
+data View { payload: Policy<Payload>; }
+public boundary trait Value {
+    machine read() -> u32 reaches;
+    machine spare() -> u32 reaches;
+}
+machine Policy::plan(schema: Schema) -> Plan {
+    let extent: u64 = size_of<Header>();
+    let alignment: u64 = align_of<Header>();
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 0 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: alignment }
+}
+public TargetValue satisfies Value {
+ machine read() -> u32 {
+    let mut view: View;
+    view.payload.value = 51;
+    view.payload.value
+ }
+ // The selected whole map retains this row even though main never calls it.
+ machine spare() -> u32 {
+    let bytes: [u8; 4] = [51, 0, 0, 0];
+    let view: &View = &bytes[0] as &View;
+    view.payload.value
+ }
+}
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let value: u32 = Value::read();
+    transition value == 51u32 { true -> good() false -> bad() }
+}

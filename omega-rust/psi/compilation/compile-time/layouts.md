@@ -97,6 +97,13 @@ uses the exact body and context under the original artifact identity. Adapter
 profiles need explicit physical deployment geometry; source preparation does
 not derive it from the compiler host.
 
+Executed whole-provider choices contribute their exact named implementation
+declarations alongside entries. The ordinary declaration traversal retains the
+map's complete inline rows, including uncalled members, and transports their
+layout dependencies under the declared entry contexts. This is formation
+demand, not native provider selection or permission to use private guarantees.
+Inactive default candidates do not acquire contexts from an overriding choice.
+
 The current family Schema ABI supports records with at most 32 nonzero live
 fields of scalar or fixed nested-record shape. Active cases, retired identities,
 nested target-dependent schemas and nested policy geometry that has not yet been

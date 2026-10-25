@@ -36,6 +36,7 @@ pub struct SourceLayoutQueries<'a> {
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
     pub root_bindings: &'a [crate::program_entry::RootBinding],
+    pub provider_selections: &'a [crate::ProviderSelection],
 }
 
 impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
@@ -69,6 +70,17 @@ impl build_time_evaluation::LayoutQueryPreparation for SourceLayoutQueries<'_> {
                 typed_trees::name::Identifier::from(profile.target_name()),
                 binding.implementation_symbol,
             ));
+            // An executed whole-provider choice retains its complete nominal
+            // implementation map as Product surface, including uncalled rows.
+            // Psi's ordinary declaration traversal follows that exact map's
+            // inline members and type dependencies. This supplies a context
+            // for formation, never provider admission or private guarantees.
+            for selection in self.provider_selections {
+                roots.push((
+                    typed_trees::name::Identifier::from(profile.target_name()),
+                    selection.provider_type.symbol,
+                ));
+            }
         }
         // A library with no entry has no implicit deployment. Its authored
         // target bodies still supply contexts through Psi's dependency owner.

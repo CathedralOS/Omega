@@ -44,6 +44,7 @@ pub(crate) fn check_product_source(
     let layout_queries = provider_planning::data_layout_queries::SourceLayoutQueries {
         opaque_representation_selections: &representations,
         root_bindings: &build.root_bindings,
+        provider_selections: &build.provider_selections,
     };
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
