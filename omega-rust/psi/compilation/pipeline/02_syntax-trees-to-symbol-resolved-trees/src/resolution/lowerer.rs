@@ -49,7 +49,7 @@ pub(crate) struct PendingConstDeclaration {
 pub(crate) struct PendingConstSelection {
     pub(crate) expression: ExpressionHandle,
     pub(crate) source_span: source::SourceSpan,
-    pub(crate) declaration_ordinal: usize,
+    pub(crate) declaration: symbols::SymbolHandle,
     pub(crate) exposure: AuthoredDeclarationSelectionExposure,
 }
 

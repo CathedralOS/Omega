@@ -14,20 +14,8 @@ pub(crate) fn finalize_const_selections(
     program: &mut SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingConstSelection],
 ) -> Result<(), Diagnostic> {
-    let const_symbols = program
-        .symbols
-        .child_handles(program.symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
-        .collect::<Vec<_>>();
-
     for selection in pending {
-        let Some(symbol) = const_symbols.get(selection.declaration_ordinal).copied() else {
-            return Err(Diagnostic::error(
-                "failed to retain const declaration selection provenance",
-            ));
-        };
+        let symbol = selection.declaration;
         carrier::retain_declared_carrier(
             program,
             selection.expression,
@@ -52,24 +40,15 @@ pub(crate) fn finalize_const_selections(
     Ok(())
 }
 
-/// Bind retained const declarations to the symbols minted from the parallel
-/// pending declaration list. Value substitution is independent of this root:
-/// only source identity and visibility survive here.
+/// Finalize const attachment and visibility using the identity its allocation
+/// already published. Historical symbol-table roots are not this declaration
+/// roster and must never be zipped back onto it.
 pub(crate) fn finalize_const_declarations(
     syntax_trees: &syntax_trees::SyntaxTrees,
     program: &mut SymbolResolvedTrees,
     pending: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) -> Result<(), Diagnostic> {
-    let const_symbols = program
-        .symbols
-        .child_handles(program.symbols.root())
-        .into_iter()
-        .flatten()
-        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::Const)
-        .collect::<Vec<_>>();
-    if const_symbols.len() != pending.len()
-        || program.roots.const_declarations.len() != pending.len()
-    {
+    if program.roots.const_declarations.len() != pending.len() {
         return Err(Diagnostic::error(
             "failed to retain const declaration visibility provenance",
         ));
@@ -85,8 +64,24 @@ pub(crate) fn finalize_const_declarations(
     // declared value type independently closes through ordinary normalization.
     // Retaining the template symbol keeps attachment custody distinct from the
     // specialized instance used for value checking and materialization.
-    for (declaration, constant_symbol) in pending.iter().zip(&const_symbols) {
-        let module = program.symbols.symbol_module(*constant_symbol);
+    // Keep handles independent of the mutable ledger below, not independently
+    // inferred from symbol storage or declaration spelling.
+    let constants = program
+        .roots
+        .const_declarations
+        .iter()
+        .map(|declaration| (declaration.symbol, declaration.is_public))
+        .collect::<Vec<_>>();
+    for (declaration, (constant_symbol, is_public)) in pending.iter().zip(constants) {
+        if !constant_symbol.is_valid()
+            || program.symbols.get(constant_symbol).kind != SymbolKind::Const
+            || declaration.is_public != is_public
+        {
+            return Err(Diagnostic::error(
+                "const declaration identity or visibility drifted before finalization",
+            ));
+        }
+        let module = program.symbols.symbol_module(constant_symbol);
         if declaration.scope.as_str(syntax_trees).is_empty() || !module.is_valid() {
             continue;
         }
@@ -123,7 +118,7 @@ pub(crate) fn finalize_const_declarations(
                 && (definition.is_public
                     || program
                         .symbols
-                        .same_symbol_source_package(carrier, *constant_symbol))
+                        .same_symbol_source_package(carrier, constant_symbol))
         }) {
             return Err(Diagnostic::error(
                 "module type-scoped constants require an exact accessible data carrier selected in their declaring source",
@@ -142,21 +137,6 @@ pub(crate) fn finalize_const_declarations(
                 carrier,
             )
             .map_err(const_selection_record_diagnostic)?;
-    }
-    let mut ordinal = 0usize;
-    let mut visibility_drifted = false;
-    program
-        .roots
-        .const_declarations
-        .for_each_mut(|declaration| {
-            declaration.symbol = const_symbols[ordinal];
-            visibility_drifted |= declaration.is_public != pending[ordinal].is_public;
-            ordinal += 1;
-        });
-    if visibility_drifted {
-        return Err(Diagnostic::error(
-            "const declaration visibility drifted before symbol assignment",
-        ));
     }
     Ok(())
 }

@@ -285,7 +285,10 @@ pub(super) fn build_symbol_table(
     for _ in 0..FixedCoreDeclaration::COUNT {
         let _ = root_children.next();
     }
-    for domain in &program.domain_definitions {
+    // Bind identities at their allocation owner. The current declaration roster
+    // may later select or reorder roots independently of this backing table.
+    for ordinal in 0..program.domain_definitions.len() {
+        let domain = &program.domain_definitions[ordinal];
         if let Some(domain_symbol) = root_children.next() {
             insert_domain_symbol_children(
                 &mut builder,
@@ -294,9 +297,11 @@ pub(super) fn build_symbol_table(
                 domain,
                 has_sources,
             );
+            program.domain_definitions[ordinal].symbol = domain_symbol;
         }
     }
-    for data_definition in &program.data_definitions {
+    for ordinal in 0..program.data_definitions.len() {
+        let data_definition = &program.data_definitions[ordinal];
         if let Some(data_symbol) = root_children.next() {
             insert_data_symbol_children(
                 &mut builder,
@@ -305,9 +310,11 @@ pub(super) fn build_symbol_table(
                 data_definition,
                 has_sources,
             );
+            program.data_definitions[ordinal].symbol = data_symbol;
         }
     }
-    for conformance in &program.conformances {
+    for ordinal in 0..program.conformances.len() {
+        let conformance = &program.conformances[ordinal];
         if conformance.alias.is_some()
             && let Some(conformance_symbol) = root_children.next()
         {
@@ -318,6 +325,7 @@ pub(super) fn build_symbol_table(
                 conformance,
                 has_sources,
             );
+            program.conformances[ordinal].symbol = conformance_symbol;
         }
     }
     // Machine children require namespace-aware attachment selection. Their root
@@ -327,7 +335,8 @@ pub(super) fn build_symbol_table(
             program.machines[index].symbol = root_children.next().unwrap_or_default();
         }
     }
-    for proposition in &program.propositions {
+    for ordinal in 0..program.propositions.len() {
+        let proposition = &program.propositions[ordinal];
         if let Some(proposition_symbol) = root_children.next() {
             insert_proposition_symbol_children(
                 &mut builder,
@@ -336,9 +345,11 @@ pub(super) fn build_symbol_table(
                 proposition,
                 has_sources,
             );
+            program.propositions[ordinal].symbol = proposition_symbol;
         }
     }
-    for definition in &program.mathematical_definitions {
+    for ordinal in 0..program.mathematical_definitions.len() {
+        let definition = &program.mathematical_definitions[ordinal];
         if let Some(definition_symbol) = root_children.next() {
             insert_mathematical_symbol_children(
                 &mut builder,
@@ -347,9 +358,11 @@ pub(super) fn build_symbol_table(
                 definition,
                 has_sources,
             );
+            program.mathematical_definitions[ordinal].symbol = definition_symbol;
         }
     }
-    for operator in &program.operators {
+    for ordinal in 0..program.operators.len() {
+        let operator = &program.operators[ordinal];
         if let Some(operator_symbol) = root_children.next() {
             insert_operator_symbol_children(
                 &mut builder,
@@ -358,14 +371,18 @@ pub(super) fn build_symbol_table(
                 operator,
                 has_sources,
             );
+            program.operators[ordinal].symbol = operator_symbol;
         }
     }
-    for measure in &program.measures {
+    for ordinal in 0..program.measures.len() {
+        let measure = &program.measures[ordinal];
         if let Some(measure_symbol) = root_children.next() {
             insert_measure_symbol_children(&mut builder, measure_symbol, measure, has_sources);
+            program.measures[ordinal].symbol = measure_symbol;
         }
     }
-    for trait_definition in &program.traits {
+    for ordinal in 0..program.traits.len() {
+        let trait_definition = &program.traits[ordinal];
         if let Some(trait_symbol) = root_children.next() {
             insert_trait_symbol_children(
                 &mut builder,
@@ -374,8 +391,15 @@ pub(super) fn build_symbol_table(
                 trait_definition,
                 has_sources,
             );
+            program.traits[ordinal].symbol = trait_symbol;
         }
     }
+    program.wire_schemas.for_each_mut(|schema| {
+        schema.symbol = root_children.next().unwrap_or_default();
+    });
+    program.const_declarations.for_each_mut(|declaration| {
+        declaration.symbol = root_children.next().unwrap_or_default();
+    });
 
     builder.finish()
 }

@@ -46,7 +46,7 @@ pub(super) fn assign_machine_symbols(
     // A transparent refinement (`trait R = Base`) bounds an existing base
     // conformance; it is never itself a `satisfies` target.
     let (refinement_symbols, trait_proposition_slots, trait_machine_identity_slots) =
-        trait_parameter_tables(symbols, program);
+        trait_parameter_tables(program);
     // Resolve every attachment before visiting bodies: a method may be declared
     // after its caller or outside its carrier's module. Bodies borrow this exact
     // declaration cohort instead of rebuilding attachment identity from a name.
