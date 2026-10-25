@@ -36,3 +36,25 @@ The [upper AArch64 register probe](arm_probe/main.omg) exercises the same fact a
 ## Remaining acceptance
 
 Validation is recorded in the task's qualification/evidence ledger. This source row is not yet declared complete. `other_state` still uses the compiler's existing legacy `state` spelling and does not establish the ratified nested-machine migration. Saved-subject snapshot goals retain their source assertions but are not exported without exact capture custody; that composition remains open. Privileged effects, catalog families beyond this comparison, AArch64 countdown parity, environment interpretation, and the full parent task remain open. No merge or publication is authorized.
+
+
+The `saved_subject/` production in each of these same nine places preserves the
+same CMP/37 fact through a plain record. The final label authors the goal
+`match output { AsmSavedOutput { value } -> value == 37 }`; the enclosing
+machine still owes `result == 37`, and the original runtime oracle is retained.
+Each new reject twin changes only that match goal to 38. The original scalar
+production and reject twins remain controls. Both productions are pinned under
+`tests/omega/{pass,fail}/facts/`.
+
+This exercises closed logical subject custody: the copied goal retains its own
+match definition, subject, nominal pattern head, and alias anchor. Declaration,
+label exit, normal helper return, and caller consumption independently resolve
+the same readable observation at their own proof frontier. No match goal or
+label assertion supplies an assumption. Ambient completed captures still need
+their actual value/epoch transport; this closed production does not establish
+that remaining requirement or close the full board item.
+
+The other-state production uses a nested ordinary machine with an explicit
+computed argument, preserving the original 37 bound and success/failure oracle.
+The shared nested-declaration prerequisite retains lexical identity before
+flattening; it supplies no enclosing runtime capture.
