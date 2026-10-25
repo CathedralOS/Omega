@@ -362,7 +362,13 @@ helper that passes does not close an item.
     native/Terminal execution now agrees for the eighteen pinned
     `generic_calling_policy` place fixtures (base `c1c6bc8cb8ec`), while
     Windows x86-64 and Linux ARM64 native execution and other policy/member
-    kinds remain unqualified. Distinct
+    kinds remain unqualified. The reference producer's
+    `samples/cli/facts/named_conformance_dispatch` row preserves
+    `result == left + right` from `Selected`'s inline `combine` through generic
+    evidence dispatch across all nine places, with native/Terminal exit 0 on
+    Windows x86-64. Each reject twin drops only the right operand's upper bound
+    and refuses the specialized `apply` requires. Other hosts remain unexecuted
+    for that row. Distinct
     applications, canonical const projection and prior refusal controls remain
     pinned. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
