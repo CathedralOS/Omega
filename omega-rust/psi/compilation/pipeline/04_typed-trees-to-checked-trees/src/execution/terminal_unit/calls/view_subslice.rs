@@ -327,12 +327,7 @@ fn lends_collection(
         return false;
     };
 
-    let Some(borrow_state) = borrow.with_state_index(|index| {
-        index
-            .bucket(machine.symbol, state.symbol)
-            .first()
-            .map(|handle| borrow.states.get(*handle))
-    }) else {
+    let Some((_, borrow_state)) = borrow.first_state_borrow(machine.symbol, state.symbol) else {
         return false;
     };
     let mut loans = borrow

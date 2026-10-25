@@ -29,7 +29,8 @@ impl<'program> RangeCallContext<'program> {
         semantic: &'program facts::FactPlan,
         call_frames: Option<&'program validation::CallFrameResolver<'program>>,
     ) -> Self {
-        let borrow_calls = crate::flow::borrow_state_fact(borrows, machine.symbol, state.symbol)
+        let borrow_calls = borrows
+            .first_state_borrow(machine.symbol, state.symbol)
             .map(|(_, owner)| borrows.calls.span_or_empty(owner.calls))
             .unwrap_or(&[]);
         let owner = flow.control.state(machine.symbol, state.symbol);

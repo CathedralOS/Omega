@@ -1,6 +1,8 @@
 type Arena<T> = arena::PagedArenaSet<T>;
 use symbols::SymbolHandle;
 
+use crate::checked_trees::keyed_rows::KeyedRows;
+
 use super::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBoundaryEdgeFact, FlowCallFact,
     FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowConstraintRef, FlowExitFact,
@@ -82,9 +84,7 @@ pub struct FlowOwnershipFacts {
     pub selection_result_claims: Arena<super::FlowOwnedSelectionResultClaim>,
     pub selection_place_bindings: Arena<super::FlowSelectionPlaceBinding>,
     pub selection_produced_claims: Arena<super::FlowOwnedSelectionProducedClaim>,
-    pub permissions_by_state: arena::OwnedIndex<
-        symbols::SymbolKeyMap<SymbolHandle, Vec<arena::Handle<FlowPermissionEventFact>>>,
-    >,
+    pub permissions_by_state: KeyedRows<SymbolHandle, FlowPermissionEventFact>,
 }
 
 impl FlowOwnershipFacts {
@@ -115,7 +115,7 @@ impl FlowOwnershipFacts {
             selection_result_claims: Arena::default(),
             selection_place_bindings: Arena::default(),
             selection_produced_claims: Arena::default(),
-            permissions_by_state: arena::OwnedIndex::default(),
+            permissions_by_state: KeyedRows::default(),
         }
     }
 
@@ -124,19 +124,11 @@ impl FlowOwnershipFacts {
         state: SymbolHandle,
         run: impl FnOnce(&[arena::Handle<FlowPermissionEventFact>]) -> R,
     ) -> R {
-        self.permissions_by_state.with(
-            self.permissions.revision(),
-            || {
-                let mut index: symbols::SymbolKeyMap<
-                    SymbolHandle,
-                    Vec<arena::Handle<FlowPermissionEventFact>>,
-                > = symbols::SymbolKeyMap::default();
-                for (handle, event) in self.permissions.iter() {
-                    index.entry(event.state_symbol).or_default().push(handle);
-                }
-                index
-            },
-            |index| run(index.get(&state).map_or(&[], Vec::as_slice)),
+        self.permissions_by_state.with_rows(
+            &self.permissions,
+            |event| event.state_symbol,
+            &state,
+            run,
         )
     }
 }

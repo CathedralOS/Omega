@@ -96,10 +96,10 @@ mod place;
 mod reference_places;
 mod value_origins;
 
-// Shared helpers: reference-span append and filter rules, contiguous borrow
-// constraint refs, and borrow and proof fact-row lookups.
+// Shared helpers: reference-span append and filter rules, and contiguous borrow
+// constraint refs.
 mod constraints;
-mod fact_rows;
+
 mod reference_spans;
 
 // Not a flow-build step: derived from the complete check facts.
@@ -146,8 +146,6 @@ pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
-pub(crate) use fact_rows::borrow_state_fact;
-pub(crate) use fact_rows::proof_contract_call;
 pub(crate) use mutation::close_storage_places_over_aliases;
 pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{OriginPrecision, origin_place, sole_local_referent_origin};

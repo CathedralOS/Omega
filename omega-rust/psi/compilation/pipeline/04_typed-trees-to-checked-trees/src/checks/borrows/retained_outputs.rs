@@ -141,8 +141,9 @@ fn attributed(
     destination: &CanonicalPlace,
     source: SymbolHandle,
 ) -> bool {
-    let Some((_, borrowing)) =
-        crate::flow::borrow_state_fact(&facts.borrow, state.machine_symbol, state.state_symbol)
+    let Some((_, borrowing)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
     else {
         return false;
     };

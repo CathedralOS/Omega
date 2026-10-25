@@ -90,8 +90,9 @@ fn check_stored_output_relations(
     for machine in program.machines() {
         let mut stores = false;
         'machine_states: for state in program.machine_states(machine) {
-            let Some((_, borrowing)) =
-                crate::flow::borrow_state_fact(&facts.borrow, machine.symbol, state.symbol)
+            let Some((_, borrowing)) = facts
+                .borrow
+                .first_state_borrow(machine.symbol, state.symbol)
             else {
                 continue;
             };

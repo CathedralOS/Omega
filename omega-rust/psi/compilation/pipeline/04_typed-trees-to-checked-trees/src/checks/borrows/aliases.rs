@@ -97,12 +97,8 @@ pub(in crate::checks::borrows) fn resolve_places(
     }
 
     let borrow = &facts.borrow;
-    let state_borrow = borrow.with_state_index(|index| {
-        index
-            .bucket(state_flow.machine_symbol, state_flow.state_symbol)
-            .first()
-            .map(|handle| borrow.states.get(*handle))
-    })?;
+    let (_, state_borrow) =
+        borrow.first_state_borrow(state_flow.machine_symbol, state_flow.state_symbol)?;
     let candidates = facts
         .flow
         .borrow_loan_constraints(entry_constraints)

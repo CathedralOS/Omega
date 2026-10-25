@@ -43,18 +43,16 @@ pub(super) fn build_call_entry_contexts(
         retained_constraint_refs(&build.contexts.constraint_refs, active_constraints);
     // Coordinates repeat across states. The state owns the call identity;
     // a global first-match can attach another invocation's authority.
-    let owned_call = crate::flow::fact_rows::with_borrow_state_index(borrow, |index| {
-        index.bucket(machine_symbol, state_symbol).to_vec()
-    })
-    .into_iter()
-    .find_map(|state_handle| {
-        let state = borrow.states.get(state_handle);
-        borrow
-            .calls
-            .span_or_empty(state.calls)
-            .iter()
-            .position(|call| call == borrow_call)
-            .map(|offset| state.calls.handle_at(offset as u32))
+    let owned_call = borrow.with_state_borrows(machine_symbol, state_symbol, |rows| {
+        rows.iter().find_map(|state_handle| {
+            let state = borrow.states.get(*state_handle);
+            borrow
+                .calls
+                .span_or_empty(state.calls)
+                .iter()
+                .position(|call| call == borrow_call)
+                .map(|offset| state.calls.handle_at(offset as u32))
+        })
     });
     if let Some(borrow_call_handle) = owned_call {
         append_constraint_ref(
@@ -126,13 +124,12 @@ pub(super) fn build_call_exit_contexts(
         proof,
         semantic,
         build,
-        super::proof_contract_call(
-            proof,
+        proof.contract_call_at(&(
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
             borrow_call.call_ordinal,
-        ),
+        )),
         argument_sources,
         ensured.contexts,
     );

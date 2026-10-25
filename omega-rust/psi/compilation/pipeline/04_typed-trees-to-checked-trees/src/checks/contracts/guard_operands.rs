@@ -76,13 +76,8 @@ fn arm_operand_frame(
         .map(|owner| facts.flow.control.calls.span_or_empty(owner.calls))?;
     let borrow_calls = facts
         .borrow
-        .with_state_index(|index| {
-            index
-                .bucket(machine.symbol, state.symbol)
-                .first()
-                .map(|handle| facts.borrow.states.get(*handle))
-        })
-        .map(|owner| facts.borrow.calls.span_or_empty(owner.calls))
+        .first_state_borrow(machine.symbol, state.symbol)
+        .map(|(_, owner)| facts.borrow.calls.span_or_empty(owner.calls))
         .unwrap_or(&[]);
     let summaries = crate::flow::StateMutationSummaryCache::default();
     // Call ordinals number the named jump before the calls inside its operands,

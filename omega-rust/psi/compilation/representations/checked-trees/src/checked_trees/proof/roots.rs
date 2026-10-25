@@ -1,7 +1,8 @@
-use arena::{Arena, Handle, OwnedIndex};
+use arena::{Arena, Handle};
 
 use symbols::SymbolHandle;
 
+use crate::checked_trees::keyed_rows::KeyedRows;
 use crate::{
     CallContractSignature, CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument,
     ContractExitFact, ContractExpressionEvidenceCallFact,
@@ -70,140 +71,73 @@ pub struct ProofFacts {
     pub mathematical_safety_assumptions: Vec<u32>,
     pub indexed_theorems: Vec<crate::CheckedIndexedTheorem>,
     pub indexed_citations: Vec<crate::CheckedIndexedCitation>,
-    /// Caller-coordinate -> `contract_calls` row lookup owned by this
-    /// ledger; the index carries the `contract_calls` arena's revision, so
-    /// a mutation rebuilds it on the next query.
-    pub call_index: OwnedIndex<ProofCallIndex>,
-    /// Exit-coordinate -> `contract_exits` handle lookup owned by this
-    /// ledger, keyed by `(machine_symbol, state_symbol, transition_target)`.
-    pub exit_index: OwnedIndex<ProofExitIndex>,
-    /// Statement-coordinate -> `outcome_specific_arms` presence lookup owned
-    /// by this ledger, keyed by `(caller_machine_symbol, caller_state_symbol, statement_index)`.
-    pub outcome_arm_index: OwnedIndex<ProofOutcomeArmIndex>,
-    /// Statement-coordinate -> `proof_output_calls` (with `runtime_call.is_none()`)
-    /// presence lookup owned by this ledger, keyed by
-    /// `(caller_machine_symbol, caller_state_symbol, statement_index)`.
-    pub proof_output_index: OwnedIndex<ProofOutputCallIndex>,
-}
-
-/// `contract_calls` rows keyed by caller coordinate — `(machine symbol,
-/// state symbol, statement index, call ordinal)`. A call's contract row is
-/// addressed by its recorded identity rather than position; the last row
-/// recorded under a coordinate wins, matching the linear scan the index
-/// replaces. The integer hasher suits the handle-keyed map.
-#[derive(Clone, Default)]
-pub struct ProofCallIndex {
-    by_key:
-        symbols::SymbolKeyMap<(SymbolHandle, SymbolHandle, usize, usize), Handle<ContractCallFact>>,
-}
-
-impl ProofCallIndex {
-    /// The row recorded under `key`, if any.
-    pub fn get(
-        &self,
-        key: &(SymbolHandle, SymbolHandle, usize, usize),
-    ) -> Option<Handle<ContractCallFact>> {
-        self.by_key.get(key).copied()
-    }
-}
-
-/// `contract_exits` rows grouped by `(machine_symbol, state_symbol, transition_target)`.
-#[derive(Clone, Default)]
-pub struct ProofExitIndex {
-    by_key: symbols::SymbolKeyMap<
+    /// Caller-coordinate -> `contract_calls` row lookup. The grouping is
+    /// rebuilt whenever `contract_calls` moves; a call's contract row is
+    /// addressed by its recorded identity rather than its position.
+    pub call_index: KeyedRows<(SymbolHandle, SymbolHandle, usize, usize), ContractCallFact>,
+    /// Exit-coordinate -> `contract_exits` handles, keyed by
+    /// `(machine_symbol, state_symbol, transition_target)`, in arena order.
+    pub exit_index: KeyedRows<
         (
             SymbolHandle,
             SymbolHandle,
             typed_trees::statement::TransitionTargetHandle,
         ),
-        Vec<Handle<ContractExitFact>>,
+        ContractExitFact,
     >,
-}
-
-impl ProofExitIndex {
-    pub fn get(
-        &self,
-        key: &(
-            SymbolHandle,
-            SymbolHandle,
-            typed_trees::statement::TransitionTargetHandle,
-        ),
-    ) -> &[Handle<ContractExitFact>] {
-        self.by_key.get(key).map_or(&[], Vec::as_slice)
-    }
-}
-
-/// Statement coordinates that have at least one `OutcomeSpecificArmFact`.
-#[derive(Clone, Default)]
-pub struct ProofOutcomeArmIndex {
-    by_key: symbols::SymbolKeyMap<(SymbolHandle, SymbolHandle, usize), ()>,
-}
-
-impl ProofOutcomeArmIndex {
-    pub fn contains(&self, key: &(SymbolHandle, SymbolHandle, usize)) -> bool {
-        self.by_key.contains_key(key)
-    }
-}
-
-/// Statement coordinates that have at least one proof-only `ProofOutputCallFact`
-/// (`runtime_call.is_none()`).
-#[derive(Clone, Default)]
-pub struct ProofOutputCallIndex {
-    by_key: symbols::SymbolKeyMap<(SymbolHandle, SymbolHandle, usize), ()>,
-}
-
-impl ProofOutputCallIndex {
-    pub fn contains(&self, key: &(SymbolHandle, SymbolHandle, usize)) -> bool {
-        self.by_key.contains_key(key)
-    }
+    /// Statement-coordinate -> `outcome_specific_arms` rows, keyed by
+    /// `(caller_machine_symbol, caller_state_symbol, statement_index)`.
+    pub outcome_arm_index: KeyedRows<(SymbolHandle, SymbolHandle, usize), OutcomeSpecificArmFact>,
+    /// Statement-coordinate -> `proof_output_calls` rows, keyed by
+    /// `(caller_machine_symbol, caller_state_symbol, statement_index)`.
+    pub proof_output_index: KeyedRows<(SymbolHandle, SymbolHandle, usize), ProofOutputCallFact>,
 }
 
 impl ProofFacts {
-    /// Run `run` against this ledger's owned caller-coordinate index,
-    /// rebuilding when the `contract_calls` arena's revision moved.
-    pub fn with_call_index<R>(&self, run: impl FnOnce(&ProofCallIndex) -> R) -> R {
-        self.call_index.with(
-            self.contract_calls.revision(),
-            || {
-                let mut index = ProofCallIndex::default();
-                for (handle, call) in self.contract_calls.iter() {
-                    index.by_key.insert(
-                        (
-                            call.caller_machine_symbol,
-                            call.caller_state_symbol,
-                            call.statement_index,
-                            call.call_ordinal,
-                        ),
-                        handle,
-                    );
-                }
-                index
+    /// The last `contract_calls` row recorded under one caller coordinate —
+    /// `(machine symbol, state symbol, statement index, call ordinal)`. The
+    /// last row recorded under a coordinate wins, matching the linear scan
+    /// the grouping replaced; a call is addressed by its recorded identity
+    /// rather than its position.
+    pub fn contract_call_at(
+        &self,
+        key: &(SymbolHandle, SymbolHandle, usize, usize),
+    ) -> Option<&ContractCallFact> {
+        let handle = self.call_index.with_rows(
+            &self.contract_calls,
+            |call| {
+                (
+                    call.caller_machine_symbol,
+                    call.caller_state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
             },
-            run,
-        )
+            key,
+            |rows| rows.last().copied(),
+        )?;
+        Some(self.contract_calls.get(handle))
     }
 
-    /// Run `run` against this ledger's owned exit-coordinate index,
-    /// rebuilding when the `contract_exits` arena's revision moved.
-    pub fn with_exit_index<R>(&self, run: impl FnOnce(&ProofExitIndex) -> R) -> R {
-        self.exit_index.with(
-            self.contract_exits.revision(),
-            || {
-                let mut index = ProofExitIndex::default();
-                for (handle, exit) in self.contract_exits.iter() {
-                    index
-                        .by_key
-                        .entry((
-                            exit.machine_symbol,
-                            exit.state_symbol,
-                            exit.transition_target,
-                        ))
-                        .or_default()
-                        .push(handle);
-                }
-                index
+    /// The `contract_exits` rows recorded at one exit coordinate
+    /// `(machine_symbol, state_symbol, transition_target)`, in arena order.
+    pub fn contract_exits_at(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        transition_target: typed_trees::statement::TransitionTargetHandle,
+    ) -> Vec<Handle<ContractExitFact>> {
+        self.exit_index.with_rows(
+            &self.contract_exits,
+            |exit| {
+                (
+                    exit.machine_symbol,
+                    exit.state_symbol,
+                    exit.transition_target,
+                )
             },
-            run,
+            &(machine_symbol, state_symbol, transition_target),
+            |rows| rows.to_vec(),
         )
     }
 
@@ -214,23 +148,17 @@ impl ProofFacts {
         state_symbol: SymbolHandle,
         statement_index: usize,
     ) -> bool {
-        self.outcome_arm_index.with(
-            self.outcome_specific_arms.revision(),
-            || {
-                let mut index = ProofOutcomeArmIndex::default();
-                for (_, arm) in self.outcome_specific_arms.iter() {
-                    index.by_key.insert(
-                        (
-                            arm.caller_machine_symbol,
-                            arm.caller_state_symbol,
-                            arm.statement_index,
-                        ),
-                        (),
-                    );
-                }
-                index
+        self.outcome_arm_index.with_rows(
+            &self.outcome_specific_arms,
+            |arm| {
+                (
+                    arm.caller_machine_symbol,
+                    arm.caller_state_symbol,
+                    arm.statement_index,
+                )
             },
-            |index| index.contains(&(machine_symbol, state_symbol, statement_index)),
+            &(machine_symbol, state_symbol, statement_index),
+            |rows| !rows.is_empty(),
         )
     }
 
@@ -242,25 +170,20 @@ impl ProofFacts {
         state_symbol: SymbolHandle,
         statement_index: usize,
     ) -> bool {
-        self.proof_output_index.with(
-            self.proof_output_calls.revision(),
-            || {
-                let mut index = ProofOutputCallIndex::default();
-                for (_, invocation) in self.proof_output_calls.iter() {
-                    if invocation.runtime_call.is_none() {
-                        index.by_key.insert(
-                            (
-                                invocation.caller_machine_symbol,
-                                invocation.caller_state_symbol,
-                                invocation.statement_index,
-                            ),
-                            (),
-                        );
-                    }
-                }
-                index
+        self.proof_output_index.with_rows(
+            &self.proof_output_calls,
+            |invocation| {
+                (
+                    invocation.caller_machine_symbol,
+                    invocation.caller_state_symbol,
+                    invocation.statement_index,
+                )
             },
-            |index| index.contains(&(machine_symbol, state_symbol, statement_index)),
+            &(machine_symbol, state_symbol, statement_index),
+            |rows| {
+                rows.iter()
+                    .any(|handle| self.proof_output_calls.get(*handle).runtime_call.is_none())
+            },
         )
     }
 }
