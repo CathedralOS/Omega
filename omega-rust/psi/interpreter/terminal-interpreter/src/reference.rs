@@ -1681,9 +1681,9 @@ impl TerminalExecution<'_> {
         parameters: &[StructuralParameterDeclaration],
         signature: &StructuralResultDeclaration,
         arguments: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-        aggregate_backings: &BTreeMap<PlaceId, AggregateBacking>,
-        primitive_loans: &BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
-        array_loans: &BTreeMap<PlaceId, crate::element_views::ElementView>,
+        aggregate_backings: &RuntimeRows<PlaceId, AggregateBacking>,
+        primitive_loans: &RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+        array_loans: &RuntimeRows<PlaceId, crate::element_views::ElementView>,
         placed_occurrences: &BTreeMap<
             terminal_psi::TerminalPlacedViewInput,
             crate::structural_inputs::placed_views::PlacedViewOccurrence,

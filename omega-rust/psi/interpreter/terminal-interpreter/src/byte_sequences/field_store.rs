@@ -218,7 +218,7 @@ impl TerminalExecution<'_> {
                 self.byte_sequence_values.insert(
                     *destination,
                     ByteSequenceBinding::Immutable(view.with_descriptor_home(home.clone())),
-                );
+                )?;
             }
         }
         Ok(())

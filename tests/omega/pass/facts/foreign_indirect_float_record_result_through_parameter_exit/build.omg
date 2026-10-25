@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "foreign_indirect_float_record_result_through_parameter_exit");
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

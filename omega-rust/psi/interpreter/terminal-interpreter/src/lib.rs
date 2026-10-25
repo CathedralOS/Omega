@@ -7,6 +7,11 @@
 //! `execution.rs` is the engine that entry drives: the live state and the
 //! interpreter loop. Execution retains immutable code and resumable live
 //! custody; fuel exhaustion is not a semantic program outcome.
+//! `runtime_rows` owns live-cell reservations for frame values/descriptors and
+//! shared scalar record fields. Constructor and subtree staging pay for their
+//! overlap, then transfer reservations with the rows. Primitive backing and
+//! other shared descriptor/case tables still have separate accounting debt;
+//! these owners do not yet establish a complete Build storage ceiling.
 //!
 //! The embedding surface sits beside it, by lifecycle: `program` (one owned or
 //! borrowed immutable artifact — `TerminalProgram` — reusable across

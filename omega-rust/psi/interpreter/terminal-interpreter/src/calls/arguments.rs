@@ -12,7 +12,6 @@ use crate::runtime_rows::RuntimeRows;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
-use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDeclaration};
 
 pub(crate) struct StructuralCallArguments {
@@ -22,11 +21,11 @@ pub(crate) struct StructuralCallArguments {
     pub(crate) values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     /// Borrowed re-views keep their original storage declaration beside the
     /// logical ingress carrier. Field projection consumes this association.
-    pub(crate) aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
-    pub(crate) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
-    pub(crate) primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
-    pub(crate) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
-    pub(crate) element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
+    pub(crate) aggregate_backings: RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
+    pub(crate) byte_sequences: RuntimeRows<PlaceId, ByteSequenceBinding>,
+    pub(crate) primitive_loans: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+    pub(crate) scalar_arrays: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) element_views: RuntimeRows<PlaceId, crate::element_views::ElementView>,
 }
 
 impl StructuralCallArguments {
@@ -90,7 +89,7 @@ impl TerminalExecution<'_> {
         // Bind payload-bearing arrays directly to callee places. The remaining
         // arguments use the existing opaque/borrowed-backing preparation; their
         // filtered positions must never be rebound against the full signature.
-        let mut scalar_arrays = BTreeMap::new();
+        let mut scalar_arrays = RuntimeRows::new(self.account.as_ref());
         let mut opaque_parameters = Vec::new();
         let mut opaque_arguments = Vec::new();
         for (parameter, argument) in machine.structural_parameters.iter().zip(arguments) {
@@ -103,7 +102,7 @@ impl TerminalExecution<'_> {
                 && parameter.projected_qualifications.is_empty()
             {
                 let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
-                if scalar_arrays.insert(parameter.place, value).is_some() {
+                if scalar_arrays.insert(parameter.place, value)?.is_some() {
                     return Err(malformed());
                 }
             } else {

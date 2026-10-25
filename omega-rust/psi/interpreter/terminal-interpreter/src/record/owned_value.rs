@@ -80,7 +80,7 @@ impl TerminalExecution<'_> {
         if multiplicity != StructuralMultiplicity::Unrestricted && !transfers_custody {
             return Err(TerminalInterpretError::AffineFrontierMismatch);
         }
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage(
             self,
             source,

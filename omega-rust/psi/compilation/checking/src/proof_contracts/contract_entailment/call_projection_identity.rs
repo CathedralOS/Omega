@@ -436,23 +436,22 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                             _ => (None, None),
                         };
                     value
-                        .map(|value| entry.judge.completed_value_identity(value))
+                        // Use the equations established at this completed operand cut.
+                        // A fresh post-write observation is not the stale entry value,
+                        // but its admitted guarantee can determine the exact index.
+                        .map(|value| {
+                            entry
+                                .judge
+                                .resolve(entry.judge.completed_value_identity(value))
+                        })
                         .and_then(|value| {
-                            let value = match value.semantic_value() {
-                                StructuralTerm::Integer(integer) => {
-                                    super::ScopedArithmeticValue::Integer(integer.clone())
-                                }
-                                _ => super::ScopedArithmeticValue::Atom {
-                                    identity: format!(
-                                        "state:{:?}:completed-index:{}",
-                                        self.state,
-                                        value.observation_identity_key()?
-                                    ),
-                                    unsigned: !primitive
-                                        .filter(|primitive| primitive.is_fixed_integer())?
-                                        .is_signed_integer(),
-                                },
-                            };
+                            let value = completed_index_value(
+                                &value,
+                                self.state,
+                                primitive
+                                    .filter(|primitive| primitive.is_fixed_integer())
+                                    .map(|primitive| !primitive.is_signed_integer()),
+                            )?;
                             Some(ProjectionValue::Scalar(value))
                         })
                 }
@@ -500,5 +499,43 @@ fn bound_index(
             .find(|(formal, _)| formal == symbol)
             .map(|(_, value)| value.clone()),
         _ => None,
+    }
+}
+
+/// Retain erased integer arithmetic as arithmetic, not an unrelated opaque
+/// observation. The scoped integer engine owns normalization and comparison;
+/// executable ScalarBinary operations retain their original value identity.
+fn completed_index_value(
+    value: &StructuralTerm,
+    state: SymbolHandle,
+    unsigned: Option<bool>,
+) -> Option<super::ScopedArithmeticValue> {
+    use typed_trees::expression::BinaryOperator;
+    match value.semantic_value() {
+        StructuralTerm::Integer(integer) => {
+            Some(super::ScopedArithmeticValue::Integer(integer.clone()))
+        }
+        StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        } if matches!(
+            operator,
+            BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+        ) =>
+        {
+            Some(super::ScopedArithmeticValue::IntegerOperation {
+                operator: *operator,
+                left: Box::new(completed_index_value(left, state, unsigned)?),
+                right: Box::new(completed_index_value(right, state, unsigned)?),
+            })
+        }
+        _ => Some(super::ScopedArithmeticValue::Atom {
+            identity: format!(
+                "state:{state:?}:completed-index:{}",
+                value.observation_identity_key()?
+            ),
+            unsigned: unsigned?,
+        }),
     }
 }

@@ -228,7 +228,7 @@ impl PrimitiveStorageWrites {
                 let stored = arrays
                     .get(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements.get(*index))
+                    .and_then(|array| array.elements().get(*index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
                     ))?;
@@ -1253,7 +1253,7 @@ impl TerminalExecution<'_> {
             }
             let index = usize::try_from(leaf_offset).map_err(|_| malformed())?;
             if array
-                .elements
+                .elements()
                 .get(index)
                 .is_none_or(|value| value.scalar_type() != scalar_type)
             {
@@ -1894,7 +1894,7 @@ impl TerminalExecution<'_> {
                 arrays
                     .get(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements.get(index))
+                    .and_then(|array| array.elements().get(index))
                     .copied()
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         source,
@@ -2137,12 +2137,12 @@ impl TerminalExecution<'_> {
                         .ok_or(malformed())?
                         .scalar_array_values
                 };
-                let stored = arrays
-                    .get_mut(&home.place)
-                    .and_then(|array| array.elements.get_mut(index))
-                    .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
-                        destination,
-                    ))?;
+                let array = arrays.get_mut(&home.place).ok_or(
+                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
+                )?;
+                let stored = array.elements_mut()?.get_mut(index).ok_or(
+                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
+                )?;
                 *stored = scalar;
             }
             PrimitiveStorageEndpoint::Scalar(storage) => {

@@ -19,6 +19,7 @@ macro_rules! import_signature_via_clone {
     };
 }
 
+mod affine_transform;
 mod allocation;
 mod borrowed_storage;
 mod buffered_output;
@@ -29,6 +30,7 @@ mod integer_division;
 mod native_word;
 mod network_address;
 mod numeric;
+mod scalar_record;
 mod standard_input;
 
 use native_artifact::TerminalRuntimeHostProvisions;
@@ -289,6 +291,15 @@ pub(super) fn bind<'host>(
                     provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),
                     input.as_ref().cloned(),
                     output.clone(),
+                )? {
+                    instance.bind_import(*slot, adapter)?;
+                    continue;
+                }
+                if let Some(adapter) = affine_transform::AffineTransformImport::admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions.and_then(|provisions| provisions.host_calling_application(*slot)),
                 )? {
                     instance.bind_import(*slot, adapter)?;
                     continue;

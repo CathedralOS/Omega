@@ -22,7 +22,6 @@ use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
-use std::collections::BTreeMap;
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
@@ -100,7 +99,7 @@ impl TerminalExecution<'_> {
             Vec::new(),
         );
         let root = StructuralRuntimePlace::from(&value);
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
         if let Some(selected) = aggregate.result_case {
             storage.stage_case(root.clone(), aggregate.structural_type, selected);
         }
@@ -211,9 +210,7 @@ impl TerminalExecution<'_> {
             path: Vec::new(),
         };
         let member_root = StructuralRuntimePlace::from(&value);
-        let mut staged_scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue> =
-            BTreeMap::new();
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
         let mut consumed = Vec::new();
         let mut frontier = self.live_affine_frontier.clone();
         let mut claim_operands = Vec::new();
@@ -232,14 +229,16 @@ impl TerminalExecution<'_> {
                     if !scalar.satisfies_field(&declaration.field_type) {
                         return Err(malformed());
                     }
-                    staged_scalars.insert(
-                        StructuralScalarRuntimeField {
-                            parent: member_root.clone(),
-                            namespace,
-                            field: binding.field,
-                        },
+                    storage.stage_scalar_endpoint(
+                        &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
+                            StructuralScalarRuntimeField {
+                                parent: member_root.clone(),
+                                namespace,
+                                field: binding.field,
+                            },
+                        ),
                         scalar,
-                    );
+                    )?;
                 }
                 terminal_psi::RecordFieldValue::Structural(argument) => {
                     if argument.access != StructuralAccess::Owned {
@@ -300,10 +299,10 @@ impl TerminalExecution<'_> {
             &mut frontier,
             &|current| storage.case_at_projection(self, &value, &current.path),
         )?;
-        self.commit_constructor_operands(frontier, &consumed, claims)?;
-        self.structural_scalar_fields.extend(staged_scalars);
+        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
+        retirement.commit(self);
         Ok(())
     }
 
@@ -313,7 +312,13 @@ impl TerminalExecution<'_> {
         crate::structural_storage::prune(&mut self.activation_storage.claim_descriptors, from);
         self.invalidate_stored_provenance(from);
         crate::structural_storage::prune(&mut self.structural_host_atoms, from);
-        crate::structural_storage::prune(&mut self.structural_scalar_fields, from);
+        let scalar_cells: Vec<_> =
+            crate::structural_storage::cells(&self.structural_scalar_fields, from)
+                .map(|(cell, _)| cell.clone())
+                .collect();
+        for cell in scalar_cells {
+            self.structural_scalar_fields.remove(&cell);
+        }
         crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_descriptors, from);
         crate::structural_storage::prune(&mut self.structural_byte_storage, from);
@@ -371,7 +376,7 @@ impl TerminalExecution<'_> {
                     ByteSequenceBinding::Immutable(ByteSequenceView::new(
                         ByteSequenceStorage::copy(bytes, self.account.as_ref())?,
                     )),
-                )
+                )?
                 .is_some()
             {
                 return Err(malformed());
@@ -506,7 +511,7 @@ impl TerminalExecution<'_> {
                     };
                     let cell = StructuralScalarRuntimeField::member(parent, *field);
                     self.structural_scalar_fields
-                        .insert(cell, zero(*scalar_type).ok_or_else(malformed)?);
+                        .insert(cell, zero(*scalar_type).ok_or_else(malformed)?)?;
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField { field, .. } => {
                     self.structural_byte_sequence_fields.insert(
@@ -536,7 +541,7 @@ impl TerminalExecution<'_> {
                     self.structural_scalar_fields.insert(
                         StructuralScalarRuntimeField::case_payload(parent, *field),
                         zero(*scalar_type).ok_or_else(malformed)?,
-                    );
+                    )?;
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ByteArray { length, .. } => {
                     // Byte views and scalar indexing must share one backing.
@@ -839,7 +844,7 @@ impl TerminalExecution<'_> {
             return Ok(OperationFlow::Advance);
         }
         self.invalidate_stored_provenance(&cell.parent);
-        self.structural_scalar_fields.insert(cell, source);
+        self.structural_scalar_fields.insert(cell, source)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -1225,7 +1230,7 @@ impl TerminalExecution<'_> {
         {
             writes.commit(self)?;
         } else {
-            let mut storage = ConstructorStorage::default();
+            let mut storage = ConstructorStorage::new(self.account.as_ref());
             storage.stage(self, value, &child, &hole, !copies_storage)?;
             let source = match child {
                 ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
@@ -1485,12 +1490,14 @@ impl TerminalExecution<'_> {
                         .collect(),
                 })
         };
-        let staged_scalars: Vec<_> =
-            crate::structural_storage::cells(&self.structural_scalar_fields, from)
-                .filter_map(|(cell, scalar)| {
+        let mut staged_scalars = crate::runtime_rows::RuntimeRows::from_rows(
+            self.account.as_ref(),
+            crate::structural_storage::cells(&self.structural_scalar_fields, from).filter_map(
+                |(cell, scalar)| {
                     retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
-                })
-                .collect();
+                },
+            ),
+        )?;
         let staged_byte_fields: Vec<_> =
             crate::structural_storage::cells(&self.structural_byte_sequence_fields, from)
                 .filter_map(|(cell, view)| {
@@ -1535,11 +1542,13 @@ impl TerminalExecution<'_> {
             crate::structural_storage::cells(&self.structural_primitive_storage, from)
                 .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
                 .collect();
+        self.structural_scalar_fields
+            .validate_append(&staged_scalars)?;
         self.prune_subtree(to);
         if vacate {
             self.prune_subtree(from);
         }
-        self.structural_scalar_fields.extend(staged_scalars);
+        self.structural_scalar_fields.append(&mut staged_scalars)?;
         self.structural_byte_sequence_fields
             .extend(staged_byte_fields);
         self.structural_byte_storage.extend(staged_arrays);
@@ -1638,7 +1647,7 @@ impl TerminalExecution<'_> {
                 crate::byte_sequences::binding::ByteSequenceBinding::Immutable(
                     bytes.detached_descriptor(),
                 ),
-            );
+            )?;
             self.structural_values.insert(result.place, copied)?;
             return Ok(OperationFlow::Advance);
         }
@@ -1693,6 +1702,17 @@ impl TerminalExecution<'_> {
                 if self.scalar_array_values.contains_key(&result.place) {
                     return Err(malformed());
                 }
+                // Plain results retain the completed row-major batch. Besides
+                // avoiding a cell map per scalar, this makes a huge outer
+                // dimension with zero inner extent constant-size storage.
+                // Evidence-bearing results retain their placed metadata below.
+                if result.is_unrestricted_plain() {
+                    let mut copied =
+                        self.scalar_array_snapshot(&argument, result.structural_type)?;
+                    copied.qualifications.clone_from(&result.qualifications);
+                    self.scalar_array_values.insert(result.place, copied)?;
+                    return Ok(OperationFlow::Advance);
+                }
                 let mut elements = Vec::new();
                 value
                     .visit_scalar_leaves(self, &argument, |_, _, scalar| {
@@ -1700,22 +1720,6 @@ impl TerminalExecution<'_> {
                         Ok(())
                     })?
                     .ok_or_else(malformed)?;
-                // Plain results retain the completed row-major batch. Besides
-                // avoiding a cell map per scalar, this makes a huge outer
-                // dimension with zero inner extent constant-size storage.
-                // Evidence-bearing results retain their placed metadata below.
-                if result.is_unrestricted_plain() {
-                    self.scalar_array_values.insert(
-                        result.place,
-                        crate::scalar_array::TerminalScalarArrayValue {
-                            storage_identity: None,
-                            qualifications: Vec::new(),
-                            structural_type: result.structural_type,
-                            elements,
-                        },
-                    );
-                    return Ok(OperationFlow::Advance);
-                }
                 let mut identity_cursor = self.local_structural_identities.cursor();
                 let copied = TerminalStructuralValue {
                     opaque_identity: self
@@ -1726,7 +1730,7 @@ impl TerminalExecution<'_> {
                     projected_qualifications: result.projected_qualifications.clone(),
                     path: Vec::new(),
                 };
-                let mut storage = ConstructorStorage::default();
+                let mut storage = ConstructorStorage::new(self.account.as_ref());
                 storage.stage(
                     self,
                     &argument,
@@ -1937,7 +1941,7 @@ impl TerminalExecution<'_> {
             self.byte_sequence_values.insert(
                 result.place,
                 ByteSequenceBinding::Immutable(bytes.detached_descriptor()),
-            );
+            )?;
         }
         if self
             .program
@@ -1972,7 +1976,7 @@ impl TerminalExecution<'_> {
             if self.element_view_values.contains_key(&result.place) {
                 return Err(malformed());
             }
-            self.element_view_values.insert(result.place, descriptor);
+            self.element_view_values.insert(result.place, descriptor)?;
         }
         self.clone_subtree(
             &StructuralRuntimePlace::from(&leaf),
@@ -2002,7 +2006,7 @@ impl TerminalExecution<'_> {
         let mut copied = self.scalar_array_snapshot(source, result.structural_type)?;
         self.validate_scalar_array_qualifications(&copied, &result.qualifications)?;
         copied.qualifications = result.qualifications.clone();
-        self.scalar_array_values.insert(result.place, copied);
+        self.scalar_array_values.insert(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
     /// Mint the copied record a byte-carrier leaf copy names: the resolved
@@ -2088,7 +2092,7 @@ impl TerminalExecution<'_> {
             self.structural_scalar_fields.insert(
                 StructuralScalarRuntimeField::member(parent.clone(), field),
                 scalar,
-            );
+            )?;
         }
         self.structural_values.insert(result.place, copied)?;
         Ok(OperationFlow::Advance)

@@ -59,7 +59,7 @@ impl TerminalExecution<'_> {
                     return Err(malformed());
                 }
                 let values = self.frame_array(depth, place).ok_or_else(malformed)?;
-                TerminalByteRead::scalars(&values.elements[start..end])
+                TerminalByteRead::scalars(&values.elements()[start..end])
             }
         }
     }
@@ -94,7 +94,7 @@ impl TerminalExecution<'_> {
         let count = super::byte_array_length(&self.program.structural_types(), structural_type)
             .ok_or_else(malformed)?;
         if array.structural_type != structural_type
-            || u64::try_from(array.elements.len()).ok() != Some(count)
+            || u64::try_from(array.elements().len()).ok() != Some(count)
             || !storage.referent.path.is_empty()
             || !matches!(
                 self.program
@@ -106,7 +106,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        Ok((0, array.elements.len()))
+        Ok((0, array.elements().len()))
     }
 
     pub(crate) fn stored_byte_array_length(
@@ -145,7 +145,7 @@ impl TerminalExecution<'_> {
                     .ok_or_else(malformed)?;
                 let value = self
                     .frame_array(depth, place)
-                    .and_then(|array| array.elements.get(absolute))
+                    .and_then(|array| array.elements().get(absolute))
                     .ok_or_else(malformed)?;
                 scalar_byte(value)
             }
@@ -180,11 +180,13 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
                 let scalar_type =
                     IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
-                *array.elements.get_mut(absolute).ok_or_else(malformed)? =
-                    TerminalScalarValue::Integer {
-                        scalar_type,
-                        value: IntegerValue::Unsigned(u128::from(byte)),
-                    };
+                *array
+                    .elements_mut()?
+                    .get_mut(absolute)
+                    .ok_or_else(malformed)? = TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: IntegerValue::Unsigned(u128::from(byte)),
+                };
                 Ok(())
             }
         };
@@ -215,7 +217,7 @@ impl TerminalExecution<'_> {
         };
         let values = self
             .frame_array(depth, place)
-            .and_then(|array| array.elements.get(start..end))
+            .and_then(|array| array.elements().get(start..end))
             .ok_or_else(malformed)?
             .iter()
             .map(scalar_byte);

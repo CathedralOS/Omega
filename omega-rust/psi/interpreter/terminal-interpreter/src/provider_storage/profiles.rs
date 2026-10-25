@@ -195,7 +195,7 @@ impl TerminalExecution<'_> {
     /// provider supplied valid geometry, rights, or any actual storage.
     pub(crate) fn complete_resource_profile_call(
         &mut self,
-        pending: PendingResourceProfile,
+        pending: &PendingResourceProfile,
         result: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
         if result.structural_type != pending.result_type {

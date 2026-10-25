@@ -2,8 +2,12 @@
 //! and the original frame survive hook suspension; only completion installs them.
 use super::*;
 use crate::errors::malformed;
+use crate::execution::FailedReturn;
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
+
+#[cfg(test)]
+mod tests;
 
 impl TerminalExecution<'_> {
     pub(super) fn continue_cleanup_actions(
@@ -65,11 +69,14 @@ impl TerminalExecution<'_> {
             .0
             .cleanup_receiver
             .map(|place| (place, completed.1.clone()));
-        self.suspend_with(SuspendedCallResult::NominalCleanups {
-            completed,
-            remaining,
-            continuation,
-        });
+        self.suspend_with(
+            SuspendedCallResult::NominalCleanups {
+                completed,
+                remaining,
+                continuation,
+            },
+            Vec::new(),
+        )?;
         if let Some((place, value)) = receiver {
             self.structural_values.insert(place, value)?;
         }
@@ -100,9 +107,21 @@ impl TerminalExecution<'_> {
         &mut self,
         mut completed: CompletedReturn,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
-        self.complete_activation_storage()?;
-        let Some(caller) = self.call_stack.pop() else {
+        if let Err(error) = self.complete_activation_storage() {
+            self.failed_return = Some(FailedReturn {
+                _completed: completed,
+                _expected: None,
+                _loan_completions: Vec::new(),
+            });
+            return Err(error);
+        }
+        let Some(mut caller) = self.call_stack.pop() else {
             if completed.destination.is_some() {
+                self.failed_return = Some(FailedReturn {
+                    _completed: completed,
+                    _expected: None,
+                    _loan_completions: Vec::new(),
+                });
                 return Err(malformed());
             }
             if let TerminalExecutionResult::Structural(returned) = &mut completed.value {
@@ -114,29 +133,59 @@ impl TerminalExecution<'_> {
                 completed.value,
             )));
         };
-        if let SuspendedCallResult::ExternalCompletion { boundary, edge } = caller.result {
+        let loan_completions = std::mem::take(&mut caller.loan_completions);
+        let expected = self.restore_return_caller(caller);
+        if let Err(error) = self.install_return(&mut completed, &expected, &loan_completions) {
+            self.failed_return = Some(FailedReturn {
+                _completed: completed,
+                _expected: Some(expected),
+                _loan_completions: loan_completions,
+            });
+            return Err(error);
+        }
+        if let SuspendedCallResult::NominalCleanups {
+            remaining,
+            continuation,
+            ..
+        } = expected
+        {
+            return self.continue_cleanup_actions(remaining, continuation);
+        }
+        Ok(TerminatorFlow::Continue)
+    }
+
+    /// Borrow the completed owner until every fallible installation step has
+    /// succeeded. Descriptor inspection clones retain the same backing, not
+    /// another guest copy. On failure, the caller keeps completed storage,
+    /// the unconsumed continuation and any already-installed rows together.
+    fn install_return(
+        &mut self,
+        completed: &mut CompletedReturn,
+        expected: &SuspendedCallResult,
+        loan_completions: &[terminal_psi::LoanCompletion],
+    ) -> Result<(), TerminalInterpretError> {
+        if let SuspendedCallResult::ExternalCompletion { boundary, edge } = expected {
             return Err(TerminalInterpretError::ExternalCompletionProviderReturned {
-                boundary,
-                edge,
+                boundary: *boundary,
+                edge: *edge,
             });
         }
-        let loan_completions = caller.loan_completions.clone();
-        let expected = self.restore_return_caller(caller);
         // Structural result rebinding was staged against the suspended caller.
         // Install that candidate before loan completion so it cannot later
         // overwrite the refreshed owner roster with the old saved frontier.
-        if let Some(claims) = completed.rebound_claims {
+        if let Some(claims) = completed.rebound_claims.take() {
             self.live_claims = claims;
         }
-        self.complete_loan_custody(&loan_completions)?;
+        self.complete_loan_custody(loan_completions)?;
         match expected {
             SuspendedCallResult::ExternalCompletion { boundary, edge } => {
-                Err(TerminalInterpretError::ExternalCompletionProviderReturned { boundary, edge })
+                Err(TerminalInterpretError::ExternalCompletionProviderReturned {
+                    boundary: *boundary,
+                    edge: *edge,
+                })
             }
             SuspendedCallResult::NominalCleanups {
-                completed: cleanup,
-                remaining,
-                continuation,
+                completed: cleanup, ..
             } => {
                 if completed.value != TerminalExecutionResult::Unit {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
@@ -147,52 +196,54 @@ impl TerminalExecution<'_> {
                     &self.live_claims,
                     &cleanup.0,
                 )?;
-                self.continue_cleanup_actions(remaining, continuation)
+                Ok(())
             }
             SuspendedCallResult::Unit => {
                 if completed.value != TerminalExecutionResult::Unit {
                     return Err(malformed());
                 }
-                Ok(TerminatorFlow::Continue)
+                Ok(())
             }
             SuspendedCallResult::Scalar(destination) => {
-                let TerminalExecutionResult::Scalar(value) = completed.value else {
+                let TerminalExecutionResult::Scalar(value) = &completed.value else {
                     return Err(malformed());
                 };
-                self.values.insert(destination, value)?;
-                Ok(TerminatorFlow::Continue)
+                self.values.insert(*destination, *value)?;
+                Ok(())
             }
             SuspendedCallResult::Structural {
                 result,
                 profile_completion,
                 ..
             } => {
-                if completed.destination.as_ref() != Some(&result) {
+                if completed.destination.as_ref() != Some(result) {
                     return Err(malformed());
                 }
-                match completed.value {
+                match &completed.value {
                     TerminalExecutionResult::Structural(returned) => {
                         if let Some(pending) = profile_completion {
                             self.complete_resource_profile_call(pending, &returned.value)?;
                         }
                         if self
                             .structural_values
-                            .insert(result.place, returned.value)?
+                            .insert(result.place, returned.value.clone())?
                             .is_some()
                         {
                             return Err(malformed());
                         }
-                        if let Some(binding) = completed.byte_sequence {
-                            self.byte_sequence_values.insert(result.place, binding);
+                        if let Some(binding) = &completed.byte_sequence {
+                            self.byte_sequence_values
+                                .insert(result.place, binding.clone())?;
                         }
-                        if let Some(binding) = completed.element_view {
-                            self.element_view_values.insert(result.place, binding);
+                        if let Some(binding) = &completed.element_view {
+                            self.element_view_values
+                                .insert(result.place, binding.clone())?;
                         }
                     }
                     TerminalExecutionResult::ScalarArray(returned) => {
                         if self
                             .scalar_array_values
-                            .insert(result.place, returned.value)
+                            .insert(result.place, returned.value.clone())?
                             .is_some()
                         {
                             return Err(malformed());
@@ -219,7 +270,7 @@ impl TerminalExecution<'_> {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
                 self.live_affine_frontier.extend(carried);
-                Ok(TerminatorFlow::Continue)
+                Ok(())
             }
         }
     }

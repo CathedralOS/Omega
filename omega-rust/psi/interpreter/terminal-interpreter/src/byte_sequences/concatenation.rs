@@ -43,7 +43,7 @@ impl TerminalExecution<'_> {
         self.byte_sequence_values.insert(
             result.place,
             ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
-        );
+        )?;
         self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
