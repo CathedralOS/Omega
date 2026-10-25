@@ -1,0 +1,30 @@
+// Expected exit: 0
+// A call-scoped shared view preserves its exact opaque child across an independent component while the original remains usable and sibling host 513 stays distinct.
+use producer::main;
+machine consume<'loan>(original: &'loan AddressBox, sent: &'loan AddressBox, sibling: &'loan AddressBox) -> bool reaches AddressParts, AddressBridge {
+    let original_location: addr = address_of(sent);
+    let original_child_location: addr = address_of(&sent.value);
+    let across_location: addr = AddressBridge::location(sent);
+    let across_child_location: addr = AddressBridge::child_location(sent);
+    let received_host: u32 = AddressBridge::host(sent);
+    let original_host: u32 = AddressParts::host(original.value);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    original_location == across_location && original_child_location == across_child_location && received_host == 66051 && original_host == 66051 && sibling_host == 513
+}
+machine confirm<'loan>(original: &'loan AddressBox, sibling: &'loan AddressBox) -> bool reaches AddressParts, AddressBridge {
+    let sent: &AddressBox = original;
+    consume(original, sent, sibling)
+}
+machine observe() -> bool reaches AddressParts, AddressBridge {
+    let stored: AddressBox = AddressBox { value: AddressBridge::make(10, 66051) };
+    let sibling: AddressBox = AddressBox { value: AddressBridge::make(44048, 513) };
+    let view: &AddressBox = &stored;
+    let matched: bool = confirm(view, &sibling);
+    let preserved_host: u32 = AddressParts::host(stored.value);
+    matched && preserved_host == 66051
+}
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+    transition observe() { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

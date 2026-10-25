@@ -40,6 +40,17 @@ pinned under `tests/omega/{pass,fail}/facts/opaque_borrowed_carrier_through_*`.
 The const place names runtime foreign construction inputs; it does not claim a
 borrow of foreign-created runtime storage is a compile-time constant.
 
+The [identity control](identity/main.omg) additionally compares caller and
+independent-provider `address_of` observations for both the original box and its
+opaque child. The provider reports those inert addresses through two ordinary
+checked scalar results; they grant no reference or lifetime. Its unchanged
+consuming operation and [exclusive-demand twin](identity/invalid/main.omg)
+retain the same fact. The initial frozen compiler checks this control but
+native admission refuses its frameless checked leaf with “same-stack admission
+has zero WCSU”; that prerequisite and the original-view namespace/path join are
+part of the same unfinished acceptance. The corresponding native corpus oracle
+requires all four actual component exports.
+
 The required establishment and identity are the actual caller's live root,
 selected path and checked shared loan. Copying an opaque child is permitted by
 its checked Copy property; copying a pointer or layout cannot grant access or

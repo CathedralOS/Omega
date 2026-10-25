@@ -1,0 +1,111 @@
+// Expected exit: 0
+// A call-scoped shared view preserves its exact opaque child across an independent component while the original remains usable and sibling host 513 stays distinct.
+use omega::language::core::external_binding;
+
+use omega::language::core::representation;
+public boundary data InternetAddress [copy];
+public data AddressBox { value: InternetAddress; }
+public data AddressWord [copy] { address: u32; }
+public data AddressCarrier<T [copy]> [copy] { payload: T; }
+public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
+
+public boundary trait AddressParts {
+    machine make(network: u32, host: u32) -> InternetAddress reaches;
+    machine host(address: InternetAddress) -> u32 reaches;
+}
+
+macos_arm64 machine make_binding() -> ForeignBinding<26, 14, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_makeaddr",
+        },
+    }
+}
+
+linux_x86_64 machine linux_x86_64_make_binding() -> ForeignBinding<9, 13, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_makeaddr", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+macos_arm64 machine host_binding() -> ForeignBinding<26, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_inet_lnaof",
+        },
+    }
+}
+
+linux_x86_64 machine linux_x86_64_host_binding() -> ForeignBinding<9, 10, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "inet_lnaof", version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+macos_arm64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via make_binding();
+
+linux_x86_64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via linux_x86_64_make_binding();
+macos_arm64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via host_binding();
+
+linux_x86_64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via linux_x86_64_host_binding();
+
+
+linux_arm64 machine linux_arm64_make_binding() -> ForeignBinding<9, 13, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_makeaddr", version: "GLIBC_2.17" } }
+}
+linux_arm64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via linux_arm64_make_binding();
+
+linux_arm64 machine linux_arm64_host_binding() -> ForeignBinding<9, 10, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "inet_lnaof", version: "GLIBC_2.17" } }
+}
+linux_arm64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via linux_arm64_host_binding();
+
+windows_x86_64 machine windows_x86_64_make_binding() -> ForeignBinding<14, 13, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_makeaddr" } }
+}
+windows_x86_64 machine make(network: u32, host: u32) -> InternetAddress
+    satisfies AddressParts::make via windows_x86_64_make_binding();
+
+windows_x86_64 machine windows_x86_64_host_binding() -> ForeignBinding<14, 10, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_host.dll", export: "inet_lnaof" } }
+}
+windows_x86_64 machine host(address: InternetAddress) -> u32
+    satisfies AddressParts::host via windows_x86_64_host_binding();
+
+
+public boundary trait AddressBridge {
+ machine location(address: &AddressBox) -> addr reaches AddressParts;
+ machine child_location(address: &AddressBox) -> addr reaches AddressParts;
+ machine make(network: u32, host: u32) -> InternetAddress reaches AddressParts;
+ machine host(address: &mut AddressBox) -> u32 reaches AddressParts;
+}
+public AddressBridgeProvider satisfies AddressBridge {
+ machine location(address: &AddressBox) -> addr reaches AddressParts { address_of(address) }
+ machine child_location(address: &AddressBox) -> addr reaches AddressParts { address_of(&address.value) }
+ machine host(address: &mut AddressBox) -> u32 reaches AddressParts {
+  AddressParts::host(address.value)
+ }
+ machine make(network: u32, host: u32) -> InternetAddress reaches AddressParts {
+  AddressParts::make(network, host)
+ }
+}
+public machine component_entry() reaches AddressBridge, AddressParts invokes AddressBridge; invokes AddressParts; crashes Trap {
+ let address: InternetAddress = AddressBridge::make(10, 66051);
+ let host: u32 = AddressParts::host(address);
+ transition host == 66051 { true -> done() _ -> failed() }
+ machine done() {} machine failed() crashes Trap { crash Trap; }
+}
