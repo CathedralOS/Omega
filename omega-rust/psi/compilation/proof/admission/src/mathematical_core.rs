@@ -198,7 +198,7 @@ mod theorems;
 mod typing;
 
 #[cfg(test)]
-pub(crate) use bounded_denotation::test_utilities::verify_and_assert_forged;
+pub(crate) use bounded_denotation::test_utilities::{assert_refused, verify_and_assert_forged};
 pub(crate) use bounded_denotation::verify_bounded_certificate_on_current_thread;
 pub use bounded_denotation::{
     BoundedDenotation, BoundedDenotationError, SourceIntegerTheory, SourceIntegerVocabulary,
