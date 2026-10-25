@@ -14,8 +14,9 @@ The private `mint` machine is the exact authorized issuer. A checked public
 bridge returns that qualified value through its declared result type. The
 consumer retains two distinct live occurrences, transports the first through
 its place, and sends both to independent `host` invocations requiring `Issued`.
-The provider explicitly erases membership with `as InternetAddress` before the
-raw C operation. It does not grant the foreign adapter authority to mint a
+The provider explicitly presents `as InternetAddress` before the raw C operation.
+The actual checked memberships remain attached until consumption; this does not
+grant the foreign adapter authority to mint a
 qualification. The same closed nested Inert C carrier and actual host values
 are used in every place.
 
@@ -42,8 +43,8 @@ place's missing membership rather than malformed issuer formation.
 Construction establishes one owned affine occurrence and its private authorized
 provenance. Moves, fields and calls must preserve that exact occurrence. A
 completed independent result must transfer the producing execution's actual
-membership, translating artifact-local domain keys through exact checked
-semantic-domain and callable identities. A matching spelling, C payload or
+membership, translating artifact-local domain keys through complete normalized
+domain theories and exact checked callable identities. A matching spelling, C payload or
 layout cannot establish membership. Component inputs must retain the same
 proof across the selected provider edge. Explicit erasure changes the value's
 displayed contract without copying its ownership or external content authority.
@@ -100,9 +101,27 @@ and “cannot establish result provenance owned by another issuer”. Its corpus
 fixture pins that diagnostic, so checked forwarding cannot silently authorize
 raw minting.
 
+At exact candidate `b1b40166d772a4f8423edec2100bb8f1a65c5c70`, after integrating
+published main `56431f2d14929063bead398b41a578e5c033d7f6`, all nine positives,
+the two-parameter control and the stronger-result control execute with native
+and Terminal exit 0 on Windows x86-64. All missing-`Issued` twins and the raw
+issuer control retain their intended refusals. Four theory-join units exercise
+renumbered coordinates, complete predicate/content/issuer drift, absent or
+ambiguous destination theories, and opaque versus explicitly empty predicates.
+The scoped matched corpus records 29 checking successes, 40 proper rejects and
+29 native/Terminal agreements, including copy and linear regressions. The nine
+linear fixtures also exercise actual claim-clearing/substitution audit controls.
+
+Independent review replayed the exact frozen CLI and runner, compared captured
+corpus products byte for byte, and sealed actual images, component descriptions,
+DLLs and Terminal streams. Its stronger-result replay retains both actual domain
+IDs. Records are retained under the owning claim's
+`qualified-b1b40166d772-20261025T201742Z/` and
+`qualified-peer-review-b1/` captures. The earlier red observations above remain
+historical evidence.
+
 All authored positives and producer entries bind the four hosted targets and
-declare exit 0. Completion still needs all nine native/Terminal agreements,
-the pinned fixtures and exact independent review, general nested-machine
-source/product migration, and normal main landing. Other-host execution is
-unverified. The parent also retains view-backed exchange, composition drift,
-outbound retention and other remaining native ABI lanes.
+declare exit 0. Other-host execution, general nested-machine source/product
+migration and normal main landing remain open. The parent also retains borrowed
+and view-backed exchange, composition drift, outbound retention and other native
+ABI lanes; this row does not close that acceptance.
