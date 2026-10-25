@@ -13,6 +13,8 @@ provider; matching-host execution remains separate evidence.
 Windows selects the portable provider over its retained raw-family closure.
 On windows_x86_64, `omega run` exits 7. macOS and Linux execution remain
 separate evidence under **FILESYSTEM-PLATFORM-SERVICES**.
+Terminal execution still declines the selected foreign bindings until trusted
+host adapters supply them.
 
 The authored `/tmp/omega_journal_dir` is rooted, not relative to the working
 directory. A Windows runner must explicitly provision a writable `\tmp` on

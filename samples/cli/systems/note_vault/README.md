@@ -12,3 +12,5 @@ The POSIX portable provider supplies macOS ARM64 and both Linux targets.
 Windows selects its portable provider over the retained Windows raw-family
 closure. On windows_x86_64, `omega run` exits 14. macOS and Linux execution
 remain separate evidence under **FILESYSTEM-PLATFORM-SERVICES**.
+Terminal execution still declines the selected foreign bindings until trusted
+host adapters supply them.
