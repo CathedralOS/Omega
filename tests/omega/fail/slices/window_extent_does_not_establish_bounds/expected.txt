@@ -1,0 +1,2 @@
+cannot prove subslice range end bound `2..9`
+in clip::entry
