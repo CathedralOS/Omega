@@ -10,6 +10,7 @@ import argparse
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -68,6 +69,106 @@ class DevelopmentRun(unittest.TestCase):
         self.assertIn("native exit 0", result.stdout + result.stderr)
         self.assertFalse((self.project / "omega.lock").exists())
         self.assertFalse((self.project / "build/package-manager").exists())
+
+    def independent_review(self, generated, sealed=True, second_component=False):
+        if self.target == "windows_x86_64":
+            self.skipTest("independent-component fixture supplies Unix libc bindings only")
+        fixture = REPOSITORY / "tests/omega/pass/facts/opaque_independent_closed_carrier_through_other_machine_exit"
+        shutil.copytree(fixture, self.project, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("build", "omega.lock"))
+        packages = 2
+        if second_component:
+            shutil.copytree(self.project / "producer", self.project / "other")
+            package_build = self.project / "other/build.omg"
+            package_build.write_text(package_build.read_text().replace(
+                '"opaque_address_producer"', '"other_address_producer"')
+                .replace("Address", "OtherAddress")
+                .replace("component_entry", "other_component_entry"))
+            package_source = self.project / "other/main.omg"
+            other_source = package_source.read_text()
+            other_source = re.sub(r"\b(make|host)\b", r"other_\1", other_source)
+            package_source.write_text(other_source
+                .replace("Address", "OtherAddress")
+                .replace("host_binding", "other_host_binding")
+                .replace("make_binding", "other_make_binding")
+                .replace("component_entry", "other_component_entry"))
+            main = self.project / "main.omg"
+            main.write_text("use other::main;\n" + main.read_text().replace(
+                "reaches AddressParts, AddressBridge crashes Trap {",
+                "reaches AddressParts, AddressBridge, OtherAddressParts, OtherAddressBridge crashes Trap {\n"
+                " other_component_entry();"))
+            build = self.project / "build.omg"
+            source = build.read_text()
+            closing = source.rfind("}")
+            build.write_text(source[:closing] + '''
+ Build::depend_as(builder, "other", Source::Path { location: "other" });
+ Build::select_representation<other::InternetOtherAddress, other::OtherAddressRepresentation>(builder);
+ Build::select_provider<other::OtherAddressBridge, other::OtherAddressBridgeProvider>(builder, CompositionMode::Independent);
+''' + source[closing:])
+            packages += 1
+        if generated:
+            build = self.project / "build.omg"
+            source = build.read_text()
+            closing = source.rfind("}")
+            source = source[:closing] + '''
+ let generated: BuildPath = BuildOutput::resolve(&builder.output, "review_generated.omg");
+ let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
+ _ = BuildOutput::write(&mut builder.output, writer, "const REVIEW_VALUE: u8 = 7;\\n");
+ _ = BuildOutput::close(&mut builder.output, writer);
+ BuildOutput::include_source(&mut builder.output, generated);
+''' + source[closing:]
+            build.write_text(source)
+            if not sealed:
+                build.write_text(source.replace(
+                    " _ = BuildOutput::close(&mut builder.output, writer);\n", ""))
+        # The single-component variants establish native/Terminal execution.
+        # The two-component case targets review-cache recovery: native execution
+        # currently rejects its image roster on the unchanged baseline.
+        if sealed and not second_component:
+            runtime = self.invoke("run", "--both", "main.omg")
+            self.assert_exit(runtime, 0)
+            self.assertIn("native exit 0", runtime.stdout + runtime.stderr)
+            self.assertIn("interp exit: 0", runtime.stdout + runtime.stderr)
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("update", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assertFalse((self.project / "omega.lock").exists())
+        if not sealed:
+            self.assert_exit(result, 1)
+            self.assertIn("staging entry is not sealed", result.stderr)
+            return
+        self.assert_exit(result, 3)  # Dependency review awaits an explicit decision.
+        self.assertIn(f"checked {packages} source packages", result.stdout)
+        passes = re.findall(r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) "
+                            r"carried=(\d+).*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
+                            result.stderr)
+        self.assertEqual(passes, [("discovery", str(packages), str(packages), "0",
+                                  str(packages), str(2 * packages))],
+                         result.stdout + result.stderr)
+        resumed = self.invoke("update", "--project", self.project, "--resume", "--offline")
+        self.assert_exit(resumed, 3)
+        resumed_passes = re.findall(
+            r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) carried=(\d+)"
+            r".*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
+            resumed.stderr)
+        self.assertTrue(resumed_passes, resumed.stdout + resumed.stderr)
+        for _, occurrences, compiled, carried, preliminary, settled in resumed_passes:
+            self.assertEqual(int(compiled) + int(carried), int(occurrences),
+                             resumed.stdout + resumed.stderr)
+            self.assertLessEqual(int(preliminary), int(compiled), resumed.stderr)
+            self.assertLessEqual(int(settled), 2 * int(compiled), resumed.stderr)
+
+    def test_independent_review_completes_each_occurrence_once(self):
+        self.independent_review(generated=False)
+
+    def test_generated_independent_review_completes_each_occurrence_once(self):
+        self.independent_review(generated=True)
+
+    def test_independent_review_rejects_unsealed_generated_source(self):
+        self.independent_review(generated=True, sealed=False)
+
+    def test_component_cache_refresh_retains_completed_sibling_work(self):
+        self.independent_review(generated=True, second_component=True)
 
     def test_unlocked_compile_uses_the_same_native_route(self):
         result = self.invoke("--build-dir", self.project / "output", "--target", self.target, "main.omg")
