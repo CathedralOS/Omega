@@ -12,7 +12,7 @@
 //! inline storage; neither codec hides another heap payload. Geometry metadata
 //! remains separate from this payload account, not a general RSS bound.
 
-use super::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
+use super::{ProviderStorageBinding, ProviderStorageSlot};
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::effects::results::TerminalEffectResult;
 use crate::errors::{TerminalInterpretError, malformed};
@@ -119,22 +119,8 @@ impl TerminalExecution<'_> {
                 (compatibility, None, None, binding.length)
             }
             ProviderFieldContent::Resident => {
-                let ResidentStorageSlot::Live {
-                    initialized_by,
-                    custody,
-                    compatibility,
-                    ..
-                } = self.provider_storage.residents.get(binding.resident)
-                else {
-                    return Err(malformed());
-                };
-                let initialized = self
-                    .program
-                    .catalogs
-                    .placement_lifecycle_plans
-                    .iter()
-                    .find(|row| row.boundary == *initialized_by)
-                    .ok_or_else(malformed)?;
+                let (initialized, custody, compatibility) =
+                    self.live_resident_custody(binding.resident)?;
                 if initialized.placement != plan.placement
                     || initialized.schema != plan.schema
                     || initialized.policy_identity != plan.policy_identity
@@ -250,14 +236,7 @@ impl TerminalExecution<'_> {
             })
             .ok_or_else(malformed)?;
         let needs_read = write.is_none() || represented_bits != footprint.length_bytes() * 8;
-        let ProviderStorageSlot::Live {
-            allocation,
-            profile,
-            ..
-        } = self.provider_storage.allocations.get(binding.allocation)
-        else {
-            return Err(malformed());
-        };
+        let (allocation, profile, _) = self.provider_storage.live_provider_allocation(&binding)?;
         let loan = allocation
             .extent
             .loan(binding.offset, binding.length)
