@@ -1011,13 +1011,17 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
             }
             let immutable_source_position = source_position(target.source_position)
                 .filter(|position| !program.state_parameters(source)[*position].is_mutable);
-            let source = if let Some(source_position) = immutable_source_position {
-                let source_index = source_scalar
-                    .iter()
-                    .position(|parameter| parameter.source_position as usize == source_position)?;
-                if source_scalar[source_index].primitive_type != target.primitive_type {
-                    return None;
-                }
+            // A bare parameter may be a scalar read through a reference,
+            // whose home belongs to the structural roster. Forward only an
+            // actual matching scalar lane; otherwise retain the expression
+            // and its already-validated operand custody above.
+            let forwarded_scalar = immutable_source_position.and_then(|source_position| {
+                source_scalar.iter().position(|parameter| {
+                    parameter.source_position as usize == source_position
+                        && parameter.primitive_type == target.primitive_type
+                })
+            });
+            let source = if let Some(source_index) = forwarded_scalar {
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
                     index: u32::try_from(source_index).ok()?,
                 }

@@ -12,7 +12,7 @@ mod scratch_registers;
 pub use register_operations::{AsmRegisterCarrier, AsmRegisterOperation};
 pub use scratch_registers::{
     ASM_SCRATCH_CLOBBERS, ASM_SCRATCH_NAMES, ASM_SCRATCH_SLOT_COUNT, ASM_ZERO_FLAG_SLOT,
-    is_unmodeled_x86_scratch_view,
+    is_unmodeled_aarch64_scratch_view, is_unmodeled_x86_scratch_view, scratch_register,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,6 +37,10 @@ pub enum AsmInstructionShape {
     /// Parity, auxiliary carry, zero and sign follow the wrapped sum. The
     /// decoded destination and the arithmetic status flags change.
     Add,
+    /// Compare modeled u32 registers or a fitting immediate. The subtraction
+    /// result establishes the same arithmetic flags as SUB, without writing
+    /// either operand. Memory and other register views retain their refusals.
+    Compare,
     /// Local conditional transfer consuming the latest zero flag.
     JumpZeroFlag {
         when_set: bool,
@@ -531,14 +535,25 @@ impl AsmSystemRegister {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AsmTargetApplicability {
+    #[default]
     Any,
     X86_64,
     Aarch64,
 }
 
 impl AsmTargetApplicability {
+    /// A body must satisfy every catalog target demand, including local
+    /// terminators which disappear into ordinary checked control flow.
+    pub fn intersect(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Any, target) | (target, Self::Any) => Some(target),
+            (left, right) if left == right => Some(left),
+            _ => None,
+        }
+    }
+
     /// Match the core catalog's concrete target identities. Arbitrary deployment
     /// tags cannot establish an architecture requirement.
     pub fn accepts_target_name(self, target: &str) -> bool {
@@ -1117,6 +1132,24 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             clobbers: &["rflags"],
             ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Subtract, X86_64)
         }),
+        // The structured register operands select x86 RFLAGS or AArch64 NZCV.
+        "cmp" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
+            ..AsmInstructionContract::without_side_effects(AsmInstructionShape::Compare, Any)
+        }),
+        "b" => Contract(AsmInstructionContract::without_side_effects(
+            AsmInstructionShape::JumpState,
+            Aarch64,
+        )),
+        "b.eq" | "b.ne" => Contract(AsmInstructionContract {
+            flags_data_flow: AsmFlagsDataFlow::ZeroFlagBranch,
+            ..AsmInstructionContract::without_side_effects(
+                AsmInstructionShape::JumpZeroFlag {
+                    when_set: mnemonic == "b.eq",
+                },
+                Aarch64,
+            )
+        }),
         "add" => Contract(AsmInstructionContract {
             flags_data_flow: AsmFlagsDataFlow::ArithmeticResult,
             clobbers: &["rflags"],
@@ -1334,7 +1367,7 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
         // unrecognized here.
         "ret" | "retq" | "retn" | "retw" | "retaa" | "retab" | "retf" | "lret" | "iret"
         | "iretd" | "iretw" | "call" | "callq" | "callf" | "lcall" | "jmpq" | "jmpf" | "jmpl"
-        | "ljmp" | "ljmpl" | "br" | "blr" | "b" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
+        | "ljmp" | "ljmpl" | "br" | "blr" | "bl" | "bx" | "blx" | "bc" | "braa" | "brab"
         | "braaz" | "brabz" | "blraa" | "blrab" | "blraaz" | "blrabz" | "eretaa" | "eretab"
         | "drps" | "cbz" | "cbnz" | "tbz" | "tbnz" | "loop" | "loope" | "loopne" | "loopz"
         | "loopnz" | "jcxz" | "jecxz" | "jrcxz" | "int" | "int1" | "int3" | "into" | "je"
