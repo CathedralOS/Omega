@@ -1,4 +1,4 @@
-//! Bind a proved body equation to its exact entry and returned carrier claims.
+//! Bind a completed body equation to its exact entry and returned carrier claims.
 //!
 //! A numeric theorem and a custody transaction are separate judgments. This
 //! binding retains the former without granting the latter: an entry claim may
@@ -93,8 +93,10 @@ pub(crate) fn observe_body_completion(
                 }
                 // The equation must hold at this value's completion, not merely
                 // at an eventual normal return. The query shares observation
-                // order with domain predicates and imports no ensures premise.
-                if !validation::completed_value_proves_content_conservation(
+                // order with domain predicates. Conditional call laws remain
+                // provisional here; the rooted publication pass checks their
+                // exact sources before any callable theorem can be consumed.
+                if !validation::completed_value_has_content_conservation_candidate(
                     program,
                     machine,
                     state,

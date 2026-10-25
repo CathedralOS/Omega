@@ -180,6 +180,13 @@ impl DependencyBodyIndex {
         if !self.record {
             return None;
         }
+        // Ordinal reuse transfers independent verdicts, not dependencies on
+        // current-program law subjects and value observations. Rejudge such a
+        // body in the consumer arena; dropping this roster would turn a
+        // conditional candidate into an incomplete cached judgment.
+        if !proven.conditional_content.is_empty() {
+            return None;
+        }
         if self.correspondences.get(machine_index)?.is_none() {
             return None;
         }

@@ -911,7 +911,8 @@ pub use receiver_topology::{
 };
 mod argument_correspondence;
 pub(crate) use argument_correspondence::{
-    call_binding_correspondence, executable_parameters, immutable_runtime_parameter,
+    call_binding_correspondence, captured_argument_position, executable_parameters,
+    immutable_runtime_parameter,
 };
 mod occurrences;
 pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};

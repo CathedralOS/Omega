@@ -19,6 +19,7 @@
 //! content.
 
 mod body_conservation;
+mod body_proofs;
 mod call_ancestry;
 mod call_results;
 mod call_transformations;
@@ -225,6 +226,32 @@ pub(crate) fn compose_partition_wrappers(
     entailment: &mut super::contracts::ProvenExitExpressions<'_, '_>,
 ) {
     let source_plans = validation::content_conservation_plans(program);
+    entailment.record_preserved_content_sources(facts, &source_plans);
+    // Prepare exact body observations once. Replaying a body at every
+    // availability round would duplicate observation work and risk importing a
+    // later frontier into an earlier captured value.
+    let conditional_sources = source_plans
+        .iter()
+        .filter_map(|source| {
+            if source.plan.owner_kind != ContentConservationOwnerKind::Machine {
+                return None;
+            }
+            let returns = if let Some(proof) =
+                entailment.conditional_content(&source.plan, source.source_expression)
+            {
+                proof.returns.clone()
+            } else if entailment
+                .for_machine(facts, source.plan.owner)
+                .expressions
+                .contains(&source.source_expression)
+            {
+                return None;
+            } else {
+                body_proofs::completed_source(program, facts, source)?
+            };
+            Some((source.plan.clone(), returns))
+        })
+        .collect::<Vec<_>>();
     let mut available = source_plans
         .iter()
         .filter(|source| {
@@ -244,16 +271,49 @@ pub(crate) fn compose_partition_wrappers(
             derivation_depth: 0,
         })
         .collect::<Vec<_>>();
-    let state_count = program
-        .machines()
-        .iter()
-        .map(|machine| program.machine_states(machine).len())
-        .sum::<usize>();
     let mut compositions = Vec::<ContentPartitionCompositionFact>::new();
     let mut composition_conditions = Vec::new();
     let mut conditions = crate::flow::SelectionConditions::new();
 
-    for _ in 0..state_count.max(1) {
+    // Substitution preserves each initial law's finite term skeleton and
+    // selects subjects only from retained entry/returned claim coordinates.
+    // Derived wrapper laws need not be authored, so the declaration count is
+    // not a round bound. Exhaust this finite monotone frontier instead: each
+    // round publishes a previously absent plan or stops below.
+    loop {
+        // A conditional numeric proof is not a new root. All of its actual
+        // return alternatives must be reachable using sources from the prior
+        // frontier. Cycles without an admitted/proved root add nothing.
+        let ready = conditional_sources
+            .iter()
+            .filter_map(|(plan, proof)| {
+                if available.iter().any(|source| source.plan == *plan) {
+                    return None;
+                }
+                proof
+                    .iter()
+                    .try_fold(0u32, |depth, returned| {
+                        returned
+                            .derivation_depth(|required| {
+                                available
+                                    .iter()
+                                    .find(|source| source.plan == *required)
+                                    .map(|source| source.derivation_depth)
+                            })
+                            .map(|next| depth.max(next))
+                    })
+                    .map(|depth| AvailablePartitionSource {
+                        plan: plan.clone(),
+                        derivation_depth: if proof.is_empty() {
+                            0
+                        } else {
+                            depth.saturating_add(1)
+                        },
+                    })
+            })
+            .collect::<Vec<_>>();
+        let mut added_source = !ready.is_empty();
+        available.extend(ready);
         let sources = available.clone();
         let mut round = Vec::new();
 
@@ -299,10 +359,9 @@ pub(crate) fn compose_partition_wrappers(
                 added_composition = true;
             }
         }
-        if !added_composition {
+        if !added_composition && !added_source {
             break;
         }
-        let mut added_source = false;
         for composition in &compositions {
             if available
                 .iter()
@@ -402,6 +461,8 @@ pub(crate) fn compose_partition_wrappers(
             entailment.record_proved_normal_return(facts, machine.symbol, source.source_expression);
         }
     }
+    entailment
+        .publish_content_sources(available.iter().map(|source| source.plan.clone()).collect());
     facts.qualifications.content.partition_compositions = compositions;
 }
 

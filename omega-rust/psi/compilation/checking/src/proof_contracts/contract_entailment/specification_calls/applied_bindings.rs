@@ -8,7 +8,7 @@ use super::{SelectedCallContract, StructuralTerm, call_machine_substitution, own
 use language_semantics::const_value::{CanonicalConstIdentity, DecodedCanonicalConstValue};
 use symbols::SymbolHandle;
 use typed_trees::data::{TypeParameter, TypeParameterKind};
-use typed_trees::expression::TableCallExpression;
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::operator::{ClosedOperatorApplicationArgument, OperatorConstBinding};
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -742,11 +742,97 @@ impl AppliedProofBindings {
         observed: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
         let declared = super::owner_return_type(owner);
+        let trace_refusal = |stage: &str| {
+            if !super::super::struct_trace() {
+                return;
+            }
+            eprintln!(
+                "STRUCT result-carrier refusal stage={stage} target={:?} public_owner={:?} observed={observed:?} declared={declared:?} types={} constants={} runtime={}",
+                call.target_symbol,
+                owner_symbol(owner),
+                self.types.len(),
+                self.constants.len(),
+                self.runtime_parameters.len()
+            );
+            for (label, reference) in [("observed", observed), ("declared", declared)] {
+                let node = program.type_reference_table.type_reference(reference);
+                let (kind, symbol, arguments) = match node {
+                    TypeReferenceNode::Named { symbol, .. } => ("named", *symbol, &[][..]),
+                    TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        ..
+                    } => (
+                        "generic",
+                        *base_symbol,
+                        program
+                            .type_reference_table
+                            .type_reference_handles(*arguments),
+                    ),
+                    _ => ("other", SymbolHandle::invalid(), &[][..]),
+                };
+                eprintln!(
+                    "STRUCT result-carrier node label={label} reference={reference:?} kind={kind} symbol={symbol:?} arguments={}",
+                    arguments.len()
+                );
+                for (position, argument) in arguments.iter().take(4).enumerate() {
+                    let (kind, expression, symbol) =
+                        match program.type_reference_table.type_reference(*argument) {
+                            TypeReferenceNode::ConstExpression(expression) => {
+                                ("expression", *expression, SymbolHandle::invalid())
+                            }
+                            TypeReferenceNode::Named { symbol, .. } => {
+                                ("named", ExpressionHandle::invalid(), *symbol)
+                            }
+                            _ => (
+                                "other",
+                                ExpressionHandle::invalid(),
+                                SymbolHandle::invalid(),
+                            ),
+                        };
+                    let (expression_kind, receiver, member) = if expression.is_valid() {
+                        match program.expression_table.expression(expression) {
+                            typed_trees::expression::ExpressionNode::Member(value) => {
+                                ("member", value.receiver, value.member_symbol)
+                            }
+                            typed_trees::expression::ExpressionNode::Name(value) => {
+                                ("name", ExpressionHandle::invalid(), value.symbol)
+                            }
+                            typed_trees::expression::ExpressionNode::SavedSubject(_) => (
+                                "saved",
+                                ExpressionHandle::invalid(),
+                                SymbolHandle::invalid(),
+                            ),
+                            _ => (
+                                "other",
+                                ExpressionHandle::invalid(),
+                                SymbolHandle::invalid(),
+                            ),
+                        }
+                    } else {
+                        (
+                            "absent",
+                            ExpressionHandle::invalid(),
+                            SymbolHandle::invalid(),
+                        )
+                    };
+                    eprintln!(
+                        "STRUCT result-carrier argument label={label} position={position} reference={argument:?} kind={kind} symbol={symbol:?} expression={expression:?} expression_kind={expression_kind} receiver={receiver:?} member={member:?}"
+                    );
+                }
+            }
+        };
         if self.types.is_empty() && self.constants.is_empty() {
-            return (crate::declared_carriers_match(program, observed, declared)
-                && program.arithmetic_domain_for_type_reference(observed)
-                    == program.arithmetic_domain_for_type_reference(declared))
-            .then_some(declared);
+            if !crate::declared_carriers_match(program, observed, declared) {
+                trace_refusal("declared-carrier");
+                return None;
+            }
+            let same_domain = program.arithmetic_domain_for_type_reference(observed)
+                == program.arithmetic_domain_for_type_reference(declared);
+            if !same_domain {
+                trace_refusal("declared-domain");
+            }
+            return same_domain.then_some(declared);
         }
         let substitutions = program
             .expression_table
@@ -765,9 +851,14 @@ impl AppliedProofBindings {
             observed,
             declared,
             &substitutions,
-        ) || program.arithmetic_domain_for_type_reference(observed)
+        ) {
+            trace_refusal("applied-carrier");
+            return None;
+        }
+        if program.arithmetic_domain_for_type_reference(observed)
             != program.arithmetic_domain_for_type_reference(self.project_type(program, declared))
         {
+            trace_refusal("applied-domain");
             return None;
         }
         let applied = program.type_identity_with_simultaneous_substitutions(
@@ -777,6 +868,7 @@ impl AppliedProofBindings {
             },
         );
         if !applied.is_valid() {
+            trace_refusal("invalid-applied-identity");
             return None;
         }
         let public = self.project_type(program, declared);
@@ -788,7 +880,11 @@ impl AppliedProofBindings {
         // realization may return stronger qualifications than its public edge.
         // Authenticate the complete public type before that handle can supply
         // declared domains; carrier equality alone grants no such facts.
-        (program.normalized_type_identity(observed) == applied).then_some(observed)
+        let same_identity = program.normalized_type_identity(observed) == applied;
+        if !same_identity {
+            trace_refusal("public-identity");
+        }
+        same_identity.then_some(observed)
     }
 
     /// A direct formal type is read under this simultaneous application.

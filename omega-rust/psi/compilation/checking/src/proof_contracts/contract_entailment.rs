@@ -92,7 +92,9 @@ mod call_projection_identity;
 mod const_ranges;
 mod content_conservation;
 pub use content_conservation::{
-    ContentBackingAddressGoal, completed_value_preserves_entry_projection,
+    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    ContentConservationImplication, completed_value_content_conservation_dependencies,
+    completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
 mod contract_refinement;
@@ -618,12 +620,12 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     } else {
         std::sync::Arc::new(Vec::new())
     };
-    let judge_normal_return = |fact: ExpressionHandle| -> Option<StructuralJudgment> {
+    let judge_normal_return = |fact: ExpressionHandle| -> Option<(
+        StructuralJudgment,
+        Vec<ContentConservationDependencies>,
+    )> {
         let content_plan =
             content_conservation::content_conservation_plan(machine, fact, &content_plans);
-        // Both a direct tail and a named-state/branch leaf own a completed
-        // runtime observation frame. Consume that frame, not a reconstruction
-        // from the machine entry that would lose writes or returned guarantees.
         let paths: Vec<_> = if let Some(paths) = &sole_arm_result {
             paths
                 .iter()
@@ -638,10 +640,17 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         } else {
             return None;
         };
+        // A conditional normal-return contract may be vacuous. An empty
+        // observation frontier is not an independently established theorem.
+        if content_plan.is_some() && paths.is_empty() {
+            return Some((StructuralJudgment::Unknown, Vec::new()));
+        }
         let mut verdict = StructuralJudgment::Proven;
+        let mut dependencies = Vec::new();
+        let mut complete_candidate = true;
         for (judge, value) in paths {
-            let judgment = if let Some(plan) = content_plan {
-                content_conservation::judge_content_conservation(
+            let (judgment, dependency) = if let Some(plan) = content_plan {
+                content_conservation::judge_content_conservation_with_dependencies(
                     program,
                     judge,
                     value,
@@ -654,27 +663,43 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     std::sync::Arc::make_mut(&mut bound.substitutions)
                         .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
                 }
-                bound.judge(program, fact)
+                (bound.judge(program, fact), None)
             };
             if struct_trace() {
                 eprintln!(
                     "STRUCT normal-return machine={} value={value:?} fact={} verdict={}",
                     machine.name,
                     program.expression_table.display_name(fact),
-                    match judgment {
-                        StructuralJudgment::Proven => "proven",
-                        StructuralJudgment::Refuted => "refuted",
-                        StructuralJudgment::Unknown => "unknown",
+                    if dependency.is_some() {
+                        "conditional"
+                    } else {
+                        match judgment {
+                            StructuralJudgment::Proven => "proven",
+                            StructuralJudgment::Refuted => "refuted",
+                            StructuralJudgment::Unknown => "unknown",
+                        }
                     },
                 );
             }
             match judgment {
-                StructuralJudgment::Refuted => return Some(StructuralJudgment::Refuted),
-                StructuralJudgment::Unknown => verdict = StructuralJudgment::Unknown,
+                StructuralJudgment::Refuted => {
+                    return Some((StructuralJudgment::Refuted, Vec::new()));
+                }
+                StructuralJudgment::Unknown => {
+                    verdict = StructuralJudgment::Unknown;
+                    if let Some(dependency) = dependency {
+                        dependencies.push(dependency);
+                    } else {
+                        complete_candidate = false;
+                    }
+                }
                 StructuralJudgment::Proven => {}
             }
         }
-        Some(verdict)
+        if !complete_candidate {
+            dependencies.clear();
+        }
+        Some((verdict, dependencies))
     };
     let judge_structural = |fact: ExpressionHandle,
                             normal_return: Option<&StructuralJudgment>|
@@ -881,7 +906,38 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 proven.entry.push(*fact);
                 return false;
             }
-            let normal_return = judge_normal_return(*fact);
+            let normal_return = judge_normal_return(*fact).map(|(judgment, returns)| {
+                if !returns.is_empty()
+                    && let Some(plan) = content_conservation::content_conservation_plan(
+                        machine,
+                        *fact,
+                        &content_plans,
+                    )
+                {
+                    proven
+                        .conditional_content
+                        .push(ConditionalContentGuarantee {
+                            expression: *fact,
+                            plan: plan.clone(),
+                            returns,
+                        });
+                }
+                judgment
+            });
+            if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+                && content_conservation::content_conservation_plan(machine, *fact, &content_plans)
+                    .is_some()
+            {
+                // One owner publishes canonical content guarantees. A pending
+                // law must not fall through to result bounds, proof induction
+                // or the generic Boolean engine and lose its source roster.
+                // Exit checking retains the original obligation until the
+                // rooted composition pass proves every ordinary return.
+                if matches!(normal_return, Some(StructuralJudgment::Proven)) {
+                    proven.normal_returns.push(*fact);
+                }
+                return false;
+            }
             let Some(held) = mention else {
                 // Selected normal-return guarantees and ordinary value
                 // equations use the same prepared path judgment as proof-only

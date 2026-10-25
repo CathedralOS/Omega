@@ -123,6 +123,8 @@ pub struct ProgramValidationFacts {
 pub struct ProvenContractExpressions {
     pub entry: Vec<ExpressionHandle>,
     pub normal_returns: Vec<ExpressionHandle>,
+    /// Exact complete-return candidates awaiting rooted content-law premises.
+    pub conditional_content: Vec<crate::ConditionalContentGuarantee>,
 }
 
 /// Whether opaque property claims must be backed now or remain pending during

@@ -7,12 +7,16 @@
 //! only the frame owner's surviving or fresh post-call observations. No law
 //! introduces a qualification, backing, or authority to observe a referent.
 
-use super::{ContentValues, StructuralJudge, StructuralJudgment, StructuralTerm};
+use super::{
+    ContentConservationDependencies, ContentConservationImplication, ContentValues,
+    StructuralJudge, StructuralJudgment, StructuralTerm,
+};
 use language_semantics::SemanticDomainId;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentConservationPlan, ContentConservationTerm, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionExpression,
 };
+use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::signature::StateParameter;
@@ -22,6 +26,7 @@ pub(in crate::proof_contracts::contract_entailment) struct ObservedContentEquati
     algebra: ContentAlgebraIdentity,
     left: ObservedContentTerm,
     right: ObservedContentTerm,
+    requirements: Vec<ContentConservationPlan>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +41,17 @@ enum ObservedContentTerm {
 }
 
 impl ObservedContentEquation {
+    pub(in crate::proof_contracts::contract_entailment) fn retain_family_sources(
+        &mut self,
+        other: &Self,
+    ) {
+        for requirement in &other.requirements {
+            if !self.requirements.contains(requirement) {
+                self.requirements.push(requirement.clone());
+            }
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn same_equation(
         &self,
         other: &Self,
@@ -85,7 +101,24 @@ pub(in crate::proof_contracts::contract_entailment) fn call_content_guarantees(
     plans
         .iter()
         .filter(|source| source.plan.callable == callable)
-        .filter_map(|source| observe_equation(&values, &source.plan))
+        .filter_map(|source| {
+            let mut equation = observe_equation(&values, &source.plan)?;
+            // A declared conditional return contract is not yet an independent
+            // checked theorem. Preserve its complete normalized identity for
+            // the one rooted-publication fixed point. Admitted requirements
+            // and explicit admission claims retain their existing root role.
+            if source.plan.owner_kind
+                == language_semantics::content::ContentConservationOwnerKind::Machine
+                && !program
+                    .machine_by_symbol(source.plan.owner)
+                    .is_some_and(|machine| {
+                        machine.supply_mode == language_semantics::MachineSupplyMode::AdmissionClaim
+                    })
+            {
+                equation.requirements.push(source.plan.clone());
+            }
+            Some(equation)
+        })
         .collect()
 }
 
@@ -97,6 +130,7 @@ fn observe_equation(
         algebra: plan.algebra.clone(),
         left: observe_term(values, plan.equation.left())?,
         right: observe_term(values, plan.equation.right())?,
+        requirements: Vec::new(),
     })
 }
 
@@ -146,38 +180,90 @@ fn observe_term(
     }
 }
 
-pub(super) fn proves(values: &ContentValues<'_, '_>, plan: &ContentConservationPlan) -> bool {
-    let Some(goal) = observe_equation(values, plan) else {
-        return false;
-    };
-    let laws = &values.judge.normal_content_guarantees;
-    // Each completed law has two fixed endpoints. Traversal is finite even
-    // when a scalar observation's reflexive comparison is Unknown; proof
-    // comparisons establish edges, never the identity of the work queue.
-    let mut reached = vec![false; laws.len() * 2];
-    let mut pending = vec![(None, &goal.left)];
-    while let Some((endpoint, current)) = pending.pop() {
-        // Reflexivity without a completed law remains the numeric judge's
-        // obligation, including interval validity and separation.
-        if endpoint.is_some() && same_value(values, current, &goal.right) {
-            return true;
+/// Retain all alternative law paths as a compact dependency graph. Equality
+/// classes share endpoints without materializing a clique or enumerating proof
+/// paths. Only independently proved numeric comparisons merge classes.
+pub(super) fn proof_dependencies(
+    values: &ContentValues<'_, '_>,
+    plan: &ContentConservationPlan,
+) -> Option<ContentConservationDependencies> {
+    let goal = observe_equation(values, plan)?;
+    let laws = values
+        .judge
+        .normal_content_guarantees
+        .iter()
+        .filter(|law| law.algebra == goal.algebra)
+        .collect::<Vec<_>>();
+    if laws.is_empty() {
+        return None;
+    }
+    let mut endpoints = vec![&goal.left, &goal.right];
+    for law in &laws {
+        endpoints.extend([&law.left, &law.right]);
+    }
+    let mut parents = (0..endpoints.len()).collect::<Vec<_>>();
+    let mut comparable = vec![false; endpoints.len()];
+    fn representative(parents: &mut [usize], mut position: usize) -> usize {
+        while parents[position] != position {
+            let parent = parents[position];
+            parents[position] = parents[parent];
+            position = parents[position];
         }
-        for (index, law) in laws.iter().enumerate() {
-            if law.algebra != goal.algebra {
-                continue;
-            }
-            for (destination, from, to) in [
-                (index * 2 + 1, &law.left, &law.right),
-                (index * 2, &law.right, &law.left),
-            ] {
-                if !reached[destination] && same_value(values, current, from) {
-                    reached[destination] = true;
-                    pending.push((Some(destination), to));
-                }
+        position
+    }
+    for left in 0..endpoints.len() {
+        for right in 0..=left {
+            if same_value(values, endpoints[left], endpoints[right]) {
+                comparable[left] = true;
+                comparable[right] = true;
+                let left = representative(&mut parents, left);
+                let right = representative(&mut parents, right);
+                parents[left] = right;
             }
         }
     }
-    false
+    let mut roots = Vec::new();
+    let classes = (0..endpoints.len())
+        .map(|position| {
+            if !comparable[position] {
+                return None;
+            }
+            let root = representative(&mut parents, position);
+            Some(
+                match roots.iter().position(|candidate| *candidate == root) {
+                    Some(position) => position,
+                    None => {
+                        roots.push(root);
+                        roots.len() - 1
+                    }
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut successors = vec![Vec::new(); roots.len()];
+    for (position, law) in laws.into_iter().enumerate() {
+        let (Some(left), Some(right)) = (classes[position * 2 + 2], classes[position * 2 + 3])
+        else {
+            continue;
+        };
+        let requirements: Arc<[ContentConservationPlan]> = law.requirements.clone().into();
+        successors[left].push(ContentConservationImplication {
+            destination: right,
+            requirements: Arc::clone(&requirements),
+        });
+        successors[right].push(ContentConservationImplication {
+            destination: left,
+            requirements,
+        });
+    }
+    let proof = ContentConservationDependencies {
+        initial: classes[0]?,
+        goal: classes[1]?,
+        successors,
+    };
+    // Availability is deliberately deferred, but a graph with no possible
+    // proof is not a candidate. Require a law, not mere endpoint reflexivity.
+    proof.derivation_depth(|_| Some(0)).map(|_| proof)
 }
 
 fn same_value(

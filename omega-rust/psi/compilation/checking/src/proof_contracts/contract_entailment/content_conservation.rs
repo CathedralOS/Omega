@@ -20,6 +20,11 @@
 
 mod interval_sets;
 mod observed_contracts;
+mod proof_dependencies;
+
+pub use proof_dependencies::{
+    ConditionalContentGuarantee, ContentConservationDependencies, ContentConservationImplication,
+};
 
 pub(super) use observed_contracts::{ObservedContentEquation, call_content_guarantees};
 
@@ -78,13 +83,13 @@ pub(super) fn is_empty_body_statement_call(
         })
 }
 
-pub(super) fn judge_content_conservation(
+pub(super) fn judge_content_conservation_with_dependencies(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'_>,
     result: &StructuralTerm,
     plan: &ContentConservationPlan,
     projections: &[ContentProjectionPlan],
-) -> StructuralJudgment {
+) -> (StructuralJudgment, Option<ContentConservationDependencies>) {
     let parameter_projection = |root, path: &[ContentPlaceSegment], version| {
         judge.captured_parameter_projection(root, path, version)
     };
@@ -95,9 +100,28 @@ pub(super) fn judge_content_conservation(
         projections,
         parameter_projection: &parameter_projection,
     };
-    if observed_contracts::proves(&evaluator, plan) {
-        return StructuralJudgment::Proven;
+    let numeric = judge_numeric_content(&evaluator, plan);
+    if matches!(numeric, StructuralJudgment::Proven) {
+        return (numeric, None);
     }
+    let dependency = observed_contracts::proof_dependencies(&evaluator, plan);
+    if dependency
+        .as_ref()
+        .is_some_and(|proof| proof.independently_proved())
+    {
+        (StructuralJudgment::Proven, None)
+    } else if let Some(dependency) = dependency {
+        // The exact frame supports a law path, not yet a rooted theorem.
+        (StructuralJudgment::Unknown, Some(dependency))
+    } else {
+        (numeric, None)
+    }
+}
+
+fn judge_numeric_content(
+    evaluator: &ContentValues<'_, '_>,
+    plan: &ContentConservationPlan,
+) -> StructuralJudgment {
     match plan.algebra {
         ContentAlgebraIdentity::CountedQuantity { .. } => {
             let (Some(left), Some(right)) = (
@@ -112,11 +136,54 @@ pub(super) fn judge_content_conservation(
     }
 }
 
-/// Judge a normalized equation at the exact completed result occurrence.
-/// This is numeric evidence only: the caller must independently establish
-/// live parent custody, loan exclusion, compatible backing and output claims.
-/// In particular, an eventual ensures verdict cannot authorize this earlier cut.
-pub fn completed_value_proves_content_conservation(
+/// Retain one conditional proof for every observed completed-value alternative.
+/// An empty vector means all observed alternatives were proved independently;
+/// `None` means the observation was incomplete or an alternative had no proof.
+/// Neither case grants custody: the consuming owner separately checks claims,
+/// backing, access and the exact completion occurrence.
+pub fn completed_value_content_conservation_dependencies(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    plan: &ContentConservationPlan,
+    projections: &[ContentProjectionPlan],
+) -> Option<Vec<ContentConservationDependencies>> {
+    if plan.owner != machine.symbol || plan.callable != state.symbol {
+        return None;
+    }
+    let mut complete = true;
+    let mut dependencies = Vec::new();
+    let observed = super::completed_observations::observe_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        |judge, value| {
+            let (judgment, conditional) = judge_content_conservation_with_dependencies(
+                program,
+                judge,
+                &value,
+                plan,
+                projections,
+            );
+            match (judgment, conditional) {
+                (StructuralJudgment::Proven, _) => {}
+                (_, Some(proof)) => dependencies.push(proof),
+                _ => complete = false,
+            }
+        },
+    );
+    (observed == Some(true) && complete).then_some(dependencies)
+}
+
+/// Provisional numeric bindings carry possible law dependencies; they do not
+/// publish independently rooted guarantees or authorize claim establishment.
+pub fn completed_value_has_content_conservation_candidate(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &typed_trees::state::State,
@@ -126,25 +193,49 @@ pub fn completed_value_proves_content_conservation(
     plan: &ContentConservationPlan,
     projections: &[ContentProjectionPlan],
 ) -> bool {
-    if plan.owner != machine.symbol {
-        return false;
-    }
-    let mut proven = true;
-    let observed = super::completed_observations::observe_completed_values(
+    completed_value_content_conservation_dependencies(
         program,
         machine,
         state,
         statement_index,
         expression,
         reference,
-        |judge, value| {
-            proven &= matches!(
-                judge_content_conservation(program, judge, &value, plan, projections),
-                StructuralJudgment::Proven
-            );
-        },
-    );
-    observed == Some(true) && proven
+        plan,
+        projections,
+    )
+    .is_some()
+}
+
+/// Final consumers accept conditional equations only through the one rooted
+/// source frontier. Every actual completed-value alternative must be proved.
+pub fn completed_value_proves_content_conservation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    reference: typed_trees::types::TypeReferenceHandle,
+    plan: &ContentConservationPlan,
+    projections: &[ContentProjectionPlan],
+    available: &[ContentConservationPlan],
+) -> bool {
+    completed_value_content_conservation_dependencies(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        plan,
+        projections,
+    )
+    .is_some_and(|proofs| {
+        proofs.iter().all(|proof| {
+            proof
+                .derivation_depth(|source| available.contains(source).then_some(0))
+                .is_some()
+        })
+    })
 }
 
 /// The consumed owner's current projection must still equal the input revision

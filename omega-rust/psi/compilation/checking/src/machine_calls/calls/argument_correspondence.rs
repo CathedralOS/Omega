@@ -453,7 +453,9 @@ pub(crate) fn call_binding_correspondence(
             return Err("the executable entry belongs to another source machine");
         }
         let ordinary = program.state_parameters(source_state);
-        let runtime_header = header
+        // Open Value binders still belong to the machine header. Only the
+        // binders removed by realization acquire trailing executable operands.
+        let realized_runtime_header = header
             .iter()
             .filter(|parameter| {
                 retained.iter().any(|binding| {
@@ -464,10 +466,19 @@ pub(crate) fn call_binding_correspondence(
                         )
                 })
             })
+            .filter(|parameter| {
+                !program
+                    .machine_type_parameters(machine)
+                    .iter()
+                    .any(|logical| {
+                        application_parameter_origin(program, &lineage, logical.symbol).ok()
+                            == Some(parameter.symbol)
+                    })
+            })
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         if executable.len() != actuals.len()
-            || executable.len() != ordinary.len() + runtime_header.len()
+            || executable.len() != ordinary.len() + realized_runtime_header.len()
             || !executable
                 .iter()
                 .take(ordinary.len())
@@ -524,7 +535,22 @@ pub(crate) fn call_binding_correspondence(
                 expression,
             } = binding.value
             {
-                let position = runtime_header
+                if logical.is_valid() {
+                    if !matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Value { .. }
+                    ) {
+                        return Err("the open runtime operand does not belong to a Value binder");
+                    }
+                    // retain_call prepared this exact occurrence before an
+                    // executable instance existed. Captured subjects refer to
+                    // an already evaluated ordinary argument, never a late read.
+                    open_runtime_source(program, caller, site, &binding.value)?;
+                    runtime_parameters.push(parameter.symbol);
+                    parameters.push((parameter.symbol, logical));
+                    continue;
+                }
+                let position = realized_runtime_header
                     .iter()
                     .position(|symbol| *symbol == parameter.symbol)
                     .ok_or("the runtime header binder has no retained ordinal")?;
@@ -753,4 +779,78 @@ fn application_parameter_origin(
         parameter = original;
     }
     Ok(parameter)
+}
+
+/// Retained runtime header actuals may observe a lexical immutable Value or
+/// this invocation's exact completed argument. Carrier compatibility remains
+/// with the common typed application intake; this query grants no scalar fact.
+fn open_runtime_source(
+    program: &dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    site: &CallSite<'_>,
+    value: &StaticMachineBindingValue,
+) -> Result<(), &'static str> {
+    let StaticMachineBindingValue::RuntimeValue {
+        subject,
+        expression,
+        ..
+    } = value
+    else {
+        return Err("the open runtime header binding has another operand kind");
+    };
+    if subject.is_valid() {
+        immutable_runtime_parameter(program, caller, value)?;
+        return Ok(());
+    }
+    if !expression.is_valid() {
+        return Err("the open runtime header actual has no retained source");
+    }
+    let mut root = *expression;
+    while let typed_trees::expression::ExpressionNode::Member(member) =
+        program.expression_table.expression(root)
+    {
+        if !member.member_symbol.is_valid() || member.case_variant.is_some() {
+            return Err("the open runtime header projection has no exact field");
+        }
+        root = member.receiver;
+    }
+    let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
+        program.expression_table.expression(root)
+    else {
+        return Err("the open runtime header actual needs a completed argument");
+    };
+    captured_argument_position(program, saved, *site)
+        .ok_or("the open runtime header actual belongs to another capture occurrence")?;
+    Ok(())
+}
+
+/// One source-authenticated completed argument ordinal at this invocation.
+pub(crate) fn captured_argument_position(
+    program: &dyn crate::CheckingInput,
+    saved: &typed_trees::expression::TableSavedSubject,
+    site: CallSite<'_>,
+) -> Option<usize> {
+    use typed_trees::expression::ValueCaptureOwner;
+    program.saved_value_source(saved)?;
+    match (
+        program.expression_table.value_capture(saved.capture).owner,
+        site,
+    ) {
+        (
+            ValueCaptureOwner::ExpressionArgument { call, position },
+            CallSite::Expression { expression, .. },
+        ) if call == expression => Some(position as usize),
+        (
+            ValueCaptureOwner::StatementArgument { call, position },
+            CallSite::Statement(statement),
+        ) if program
+            .statement_table
+            .statement(call)
+            .as_call()
+            .is_some_and(|stored| std::ptr::eq(stored, statement)) =>
+        {
+            Some(position as usize)
+        }
+        _ => None,
+    }
 }

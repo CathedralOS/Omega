@@ -499,11 +499,18 @@ impl StructuralJudge<'_> {
                                     || (left == other_right && right == other_left)
                             })
                     });
-                    common.content.retain(|law| {
-                        guarantees
+                    common.content.retain_mut(|law| {
+                        let Some(other) = guarantees
                             .content
                             .iter()
-                            .any(|other| law.same_equation(other))
+                            .find(|other| law.same_equation(other))
+                        else {
+                            return false;
+                        };
+                        // Every portable member owes its own proved source.
+                        // Equal substituted equations do not merge authorities.
+                        law.retain_family_sources(other);
+                        true
                     });
                 } else {
                     common = Some(guarantees);

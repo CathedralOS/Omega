@@ -99,14 +99,16 @@ pub use proof_contracts::collection_predicates::{
 };
 pub use proof_contracts::contract_entailment::{
     CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
-    ContentBackingAddressGoal, NumericObservationDemand, captured_call_argument_index_matches,
+    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
+    ContentConservationImplication, NumericObservationDemand, captured_call_argument_index_matches,
     captured_call_index_value, captured_call_subject_identity, captured_collection_length,
     captured_integer_value, captured_numeric_observations, closed_collection_length,
     closed_collection_length_at_place, closed_collection_length_under_matches,
-    completed_value_is_bounded_by_static, completed_value_preserves_entry_projection,
-    completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
-    completed_value_proves_domain_predicate, completed_value_refutes_domain,
-    owned_contract_subject, unique_literal_field,
+    completed_value_content_conservation_dependencies,
+    completed_value_has_content_conservation_candidate, completed_value_is_bounded_by_static,
+    completed_value_preserves_entry_projection, completed_value_proves_backing_addresses,
+    completed_value_proves_content_conservation, completed_value_proves_domain_predicate,
+    completed_value_refutes_domain, owned_contract_subject, unique_literal_field,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
