@@ -88,6 +88,22 @@ impl ExitScalars<'_, '_> {
                 ) {
                     return Some(length);
                 }
+                if let Some(result) = validation::reserved_result_place(self.program, occurrence)
+                    && result.machine_symbol == self.machine.symbol
+                    && let Some(call) = super::super::super::return_values::exit_return_call(
+                        self.program,
+                        self.facts,
+                        self.exit,
+                    )
+                {
+                    return arithmetic::call_result_atom(
+                        self.program,
+                        caller,
+                        call,
+                        &result.segments,
+                        primitive,
+                    );
+                }
                 if let Some((selected, remaining)) = self.result_projection(occurrence) {
                     // The whole outgoing value and each typed projection use
                     // one authenticated completed occurrence. Restricting this

@@ -12,6 +12,7 @@ mod family_demands;
 mod selected_dependencies;
 pub(crate) use selected_dependencies::{
     call_selection_dependency_symbols, machine_selection_dependency_symbols,
+    specialization_selection_dependency_symbols,
 };
 mod closed_types;
 mod type_selections;

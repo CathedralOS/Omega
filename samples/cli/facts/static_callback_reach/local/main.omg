@@ -1,0 +1,69 @@
+// A static callback retains its exact selection and bounded reach through a conformance invocation; its transported result discharges 37 - result.
+// Expected exit: 0
+public boundary trait Console {}
+public boundary trait Extra {}
+public trait StepContract {
+    machine step(value: u64) -> u64
+    reaches Console terminates;
+    requires value <= 37
+    ensures result <= 37;
+}
+machine quiet(value: u64) -> u64
+satisfies StepContract::step
+terminates;
+requires value <= 37
+ensures result <= 37
+{ value }
+machine second(value: u64) -> u64
+satisfies StepContract::step
+terminates;
+requires value <= 37
+ensures result <= 37
+{ value }
+machine console_step(value: u64) -> u64
+satisfies StepContract::step
+reaches Console terminates;
+requires value <= 37
+ensures result <= 37
+{ value }
+trait Traversal {
+    machine traverse<machine Step>(value: u64) -> u64
+    where machine Step satisfies StepContract::step;
+    reaches Console terminates;
+    requires value <= 37
+    ensures result <= 37;
+}
+TraversalCode satisfies Traversal {
+    machine traverse<machine Step>(value: u64) -> u64
+    where machine Step satisfies StepContract::step;
+    terminates;
+    requires value <= 37
+    ensures result <= 37
+    { Step(value) }
+}
+machine ordinary<machine Step>(value: u64) -> u64
+where machine Step satisfies StepContract::step;
+terminates;
+requires value <= 37
+ensures result <= 37
+{ transition { _ -> Step(value) } }
+machine pure_observer() -> u64 reaches
+ensures result <= 37
+{ ordinary<quiet>(37) }
+machine evaluate() -> u64 reaches Console {
+    let result: u64 = TraversalCode::traverse<quiet>(37);
+    37 - result
+}
+machine main() reaches Console crashes Trap {
+    let margin: u64 = evaluate();
+    let sibling: u64 = TraversalCode::traverse<second>(37);
+    let pure: u64 = pure_observer();
+    let declared: u64 = ordinary<console_step>(37);
+    let selected: u64 = TraversalCode::traverse<console_step>(37);
+    transition margin == 0 && sibling == 37 && pure == 37 && declared == 37 && selected == 37 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

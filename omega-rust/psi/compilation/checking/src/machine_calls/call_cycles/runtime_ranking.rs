@@ -447,10 +447,8 @@ pub(super) fn project_component(
                 };
                 match tail_arrival {
                     Some((target_symbol, arguments)) => {
-                        let Some(callee) = target_machine(program, target_symbol) else {
-                            return Err("a call target has no exact machine identity");
-                        };
-                        if callee == index
+                        let callee = target_machine(program, target_symbol);
+                        if callee == Some(index)
                             && internal_state_index(program, machine, target_symbol).is_some()
                         {
                             if let Some(retained) = &mut natural
@@ -475,6 +473,34 @@ pub(super) fn project_component(
                             // hypothesis edge here.
                             continue;
                         }
+                        if !arguments.iter().all(|argument| {
+                            prefix::operand_has_admitted_meaning(program, machine, state, *argument)
+                        }) {
+                            return Err(
+                                "a call argument has effects or non-builtin operator meaning",
+                            );
+                        }
+                        let Some(callee) = callee else {
+                            // An abstract callable is not an executable member
+                            // of this component. Its public promise closes this
+                            // leaf; concrete selections still enter the complete
+                            // selected graph and owe every recursive edge below.
+                            let signature = program
+                                .retained_static_machine_contract(target_symbol)
+                                .map(|contract| contract.signature())
+                                .or_else(|| {
+                                    crate::selected_requirement_signature(program, target_symbol)
+                                        .map(|(_, signature)| signature)
+                                });
+                            if !signature.is_some_and(|signature| matches!(
+                                &signature.termination_guarantee,
+                                language_semantics::TerminationGuarantee::Terminates { premises }
+                                    if premises.is_empty()
+                            )) {
+                                return Err("an abstract call has no unconditional public termination contract");
+                            }
+                            continue;
+                        };
                         let callee_machine = &program.machines()[callee];
                         let Some(callee_entry) = program.machine_states(callee_machine).first()
                         else {
@@ -484,13 +510,6 @@ pub(super) fn project_component(
                             && target_symbol != callee_entry.symbol
                         {
                             return Err("a subordinate-state call needs its own arrival evidence");
-                        }
-                        if !arguments.iter().all(|argument| {
-                            prefix::operand_has_admitted_meaning(program, machine, state, *argument)
-                        }) {
-                            return Err(
-                                "a call argument has effects or non-builtin operator meaning",
-                            );
                         }
                         observed.push(callee);
                         let Some(callee_position) =

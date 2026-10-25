@@ -1,0 +1,40 @@
+// A static callback retains its exact selection and bounded reach through a conformance invocation; its transported result discharges 37 - result.
+// Expected exit: 0
+public boundary trait Console {}
+public boundary trait Extra {}
+public trait StepContract {
+    machine step(value: u64) -> u64
+    reaches Console terminates;
+    requires value <= 37
+    ensures result <= 37;
+}
+machine quiet(value: u64) -> u64
+satisfies StepContract::step
+terminates;
+requires value <= 37
+ensures result <= 37
+{ value }
+machine second(value: u64) -> u64
+satisfies StepContract::step
+terminates;
+requires value <= 37
+ensures result <= 37
+{ value }
+machine traverse<machine Step>(value: u64, remaining: u64) -> u64
+where machine Step satisfies StepContract::step;
+terminates by remaining;
+requires value <= 37 && remaining <= 3
+ensures result <= 37
+{
+    transition remaining > 0 {
+        true -> traverse(value, remaining - 1)
+        false -> Step(value)
+    }
+}
+machine main() reaches crashes Trap {
+    let value: u64 = traverse<quiet>(37, 3);
+    let margin: u64 = 37 - value;
+    transition margin == 0 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
