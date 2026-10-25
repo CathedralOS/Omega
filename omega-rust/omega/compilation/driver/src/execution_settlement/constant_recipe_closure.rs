@@ -210,11 +210,12 @@ fn close_constant_values(
     // where a boundary token use is still the occurrence the selected rows
     // name; executable preparation has already normalized it in the checked
     // program. Roster positions are the same handles in both.
-    let Some(authored) = source.constant_recipe_source.as_deref() else {
+    let Some(pending) = source.deferred_evaluation.as_ref() else {
         return Err(vec![Diagnostic::error(
             "constant recipes are retained without their authored evaluation source",
         )]);
     };
+    let authored = pending.authored();
     let evaluation = selected_dispatch::SelectedConstantEvaluation::prepare(
         provider_planning::ProviderPlanningContext::new(authored, source::DependencyScope::Product),
         selected_target_profile,
@@ -257,8 +258,8 @@ fn close_constant_values(
     receipts.dedup();
     // The fold lands on a private copy of the shared program; the shared
     // storage keeps its symbolic positions for every other target.
-    let mut evaluated = authored.clone();
-    evaluation.evaluate_pending(&mut evaluated, source.constant_recipe_continuations.clone())?;
+    let mut evaluated = pending
+        .resume(|program, continuations| evaluation.evaluate_pending(program, continuations))?;
     let closure = typed.read_constant_recipe_closure(&evaluated, receipts)?;
     let mut closed_typed = (**typed).clone().with_constant_recipe_closure(closure);
     closed_typed.plan_laid_layouts = std::mem::take(&mut evaluated.plan_laid_layouts);

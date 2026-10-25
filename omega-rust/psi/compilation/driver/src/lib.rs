@@ -26,8 +26,8 @@ mod source_compilation;
 mod source_parsing;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission, SourceCheckInput,
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, DeferredSourceEvaluation,
+    ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission, SourceCheckInput,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,

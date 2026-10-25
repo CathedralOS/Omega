@@ -26,12 +26,6 @@ pub(crate) fn check_product_source(
     } = source;
     let program = source.into_check_input();
     let typed = program.typed();
-    // A deferred application still needs selected runtime meaning. The shared
-    // judgment checks its symbolic recipe; each target closure resumes this
-    // continuation under its own selected rows after settlement.
-    let constant_recipe_source = program
-        .has_deferred_recipes()
-        .then(|| Arc::new((*typed).clone()));
     let build = &computed_build_config.config;
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
@@ -115,7 +109,7 @@ pub(crate) fn check_product_source(
         provider_defaults,
         retained,
         selection: product_selection,
-        deferred_recipes: constant_recipe_continuations,
+        deferred_evaluation,
     } = selections.select(outcome, roots)?;
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
     let accepted_template_classifications =
@@ -134,7 +128,6 @@ pub(crate) fn check_product_source(
             ..Default::default()
         },
         product_selection,
-        constant_recipe_continuations,
-        constant_recipe_source,
+        deferred_evaluation,
     })
 }

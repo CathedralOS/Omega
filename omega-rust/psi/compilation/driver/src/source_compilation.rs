@@ -90,10 +90,6 @@ impl PreparedSource {
         self.typing.typed()
     }
 
-    pub(crate) fn has_deferred_recipes(&self) -> bool {
-        !self.pending_pre_checks.is_empty()
-    }
-
     /// Transfer the coupled origin to checking. Deferred target recipes remain
     /// with that origin; retaining them grants no execution authority.
     pub fn into_check_input(self: Arc<Self>) -> crate::SourceCheckInput {

@@ -69,13 +69,6 @@ impl SourceCheckInput {
         }
     }
 
-    pub fn has_deferred_recipes(&self) -> bool {
-        match &self.owner {
-            CheckInputOwner::Typed(_) => false,
-            CheckInputOwner::Source(source) => source.has_deferred_recipes(),
-        }
-    }
-
     fn into_checking_parts(
         self,
         retain: bool,
@@ -116,12 +109,39 @@ pub struct CheckRequest<'request> {
     pub retain: bool,
 }
 
+/// Deferred work and the exact authored program whose occurrences it names.
+/// Checking creates this pair before executable preparation; a target closure
+/// resumes a private copy without reconstructing or replacing its source.
+#[derive(Clone)]
+pub struct DeferredSourceEvaluation {
+    source: Arc<typed_trees::TypedTrees>,
+    continuations: Vec<build_time_evaluation::PreCheckEvaluation>,
+}
+
+impl DeferredSourceEvaluation {
+    pub fn authored(&self) -> &typed_trees::TypedTrees {
+        &self.source
+    }
+
+    pub fn resume(
+        &self,
+        evaluate: impl FnOnce(
+            &mut typed_trees::TypedTrees,
+            Vec<build_time_evaluation::PreCheckEvaluation>,
+        ) -> Result<(), Vec<Diagnostic>>,
+    ) -> Result<typed_trees::TypedTrees, Vec<Diagnostic>> {
+        let mut source = (*self.source).clone();
+        evaluate(&mut source, self.continuations.clone())?;
+        Ok(source)
+    }
+}
+
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
-    pub deferred_recipes: Vec<build_time_evaluation::PreCheckEvaluation>,
+    pub deferred_evaluation: Option<DeferredSourceEvaluation>,
 }
 
 /// Shared source product with the exact optional root-selection evidence.
@@ -132,13 +152,18 @@ pub struct SelectedCheckedSource {
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub retained: Option<RetainedCheck>,
     pub selection: Option<CheckedTreeProductSelection>,
-    pub deferred_recipes: Vec<build_time_evaluation::PreCheckEvaluation>,
+    pub deferred_evaluation: Option<DeferredSourceEvaluation>,
 }
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
         let (mut program, deferred_recipes, source) = self.program.into_checking_parts(self.retain);
+        let deferred_evaluation =
+            (!deferred_recipes.is_empty()).then(|| DeferredSourceEvaluation {
+                source: Arc::new(program.clone()),
+                continuations: deferred_recipes,
+            });
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -212,7 +237,7 @@ impl CheckRequest<'_> {
                 .retained
                 .map(|judgment| RetainedCheck { judgment, source }),
             reused: outcome.took_prior,
-            deferred_recipes,
+            deferred_evaluation,
         })
     }
 }
@@ -242,7 +267,7 @@ impl CheckedSource {
             provider_defaults: provider_defaults.into(),
             retained: self.retained,
             selection,
-            deferred_recipes: self.deferred_recipes,
+            deferred_evaluation: self.deferred_evaluation,
         })
     }
 }
@@ -280,7 +305,7 @@ impl ProductSelections {
                 provider_defaults: prior.provider_defaults.clone(),
                 selection: prior.selection.clone(),
                 retained: checked.retained,
-                deferred_recipes: checked.deferred_recipes,
+                deferred_evaluation: checked.deferred_evaluation,
             });
         }
         let input = checked.program.clone();
