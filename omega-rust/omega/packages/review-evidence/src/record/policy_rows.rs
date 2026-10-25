@@ -36,64 +36,44 @@ pub enum PackagePolicyRowKind {
 }
 
 impl PackagePolicyRowKind {
-    pub const fn canonical_tag(self) -> u8 {
+    /// One row per kind: the persisted tag and the authored spelling, so the
+    /// encoded byte and the canonical text cannot disagree about the roster.
+    pub const fn tag_and_name(self) -> (u8, &'static str) {
         match self {
-            Self::Header => 0,
-            Self::PublicTrait => 1,
-            Self::PublicConformance => 2,
-            Self::PublicDomain => 3,
-            Self::PublicProposition => 4,
-            Self::PublicConst => 5,
-            Self::PublicOperator => 6,
-            Self::PublicData => 7,
-            Self::Callable => 8,
-            Self::SelectedProviderAssociation => 9,
-            Self::TerminalService => 10,
-            Self::TerminalPermission => 11,
-            Self::RepresentationTarget => 12,
-            Self::RepresentationDeclaration => 13,
-            Self::RepresentationAvailability => 14,
-            Self::RepresentationSelection => 15,
-            Self::RepresentationDemand => 16,
-            Self::ExternalSupply => 17,
-            Self::DangerousCapability => 18,
-            Self::DangerousSlack => 19,
-            Self::SemanticDependency => 20,
-            Self::SymbolicBoundaryDemand => 21,
-            Self::RestrictedBuildRequest => 22,
-            Self::AssumedBindingContract => 23,
-            Self::ServiceAudit => 24,
+            Self::Header => (0, "header"),
+            Self::PublicTrait => (1, "public_trait"),
+            Self::PublicConformance => (2, "public_conformance"),
+            Self::PublicDomain => (3, "public_domain"),
+            Self::PublicProposition => (4, "public_proposition"),
+            Self::PublicConst => (5, "public_const"),
+            Self::PublicOperator => (6, "public_operator"),
+            Self::PublicData => (7, "public_data"),
+            Self::Callable => (8, "callable"),
+            Self::SelectedProviderAssociation => (9, "selected_provider_association"),
+            Self::TerminalService => (10, "terminal_service"),
+            Self::TerminalPermission => (11, "terminal_permission"),
+            Self::RepresentationTarget => (12, "representation_target"),
+            Self::RepresentationDeclaration => (13, "representation_declaration"),
+            Self::RepresentationAvailability => (14, "representation_availability"),
+            Self::RepresentationSelection => (15, "representation_selection"),
+            Self::RepresentationDemand => (16, "representation_demand"),
+            Self::ExternalSupply => (17, "external_supply"),
+            Self::DangerousCapability => (18, "dangerous_capability"),
+            Self::DangerousSlack => (19, "dangerous_slack"),
+            Self::SemanticDependency => (20, "semantic_dependency"),
+            Self::SymbolicBoundaryDemand => (21, "symbolic_boundary_demand"),
+            Self::RestrictedBuildRequest => (22, "restricted_build_request"),
+            Self::AssumedBindingContract => (23, "assumed_binding_contract"),
+            Self::ServiceAudit => (24, "service_audit"),
         }
     }
 
+    pub const fn canonical_tag(self) -> u8 {
+        self.tag_and_name().0
+    }
+
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Header => "header",
-            Self::PublicTrait => "public_trait",
-            Self::PublicConformance => "public_conformance",
-            Self::PublicDomain => "public_domain",
-            Self::PublicProposition => "public_proposition",
-            Self::PublicConst => "public_const",
-            Self::PublicOperator => "public_operator",
-            Self::PublicData => "public_data",
-            Self::Callable => "callable",
-            Self::SelectedProviderAssociation => "selected_provider_association",
-            Self::TerminalService => "terminal_service",
-            Self::TerminalPermission => "terminal_permission",
-            Self::RepresentationTarget => "representation_target",
-            Self::RepresentationDeclaration => "representation_declaration",
-            Self::RepresentationAvailability => "representation_availability",
-            Self::RepresentationSelection => "representation_selection",
-            Self::RepresentationDemand => "representation_demand",
-            Self::ExternalSupply => "external_supply",
-            Self::DangerousCapability => "dangerous_capability",
-            Self::DangerousSlack => "dangerous_slack",
-            Self::SemanticDependency => "semantic_dependency",
-            Self::SymbolicBoundaryDemand => "symbolic_boundary_demand",
-            Self::RestrictedBuildRequest => "restricted_build_request",
-            Self::AssumedBindingContract => "assumed_binding_contract",
-            Self::ServiceAudit => "service_audit",
-        }
+        self.tag_and_name().1
     }
 
     pub const fn audit_recommended_on_change(self) -> bool {

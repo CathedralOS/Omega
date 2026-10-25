@@ -5,28 +5,34 @@ use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewIntegerComparisonKind;
 use crate::record::PackageReviewPrimitiveType;
 
+/// One row per primitive type: the persisted tag and the authored spelling,
+/// so the tag byte and the canonical text read the same roster.
+pub(super) const fn primitive_type_row(
+    primitive_type: PackageReviewPrimitiveType,
+) -> (u8, &'static str) {
+    match primitive_type {
+        PackageReviewPrimitiveType::Bool => (0, "bool"),
+        PackageReviewPrimitiveType::F32 => (1, "f32"),
+        PackageReviewPrimitiveType::F64 => (2, "f64"),
+        PackageReviewPrimitiveType::I8 => (3, "i8"),
+        PackageReviewPrimitiveType::I16 => (4, "i16"),
+        PackageReviewPrimitiveType::I32 => (5, "i32"),
+        PackageReviewPrimitiveType::I64 => (6, "i64"),
+        PackageReviewPrimitiveType::U8 => (7, "u8"),
+        PackageReviewPrimitiveType::U16 => (8, "u16"),
+        PackageReviewPrimitiveType::U32 => (9, "u32"),
+        PackageReviewPrimitiveType::U64 => (10, "u64"),
+        PackageReviewPrimitiveType::Addr => (11, "addr"),
+        PackageReviewPrimitiveType::Selector => (12, "selector"),
+    }
+}
+
 pub(crate) fn encode_primitive_type(
     encoder: &mut Encoder,
     primitive_type: PackageReviewPrimitiveType,
 ) {
-    encoder.tag(
-        primitive_type_name(primitive_type),
-        match primitive_type {
-            PackageReviewPrimitiveType::Bool => 0,
-            PackageReviewPrimitiveType::F32 => 1,
-            PackageReviewPrimitiveType::F64 => 2,
-            PackageReviewPrimitiveType::I8 => 3,
-            PackageReviewPrimitiveType::I16 => 4,
-            PackageReviewPrimitiveType::I32 => 5,
-            PackageReviewPrimitiveType::I64 => 6,
-            PackageReviewPrimitiveType::U8 => 7,
-            PackageReviewPrimitiveType::U16 => 8,
-            PackageReviewPrimitiveType::U32 => 9,
-            PackageReviewPrimitiveType::U64 => 10,
-            PackageReviewPrimitiveType::Addr => 11,
-            PackageReviewPrimitiveType::Selector => 12,
-        },
-    );
+    let (tag, name) = primitive_type_row(primitive_type);
+    encoder.tag(name, tag);
 }
 
 /// One row per structural integer comparison kind: the persisted tag and the
@@ -82,21 +88,7 @@ pub(crate) const fn integer_binary_row(kind: PackageReviewIntegerBinaryKind) -> 
 pub(super) const fn primitive_type_name(
     primitive_type: PackageReviewPrimitiveType,
 ) -> &'static str {
-    match primitive_type {
-        PackageReviewPrimitiveType::Bool => "bool",
-        PackageReviewPrimitiveType::F32 => "f32",
-        PackageReviewPrimitiveType::F64 => "f64",
-        PackageReviewPrimitiveType::I8 => "i8",
-        PackageReviewPrimitiveType::I16 => "i16",
-        PackageReviewPrimitiveType::I32 => "i32",
-        PackageReviewPrimitiveType::I64 => "i64",
-        PackageReviewPrimitiveType::U8 => "u8",
-        PackageReviewPrimitiveType::U16 => "u16",
-        PackageReviewPrimitiveType::U32 => "u32",
-        PackageReviewPrimitiveType::U64 => "u64",
-        PackageReviewPrimitiveType::Addr => "addr",
-        PackageReviewPrimitiveType::Selector => "selector",
-    }
+    primitive_type_row(primitive_type).1
 }
 
 pub(super) const fn arithmetic_domain_name(domain: PackageReviewArithmeticDomain) -> &'static str {
