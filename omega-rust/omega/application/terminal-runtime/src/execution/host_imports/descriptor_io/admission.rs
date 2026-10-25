@@ -78,7 +78,10 @@ pub(super) fn admit(
             DescriptorBuffer::Scalar(*scalar)
         }
         Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }))
-            if matches!(abi, DescriptorAbi::DarwinLibSystem)
+            // The selected 64-bit C plan carries this exact pair as buffer
+            // pointer and size_t. Windows CRT has a 32-bit count; a syscall
+            // admits one-word authored operands instead of this C pair.
+            if matches!(abi, DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc)
                 && access.is_none_or(|access| access == formal.access) =>
         {
             DescriptorBuffer::Bytes
