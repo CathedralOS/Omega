@@ -254,18 +254,20 @@ pub(crate) fn prepare_permission_events(
         // Expression-owned completions need the same claim namespace as
         // named destinations. A name/projection already refers to existing
         // custody; only a real expression root reserves a new owner here.
-        let mut observed_temporaries_by_statement = Vec::with_capacity(statements.len());
+        let mut completed_temporaries_by_statement = Vec::with_capacity(statements.len());
+        let mut observed_receivers_by_statement = Vec::with_capacity(statements.len());
         for (statement_index, statement) in statements.iter().enumerate() {
-            let observed = crate::checks::ownership_occurrences::completed_owned_temporaries(
-                program,
-                machine,
-                state,
-                statement_index,
-                statement,
-                &facts.operators,
-                &facts.flow.control,
-            );
-            for &(expression, reference) in &observed {
+            let temporary_occurrences =
+                crate::checks::ownership_occurrences::owned_temporary_occurrences(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    &facts.operators,
+                    &facts.flow.control,
+                );
+            for &(expression, reference) in &temporary_occurrences.completed {
                 reserve_owner_places(
                     program,
                     facts::PlaceRoot::Expression(expression),
@@ -273,7 +275,10 @@ pub(crate) fn prepare_permission_events(
                     &mut places,
                 );
             }
-            observed_temporaries_by_statement.push(observed);
+            // One preparation retains both roles without treating an
+            // unobserved completed child as an independent exit owner.
+            completed_temporaries_by_statement.push(temporary_occurrences.completed);
+            observed_receivers_by_statement.push(temporary_occurrences.observed);
             for (expression, _) in
                 super::linear_validation::completed_statement_values(program, statement)
             {
@@ -402,7 +407,7 @@ pub(crate) fn prepare_permission_events(
                             state.symbol,
                             &moves,
                             &occurrences,
-                            &observed_temporaries_by_statement[statement_index],
+                            &completed_temporaries_by_statement[statement_index],
                             &calls,
                             &completion_regions,
                             &call_writes,
@@ -590,7 +595,7 @@ pub(crate) fn prepare_permission_events(
                         );
                         append_owned_cleanup_permission_events(
                             program,
-                            &observed_temporaries_by_statement,
+                            &observed_receivers_by_statement,
                             state,
                             state_flow.machine_symbol,
                             coordinate,

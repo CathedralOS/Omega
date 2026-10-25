@@ -293,30 +293,6 @@ pub(super) fn statement_steps_at_evaluation(
     order.steps
 }
 
-/// An observation borrows its temporary receiver; it cannot discharge the
-/// receiver's custody. Keep the actual completed expression root so ordinary
-/// permission production and scope-exit checking own its residual partition,
-/// including affine storage with no linear claims.
-pub(super) fn observed_owned_temporaries(
-    program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    statement: &StatementNode,
-    operators: &checked_trees::CheckedOperatorFacts,
-) -> Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> {
-    let occurrences = statement_steps(
-        program,
-        machine,
-        state,
-        statement_index,
-        statement,
-        &[],
-        operators,
-    );
-    observed_owned_temporaries_from_occurrences(program, state, statement_index, &occurrences)
-}
-
 fn observed_owned_temporaries_from_occurrences(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
@@ -368,10 +344,17 @@ fn observed_owned_temporaries_from_occurrences(
     completed_owners
 }
 
-/// Every completed owned product needs custody, including a value delivered
-/// directly to a selected or constructed parent. Observations discover uses,
-/// not production: an arm returning a call result need not read it first.
-pub(super) fn completed_owned_temporaries(
+/// Two roles over one exact statement occurrence inventory. Every completed
+/// owned product needs production custody, including one delivered directly to
+/// a selected or constructed parent. An observed receiver instead retains its
+/// own residual owner for exit cleanup. Production alone does not establish
+/// that residual-cleanup role.
+pub(super) struct OwnedTemporaryOccurrences {
+    pub(super) completed: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
+    pub(super) observed: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
+}
+
+pub(super) fn owned_temporary_occurrences(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -379,7 +362,7 @@ pub(super) fn completed_owned_temporaries(
     statement: &StatementNode,
     operators: &checked_trees::CheckedOperatorFacts,
     control: &checked_trees::FlowControlFacts,
-) -> Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> {
+) -> OwnedTemporaryOccurrences {
     let occurrences = statement_steps(
         program,
         machine,
@@ -434,7 +417,10 @@ pub(super) fn completed_owned_temporaries(
         }
         completed.push((expression, reference));
     }
-    completed
+    OwnedTemporaryOccurrences {
+        completed,
+        observed,
+    }
 }
 
 struct StatementOrder<'a> {
