@@ -26,11 +26,20 @@ Serial agreement proves no concurrent theorem. Matching non-Linux hosts remain
 unavailable; those executions are not claimed.
 
 This row establishes declaration-owned field-where bounds for store, swap and
-decisive exchange and preserves them on a fresh load. Declaration-only atomic
-ranges, bounded single-attempt exchange and universal fetch preservation remain
+decisive exchange and preserves them on a fresh load. Bounded single-attempt exchange and universal fetch preservation remain
 internal implementation work, alongside non-observing exchange, native root
 operations, relation/refinement checks and TR3–TR8 concurrent runtime witnesses.
 The full TASKS.md outcome remains open.
+
+Transport contracts use ordinary propositions under domains.md: `Held` states
+its bound in `where`, parameter contracts use `requires`, returned snapshots use
+`ensures result <= 100`, and receiving locals remain bare `u32`. Earlier
+bracket-range witness observations are historical and superseded; the queued
+PR was withdrawn before landing to correct that spelling. Legacy atomic bracket
+ranges are not an acceptance requirement and are not being added as semantics.
+The std checking prerequisite clears on the actual-conflict integration; the
+named shared-store fixture executes at exit 70 in the scoped corpus intake.
+Its normal CLI project review remains pending broader capability decisions.
 
 The representation keeps dedicated atomic identity and resident validity
 separate. An atomic replacement carries its own checked resident establishment;

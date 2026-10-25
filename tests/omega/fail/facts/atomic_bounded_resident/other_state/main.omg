@@ -3,9 +3,11 @@
 use omega::language::core::atomic;
 data Cell where value <= 100 { value: AtomicU32; }
 machine publish(cell: &Cell, value: u32) requires value <= 101 { cell.value.store(value, Publish); }
-machine observe(cell: &Cell) -> u32 [0..=100] {
+machine observe(cell: &Cell) -> u32
+ensures result <= 100
+{
     transition { _ -> read(cell) }
-    state read(cell: &Cell) -> u32 [0..=100] { cell.value.load(Receive) }
+    state read(cell: &Cell) -> u32 { cell.value.load(Receive) }
 }
 machine main() crashes Trap {
     let cell: Cell;
