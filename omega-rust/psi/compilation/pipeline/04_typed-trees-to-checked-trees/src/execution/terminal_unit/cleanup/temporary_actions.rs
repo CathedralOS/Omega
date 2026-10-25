@@ -247,121 +247,151 @@ fn sequence_actions(
     completion: Option<(&CheckedUnitEffectOperationPlan, OperationSequence<'_>)>,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
 ) -> Option<OperationSelections> {
-    let mut selected = OperationSelections::default();
-    for operation_index in 0..sequence.len() {
-        let operation = sequence.get(operation_index)?;
-        if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } = operation {
-            let owners = shapes
-                .cleanup_control
-                .reference_owner_cleanups
-                .span(*owner_cleanups)?
-                .to_vec();
-            for (ordinal, owner) in owners.into_iter().enumerate() {
-                let actions = owner_group_actions(
-                    program,
-                    facts,
-                    targets,
-                    shapes,
-                    owner.disposition,
-                    owner.owner.source,
-                )?;
-                if actions.is_empty() {
-                    return None;
-                }
-                let actions = shapes.cleanup_control.actions.insert_many(actions);
-                let handle = owner_cleanups.handle_at(u32::try_from(ordinal).ok()?);
-                shapes
+    let mut phase = "sequence entry";
+    let mut position = None;
+    let selected = (|| {
+        let mut selected = OperationSelections::default();
+        for operation_index in 0..sequence.len() {
+            position = Some(operation_index);
+            phase = "operation lookup";
+            let operation = sequence.get(operation_index)?;
+            if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } =
+                operation
+            {
+                phase = "release owner roster";
+                let owners = shapes
                     .cleanup_control
                     .reference_owner_cleanups
-                    .get_mut(handle)
-                    .actions = actions;
-            }
-            continue;
-        }
-
-        if let CheckedUnitEffectOperationPlan::EstablishLocal(
-            checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
-        ) = operation
-        {
-            let mut nested = Vec::new();
-            for (call_index, call) in calls.iter().enumerate() {
-                let actions = value_call_actions(
-                    program,
-                    facts,
-                    targets,
-                    shapes,
-                    machine,
-                    state,
-                    parameters,
-                    call,
-                    release_owned,
-                )?;
-                if !actions.is_empty() {
-                    nested.push((call_index, actions));
+                    .span(*owner_cleanups)?
+                    .to_vec();
+                for (ordinal, owner) in owners.into_iter().enumerate() {
+                    phase = "release owner actions";
+                    let actions = owner_group_actions(
+                        program,
+                        facts,
+                        targets,
+                        shapes,
+                        owner.disposition,
+                        owner.owner.source,
+                    )?;
+                    phase = "empty release owner actions";
+                    if actions.is_empty() {
+                        return None;
+                    }
+                    let actions = shapes.cleanup_control.actions.insert_many(actions);
+                    let handle = owner_cleanups.handle_at(u32::try_from(ordinal).ok()?);
+                    shapes
+                        .cleanup_control
+                        .reference_owner_cleanups
+                        .get_mut(handle)
+                        .actions = actions;
                 }
+                continue;
             }
-            if !nested.is_empty() {
-                selected.constructions.push((operation_index, nested));
-            }
-        }
-        match operation {
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
-                ..
-            } => {
-                selected.continuations.push((
-                    operation_index,
-                    super::replacements::actions(
-                        program, facts, targets, shapes, machine, state, parameters, operation,
-                    )?,
-                ));
-            }
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-                cleanup_actions,
-                ..
-            } => {
-                let prior = sequence.prefix(operation_index)?;
-                // Retained nested calls keep their own invocation identities.
-                // The dependency inventory locates a source; it does not turn
-                // an arm-local producer into an unconditional live occurrence.
-                let mut local = None;
-                for position in 0..prior.len() {
-                    for candidate in prior.get(position)?.with_value_calls() {
-                        if candidate.invocation_coordinate() != Some(*coordinate) {
-                            continue;
-                        }
-                        if local.replace(candidate).is_some() {
-                            return None;
-                        }
+
+            if let CheckedUnitEffectOperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { calls, .. },
+            ) = operation
+            {
+                let mut nested = Vec::new();
+                for (call_index, call) in calls.iter().enumerate() {
+                    phase = "retained value-call completion";
+                    let actions = value_call_actions(
+                        program,
+                        facts,
+                        targets,
+                        shapes,
+                        machine,
+                        state,
+                        parameters,
+                        call,
+                        release_owned,
+                    )?;
+                    if !actions.is_empty() {
+                        nested.push((call_index, actions));
                     }
                 }
-                let enclosing = completion
-                    .filter(|(consumer, _)| consumer.invocation_coordinate() == Some(*coordinate));
-                let (consumer, producers) = match (local, enclosing) {
-                    (Some(_), Some(_)) => return None,
-                    (Some(consumer), None) => (consumer, prior),
-                    (None, Some(completion)) => completion,
-                    (None, None) => return None,
-                };
-                let actions = call_actions(
-                    program,
-                    facts,
-                    targets,
-                    shapes,
-                    machine,
-                    state,
-                    consumer,
-                    producers,
-                    cleanup_actions,
-                    release_owned,
-                )?;
-                selected.continuations.push((operation_index, actions));
+                if !nested.is_empty() {
+                    selected.constructions.push((operation_index, nested));
+                }
             }
-            _ => {}
+            match operation {
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
+                    ..
+                } => {
+                    phase = "replacement actions";
+                    selected.continuations.push((
+                        operation_index,
+                        super::replacements::actions(
+                            program, facts, targets, shapes, machine, state, parameters, operation,
+                        )?,
+                    ));
+                }
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+                    cleanup_actions,
+                    ..
+                } => {
+                    phase = "call continuation source correspondence";
+                    let prior = sequence.prefix(operation_index)?;
+                    // Retained nested calls keep their own invocation identities.
+                    // The dependency inventory locates a source; it does not turn
+                    // an arm-local producer into an unconditional live occurrence.
+                    let mut local = None;
+                    for position in 0..prior.len() {
+                        for candidate in prior.get(position)?.with_value_calls() {
+                            if candidate.invocation_coordinate() != Some(*coordinate) {
+                                continue;
+                            }
+                            if local.replace(candidate).is_some() {
+                                return None;
+                            }
+                        }
+                    }
+                    let enclosing = completion.filter(|(consumer, _)| {
+                        consumer.invocation_coordinate() == Some(*coordinate)
+                    });
+                    let (consumer, producers) = match (local, enclosing) {
+                        (Some(_), Some(_)) => return None,
+                        (Some(consumer), None) => (consumer, prior),
+                        (None, Some(completion)) => completion,
+                        (None, None) => return None,
+                    };
+                    phase = "call continuation actions";
+                    let actions = call_actions(
+                        program,
+                        facts,
+                        targets,
+                        shapes,
+                        machine,
+                        state,
+                        consumer,
+                        producers,
+                        cleanup_actions,
+                        release_owned,
+                    )?;
+                    selected.continuations.push((operation_index, actions));
+                }
+                _ => {}
+            }
         }
+        Some(selected)
+    })();
+    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
+        let operation = position.and_then(|position| sequence.get(position));
+        eprintln!(
+            "TEMPORARY_CLEANUP_SEQUENCE_REFUSAL machine={} state={} position={:?} phase={} statement={:?} call={:?} result={:?}",
+            program.symbols.name(machine),
+            program.symbols.name(state),
+            position,
+            phase,
+            operation.and_then(CheckedUnitEffectOperationPlan::source_statement_index),
+            operation.and_then(CheckedUnitEffectOperationPlan::invocation_coordinate),
+            operation.and_then(CheckedUnitEffectOperationPlan::structural_result_binding),
+        );
     }
-    Some(selected)
+    selected
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -418,140 +448,169 @@ fn call_actions(
     cleanup_actions: &[CheckedNormalCleanupAction],
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
 ) -> Option<SelectedActions> {
-    let coordinate = consumer.invocation_coordinate()?;
-    let mut sources = Vec::new();
-    let mut completed = Vec::new();
-    for action in cleanup_actions {
-        let source = action.source();
-        if sources.contains(source) {
-            continue;
-        }
-        sources.push(source.clone());
-        if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
-            *source
-            && consumer
-                .structural_result_binding()
-                .is_some_and(|result| result.binding_ordinal == binding_ordinal)
-        {
-            // This call's discarded output has its own result disposition;
-            // it is not an operand owner and may have no expression root.
-            if cleanup_actions
-                .iter()
-                .filter(|action| action.source() == source)
-                .any(|action| !matches!(action, CheckedNormalCleanupAction::Discard(_)))
-            {
-                return None;
+    let mut phase = "call cleanup entry";
+    let mut current_source = None;
+    let mut current_root = None;
+    let selected = (|| {
+        phase = "consumer coordinate";
+        let coordinate = consumer.invocation_coordinate()?;
+        let mut sources = Vec::new();
+        let mut completed = Vec::new();
+        for action in cleanup_actions {
+            let source = action.source();
+            current_source = Some(source);
+            current_root = None;
+            phase = "source group";
+            if sources.contains(source) {
+                continue;
             }
-            completed.extend(
-                cleanup_actions
+            sources.push(source.clone());
+            if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } =
+                *source
+                && consumer
+                    .structural_result_binding()
+                    .is_some_and(|result| result.binding_ordinal == binding_ordinal)
+            {
+                phase = "discarded result action kind";
+                // This call's discarded output has its own result disposition;
+                // it is not an operand owner and may have no expression root.
+                if cleanup_actions
                     .iter()
                     .filter(|action| action.source() == source)
-                    .cloned(),
-            );
-            continue;
-        }
-        let root = match *source {
-            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-                // Rejoin the same exact binding selected at normal completion,
-                // including calls retained inside an earlier value operation.
-                // Missing schedule entries and duplicate producers both refuse.
-                let mut producer = None;
-                for position in 0..producers.len() {
-                    for candidate in producers.get(position)?.with_value_calls() {
-                        if !candidate
-                            .structural_result_binding()
-                            .is_some_and(|result| result.binding_ordinal == binding_ordinal)
-                        {
-                            continue;
-                        }
-                        if producer.replace(candidate).is_some() {
-                            return None;
+                    .any(|action| !matches!(action, CheckedNormalCleanupAction::Discard(_)))
+                {
+                    return None;
+                }
+                completed.extend(
+                    cleanup_actions
+                        .iter()
+                        .filter(|action| action.source() == source)
+                        .cloned(),
+                );
+                continue;
+            }
+            phase = "source producer correspondence";
+            let root = match *source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                    // Rejoin the same exact binding selected at normal completion,
+                    // including calls retained inside an earlier value operation.
+                    // Missing schedule entries and duplicate producers both refuse.
+                    let mut producer = None;
+                    for position in 0..producers.len() {
+                        for candidate in producers.get(position)?.with_value_calls() {
+                            if !candidate
+                                .structural_result_binding()
+                                .is_some_and(|result| result.binding_ordinal == binding_ordinal)
+                            {
+                                continue;
+                            }
+                            if producer.replace(candidate).is_some() {
+                                return None;
+                            }
                         }
                     }
+                    let producer = producer?;
+                    // Independent statement results may have no expression home.
+                    // Contextual retirement below still requires an exact root.
+                    super::normal_edges::producer_root(facts, state, producer)
                 }
-                let producer = producer?;
-                // Independent statement results may have no expression home.
-                // Contextual retirement below still requires an exact root.
-                super::normal_edges::producer_root(facts, state, producer)
+                CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
+                    Some(facts::PlaceRoot::Expression(expression))
+                }
+                _ => return None,
+            };
+            current_root = root;
+            phase = "contextual death presence";
+            let contextual = root.is_some_and(|root| {
+                facts
+                    .contextual_cleanup
+                    .any_state_disposition(machine, state, |_, row| {
+                        row.root == root
+                            && matches!(
+                                row.source,
+                                PermissionEventSource::Call {
+                                    statement_index,
+                                    call_ordinal,
+                                    ..
+                                } if statement_index == coordinate.statement_index as usize
+                                    && call_ordinal == coordinate.call_ordinal as usize
+                            )
+                    })
+            });
+            if !contextual {
+                phase = "home retirement without contextual death";
+                // An existing independent disposal is not a contextual death.
+                // An unresolved home-retirement request cannot borrow its authority.
+                if cleanup_actions.iter().any(|action| {
+                    action.source() == source
+                        && matches!(action, CheckedNormalCleanupAction::RetireHome { .. })
+                }) {
+                    return None;
+                }
+                completed.extend(
+                    cleanup_actions
+                        .iter()
+                        .filter(|action| action.source() == source)
+                        .cloned(),
+                );
+                continue;
             }
-            CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } => {
-                Some(facts::PlaceRoot::Expression(expression))
-            }
-            _ => return None,
-        };
-        let contextual = root.is_some_and(|root| {
-            facts
-                .contextual_cleanup
-                .any_state_disposition(machine, state, |_, row| {
-                    row.root == root
-                        && matches!(
-                            row.source,
-                            PermissionEventSource::Call {
-                                statement_index,
-                                call_ordinal,
-                                ..
-                            } if statement_index == coordinate.statement_index as usize
-                                && call_ordinal == coordinate.call_ordinal as usize
-                        )
-                })
-        });
-        if !contextual {
-            // An existing independent disposal is not a contextual death.
-            // An unresolved home-retirement request cannot borrow its authority.
-            if cleanup_actions.iter().any(|action| {
-                action.source() == source
-                    && matches!(action, CheckedNormalCleanupAction::RetireHome { .. })
+            // A real retained release owns this complete source group, even when
+            // it is later or nested in another value call's completion sequence.
+            // Independent disposal above requires no contextual call association.
+            phase = "exact checked consumer";
+            let consumer = facts.flow.control.call_at(
+                state,
+                coordinate.statement_index as usize,
+                coordinate.call_ordinal as usize,
+            )?;
+            if release_owned.iter().any(|handle| {
+                let disposition = facts.contextual_cleanup.dispositions.get(*handle);
+                disposition.machine == machine
+                    && disposition.state == state
+                    && Some(disposition.root) == root
+                    && matches!(disposition.source,
+                        PermissionEventSource::Call { statement_index, call_ordinal, target_symbol }
+                        if target_symbol == consumer.target_symbol
+                            && statement_index == coordinate.statement_index as usize
+                            && call_ordinal == coordinate.call_ordinal as usize)
             }) {
-                return None;
+                continue;
             }
-            completed.extend(
-                cleanup_actions
-                    .iter()
-                    .filter(|action| action.source() == source)
-                    .cloned(),
-            );
-            continue;
+            // Row presence authorizes selection. An admitted empty complement is
+            // not the absence of a disposition, and its shape is not re-derived.
+            phase = "contextual disposition actions";
+            completed.extend(selected_actions(
+                program,
+                facts,
+                targets,
+                shapes,
+                machine,
+                state,
+                coordinate,
+                consumer.target_symbol,
+                root?,
+                source.clone(),
+            )?);
         }
-        // A real retained release owns this complete source group, even when
-        // it is later or nested in another value call's completion sequence.
-        // Independent disposal above requires no contextual call association.
-        let consumer = facts.flow.control.call_at(
-            state,
-            coordinate.statement_index as usize,
-            coordinate.call_ordinal as usize,
-        )?;
-        if release_owned.iter().any(|handle| {
-            let disposition = facts.contextual_cleanup.dispositions.get(*handle);
-            disposition.machine == machine
-                && disposition.state == state
-                && Some(disposition.root) == root
-                && matches!(disposition.source,
-                    PermissionEventSource::Call { statement_index, call_ordinal, target_symbol }
-                    if target_symbol == consumer.target_symbol
-                        && statement_index == coordinate.statement_index as usize
-                        && call_ordinal == coordinate.call_ordinal as usize)
-        }) {
-            continue;
-        }
-        // Row presence authorizes selection. An admitted empty complement is
-        // not the absence of a disposition, and its shape is not re-derived.
-        completed.extend(selected_actions(
-            program,
-            facts,
-            targets,
-            shapes,
-            machine,
-            state,
-            coordinate,
-            consumer.target_symbol,
-            root?,
-            source.clone(),
-        )?);
+        Some(SelectedActions {
+            actions: completed,
+            selected_regions: Vec::new(),
+        })
+    })();
+    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
+        eprintln!(
+            "TEMPORARY_CLEANUP_CALL_REFUSAL machine={} state={} coordinate={:?} phase={} source={:?} root={:?} cleanup={:?}",
+            program.symbols.name(machine),
+            program.symbols.name(state),
+            consumer.invocation_coordinate(),
+            phase,
+            current_source,
+            current_root,
+            cleanup_actions,
+        );
     }
-    Some(SelectedActions {
-        actions: completed,
-        selected_regions: Vec::new(),
-    })
+    selected
 }
 
 enum OperationSequenceMut<'plans> {

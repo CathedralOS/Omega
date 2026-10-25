@@ -19,7 +19,7 @@ use super::super::{CheckedStructuralControlSuccessorPlan, case_emission, ranking
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::{StorageObservations, OperationBuffer};
+use crate::emission::operation_emission::buffer::{OperationBuffer, StorageObservations};
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};

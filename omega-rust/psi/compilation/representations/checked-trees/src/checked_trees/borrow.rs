@@ -796,6 +796,16 @@ impl BorrowFacts {
         self.loans_contain(state.loans, loan)
     }
 
+    /// Exact state membership and the statement-resource role share one
+    /// constant-time predicate. Invocation associations remain provenance.
+    pub fn state_owns_statement_resource(
+        &self,
+        state: &StateBorrowFact,
+        loan: Handle<BorrowLoanFact>,
+    ) -> bool {
+        self.state_owns_loan(state, loan) && !self.loans.get(loan).established_by_call.is_valid()
+    }
+
     /// A flow cut can retain only an entry permission published for this
     /// invocation. Membership checks the full handle without scanning the
     /// state's descriptor roster at every access.
@@ -913,6 +923,22 @@ impl BorrowFacts {
         )
     }
 
+    /// The complete statement-completion resource roster. Per-invocation
+    /// associations remain in `loan_group` for current custody and historical
+    /// supplier edges, but are not independently materialized local resources.
+    /// Joined receivers and separate returned-loan obligations retain their
+    /// actual debts; an absent receiver does not prove completed disposal.
+    pub fn statement_resource_loans<'facts>(
+        &'facts self,
+        state: &'facts StateBorrowFact,
+    ) -> Option<impl Iterator<Item = (Handle<BorrowLoanFact>, &'facts BorrowLoanFact)> + 'facts>
+    {
+        Some(
+            self.loan_group(state.loans)?
+                .filter(move |(loan, _)| self.state_owns_statement_resource(state, *loan)),
+        )
+    }
+
     /// Borrow production appends each statement's local loans together. Retain
     /// that complete group without a second roster. An interleaved group is a
     /// malformed producer relationship, not permission to select a subset.
@@ -934,11 +960,8 @@ impl BorrowFacts {
         statement_index: usize,
     ) -> Option<HandleSpan<BorrowLoanFact>> {
         let mut group = HandleSpan::empty();
-        for (handle, loan) in self.loan_group(state.loans)? {
-            if loan.storage_owner != owner
-                || loan.statement_index != statement_index
-                || loan.established_by_call.is_valid()
-            {
+        for (handle, loan) in self.statement_resource_loans(state)? {
+            if loan.storage_owner != owner || loan.statement_index != statement_index {
                 continue;
             }
             if !group.is_empty() && !group.is_followed_by(handle) {

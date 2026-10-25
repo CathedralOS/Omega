@@ -599,8 +599,10 @@ impl<'a> Replay<'a> {
                 &'locations DescriptorLocation,
             ),
         >,
-        position: Option<DescriptorPosition>,
+        transfer: super::case_flow::Transfer<'_>,
+        case_storage: &super::case_flow::Storage,
     ) -> Option<State> {
+        let position = transfer.position();
         // Operation writes follow exact current storage aliases; edge bindings
         // define new carrier names and therefore use their declared destinations.
         let canonical = |location: &DescriptorLocation| {
@@ -679,8 +681,15 @@ impl<'a> Replay<'a> {
         // an unchanged value need not detach the shared map. Canonicalization
         // and every derivation above still run before any update is omitted.
         let mut after = before.clone();
-        after.cases =
-            super::case_flow::transport(self, machine, before, &definitions, derivations, position);
+        after.cases = super::case_flow::transport(
+            self,
+            machine,
+            before,
+            &definitions,
+            derivations,
+            transfer,
+            case_storage,
+        )?;
         if !definitions.is_empty() {
             for (location, value) in before.slots.iter() {
                 if value.is_some()
@@ -711,9 +720,16 @@ impl<'a> Replay<'a> {
         machine: &DescriptorMachine,
         before: &State,
         edge: &crate::descriptor_lifetimes::DescriptorFlowEdge,
+        case_storage: &super::case_flow::Storage,
     ) -> Option<State> {
-        let mut after =
-            self.transfer(machine, before, &edge.parameters, edge.derivations(), None)?;
+        let mut after = self.transfer(
+            machine,
+            before,
+            &edge.parameters,
+            edge.derivations(),
+            super::case_flow::Transfer::Arrival(edge),
+            case_storage,
+        )?;
         for binding in &edge.bindings {
             if let crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query) =
                 &binding.source
@@ -791,6 +807,7 @@ impl<'a> Replay<'a> {
         }
         let machine = self.machine(identity)?;
         super::case_flow::validate_graph(self, machine)?;
+        let case_storage = super::case_flow::Storage::new(self, machine);
         if !machine.flow.contains_key(&machine.entry) {
             return None;
         }
@@ -814,19 +831,20 @@ impl<'a> Replay<'a> {
                 step.derivations
                     .iter()
                     .map(|(source, destination)| (source, destination)),
-                Some(position),
+                super::case_flow::Transfer::Operation(position),
+                &case_storage,
             )?;
             after.contents_invalidated |= machine.unresolved_contents_writes.contains(&position);
             if step.may_escape
-                || machine.calls.contains_key(&position)
                 || machine.unresolved_contents_writes.contains(&position)
                 || machine
-                    .payload_invalidations
+                    .calls
                     .get(&position)
-                    .is_some_and(|writes| !writes.is_empty())
+                    .is_some_and(|call| !call.argument_contents.iter().all(Option::is_some))
             {
-                // An unclassified write or call can replace a tag through a
-                // mutable alias. Unknown contents never preserve old case facts.
+                // Unknown effects may reach any old value. Exact known-call
+                // footprints were framed with the operation's typed writes;
+                // the completed summary below frames descriptor effects too.
                 after.cases = Arc::default();
             }
             if let Some(constructors) = machine.case_constructors.get(&position) {
@@ -859,11 +877,22 @@ impl<'a> Replay<'a> {
             {
                 let summary = self.invocation_summary(call, depth + 1)?;
                 after.contents_invalidated |= summary.invalidates_contents;
+                if summary.invalidates_contents {
+                    after.cases = Arc::default();
+                }
                 let mut replacements = BTreeMap::new();
                 let mut destinations = Vec::new();
                 for effect in &summary.effects {
                     let destination =
                         self.actual_contents(call, effect.parameter, &effect.steps)?;
+                    super::case_flow::retire_query(
+                        self,
+                        machine,
+                        &before,
+                        &mut after,
+                        &destination,
+                        &case_storage,
+                    );
                     let targets = self.contents_targets(machine, &before, &destination)?;
                     let strong = targets.len() == 1
                         && matches!(targets.first(), Some(DescriptorPayloadTarget::Storage(_)));
@@ -949,7 +978,7 @@ impl<'a> Replay<'a> {
                         continue;
                     }
                 }
-                let carried = self.transfer_edge(machine, &selected, edge)?;
+                let carried = self.transfer_edge(machine, &selected, edge, &case_storage)?;
                 match states.get_mut(&edge.target) {
                     None => {
                         states.insert(edge.target, carried);

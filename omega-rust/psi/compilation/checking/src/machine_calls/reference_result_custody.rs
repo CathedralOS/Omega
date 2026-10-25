@@ -2556,7 +2556,9 @@ pub fn local_storage_loans(
 
 /// The same captured backing relationship applies to anonymous owned homes.
 /// Descriptor suppliers name transport history; only the checked loan root
-/// identifies the storage whose disposal must wait for that holder.
+/// identifies the storage whose disposal must wait for that holder. Only
+/// published statement resources own local retirement; invocation associations
+/// retain their supplier history without adding another independently live home.
 pub fn storage_loans(
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -2572,7 +2574,7 @@ pub fn storage_loans(
     Some(
         facts
             .borrow
-            .loan_group(borrowing.loans)?
+            .statement_resource_loans(borrowing)?
             .filter_map(|(handle, loan)| {
                 (facts.borrow.state_owns_loan(borrowing, handle) && loan.root == root)
                     .then_some(handle)

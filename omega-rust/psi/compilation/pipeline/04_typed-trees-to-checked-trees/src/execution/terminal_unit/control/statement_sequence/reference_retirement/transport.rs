@@ -78,13 +78,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         let reference = validation::reference_result_custody::storage_owner_type_reference(
             program, state, owner, formation,
         )?;
-        for (receiver, loan) in facts
-            .borrow
-            .loan_group(borrowing.loans)?
-            .filter(|(_, loan)| {
-                loan.storage_owner == facts::PlaceRoot::Symbol(owner)
-                    && loan.statement_index == formation as usize
-            })
+        for (receiver, loan) in
+            facts
+                .borrow
+                .statement_resource_loans(borrowing)?
+                .filter(|(_, loan)| {
+                    loan.storage_owner == facts::PlaceRoot::Symbol(owner)
+                        && loan.statement_index == formation as usize
+                })
         {
             let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
@@ -139,7 +140,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                 for (handle, candidate) in
                     facts
                         .borrow
-                        .loan_group(borrowing.loans)?
+                        .statement_resource_loans(borrowing)?
                         .filter(|(_, candidate)| {
                             candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
                                 && order.precedes(candidate.statement_index, loan.statement_index)
@@ -180,4 +181,31 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
         }
     }
     Some(output)
+}
+
+/// Follow complete historical suppliers, including intermediate invocation
+/// associations. Only callers select the receiving resource whose death is
+/// owed; reachability itself neither disposes a supplier nor grants access.
+pub(super) fn supplies(
+    transported: &TransportedLoans,
+    supplier: arena::Handle<BorrowLoanFact>,
+    receiver: arena::Handle<BorrowLoanFact>,
+) -> bool {
+    let mut pending = vec![receiver];
+    let mut visited = Vec::new();
+    while let Some(receiver) = pending.pop() {
+        if receiver == supplier {
+            return true;
+        }
+        if visited.contains(&receiver) {
+            continue;
+        }
+        visited.push(receiver);
+        pending.extend(
+            transported
+                .iter()
+                .filter_map(|(received, supplying)| (*received == receiver).then_some(*supplying)),
+        );
+    }
+    false
 }

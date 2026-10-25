@@ -272,6 +272,15 @@ enum RetirementNode {
 }
 
 impl Retirement<'_> {
+    /// Current statement resources own physical holder death. Call-only
+    /// associations authenticate transport and remain in the supplier graph.
+    fn resource_loans(
+        &self,
+    ) -> Option<impl Iterator<Item = (arena::Handle<BorrowLoanFact>, &BorrowLoanFact)>> {
+        let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)??;
+        self.facts.borrow.statement_resource_loans(state)
+    }
+
     /// Computed homes have no independent statement-result binding. Their
     /// stored descriptors nevertheless own the same captured formation and
     /// weakening as named storage. End those leaves only after every holder
@@ -289,7 +298,7 @@ impl Retirement<'_> {
             return Some(Vec::new());
         }
         let mut owners = Vec::new();
-        for (_, loan) in self.facts.borrow.loan_group(state.loans)? {
+        for (_, loan) in self.facts.borrow.statement_resource_loans(state)? {
             if matches!(loan.storage_owner, facts::PlaceRoot::Expression(_))
                 && self
                     .order
@@ -304,7 +313,7 @@ impl Retirement<'_> {
             if self
                 .facts
                 .borrow
-                .loan_group(state.loans)?
+                .statement_resource_loans(state)?
                 .any(|(handle, loan)| {
                     loan.root == owner
                         && self
@@ -432,7 +441,7 @@ impl Retirement<'_> {
             // branch is not a cycle; only revisiting the active ancestry is.
             active.push(parent);
             pending.push((parent, true));
-            let Some(state_loans) = self.facts.borrow.loan_group(state.loans) else {
+            let Some(state_loans) = self.facts.borrow.statement_resource_loans(state) else {
                 return false;
             };
             for (handle, loan) in state_loans {
@@ -760,17 +769,18 @@ impl Retirement<'_> {
         {
             return false;
         }
+        let Some(resources) = self.resource_loans() else {
+            return false;
+        };
         let mut found_receiver = false;
-        let retired = self
-            .transported_loans
-            .iter()
-            .filter(|(_, candidate)| *candidate == supplier)
-            .filter(|(receiver, _)| {
-                self.facts.borrow.loans.get(*receiver).statement_index == statement_index as usize
+        let retired = resources
+            .filter(|(receiver, loan)| {
+                loan.statement_index == statement_index as usize
+                    && transport::supplies(self.transported_loans, supplier, *receiver)
             })
             .all(|(receiver, _)| {
                 found_receiver = true;
-                self.holder_retired_following(*receiver, active)
+                self.holder_retired_following(receiver, active)
             });
         retired && (!requires_receiver || found_receiver)
     }
@@ -780,6 +790,19 @@ impl Retirement<'_> {
         handle: arena::Handle<BorrowLoanFact>,
         active: &mut Vec<RetirementNode>,
     ) -> bool {
+        // Only this state's published receiving resource owes holder death.
+        // Unknown membership and call-only associations remain fail-closed.
+        let Some(Some(state)) = unique_borrow_state(self.facts, self.machine, self.state.symbol)
+        else {
+            return false;
+        };
+        if !self
+            .facts
+            .borrow
+            .state_owns_statement_resource(state, handle)
+        {
+            return false;
+        }
         if active.contains(&RetirementNode::Loan(handle)) {
             return false;
         }
@@ -1036,12 +1059,11 @@ impl Retirement<'_> {
                         return false;
                     };
                     receiving_path.extend_from_slice(&owner_path[selected.len()..]);
+                    let Some(resources) = self.resource_loans() else {
+                        return false;
+                    };
                     let mut found_receiver = false;
-                    let retired = self
-                        .facts
-                        .borrow
-                        .loans
-                        .iter()
+                    let retired = resources
                         .filter(|(_, receiver)| {
                             receiver.owner_symbol == symbol
                                 && receiver.statement_index == statement_index as usize
@@ -1089,7 +1111,10 @@ impl Retirement<'_> {
             if bindings.next().is_some() {
                 return false;
             }
-            let mut receiving = self.facts.borrow.loans.iter().filter(|(_, candidate)| {
+            let Some(resources) = self.resource_loans() else {
+                return false;
+            };
+            let mut receiving = resources.filter(|(_, candidate)| {
                 candidate.owner_symbol == *owner
                     && candidate.statement_index == destination.statement_index as usize
                     && self.facts.borrow.loan_owner_path(candidate) == path

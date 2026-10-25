@@ -490,14 +490,16 @@ pub(super) fn emit_call_operations(
                             next_edge,
                             operations,
                         },
-                        |frame| frame.capture_argument(
-                            identities,
-                            &planned_operations[operation],
-                            argument,
-                            &selectors,
-                            previous,
-                            complete,
-                        ),
+                        |frame| {
+                            frame.capture_argument(
+                                identities,
+                                &planned_operations[operation],
+                                argument,
+                                &selectors,
+                                previous,
+                                complete,
+                            )
+                        },
                     )?;
                 staged_structural_arguments[operation][argument] = Some(captured);
                 continue;
@@ -677,7 +679,8 @@ pub(super) fn emit_call_operations(
                             evaluated_scalar_arguments: arguments.as_deref(),
                             byte_places,
                             evaluated_selectors: staged.then_some(staged_selectors.as_slice()),
-                            completed_structural_arguments: (!staged_structural_arguments[operation_index]
+                            completed_structural_arguments: (!staged_structural_arguments
+                                [operation_index]
                                 .is_empty())
                             .then_some(staged_structural_arguments[operation_index].as_slice()),
                         },
