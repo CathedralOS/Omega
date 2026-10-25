@@ -30,9 +30,12 @@ pub fn view_descriptor_projected_qualifications<'types>(
 }
 
 /// A readable descriptor arrival retains its pointer and extent, not its
-/// backing storage. Affine carrier lifetime does not turn borrowed access into
-/// ownership or make the payload a thin address join. Qualification admission,
-/// exact source access and live loan custody remain the consumer's judgments.
+/// backing storage. Canonical views carry access on their occurrence. An affine
+/// stored descriptor retains its own retirement debt and declared access
+/// ceiling; it is not an unrestricted outer loan over a descriptor slot.
+/// Neither representation owns the backing or becomes a thin address join.
+/// Qualification admission, exact source access and live loan custody remain
+/// the consumer's judgments.
 pub fn view_descriptor_parameter<'types>(
     parameter: &StructuralParameterDeclaration,
     declarations: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration>,
@@ -61,7 +64,14 @@ pub fn view_descriptor_parameter<'types>(
                 .projected_qualifications
                 .iter()
                 .all(|row| row.is_element_membership()))
-        && declaration.shape.is_canonical_view_descriptor()
+        && (declaration.shape.is_canonical_view_descriptor()
+            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                && crate::descriptor_results::descriptor_value_access(
+                    std::iter::once(declaration),
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                )
+                .is_some_and(|ceiling| parameter.access.admits_referent(ceiling)))
 }
 
 /// An outer loan to represented storage, including a pointer or view

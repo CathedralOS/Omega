@@ -1055,6 +1055,23 @@ fn computation_contains_trapping_operation(
                         path, *projection_evaluations, &plans.operands,
                     ),
                 ),
+                Value::ViewSubslice { start, end, .. } => {
+                    // value_dependencies already includes the completed source
+                    // descriptor. Both authored endpoints can independently
+                    // trap or execute calls after that source completes.
+                    for endpoint in start.iter().chain(end.iter()) {
+                        match endpoint {
+                            checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+                                if expression.contains_trapping_operation() {
+                                    return true;
+                                }
+                            }
+                            checked_trees::CheckedCallScalarArgument::Computation(value) => {
+                                pending.push(*value);
+                            }
+                        }
+                    }
+                }
                 Value::Dispatch { subject, arms } => {
                     pending.extend(subject.scalar_operands(&plans.operands));
                     for arm in values.dispatch_arms.span_or_empty(*arms) {

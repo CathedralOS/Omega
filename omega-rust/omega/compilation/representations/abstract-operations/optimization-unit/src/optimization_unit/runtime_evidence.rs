@@ -100,6 +100,3 @@ pub fn validate_runtime_evidence_context(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

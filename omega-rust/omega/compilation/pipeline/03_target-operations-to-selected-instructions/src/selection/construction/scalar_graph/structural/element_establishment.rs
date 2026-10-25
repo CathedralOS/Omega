@@ -111,35 +111,16 @@ pub(super) fn establish(
     let home = crate::selection::aggregate_result_input::home(function, source.place);
     let local_root = home.map(|(_, home)| local_home_root(home));
     let block_home = crate::selection::aggregate_result_input::block_home(function, source.place);
-    // A block-carried borrowed descriptor arrives as the collection's own
-    // backing: the edge transported the pointer whose referent carries the
-    // view's storage, the same root an address join lends a plain referent.
-    let descriptor_root = function
-        .blocks
-        .iter()
-        .find_map(|block| {
-            (block.id != function.entry_block)
-                .then_some(block)
-                .and_then(|block| block.structural_parameter(source.place))
-        })
-        .filter(|parameter| {
-            matches!(
-                parameter.access,
-                terminal_psi::reading_borrow_pair_pattern!()
-            ) && (parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                || matches!(
-                    (parameter.access, parameter.multiplicity),
-                    (
-                        terminal_psi::StructuralAccess::MutableBorrow
-                            | terminal_psi::StructuralAccess::WriteOnlyBorrow,
-                        terminal_psi::StructuralMultiplicity::Affine,
-                    )
-                ))
-                && parameter.projected_qualifications.is_empty()
-                && signature
-                    .structural_type(parameter.structural_type)
-                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
-        });
+    // Borrowed descriptor arrivals share one role judgment for bytes and
+    // elements. Reuse the exact declared non-entry block lookup rather than
+    // recognizing only a byte descriptor or inventing an operation-result home.
+    let descriptor_root = crate::selection::primitive_local_input::read_parameter(
+        function,
+        source.place,
+    )
+    .filter(|parameter| {
+        terminal_semantics::view_descriptor_parameter(parameter, signature.structural_types.iter())
+    });
     let Some(root) = parameter
         .or(local_root.as_ref())
         .or(block_home.map(|(_, declaration)| declaration))

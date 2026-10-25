@@ -710,26 +710,55 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // runs. A plain entry publishes its clauses on the machine contract
     // instead — invocation is an arrival without an edge proof.
     for (position, state) in plan.states.iter().enumerate() {
-        let declaration = checked.state_by_symbol(state.state)
-            .ok_or(LoweringError::Unsupported("state requirement has no source declaration"))?;
-        let owner = checked.machine_holding_state(state.state)
-            .ok_or(LoweringError::Unsupported("state requirement has no machine owner"))?;
-        let expected = checked.state_contracts(declaration).iter()
-            .filter(|contract| contract.kind == checked_trees::signature::SignatureContractKind::Requires)
+        let declaration =
+            checked
+                .state_by_symbol(state.state)
+                .ok_or(LoweringError::Unsupported(
+                    "state requirement has no source declaration",
+                ))?;
+        let owner =
+            checked
+                .machine_holding_state(state.state)
+                .ok_or(LoweringError::Unsupported(
+                    "state requirement has no machine owner",
+                ))?;
+        let expected = checked
+            .state_contracts(declaration)
+            .iter()
+            .filter(|contract| {
+                contract.kind == checked_trees::signature::SignatureContractKind::Requires
+            })
             .flat_map(|contract| contract.facts.handles())
-            .filter(|fact| matches!(checked.proof_facts.get(*fact), checked_trees::domain::ProofFact::Proposition(_)))
+            .filter(|fact| {
+                matches!(
+                    checked.proof_facts.get(*fact),
+                    checked_trees::domain::ProofFact::Proposition(_)
+                )
+            })
             .collect::<Vec<_>>();
-        let actual = state.requires.iter().filter_map(|requirement| match requirement {
-            checked_trees::CheckedStateContractRequirement::SourceFact(fact) => Some(*fact),
-            _ => None,
-        }).collect::<Vec<_>>();
-        if expected != actual || actual.iter().any(|fact| checked.facts.proof
-            .state_requires_fact(&checked.typed, owner.symbol, state.state, *fact).is_none())
+        let actual = state
+            .requires
+            .iter()
+            .filter_map(|requirement| match requirement {
+                checked_trees::CheckedStateContractRequirement::SourceFact(fact) => Some(*fact),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if expected != actual
+            || actual.iter().any(|fact| {
+                checked
+                    .facts
+                    .proof
+                    .state_requires_fact(&checked.typed, owner.symbol, state.state, *fact)
+                    .is_none()
+            })
         {
             return unsupported("state source requirement lost its exact declared proof roster");
         }
         if position == 0 && !actual.is_empty() {
-            return unsupported("source invocation requirement needs its invocation evidence owner");
+            return unsupported(
+                "source invocation requirement needs its invocation evidence owner",
+            );
         }
         if state.requires.is_empty()
             || (position == 0 && !entry_reentered)

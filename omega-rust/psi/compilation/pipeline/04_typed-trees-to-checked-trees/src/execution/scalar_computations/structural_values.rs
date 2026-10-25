@@ -214,7 +214,9 @@ impl Builder<'_, '_> {
         // namespace and never acquire a second producer.
         self.retain_structural_value_root(owner, owner_reference)?;
         let retained = self.structural_values.root_for_value(owner)?;
-        if self.program.normalized_type_identity(retained.type_reference)
+        if self
+            .program
+            .normalized_type_identity(retained.type_reference)
             != self.program.normalized_type_identity(owner_reference)
         {
             return None;

@@ -1618,8 +1618,18 @@ pub fn structural_call_result_claims(
     } else {
         received_result_claims(program, facts, caller_machine, caller_state, call)?
     };
+    if received.iter().any(|received| {
+        !result_frontier
+            .iter()
+            .any(|claim| claim.path.as_slice() == received.path)
+    }) {
+        return Err("structural result receives claims outside its result frontier");
+    }
     let mut result_claims = Vec::with_capacity(result_frontier.len());
     for claim in &result_frontier {
+        let absent = possible_paths
+            .as_ref()
+            .is_some_and(|paths| !paths.contains(&claim.path.as_slice()));
         let identity = if received.is_empty() {
             PermissionClaimIdentity::Unknown
         } else {
@@ -1629,15 +1639,28 @@ pub fn structural_call_result_claims(
             let received = matching
                 .next()
                 .ok_or("structural result claim has no receiving establishment")?;
-            if matching.next().is_some() {
+            if absent {
+                // A complete checked outcome and positive inactive receiving
+                // events agree that this conditional payload never existed.
+                // Several physical receiving homes can record that absence
+                // with different establishment provenance. None names a claim
+                // to transport, and none may stand in for an active receipt.
+                if received.obligation_live
+                    || received.identity != PermissionClaimIdentity::Unknown
+                    || matching.any(|other| {
+                        other.obligation_live
+                            || other.identity != PermissionClaimIdentity::Unknown
+                            || other.evaluation != received.evaluation
+                    })
+                {
+                    return Err("structural callee omits a live or ambiguous result claim");
+                }
+            } else if matching.next().is_some() {
                 return Err("structural result claim is received twice");
             }
             received.identity
         };
-        if possible_paths
-            .as_ref()
-            .is_some_and(|paths| !paths.contains(&claim.path.as_slice()))
-        {
+        if absent {
             if !claim.conditional || identity != PermissionClaimIdentity::Unknown {
                 return Err("structural callee omits a live or unconditional result claim");
             }
@@ -1647,9 +1670,6 @@ pub fn structural_call_result_claims(
             claim: identity,
             path: structural_claim_path(program, result_type, &claim.path)?,
         });
-    }
-    if !received.is_empty() && received.len() != result_frontier.len() {
-        return Err("structural result receives claims outside its result frontier");
     }
     result_claims.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(result_claims)
@@ -1829,6 +1849,7 @@ struct ReceivedResultClaim<'facts> {
     identity: PermissionClaimIdentity,
     provenance: language_semantics::PermissionProvenance,
     obligation_live: bool,
+    evaluation: checked_trees::FlowPermissionEvaluation,
 }
 
 fn received_result_claims<'facts>(
@@ -1860,6 +1881,9 @@ fn received_result_claims<'facts>(
         if producer != call.authored_expression {
             continue;
         }
+        if event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+            return Err("structural result establishment has no exact evaluation");
+        }
         if event.obligation_live && event.claim_identity == PermissionClaimIdentity::Unknown {
             return Err("structural result establishment has no claim identity");
         }
@@ -1876,6 +1900,7 @@ fn received_result_claims<'facts>(
             identity: event.claim_identity,
             provenance: event.provenance,
             obligation_live: event.obligation_live,
+            evaluation: event.evaluation,
         };
         // One completed call can cross several physical homes before the
         // enclosing value completes. Equal correspondence is one receipt;

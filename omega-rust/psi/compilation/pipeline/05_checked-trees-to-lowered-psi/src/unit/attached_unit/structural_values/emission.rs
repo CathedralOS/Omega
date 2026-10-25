@@ -1866,6 +1866,7 @@ impl Emission<'_, '_, '_> {
                 &end,
                 end_inclusive,
                 site,
+                completion,
                 continuation,
             ),
             CheckedStructuralValueKind::BorrowedSliceView { source, region } => self

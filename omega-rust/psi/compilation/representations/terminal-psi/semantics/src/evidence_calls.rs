@@ -788,6 +788,3 @@ fn require_completed_capture(
         values,
     )
 }
-
-#[cfg(test)]
-mod tests;

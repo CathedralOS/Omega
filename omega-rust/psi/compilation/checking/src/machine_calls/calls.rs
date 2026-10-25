@@ -256,6 +256,46 @@ fn report_callable_argument_count_mismatch(
     false
 }
 
+/// Compiler captures have no authored declaration name. Diagnostics identify
+/// their retained source, while the access judgment still uses the captured
+/// home and its declared authority. Authored copies retain their own labels,
+/// including specialized copies with an authored declaration origin.
+fn reference_source_label(
+    program: &dyn crate::CheckingInput,
+    prior_statements: &[typed_trees::statement::StatementNode],
+    mut root: facts::PlaceRoot,
+) -> String {
+    for _ in 0..prior_statements.len() {
+        let facts::PlaceRoot::Symbol(symbol) = root else {
+            break;
+        };
+        let Some(capture) = prior_statements
+            .iter()
+            .filter_map(typed_trees::statement::StatementNode::as_local_data)
+            .find(|local| {
+                local.symbol == symbol
+                    && program
+                        .symbols
+                        .symbol_source_span(program.symbols.authored_origin(symbol))
+                        .is_none()
+            })
+        else {
+            break;
+        };
+        let Some(source) = crate::value_custody::places::canonical_place_from_expression(
+            program,
+            capture.initial_value,
+        ) else {
+            break;
+        };
+        if source.root == root {
+            break;
+        }
+        root = source.root;
+    }
+    facts::canonical_place_label_from_parts(program, root, &[])
+}
+
 fn report_argument_reference_access(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -292,7 +332,7 @@ fn report_argument_reference_access(
         ),
         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access } => {
             let label = if access == language_semantics::ReferenceAccess::WriteOnly { "write-only" } else { "mutable" };
-            let source = facts::canonical_place_label_from_parts(program, root, &[]);
+            let source = reference_source_label(program, prior_statements, root);
             format!("{label} argument `{source}` for state `{target_name}` is not writable in this state; the source cannot lend the requested exclusive access")
         }
         ReferenceAccessRefusal::NamedPlaceRequired { access } => {

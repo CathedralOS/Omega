@@ -75,6 +75,20 @@ pub(super) fn complete_at(
             permission_events,
         );
         if permission_events.len() == completion_start {
+            if let Some(place) = places.iter().find(|place| {
+                place.root == root
+                    && place.multiplicity == Multiplicity::Linear
+                    && place.live
+                    && remaining.is_present(root, &place.path)
+            }) {
+                return Err(super::super::unconsumed_linear_value_diagnostic(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    place,
+                )
+                .with_source_span(program.expression_table.source_span(expression)));
+            }
             return Err(diagnostics::Diagnostic::error(
                 "observed temporary source has no authorized owned completion",
             )

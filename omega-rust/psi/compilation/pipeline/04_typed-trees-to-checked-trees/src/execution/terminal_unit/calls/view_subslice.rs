@@ -599,7 +599,10 @@ fn collection_storage(
             // the published parameter may still store an inner descriptor.
             validation::structural_type_identity(
                 program,
-                program.state_parameters(state).get(position)?.type_reference,
+                program
+                    .state_parameters(state)
+                    .get(position)?
+                    .type_reference,
                 &[],
                 &[],
             ),

@@ -26,8 +26,7 @@ use crate::execution::terminal_unit::calls::{
 };
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, machine_binders,
-    retain_parameter_arrival_domains, state_flow,
+    ShapeCollector, machine_binders, retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
 
@@ -305,14 +304,22 @@ pub(super) fn build_traced(
                 // The graph entry has an invocation evidence lane, not an
                 // incoming edge. Do not use block-arrival receipts to erase it.
                 if signatures.is_empty()
-                    || facts.proof.state_requires_fact(
-                        program.typed_program(), owner.symbol, state.symbol, *fact,
-                    ).is_none()
+                    || facts
+                        .proof
+                        .state_requires_fact(
+                            program.typed_program(),
+                            owner.symbol,
+                            state.symbol,
+                            *fact,
+                        )
+                        .is_none()
                 {
                     trace.phase("state graph: source requirement has no exact arrival proof owner");
                     return None;
                 }
-                requires.push(checked_trees::CheckedStateContractRequirement::SourceFact(*fact));
+                requires.push(checked_trees::CheckedStateContractRequirement::SourceFact(
+                    *fact,
+                ));
                 continue;
             }
             let source_expression = match &row {
@@ -354,7 +361,9 @@ pub(super) fn build_traced(
                     parameter,
                     &constraint,
                 ),
-                validation::StateContractRow::SourceFact(_) => unreachable!("source fact handled above"),
+                validation::StateContractRow::SourceFact(_) => {
+                    unreachable!("source fact handled above")
+                }
                 validation::StateContractRow::Finite { parameter } => {
                     validation::state_finite_predicate(program, state, parameter)
                 }

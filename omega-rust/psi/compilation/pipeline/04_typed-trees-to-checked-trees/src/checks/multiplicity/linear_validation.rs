@@ -42,6 +42,22 @@ use language_semantics::{
     PermissionEventSource,
 };
 
+/// A live linear obligation cannot be completed by observing its scalar value.
+/// Use the same refusal at an anonymous normal-death cut and a named scope exit.
+fn unconsumed_linear_value_diagnostic(
+    program: &dyn ::validation::CheckingInput,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    place: &super::linear_obligations::LinearPlace,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "linear value `{}` reaches scope exit without being consumed or transferred in machine `{}` state `{}`",
+        place.name,
+        program.symbols.name(machine),
+        program.symbols.name(state)
+    ))
+}
+
 pub(crate) fn validate_linear_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
@@ -279,12 +295,12 @@ pub(crate) fn validate_linear_permission_events(
                         .iter()
                         .any(|(symbol, path)| *symbol == place.root && *path == place.path)
             }) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "linear value `{}` reaches scope exit without being consumed or transferred in machine `{}` state `{}`",
-                    place.name,
-                    program.symbols.name(machine.symbol),
-                    program.symbols.name(state.symbol)
-                )));
+                diagnostics.push(unconsumed_linear_value_diagnostic(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    place,
+                ));
             }
         }
     }
@@ -386,22 +402,47 @@ fn append_unresolved_state_result_mapping_diagnostics(
         {
             static EMITTED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
             if EMITTED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 24 {
-                let maps = ownership.claim_outcome_maps.iter()
+                let maps = ownership
+                    .claim_outcome_maps
+                    .iter()
                     .filter(|(_, map)| map.state_symbol == target_state.symbol)
-                    .map(|(_, map)| (map, ownership.claim_outcome_entries.span_or_empty(map.entries)))
+                    .map(|(_, map)| {
+                        (
+                            map,
+                            ownership.claim_outcome_entries.span_or_empty(map.entries),
+                        )
+                    })
                     .collect::<Vec<_>>();
-                let joins = ownership.claim_join_receipts.iter()
-                    .filter(|(_, receipt)| receipt.state_symbol == state.symbol
-                        && receipt.statement_index == statement_index
-                        && receipt.expression == result_expression)
-                    .map(|(_, receipt)| receipt).collect::<Vec<_>>();
-                let events = ownership.permissions.iter()
-                    .filter(|(_, candidate)| candidate.state_symbol == state.symbol
-                        && permission_event_statement_index(candidate.source) == Some(statement_index))
-                    .map(|(_, candidate)| (candidate, ownership.segments.span_or_empty(candidate.segments)))
+                let joins = ownership
+                    .claim_join_receipts
+                    .iter()
+                    .filter(|(_, receipt)| {
+                        receipt.state_symbol == state.symbol
+                            && receipt.statement_index == statement_index
+                            && receipt.expression == result_expression
+                    })
+                    .map(|(_, receipt)| receipt)
                     .collect::<Vec<_>>();
-                eprintln!("CLAIM_RECEIVER state={} stmt={statement_index} target={} expression={result_expression:?} result_path={result_path:?} event={event:?} receiving_path={receiving_path:?} maps={maps:?} joins={joins:?} events={events:?}",
-                    program.symbols.name(state.symbol), program.symbols.name(target_state.symbol));
+                let events = ownership
+                    .permissions
+                    .iter()
+                    .filter(|(_, candidate)| {
+                        candidate.state_symbol == state.symbol
+                            && permission_event_statement_index(candidate.source)
+                                == Some(statement_index)
+                    })
+                    .map(|(_, candidate)| {
+                        (
+                            candidate,
+                            ownership.segments.span_or_empty(candidate.segments),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                eprintln!(
+                    "CLAIM_RECEIVER state={} stmt={statement_index} target={} expression={result_expression:?} result_path={result_path:?} event={event:?} receiving_path={receiving_path:?} maps={maps:?} joins={joins:?} events={events:?}",
+                    program.symbols.name(state.symbol),
+                    program.symbols.name(target_state.symbol)
+                );
             }
         }
         if !unresolved_statements
