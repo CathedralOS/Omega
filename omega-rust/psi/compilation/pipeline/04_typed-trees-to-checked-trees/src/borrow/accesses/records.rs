@@ -14,6 +14,7 @@ pub(super) fn append_argument_access(
         accesses,
         BorrowArgumentAccessFact {
             expression,
+            evaluation_start: None,
             root: access_place.root,
             segments: access_segments.insert_many(access_place.segments),
             kind,

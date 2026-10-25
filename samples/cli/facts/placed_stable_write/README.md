@@ -4,8 +4,9 @@ Fact: an exact permitted Stable field operation writes its original storage.
 
 This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
 Each program starts with initialized ordinary RAM, obtains an exclusive placed
-view, and writes 29 through its field accessor. The original RAM must contain
-29 after the loan ends. The runtime comparison is the observable oracle, not a
+view, and writes 29 through its field accessor while a second, disjoint placed
+view is held by the same invocation. The original RAM must contain 29 and
+the companion must retain 43 after the loans end. The runtime comparison is the observable oracle, not a
 post-hoc proof granting access to the write. Each reject twin changes only the
 plan's write permission, including its named constant in `const_name`.
 
@@ -85,3 +86,12 @@ destructive transfer, Vacant initialization, allocator conservation or reset.
 Pinned corpus copies live under `tests/omega/pass/facts/placed_stable_write_through_<place>_exit`
 and `tests/omega/fail/facts/placed_stable_write_through_<place>_rejected`.
 Build logs and actual producer identities stay in the qualification/claim record.
+
+The simultaneous-view repair retains a conservative pre-interpretation enclosure
+separately from scalar referents and lifetime dependencies. Inline returned
+views count as one completed argument while their producing input holds remain
+live against later arguments. The controls under `controls/` reject aliasing
+placed views and later writes to either the selected or unselected input of a
+reference-returning call. An unrelated later write executes with both engines.
+These controls pin the distinction between pointer geometry and declared lifetime
+debt; an enclosure cannot supply value equality or access authority.
