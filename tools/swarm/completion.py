@@ -77,13 +77,19 @@ def validate(repository, root, assignment, manifest, observation, cleanup_requir
     git(repository, "merge-base", "--is-ancestor", base, candidate)
     require(manifest.get("outcome") == assignment["outcome"], "acceptance outcome mismatch")
     require(manifest.get("user_rescue") is False, "user rescue prevents batch promotion")
-    require(observation.get("landed_head") == candidate and observation.get("main") == manifest.get("remote_main")
+    receipt = manifest["final_receipt"]
+    published = sha(receipt.get("mergeCommit", {}).get("oid"))
+    require(receipt.get("state") == "MERGED" and receipt.get("baseRefName") == "main"
+            and receipt.get("headRefOid") == candidate and receipt.get("url"),
+            "merged main PR for the submitted source required")
+    require(observation.get("publication") == receipt, "fresh GitHub PR observation required")
+    require(observation.get("landed_head") == published and observation.get("main") == manifest.get("remote_main")
             and observation.get("remote_evidence"), "fresh remote ancestry receipt required")
     # Parent must fetch the actual push destination before this read. No network
     # endpoint or trust in an uncorrelated client error is inferred here.
     require(git(repository, "rev-parse", "refs/remotes/origin/main") == manifest["remote_main"],
             "remote receipt differs from fetched origin/main")
-    git(repository, "merge-base", "--is-ancestor", candidate, sha(manifest["remote_main"]))
+    git(repository, "merge-base", "--is-ancestor", published, sha(manifest["remote_main"]))
     require(observation.get("claims") == [] and observation.get("landing_tickets") == []
             and observation.get("registry_evidence"), "claims/tickets not reconciled")
     require(observation.get("processes_stopped") is True, "processes/children not confirmed stopped")
@@ -94,19 +100,10 @@ def validate(repository, root, assignment, manifest, observation, cleanup_requir
     if cleanup_required:
         require(observation.get("cleanup") == "completed" and observation.get("cleanup_evidence"),
                 "owned-resource cleanup not verified")
-    receipt = manifest["final_receipt"]
-    require(receipt.get("schema") == "omega-landing-receipt-v1"
-            and receipt.get("candidate") == candidate and receipt.get("base") == base
-            and receipt.get("exit_code") == 0, "exact final-candidate landing receipt required")
     artifact(root, manifest["receipt_artifact"])
     import json
     require(json.loads((Path(root) / manifest["receipt_artifact"]["path"]).read_text()) == receipt,
-            "landing receipt artifact differs from acceptance")
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    import landing
-    affected = landing.affected_packages(repository, base, candidate)
-    require(set(receipt.get("packages", [])) >= affected, "final receipt misses affected packages")
+            "GitHub PR artifact differs from acceptance")
     history = {row["id"]: row for row in manifest.get("historical", [])}
     require(len(history) == len(manifest.get("historical", [])), "duplicate historical evidence ID")
     final = manifest["final_evidence"]
@@ -157,5 +154,5 @@ def validate(repository, root, assignment, manifest, observation, cleanup_requir
     require(program_failed(before, oracle), "before evidence does not establish a meaningful program failure")
     require({r["kind"] for r in expected} >= {"native", "interpreter", "tests", "negative"},
             "program, scoped tests and negatives required")
-    return dict(candidate=candidate, remote_main=manifest["remote_main"], result="landed",
+    return dict(candidate=candidate, published=published, remote_main=manifest["remote_main"], result="landed",
                 user_rescue=False, cleanup="completed")

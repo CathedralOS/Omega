@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import unittest
+from unittest import mock
 
 import worktree_testkit as kit
 
@@ -47,6 +48,18 @@ class WorktreeStatusTests(unittest.TestCase):
     def test_missing_worktree_does_not_fail_the_report(self):
         code, _ = kit.run_main(self.module, self.repository)
         self.assertEqual(code, 0)
+
+    def test_native_queue_state_and_absent_configuration_are_distinct(self):
+        queue = dict(entries=dict(pageInfo=dict(hasNextPage=True), nodes=[
+            dict(pullRequest=dict(url="https://github.com/example/repo/pull/1"))]))
+        with mock.patch.object(self.module.landing, "queue_status", return_value=queue):
+            status = self.module.landing_state(self.repository, "origin")
+        self.assertEqual(status["state"], "github-merge-queue")
+        self.assertEqual(status["queue_depth"], 1)
+        self.assertTrue(status["has_more"])
+        self.assertIsNone(status["head_expires_utc"])
+        with mock.patch.object(self.module.landing, "queue_status", return_value=None):
+            self.assertEqual(self.module.landing_state(self.repository, "origin")["state"], "not-configured")
 
     def test_missing_worktree_is_marked(self):
         rows = {row["name"]: row for row in self.record()["worktrees"]}

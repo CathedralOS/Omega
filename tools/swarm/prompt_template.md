@@ -94,23 +94,20 @@ unfinished board-item assignment; continue its remaining requirements.
 
 ## Landing
 
-Publish only through `python3 tools/landing.py` with
-`--owner "{owner_label}"`. Rebase onto current `origin/main` and validate
-immediately before `enqueue`. After `claim`, rerun the checks whose inputs
-changed. On lease expiry, `release` and rejoin; never bypass the reservation.
-`landing.py` requires full lowercase 40-character SHAs for `--base` and
-`--candidate`; `publish` takes `--claim <ticket>`, and its `--base` must
-equal the reserved base the claim printed (main may move between `enqueue`
-and `claim` — rebase onto the reserved base); an expired head leaves your
-commit intact — re-enqueue it after the queue clears.
+Follow `tools/landing.md`: validate and review the submitted source, push its
+branch, open a PR, then `python3 tools/landing.py enqueue NUMBER --expected-head
+FULL_SOURCE_SHA`. GitHub checks integration and squash-merges; never push main.
+Release local build slots before waiting. Do not rebase, rebuild or repeat
+review merely because main advances. Resolve actual conflicts and failed checks.
+Verify the merged PR's source head and published commit on fetched main.
 When a rebase or merge conflicts, first ask which abstraction both sides are
 trying to express. If one general operation covers both, implement that and
 delete the superseded path in the same commit, as AGENTS.md requires for
 touched operations. If no single abstraction covers both, name in the commit
 body the two cases it cannot unify. A conflict-free merge can still break the
-build or a sibling outcome, so rebuild every commit you carry after resolving.
-Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
-(or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
+build or a sibling outcome, so validate the affected inputs after resolving.
+Record owner `{owner_label}`, actual model/effort when known, validation and
+required review in the PR body. Do not invent unavailable provenance.
 Carry the sample through complete producer and consumer repairs. Rerun its
 `omega run` after relevant changes; helper tests alone do not complete the
 work or justify claiming native execution.
@@ -163,6 +160,6 @@ acceptance in the existing report fields. A landed witness may be progress
 without closing the item; keep working within the authorized stopping condition.
 
 `first_build_seconds` is the wall time of your
-first workspace check in this session. `lease_expiries` counts landing-lease
-expiries you hit. `unrelated_failures` lists confirmed-unrelated failures you
+first workspace check in this session. `lease_expiries` is a legacy report field;
+report zero for the native merge queue. `unrelated_failures` lists confirmed-unrelated failures you
 observed but did not repair.

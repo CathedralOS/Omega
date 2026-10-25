@@ -376,13 +376,13 @@ verdict before any `--record`. Include affected crate and integration
 checks. Reuse successful results on unchanged inputs, including at landing.
 Qualify on a fixed recorded revision. Main advancing does not invalidate every
 check: apply [main-change validation](../../../tools/testing.md#main-change-validation)
-to the actual changed inputs, retaining the exact-SHA landing receipt requirement.
+to the actual changed inputs. Native queue admission replaces local landing receipts.
 Use [qualification.py](../../../tools/qualification.md) to capture the reviewed
 source/compiler/artifact closure and measured checks. Keep the qualification
-checkpoint fixed, integrate main near publication outside the queue, then assess
-and run only invalidated or required final-candidate checks. Reused observations
-retain their actual producer/revision; final independent review and exact-SHA
-landing verification are not reused across candidates.
+checkpoint fixed; when actual conflicts or changed assumptions require source
+integration, assess and run affected checks. Reused observations
+retain their actual producer/revision. Required review covers the submitted
+change; queue-created SHA movement alone does not restart author qualification.
 Read [execution evidence and replay inputs](../../../tools/testing.md#execution-evidence-and-replay-inputs)
 before preparing projects: copy authored inputs and declared resources, preserve
 historical generated state, and record actual engine observations. Apply the
@@ -487,13 +487,11 @@ and keep the work marked unfinished while continuing feasible engineering.
 Invoking advance authorizes committing and publishing the change through
 [the landing protocol](../../../tools/landing.md).
 
-Validate before entering the queue. Follow the protocol for the local wait,
-claim, rebase, exact verified candidate, and release on an affected failure.
-Publish with `--provenance "agent=<tool> model=<id> effort=<level>"` naming the
-actual model. When the session does not know it, read the harness configuration
-rather than writing `unspecified`: Codex records it as `model` and
-`model_reasoning_effort` in `~/.codex/config.toml`.
-Hold the lease only for the publish itself.
+Validate the submitted change, push its owned branch, open/reuse a PR, and use
+the native merge queue under the linked protocol. Put actual agent/model
+provenance in the PR body when known. Do not invent unknown metadata. Release
+local build slots before waiting. No local publication lease or exact-SHA
+landing receipt remains; main movement alone does not restart author review.
 
 The sample running on main establishes the completed repair. Update its parent
 item in the same change following [board update discipline](../../../TASKS.md#updating-the-boards):
@@ -522,9 +520,10 @@ report why and distinguish published remote main from the local checkout state.
 
 Then remove the worktree and local branch this invocation created. From the
 starting checkout, confirm the worktree is clean (including untracked files)
-and its HEAD is an ancestor of fetched `origin/main`, stop any processes
-running there, run `git worktree remove <path>`, then `git branch -d
-<branch>`. Pre-existing worktrees, the starting checkout, and anything dirty
+and its HEAD equals the merged PR's source head, verify the PR's published
+commit is an ancestor of fetched `origin/main`, stop any processes
+running there, run `git worktree remove <path>`, then delete the verified-landed
+local branch (squash publication may require `git branch -D`). Pre-existing worktrees, the starting checkout, and anything dirty
 or unpublished stay; report a retained worktree and the reason. Verify the path
 is absent from `git worktree list` and the branch is gone.
 

@@ -214,10 +214,14 @@ observed status and whether a documented lifecycle control is exposed. Do not
 claim infrastructure deletion, automatic expiry or continued billing without
 evidence. Use existing tasks rather than creating a pool of replacements.
 
-Landing still follows `tools/landing.py`: refresh main and claims after waiting,
-reconcile wire/semantic version ownership, validate exact candidate inputs, and
-regenerate exact-HEAD receipts after rebase. Its 180-second lease is not extended
-by this ledger or a heartbeat. An unrun gate never becomes passing evidence.
+Landing follows [the GitHub merge queue](../../../../tools/landing.md): validate
+the submitted source, enqueue once, and resolve actual conflicts or failures.
+Main movement alone does not require a new author build or review. Preserve the
+source HEAD; record the merged PR's matching `headRefOid` and its published squash
+commit on fetched main. Source HEAD need not be an ancestor of main after squash.
+Legacy recovery records requiring literal HEAD ancestry remain conservative:
+preserve the worktree and use the cloud completion PR association check rather
+than falsifying that ancestry. An unrun gate never becomes passing evidence.
 
 ## Evidence scope
 

@@ -545,6 +545,8 @@ Handoff input has `dependency`, `producer`, `consumer`, `paths`, full `candidate
 `ownership:"reconciled"` (legacy `"single-writer"` also accepted), fresh `observed_utc`. Receipts are actual bilateral
 messages or confirmed artifacts, not a coordinator's inferred permission. Verify
 producer candidate, consumer integration and current claim ownership first.
+For a dependency already squash-landed, `candidate` is its published main commit,
+not the PR's source head; retain the PR/source association in the receipts.
 Handoffs never modify/release claims. Same-outcome takeovers require explicit
 handoff. Shared paths alone are not a handoff prerequisite; preserve and
 reconcile peer changes. Dependency-gated consumers may create their bounded **preflight-only** turn
@@ -560,10 +562,10 @@ routine parent sign-off. Existing in-task validation and landing guards remain
 mandatory.
 
 Before publication, preserve historical evidence and a candidate checkpoint.
-Use the existing landing helper; no controller action extends its 180-second
-lease. After rebase, always regenerate the exact-SHA landing receipt, even when
-ordinary tests are reusable. Verify actual push-destination main by fetch and
-ancestry, reconcile uncertain mutation effects, release owned claims/tickets,
+Use [the native merge queue](../landing.md); main movement alone requires no
+author rebuild/review. Verify the merged PR's exact source head and its published
+squash commit on actual push-destination main by fetch and ancestry. Reconcile
+uncertain mutation effects, release owned claims/tickets,
 and confirm worker/process quiescence. Parent materializes the child's evidence
 and makes candidate/main Git objects available on its verification executor.
 For separate fetch/push destinations, fetch the actual **push** destination into
@@ -573,10 +575,10 @@ fetch-only mirror as publication evidence.
 Acceptance input is `{"assignment":"A","repository":"LOCAL_VERIFICATION_REPO",
 "evidence_root":"LOCAL_MATERIALIZED_EVIDENCE","manifest":{...},
 "observation":{...}}`. The helper cannot remotely open a child's worktree.
-Manifest schema 1 fields: `assignment`, `outcome`, final `candidate`, reserved
+Manifest schema 1 fields: `assignment`, `outcome`, submitted source `candidate`, source
 `base`, fetched `remote_main`, `user_rescue:false`, `environment` fingerprint
 (host/toolchain/flags/external inputs), `before`, `historical`, `final_evidence`,
-`final_receipt`, `receipt_artifact`. Reserved base must descend from assignment
+`final_receipt`, `receipt_artifact`. Source base must descend from assignment
 base. `before` contains original assignment `revision`, `outcome`, `command`,
 `verdict:"failed"`, integer `exit`, `kind:native|interpreter`,
 `failure_kind:compile|run`, matching `environment`, and `artifact`. Its command
@@ -584,9 +586,12 @@ must match a dispatched program acceptance command; infrastructure refusal is
 not a before-program failure. Every artifact has relative
 `path` and `sha256`; files must materialize inside the evidence root.
 
-`final_receipt` is the actual `omega-landing-receipt-v1` JSON from landing.verify
-for final candidate/base with `exit_code:0` and complete affected packages.
-`receipt_artifact` hashes its exact saved file. Each `final_evidence` row matches
+`final_receipt` is the actual GitHub PR observation from `landing.py status NUMBER`:
+`state:MERGED`, `baseRefName:main`, `headRefOid` equal to candidate, `url`, and
+`mergeCommit.oid` naming the published commit on fetched main. `observation.publication`
+must contain that same fresh observation. Source and published SHAs differ after
+squash; do not relabel source runtime evidence. `receipt_artifact` hashes its exact
+saved JSON file. Each `final_evidence` row matches
 one dispatch acceptance requirement by `id`, `kind`, `command`, `inputs`, `exit`,
 `verdict`, with `revision`, `environment`, `artifact`, and positive `count` for
 tests/negatives. Native/interpreter carry `program_result` exactly matching the
@@ -597,8 +602,8 @@ reuse is a final row's `reuse:{"historical_id":"ID","reason":"JUSTIFICATION"}`.
 The source must match command/kind/environment and exact reviewed input closure;
 Git blob/tree hashes must agree at historical and final commits. Include all
 producer, consumer, fixture, digest, golden, tool and configuration inputs.
-Changed inputs refuse reuse. History is retained separately; exact landing
-receipt is always fresh for final SHA.
+Changed inputs refuse reuse. History is retained separately; publication is
+confirmed by a fresh merged-PR observation, not an author-side integration build.
 
 Both runtime read and final observation carry `recovery:{"assignment":"A",
 "environment":"ACTUAL_ENVIRONMENT","generation":"ACTUAL_GENERATION",
@@ -610,7 +615,8 @@ keep independent slots. Final acceptance also checks the handed-off producer
 candidate is an ancestor of the consumer’s final candidate.
 
 Observation has fresh `observed_utc`, exact `revision`, `thread`, `environment`,
-`generation`, terminal `runtime`, `landed_head`, `main`, `remote_evidence`,
+`generation`, terminal `runtime`, `landed_head` (published commit), `publication`,
+`main`, `remote_evidence`,
 `claims:[]`, `landing_tickets:[]`, `registry_evidence`, `processes_stopped:true`,
 `workspace:{"head":"FINAL_SHA","clean":true,"primary":false,"owned":true,
 "evidence":"ACTUAL_GIT_AND_RESOURCE_INVENTORY"}`. Checkpoint must be `landed`.

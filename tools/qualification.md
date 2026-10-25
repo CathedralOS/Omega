@@ -174,10 +174,10 @@ ordinary assessment still reports `prior_run_not_accepted` and requires a fresh
 qualifying run. Preserve the failed attempt and prepare mutable caches outside
 that new frozen capture.
 
-Set `final:true` for checks that must observe the exact integrated candidate,
-including user-required final review. Dependency equality cannot carry these
-checks across a SHA change. Landing's exact-SHA build check remains mandatory
-independently of this list.
+Set `final:true` only for checks explicitly required to observe the submitted
+candidate, including user-required review. Dependency equality cannot carry
+these checks across an author change. The native queue's integration SHA does
+not restart this capture or create another author-side review/build requirement.
 
 Semantic compiler repairs additionally carry a compact `semantic_contracts`
 list: `implementation` paths, a canonical `contract` path under `wiki/spec/`,
@@ -328,8 +328,8 @@ observations or damaged receipts. Final-candidate checks cannot receive these
 attestations. The capture command still requires its producer's complete source
 closure to match the current candidate; an attestation never permits a new
 capture with an older producer. This records reviewed reuse, not a semantic
-equivalence proof or new candidate execution. Final independent review and the
-normal exact-SHA landing build remain mandatory.
+equivalence proof or new candidate execution. Required review covers the
+submitted source; the native queue separately checks integration compilation.
 
 If exercised compiler inputs changed, rebuild the exact integrated producer in
 its isolated directory. Update producer/artifact/check definitions explicitly:
@@ -352,26 +352,24 @@ refused. This amendment retains all definitions, observations and assessments;
 it does not create an assessment, grant reuse or satisfy final review.
 Do not amend a command/expected result merely to turn a failure into acceptance.
 
-## Land the exact candidate
+## Submit the qualified source
 
 `start` registers the active state in `build/qualification-active.json` in its
-worktree. Ordinary `landing.py verify --base FULL_BASE_SHA` automatically requires
-that state's exact candidate/base assessment; an explicit `--qualification`
-must name the same state. It checks the assessment before and after its ordinary
-mandatory workspace-aware build checks. The receipt binds the state digest;
-publish revalidates it and its source/compiler/artifact/observation identities.
-Non-Rust qualified candidates retain this check too. Missing, stale or changed
-evidence refuses publication. This adds no bypass to existing landing gates.
+worktree. Finish and assess that source capture before submitting the PR; retain
+its exact source/compiler/artifact/observation identities in the PR's evidence.
+Missing or changed evidence cannot establish the authored acceptance. This
+qualification tool remains available for pinned evidence, not as a mandatory
+receipt/rebuild gate wrapped around every GitHub queue candidate.
 
-Finish initial integration/requalification before enqueueing. If the reserved
-base subsequently changes, reassess the rebased candidate and rerun affected
-checks plus exact candidate checks. Release when they cannot fit the remaining
-180-second lease, finish outside it and rejoin. Publication still requires the
-fresh reserved base, exact verified HEAD, linear history and remote ancestry.
+Use [native queue publication](landing.md). GitHub checks integration and
+squash-merges the PR. Preserve the submitted source ID, published commit and
+PR/run URLs separately. Do not relabel old executions or requalify merely for
+queue-generated SHA changes. Actual source edits or resolved conflicts require
+affected validation under [main-change validation](testing.md#main-change-validation).
 
 Every run records `duration_seconds`, `repeated_work` and invalidation reasons;
-assessments record comparison time and reuse/rerun counts. Landing receipts
-also record build-check and total verification durations. Compare measured
+assessments record comparison time and reuse/rerun counts. GitHub run timestamps
+record admission and regression latency separately. Compare measured
 repeated work and qualification cost, not commit count or an assumed compiler
 speedup. Keep the active state and logs with the outcome's ordinary evidence.
 Local `refs/qualification/` identities retain observed checkpoints through

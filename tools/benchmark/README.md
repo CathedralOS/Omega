@@ -85,8 +85,9 @@ when `omega.lock` is absent (disable with `--no-prepare`).
 
 `omega.lock` is host-local generated state: it embeds absolute checkout
 paths, so never commit it. `measure` leaves it in place because
-re-settling it costs a full `update` pass. Delete it before any operation that requires a clean tree (for
-example `tools/landing.py`).
+re-settling it costs a full `update` pass. Preserve it as host-local state outside
+the submitted source; never include it in a PR. Remove only owned disposable
+state when cleaning up the task's worktree.
 
 ## Record schema `omega-benchmark-record/2`
 

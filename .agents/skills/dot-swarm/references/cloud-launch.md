@@ -94,9 +94,10 @@ different cloud executor.
    unrun gates through the available supported artifact workflow. Confirm the
    upload; a local archive alone is not a backup. Reconcile a disconnect with
    an actual read/command and process state before resuming. Keep builds and
-   initial validation outside [landing](../../../../tools/landing.md)'s
-   180-second lease, publish only through its helper, then verify fetched main
-   and remove only this task's clean landed worktree and branch.
+   focused validation local, release build slots, then submit once through
+   [landing](../../../../tools/landing.md)'s GitHub merge queue. Verify the
+   merged PR's source head and published commit on fetched main before removing
+   only this task's clean worktree and branch.
 
 ## Report the launch state
 

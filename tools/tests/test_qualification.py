@@ -19,7 +19,6 @@ import worktree_testkit as kit
 
 TOOLS = Path(__file__).resolve().parents[1]
 qualification = kit.load_module(TOOLS / "qualification.py", "qualification_under_test")
-landing = kit.load_module(TOOLS / "landing.py", "landing_under_test")
 
 
 class QualificationTests(unittest.TestCase):
@@ -533,19 +532,15 @@ class QualificationTests(unittest.TestCase):
         self.assertIn("source_changed:src", row["reasons"])
         self.assertNotIn("source_reuse", row)
 
-    def test_landing_revalidates_source_reuse_receipt(self):
+    def test_qualification_revalidates_source_reuse_receipt(self):
         self.run_check()
         incoming = self.commit("src/program", "unexercised branch")
         record = self.attest_source_reuse(incoming)
         self.assess(incoming)
-        with mock.patch("sys.stdout"):
-            self.assertEqual(landing.verify(self.repository, incoming), 0)
-        self.assertIsNone(landing.receipt_failure(self.repository, incoming, set(), base=incoming,
-                                                qualification_path=self.state))
+        qualification.validate(self.repository, self.state, incoming, incoming)
         Path(record["source_reuse"][-1]["path"]).write_text("{}")
-        refusal = landing.receipt_failure(self.repository, incoming, set(), base=incoming,
-                                          qualification_path=self.state)
-        self.assertIn("qualification no longer valid", refusal)
+        with self.assertRaises(qualification.RecoveryError):
+            qualification.validate(self.repository, self.state, incoming, incoming)
 
     def test_reuse_attestation_does_not_relax_new_capture_producer_source_equality(self):
         config = copy.deepcopy(self.config)
@@ -666,15 +661,14 @@ class QualificationTests(unittest.TestCase):
         self.assertFalse(self.run_check()[1])
         self.assertIn("prior_run_not_accepted", self.assess(candidate)["assessments"][-1]["checks"][0]["reasons"])
 
-    def test_exact_landing_receipt_keeps_qualification_and_rechecks_artifacts(self):
+    def test_qualification_rechecks_retained_artifacts(self):
         self.run_check()
         candidate = self.commit("README.md", "ready change")
         self.assess(self.base)
-        with mock.patch("sys.stdout"):
-            self.assertEqual(landing.verify(self.repository, self.base, self.state), 0)
-        self.assertIsNone(landing.receipt_failure(self.repository, candidate, set()))
+        qualification.validate(self.repository, self.state, candidate, self.base)
         self.library.write_bytes(b"replaced before publication")
-        self.assertIn("qualification no longer valid", landing.receipt_failure(self.repository, candidate, set()))
+        with self.assertRaises(qualification.RecoveryError):
+            qualification.validate(self.repository, self.state, candidate, self.base)
 
     def test_stale_compiler_source_refused_before_command_runs(self):
         path = self.root / "producer.json"
@@ -697,10 +691,10 @@ class QualificationTests(unittest.TestCase):
         self.assertIn("check_definition_changed", self.assess()["assessments"][-1]["checks"][0]["reasons"])
         self.assertTrue(self.run_check()[1])
 
-    def test_ordinary_verify_automatically_requires_active_qualification(self):
-        self.commit("README.md", "candidate")
-        with self.assertRaisesRegex(landing.LandingError, "unfinished"):
-            landing.verify(self.repository, self.base)
+    def test_unassessed_qualification_remains_unfinished(self):
+        candidate = self.commit("README.md", "candidate")
+        with self.assertRaisesRegex(qualification.RecoveryError, "unfinished"):
+            qualification.validate(self.repository, self.state, candidate, self.base)
 
     def test_missing_declared_dependency_cannot_establish_acceptance(self):
         config = copy.deepcopy(self.config)
@@ -848,16 +842,13 @@ class QualificationTests(unittest.TestCase):
         self.assertFalse(accepted)
         self.assertIn("artifact_mutated_during_run", record["runs"][-1]["invalidations"])
 
-    def test_publication_receipt_cannot_use_another_base_or_registration(self):
+    def test_qualification_cannot_use_another_base(self):
         self.run_check()
         candidate = self.commit("README.md", "publish")
         self.assess(self.base)
-        with mock.patch("sys.stdout"):
-            landing.verify(self.repository, self.base)
-        self.assertIn("reserved publication base", landing.receipt_failure(
-            self.repository, candidate, set(), base=candidate))
-        self.assertIn("active worktree registration", landing.receipt_failure(
-            self.repository, candidate, set(), base=self.base, qualification_path=self.root / "other.json"))
+        qualification.validate(self.repository, self.state, candidate, self.base)
+        with self.assertRaisesRegex(qualification.RecoveryError, "stale candidate/base"):
+            qualification.validate(self.repository, self.state, candidate, candidate)
 
     def test_source_replaced_and_restored_during_capture_cannot_pass(self):
         code = ("from pathlib import Path\np=Path('src/program')\noriginal=p.read_bytes()\n"

@@ -1,6 +1,6 @@
 """Crash-safe local swarm records. OS locks die with their holder, not their PID file.
 
-This is local bookkeeping, never a replacement for claims or landing leases.
+This is local bookkeeping, never a replacement for claims or the merge queue.
 Keep one store per executor, shared by its coordinators. A different machine
 uses its own store; an absolute worktree path is not a transport identity.
 """

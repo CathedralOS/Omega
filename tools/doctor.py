@@ -101,7 +101,7 @@ def check_git_repository():
     if rebase is None or rebase[0] or rebase[1] != "true":
         return check("git", "warn", detail + "; pull.rebase is not true",
                      fix="git config pull.rebase true — publication is "
-                         "rebase-only (tools/landing.md)")
+                         "squash-only through the merge queue (tools/landing.md)")
     return check("git", "ok", detail)
 
 
