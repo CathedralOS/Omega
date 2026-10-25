@@ -30,25 +30,29 @@ limits, not a different generated-source language.
   `tests/omega/pass/build` and `tests/omega/fail/build`, which bind a program
   entry and run the continuation end to end.
 
-## Bounded append support
+## One typing route
 
-| Cohort | Retained constraints |
-| --- | --- |
-| Data | Plain/lifetime-bearing declarations, local/base applications, bounded constrained arguments, scalar and validated structured const provenance. |
-| Monomorphic machines | Ordinary bodies and attached methods; exact `attached_data_symbol` selects the retained or generated owner. |
-| Retained constant body uses | Exact selected base declaration, declaration-resolved initializer copied per use, and unchanged visibility/type/custody checking. |
-| Generic machines | Authored-order erased lifetimes followed by machine-parented Type or scalar/validated structured const binders. |
-| Type binders | Full authored multiplicity and four-axis carry-property bounds. |
-| Structured const occurrences | Exact binder symbol/name and template slot with the same checked carrier. |
-| Structural static-machine binder | One exact machine-parented binder, flat parameter/result signature over the supported types, and body calls targeting it. |
-| Nominal static-machine binder | One ordinary nongeneric trait/requirement pair from the base or extension, with exact trait, requirement, path, and binder symbols. |
+Every appended declaration family uses ordinary `type_resolved_cohort` and
+`close_typed_cohort`: data, domains, machines, mathematical declarations,
+propositions, measures, operators, traits, named implementations and wire
+schemas. Constants retain their declaration-side initializer and selection
+custody. There is no separate generated-source shape whitelist or recursive
+type admissibility checker. Unsupported source still rejects in its ordinary
+resolution, typing, proof, ownership or realization owner.
 
-An extension-owned nominal trait is non-boundary, nongeneric, nonempty, with
-flat bodyless requirements over supported types.
-Boundary traits, nested contract telescopes, operational/proof contracts,
-default bodies, declaration-identity binders, plural/nested static-machine
-binders, generated-machine `satisfies`, broader generic/conformance bounds,
-supply forms, and root/data shapes outside the admitted cohorts reject.
+The continuation keeps the exact resolved/typed predecessor. Resolution may
+append semantic domains, service definitions and rows, external binding
+identities and evidence forwardings; each retained ID still names the same
+value. The typed join preserves prepared domain instances, appends declaration
+ceilings by owner, and translates only new evidence forwardings after typing
+has recorded erased proof calls.
+
+The generated-dependency fixture
+`tests/omega/pass/build/generated_declaration_continuation_exit` exercises
+an emitted domain and named implementation, including a call to the frozen
+authored base. Check its `kit/main.omg` directly to exercise retained typing;
+run the consumer with `--both` to execute the generated implementation.
+The invalid twin changes only a generated domain argument.
 
 Both this continuation and the fresh product route close their run through the
 same `close_typed_cohort`: satisfied declarations, progress premises, domain
