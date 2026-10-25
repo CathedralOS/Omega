@@ -11008,6 +11008,39 @@ fail/facts/runtime_count_index_through_target_body_rejected rejected 2159ms expe
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from main: count < bytes[..].len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_call_result_rejected rejected 1611ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_const_name_rejected rejected 1937ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_field_rejected rejected 1664ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_local_rejected rejected 1844ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_match_join_rejected rejected 1975ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_other_machine_rejected rejected 1685ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_other_state_rejected rejected 1798ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `construct`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `construct`
+fail/facts/runtime_index_application_forwarded_through_parameter_rejected rejected 1872ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_forwarded_through_target_body_rejected rejected 1770ms expected @036605466510+wt
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/runtime_index_application_through_call_result_rejected rejected 912ms expected @a92f16431042
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_through_const_name_rejected rejected 918ms expected @a92f16431042
@@ -16235,7 +16268,7 @@ fail/generics/const_extent_inclusive_bound rejected 1773ms expected @a92f1643104
 	cannot prove index `index` is within length 2 in read$specialized$f8459f0a1522a338$0::take
 fail/generics/const_extent_index_without_guard rejected 1361ms expected @a92f16431042
 	cannot prove index `4` is within length 2
-fail/generics/const_generic_runtime_argument rejected 371ms unexpected @a92f16431042
+fail/generics/const_generic_runtime_argument rejected 264ms expected @036605466510+wt
 	const parameter `Count` of `prefix_count` requires a normalized closed value
 fail/generics/const_index_active_case_false rejected 29ms expected @a92f16431042
 	constant `POINT` is invalid: data constant `Choice` violates its case predicate
@@ -16614,14 +16647,28 @@ fail/generics/returned_generic_result_parameter_mismatch rejected 677ms expected
 	machine `wrong` state `entry` local `__hoist_15` expects `Output`, but the value is delivered as `Input`
 fail/generics/runtime_difference_const_argument rejected 22ms expected @a92f16431042
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/generics/runtime_index_borrow_call_access_mismatch rejected 656ms expected @036605466510+wt
+	argument `item` for state `entry` is declared `&mut` (`&mut Indexed<limit>`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/generics/runtime_index_borrow_call_const_mismatch rejected 731ms expected @036605466510+wt
+	argument `item` for state `entry` expects `&mut Indexed<limit, 2>`, got `named value`
+fail/generics/runtime_index_borrow_call_generic_callback_mismatch rejected 717ms expected @036605466510+wt
+	argument `item` for state `Routine` expects `&mut Item`, got `named value`
+fail/generics/runtime_index_borrow_call_nominal_mismatch rejected 606ms expected @036605466510+wt
+	argument `item` for state `entry` expects `&mut Indexed<limit>`, got `named value`
+fail/generics/runtime_index_borrow_call_retag_mismatch rejected 1463ms expected @036605466510+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_borrow_call_type_mismatch rejected 578ms expected @036605466510+wt
+	argument `item` for state `entry` expects `&mut Indexed<limit, u64>`, got `named value`
+fail/generics/runtime_index_borrow_call_value_mismatch rejected 1473ms expected @036605466510+wt
+	machine `example` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_argument_effect rejected 249ms expected @a92f16431042
 	cannot retain runtime index descriptor `Limit` from its application argument without an evaluated scalar subject
 fail/generics/runtime_index_carrier_array_extent_mismatch rejected 1910ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_array_mismatch rejected 1903ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-fail/generics/runtime_index_carrier_borrow_mismatch rejected 815ms unexpected @a92f16431042
-	argument `item` for state `entry` expects `&Indexed<limit>`, got `named value`
+fail/generics/runtime_index_carrier_borrow_mismatch rejected 1079ms expected @036605466510+wt
+	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_mutated rejected 2246ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_stale rejected 1649ms expected @a92f16431042
@@ -16639,8 +16686,8 @@ fail/generics/runtime_index_carrier_descriptor_borrow_return rejected 1639ms exp
 	mutable scalar loan cannot preserve a runtime index descriptor
 fail/generics/runtime_index_carrier_descriptor_indexed_write rejected 1743ms expected @a92f16431042
 	cannot prove runtime index descriptor equals its captured index
-fail/generics/runtime_index_carrier_descriptor_whole_write rejected 782ms unexpected @a92f16431042
-	argument `item` for state `entry` expects `&mut Indexed<limit>`, got `named value`
+fail/generics/runtime_index_carrier_descriptor_whole_write rejected 1048ms expected @036605466510+wt
+	cannot prove runtime index descriptor equals its captured index
 fail/generics/runtime_index_carrier_explicit_argument_effect rejected 419ms expected @a92f16431042
 	cannot validate runtime index descriptor `Limit` across argument or field effects without an evaluated scalar snapshot
 fail/generics/runtime_index_carrier_explicit_payload_effect rejected 312ms expected @a92f16431042
@@ -16717,6 +16764,8 @@ fail/generics/selected_open_capture_wrong_nominal rejected 659ms expected @a92f1
 	argument `value` for state `Selected::forward::forward` expects the `First` data type but got `Second` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/generics/selected_operator_preserves_blocking_ceiling rejected 1100ms expected @a92f16431042
 	machine `choose` omits `blocks;` from its published contract, but its body may block
+fail/generics/selected_value_bool_public_contract_mismatch rejected 1384ms expected @036605466510+wt
+	cannot prove requires contract for call need_true from main: second == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/state_argument_generic_result_parameter_mismatch rejected 488ms expected @a92f16431042
 	argument `value` for state `finish` expects `Output`, got `call expression`
 fail/generics/static_callable_excess_local_type_argument rejected 482ms expected @a92f16431042
@@ -24837,6 +24886,15 @@ pass/facts/runtime_count_index_through_other_machine_exit checked 3513ms check-t
 pass/facts/runtime_count_index_through_other_state_exit checked 2404ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_count_index_through_parameter_exit checked 3132ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_count_index_through_target_body_exit checked 3111ms check-target:macos_arm64 @a92f16431042
+pass/facts/runtime_index_application_forwarded_through_call_result_exit checked 2143ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_const_name_exit checked 2204ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_field_exit checked 1985ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_local_exit checked 2071ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_match_join_exit checked 2157ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_other_machine_exit checked 2017ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_other_state_exit checked 2419ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_parameter_exit checked 2423ms check-target:macos_arm64 @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_target_body_exit checked 2085ms check-target:macos_arm64 @036605466510+wt
 pass/facts/runtime_index_application_through_call_result_exit checked 2863ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_index_application_through_const_name_exit checked 2865ms check-target:macos_arm64 @a92f16431042
 pass/facts/runtime_index_application_through_field_exit checked 3075ms check-target:macos_arm64 @a92f16431042
@@ -27189,8 +27247,7 @@ pass/generics/runtime_index_carrier_call_result checked 2427ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_index checked 1846ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_preserved checked 1469ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_replacement checked 2008ms @a92f16431042
-pass/generics/runtime_index_carrier_descriptor_whole_preserve rejected 545ms regressed-from:checked @a92f16431042
-	argument `item` for state `entry` expects `&mut Indexed<limit>`, got `named value`
+pass/generics/runtime_index_carrier_descriptor_whole_preserve checked 1323ms @036605466510+wt
 pass/generics/runtime_index_carrier_direct_call_result checked 1487ms @a92f16431042
 pass/generics/runtime_index_carrier_indexed_element_valid checked 1551ms @a92f16431042
 pass/generics/runtime_index_carrier_local checked 1371ms @a92f16431042
@@ -27232,6 +27289,7 @@ pass/generics/runtime_value_recipe_bounded_declaration checked 1345ms check-targ
 pass/generics/selected_member_distinct_binder_names_exit checked 1899ms check-target:macos_arm64 @a92f16431042
 pass/generics/selected_member_shared_runtime_subject_exit checked 1950ms check-target:macos_arm64 @a92f16431042
 pass/generics/selected_open_capture_carriers_exit checked 2445ms check-target:macos_arm64 @a92f16431042
+pass/generics/selected_value_bool_public_contract_exit checked 1982ms check-target:macos_arm64 @036605466510+wt
 pass/generics/seq_map_filter checked 2031ms @a92f16431042
 pass/generics/static_callable_local_type_argument_exit checked 3040ms check-target:macos_arm64 @a92f16431042
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 2188ms @a92f16431042

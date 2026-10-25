@@ -1673,8 +1673,9 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let site = crate::CallSite::Expression { expression, call };
-        let static_bindings = super::super::specification_calls::call_scalar_substitution(
+        let static_bindings = super::super::specification_calls::call_contract_scalar_substitution(
             program,
+            scope.0.symbol,
             &owner,
             site,
             |subject| self.completed_scalar_subject(subject, site, actuals?, scope.0, scope.1),

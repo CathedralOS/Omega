@@ -16,7 +16,7 @@ use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::expression_types::declared_reference_access;
 use crate::value_custody::expression_types::{
-    argument_matches_carrier, expression_type_name_handle, report_cross_class_store,
+    argument_matches_call_carrier, expression_type_name_handle, report_cross_class_store,
     report_data_type_conflict,
 };
 use crate::value_custody::locals::WritableRoots;
@@ -807,7 +807,7 @@ fn validate_value_call_arguments(
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
         |argument, required| {
-            argument_matches_carrier(
+            crate::value_custody::expression_types::argument_matches_call_carrier(
                 program,
                 current_machine.symbol,
                 argument,
