@@ -161,12 +161,15 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     }
     assert!(instance.result().is_some(), "bounded probe completes");
     assert!(saw_effect_pause);
-    assert_eq!(
-        instance
-            .observe_borrowed_entry(0, &identifier_path)
-            .unwrap(),
-        TerminalEntryStorageValue::Bytes(b"after".to_vec())
-    );
+    let TerminalEntryStorageValue::Bytes(bytes) = instance
+        .observe_borrowed_entry(0, &identifier_path)
+        .unwrap()
+    else {
+        panic!("identifier byte readback");
+    };
+    let mut identifier = vec![0; bytes.len()];
+    bytes.copy_to(&mut identifier).unwrap();
+    assert_eq!(identifier, b"after");
     drop(instance);
     assert_eq!(observations, [1, 2]);
 

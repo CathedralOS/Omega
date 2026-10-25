@@ -13,9 +13,9 @@ use terminal_psi::StructuralAccess;
 /// Plain observed contents. No variant conveys a qualification, reference,
 /// opaque host object, or permission to construct guest storage.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TerminalEntryStorageValue {
+pub enum TerminalEntryStorageValue<'storage> {
     Storage(crate::TerminalStorageContents),
-    Bytes(Vec<u8>),
+    Bytes(crate::TerminalByteRead<'storage>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,12 +39,13 @@ impl TerminalInstance<'_, '_> {
     /// `argument_index` is its dense structural-input position, not a source
     /// parameter position. Reads before normal return (including suspension,
     /// crash and domain exit), after close, and from owned inputs refuse.
-    /// Only the requested byte payload is copied into host-owned storage.
+    /// Byte payloads borrow the retained backing. The caller can reserve result
+    /// custody before copying into its own output, or validate without copying.
     pub fn observe_borrowed_entry(
         &self,
         argument_index: u32,
         path: &[CanonicalStructuralPathSegment],
-    ) -> Result<TerminalEntryStorageValue, TerminalEntryStorageError> {
+    ) -> Result<TerminalEntryStorageValue<'_>, TerminalEntryStorageError> {
         let execution = self
             .execution
             .as_ref()
@@ -81,19 +82,21 @@ impl TerminalInstance<'_, '_> {
                 } else {
                     StructuralFieldNamespace::Member
                 };
-                let bytes = execution.byte_field_snapshot(&StructuralByteSequenceRuntimeField {
+                let bytes = execution.byte_field_read(&StructuralByteSequenceRuntimeField {
                     parent: parent.clone(),
                     namespace,
                     field: *field,
                 })?;
-                Ok(TerminalEntryStorageValue::Bytes(bytes.bytes().to_vec()))
+                Ok(TerminalEntryStorageValue::Bytes(bytes))
             }
             StorageLeafKind::ByteArray { destination, .. } => {
                 let bytes = execution
                     .structural_byte_storage
                     .get(destination)
                     .ok_or(TerminalEntryStorageError::OpaqueContents)?;
-                Ok(TerminalEntryStorageValue::Bytes(bytes.bytes().to_vec()))
+                Ok(TerminalEntryStorageValue::Bytes(
+                    crate::TerminalByteRead::contiguous(bytes.bytes()),
+                ))
             }
             StorageLeafKind::Opaque { .. } => Err(TerminalEntryStorageError::OpaqueContents),
         }
