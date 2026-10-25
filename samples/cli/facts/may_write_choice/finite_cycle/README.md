@@ -50,3 +50,24 @@ engines. Its [twin](same_query/invalid/main.omg) changes only the backedge's
 reference permutation; its possible return roots include the indexed input and
 the stale bound rejects. The [unknown-selector control](unknown_selector/invalid/main.omg)
 also rejects: finite convergence must not invent a selector value.
+
+## Acceptance and remaining dependency
+
+On Linux x86-64, all nine finite-cycle positives exit `0` in Terminal Psi and
+native execution; all nine overlap twins reject their stale index bounds. The
+same-query positive also agrees at `0`, and its swap twin and the unknown
+selector reject. All seven older may-write rows (including stored codec
+references) retain their 63 dual-engine positives and 63 overlap rejections.
+Existing root programs and the written-selector witness also retain exit `0`.
+The affected `validation` crate check passes. Focused corpus records pin ten
+positives and eleven rejecting controls; no unrelated golden rows are changed.
+
+The parser check converges: baseline `395.85 s`, repaired `370.76 s`. The
+zero-argument harness wrapper fixes the baseline arrival-parameter diagnostics.
+A successful check from accepted package inputs remains blocked by normal
+standard-library admission: `omega update --project tests/psi/parser --target
+linux_x86_64` rejects ten `FloatMeaning` contract entailments. The preserved
+baseline compiler produces the exact same ten diagnostics. R5 remains open for
+that dependency; these finite-cycle observations do not claim package acceptance.
+Other hosted targets are bound and source-checked; foreign native execution was
+not available on this Linux executor.

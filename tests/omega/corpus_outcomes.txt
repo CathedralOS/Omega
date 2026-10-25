@@ -8568,6 +8568,36 @@ fail/facts/matched_window_through_parameter_rejected rejected 2194ms expected @a
 	cannot prove ensures contract for exit from from_parameter at statement 0: result.len == 2
 fail/facts/matched_window_through_target_body_rejected rejected 1779ms expected @a92f16431042
 	cannot prove ensures contract for exit from from_target at statement 0: result.len == 2
+fail/facts/may_write_choice_finite_cycle_same_query_swap rejected 845ms expected @036605466510+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_choice_finite_cycle_through_call_result_overlapping rejected 972ms expected @036605466510+wt
+	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_const_name_overlapping rejected 928ms expected @036605466510+wt
+	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_field_overlapping rejected 846ms expected @036605466510+wt
+	cannot prove index `bounds.other` is within length 4 in main::entry
+fail/facts/may_write_choice_finite_cycle_through_local_overlapping rejected 913ms expected @036605466510+wt
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_choice_finite_cycle_through_match_join_overlapping rejected 951ms expected @036605466510+wt
+	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_other_machine_overlapping rejected 892ms expected @036605466510+wt
+	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_other_state_overlapping rejected 925ms expected @036605466510+wt
+	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_choice_finite_cycle_through_parameter_overlapping rejected 869ms expected @036605466510+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_choice_finite_cycle_through_target_body_overlapping rejected 903ms expected @036605466510+wt
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_choice_finite_cycle_unknown_selector rejected 762ms expected @036605466510+wt
+	cannot prove index `other` is within length 4 in consume::entry
 fail/facts/may_write_choice_through_call_result_overlapping rejected 2355ms expected @a92f16431042
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/may_write_choice_through_const_name_overlapping rejected 2314ms expected @a92f16431042
@@ -23797,6 +23827,16 @@ pass/facts/matched_window_through_other_machine_exit checked 2173ms check-target
 pass/facts/matched_window_through_other_state_exit checked 1871ms check-target:macos_arm64 @a92f16431042
 pass/facts/matched_window_through_parameter_exit checked 2166ms check-target:macos_arm64 @a92f16431042
 pass/facts/matched_window_through_target_body_exit checked 1984ms check-target:macos_arm64 @a92f16431042
+pass/facts/may_write_choice_finite_cycle_same_query_exit checked 1180ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_call_result_exit checked 1174ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_const_name_exit checked 1430ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_field_exit checked 1291ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_local_exit checked 1289ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_match_join_exit checked 1148ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_other_machine_exit checked 1152ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_other_state_exit checked 1230ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_parameter_exit checked 1067ms check-target:macos_arm64 @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_target_body_exit checked 1165ms check-target:macos_arm64 @036605466510+wt
 pass/facts/may_write_choice_through_call_result_exit checked 1826ms check-target:macos_arm64 @a92f16431042
 pass/facts/may_write_choice_through_const_name_exit checked 1704ms check-target:macos_arm64 @a92f16431042
 pass/facts/may_write_choice_through_field_exit checked 1684ms check-target:macos_arm64 @a92f16431042

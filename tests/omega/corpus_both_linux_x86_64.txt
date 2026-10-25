@@ -3690,6 +3690,16 @@ pass/facts/matched_window_through_other_machine_exit built 2278ms exit:0 interpr
 pass/facts/matched_window_through_other_state_exit built 2279ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/matched_window_through_parameter_exit built 2276ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/matched_window_through_target_body_exit built 2220ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/may_write_choice_finite_cycle_same_query_exit built 1217ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_call_result_exit built 1169ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_const_name_exit built 1213ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_field_exit built 1252ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_local_exit built 1093ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_match_join_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_other_machine_exit built 1203ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_other_state_exit built 1112ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_parameter_exit built 1170ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/may_write_choice_finite_cycle_through_target_body_exit built 1342ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/may_write_choice_through_call_result_exit built 2225ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/may_write_choice_through_const_name_exit built 2220ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/may_write_choice_through_field_exit built 2231ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

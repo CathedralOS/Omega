@@ -2026,10 +2026,11 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   and `omega-rust/psi/compilation/checking/src/borrow_contracts.rs`) under
   [invocation contracts](wiki/spec/language/state_contracts.md) and
   [subject preservation](wiki/spec/language/termination.md#subject-preservation):
-  - Complete finite write cycles and parameter-permutation fixpoint convergence
-    while keeping the direct helper-choice, nested-helper, nested-machine,
-    codec-argument, computed-receiver, and stored-rebind nine-place fact rows
-    exiting 0 on `omega run --both` and their overlapping twins rejecting.
+  - Complete ordinary parser-gate package admission without bypassing the
+    standard library's `FloatMeaning` proof contracts: `omega update --project
+    tests/psi/parser --target linux_x86_64` refuses ten unsupported entailments
+    in `source/library/std/math.omg` on the current baseline as well.
+    Retain the may-write nine-place fact rows and their overlapping rejects.
 
   Acceptance: all R5 nine-place fact rows and finite write-cycle / parameter-permutation
   witnesses pass `omega run --both` with overlapping twins rejecting, and
