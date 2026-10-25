@@ -18,10 +18,20 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
     pub source: psi_compiler::SourceContinuation,
+    /// A private Build and its eventual Product have different declaration
+    /// ownership. Retain parsed input for that Product judgment, not a typed
+    /// program whose identities would have to be rewritten.
+    pub pending_product_owner: Option<PendingProductOwner>,
     pub build_source_id: Option<source::SourceId>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,
+}
+
+#[derive(Clone)]
+pub struct PendingProductOwner {
+    pub source: psi_compiler::SourceCompilationRequest,
+    pub ownership: package_compilation::AnonymousSourceCapture,
 }
 
 /// Immutable parsing shared by exact checked children. Forks share storage;

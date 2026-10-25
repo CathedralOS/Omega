@@ -27,6 +27,8 @@ use syntax_trees::SyntaxTrees;
 pub struct AssembledSyntax {
     pub syntax_trees: SyntaxTrees,
     pub sources: Arc<source::SourceMap>,
+    /// Captured ownership inputs held until an authored Build's dependency join.
+    pub anonymous_owner: Option<crate::AnonymousSourceCapture>,
     /// Exact companion `build.omg` selected during project discovery. Build
     /// authority is attached to this source, never reconstructed from a leaf
     /// filename after imports have expanded the source frontier.
@@ -288,12 +290,6 @@ impl ImmutableSourceParseCheckpoint {
         source_scoped_top_level_bindings.extend(
             crate::source_imports::retain_module_import_bindings(&source_storage)?,
         );
-        // Default Build has completed its empty dependency join. No authored
-        // activation is run or replayed here, and supplied graph owners remain
-        // authoritative. Product declaration identities have not been minted.
-        if self.build_source_id.is_none() {
-            source_storage.seal_default_anonymous_owner(&generated_source_custody)?;
-        }
         let source_file_count = source_storage.file_count();
         let build_scope_sources = source_storage
             .sources
@@ -301,9 +297,21 @@ impl ImmutableSourceParseCheckpoint {
             .filter(|file| file.dependency_scope == source::DependencyScope::Build)
             .map(|file| file.source_id)
             .collect();
+        // Default Build has completed its empty dependency join. Authored
+        // Build retains the same source map without assigning an owner yet.
+        // Supplied graph owners remain authoritative in either case.
+        let capture = source_storage.retain_anonymous_owner(&generated_source_custody)?;
+        let (sources, anonymous_owner) = match capture {
+            Some(capture) if self.build_source_id.is_none() => {
+                (capture.complete_without_dependencies()?, None)
+            }
+            Some(capture) => (capture.sources().clone(), Some(capture)),
+            None => (Arc::new(source_storage.sources), None),
+        };
         let syntax = AssembledSyntax {
             syntax_trees: source_storage.syntax_trees,
-            sources: Arc::new(source_storage.sources),
+            sources,
+            anonymous_owner,
             build_source_id: self.build_source_id,
             source_scoped_top_level_bindings,
             generated_source_custody,

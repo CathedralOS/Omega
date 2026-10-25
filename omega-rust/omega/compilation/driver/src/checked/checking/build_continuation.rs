@@ -39,14 +39,15 @@ pub(crate) fn evaluate_build_and_continue(
     } = child;
     let TypedCompilationFrontier {
         mut source,
+        pending_product_owner,
         build_source_id,
         source_file_count,
         generated_source_custody,
-        base_sources,
+        mut base_sources,
     } = frontier;
     let build_input = source.build_input();
     let build_evaluation::EvaluatedBuild {
-        configuration: computed_build_config,
+        configuration: mut computed_build_config,
         restricted_build_requests,
         base_source_consumption_commitment,
         retained_check: retained_build_check,
@@ -78,6 +79,25 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
+    if let Some(mut pending) = pending_product_owner {
+        // Successful Build return currently implies its dependency requests
+        // have all joined (the executor refuses any unresolved request). Final
+        // ownership precedes Product typing; never retag the private judgment.
+        base_sources = pending.ownership.complete_without_dependencies()?;
+        pending.source.sources = base_sources.clone();
+        let product = pending
+            .source
+            .prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
+        // The retained parsed input preserves declaration source coordinates.
+        // No display name, allocation order or old typed handle selects a body
+        // in this distinct Product context.
+        let selected = match computed_build_config.selected_build_machine_symbol {
+            Some(selected) => Some(product.rejoin_machine(&source, selected)?),
+            None => None,
+        };
+        source = product;
+        Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
+    }
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
@@ -138,17 +158,28 @@ pub(super) fn lower_typed_frontier(
         &build_scope_sources,
     );
     let build_source_id = syntax.build_source_id;
-    let source = psi_compiler::SourceCompilationRequest {
+    if syntax.anonymous_owner.is_some() {
+        syntax.syntax_trees.share_pages();
+    }
+    let request = psi_compiler::SourceCompilationRequest {
         syntax: syntax.syntax_trees,
         sources: syntax.sources,
         top_level_bindings: syntax.source_scoped_top_level_bindings,
         selection_authority: package_inputs.map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
-    }
-    .prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
+    };
+    let pending_product_owner =
+        syntax
+            .anonymous_owner
+            .map(|ownership| compilation_products::PendingProductOwner {
+                source: request.clone(),
+                ownership,
+            });
+    let source = request.prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
+        pending_product_owner,
         build_source_id,
         source_file_count,
         generated_source_custody,
@@ -177,7 +208,7 @@ pub(super) fn complete_product_frontend(
     let BuiltTypedProgram {
         source,
         base_sources,
-        computed_build_config,
+        mut computed_build_config,
         admission,
         retained_build_check: _,
     } = built;
@@ -216,6 +247,13 @@ pub(super) fn complete_product_frontend(
     } else {
         source.finish()
     };
+    let bindings = provider_planning::program_entry::collect_root_bindings(
+        &prepared.typed,
+        &computed_build_config.root_binding_requests,
+    )?;
+    Arc::make_mut(&mut computed_build_config)
+        .config
+        .root_bindings = bindings;
     Ok((
         prepared.typed,
         prepared.pending_pre_checks,

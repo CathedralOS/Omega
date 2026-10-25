@@ -4,7 +4,6 @@ mod project;
 use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
 use diagnostics::Diagnostic;
 use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
-use provider_planning::program_entry::collect_root_bindings;
 
 pub(crate) fn execute_admitted_build_program(
     admitted: AdmittedBuildProgram,
@@ -105,12 +104,10 @@ pub(crate) fn execute_admitted_build_program(
             "artifact-only Build requires completed output custody".into(),
         ));
     }
-    let root_bindings = collect_root_bindings(prepared.typed(), &completed.root_bindings)?;
     observations.retain_build_log(completed.log.publish(&account).map_err(&refuse)?)?;
     let observation_summary = observations.settle(machine.filesystem_reachable, &machine.name)?;
     let config = BuildConfig {
         settings: completed.settings,
-        root_bindings,
         ..Default::default()
     };
     let usage = *account
@@ -119,6 +116,7 @@ pub(crate) fn execute_admitted_build_program(
         .record();
     Ok(ComputedBuildConfig {
         config,
+        root_binding_requests: completed.root_bindings,
         project_declaration: Some(declaration),
         optimization_report_request: completed.optimization_report,
         evaluation_usage: Some(usage),

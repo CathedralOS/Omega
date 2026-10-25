@@ -116,6 +116,7 @@ pub fn evaluate_build(
         return Ok(EvaluatedBuild {
             configuration: Arc::new(crate::ComputedBuildConfig {
                 config: crate::BuildConfig::default(),
+                root_binding_requests: Vec::new(),
                 project_declaration: None,
                 optimization_report_request:
                     optimization_core::OptimizationReportRequest::Suppressed,

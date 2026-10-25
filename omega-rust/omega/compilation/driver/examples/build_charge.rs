@@ -171,6 +171,50 @@ fn main() {
     println!("warm_result_limit_rejected_atomically");
 
     logged_build_reuse();
+    anonymous_build_completes_before_product();
+}
+
+/// Product ownership requires another source context, not another activation.
+/// Two requested targets consume the same completed anonymous Build.
+fn anonymous_build_completes_before_product() {
+    let repository = fixture_package_inputs::repo_root();
+    let root = repository.join("tests/omega/pass/build/terminal_project_requests/main.omg");
+    let targets = ["windows_x86_64", "linux_x86_64"]
+        .into_iter()
+        .map(|name| Some(target::TargetProfile::from_omega_target_name(Some(name)).unwrap()))
+        .collect();
+    let request = compiler::CompileRequest::for_targets(
+        root,
+        repository.join("build/package-build-owner/anonymous-once"),
+        targets,
+    )
+    .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact);
+    let before = counters::build_execution_count();
+    let outcomes = compiler::compile(request).expect("anonymous multi-target request");
+    assert_eq!(outcomes.outcomes().len(), 2);
+    let mut identity = None;
+    for outcome in outcomes.into_outcomes() {
+        let report = outcome
+            .into_result()
+            .expect("anonymous Product publication");
+        let artifact = report.artifact().expect("portable Terminal product");
+        assert!(
+            artifact
+                .semantic_module()
+                .identities
+                .invocation_scope()
+                .is_none()
+        );
+        let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+            .expect("anonymous Product reload");
+        assert_eq!(artifact.view().identity(), reloaded.view().identity());
+        match identity {
+            Some(previous) => assert_eq!(previous, artifact.view().identity()),
+            None => identity = Some(artifact.view().identity()),
+        }
+    }
+    assert_eq!(counters::build_execution_count() - before, 1);
+    println!("anonymous_build_executed_once_before_two_portable_products");
 }
 
 /// The real source fixture writes through its original log facet. Both target

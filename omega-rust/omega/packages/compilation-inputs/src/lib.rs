@@ -23,6 +23,7 @@
 //! commands, not a dependency on either application's orchestration.
 
 mod anonymous_owner;
+pub use anonymous_owner::AnonymousSourceCapture;
 pub mod build_execution;
 mod canonical_fs;
 mod checked_source_cache;

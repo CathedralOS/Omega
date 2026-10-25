@@ -130,19 +130,17 @@ impl SourceStorage {
         }
     }
 
-    /// A missing Build has no activation or dependency requests: its default
-    /// configuration's empty join is already complete. Seal before Product
-    /// resolution, so derived domain/callable keys are minted with final owners
-    /// rather than rewriting interned semantic identities after typing.
-    pub(crate) fn seal_default_anonymous_owner(
+    /// Retain the captured inputs without assigning a declaration owner while
+    /// an authored Build can still request dependencies.
+    pub(crate) fn retain_anonymous_owner(
         &mut self,
         generated: &[(source::SourceId, build_output::PackageGeneratedSource)],
-    ) -> Result<(), Vec<Diagnostic>> {
+    ) -> Result<Option<crate::AnonymousSourceCapture>, Vec<Diagnostic>> {
         if self.default_package_identity.is_some() {
-            return Ok(());
+            return Ok(None);
         }
         let Some(capture) = &self.anonymous_capture else {
-            return Ok(());
+            return Ok(None);
         };
         // SourceFile preserves the caller's diagnostic spelling, including
         // relative paths. Resolve containment through this invocation's captured
@@ -186,17 +184,14 @@ impl SourceStorage {
                 .files()
                 .filter(|file| file.package_root != *core_root),
         )?;
-        let identity = crate::anonymous_owner::derive(
-            capture,
-            std::iter::once(core_identity)
-                .chain(contracts.into_iter().map(|(_, identity)| identity)),
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-        self.sources
-            .bind_default_anonymous_owner(&self.default_package_root, identity)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-        self.default_package_identity = Some(identity);
-        Ok(())
+        Ok(Some(crate::AnonymousSourceCapture {
+            root: self.default_package_root.clone(),
+            capture: capture.clone(),
+            semantic_dependencies: std::iter::once(core_identity)
+                .chain(contracts.into_iter().map(|(_, identity)| identity))
+                .collect(),
+            sources: std::sync::Arc::new(std::mem::take(&mut self.sources)),
+        }))
     }
 
     pub(crate) fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
