@@ -1245,6 +1245,20 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_proof_facts(program, retained, domain.facts);
     }
 
+    for application in &program.applied_domain_applications {
+        if !retained.declaration(application.declaration) {
+            continue;
+        }
+        for argument in &application.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+        visit_type_reference(program, retained, application.theory.target_type);
+        visit_proof_facts(program, retained, application.theory.facts);
+        if let Some(selection) = &application.theory.cleanup_selection {
+            visit_cleanup_selection(program, retained, selection);
+        }
+    }
+
     for schema in program.wire_schemas() {
         if !retained.declaration(schema.symbol) {
             continue;

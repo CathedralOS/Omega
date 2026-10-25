@@ -2,7 +2,6 @@
 //! the requirement subject a fact constrains.
 
 use checked_trees::CheckFacts;
-use symbols::SymbolHandle;
 
 /// The proof-fact expressions of a PREDICATE-ONLY domain, or `None` when the
 /// domain is not predicate-only.
@@ -10,15 +9,14 @@ use symbols::SymbolHandle;
 /// [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
 /// the rule: "Predicates alone establish predicate-only membership", and a
 /// ROUTED domain is the case that "additionally needs exact authorized
-/// provenance". So a routed, aliased or indexed domain returns `None` here and
-/// keeps its provenance obligation; only a domain whose whole content is
+/// provenance". Routed and aliased domains retain that obligation; an indexed
+/// theory must already have a complete applied view. Only a theory whose whole content is
 /// predicates over `self` reduces, and then EVERY predicate must be
 /// established, never a subset.
 pub(super) fn predicate_only_domain_predicates(
     program: &dyn ::validation::CheckingInput,
-    domain_symbol: SymbolHandle,
+    domain: &typed_trees::domain::DomainDefinition,
 ) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
-    let domain = typed_trees::domain::domain_by_symbol(program, domain_symbol)?;
     // The same list `domain_byte_predicate` enforces, so one definition governs
     // both grants: an alias expands to constituent requirements, index binders
     // carry an identity this substitution cannot supply, and `established by`
@@ -59,14 +57,14 @@ pub(super) fn predicate_only_domain_labels(
     facts: &CheckFacts,
     fact: &facts::Fact,
 ) -> Option<Vec<String>> {
-    let Some((_, _, domain_symbol, _)) = fact.payload.domain_membership() else {
+    let Some((_, _, domain_symbol, identity)) = fact.payload.domain_membership() else {
         return None;
     };
     let place_handle = fact.place.as_place()?;
     let subject_label = facts.semantic.place_label(program, place_handle);
-    let domain = program.domain_definition(domain_symbol)?;
+    let domain = program.domain_definition_for_instance(domain_symbol, identity)?;
     Some(
-        predicate_only_domain_predicates(program, domain_symbol)?
+        predicate_only_domain_predicates(program, domain)?
             .iter()
             .map(|expression| {
                 super::super::labels::instantiate_domain_expression_label(

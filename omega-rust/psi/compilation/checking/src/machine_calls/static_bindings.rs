@@ -297,6 +297,18 @@ pub fn validate_static_machine_bindings(
             .cleanup_selection
             .map(|selection| selection.application)
     }));
+    applications.extend(
+        program
+            .applied_domain_applications
+            .iter()
+            .filter(|application| program.domain_definition(application.declaration).is_some())
+            .filter_map(|application| {
+                application
+                    .theory
+                    .cleanup_selection
+                    .map(|selection| selection.application)
+            }),
+    );
     applications.retain(|handle| handle.is_valid());
     applications.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     applications.dedup();

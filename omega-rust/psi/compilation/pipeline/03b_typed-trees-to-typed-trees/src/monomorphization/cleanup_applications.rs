@@ -16,6 +16,13 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
                 .iter()
                 .filter_map(|domain| domain.cleanup_selection),
         )
+        .chain(
+            program
+                .applied_domain_applications
+                .iter()
+                .filter(|application| program.domain_definition(application.declaration).is_some())
+                .filter_map(|application| application.theory.cleanup_selection),
+        )
         .collect::<Vec<_>>();
     let mut selected = Vec::new();
     let mut created = Vec::new();
@@ -172,6 +179,15 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
         .span_mut_or_empty(definitions)
     {
         if let Some(selection) = &mut domain.cleanup_selection
+            && let Some((_, executable)) = selected
+                .iter()
+                .find(|(application, _)| *application == selection.application)
+        {
+            selection.executable = *executable;
+        }
+    }
+    for application in &mut program.applied_domain_applications {
+        if let Some(selection) = &mut application.theory.cleanup_selection
             && let Some((_, executable)) = selected
                 .iter()
                 .find(|(application, _)| *application == selection.application)

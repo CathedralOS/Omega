@@ -97,7 +97,7 @@ fn domain_predicates(
     domains: &mut Vec<DomainTemplate>,
 ) -> Option<Vec<BoundPredicate>> {
     let (_, _, symbol, identity) = fact.payload.domain_membership()?;
-    let domain = program.domain_definition(symbol)?;
+    let domain = program.domain_definition_for_instance(symbol, identity)?;
     if domain.semantic_id != identity {
         return None;
     }

@@ -80,8 +80,9 @@ pub(super) fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let membership =
-                super::call_values::membership_evidence(program, facts, state_flow, call_flow, fact);
+            let membership = super::call_values::membership_evidence(
+                program, facts, state_flow, call_flow, fact,
+            );
             let requirement_contexts = membership
                 .as_ref()
                 .map_or(entry_contexts.as_slice(), |evidence| {
@@ -616,15 +617,17 @@ fn proven_predicates_grant_domain(
     let facts::FactPayload::ContractDomainMembership {
         value,
         domain_symbol,
+        semantic_domain,
         ..
     } = fact.payload
     else {
         return false;
     };
-    let Some(domain) = program.domain_definition(domain_symbol) else {
+    let Some(domain) = program.domain_definition_for_instance(domain_symbol, semantic_domain)
+    else {
         return false;
     };
-    let Some(predicates) = predicate_only_domain_predicates(program, domain_symbol) else {
+    let Some(predicates) = predicate_only_domain_predicates(program, domain) else {
         return false;
     };
     let Some(subject) = validation::canonical_place_from_expression(program, value) else {

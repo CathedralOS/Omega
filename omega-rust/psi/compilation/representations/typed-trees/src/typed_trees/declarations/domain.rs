@@ -544,3 +544,31 @@ pub struct CleanupSelection {
     pub subject: TypeReferenceHandle,
     pub executable: SymbolHandle,
 }
+
+/// A complete explicit index telescope applied to one immutable authored theory.
+/// Original constraints retain their argument pack and ordinary formation checks.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppliedDomainApplication {
+    pub declaration: SymbolHandle,
+    pub arguments: Vec<TypeReferenceHandle>,
+    pub theory: DomainDefinition,
+}
+
+impl TypedTrees {
+    pub fn domain_definition_for_instance(
+        &self,
+        symbol: SymbolHandle,
+        identity: language_semantics::SemanticDomainId,
+    ) -> Option<&DomainDefinition> {
+        let declared = self.domain_definition(symbol)?;
+        if declared.semantic_id == identity {
+            return Some(declared);
+        }
+        self.applied_domain_applications
+            .iter()
+            .find(|application| {
+                application.declaration == symbol && application.theory.semantic_id == identity
+            })
+            .map(|application| &application.theory)
+    }
+}

@@ -551,7 +551,12 @@ pub(crate) fn domain_predicates_for_subject(
         // through the scalar-only lowerer used to drop every inherited clause.
         // Field memberships keep their separate subjects and ordinary projection.
         for membership in typed_trees::domain::subject_membership_facts(program, domain) {
-            if let Some(parent) = program.domain_definition(membership.domain_symbol)
+            if let Some(parent) = program
+                .domain_definition_for_instance(
+                    membership.domain_symbol,
+                    membership.semantic_domain,
+                )
+                .or_else(|| program.domain_definition(membership.domain_symbol))
                 && let Some(inherited) = visit(program, operators, parent, subject, active)
             {
                 predicates.extend(inherited);

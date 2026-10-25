@@ -279,7 +279,18 @@ pub struct DataPayloadFieldSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AppliedDomainSnapshot {
+    pub semantic_id: u32,
+    pub arguments: Vec<TypeReferenceSnapshot>,
+    pub target_type: TypeReferenceSnapshot,
+    pub facts: Vec<ProofFactSnapshot>,
+    pub cleanup_selection: Option<CleanupSelectionSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DomainDefinitionSnapshot {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub applied_instances: Vec<AppliedDomainSnapshot>,
     pub name: String,
     pub subject_name: String,
     pub has_subject_symbol: bool,
@@ -458,6 +469,26 @@ pub(crate) fn domain_definition_snapshot(
     domain: &DomainDefinition,
 ) -> DomainDefinitionSnapshot {
     DomainDefinitionSnapshot {
+        applied_instances: program
+            .applied_domain_applications
+            .iter()
+            .filter(|application| application.declaration == domain.symbol)
+            .map(|application| AppliedDomainSnapshot {
+                semantic_id: application.theory.semantic_id.0,
+                arguments: application
+                    .arguments
+                    .iter()
+                    .map(|argument| type_reference_snapshot(program, *argument))
+                    .collect(),
+                target_type: type_reference_snapshot(program, application.theory.target_type),
+                facts: domain_fact_snapshots(program, &application.theory),
+                cleanup_selection: application
+                    .theory
+                    .cleanup_selection
+                    .as_ref()
+                    .map(|selection| cleanup_selection_snapshot(program, selection)),
+            })
+            .collect(),
         cleanup_selection: domain
             .cleanup_selection
             .as_ref()

@@ -41,6 +41,7 @@ mod candidate;
 mod captured_rows;
 mod cleanup_applications;
 mod contextual_calls;
+mod domain_applications;
 mod explicit_arguments;
 mod native_query_lifetimes;
 mod placed_primitives;
@@ -222,6 +223,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         changed_owners.extend(result_locals::refresh(program, &unavailable)?);
         changed_owners.extend(result_locals::materialize_reference_observations(program)?);
         materialize_static_argument_types(program);
+        domain_applications::materialize(program)?;
         changed_owners.extend(cleanup_applications::materialize(program)?);
         native_query_lifetimes::retain(program)?;
         crate::preparation::elaborate_projected_receivers(program)?;

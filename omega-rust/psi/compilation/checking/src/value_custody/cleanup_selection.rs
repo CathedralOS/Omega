@@ -23,6 +23,13 @@ fn declarations(program: &dyn crate::CheckingInput) -> impl Iterator<Item = &Cle
                 .iter()
                 .filter_map(|domain| domain.cleanup_selection.as_ref()),
         )
+        .chain(
+            program
+                .applied_domain_applications
+                .iter()
+                .filter(|application| program.domain_definition(application.declaration).is_some())
+                .filter_map(|application| application.theory.cleanup_selection.as_ref()),
+        )
 }
 
 fn target(program: &dyn crate::CheckingInput, selection: &CleanupSelection) -> SymbolHandle {
@@ -178,7 +185,7 @@ pub(super) fn same_application(
 fn visit_type<'program>(
     program: &'program dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
-    domains: &mut Vec<SymbolHandle>,
+    domains: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     selected: &mut Option<&'program CleanupSelection>,
 ) -> Result<(), Diagnostic> {
     match program.type_reference_table.type_reference(reference) {
@@ -190,7 +197,13 @@ fn visit_type<'program>(
             visit_type(program, *base_type, domains, selected)?;
             for constraint in program.type_reference_table.constraints(*constraints) {
                 if let TypeConstraintNode::Domain(domain) = constraint {
-                    visit_domain(program, domain.symbol, domains, selected)?;
+                    visit_domain(
+                        program,
+                        domain.symbol,
+                        Some(domain.semantic_id),
+                        domains,
+                        selected,
+                    )?;
                 }
             }
         }
@@ -217,26 +230,37 @@ fn visit_type<'program>(
 fn visit_domain<'program>(
     program: &'program dyn crate::CheckingInput,
     symbol: SymbolHandle,
-    visited: &mut Vec<SymbolHandle>,
+    identity: Option<language_semantics::SemanticDomainId>,
+    visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     selected: &mut Option<&'program CleanupSelection>,
 ) -> Result<(), Diagnostic> {
-    if visited.contains(&symbol) {
-        return Ok(());
-    }
-    visited.push(symbol);
-    let Some(domain) = program.domain_definition(symbol) else {
+    let Some(domain) = identity
+        .and_then(|identity| program.domain_definition_for_instance(symbol, identity))
+        .or_else(|| program.domain_definition(symbol))
+    else {
         return Ok(());
     };
+    let instance = (symbol, domain.semantic_id);
+    if visited.contains(&instance) {
+        return Ok(());
+    }
+    visited.push(instance);
     if let Some(selection) = &domain.cleanup_selection {
         merge(program, selection, selected)?;
     }
     if let Some(alias) = &domain.alias {
         for constituent in &alias.constituents {
-            visit_domain(program, constituent.domain_symbol, visited, selected)?;
+            visit_domain(program, constituent.domain_symbol, None, visited, selected)?;
         }
     }
     for membership in typed_trees::domain::subject_membership_facts(program, domain) {
-        visit_domain(program, membership.domain_symbol, visited, selected)?;
+        visit_domain(
+            program,
+            membership.domain_symbol,
+            Some(membership.semantic_domain),
+            visited,
+            selected,
+        )?;
     }
     Ok(())
 }
