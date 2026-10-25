@@ -186,6 +186,8 @@ helper that passes does not close an item.
   opt-level-1 checks with phase profiling enabled. Immutable declaration pages
   and their fact-context index are shared across independent flow groups;
   local facts, fixed-point joins and unknown-input fallback remain per-group.
+  Whole-program reuse requires the original typed input and complete preparation
+  admission to match; a changed opaque application takes fresh checking.
   Six coarse summaries and bodyless-supply handling are insufficient:
   `CallFrameResolver` also derives returned-reference origins and binding
   stability, denotational admission checks observation freedom, and

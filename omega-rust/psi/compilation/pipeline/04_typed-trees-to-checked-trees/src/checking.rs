@@ -7,19 +7,19 @@
 //! carries package declaration authority. Checking cannot change the prepared
 //! input's checkpoint. Every production request enforces crash admission.
 //!
-//! A request checks its prepared program afresh unless its caller hands back a
-//! [`RetainedCheck`] from earlier in the same invocation. Package review is
-//! that caller: its bound pass recompiles occurrences whose discovered
-//! bindings changed, and provider settlement usually leaves the settled typed
-//! program identical, so the bound pass would repeat a judgment the discovery
-//! pass already made (about 200 s of std's checking per update in a debug
-//! build). The judgment is a pure function of the typed program, the
-//! checkpoint and the opaque-property receipts, so an equal input takes the
-//! retained judgment, which this function computed. Everything invocation-owned
-//! still runs on every request: preparation admits wire demands, constant
-//! completeness and asm before this entrance; checking admits declaration
-//! authority even after reuse. A global exact-input memo once served such repeats
-//! implicitly; it was deleted, and reuse is now an explicit caller input.
+//! Whole-program reuse has one gate: the source facade compares the original
+//! program and complete preparation admission against a [`RetainedCheck`] from
+//! this invocation. A miss prepares and checks afresh. Equal prepared trees
+//! and Copy receipts do not establish equal checking inputs: selected opaque
+//! carriers travel separately and determine structural plans. A second partial
+//! match here would silently keep the preceding Build's carrier.
+//!
+//! Retention keeps that original input beside the shared checked result, not
+//! another prepared-program copy. Matching dependency-body entailments remain
+//! independently reusable during fresh checking; pending checks supply none.
+//! Reuse conveys no authority: preparation admits wire demands, completeness
+//! and asm, and the source facade rejoins declaration and placement authority
+//! for each request. No process-global memo supplies an implicit judgment.
 
 pub(crate) mod call_acknowledgements;
 pub(crate) mod program_validation;
@@ -65,11 +65,9 @@ pub fn lower_typed_trees(
     preparation: TypedPreparation,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    lower_typed_trees_reusing(program, preparation, None, request, None, &[], false).map(
-        |outcome| {
-            std::sync::Arc::try_unwrap(outcome.checked).unwrap_or_else(|shared| (*shared).clone())
-        },
-    )
+    lower_typed_trees_reusing(program, preparation, None, request, &[], false).map(|outcome| {
+        std::sync::Arc::try_unwrap(outcome.checked).unwrap_or_else(|shared| (*shared).clone())
+    })
 }
 
 /// One language judgment kept with the exact input it judged. Only this module
@@ -82,9 +80,7 @@ pub struct RetainedCheck {
     /// equal request can take this judgment without preparing or checking.
     preparation_input: std::sync::Arc<typed_trees::TypedTrees>,
     preparation_admission: typed_trees_to_typed_trees::PreparationAdmission,
-    program: std::sync::Arc<typed_trees::FrozenTypedTrees>,
     admits_pending_inputs: bool,
-    opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     checked: std::sync::Arc<CheckedTrees>,
     /// Entailment judgments for non-instance machines in this strict check.
     /// A later dependent in the same invocation may reuse one of them when
@@ -154,13 +150,11 @@ pub fn reuse_retained_check(
     })
 }
 
-/// [`lower_typed_trees`], taking `prior`'s judgment when its program, checkpoint
-/// and receipts equal this preparation's, and returning this request's judgment
-/// for a later request when `retain`. `retained_input` is the pre-preparation
-/// program beside its admission snapshot, present only when `retain`: it lets
-/// a later caller prove equal inputs before preparing at all. Retention clones
-/// the input program and the result; only a caller that will ask again should
-/// request it.
+/// Check this prepared program, reusing only matching dependency-body entailments.
+/// Whole-program reuse belongs to the source facade's complete preparation-input
+/// match. Retain that original input beside the shared checked result when the
+/// caller will ask again; no second prepared-program snapshot or partial
+/// admission key is needed.
 pub fn lower_typed_trees_reusing(
     program: typed_trees::FrozenTypedTrees,
     preparation: TypedPreparation,
@@ -169,7 +163,6 @@ pub fn lower_typed_trees_reusing(
         typed_trees_to_typed_trees::PreparationAdmission,
     )>,
     request: &CheckingRequest<'_>,
-    prior: Option<&RetainedCheck>,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
@@ -179,60 +172,30 @@ pub fn lower_typed_trees_reusing(
         opaque_property_receipts,
         opaque_representation_selections,
     ) = preparation.into_checking_judgments();
-    let equal_prior = phase_profile::scope("05.d.0.prior_equality", || {
-        prior.filter(|prior| {
-            prior.admits_pending_inputs == admits_pending_inputs
-                && prior.opaque_property_receipts == opaque_property_receipts
-                && *prior.program == program
-        })
+    let (checked, dependency_bodies) = check_program(
+        program,
+        admits_pending_inputs,
+        mathematics,
+        opaque_property_receipts,
+        opaque_representation_selections,
+        prior_dependency_bodies,
+        retain && !admits_pending_inputs,
+    )?;
+    let checked = std::sync::Arc::new(checked);
+    let retained = retained_input.map(|(preparation_input, preparation_admission)| RetainedCheck {
+        preparation_input,
+        preparation_admission,
+        admits_pending_inputs,
+        checked: checked.clone(),
+        dependency_bodies,
     });
-    let took_prior = equal_prior.is_some();
-    let (checked, retained) = match equal_prior {
-        Some(prior) => (prior.checked.clone(), retain.then(|| prior.clone())),
-        None => {
-            let input = phase_profile::scope("05.d.0.retained_program_clone", || {
-                retained_input.map(|(preparation_input, preparation_admission)| {
-                    (
-                        preparation_input,
-                        preparation_admission,
-                        std::sync::Arc::new(program.clone()),
-                        opaque_property_receipts.clone(),
-                    )
-                })
-            });
-            let (checked, dependency_bodies) = check_program(
-                program,
-                admits_pending_inputs,
-                mathematics,
-                opaque_property_receipts,
-                opaque_representation_selections,
-                prior_dependency_bodies,
-                retain && !admits_pending_inputs,
-            )?;
-            let checked = std::sync::Arc::new(checked);
-            let retained = input.map(
-                |(preparation_input, preparation_admission, program, opaque_property_receipts)| {
-                    RetainedCheck {
-                        preparation_input,
-                        preparation_admission,
-                        program,
-                        admits_pending_inputs,
-                        opaque_property_receipts,
-                        checked: checked.clone(),
-                        dependency_bodies,
-                    }
-                },
-            );
-            (checked, retained)
-        }
-    };
     phase_profile::scope("05.e.declaration_authority", || {
         admit_declaration_authority(&checked, request)
     })?;
     Ok(CheckingOutcome {
         checked,
         retained,
-        took_prior,
+        took_prior: false,
     })
 }
 
