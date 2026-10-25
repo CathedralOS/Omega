@@ -182,10 +182,13 @@ reject twins. The target-body source realizes all four authored hosted targets;
 foreign-host execution has not been observed. These observations retain their
 actual source and producer hashes in `build/static-callback/`.
 
-Full outcome acceptance still requires the focused fixture inspections/goldens,
-required existing effects fixtures, scoped Clippy, final review and verified
-landing of the follow-on source. An open draft or a source inspection does not
-supply those results.
+The focused fixture inspections now pass, with nine new dual-engine outcomes
+and nine checked positives plus eleven intended rejects recorded through the
+published-base-plus-staged-source procedure. The three required existing effects
+fixtures pass their applicable checks; nominal and generic-schema witnesses also
+execute in both engines. Scoped Clippy and independent semantic source review
+pass. Full outcome acceptance still requires verified landing of the follow-on
+source. An open PR does not supply main acceptance.
 
 Run a place after ordinary package preparation:
 
