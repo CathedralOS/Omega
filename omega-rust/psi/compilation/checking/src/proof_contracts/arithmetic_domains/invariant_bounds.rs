@@ -865,10 +865,7 @@ fn integer_binder_bounds(
     state: &State,
     symbol: SymbolHandle,
 ) -> Option<Bounds> {
-    let binder = program
-        .machine_type_parameters(machine)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)?;
+    let binder = program.machine_lexical_type_parameter(machine, symbol)?;
     let type_reference = match binder.kind {
         typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
@@ -933,7 +930,7 @@ fn integer_binders(
     machine: &Machine,
 ) -> Vec<(SymbolHandle, Interval)> {
     let mut binders = Vec::new();
-    for parameter in program.machine_type_parameters(machine) {
+    for parameter in program.machine_lexical_type_parameters(machine) {
         let type_reference = match parameter.kind {
             typed_trees::data::TypeParameterKind::Const { type_reference }
             | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
@@ -1143,12 +1140,7 @@ fn requires_interval(
             )?;
         Some((
             memos,
-            (
-                machine_pos,
-                state_pos,
-                parameter,
-                include_machine_contracts,
-            ),
+            (machine_pos, state_pos, parameter, include_machine_contracts),
         ))
     });
     if let Some((memos, key)) = key

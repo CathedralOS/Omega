@@ -269,15 +269,13 @@ fn condition_belongs_to_state(
                     .is_some())
                     || (path.symbol == path.head_symbol
                         && program
-                            .machine_type_parameters(machine)
-                            .iter()
-                            .any(|parameter| {
-                                parameter.symbol == path.symbol
-                                    && matches!(
-                                        parameter.kind,
-                                        typed_trees::data::TypeParameterKind::Value { .. }
-                                            | typed_trees::data::TypeParameterKind::Const { .. }
-                                    )
+                            .machine_lexical_type_parameter(machine, path.symbol)
+                            .is_some_and(|parameter| {
+                                matches!(
+                                    parameter.kind,
+                                    typed_trees::data::TypeParameterKind::Value { .. }
+                                        | typed_trees::data::TypeParameterKind::Const { .. }
+                                )
                             })))
         }
         ExpressionNode::Member(member) => {

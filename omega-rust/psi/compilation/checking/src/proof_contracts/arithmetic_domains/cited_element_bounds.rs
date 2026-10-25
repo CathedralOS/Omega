@@ -451,15 +451,13 @@ impl Substitution<'_> {
             let local = self.program.state_local_declaration(state, argument.symbol);
             let static_parameter = self
                 .program
-                .machine_type_parameters(self.machine)
-                .iter()
-                .any(|parameter| {
-                    parameter.symbol == argument.symbol
-                        && matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Value { .. }
-                                | typed_trees::data::TypeParameterKind::Const { .. }
-                        )
+                .machine_lexical_type_parameter(self.machine, argument.symbol)
+                .is_some_and(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Value { .. }
+                            | typed_trees::data::TypeParameterKind::Const { .. }
+                    )
                 });
             if parameter.is_none() && local.is_none() && !static_parameter {
                 return None;

@@ -31,7 +31,9 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod closed_dispatch;
 pub use closed_dispatch::closed_requirement_dispatch_is_valid;
-pub(crate) use closed_dispatch::{capture_binding_is_exact, conformance_binding_is_exact};
+pub(crate) use closed_dispatch::{
+    capture_binding_is_exact, conformance_binding_is_exact, lexical_declaration_binding_is_exact,
+};
 mod argument_bounds;
 mod call_gates;
 pub(crate) mod dynamic_requirement;

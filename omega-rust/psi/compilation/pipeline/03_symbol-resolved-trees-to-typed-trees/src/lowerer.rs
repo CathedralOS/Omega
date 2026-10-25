@@ -668,6 +668,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // Capture applications are produced after authored typing.
         captured_machine_applications: _,
         captured_machine_states: _,
+        lexical_machine_declarations: _,
         trait_implementation_applications: _,
         // Checking instantiates selector slots after specialization.
         dynamic_slots: _,

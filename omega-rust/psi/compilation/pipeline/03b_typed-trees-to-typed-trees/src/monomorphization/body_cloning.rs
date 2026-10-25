@@ -18,6 +18,9 @@ use crate::monomorphization::{
 };
 use validation::contract_identities::specialization_selection_report_fingerprint;
 
+mod lexical_declarations;
+use lexical_declarations::{LexicalClone, LexicalPlan};
+
 fn bound_type_displays(
     bindings: &[Option<TypeReferenceHandle>],
     source: Option<&dyn ::validation::CheckingInput>,
@@ -81,6 +84,32 @@ pub(super) fn clone_single_specialized_machine(
         typed_trees::static_applications::StaticMachineApplicationHandle,
     )>,
 ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
+    clone_machine_in_context(
+        source,
+        program,
+        candidate,
+        ordinal,
+        normalized_template_identity,
+        accepted_template_commitment,
+        capture,
+        None,
+    )
+}
+
+fn clone_machine_in_context(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    candidate: &Candidate,
+    ordinal: usize,
+    normalized_template_identity: String,
+    accepted_template_commitment: Option<String>,
+    capture: Option<(
+        &typed_trees::typed_trees::ClosedConformanceApplication,
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+    )>,
+    lexical: Option<&LexicalClone<'_>>,
+) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Vec<Diagnostic>> {
+    let preserve_invocation = capture.is_some() || lexical.is_some();
     // Closure derives the record needed by executable substitution. Fitting
     // that record to the original binder is immutable checking's judgment.
     // Fail before allocating a clone, not through a prior-validator assumption.
@@ -129,8 +158,37 @@ pub(super) fn clone_single_specialized_machine(
         })
         .collect();
     let evidence_paths = candidate_conformance_fingerprint_arguments(candidate);
+    // Distinct applied lexical parents can own identical helper leaf names
+    // and invocation tuples. Their flattened instances retain that exact
+    // declaration context instead of colliding in the root namespace.
+    let direct_nested =
+        lexical_declarations::direct_children(source.unwrap_or(program), source_machine.symbol);
+    let declaration_key = if !direct_nested.is_empty()
+        || source
+            .unwrap_or(program)
+            .symbols
+            .get(source_machine.symbol)
+            .parent
+            .is_valid()
+            && source
+                .unwrap_or(program)
+                .symbols
+                .get(
+                    source
+                        .unwrap_or(program)
+                        .symbols
+                        .get(source_machine.symbol)
+                        .parent,
+                )
+                .kind
+                == SymbolKind::Machine
+    {
+        normalized_template_identity.as_str()
+    } else {
+        candidate.template.template_name.as_str()
+    };
     let selection_report_fingerprint = specialization_selection_report_fingerprint(
-        &candidate.template.template_name,
+        declaration_key,
         &type_identities,
         &const_identities,
         &machine_paths,
@@ -140,13 +198,15 @@ pub(super) fn clone_single_specialized_machine(
         "{}$specialized${selection_report_fingerprint:016x}${ordinal}",
         candidate.template.template_name
     );
-    let machine_symbol = program.symbols.insert_generated_root_from(
-        source_machine.symbol,
-        SymbolKind::Machine,
-        &generated_name,
-    );
+    let machine_symbol = lexical.map(|context| context.instance).unwrap_or_else(|| {
+        program.symbols.insert_generated_root_from(
+            source_machine.symbol,
+            SymbolKind::Machine,
+            &generated_name,
+        )
+    });
 
-    let invocation_binders = if capture.is_some() {
+    let invocation_binders = if preserve_invocation {
         source
             .unwrap_or(program)
             .machine_type_parameters(&source_machine)
@@ -162,39 +222,57 @@ pub(super) fn clone_single_specialized_machine(
     } else {
         Vec::new()
     };
-    let machine_children = program.symbols.insert_generated_children_from(
-        machine_symbol,
-        source_owned
+    let child_declarations = source_owned
+        .iter()
+        .map(|item| (item.symbol, SymbolKind::Field, item.name.as_str()))
+        .chain(
+            source_states
+                .iter()
+                .map(|state| (state.symbol, SymbolKind::State, state.name.as_str())),
+        )
+        .chain(
+            invocation_binders
+                .iter()
+                .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
+        )
+        .chain(
+            source_machine
+                .conformance_bounds
+                .iter()
+                .filter(|_| preserve_invocation)
+                .map(|bound| {
+                    (
+                        bound.binder,
+                        SymbolKind::ConformanceParameter,
+                        bound.binder_name.as_str(),
+                    )
+                }),
+        )
+        .chain(
+            direct_nested
+                .iter()
+                .map(|child| (child.symbol, SymbolKind::Machine, child.name.as_str())),
+        )
+        .map(|(symbol, kind, name)| (symbol, kind, name.to_owned()))
+        .collect::<Vec<_>>();
+    let machine_children = if let Some(context) = lexical {
+        child_declarations
             .iter()
-            .map(|item| (item.symbol, SymbolKind::Field, item.name.as_str()))
-            .chain(
-                source_states
-                    .iter()
-                    .map(|state| (state.symbol, SymbolKind::State, state.name.as_str())),
-            )
-            .chain(
-                invocation_binders
-                    .iter()
-                    .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
-            )
-            .chain(
-                source_machine
-                    .conformance_bounds
-                    .iter()
-                    .filter(|_| capture.is_some())
-                    .map(|bound| {
-                        (
-                            bound.binder,
-                            SymbolKind::ConformanceParameter,
-                            bound.binder_name.as_str(),
-                        )
-                    }),
-            ),
-    );
-    let machine_children: Vec<SymbolHandle> =
-        symbols::SymbolTableBuilder::child_handles(machine_children).collect();
+            .map(|(symbol, _, _)| context.remapped(*symbol))
+            .collect()
+    } else {
+        let children = program.symbols.insert_generated_children_from(
+            machine_symbol,
+            child_declarations
+                .iter()
+                .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
+        );
+        symbols::SymbolTableBuilder::child_handles(children).collect::<Vec<_>>()
+    };
     let mut next_child = machine_children.into_iter();
-    let mut symbol_map = vec![(source_machine.symbol, machine_symbol)];
+    let mut symbol_map = lexical
+        .map(|context| context.symbols.to_vec())
+        .unwrap_or_else(|| vec![(source_machine.symbol, machine_symbol)]);
     for item in &source_owned {
         symbol_map.push((
             item.symbol,
@@ -208,7 +286,7 @@ pub(super) fn clone_single_specialized_machine(
     symbol_map.extend(state_symbols.iter().copied());
 
     // The method's invocation namespace remains a separate child telescope.
-    if capture.is_some() {
+    if preserve_invocation {
         for parameter in source
             .unwrap_or(program)
             .machine_type_parameters(&source_machine)
@@ -235,20 +313,47 @@ pub(super) fn clone_single_specialized_machine(
                     )
                 })
                 .collect::<Vec<_>>();
-            let copied = program.symbols.insert_generated_children_from(
-                fresh,
-                children
-                    .iter()
-                    .map(|(child, kind, name)| (*child, *kind, name.as_str())),
-            );
-            symbol_map.extend(
-                children
-                    .iter()
-                    .map(|(child, _, _)| *child)
-                    .zip(symbols::SymbolTableBuilder::child_handles(copied)),
-            );
+            if lexical.is_none() {
+                let copied = program.symbols.insert_generated_children_from(
+                    fresh,
+                    children
+                        .iter()
+                        .map(|(child, kind, name)| (*child, *kind, name.as_str())),
+                );
+                symbol_map.extend(
+                    children
+                        .iter()
+                        .map(|(child, _, _)| *child)
+                        .zip(symbols::SymbolTableBuilder::child_handles(copied)),
+                );
+            }
         }
     }
+
+    let lexical_plan = if lexical.is_none() {
+        let declarations = direct_nested
+            .iter()
+            .map(|child| {
+                (
+                    child.symbol,
+                    next_child.next().expect("nested declaration symbol"),
+                )
+            })
+            .collect::<Vec<_>>();
+        let plan = LexicalPlan::allocate(
+            source,
+            program,
+            source_machine.symbol,
+            machine_symbol,
+            &state_symbols,
+            &declarations,
+            &symbol_map,
+        )?;
+        symbol_map.extend(plan.symbols.iter().copied());
+        Some(plan)
+    } else {
+        None
+    };
 
     // A `Value` binder bound to a runtime argument is realized as an ordinary
     // trailing parameter on every cloned state: executable occurrences remap
@@ -265,7 +370,7 @@ pub(super) fn clone_single_specialized_machine(
         .iter()
         .zip(&candidate.runtime_value_bindings)
         .filter_map(|((symbol, name, declared_type), runtime)| {
-            runtime.as_ref().map(|_| {
+            runtime.as_ref().filter(|_| lexical.is_none()).map(|_| {
                 (
                     *symbol,
                     typed_trees::name::Identifier::generated(name.clone()),
@@ -291,29 +396,42 @@ pub(super) fn clone_single_specialized_machine(
                 _ => None,
             })
             .collect();
-        let children = program.symbols.insert_generated_children_from(
-            *state_symbol,
-            parameters
-                .iter()
-                .map(|parameter| {
-                    (
-                        parameter.symbol,
-                        SymbolKind::Parameter,
-                        parameter.name.as_str(),
-                    )
-                })
-                .chain(
-                    realized_parameters
-                        .iter()
-                        .map(|(binder, name, _)| (*binder, SymbolKind::Parameter, name.as_str())),
+        let declarations = parameters
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.symbol,
+                    SymbolKind::Parameter,
+                    parameter.name.as_str(),
                 )
-                .chain(
-                    locals
-                        .iter()
-                        .map(|local| (local.symbol, SymbolKind::Local, local.name.as_str())),
-                ),
-        );
-        let mut children = symbols::SymbolTableBuilder::child_handles(children);
+            })
+            .chain(
+                realized_parameters
+                    .iter()
+                    .map(|(binder, name, _)| (*binder, SymbolKind::Parameter, name.as_str())),
+            )
+            .chain(
+                locals
+                    .iter()
+                    .map(|local| (local.symbol, SymbolKind::Local, local.name.as_str())),
+            )
+            .map(|(symbol, kind, name)| (symbol, kind, name.to_owned()))
+            .collect::<Vec<_>>();
+        let children = if let Some(context) = lexical {
+            declarations
+                .iter()
+                .map(|(symbol, _, _)| context.remapped(*symbol))
+                .collect::<Vec<_>>()
+        } else {
+            let copied = program.symbols.insert_generated_children_from(
+                *state_symbol,
+                declarations
+                    .iter()
+                    .map(|(symbol, kind, name)| (*symbol, *kind, name.as_str())),
+            );
+            symbols::SymbolTableBuilder::child_handles(copied).collect::<Vec<_>>()
+        };
+        let mut children = children.into_iter();
         for parameter in parameters {
             symbol_map.push((
                 parameter.symbol,
@@ -358,7 +476,11 @@ pub(super) fn clone_single_specialized_machine(
     remap_progress(&mut cloned.termination_plan.checked_summary);
     cloned.is_public = false;
     cloned.symbol = machine_symbol;
-    cloned.name = typed_trees::name::Identifier::generated(generated_name);
+    cloned.name = if lexical.is_some() {
+        source_machine.name.clone()
+    } else {
+        typed_trees::name::Identifier::generated(generated_name)
+    };
     if let Some((attached_data, attached_data_symbol)) = specialized_attached_data {
         cloned.attached_data = Some(attached_data);
         cloned.attached_data_symbol = attached_data_symbol;
@@ -366,7 +488,7 @@ pub(super) fn clone_single_specialized_machine(
         cloned.attached_data = None;
         cloned.attached_data_symbol = SymbolHandle::invalid();
     }
-    cloned.type_parameters = if capture.is_some() {
+    cloned.type_parameters = if preserve_invocation {
         let parameters = source
             .unwrap_or(program)
             .machine_type_parameters(&source_machine)
@@ -404,7 +526,7 @@ pub(super) fn clone_single_specialized_machine(
         } else {
             TypeReferenceHandle::invalid()
         };
-    if capture.is_none() {
+    if !preserve_invocation {
         cloned.conformance_bounds.clear();
     } else {
         for bound in &mut cloned.conformance_bounds {
@@ -500,7 +622,11 @@ pub(super) fn clone_single_specialized_machine(
     let owned_symbol_offset = 1;
     for (index, source_item) in source_owned.iter().enumerate() {
         let mut item = source_item.clone();
-        item.symbol = symbol_map[owned_symbol_offset + index].1;
+        item.symbol = if lexical.is_some() {
+            remapped_symbol(source_item.symbol, &symbol_map)
+        } else {
+            symbol_map[owned_symbol_offset + index].1
+        };
         item.type_reference =
             copy_type_reference(source, program, source_item.type_reference, &symbol_map);
         item.initial_value =
@@ -717,6 +843,26 @@ pub(super) fn clone_single_specialized_machine(
     // Type payloads already name the fresh instance, whose source telescope
     // must be rejoined even while its body is still under construction. This
     // relation is preparation data; immutable checking still admits its tuple.
+    if let Some(context) = lexical {
+        let states = program
+            .captured_machine_states
+            .insert_many(state_symbols.iter().map(|(template, instance)| {
+                typed_trees::typed_trees::CapturedMachineState {
+                    template: *template,
+                    instance: *instance,
+                }
+            }));
+        program.lexical_machine_declarations.insert(
+            typed_trees::typed_trees::LexicalMachineDeclaration {
+                template: source_machine.symbol,
+                instance: cloned.symbol,
+                parent_template: context.parent_template,
+                parent_instance: context.parent_instance,
+                parent_application: context.parent_application,
+                states,
+            },
+        );
+    }
     if let Some((application, supplying_application)) = capture {
         let retained = program
             .expression_table
@@ -744,8 +890,9 @@ pub(super) fn clone_single_specialized_machine(
             },
         );
     }
-    if let Some((application, supplying_application)) =
-        capture.filter(|(application, _)| !application.lifetime_arguments.is_empty())
+    if let Some((application, supplying_application)) = capture
+        .or_else(|| lexical.and_then(|context| context.capture))
+        .filter(|(application, _)| !application.lifetime_arguments.is_empty())
     {
         let owner = program
             .expression_table
@@ -843,11 +990,24 @@ pub(super) fn clone_single_specialized_machine(
                     .collect()
             })
             .collect();
+    if let Some((invocation, states)) = lexical.and_then(|context| context.invocation) {
+        crate::monomorphization::body_rewriting::restore_recursive_invocation_targets(
+            program,
+            invocation,
+            states,
+            expression_start,
+            cloned.states,
+        );
+    }
     rewrite_cloned_calls(
         source,
         program,
         candidate,
-        &state_symbols,
+        if lexical.is_some() {
+            &[]
+        } else {
+            &state_symbols
+        },
         &state_transition_subjects,
         expression_start,
         cloned.states,
@@ -903,7 +1063,7 @@ pub(super) fn clone_single_specialized_machine(
     validation::resolve_selected_dynamic_call_targets(program, &instance)?;
     let operator_realizations = closed_operator_realizations_for_machine(program, instance_symbol)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let binding_application = if capture.is_some() {
+    let binding_application = if preserve_invocation {
         // The capture producer retained the original map operands and the
         // admitted executable callback roster independently. Reconstructing
         // it from the executable candidate would erase that source custody.
@@ -911,7 +1071,7 @@ pub(super) fn clone_single_specialized_machine(
     } else {
         super::applications::retain_instance(source, program, candidate, instance_symbol)
     };
-    if capture.is_none() {
+    if !preserve_invocation {
         program
             .machine_specializations
             .push(typed_trees::typed_trees::MachineSpecialization {
@@ -938,6 +1098,18 @@ pub(super) fn clone_single_specialized_machine(
                 normalized_template_identity,
                 accepted_template_commitment,
             });
+    }
+
+    if let Some(plan) = lexical_plan {
+        plan.materialize(
+            source,
+            program,
+            candidate,
+            binding_application,
+            ordinal,
+            preserve_invocation,
+            capture,
+        )?;
     }
 
     // Exact type/const/evidence substitution and retained tuple copying are

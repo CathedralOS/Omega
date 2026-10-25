@@ -249,6 +249,19 @@ pub struct CapturedMachineApplication {
     pub states: HandleSpan<CapturedMachineState>,
 }
 
+/// A nested declaration copied under one exact applied lexical parent.
+/// The parent's static substitution closes free declaration bindings; this
+/// record neither adds runtime parameters nor applies the child's own binders.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LexicalMachineDeclaration {
+    pub template: symbols::SymbolHandle,
+    pub instance: symbols::SymbolHandle,
+    pub parent_template: symbols::SymbolHandle,
+    pub parent_instance: symbols::SymbolHandle,
+    pub parent_application: crate::static_applications::StaticMachineApplicationHandle,
+    pub states: HandleSpan<CapturedMachineState>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CapturedMachineState {
     pub template: symbols::SymbolHandle,

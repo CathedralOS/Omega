@@ -379,7 +379,7 @@ pub(crate) fn rewrite_cloned_calls(
 /// application solver examines `Next`. Preserve that declaration target and
 /// let ordinary selection (including an exact cache hit) choose its instance.
 /// Calls to subordinate states still belong to the copied invocation.
-fn restore_recursive_invocation_targets(
+pub(crate) fn restore_recursive_invocation_targets(
     program: &mut TypedTrees,
     candidate: &Candidate,
     state_symbols: &[(SymbolHandle, SymbolHandle)],

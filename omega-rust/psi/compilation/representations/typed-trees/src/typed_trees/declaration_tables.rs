@@ -353,18 +353,77 @@ impl TypedTrees {
         )
     }
 
-    /// An authored member may be open because its selecting map owns captures,
-    /// even when the member's independent invocation telescope is empty.
-    /// Closed executable copies are not authored rows in that map.
+    /// Applied lexical containment retains closed declaration context without
+    /// replacing the authored ownership used for lifetime binder identities.
+    pub fn applied_machine_parent(
+        &self,
+        mut owner: symbols::SymbolHandle,
+    ) -> symbols::SymbolHandle {
+        let mut visited = Vec::new();
+        loop {
+            if visited.contains(&owner) {
+                return symbols::SymbolHandle::invalid();
+            }
+            visited.push(owner);
+            if self.executable_application_template(owner).is_err() {
+                return symbols::SymbolHandle::invalid();
+            }
+            if let Some((_, declaration)) = self
+                .lexical_machine_declarations
+                .iter()
+                .find(|(_, row)| row.instance == owner)
+            {
+                return declaration.parent_instance;
+            }
+            // A checked map capture has already applied the selecting map's
+            // open telescope; its source parent is not a second open context.
+            if self
+                .captured_machine_applications
+                .iter()
+                .any(|(_, row)| row.instance == owner)
+            {
+                return symbols::SymbolHandle::invalid();
+            }
+            if let Some(invocation) = self
+                .machine_specializations
+                .iter()
+                .find(|row| row.instance == owner)
+            {
+                owner = invocation.template;
+                continue;
+            }
+            return self.declaration_scope_parent(owner);
+        }
+    }
+
+    /// Open ancestor binders remain source formation obligations. They do not
+    /// denote executable bodies until their exact lexical application closes.
     pub fn callable_body_has_open_parameters(&self, machine: &crate::machine::Machine) -> bool {
-        machine.has_specialization_parameters()
-            || self.conformances().iter().any(|conformance| {
-                (!self.conformance_type_parameters(conformance).is_empty()
-                    || !conformance.lifetime_parameters.is_empty())
-                    && conformance.rows.iter().any(|row| {
-                        row.source.owns_realization() && row.realization_machine == machine.symbol
-                    })
-            })
+        if machine.has_specialization_parameters() {
+            return true;
+        }
+        let mut owner = machine.symbol;
+        let mut visited = Vec::new();
+        loop {
+            if visited.contains(&owner) {
+                return true;
+            }
+            visited.push(owner);
+            owner = self.applied_machine_parent(owner);
+            if !owner.is_valid() {
+                return false;
+            }
+            if let Some(parent) = self.machine_by_symbol(owner) {
+                if parent.has_specialization_parameters() {
+                    return true;
+                }
+                continue;
+            }
+            return self.conformance_by_symbol(owner).is_some_and(|parent| {
+                !self.conformance_type_parameters(parent).is_empty()
+                    || !parent.lifetime_parameters.is_empty()
+            });
+        }
     }
 
     /// The unique authored template relation for an executable application.
@@ -384,12 +443,51 @@ impl TypedTrees {
                     .iter()
                     .filter(|(_, row)| row.instance == instance)
                     .map(|(_, row)| row.template),
+            )
+            .chain(
+                self.lexical_machine_declarations
+                    .iter()
+                    .filter(|(_, row)| row.instance == instance)
+                    .map(|(_, row)| row.template),
             );
         let template = templates.next();
         if templates.next().is_some() {
             return Err("executable application has ambiguous template ownership");
         }
         Ok(template)
+    }
+
+    /// The exact supplying substitution of an executable declaration copy.
+    pub fn executable_binding_application(
+        &self,
+        instance: symbols::SymbolHandle,
+    ) -> Result<Option<crate::static_applications::StaticMachineApplicationHandle>, &'static str>
+    {
+        let mut applications = self
+            .machine_specializations
+            .iter()
+            .filter(|row| row.instance == instance)
+            .map(|row| row.binding_application)
+            .chain(
+                self.captured_machine_applications
+                    .iter()
+                    .filter(|(_, row)| row.instance == instance)
+                    .map(|(_, row)| row.binding_application),
+            )
+            .chain(
+                self.lexical_machine_declarations
+                    .iter()
+                    .filter(|(_, row)| row.instance == instance)
+                    .map(|(_, row)| row.parent_application),
+            );
+        let application = applications.next();
+        if applications.next().is_some() {
+            return Err("executable declaration has ambiguous supplying applications");
+        }
+        if application.is_some_and(|application| !application.is_valid()) {
+            return Err("executable declaration has a missing supplying application");
+        }
+        Ok(application)
     }
 
     /// Follow retained invocation/capture ownership to an authored declaration.
@@ -533,6 +631,12 @@ impl TypedTrees {
                         .iter()
                         .filter(|(_, application)| application.instance == owner)
                         .map(|(_, application)| application.template),
+                )
+                .chain(
+                    self.lexical_machine_declarations
+                        .iter()
+                        .filter(|(_, row)| row.instance == owner)
+                        .map(|(_, row)| row.template),
                 );
             let Some(template) = templates.next() else {
                 break;

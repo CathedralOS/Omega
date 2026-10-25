@@ -337,3 +337,84 @@ pub(crate) fn conformance_binding_is_exact(
         Err("capture lifetime tuple differs from original map telescope")
     }
 }
+
+/// Replay declaration context independently of invocation or named-map capture.
+/// Exact parent authority may itself be a lexical application at a prior rung.
+pub(crate) fn lexical_declaration_binding_is_exact(
+    program: &dyn crate::CheckingInput,
+    declaration: &typed_trees::typed_trees::LexicalMachineDeclaration,
+) -> Result<(), &'static str> {
+    if !declaration.parent_application.is_valid() {
+        return Err("lexical declaration lost its parent application");
+    }
+    if program.executable_application_template(declaration.instance)? != Some(declaration.template)
+        || program.executable_application_template(declaration.parent_instance)?
+            != Some(declaration.parent_template)
+    {
+        return Err("lexical declaration has ambiguous or unrelated executable ownership");
+    }
+    if program.symbols.get(declaration.template).parent != declaration.parent_template
+        || program.symbols.get(declaration.instance).parent != declaration.parent_instance
+        || program.symbols.get(declaration.instance).generated_from != declaration.template
+    {
+        return Err("lexical declaration does not retain exact source and applied ancestry");
+    }
+    if program.executable_binding_application(declaration.parent_instance)?
+        != Some(declaration.parent_application)
+    {
+        return Err("lexical declaration substitution differs from its parent's exact application");
+    }
+    let template = program
+        .machine_by_symbol(declaration.template)
+        .ok_or("lexical declaration lost its source body")?;
+    let instance = program
+        .machine_by_symbol(declaration.instance)
+        .ok_or("lexical declaration lost its applied body")?;
+    let parameters = program.machine_type_parameters(template);
+    let applied = program.machine_type_parameters(instance);
+    if template.lifetime_parameters != instance.lifetime_parameters
+        || parameters.len() != applied.len()
+        || !parameters.iter().zip(applied).all(|(source, copied)| {
+            source.name == copied.name
+                && source.bounds == copied.bounds
+                && std::mem::discriminant(&source.kind) == std::mem::discriminant(&copied.kind)
+                && program.symbols.get(copied.symbol).parent == instance.symbol
+                && program.symbols.get(copied.symbol).generated_from == source.symbol
+        })
+    {
+        return Err("lexical declaration changed its independent invocation telescope");
+    }
+    let states = program
+        .captured_machine_states
+        .span(declaration.states)
+        .ok_or("lexical declaration has stale entry correspondence")?;
+    let originals = program.machine_states(template);
+    let applied = program.machine_states(instance);
+    if states.len() != originals.len()
+        || states.len() != applied.len()
+        || !states
+            .iter()
+            .zip(originals.iter().zip(applied))
+            .all(|(mapping, (source, copied))| {
+                mapping.template == source.symbol
+                    && mapping.instance == copied.symbol
+                    && program.symbols.get(copied.symbol).generated_from == source.symbol
+            })
+    {
+        return Err("lexical declaration has incomplete entry correspondence");
+    }
+    for (source, copied) in originals.iter().zip(applied) {
+        let parameters = program.state_parameters(source);
+        let copied = program.state_parameters(copied);
+        if parameters.len() != copied.len()
+            || !parameters.iter().zip(copied).all(|(source, copied)| {
+                source.is_mutable == copied.is_mutable
+                    && source.relevance == copied.relevance
+                    && program.symbols.get(copied.symbol).generated_from == source.symbol
+            })
+        {
+            return Err("lexical declaration added or captured runtime arguments");
+        }
+    }
+    Ok(())
+}

@@ -359,57 +359,151 @@ pub fn prepare_specialization_contract_identities(
             ),
         });
     }
-    for specialization in &program.machine_specializations {
-        let template_index = match templates
-            .iter()
-            .position(|(symbol, _, _)| *symbol == specialization.template)
-        {
-            Some(template_index) => template_index,
-            None => {
-                let machine_index = program
-                    .machine_position_by_symbol(specialization.template)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "generic specialization lost its authored template declaration",
-                        )]
-                    })?;
-                let bytes = canonical_template_contract_bytes(
-                    program,
-                    machine_index,
-                    &effects.service_reaches,
-                    &effects.operational,
-                )
-                .map_err(|diagnostic| vec![diagnostic])?;
-                let commitment = machine_template_commitment(&bytes);
-                let template_index = templates.len();
-                templates.push((specialization.template, bytes, commitment));
-                template_index
+    let mut invocations = program.machine_specializations.iter().collect::<Vec<_>>();
+    let mut declarations = program
+        .lexical_machine_declarations
+        .iter()
+        .map(|(_, row)| row)
+        .collect::<Vec<_>>();
+    while !invocations.is_empty() || !declarations.is_empty() {
+        let before = invocations.len() + declarations.len();
+        let mut pending = Vec::new();
+        for specialization in invocations {
+            let template_dependency = program
+                .executable_application_template(specialization.template)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            if template_dependency.is_some()
+                && !identities
+                    .iter()
+                    .any(|identity| identity.instance == specialization.template)
+            {
+                pending.push(specialization);
+                continue;
             }
-        };
-        let (_, template_bytes, template_commitment) = &templates[template_index];
-        let mut composed_template_bytes = template_bytes.clone();
-        if let Some(capture_identity) = identities
-            .iter()
-            .find(|identity| identity.instance == specialization.template)
-        {
-            composed_template_bytes.extend(b"omega.invocation-of-captured-method.v1\0");
-            composed_template_bytes.extend(capture_identity.commitment.as_bytes());
+            let template_index = match templates
+                .iter()
+                .position(|(symbol, _, _)| *symbol == specialization.template)
+            {
+                Some(template_index) => template_index,
+                None => {
+                    let machine_index = program
+                        .machine_position_by_symbol(specialization.template)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "generic specialization lost its authored template declaration",
+                            )]
+                        })?;
+                    let bytes = canonical_template_contract_bytes(
+                        program,
+                        machine_index,
+                        &effects.service_reaches,
+                        &effects.operational,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?;
+                    let commitment = machine_template_commitment(&bytes);
+                    let template_index = templates.len();
+                    templates.push((specialization.template, bytes, commitment));
+                    template_index
+                }
+            };
+            let (_, template_bytes, template_commitment) = &templates[template_index];
+            let mut composed_template_bytes = template_bytes.clone();
+            if let Some(capture_identity) = identities
+                .iter()
+                .find(|identity| identity.instance == specialization.template)
+            {
+                composed_template_bytes.extend(b"omega.invocation-of-captured-method.v1\0");
+                composed_template_bytes.extend(capture_identity.commitment.as_bytes());
+            }
+            identities.push(
+                machine_specialization_identity(
+                    program,
+                    contracts,
+                    specialization,
+                    &effects.operational,
+                    &composed_template_bytes,
+                    *template_commitment,
+                )
+                .map_err(|diagnostic| vec![diagnostic])?,
+            );
         }
-        identities.push(
-            machine_specialization_identity(
-                program,
-                contracts,
-                specialization,
-                &effects.operational,
-                &composed_template_bytes,
-                *template_commitment,
-            )
-            .map_err(|diagnostic| vec![diagnostic])?,
-        );
+        invocations = pending;
+        let mut pending = Vec::new();
+        for declaration in declarations {
+            let Some(parent) = identities
+                .iter()
+                .find(|identity| identity.instance == declaration.parent_instance)
+            else {
+                pending.push(declaration);
+                continue;
+            };
+            let identity = lexical_declaration_identity(program, effects, declaration, parent)?;
+            identities.push(identity);
+        }
+        declarations = pending;
+        if before == invocations.len() + declarations.len() {
+            return Err(vec![Diagnostic::error(
+                "executable declaration context has cyclic or missing application custody",
+            )]);
+        }
     }
     Ok(checked_trees::CheckedSpecializationIdentities::with_rows(
         identities,
     ))
+}
+
+fn lexical_declaration_identity(
+    program: &dyn crate::CheckingInput,
+    effects: &crate::PreparedEffectPlans,
+    declaration: &typed_trees::typed_trees::LexicalMachineDeclaration,
+    parent: &checked_trees::CheckedMachineSpecializationIdentity,
+) -> Result<checked_trees::CheckedMachineSpecializationIdentity, Vec<Diagnostic>> {
+    super::calls::lexical_declaration_binding_is_exact(program, declaration).map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "nested declaration context does not replay: {reason}"
+        ))]
+    })?;
+    let index = program
+        .machine_position_by_symbol(declaration.template)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "nested declaration lost its exact template",
+            )]
+        })?;
+    let bytes = canonical_template_contract_bytes(
+        program,
+        index,
+        &effects.service_reaches,
+        &effects.operational,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
+    let template = machine_template_commitment(&bytes);
+    let instance = program
+        .machine_by_symbol(declaration.instance)
+        .and_then(|machine| normalized_machine_identity(program, machine))
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "nested declaration has no normalized applied identity",
+            )]
+        })?;
+    let mut digest =
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega.lexical-machine-declaration.v1\0");
+    digest.raw(&template.as_bytes());
+    // Public parent contracts alone do not identify a static closure. The
+    // parent's checked application includes exact type/const/callback/evidence
+    // operands, recursively including every earlier lexical context rung.
+    digest.raw(&parent.commitment.as_bytes());
+    let mut identity = Vec::new();
+    encode_identity_text(&instance, &mut identity);
+    digest.raw(&identity);
+    Ok(checked_trees::CheckedMachineSpecializationIdentity {
+        instance: declaration.instance,
+        template_contract_commitment: template,
+        machine_argument_contract_commitments: parent.machine_argument_contract_commitments.clone(),
+        commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
+            digest.finish(),
+        ),
+    })
 }
 
 fn captured_machine_contracts(

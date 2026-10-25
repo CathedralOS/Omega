@@ -366,10 +366,7 @@ fn integer_binder_operand(
     if !path.symbol.is_valid() || path.symbol != path.head_symbol {
         return None;
     }
-    let binder = program
-        .machine_type_parameters(machine)
-        .iter()
-        .find(|parameter| parameter.symbol == path.symbol)?;
+    let binder = program.machine_lexical_type_parameter(machine, path.symbol)?;
     let type_reference = match binder.kind {
         typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
