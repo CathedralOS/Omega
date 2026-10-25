@@ -25,6 +25,26 @@ pub fn update_scalar_field(
     let source = destination.get(..extent).ok_or_else(|| {
         MaterializationDiagnostic("scalar field replacement exceeds supplied storage".into())
     })?;
+    let mut staged = source.to_vec();
+    stage_scalar_field(layout, value, byte_order, &mut staged)?;
+    destination[..extent].copy_from_slice(&staged);
+    Ok(())
+}
+
+/// Replace one scalar inside caller-owned private scratch without allocating
+/// a second byte image. Other fields, padding and the allocation tail remain
+/// unchanged on success. On refusal scratch contents are unspecified: callers
+/// must not publish them. Use `update_scalar_field` for failure-atomic mutation.
+pub fn stage_scalar_field(
+    layout: &LayoutPlanReport,
+    value: &super::field_values::ScalarFieldValue,
+    byte_order: ByteOrder,
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let extent = fixed_layout_byte_len(layout, "scalar field replacement")?;
+    let staged = destination.get_mut(..extent).ok_or_else(|| {
+        MaterializationDiagnostic("scalar field replacement exceeds supplied storage".into())
+    })?;
     let key = materialization_field_key(&value.field, value.member_identity);
     let mut entries = layout
         .entries
@@ -36,11 +56,9 @@ pub fn update_scalar_field(
             "scalar field is absent from its retained plan".into(),
         ));
     }
-    let mut staged = source.to_vec();
     for entry in entries {
-        crate::symbolic_materialization::apply_scalar_entry(&mut staged, byte_order, entry, value)?;
+        crate::symbolic_materialization::apply_scalar_entry(staged, byte_order, entry, value)?;
     }
-    destination[..extent].copy_from_slice(&staged);
     Ok(())
 }
 
@@ -336,7 +354,10 @@ mod tests {
         for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
             let mut image = [0xa5; 12];
             let value = crate::ScalarFieldValue::new("small", 8, 2).unwrap();
+            let mut scratch = image;
+            stage_scalar_field(&layout, &value, order, &mut scratch).unwrap();
             update_scalar_field(&layout, &value, order, &mut image).unwrap();
+            assert_eq!(scratch, image);
             let changed = if order == ByteOrder::LittleEndian {
                 0
             } else {
@@ -356,7 +377,9 @@ mod tests {
                 [2]
             );
             let signed = crate::ScalarFieldValue::new("signed", 64, (-2_i64) as u64).unwrap();
+            stage_scalar_field(&layout, &signed, order, &mut scratch).unwrap();
             update_scalar_field(&layout, &signed, order, &mut image).unwrap();
+            assert_eq!(scratch, image);
             expected[4] = 0xfe;
             assert_eq!(image, expected);
             let too_large = crate::ScalarFieldValue::new("signed", 64, 128).unwrap();
@@ -365,6 +388,20 @@ mod tests {
             let missing = crate::ScalarFieldValue::new("absent", 8, 0).unwrap();
             assert!(update_scalar_field(&layout, &missing, order, &mut image).is_err());
             assert_eq!(image, expected);
+
+            // A later fragment can refuse after earlier bits were staged. The
+            // atomic wrapper must not publish that partial update or touch tail.
+            let mut invalid = layout.clone();
+            invalid
+                .entries
+                .push(entry("small", LayoutPlacementReport::At { offset: 8 }));
+            let mut atomic = [0xa5; 12];
+            assert!(update_scalar_field(&invalid, &value, order, &mut atomic).is_err());
+            assert_eq!(atomic, [0xa5; 12]);
+            let mut private = atomic;
+            assert!(stage_scalar_field(&invalid, &value, order, &mut private).is_err());
+            assert_ne!(private[..8], atomic[..8]);
+            assert_eq!(private[8..], atomic[8..]);
         }
     }
 

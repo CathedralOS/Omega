@@ -297,6 +297,12 @@ or resident custody. This uses the public SDK, not compiler-internal mutation.
 Provider entry binding reserves two logical cells, refuses with one cell of
 headroom while returning the original buffer, then succeeds on retry. Teardown
 releases the allocation and every transported descriptor/profile row.
+The read provision and `external-extent-write` execute borrowed and loaded
+artifacts across one-unit fuel pauses. Their eight-byte transfers fit exactly
+eight payload bytes; seven bytes and one byte refuse with sticky live-storage
+exhaustion, no published result and no additional charge on resume. Scratch
+retires before completion or refusal. These observations cover compiler-owned
+transfer payloads, not the host-supplied allocation or generic temporary memory.
 Run with `OMEGA_CORPUS_HOST_PROVISIONS=1` and filter
 `pass/layouts/extent_view_external_content`; without opt-in it records
 `unrequested`. Cathedral's QEMU boot supplies the separate native observation.

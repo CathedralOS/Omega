@@ -1032,9 +1032,12 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     initialization/extraction image payloads now reserve before allocation through encoding,
     nested/array staging and decoding; caller-owned codec scratch removes the
     hidden duplicate image. Exact/short payload controls separately refuse
-    initialization and extraction without publishing custody. Resident field-access
-    transfer/codec scratch (`provider_storage/field_access.rs`) and cumulative
-    result custody remain.
+    initialization and extraction without publishing custody. Provider field-access
+    transfer windows use the same payload owner through the single external
+    write; caller-private scalar staging removes the duplicate codec image and
+    scalar decoding uses bounded inline storage. External read/write source
+    controls cover exact/short budgets, borrowed/loaded artifacts, fuel pauses
+    and sticky refusal. Cumulative result custody remains.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build

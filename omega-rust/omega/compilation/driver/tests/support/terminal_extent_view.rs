@@ -17,9 +17,10 @@ use semantic_vocabulary::IntegerValue;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalInstanceError, TerminalProgram, TerminalProviderStorageInput,
-    TerminalRuntimeSupplyRequest, TerminalScalarValue, TerminalStructuralInputs,
-    TerminalStructuralScalarFieldValue, TerminalStructuralValue, admit_provider_installation,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalProgram,
+    TerminalProviderStorageInput, TerminalRuntimeSupplyRequest, TerminalScalarValue,
+    TerminalStructuralInputs, TerminalStructuralScalarFieldValue, TerminalStructuralValue,
+    admit_provider_installation,
 };
 use terminal_psi::StructuralTypeShape;
 
@@ -46,23 +47,30 @@ pub(super) fn observe(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     writes: bool,
 ) -> Result<(), String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| exercise(artifact, writes))).map_err(
-        |failure| {
-            failure
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| {
-                    failure
-                        .downcast_ref::<&str>()
-                        .map(|message| (*message).to_owned())
-                })
-                .unwrap_or_else(|| "external extent view provision failed".to_owned())
-        },
-    )
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
+        for program in [TerminalProgram::borrow(artifact.view()), loaded] {
+            exercise(artifact, &program, writes);
+        }
+    }))
+    .map_err(|failure| {
+        failure
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| {
+                failure
+                    .downcast_ref::<&str>()
+                    .map(|message| (*message).to_owned())
+            })
+            .unwrap_or_else(|| "external extent view provision failed".to_owned())
+    })
 }
 
-fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) {
-    let program = TerminalProgram::borrow(artifact.view());
+fn exercise(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    program: &TerminalProgram<'_>,
+    writes: bool,
+) {
     let module = program.module();
     let plan = module
         .placement_lifecycle_plans
@@ -114,23 +122,34 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
     else {
         panic!("extent record");
     };
-    for (second_word, compatible_transfer, bind_backing, crosswire, writable) in [
-        (41_u64, true, true, false, writes),
-        (99, true, true, false, writes),
-        (41, false, true, false, writes),
-        (41, true, false, false, writes),
-        (41, true, true, true, writes),
+    for (second_word, compatible_transfer, bind_backing, crosswire, writable, payload_ceiling) in [
+        (41_u64, true, true, false, writes, 8),
+        (99, true, true, false, writes, 8),
+        (41, false, true, false, writes, 8),
+        (41, true, false, false, writes, 8),
+        (41, true, true, true, writes, 8),
+        (41, true, true, false, writes, 7),
+        (41, true, true, false, writes, 1),
     ]
     .into_iter()
-    .chain(writes.then_some((41, true, true, false, false)))
+    .chain(writes.then_some((41, true, true, false, false, 8)))
     {
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
             fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         let sponsor = BuildEvaluationSponsor::new_with_measurement(
-            BuildEvaluationSponsorLimits::new(1_000_000, 8, 2, 2, 100_000, 100_000, 1000, 1000)
-                .unwrap(),
+            BuildEvaluationSponsorLimits::new(
+                1_000_000,
+                8,
+                2,
+                2,
+                100_000,
+                payload_ceiling,
+                1000,
+                1000,
+            )
+            .unwrap(),
             measurement,
         )
         .unwrap();
@@ -278,9 +297,32 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
                 "provider allocation and descriptor must each own one live cell"
             );
         }
-        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None).unwrap();
-        let result = instance.invoke(&mut meter);
-        if !bind_backing {
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
+                result => break result,
+            }
+        };
+        assert_eq!(
+            sponsor.live_payload_bytes(),
+            0,
+            "transfer scratch retires before return or refusal"
+        );
+        if payload_ceiling < 8 {
+            let refusal = result
+                .as_ref()
+                .expect_err("field transfer must reserve its complete footprint");
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert_eq!(instance.close(), Err(TerminalInstanceCloseError::Busy));
+            let usage = *account.snapshot().unwrap().record();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal.clone()));
+            assert_eq!(*account.snapshot().unwrap().record(), usage);
+        } else if !bind_backing {
             assert!(
                 matches!(result, Err(TerminalInstanceError::Execution(_))),
                 "{result:?}"
@@ -313,6 +355,10 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
                 returned.claims.len(),
                 1,
                 "original extent claim remains owned"
+            );
+            assert_eq!(
+                account.snapshot().unwrap().record().peak_live_payload_bytes,
+                8
             );
         }
         eprintln!(
