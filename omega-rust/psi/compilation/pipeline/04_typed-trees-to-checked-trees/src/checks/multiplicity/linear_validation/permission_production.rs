@@ -1154,7 +1154,7 @@ fn copy_source_completions(
                 &[],
                 validation::ContentsRequirement::DescriptorCleanup,
             )
-            || !facts.borrow.with_state_borrows(machine, state, |rows| {
+            || facts.borrow.with_state_borrows(machine, state, |rows| {
                 rows.iter()
                     .map(|handle| facts.borrow.states.get(*handle))
                     .any(|state_fact| {
