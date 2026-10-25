@@ -8,8 +8,8 @@
 #endif
 
 struct frame { const void *const *arguments; void *result; };
-struct small { uint64_t first, second; };
-struct large { uint64_t first, second, third; };
+struct two_words { uint64_t first, second; };
+struct three_words { uint64_t first, second, third; };
 extern void bridge_retention_acquire(struct frame *);
 extern void bridge_retention_register(struct frame *);
 extern void bridge_retention_complete(struct frame *);
@@ -35,11 +35,11 @@ double stack_floats(double a, double b, double c, double d, double e,
                     double f, double g, double h, double i, double j) {
     return a + 2*b + 3*c + 4*d + 5*e + 6*f + 7*g + 8*h + 9*i + 10*j;
 }
-struct small small_record(struct small input, uint64_t increment) {
-    return (struct small){input.second + increment, input.first + 2*increment};
+struct two_words small_record(struct two_words input, uint64_t increment) {
+    return (struct two_words){input.second + increment, input.first + 2*increment};
 }
-struct large large_record(struct large input, uint64_t increment) {
-    return (struct large){input.third + increment, input.first + 2*increment, input.second + 3*increment};
+struct three_words large_record(struct three_words input, uint64_t increment) {
+    return (struct three_words){input.third + increment, input.first + 2*increment, input.second + 3*increment};
 }
 int main(void) {
 #ifdef _WIN32
@@ -81,12 +81,12 @@ int main(void) {
     assert(float_result == 385);
 
     uint64_t increment = 5;
-    struct small small_input = {17, 23}, small_output = {0, 0};
+    struct two_words small_input = {17, 23}, small_output = {0, 0};
     arguments[0] = &small_input; arguments[1] = &increment;
     frame = (struct frame){arguments, &small_output};
     bridge_small_record(&frame);
     assert(small_output.first == 28 && small_output.second == 27);
-    struct large large_input = {11, 13, 19}, large_output = {0, 0, 0};
+    struct three_words large_input = {11, 13, 19}, large_output = {0, 0, 0};
     arguments[0] = &large_input;
     frame = (struct frame){arguments, &large_output};
     bridge_large_record(&frame);
