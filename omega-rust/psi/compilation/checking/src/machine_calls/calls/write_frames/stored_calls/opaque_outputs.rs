@@ -54,6 +54,7 @@ pub(super) fn effects(
                 ..Default::default()
             };
             let selected = SlotSource {
+                carrier_backing: None,
                 origin: FramePlaceOrigin {
                     path: path(program, &relative),
                     precision: FramePathPrecision::Exact,
@@ -79,6 +80,7 @@ pub(super) fn effects(
                         parameter,
                         actual,
                         &SlotSource {
+                            carrier_backing: None,
                             origin: FramePlaceOrigin {
                                 path: parameter.name.to_string(),
                                 precision: FramePathPrecision::Exact,
@@ -104,6 +106,7 @@ pub(super) fn effects(
                             // This is the outer reference's referent, not a descriptor
                             // stored at the same empty path inside that referent.
                             ViewReturnInputSource::Referent => vec![SlotSource {
+                                carrier_backing: None,
                                 origin: projected,
                                 carrier,
                                 lifetime_access: Some(dependency.access),
@@ -224,6 +227,7 @@ pub(super) fn formal_effects(
                 ..Default::default()
             };
             sources.push(SlotSource {
+                carrier_backing: None,
                 origin: FramePlaceOrigin {
                     path: path(program, &source),
                     precision: FramePathPrecision::Exact,
@@ -251,6 +255,7 @@ fn supplied_source(
 ) -> SlotSource {
     let supplied = FrameSourcePlace::invocation_output(identity, segments);
     SlotSource {
+        carrier_backing: None,
         origin: FramePlaceOrigin {
             path: "invocation output".to_owned(),
             precision: FramePathPrecision::Exact,

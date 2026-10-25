@@ -54,6 +54,7 @@ pub(super) fn instantiate_sources(
         )?;
         let spatial = SlotSource {
             carrier: supplied.origin.source.clone(),
+            carrier_backing: None,
             ..supplied.clone()
         };
         observations(
@@ -72,12 +73,14 @@ pub(super) fn instantiate_sources(
     if supplied.carrier.is_static() {
         for source in &mut returned {
             source.source.carrier = supplied.carrier.clone();
+            source.source.carrier_backing = None;
         }
         return Some(returned);
     }
     let index =
         typed_trees::signature::state_parameter_position(parameters, supplied.carrier.root)?;
     let carrier = SlotSource {
+        carrier_backing: None,
         origin: super::super::FramePlaceOrigin {
             path: super::path(program, &supplied.carrier),
             precision: supplied.origin.precision,
@@ -107,6 +110,7 @@ pub(super) fn instantiate_sources(
         return None;
     }
     source.source.carrier = observed.source.carrier;
+    source.source.carrier_backing = observed.source.carrier_backing;
     source.source.lifetime_access = source
         .source
         .lifetime_access
@@ -195,6 +199,7 @@ fn observations(
             }
             ReferenceSource::Symbolic(origin) if origin.source.is_static() => (
                 SlotSource {
+                    carrier_backing: None,
                     carrier: origin.source.clone(),
                     origin,
                     lifetime_access: None,
@@ -647,6 +652,7 @@ impl Inputs<'_, '_> {
             let mut source = source?;
             if source.lifetime_access.is_none() {
                 source.carrier = carrier.source.clone();
+                source.carrier_backing = Some(source.origin.clone());
             }
             let source = ReferenceSource::Captured(CapturedReferenceSource {
                 base: source.origin.clone(),

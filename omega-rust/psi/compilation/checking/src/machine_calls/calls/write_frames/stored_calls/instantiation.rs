@@ -211,6 +211,7 @@ pub(super) fn destination_source(
             parameter,
             captured,
             &SlotSource {
+                carrier_backing: None,
                 origin: FramePlaceOrigin {
                     path: parameter.name.to_string(),
                     precision: FramePathPrecision::Exact,
@@ -289,6 +290,7 @@ pub(super) fn destination_source(
                 parameter,
                 captured,
                 &SlotSource {
+                    carrier_backing: None,
                     lifetime_access: None,
                     origin: FramePlaceOrigin {
                         path: path(program, &relative),

@@ -82,6 +82,7 @@ struct ReferenceStep {
 fn spatial_source(origin: FramePlaceOrigin) -> Option<ReferenceStep> {
     Some(ReferenceStep {
         source: SlotSource {
+            carrier_backing: None,
             carrier: origin.source.clone(),
             origin,
             lifetime_access: None,
@@ -106,6 +107,7 @@ fn resolve_sources(
                 // including the descriptor row which authenticated a pointer load.
                 if step.backing_depth.is_some() && step.source.lifetime_access.is_none() {
                     step.source.carrier = step.source.origin.source.clone();
+                    step.source.carrier_backing = None;
                 }
                 step.source
             })
@@ -134,6 +136,12 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_reference_project
     let mut pending = vec![(
         SlotSource {
             origin: projected.clone(),
+            carrier_backing: captured.carrier_backing.clone().or_else(|| {
+                captured
+                    .lifetime_access
+                    .is_none()
+                    .then(|| captured.origin.clone())
+            }),
             ..captured.clone()
         },
         captured.origin.source.segments.len(),
@@ -167,6 +175,7 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_reference_project
             } else {
                 if step.source.lifetime_access.is_none() {
                     step.source.carrier = source.carrier.clone();
+                    step.source.carrier_backing = source.carrier_backing.clone();
                 }
                 if !completed.contains(&step.source) {
                     completed.push(step.source);
@@ -347,13 +356,15 @@ fn resolve_steps(
         carrier.recasts.retain(|recast| {
             recast.root != carrier.root || recast.segments.len() <= carrier.segments.len()
         });
+        let backing_depth = captured.source.segments.len();
         let step = ReferenceStep {
             source: SlotSource {
+                carrier_backing: Some(captured),
                 origin: source,
                 carrier,
                 lifetime_access: None,
             },
-            backing_depth: Some(captured.source.segments.len()),
+            backing_depth: Some(backing_depth),
         };
         if !sources.iter().any(|prior| {
             prior.as_ref().is_some_and(|prior| {

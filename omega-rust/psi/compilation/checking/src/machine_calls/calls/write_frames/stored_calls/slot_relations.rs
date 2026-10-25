@@ -52,6 +52,9 @@ pub struct StoredReferenceSource {
     pub lifetime_access: Option<language_semantics::ReferenceAccess>,
     pub carrier_symbol: SymbolHandle,
     pub carrier_segments: Vec<PlaceSegment>,
+    /// The exact referent observed from this carrier before projecting the
+    /// output. It authenticates supplier ancestry, not new address authority.
+    pub carrier_backing: Option<LocalWriteSource>,
     pub backing: LocalWriteSource,
 }
 
@@ -70,6 +73,9 @@ pub(in crate::machine_calls::calls::write_frames) struct SlotEffect {
 pub(in crate::machine_calls::calls::write_frames) struct SlotSource {
     pub(in crate::machine_calls::calls::write_frames) origin: FramePlaceOrigin,
     pub(in crate::machine_calls::calls::write_frames) carrier: FrameSourcePlace,
+    /// Captured at the same descriptor load as carrier, before a callee adds
+    /// value selectors. Another pointer load replaces both together.
+    pub(in crate::machine_calls::calls::write_frames) carrier_backing: Option<FramePlaceOrigin>,
     pub(in crate::machine_calls::calls::write_frames) lifetime_access:
         Option<language_semantics::ReferenceAccess>,
 }

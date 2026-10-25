@@ -308,6 +308,7 @@ fn transferred_slots(
                 parameter,
                 arguments.get(index)?,
                 &SlotSource {
+                    carrier_backing: None,
                     origin: FramePlaceOrigin {
                         path: path(program, &slot),
                         precision: FramePathPrecision::Exact,

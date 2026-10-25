@@ -553,6 +553,7 @@ pub(in crate::machine_calls::calls::write_frames) fn selected_slot_sources(
             origin.source.segments = selected.to_vec();
         }
         let source = SlotSource {
+            carrier_backing: None,
             carrier: origin.source.clone(),
             origin,
             lifetime_access: None,

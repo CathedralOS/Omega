@@ -123,8 +123,8 @@ pub(in crate::borrow) fn from_effects(
                 });
             }
         }
-        for source in effect.sources {
-            let backing = source.backing;
+        for source in &effect.sources {
+            let backing = &source.backing;
             if let Some(identity) = backing.invocation_output {
                 // Both a supplied pointer and an already captured output
                 // retained as a lifetime debt have this exact opaque namespace.
@@ -206,24 +206,48 @@ pub(in crate::borrow) fn from_effects(
                 checked_trees::CapturedPlace {
                     incoming_reference: Default::default(),
                     root: facts::PlaceRoot::Symbol(source.carrier_symbol),
-                    segments: source.carrier_segments,
+                    segments: source.carrier_segments.clone(),
                 },
                 loan_trackers,
             );
+            // A completed source records its input referent before deriving
+            // the output view. Account for every actual carrier alternative
+            // across the complete source roster, never a convenient subset.
+            // Lifetime debts are separate obligations, not spatial choices.
+            let relevant = |candidate: &&super::RebasedBorrowPlace| {
+                source.lifetime_access.is_some() || !candidate.lifetime_only
+            };
+            let complete_carrier = captured.iter().filter(relevant).next().is_some()
+                && captured.iter().filter(relevant).all(|candidate| {
+                    effect.sources.iter().any(|alternative| {
+                        alternative.carrier_symbol == source.carrier_symbol
+                            && alternative.carrier_segments == source.carrier_segments
+                            && alternative.lifetime_access.is_some()
+                                == source.lifetime_access.is_some()
+                            && transferred_place(
+                                &alternative.backing,
+                                alternative.carrier_backing.as_ref(),
+                                alternative.lifetime_access.is_some(),
+                                candidate,
+                            )
+                            .is_some()
+                    })
+                });
             let matching: Vec<_> = captured
                 .iter()
-                .filter(|candidate| {
-                    candidate.place.root == facts::PlaceRoot::Symbol(backing.root)
-                        && candidate.place.segments == backing.segments
-                        // An incoming descriptor's stored coordinate names
-                        // its pointer, not its external pointee. Join that
-                        // exact captured carrier to the existing ingress
-                        // identity instead of borrowing its own output slot.
-                        || candidate.place.incoming_reference.is_valid()
-                            && candidate.source_place.root == facts::PlaceRoot::Symbol(backing.root)
-                            && candidate.source_place.segments == backing.segments
+                .filter_map(|candidate| {
+                    complete_carrier
+                        .then(|| {
+                            transferred_place(
+                                backing,
+                                source.carrier_backing.as_ref(),
+                                source.lifetime_access.is_some(),
+                                candidate,
+                            )
+                        })
+                        .flatten()
+                        .map(|place| Some((candidate, place)))
                 })
-                .map(Some)
                 .collect();
             // Equal geometry can belong to several alternatives of the
             // actual descriptor. Preserve every supplier, never choose one
@@ -232,13 +256,14 @@ pub(in crate::borrow) fn from_effects(
                 if let Some(carrier) = trace_carrier {
                     traced_missing_sources += 1;
                     eprintln!(
-                        "VIEW_SLOT_SOURCE_UNMATCHED destination={:?} destination_segments={:?} output_access={:?} retains_incoming={} may_select={} carrier={:?} backing={:?} lifetime_access={:?} captured_count={} captured={:?} current_row_count={} current_rows_prefix={:?}",
+                        "VIEW_SLOT_SOURCE_UNMATCHED destination={:?} destination_segments={:?} output_access={:?} retains_incoming={} may_select={} carrier={:?} carrier_backing={:?} backing={:?} lifetime_access={:?} captured_count={} captured={:?} current_row_count={} current_rows_prefix={:?}",
                         owner,
                         effect.destination.local_segments,
                         effect.access,
                         effect.retains_incoming,
                         effect.may_select,
                         carrier,
+                        source.carrier_backing,
                         backing,
                         source.lifetime_access,
                         captured.len(),
@@ -277,6 +302,7 @@ pub(in crate::borrow) fn from_effects(
                 matching
             };
             for supplying in matching {
+                let supplier = supplying.as_ref().map(|(source, _)| *source);
                 // Provenance alone cannot select a convenient same-backing
                 // loan. Only the exact actual carrier supplies transfer
                 // authority; otherwise retain the backing conflict without
@@ -289,24 +315,24 @@ pub(in crate::borrow) fn from_effects(
                     storage_owner: facts::PlaceRoot::Symbol(owner),
                     owner_name: program.symbols.name(owner).into(),
                     owner_path: owner_path.clone(),
-                    retained_operand: supplying.and_then(|source| source.retained_operand),
-                    place: supplying.map_or_else(
+                    retained_operand: supplier.and_then(|source| source.retained_operand),
+                    place: supplying.as_ref().map_or_else(
                         || checked_trees::CapturedPlace {
                             incoming_reference: Default::default(),
                             root: facts::PlaceRoot::Symbol(backing.root),
                             segments: backing.segments.clone(),
                         },
-                        |source| source.place.clone(),
+                        |(_, place)| place.clone(),
                     ),
-                    source_owner_symbol: supplying
+                    source_owner_symbol: supplier
                         .map_or(Default::default(), |source| source.source_owner_symbol),
-                    supplying_loans: supplying
+                    supplying_loans: supplier
                         .map(|source| source.parent_loan)
                         .filter(|loan| loan.is_valid())
                         .into_iter()
                         .collect(),
                     lineage: if source.lifetime_access.is_some()
-                        || supplying.is_some_and(|source| source.lifetime_only)
+                        || supplier.is_some_and(|source| source.lifetime_only)
                     {
                         checked_trees::BorrowLoanLineage::LifetimeDependency
                     } else {
@@ -321,4 +347,69 @@ pub(in crate::borrow) fn from_effects(
         }
     }
     loans
+}
+
+/// Rejoin the exact observed descriptor to its produced projection. The
+/// completed checking query has already crossed every real pointer load;
+/// `carrier_backing` names that final load's unprojected referent. Geometry
+/// alone, a common root, or another loan cannot establish this association.
+fn transferred_place(
+    backing: &validation::LocalWriteSource,
+    carrier_backing: Option<&validation::LocalWriteSource>,
+    lifetime_only: bool,
+    candidate: &super::RebasedBorrowPlace,
+) -> Option<checked_trees::CapturedPlace> {
+    if candidate.lifetime_only && !lifetime_only {
+        return None;
+    }
+    // Preserve the existing exact join, including its presentation metadata
+    // consumers. Only a genuinely derived output needs the additional base.
+    if (candidate.place.root == facts::PlaceRoot::Symbol(backing.root)
+        && candidate.place.segments == backing.segments)
+        || (candidate.place.incoming_reference.is_valid()
+            && candidate.source_place.root == facts::PlaceRoot::Symbol(backing.root)
+            && candidate.source_place.segments == backing.segments)
+    {
+        return Some(candidate.place.clone());
+    }
+    let base = carrier_backing?;
+    if !base.root.is_valid()
+        || base.invocation_output.is_some()
+        || backing.invocation_output.is_some()
+        || base.is_image_storage
+        || backing.is_image_storage
+        || !base.recasts.is_empty()
+        || !backing.recasts.is_empty()
+        || base.representation.is_some()
+        || backing.representation.is_some()
+        || backing.root != base.root
+        || !backing.segments.starts_with(&base.segments)
+    {
+        return None;
+    }
+    let projection = &backing.segments[base.segments.len()..];
+    if candidate.place.incoming_reference.is_valid() {
+        // The checking coordinate keeps the formal's descriptor home prefix;
+        // the incoming identity's pointee coordinate begins after that home.
+        // Compare the entire relative input before appending the output path.
+        let home = &candidate.source_place;
+        if home.root != facts::PlaceRoot::Symbol(base.root)
+            || candidate.place.root != home.root
+            || !base.segments.starts_with(&home.segments)
+            || base.segments[home.segments.len()..] != candidate.place.segments
+        {
+            return None;
+        }
+        let mut place = candidate.place.clone();
+        place.segments.extend_from_slice(projection);
+        Some(place)
+    } else {
+        (candidate.place.root == facts::PlaceRoot::Symbol(base.root)
+            && candidate.place.segments == base.segments)
+            .then(|| checked_trees::CapturedPlace {
+                incoming_reference: Default::default(),
+                root: facts::PlaceRoot::Symbol(backing.root),
+                segments: backing.segments.clone(),
+            })
+    }
 }

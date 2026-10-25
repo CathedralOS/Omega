@@ -32,6 +32,7 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
                         lifetime_access: source.lifetime_access,
                         carrier_symbol: source.carrier.root,
                         carrier_segments: source.carrier.segments,
+                        carrier_backing: source.carrier_backing.map(LocalWriteSource::from),
                         backing: LocalWriteSource::from(source.origin),
                     })
                     .collect(),

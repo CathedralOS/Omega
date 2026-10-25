@@ -898,6 +898,7 @@ fn instantiate_result_origins(
             )? {
                 let dependency = match origin {
                     ReferenceSource::Symbolic(origin) => super::stored_calls::SlotSource {
+                        carrier_backing: None,
                         carrier: origin.source.clone(),
                         origin,
                         lifetime_access: dependency.lifetime_access,

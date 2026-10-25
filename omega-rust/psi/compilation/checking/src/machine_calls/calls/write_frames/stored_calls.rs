@@ -355,6 +355,7 @@ fn rebase_output_occurrences(
                 source: place.clone(),
             };
             source.carrier = place;
+            source.carrier_backing = None;
         }
     }
     Some(())

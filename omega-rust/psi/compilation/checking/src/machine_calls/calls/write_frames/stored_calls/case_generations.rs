@@ -119,6 +119,7 @@ pub(super) fn completed_effects(
                 parameter,
                 capture,
                 &SlotSource {
+                    carrier_backing: None,
                     origin: FramePlaceOrigin {
                         path: super::path(program, &relative),
                         precision: FramePathPrecision::Exact,
