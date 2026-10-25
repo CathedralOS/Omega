@@ -76,9 +76,7 @@ pub(crate) fn canonical_symlink_target(
     *aggregate_content_bytes = aggregate_content_bytes
         .checked_add(target_length)
         .filter(|total| *total <= ceiling)
-        .ok_or_else(|| {
-            format!("canonical Source content exceeds its {ceiling}-byte ceiling")
-        })?;
+        .ok_or_else(|| format!("canonical Source content exceeds its {ceiling}-byte ceiling"))?;
     Ok((target, target_length))
 }
 

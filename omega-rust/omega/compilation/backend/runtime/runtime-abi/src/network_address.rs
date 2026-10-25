@@ -11,6 +11,7 @@
 //! semantic value, and the guest still cannot manufacture the representation.
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct HostInternetAddress {
     address: u32,
 }

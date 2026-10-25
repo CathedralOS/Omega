@@ -4,8 +4,11 @@
 //! names nor carrier declaration spellings participate. Admission additionally
 //! checks the complete selected opaque application and recursive public C shape.
 //! Actual C return values live in this invocation's owned occurrence store.
-//! Moving an opaque guest value preserves its token; consuming it removes that
-//! exact stored value. Physical record copies never create a semantic copy.
+//! Moving an affine guest value preserves its token; consuming that one
+//! occurrence removes the stored value. A checked semantic copy of an
+//! unrestricted inert carrier is another occurrence of the same stored value,
+//! so reading one does not retire the other. A physical copy that is not a
+//! checked semantic copy does not mint a token.
 
 mod admission;
 
@@ -19,7 +22,7 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
-use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult, StructuralMultiplicity};
 
 use super::TerminalRuntimeError;
 
@@ -29,6 +32,7 @@ enum AddressOperation {
     Host,
 }
 
+#[derive(Clone)]
 struct OwnedAddress {
     // StructuralTypeId belongs to one artifact. Each adapter authenticates its
     // own local formal above; only the exact target-closed opaque application
@@ -181,7 +185,16 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 if owned.application != self.application {
                     return Err(invalid());
                 }
-                let owned = slot.take().ok_or_else(invalid)?;
+                let copyable = matches!(
+                    self.signature.structural_parameters.as_slice(),
+                    [parameter]
+                        if parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                );
+                let owned = if copyable {
+                    slot.as_ref().cloned().ok_or_else(invalid)?
+                } else {
+                    slot.take().ok_or_else(invalid)?
+                };
                 // The exact owned value was produced by inet_makeaddr
                 // under this same selected opaque application. The C call takes
                 // the four-byte struct by value and retains no guest reference.

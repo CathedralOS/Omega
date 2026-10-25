@@ -16,6 +16,15 @@ use terminal_psi::{
 
 use super::{AddressOperation, TerminalRuntimeError};
 
+/// Affine and copy are both owned inert carriers. Linear debt, loans, and
+/// qualifications stay outside this host operation.
+fn owned_inert(multiplicity: StructuralMultiplicity) -> bool {
+    matches!(
+        multiplicity,
+        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+    )
+}
+
 pub(super) fn select(
     binding: &NormalizedForeignCallBinding,
 ) -> Result<Option<AddressOperation>, TerminalRuntimeError> {
@@ -94,14 +103,14 @@ pub(super) fn validate(
             };
             if signature.scalar_parameters != [scalar, scalar]
                 || !signature.structural_parameters.is_empty()
-                || result.multiplicity != StructuralMultiplicity::Affine
+                || !owned_inert(result.multiplicity)
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
                 || application.signature.parameters.len() != 2
             {
                 return Err(invalid(
-                    "inet_makeaddr requires two u32 scalars and an unqualified affine result",
+                    "inet_makeaddr requires two u32 scalars and one unqualified owned inert result",
                 ));
             }
             for root in &application.signature.parameters {
@@ -135,14 +144,14 @@ pub(super) fn validate(
             };
             if !signature.scalar_parameters.is_empty()
                 || signature.result != BoundaryMachineResult::Scalar(scalar.into())
-                || parameter.multiplicity != StructuralMultiplicity::Affine
+                || !owned_inert(parameter.multiplicity)
                 || parameter.access != StructuralAccess::Owned
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
                 || declaration.parameter_order != [BoundaryParameterKind::Structural]
             {
                 return Err(invalid(
-                    "inet_lnaof requires one unqualified owned affine argument and a u32 result",
+                    "inet_lnaof requires one unqualified owned inert argument and a u32 result",
                 ));
             }
             let [root] = application.signature.parameters.as_slice() else {

@@ -1,11 +1,11 @@
 //! Prepare exact owned opaque arguments for a real independent child.
 //!
 //! Ordinary argument presentation and affine partitioning stay authoritative.
-//! Only an actual unchanged host atom crosses this initial closed-Inert lane;
-//! materialized backing, loans, routed claims and memberships need their own
-//! transfer carriers. Preparing these values executes nothing and changes no
-//! parent custody. The caller commits the staged frontier only after a real
-//! installed child has accepted the tuple.
+//! An owned affine atom moves. An owned copyable atom crosses as another
+//! occurrence and the caller keeps its own. Linear debt, materialized backing,
+//! loans, routed claims and memberships need their own transfer carriers.
+//! Preparing these values executes nothing. The caller commits the staged
+//! frontier only after a real installed child has accepted the tuple.
 
 use std::collections::BTreeSet;
 
@@ -74,7 +74,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 || required.access != StructuralAccess::Owned
                 || supplied.access != StructuralAccess::Owned
                 || required.multiplicity != supplied.multiplicity
-                || required.multiplicity != StructuralMultiplicity::Affine
+                || !matches!(
+                    required.multiplicity,
+                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                )
                 || !required.qualifications.is_empty()
                 || !supplied.qualifications.is_empty()
                 || !required.projected_qualifications.is_empty()
@@ -145,7 +148,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 ));
             }
             value.structural_type = supplied.structural_type;
-            self.consume_affine_call_argument(&mut remaining_affine, argument)?;
+            if required.multiplicity == StructuralMultiplicity::Affine {
+                self.consume_affine_call_argument(&mut remaining_affine, argument)?;
+            }
         }
         let retired_sources = super::frames::transferred_call_sources(
             arguments,

@@ -77,5 +77,4 @@ impl PostAllocationMachineOptimizationCustody {
     pub const fn selected_bytes(self) -> u64 {
         self.selected_bytes
     }
-
 }

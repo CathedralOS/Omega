@@ -1,0 +1,21 @@
+// Expected exit: 0
+// Checked semantic copy of a closed copyable Inert carrier preserves libc host 66051 on the retained original and on the component input, and preserves sibling host 513.
+use producer::main;
+
+machine forward(original: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+    let sent: InternetAddress = original;
+    let sibling: InternetAddress = AddressBridge::make(44048, 513);
+    let original_host: u32 = AddressBridge::host(original);
+    let sent_host: u32 = AddressBridge::host(sent);
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    original_host == 66051 && sent_host == 66051 && sibling_host == 513
+}
+machine observe() -> bool reaches AddressParts, AddressBridge {
+    forward(AddressBridge::make(10, 66051))
+}
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+    transition observe() { true -> done() _ -> failed() }
+    state done() {}
+    state failed() { crash Trap; }
+}
