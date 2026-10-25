@@ -15,9 +15,22 @@ the consuming subtraction. The preserved optimized producer at `666e562d988`
 has identical Rust/library/manifests/toolchain inputs to that candidate; this
 is not a claim that it represents combined main integration `688d4541f376`.
 
-Acceptance is pending until all nine places and their twins run through the
-completed producer and are pinned under tests/omega. Linux x86-64 is the
-available execution host. Serial agreement proves no concurrent theorem.
+The optimized producer built from `a47fa862be36` passed root, all nine places,
+and composition through both native and Terminal execution on Linux x86-64.
+All nine twins reject for the resident obligation. The row and composition are
+pinned under `tests/omega/pass/facts/atomic_bounded_resident`, with twins and
+prior-value soundness controls under the corresponding fail tree. A previous
+producer admitted the synthetic result placeholder as zero; the repaired
+checker retains a runtime observation and refuses self-use before the event.
+Serial agreement proves no concurrent theorem. Matching non-Linux hosts remain
+unavailable; those executions are not claimed.
+
+This row establishes declaration-owned field-where bounds for store, swap and
+decisive exchange and preserves them on a fresh load. Declaration-only atomic
+ranges, bounded single-attempt exchange and universal fetch preservation remain
+internal implementation work, alongside non-observing exchange, native root
+operations, relation/refinement checks and TR3–TR8 concurrent runtime witnesses.
+The full TASKS.md outcome remains open.
 
 The representation keeps dedicated atomic identity and resident validity
 separate. An atomic replacement carries its own checked resident establishment;

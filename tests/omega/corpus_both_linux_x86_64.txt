@@ -1912,6 +1912,16 @@ pass/facts/atomic_boolean_store/other_machine built 1750ms exit:0 interpreter-ex
 pass/facts/atomic_boolean_store/other_state built 1982ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/atomic_boolean_store/parameter built 1837ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/atomic_boolean_store/target_body built 2265ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/call_result built 1865ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/composition built 2095ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/const_name built 1767ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/field built 1814ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/local built 1854ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/match_join built 1900ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/other_machine built 1906ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/other_state built 2084ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/parameter built 1747ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/atomic_bounded_resident/target_body built 1693ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/atomic_compare_exchange_once_composition_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/atomic_compare_exchange_once_high_bit_exit built 2192ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/atomic_compare_exchange_once_local_exit built 2173ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
