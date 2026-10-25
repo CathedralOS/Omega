@@ -5,3 +5,9 @@ machine InvalidMain::main(context: &mut InvalidMain) reaches Console {
     let outside: i32 = context.values[2];
     Console::exit_process(outside);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: InvalidMain;
+    InvalidMain::main(&mut entry_storage);
+}

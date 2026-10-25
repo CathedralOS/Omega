@@ -59,13 +59,15 @@ pub(crate) fn evaluate(
     // Their ordinary canonical-value selection preserves private initializer
     // dependencies without reclassifying them as public expression probes.
     // Machine indices still need original lexical-scope resolution below.
+    // Aggregate data indices keep canonical materialization; a scalar probe's
+    // temporary argument cannot stand in for their declared record carrier.
     let mut arguments = data_arguments
         .into_iter()
-        .filter(|(argument, _, _)| {
+        .filter(|(argument, destination, _)| {
             matches!(
                 syntax.type_references.type_reference(*argument),
                 TypeReferenceNode::ConstExpression(_)
-            )
+            ) && scalar_probe_route(&syntax, *destination)
         })
         .collect::<Vec<_>>();
     let extent_uses = extent_arguments
@@ -75,14 +77,7 @@ pub(crate) fn evaluate(
     lexical_arguments.extend(extent_uses.iter().copied());
     arguments.extend(extent_arguments);
     for (argument, destination, public) in machine_arguments {
-        // This is probe routing, not builtin identity. The typed destination
-        // must still resolve to the exact primitive before evaluation.
-        let scalar = matches!(
-            syntax.type_references.type_reference(destination),
-            TypeReferenceNode::Named(destination_name)
-                if matches!(destination_name.as_str(&syntax),
-                    "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool")
-        );
+        let scalar = scalar_probe_route(&syntax, destination);
         let original = syntax.type_references.type_reference(argument).clone();
         if let Some(name) = syntax.type_references.type_reference(argument).as_named() {
             let name = name.clone();
@@ -154,14 +149,10 @@ pub(crate) fn evaluate(
             if super::const_generic_calls::contains_call(&syntax, *expression) {
                 return None;
             }
-            let boolean_destination = matches!(
-                syntax.type_references.type_reference(*destination),
-                TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool"
-            );
-            (lexical_arguments.contains(argument)
-                || boolean_destination
-                || requires_typed_expression_probe(&syntax, *expression))
-            .then_some((*argument, *expression, *destination, *public))
+            // Parsing retains every authored value tree, including a literal
+            // in a declaration field. All closed arguments need the same
+            // carrier-checked semantic admission before generic synthesis.
+            Some((*argument, *expression, *destination, *public))
         })
         .collect::<Vec<_>>();
     if pending.is_empty() {
@@ -300,27 +291,16 @@ pub(crate) fn evaluate(
     Ok(syntax)
 }
 
-fn requires_typed_expression_probe(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        match syntax.expressions.expression(expression) {
-            ExpressionNode::Match(_) | ExpressionNode::Unary(_) | ExpressionNode::Cast(_) => {
-                return true;
-            }
-            ExpressionNode::Name(_) => return true,
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            _ => {}
-        }
-    }
-    false
+/// Choose the existing scalar probe or canonical aggregate materialization.
+/// This does not admit a carrier: the selected route still resolves and checks
+/// the destination's exact declaration identity before evaluating its value.
+fn scalar_probe_route(syntax: &SyntaxTrees, destination: TypeReferenceHandle) -> bool {
+    matches!(
+        syntax.type_references.type_reference(destination),
+        TypeReferenceNode::Named(name)
+            if matches!(name.as_str(syntax),
+                "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "bool")
+    )
 }
 
 pub(super) fn exact_probe_destination(

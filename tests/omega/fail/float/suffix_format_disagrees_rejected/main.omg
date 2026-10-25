@@ -8,3 +8,9 @@ machine Main::main(main: &mut Main) {
     let x: f64 = 1.5f32;
     Console::exit_process(70);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

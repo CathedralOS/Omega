@@ -31,7 +31,10 @@ windows_x86_64 machine finish(tally: &mut Tally, code: u64) requires code == 7 c
     state done() {}
     state bad() { crash Trap; }
 }
-machine start(unprovided: u64) crashes Trap {
+machine start(unprovided: &mut Unprovided) crashes Trap {
     let mut tally: Tally = Tally { total: 0 };
     finish(&mut tally, 7);
 }
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

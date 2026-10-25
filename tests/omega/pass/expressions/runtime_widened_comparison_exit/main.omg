@@ -36,3 +36,9 @@ machine Main::main(main: &mut Main) reaches Console {
     // The widen broke a genuine equality.
     state missed(main: &mut Main) { Console::exit_process(72); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

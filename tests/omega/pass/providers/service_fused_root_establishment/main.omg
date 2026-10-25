@@ -30,3 +30,11 @@ reaches Ping
 PingProviderPingImplementation satisfies Ping {
     Ping::ping = PingProvider::ping;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Ping
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -18,3 +18,9 @@ machine Main::main(main: &mut Main) reaches Child + Parent {
     let chosen: i32 = Child::choose();
     let read: i32 = Parent::read();
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Child + Parent {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

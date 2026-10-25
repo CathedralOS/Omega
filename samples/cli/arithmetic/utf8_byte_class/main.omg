@@ -82,3 +82,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state finish4(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(4); }
     state finish99(main: &mut Main) { Console::write_line("[press Enter to close]"); _ = block Console::read_line(&mut main.pause); Console::exit_process(99); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

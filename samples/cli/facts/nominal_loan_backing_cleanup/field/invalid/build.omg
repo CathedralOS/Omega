@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
  Build::application(builder, "nominal_loan_field");
  Build::select_provider<Console, ConsoleNativeProviderConsoleImplementation>(builder);
- Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

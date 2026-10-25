@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
  Build::application(builder, "layered_seismic_refraction");
  Build::depend(builder, Source::Path { location: "../../../../source/library/std" });
- Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+ Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

@@ -29,3 +29,9 @@ machine entry(main: &mut Main) crashes Trap {
     state pass() { }
     state fail() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    entry(&mut entry_storage);
+}

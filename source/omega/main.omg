@@ -74,3 +74,9 @@ crashes Trap
 
     state done() {}
 }
+
+// ProgramEntry selects code; ordinary local ownership supplies compiler state.
+machine entry_start() reaches Console crashes Trap blocks; {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

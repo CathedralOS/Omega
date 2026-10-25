@@ -2,5 +2,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "windows_x64_baseline_float_semantic_edge_twin");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }

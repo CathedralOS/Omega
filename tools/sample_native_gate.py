@@ -472,14 +472,43 @@ def check_refusal(cli, sample, timeout):
     return completed.stdout + completed.stderr
 
 
+def entry_ram_rows(path):
+    if not Path(path).is_file():
+        return []
+    rows = []
+    positions = set()
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        position, separator, contents = line.strip().partition("=")
+        if (not separator or not position.isascii() or not position.isdecimal()
+                or int(position) > 2**32 - 1 or int(position) in positions
+                or len(contents) % 2 or any(character not in "0123456789abcdefABCDEF" for character in contents)):
+            raise ValueError("entry RAM rows require unique u32 position=hex-bytes")
+        positions.add(int(position))
+        rows.append((int(position), contents.lower()))
+    return rows
+
+
 def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_only=False):
     project = project_at(Path(sample), ROOT)
     if project.entry is None:
         return {"sample": sample, "state": "discovery-error", "detail": "missing unambiguous entry; declare sample.json entry"}
     if project.role == "intended-invalid":
-        # Negative controls check their source contract and never enter package
-        # acceptance or native execution. A refusal for another reason is red.
-        completed = run([cli, "--check", "--target", target, str(project.entry)], timeout)
+        # Source controls stop at checking. An explicit invocation-input file
+        # instead requests native admission; the intended refusal must still
+        # match its own diagnostic, never a crash or missing package consent.
+        invocation = Path(sample) / "entry_ram.txt"
+        if invocation.is_file():
+            try:
+                inputs = entry_ram_rows(invocation)
+            except (OSError, UnicodeError, ValueError) as error:
+                return {"sample": sample, "role": project.role, "state": "error", "detail": str(error)}
+            supplied = [argument for position, contents in inputs for argument in ("--entry-ram", f"{position}={contents}")]
+            command = [cli, "run", "--both", "--target", target, *supplied, str(project.entry)]
+        else:
+            command = [cli, "--check", "--target", target, str(project.entry)]
+        completed = run(command, timeout)
         if completed is None:
             return {"sample": sample, "role": project.role, "state": "timeout", "detail": f">{timeout}s"}
         matched, detail = rejection_verdict(project, completed.returncode, completed.stderr)
@@ -558,13 +587,24 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         # from other samples running at the same time.
         scratch = os.path.join(sample, "build", "gate-run")
         os.makedirs(scratch, exist_ok=True)
-        completed = run([cli, "run", str(project.entry)], timeout, stdin=input_stream, cwd=scratch)
+        try:
+            entry_inputs = entry_ram_rows(Path(sample) / "entry_ram.txt")
+            expected_entry_ram = entry_ram_rows(Path(sample) / "expected_entry_ram.txt")
+        except (OSError, UnicodeError, ValueError) as error:
+            return {"sample": sample, "state": "error", "detail": str(error)}
+        installed = [argument for position, contents in entry_inputs for argument in ("--entry-ram", f"{position}={contents}")]
+        completed = run([cli, "run", *(["--both"] if entry_inputs else []), *installed, str(project.entry)], timeout, stdin=input_stream, cwd=scratch)
     finally:
         if input_stream is not subprocess.DEVNULL:
             input_stream.close()
     if completed is None:
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
     combined = completed.stdout + completed.stderr
+    if completed.returncode == 0 and expected_entry_ram:
+        observed_entry_ram = [(int(position), contents.lower()) for position, contents in
+            re.findall(r"^entry RAM ([0-9]+): ([0-9a-fA-F]*)$", completed.stderr, re.MULTILINE)]
+        if not entry_inputs or sorted(observed_entry_ram) != sorted(expected_entry_ram):
+            return {"sample": sample, "state": "oracle-failure", "detail": "original installed entry backing differs, has extra rows, or was not observed"}
     if "native compile FAILED" in combined or "cannot realize" in combined:
         message, prefix = combined, ""
         if classify(message) == "package review incomplete":

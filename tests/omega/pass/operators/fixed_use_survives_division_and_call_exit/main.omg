@@ -29,3 +29,9 @@ machine number(value: i32 in Wrapping) reaches Console {
         Console::write_byte((value + 48) as i32);
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

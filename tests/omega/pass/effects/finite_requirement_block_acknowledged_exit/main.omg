@@ -39,3 +39,14 @@ linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
 ProviderServiceImplementation satisfies Service {
     Service::echo = Provider::echo;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+macos_arm64 machine entry_start() reaches Service crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}
+
+linux_x86_64 machine entry_start() reaches Service crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

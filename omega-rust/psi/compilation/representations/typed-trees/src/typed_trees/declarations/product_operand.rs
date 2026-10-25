@@ -142,7 +142,7 @@ pub trait ProductEntryCompatibility: Sync {
 /// an issued description nor evidence that the product has been admitted.
 ///
 /// The backing program still supplies type identities and any computations
-/// required by the interface, including predicates on a provisioned context.
+/// required by the exact source signature. It supplies no argument backing.
 /// Removing the entry body does not authorize dropping those dependencies.
 #[derive(Clone, Copy)]
 pub struct ProductEntryDeclaration<'program> {

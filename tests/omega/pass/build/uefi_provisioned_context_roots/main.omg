@@ -15,3 +15,9 @@ machine launch(context: &mut BootContext, image: Extent in Granted,
         transition { _ -> retain(context, image, storage) }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start(image: Extent in Granted, storage: Extent in Granted) {
+    let mut entry_storage: BootContext;
+    launch(&mut entry_storage, image, storage);
+}

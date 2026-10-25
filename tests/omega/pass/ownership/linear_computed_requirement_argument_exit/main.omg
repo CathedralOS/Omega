@@ -47,3 +47,9 @@ machine main(context: &mut Context) reaches Settlement crashes Trap {
     let statement: i32 = Settlement::settle(2, Receipt { code: 10 }, 3);
     verify(result == 13 && forwarded == 14 && borrowed == 15 && statement == 15);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Settlement crashes Trap {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
+}

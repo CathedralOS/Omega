@@ -4,8 +4,8 @@ machine build(builder: &mut Build) {
     Build::accept_boundary<TokenRoot>(builder);
     Build::select_provider<TokenRoot, TokenProvider>(builder);
     Build::select_provider<TokenConsumer, Consumer>(builder);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::run);
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::run);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::run);
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::run);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }

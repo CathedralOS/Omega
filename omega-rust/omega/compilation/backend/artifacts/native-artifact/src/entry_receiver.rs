@@ -27,7 +27,7 @@ pub fn admit_executable_entry(
     let source_profile = program_entry.source().target_slot().owner;
     if source_profile.native_realization() != Some(native_target) {
         return Err(crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
+            "ProgramEntry installed arguments",
             "source-selected entry deployment does not own the native target",
         ));
     }
@@ -41,9 +41,7 @@ pub fn admit_executable_entry(
             terminal,
             terminal_psi::TargetMachineCallable::Machine(plan.entry),
         )
-        .map_err(|error| {
-            crate::native_artifact_error("ProgramEntry receiver provisioning", error)
-        })?;
+        .map_err(|error| crate::native_artifact_error("ProgramEntry installed arguments", error))?;
     if selected_entry != plan.entry
         || plan.psi != artifact.view().identity()
         || terminal != artifact.semantic_module()
@@ -67,7 +65,7 @@ pub fn admit_executable_entry(
         })
     {
         return Err(crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
+            "ProgramEntry installed arguments",
             "native entry lost its exact source-selected Terminal member",
         ));
     }
@@ -80,10 +78,6 @@ pub fn admit_executable_entry(
     // Settlement retains the entry declaration, not an installed receiver.
     // This admission serves executable images; callable lowering and
     // explicit semantic wrappers retain their own boundaries.
-    let source_provisions_receiver = matches!(
-        program_entry.source().receiver(),
-        program_entry_plan::ProgramEntryReceiverSignature::ProvisionedMutable { .. }
-    );
     let lowered_entry = plan.function(plan.entry);
     let terminal_entry = terminal.machine(selected_entry);
     let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
@@ -98,7 +92,7 @@ pub fn admit_executable_entry(
     };
     if lowered_attachment != terminal_attachment || !parameters_preserved {
         return Err(crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
+            "ProgramEntry installed arguments",
             "lowered entry does not preserve the source-selected receiver identity",
         ));
     }
@@ -107,22 +101,13 @@ pub fn admit_executable_entry(
     // dropping its settlement would expose Extent inputs to firmware's ABI.
     let requires_semantic_bridge = program_entry.source().target_slot().schema
         == target::ProgramEntrySchema::ProgramStorageApplication;
-    if !source_provisions_receiver && !requires_semantic_bridge {
+    let requires_installed_storage = !input.private_entry_ram().is_empty();
+    if !requires_installed_storage && !requires_semantic_bridge {
         return entry_boundary_without_receiver(placed_view_establishments);
     }
-    let supported_receiver_bridge = native_target == target::NativeTarget::macos_arm64()
-        || native_target == target::NativeTarget::macos_x64()
-        || native_target == target::NativeTarget::linux_x64()
-        || native_target == target::NativeTarget::linux_arm64()
-        || native_target == target::NativeTarget::windows_x64()
-        // The UEFI entry is not a hosted shim: the authored semantic entry
-        // compiles a private wrapper that provisions the context inside its own
-        // outgoing frame and calls the semantic child, so the root-backed
-        // bridge for it is the semantic wrapper object join.
-        || native_target == target::NativeTarget::uefi_x64();
     let checked_entry = program_entry.checked_entry.ok_or_else(|| {
         crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
+            "ProgramEntry installed arguments",
             "executable entry bridge requires exact checked entry custody",
         )
     })?;
@@ -133,32 +118,6 @@ pub fn admit_executable_entry(
         native_target,
     )
     .map_err(|error| crate::native_artifact_error("ProgramEntry receiver custody", error))?;
-    let has_receiver = if source_provisions_receiver {
-        let eligibility = settled.checked_entry().receiver_eligibility().ok_or_else(|| {
-            crate::native_artifact_error(
-                "ProgramEntry receiver provisioning",
-                "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
-            )
-        })?;
-        matches!(
-            eligibility.projection(),
-            terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
-        )
-    } else {
-        false
-    };
-    if has_receiver && !supported_receiver_bridge {
-        return Err(crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
-            "the executable entry retains a context parameter, but no root-backed bridge constructs and lends its context; source-entry settlement alone does not provision context storage",
-        ));
-    }
-    if !has_receiver && !requires_semantic_bridge {
-        // Source ZII/no-code disposal and the exact erased projection have
-        // been replayed. No physical receiver argument or storage is needed;
-        // Fused establishment is still checked independently before this call.
-        return entry_boundary_without_receiver(placed_view_establishments);
-    }
     // Callback occupancy is orthogonal to receiver provisioning: each
     // materialization binds at its own registrar call site inside function
     // fragments, and the emitted object plus final image replay join them to

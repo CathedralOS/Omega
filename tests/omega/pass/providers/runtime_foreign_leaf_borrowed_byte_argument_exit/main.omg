@@ -101,3 +101,9 @@ machine Main::main(main: &mut Main) reaches Console + CText + Measure {
 MeasureProviderMeasureImplementation satisfies Measure {
     Measure::measure = MeasureProvider::measure;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console + CText + Measure {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -51,3 +51,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state invalid() { Console::write_line("ERROR input: expected case 0..5 and horizon 1..24 followed by LF"); Console::exit_process(64); }
     state failed() { Console::write_line("ERROR simulation invariant"); Console::exit_process(70); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

@@ -8,11 +8,7 @@ mod debug_map;
 mod machine_provenance;
 pub use machine_provenance::TerminalMachineProvenance;
 mod proof_kernel;
-pub use checked_program_entry::{
-    CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
-    CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
-    CheckedProgramEntryReceiverProjection, CheckedProgramEntryTerminalReceipt,
-};
+pub use checked_program_entry::CheckedProgramEntryTerminalReceipt;
 pub use debug_map::{
     DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
     DebugSubject, TerminalDebugMap,

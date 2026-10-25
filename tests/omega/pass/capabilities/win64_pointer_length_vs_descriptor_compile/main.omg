@@ -91,3 +91,9 @@ machine Main::main(main: &mut Main) reaches NativeByteShapes {
     let d: ByteDescriptor = ByteDescriptor { pointer: main.pointer, length: main.length };
     main.status = NativeByteShapes::take_descriptor(d);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches NativeByteShapes {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

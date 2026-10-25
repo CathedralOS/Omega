@@ -33,3 +33,9 @@ machine Main::main(context: &mut Main) reaches NativeBytes crashes Trap {
     }
     state failed() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches NativeBytes crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

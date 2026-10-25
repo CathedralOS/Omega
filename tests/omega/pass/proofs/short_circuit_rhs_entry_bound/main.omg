@@ -8,3 +8,9 @@ machine main(context: &mut Context) crashes Trap {
     state done() { }
     state bad() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
+}

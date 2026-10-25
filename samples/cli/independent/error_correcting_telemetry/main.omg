@@ -101,3 +101,9 @@ machine syndromes(main: &mut Main, frame: &Frame) reaches Console {
     Console::write(" S "); digit(main, syndrome_first(frame)); digit(main, syndrome_second(frame));
     Console::write_line("");
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

@@ -11,3 +11,9 @@ machine Main::main(main: &mut Main) reaches ClockProbe {
     let shared: &Instant = &instant;
     let status: i32 = ClockProbe::read(0, shared);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ClockProbe {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -15,10 +15,34 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-pub fn capture_private_observation(
-    mut command: Command,
+/// Prepared private lane, retired after the caller's own bounded child loop.
+/// Dropping it also wakes the reader; it never extends a child's deadline.
+pub struct PrivateObservationCapture {
+    completed: Arc<AtomicBool>,
+    captured: Option<std::thread::JoinHandle<io::Result<Vec<u8>>>>,
+}
+
+impl PrivateObservationCapture {
+    pub fn finish(mut self) -> io::Result<Vec<u8>> {
+        self.completed.store(true, Ordering::Release);
+        self.captured
+            .take()
+            .ok_or_else(|| io::Error::other("private observation already retired"))?
+            .join()
+            .map_err(|_| io::Error::other("private observation reader did not complete"))?
+    }
+}
+
+impl Drop for PrivateObservationCapture {
+    fn drop(&mut self) {
+        self.completed.store(true, Ordering::Release);
+    }
+}
+
+pub fn prepare_private_observation(
+    command: &mut Command,
     expected_bytes: usize,
-) -> io::Result<(Output, Vec<u8>)> {
+) -> io::Result<PrivateObservationCapture> {
     if expected_bytes == 0 || expected_bytes > (65536 + 84) * 5 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -30,7 +54,7 @@ pub fn capture_private_observation(
     let completed = Arc::new(AtomicBool::new(false));
     let reader_completed = Arc::clone(&completed);
     let writer_descriptor = writer.as_raw_fd();
-    super::process_child::descriptors::mark_ambient_close_on_exec(&mut command)?;
+    super::process_child::descriptors::mark_ambient_close_on_exec(command)?;
     // The closure performs only async-signal-safe descriptor operations after
     // fork. Captured ownership keeps the source descriptor valid through exec.
     unsafe {
@@ -96,15 +120,44 @@ pub fn capture_private_observation(
         }
         Ok(bytes)
     });
+    Ok(PrivateObservationCapture {
+        completed,
+        captured: Some(captured),
+    })
+}
+
+pub fn capture_private_observation(
+    mut command: Command,
+    expected_bytes: usize,
+) -> io::Result<(Output, Vec<u8>)> {
+    let capture = prepare_private_observation(&mut command, expected_bytes)?;
     let output = command.output();
     drop(command);
-    completed.store(true, Ordering::Release);
-    let observation = captured
-        .join()
-        .map_err(|_| io::Error::other("private observation reader did not complete"));
-    // Keep the actual spawn/execution error ahead of a consequent absent frame.
-    // The reader still retires and joins on every path.
-    let output = output?;
-    let bytes = observation??;
-    Ok((output, bytes))
+    let observation = capture.finish();
+    // Retire the lane even after a failed spawn, preserving the actual error.
+    Ok((output?, observation?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{capture_private_observation, prepare_private_observation};
+    use std::process::Command;
+
+    #[test]
+    fn prepared_lane_uses_real_child_bytes_and_retires_on_every_completion() {
+        let mut command = Command::new("/bin/sh");
+        command.args(["-c", "printf abc >&3"]);
+        let capture = prepare_private_observation(&mut command, 3).expect("prepare private lane");
+        assert!(command.status().expect("run finite child").success());
+        assert_eq!(capture.finish().expect("capture exact bytes"), b"abc");
+        for script in ["printf ab >&3", "printf abcd >&3"] {
+            let mut command = Command::new("/bin/sh");
+            command.args(["-c", script]);
+            assert!(capture_private_observation(command, 3).is_err());
+        }
+        let error =
+            capture_private_observation(Command::new("/nonexistent/omega-observation-child"), 3)
+                .expect_err("spawn failure must retire its private lane");
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    }
 }

@@ -21,3 +21,9 @@ machine Probe::main(probe:&mut Probe) {
  state passed(probe:&mut Probe) {probe.observed=1;}
  state failed(probe:&mut Probe) {probe.observed=-1;}
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Probe;
+    Probe::main(&mut entry_storage);
+}

@@ -5,3 +5,9 @@ machine positive_radius(radius: i32) -> i32
 { radius }
 data Main { radius: i32; }
 machine Main::main(main: &mut Main) { main.radius = positive_radius(-1); }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

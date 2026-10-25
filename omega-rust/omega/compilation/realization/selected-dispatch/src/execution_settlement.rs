@@ -63,19 +63,9 @@ impl SelectedExecution {
         crate::program_entry_service_requirements(&self.program, entry.machine_symbol())
     }
 
-    /// Whether the selected program entry tolerated a `Binding` field whose
-    /// Fused provider was never selected. Only a discovery pass may carry such
-    /// a result: a strict recompile must reject the same program, so a result
-    /// answering `true` is not interchangeable with one produced without the
-    /// tolerance.
+    /// Root selection cannot tolerate an unestablished runtime argument.
     pub fn tolerated_unsettled_service_fields(&self) -> bool {
-        self.selected_program_entry.as_ref().is_some_and(|entry| {
-            crate::service_custody::program_entry_has_unsettled_service_fields(
-                &self.program,
-                entry.machine_symbol(),
-                &self.selected_provider_provenance,
-            )
-        })
+        false
     }
 
     pub fn resolved_semantic_binding(
@@ -287,24 +277,6 @@ pub fn settle_selected_execution(
             settlement.x86_scalar_fma_provider,
             settlement.selected_target_profile,
         )?;
-    if let Some(entry) = settlement.selected_program_entry.as_mut() {
-        // Establishments intern into the source signature's own identity
-        // table so every ProgramEntry identity shares one ordering.
-        let mut identities = entry.source_signature().identities().clone().into_builder();
-        let establishments = crate::derive_fused_program_entry_establishments(
-            &checked.program,
-            settlement.calling_plans,
-            entry,
-            &settlement.selected_provider_provenance,
-            settlement.permit_unsettled_fused_service_fields,
-            &mut identities,
-        )?;
-        entry.set_source_identities(identities.build());
-        entry
-            .bind_fused_service_establishments(establishments)
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-    }
-
     Ok(SelectedExecution {
         program: checked.program,
         dispatch,
