@@ -43,16 +43,20 @@ pub(super) fn build_domains<'a>(
     tied_components(function, legality, ranges)?
         .into_iter()
         .filter(|members| members.iter().any(|member| !member.spans.is_empty()))
-        .map(|members| {
-            // A failed component reports the edge transfer naming one of its
-            // members. The search runs only on that error path: searching
-            // every transfer for every component made domain building
-            // quadratic in a large function.
-            let component = members.clone();
-            build_domain(function, members).map_err(|error| {
+        .map(|mut members| match build_domain(function, &mut members) {
+            Ok((first_point, candidates)) => Ok(AllocationDomain {
+                members,
+                first_point,
+                candidates,
+            }),
+            Err(error) => {
+                // A failed component reports the edge transfer naming one of its
+                // members. The search runs only on that error path: searching
+                // every transfer for every component made domain building
+                // quadratic in a large function.
                 let edge = || {
                     ranges.edge_transfers.iter().find(|edge| {
-                        component
+                        members
                             .iter()
                             .any(|member| member.virtual_register == edge.parameter)
                     })
@@ -60,14 +64,14 @@ pub(super) fn build_domains<'a>(
                 if matches!(error, RegisterHomeError::NoCommonTiedComponent { .. })
                     && let Some(edge) = edge()
                 {
-                    RegisterHomeError::UnsupportedEdgeTransfer {
+                    Err(RegisterHomeError::UnsupportedEdgeTransfer {
                         function,
                         edge: edge.psi_edge.get(),
-                    }
+                    })
                 } else {
-                    error
+                    Err(error)
                 }
-            })
+            }
         })
         .collect()
 }
@@ -77,6 +81,14 @@ fn tied_components<'a>(
     legality: &'a FunctionAllocationLegality,
     ranges: &FunctionLiveRanges,
 ) -> Result<Vec<Vec<&'a VirtualRegisterAllocationLegality>>, RegisterHomeError> {
+    if ranges.tied_pairs.is_empty() && ranges.edge_transfers.is_empty() {
+        return Ok(legality
+            .virtual_registers
+            .iter()
+            .filter(|register| !register.spans.is_empty())
+            .map(|register| vec![register])
+            .collect());
+    }
     let max_reg_id = legality
         .virtual_registers
         .iter()
@@ -211,12 +223,14 @@ fn tied_components<'a>(
 
 fn build_domain<'a>(
     function: usize,
-    mut members: Vec<&'a VirtualRegisterAllocationLegality>,
-) -> Result<AllocationDomain<'a>, RegisterHomeError> {
-    members.sort_by_key(|member| member.virtual_register);
+    members: &mut Vec<&'a VirtualRegisterAllocationLegality>,
+) -> Result<(LiveRangePoint, Vec<RegisterViewId>), RegisterHomeError> {
+    if members.len() > 1 {
+        members.sort_by_key(|member| member.virtual_register);
+    }
     let mut first_point = None;
     let mut candidates = None::<Vec<RegisterViewId>>;
-    for member in &members {
+    for member in members.iter() {
         if !member.entry_transitions.is_empty() {
             return Err(RegisterHomeError::UnresolvedEntryTransitions {
                 function,
@@ -247,11 +261,10 @@ fn build_domain<'a>(
             register: members[0].virtual_register.0,
         });
     }
-    Ok(AllocationDomain {
-        members,
-        first_point: first_point.expect("allocation domain is nonempty"),
+    Ok((
+        first_point.expect("allocation domain is nonempty"),
         candidates,
-    })
+    ))
 }
 
 fn interval_bounds(
@@ -331,13 +344,20 @@ fn intersect_candidates<'a>(
     rest: impl Iterator<Item = &'a [RegisterViewId]>,
 ) -> Vec<RegisterViewId> {
     let mut common = first.to_vec();
-    common.sort_unstable();
-    common.dedup();
+    if common
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        common.sort_unstable();
+        common.dedup();
+    }
     for candidates in rest {
         if common.is_empty() {
             break;
         }
-        common.retain(|candidate| candidates.binary_search(candidate).is_ok());
+        if candidates != common.as_slice() {
+            common.retain(|candidate| candidates.binary_search(candidate).is_ok());
+        }
     }
     common
 }

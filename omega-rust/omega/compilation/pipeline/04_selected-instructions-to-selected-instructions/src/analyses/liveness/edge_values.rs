@@ -23,8 +23,8 @@ pub(crate) struct FunctionIndex<'function> {
     parameters: Vec<(SelectedBlockId, usize)>,
     /// `(id, position)` for every block, sorted by id and then by order.
     blocks: Vec<(SelectedBlockId, usize)>,
-    /// Instruction IDs and their exact owning block and position.
-    instructions: Vec<(selected_instructions::SelectedInstructionId, usize, usize)>,
+    /// Instruction IDs and their exact owning block and position, built lazily.
+    instructions: std::sync::OnceLock<Vec<(selected_instructions::SelectedInstructionId, usize, usize)>>,
 }
 
 impl<'function> FunctionIndex<'function> {
@@ -35,7 +35,9 @@ impl<'function> FunctionIndex<'function> {
             .enumerate()
             .map(|(position, register)| (register.id, position))
             .collect::<Vec<_>>();
-        registers.sort_unstable();
+        if registers.windows(2).any(|w| w[0] > w[1]) {
+            registers.sort_unstable();
+        }
         let mut parameters = function
             .virtual_registers
             .iter()
@@ -45,32 +47,24 @@ impl<'function> FunctionIndex<'function> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        parameters.sort_unstable();
+        if parameters.windows(2).any(|w| w[0] > w[1]) {
+            parameters.sort_unstable();
+        }
         let mut blocks = function
             .blocks
             .iter()
             .enumerate()
             .map(|(position, block)| (block.id, position))
             .collect::<Vec<_>>();
-        blocks.sort_unstable();
-        let mut instructions = function
-            .blocks
-            .iter()
-            .enumerate()
-            .flat_map(|(block, row)| {
-                row.instructions
-                    .iter()
-                    .enumerate()
-                    .map(move |(position, instruction)| (instruction.id, block, position))
-            })
-            .collect::<Vec<_>>();
-        instructions.sort_unstable();
+        if blocks.windows(2).any(|w| w[0] > w[1]) {
+            blocks.sort_unstable();
+        }
         Self {
             function,
             registers,
             parameters,
             blocks,
-            instructions,
+            instructions: std::sync::OnceLock::new(),
         }
     }
 
@@ -82,10 +76,24 @@ impl<'function> FunctionIndex<'function> {
         &'function selected_instructions::SelectedInstruction,
         usize,
     )> {
-        let start = self
-            .instructions
-            .partition_point(|(other, _, _)| *other < id);
-        let [(first, block, position), rest @ ..] = self.instructions.get(start..)? else {
+        let instructions = self.instructions.get_or_init(|| {
+            let mut list = self
+                .function
+                .blocks
+                .iter()
+                .enumerate()
+                .flat_map(|(block, row)| {
+                    row.instructions
+                        .iter()
+                        .enumerate()
+                        .map(move |(position, instruction)| (instruction.id, block, position))
+                })
+                .collect::<Vec<_>>();
+            list.sort_unstable();
+            list
+        });
+        let start = instructions.partition_point(|(other, _, _)| *other < id);
+        let [(first, block, position), rest @ ..] = instructions.get(start..)? else {
             return None;
         };
         if *first != id || rest.first().is_some_and(|(next, _, _)| *next == id) {
@@ -169,6 +177,13 @@ pub(crate) fn validate_transports(
     let mismatch = || LivenessError::FunctionMismatch {
         function: function_index,
     };
+    if !function.blocks.iter().any(|block| {
+        matches!(block.origin, SelectedBlockOrigin::Operation { .. })
+            || matches!(block.terminator, SelectedTerminator::OperationTrap { .. })
+            || !terminator_successors(&block.terminator).is_empty()
+    }) {
+        return Ok(());
+    }
     let index = FunctionIndex::new(function);
     for block in &function.blocks {
         if let SelectedBlockOrigin::Operation { operation, .. } = block.origin

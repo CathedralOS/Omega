@@ -1,7 +1,9 @@
 //! Block domains, virtual fragments, connectors, and point arithmetic.
+#[cfg(test)]
+use super::BTreeSet;
 use super::{
-    BTreeSet, BlockLiveness, BlockPointDomain, LiveRangeEdgeConnector, LiveRangeFragment,
-    LiveRangePoint, LivenessPosition, RegisterOperandAccess, SelectedBlockId, VirtualRegisterId,
+    BlockLiveness, BlockPointDomain, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePoint,
+    LivenessPosition, RegisterOperandAccess, SelectedBlockId, VirtualRegisterId,
 };
 use crate::LiveRangeError;
 
@@ -134,34 +136,83 @@ pub(super) fn fragments_from_points(
 /// Every pair of virtual registers with overlapping fragments in one block:
 /// `lower` is the register earlier in `rows`.
 pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::VirtualInterference> {
+    if rows.is_empty() {
+        return Vec::new();
+    }
     let mut by_block =
-        std::collections::BTreeMap::<SelectedBlockId, Vec<(LiveRangeFragment, usize)>>::new();
+        std::collections::BTreeMap::<SelectedBlockId, Vec<(u32, u32, u32, VirtualRegisterId)>>::new(
+        );
     for (row, range) in rows.iter().enumerate() {
+        let vreg = range.virtual_register;
         for fragment in &range.fragments {
-            by_block
-                .entry(fragment.block)
-                .or_default()
-                .push((*fragment, row));
+            if fragment.start < fragment.end {
+                by_block.entry(fragment.block).or_default().push((
+                    fragment.start.0,
+                    fragment.end.0,
+                    row as u32,
+                    vreg,
+                ));
+            }
         }
     }
-    let mut pairs = Vec::new();
-    let mut active: Vec<(LiveRangeFragment, usize)> = Vec::new();
-    for fragments in by_block.values_mut() {
-        fragments.sort_unstable_by_key(|&(fragment, row)| (fragment.start, row));
-        active.clear();
-        for &(fragment, row) in fragments.iter() {
-            active.retain(|(live, _)| fragment.start < live.end);
-            for &(live, live_row) in &active {
-                if live_row != row && live.start < fragment.end && fragment.start < live.end {
-                    let lo = live_row.min(row);
-                    let hi = live_row.max(row);
-                    pairs.push(super::VirtualInterference {
-                        lower: rows[lo].virtual_register,
-                        higher: rows[hi].virtual_register,
-                    });
+    let rows_monotonic = rows
+        .windows(2)
+        .all(|pair| pair[0].virtual_register < pair[1].virtual_register);
+    if rows_monotonic && by_block.len() == 1 {
+        let fragments = by_block.values_mut().next().unwrap();
+        fragments.sort_unstable_by_key(|&(start, _, row, _)| (start, row));
+        let mut buckets: Vec<Vec<VirtualRegisterId>> = vec![Vec::new(); rows.len()];
+        let mut total_pairs = 0usize;
+        let mut active: Vec<(u32, u32, VirtualRegisterId)> = Vec::new();
+        for &(start, end, row, vreg) in fragments.iter() {
+            active.retain(|&(live_end, _, _)| start < live_end);
+            for &(_, live_row, live_vreg) in &active {
+                if live_row != row {
+                    let (lo_row, hi_vreg) = if live_row < row {
+                        (live_row as usize, vreg)
+                    } else {
+                        (row as usize, live_vreg)
+                    };
+                    buckets[lo_row].push(hi_vreg);
+                    total_pairs += 1;
                 }
             }
-            active.push((fragment, row));
+            active.push((end, row, vreg));
+        }
+        let mut pairs = Vec::with_capacity(total_pairs);
+        for (lo_row, mut bucket) in buckets.into_iter().enumerate() {
+            if bucket.is_empty() {
+                continue;
+            }
+            if bucket.len() > 1 {
+                bucket.sort_unstable();
+                bucket.dedup();
+            }
+            let lower = rows[lo_row].virtual_register;
+            for higher in bucket {
+                pairs.push(super::VirtualInterference { lower, higher });
+            }
+        }
+        return pairs;
+    }
+    let mut pairs = Vec::new();
+    let mut active: Vec<(u32, u32, VirtualRegisterId)> = Vec::new();
+    for fragments in by_block.values_mut() {
+        fragments.sort_unstable_by_key(|&(start, _, row, _)| (start, row));
+        active.clear();
+        for &(start, end, row, vreg) in fragments.iter() {
+            active.retain(|&(live_end, _, _)| start < live_end);
+            for &(_, live_row, live_vreg) in &active {
+                if live_row != row {
+                    let (lower, higher) = if live_row < row {
+                        (live_vreg, vreg)
+                    } else {
+                        (vreg, live_vreg)
+                    };
+                    pairs.push(super::VirtualInterference { lower, higher });
+                }
+            }
+            active.push((end, row, vreg));
         }
     }
     pairs.sort_unstable();
