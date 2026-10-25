@@ -1524,14 +1524,15 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     `providers/foreign_{owned_record,record_result,multiregister_result,indirect_record_*}_exit`
     and `host/runtime_descriptor_*_exit` passing.
   - Connect `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
-    to provider call-frame transport and backend emission across all nine places
-    of `samples/cli/facts/opaque_closed_carrier_exchange` on Linux ARM64
-    (Linux x86-64, macOS ARM64, and Windows x86-64 now pass across all nine
-    places). The [checked Copy continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
-    now passes its root and nine places on macOS ARM64 with copy-only rejects;
-    other matching-host Copy execution remains pending. Extend independent
-    component exchange to linear, qualified, and view-backed opaque inputs with
-    exact composition-edge drift rejection.
+    to provider call-frame transport and backend emission for the remaining
+    linear, qualified, and view-backed opaque inputs with exact composition-edge
+    drift rejection. The direct and independent closed Affine rows in
+    `samples/cli/facts/opaque_closed_carrier_exchange` now pass all nine places
+    on all four hosted targets, including Linux ARM64. The
+    [checked Copy continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
+    also has nine-place native/Terminal agreement and copy-only rejects on all
+    four targets. Its README retains the original Windows timeout and the
+    independently reviewed finite diagnostic; that original run remains red.
   - Connect stage 05 `retention/retained_borrow_custody.rs` and native
     marshaling to installed-provider custody and default Terminal adapters for
     moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine

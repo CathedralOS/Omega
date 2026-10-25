@@ -43,7 +43,33 @@ descriptor accounting through `4d987059e88`), the unchanged root and all nine
 positive places execute native 0 / Terminal 0 on macOS ARM64 through ordinary
 package update/review/accept. All ten copy-only controls reject as consumed.
 The nine corpus pairs have checking, native and combined macOS pins.
-Other matching-host observations remain pending.
+
+The same nine fixtures now have matching-host native 0 / Terminal 0 observations
+on Windows x86-64 and both Linux targets. Linux run
+[40220498665](https://github.com/CathedralOS/Omega/actions/runs/40220498665)
+used the retained optimized producers `bca639682c50` (x86-64) and
+`213f298c1854` (ARM64); their five compiler input trees are identical. Each
+host checked 36 positives and 36 intended rejects and ran all 36 positives in
+both engines, including this Copy row and the direct and independent Affine
+rows. The Copy and independent Affine captures each retain two actual native
+component images and their descriptions. Harness source `65110bf15220` is
+recorded separately from the actual compiler producers. Missing ARM runtime
+history is explicitly unknown; authored numeric, diagnostic and component
+publication oracles still apply.
+
+Windows run [40215318892](https://github.com/CathedralOS/Omega/actions/runs/40215318892)
+remains failed: its Copy-local native process timed out, while the other eight
+Copy places and all nine Terminal executions succeeded. The failed local PE
+is byte-identical to two successful places. The fixed, finite diagnostic run
+[40219949587](https://github.com/CathedralOS/Omega/actions/runs/40219949587)
+used the original optimized `bca639682c50` compiler: all five native/Terminal
+pairs succeeded, including three local executions. Three direct launches of
+the byte-verified local executable and its actual published DLL bundle also
+exited 0 under the unchanged 20-second deadline. Component filenames and
+receipts bind the exact emitted bytes; the short-lived processes did not yield
+loaded-module path samples. Independent review accepted the Windows functional
+scope with the original unexplained timeout retained. No environmental cause
+or success for the original failed run is inferred.
 
 Checked semantic copies receive ordinary distinct guest homes. They may retain
 the same immutable actual C payload; copying its four bytes grants no guest
@@ -56,6 +82,6 @@ custody, actual-host-atom and installed-child checks; only affine parameters
 retire the caller's frontier.
 
 This establishes the checked Copy input/result lane for closed Inert atoms on
-the observed host. Linear, qualified and view-backed inputs, Linux ARM64
-execution, full composition drift and replacement lifecycle acceptance remain
+all four matching hosted targets. Linear, qualified and view-backed inputs,
+full composition drift and replacement lifecycle acceptance remain
 separate parent requirements. No owner-level language rule changes here.
