@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::analyses::liveness::LivenessError;
@@ -98,24 +98,53 @@ pub(crate) struct UnitBlockLiveness {
 pub(crate) struct UnitFunctionLiveness {
     pub(crate) blocks: Vec<UnitBlockLiveness>,
 }
-pub(crate) fn compute_function_units(
+pub(crate) fn compute_function_units_filtered(
     function_index: usize,
     function: &SelectedFunction,
+    unit_filter: &[register_model::RegisterUnitId],
+    needed_blocks: &[bool],
 ) -> Result<UnitFunctionLiveness, LivenessError> {
-    reject_unsupported_constraints(function_index, function)?;
-    super::edge_values::validate_transports(function_index, function)?;
-    let flow = flow::FunctionFlow::compute_units(function_index, function)?;
+    let flow = flow::FunctionFlow::compute_units_filtered(function_index, function, unit_filter)?;
     let blocks = function
         .blocks
         .iter()
         .enumerate()
         .map(|(index, block)| {
+            if !needed_blocks.get(index).copied().unwrap_or(false) {
+                return UnitBlockLiveness {
+                    unit_live_in: Vec::new(),
+                    instructions: Vec::new(),
+                };
+            }
             let state = &flow.blocks[index];
+            let has_local_unit_use = function
+                .blocks
+                .block_implicit_units_and_fixed_views(index)
+                .is_some_and(|(units, _)| units.iter().any(|u| unit_filter.contains(u)));
+            if state.unit_exit.is_empty() && !has_local_unit_use {
+                return UnitBlockLiveness {
+                    unit_live_in: Vec::new(),
+                    instructions: Vec::new(),
+                };
+            }
             let mut live = state.unit_exit.clone();
             let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
             for instruction in block_instructions(block).rev() {
                 let unit_live_out = sorted(&live);
-                transfer_units(&mut live, instruction);
+                for killed in instruction
+                    .implicit_defs
+                    .iter()
+                    .chain(&instruction.clobbers)
+                {
+                    if unit_filter.contains(killed) {
+                        live.remove(killed);
+                    }
+                }
+                for used in &instruction.implicit_uses {
+                    if unit_filter.contains(used) {
+                        live.insert(*used);
+                    }
+                }
                 instructions.push(UnitInstructionLiveness {
                     instruction: instruction.id,
                     unit_live_in: sorted(&live),
@@ -153,11 +182,15 @@ pub(crate) fn compute_function(
     super::edge_values::validate_transports(function_index, function)?;
     let flow = flow::FunctionFlow::compute(function_index, function)?;
 
+    let max_inst_id = function
+        .blocks
+        .maximum_instruction_id()
+        .map_or(0, |id| id.0 as usize);
+    let mut positions = vec![u32::MAX; max_inst_id + 1];
     let mut next_position = 0_u32;
-    let mut positions = BTreeMap::new();
     for block in &function.blocks {
         for instruction in block_instructions(block) {
-            positions.insert(instruction.id, LivenessPosition(next_position));
+            positions[instruction.id.0 as usize] = next_position;
             next_position =
                 next_position
                     .checked_add(1)
@@ -183,7 +216,7 @@ pub(crate) fn compute_function(
         .iter()
         .flat_map(block_instructions)
         .map(|instruction| {
-            let instruction_position = positions[&instruction.id];
+            let instruction_position = LivenessPosition(positions[instruction.id.0 as usize]);
             operand_positions.insert_many(instruction.operands.iter().map(|operand| {
                 OperandPosition {
                     position: instruction_position,
@@ -438,31 +471,57 @@ fn tied_component(
 fn materialize_block(
     function_index: usize,
     block: &SelectedBlock,
-    positions: &BTreeMap<selected_instructions::SelectedInstructionId, LivenessPosition>,
+    positions: &[u32],
     operand_spans: &[arena::HandleSpan<OperandPosition>],
     flow: &flow::FunctionFlow,
     block_index: usize,
 ) -> Result<BlockLiveness, LivenessError> {
     let state = &flow.blocks[block_index];
-    let mut virtual_live = state.virtual_exit.clone();
+    let word_count = (flow.max_reg_id + 1).div_ceil(64);
+    let mut virtual_live_bits = vec![0u64; word_count];
+    for &reg in &state.virtual_exit {
+        let idx = reg.0 as usize;
+        virtual_live_bits[idx / 64] |= 1u64 << (idx % 64);
+    }
+    let mut next_virtual_live = state.virtual_exit.clone();
     let mut unit_live = state.unit_exit.clone();
     let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
     for instruction in block_instructions(block).rev() {
-        let virtual_live_out = sorted(&virtual_live);
+        let virtual_live_out = next_virtual_live;
         let unit_live_out = sorted(&unit_live);
-        let (uses, defs) = virtual_uses_defs(instruction);
+        let (uses, defs) = virtual_uses_defs_vec(instruction);
+        let mut changed = false;
         for definition in &defs {
-            virtual_live.remove(definition);
+            let idx = definition.0 as usize;
+            let mask = 1u64 << (idx % 64);
+            if (virtual_live_bits[idx / 64] & mask) != 0 {
+                virtual_live_bits[idx / 64] &= !mask;
+                changed = true;
+            }
         }
-        virtual_live.extend(uses.iter().copied());
+        for used in &uses {
+            let idx = used.0 as usize;
+            let mask = 1u64 << (idx % 64);
+            if (virtual_live_bits[idx / 64] & mask) == 0 {
+                virtual_live_bits[idx / 64] |= mask;
+                changed = true;
+            }
+        }
+        let virtual_live_in = if changed {
+            flow::bits_to_vregs(&virtual_live_bits)
+        } else {
+            virtual_live_out.clone()
+        };
+        next_virtual_live = virtual_live_in.clone();
         transfer_units(&mut unit_live, instruction);
+        let pos = positions[instruction.id.0 as usize];
         instructions.push(InstructionLiveness {
-            position: positions[&instruction.id],
+            position: LivenessPosition(pos),
             instruction: instruction.id,
-            operands: operand_spans[positions[&instruction.id].0 as usize],
-            virtual_uses: sorted(&uses),
-            virtual_defs: sorted(&defs),
-            virtual_live_in: sorted(&virtual_live),
+            operands: operand_spans[pos as usize],
+            virtual_uses: uses,
+            virtual_defs: defs,
+            virtual_live_in,
             virtual_live_out,
             unit_uses: instruction.implicit_uses.clone(),
             unit_defs: instruction.implicit_defs.clone(),
@@ -476,24 +535,25 @@ fn materialize_block(
     let successors = control::successors(&block.terminator)
         .enumerate()
         .map(|(ordinal, successor)| {
+            let mut virtual_live = flow.blocks[flow.edges[block_index][ordinal].target]
+                .virtual_entry
+                .iter()
+                .map(|register| {
+                    flow.incoming_argument(
+                        function_index,
+                        &flow.edges[block_index][ordinal],
+                        *register,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            virtual_live.sort_unstable();
+            virtual_live.dedup();
             Ok(SuccessorLiveness {
                 terminator: terminator.id,
                 polarity_ordinal: ordinal as u8,
                 psi_edge: successor.psi_edge,
                 target: successor.block,
-                virtual_live: sorted(
-                    &flow.blocks[flow.edges[block_index][ordinal].target]
-                        .virtual_entry
-                        .iter()
-                        .map(|register| {
-                            flow.incoming_argument(
-                                function_index,
-                                &flow.edges[block_index][ordinal],
-                                *register,
-                            )
-                        })
-                        .collect::<Result<BTreeSet<_>, _>>()?,
-                ),
+                virtual_live,
                 unit_live: sorted(&flow.blocks[flow.edges[block_index][ordinal].target].unit_entry),
             })
         })
@@ -501,8 +561,8 @@ fn materialize_block(
     Ok(BlockLiveness {
         block: block.id,
         source_block: block.source_block(),
-        virtual_live_in: sorted(&state.virtual_entry),
-        virtual_live_out: sorted(&state.virtual_exit),
+        virtual_live_in: state.virtual_entry.clone(),
+        virtual_live_out: state.virtual_exit.clone(),
         unit_live_in: sorted(&state.unit_entry),
         unit_live_out: sorted(&state.unit_exit),
         instructions,
@@ -510,24 +570,32 @@ fn materialize_block(
     })
 }
 
-fn virtual_uses_defs(
+fn virtual_uses_defs_vec(
     instruction: &SelectedInstruction,
-) -> (BTreeSet<VirtualRegisterId>, BTreeSet<VirtualRegisterId>) {
-    let mut uses = BTreeSet::new();
-    let mut defs = BTreeSet::new();
+) -> (Vec<VirtualRegisterId>, Vec<VirtualRegisterId>) {
+    let mut uses = Vec::new();
+    let mut defs = Vec::new();
     for operand in &instruction.operands {
         match operand.access {
             RegisterOperandAccess::Use => {
-                uses.insert(operand.virtual_register);
+                uses.push(operand.virtual_register);
             }
             RegisterOperandAccess::Def => {
-                defs.insert(operand.virtual_register);
+                defs.push(operand.virtual_register);
             }
             RegisterOperandAccess::UseDef => {
-                uses.insert(operand.virtual_register);
-                defs.insert(operand.virtual_register);
+                uses.push(operand.virtual_register);
+                defs.push(operand.virtual_register);
             }
         }
+    }
+    if uses.len() > 1 {
+        uses.sort_unstable();
+        uses.dedup();
+    }
+    if defs.len() > 1 {
+        defs.sort_unstable();
+        defs.dedup();
     }
     (uses, defs)
 }

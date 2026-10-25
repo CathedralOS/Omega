@@ -22,7 +22,8 @@ pub fn split_selected_runtime_value(
         .map_err(|_| RuntimeSplitError::IdentityOverflow)?;
     let mut transformed = source.selected_plan().clone();
     let function = &mut transformed.functions[function_index];
-    for (block_index, block) in function.blocks.iter_mut().enumerate() {
+    for &block_index in &admitted.use_blocks {
+        let block = &mut function.blocks[block_index];
         for (instruction_index, instruction) in block.instructions.iter_mut().enumerate() {
             if block_index == admitted.block_index && instruction_index <= admitted.definition_index
             {

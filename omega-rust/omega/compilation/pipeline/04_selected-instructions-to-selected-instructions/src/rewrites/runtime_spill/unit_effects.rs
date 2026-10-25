@@ -32,28 +32,69 @@ pub(super) fn preserve_live_units(
         .collect();
     // A unit never implicitly read by source cannot carry source state through
     // an inserted access. Avoid rebuilding liveness for that common case.
-    if !function.blocks.iter().any(|block| {
-        block
-            .instructions
-            .iter()
-            .chain(std::iter::once(super::control(&block.terminator).0))
-            .any(|instruction| {
-                instruction
-                    .implicit_uses
-                    .iter()
-                    .any(|unit| all_clobbers.contains(unit))
-            })
-    }) {
+    if all_clobbers.is_empty()
+        || !(0..function.blocks.len()).any(|block_index| {
+            function
+                .blocks
+                .block_implicit_units_and_fixed_views(block_index)
+                .is_some_and(|(units, _)| units.iter().any(|unit| all_clobbers.contains(unit)))
+        })
+    {
         return Ok(());
     }
-    let liveness =
-        crate::analyses::liveness::compute::compute_function_units(function_index, function)
-            .map_err(|_| RuntimeSpillError::SourceMismatch)?;
+    let mut needed_blocks = vec![false; function.blocks.len()];
+    for definition in definitions {
+        if let Some(slot) = needed_blocks.get_mut(definition.block_index) {
+            *slot = true;
+        }
+    }
+    for (block_index, positions) in uses.iter().enumerate() {
+        if (!positions.unpinned.is_empty()
+            || !positions.pinned.is_empty()
+            || !positions.dedicated.is_empty()
+            || positions.end_of_block)
+            && let Some(slot) = needed_blocks.get_mut(block_index)
+        {
+            *slot = true;
+        }
+    }
+    let liveness = crate::analyses::liveness::compute::compute_function_units_filtered(
+        function_index,
+        function,
+        &all_clobbers,
+        &needed_blocks,
+    )
+    .map_err(|_| RuntimeSpillError::SourceMismatch)?;
     for definition in definitions {
         let block = liveness
             .blocks
             .get(definition.block_index)
             .ok_or(RuntimeSpillError::SourceMismatch)?;
+        if block.instructions.is_empty() {
+            match definition.position {
+                StoragePosition::BlockStart => {}
+                StoragePosition::AfterInstruction(instruction)
+                | StoragePosition::AfterUseDef { instruction, .. } => {
+                    let exists = function
+                        .blocks
+                        .instruction_index_in_block(definition.block_index, instruction)
+                        .is_some()
+                        || super::control(
+                            &function
+                                .blocks
+                                .get(definition.block_index)
+                                .ok_or(RuntimeSpillError::SourceMismatch)?
+                                .terminator,
+                        )
+                        .0
+                        .id == instruction;
+                    if !exists {
+                        return Err(RuntimeSpillError::SourceMismatch);
+                    }
+                }
+            }
+            continue;
+        }
         let live = match definition.position {
             StoragePosition::BlockStart => &block.unit_live_in,
             StoragePosition::AfterInstruction(instruction)
@@ -75,6 +116,24 @@ pub(super) fn preserve_live_units(
             .blocks
             .get(block_index)
             .ok_or(RuntimeSpillError::SourceMismatch)?;
+        if block.instructions.is_empty() {
+            let max_pos = function
+                .blocks
+                .get(block_index)
+                .ok_or(RuntimeSpillError::SourceMismatch)?
+                .instructions
+                .len();
+            if positions
+                .unpinned
+                .iter()
+                .chain(&positions.pinned)
+                .chain(&positions.dedicated)
+                .any(|&pos| pos > max_pos)
+            {
+                return Err(RuntimeSpillError::SourceMismatch);
+            }
+            continue;
+        }
         for position in positions
             .unpinned
             .iter()

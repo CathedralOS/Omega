@@ -927,6 +927,12 @@ pub(super) fn derive_runtime_spill<'source>(
     };
     let mut retained_uses = std::collections::BTreeSet::new();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
+        if !function
+            .blocks
+            .block_references_register(current_block_index, register)
+        {
+            continue;
+        }
         let previous_uses = uses;
         let (terminal, successors) = control(&block.terminator);
         // A terminator operand use executes after every block instruction, so
@@ -1490,69 +1496,101 @@ pub(super) fn derive_runtime_spill<'source>(
     // way. A fixed-view operand or entry-bound register anywhere in the
     // function precolors an interval that may reach across a span, so every
     // unit such a view occupies is excluded too.
+    let any_flexible = flexible_uses.iter().any(|&flexible| flexible);
     let mut implicit_use_units = std::collections::BTreeSet::new();
-    let mut pinned_views = function
-        .virtual_registers
-        .iter()
-        .filter_map(|register| register.entry_fixed_view)
-        .collect::<Vec<_>>();
-    for instruction in function.blocks.iter().flat_map(|block| {
-        block
-            .instructions
+    let mut pinned_units = std::collections::BTreeSet::new();
+    if any_flexible {
+        let model = environment.physical().model();
+        let mut seen_units = vec![false; model.units.len()];
+        let mut seen_views = vec![false; model.views.len()];
+        let mut mark_unit = |unit: RegisterUnitId| {
+            let idx = usize::from(unit.0);
+            if idx >= seen_units.len() {
+                seen_units.resize(idx + 1, false);
+            }
+            seen_units[idx] = true;
+        };
+        let mut mark_view = |view: register_model::RegisterViewId| {
+            let idx = usize::from(view.0);
+            if idx >= seen_views.len() {
+                seen_views.resize(idx + 1, false);
+            }
+            seen_views[idx] = true;
+        };
+        for register in &function.virtual_registers {
+            if let Some(view) = register.entry_fixed_view {
+                mark_view(view);
+            }
+        }
+        for block_index in 0..function.blocks.len() {
+            if let Some((units, views)) =
+                function.blocks.block_implicit_units_and_fixed_views(block_index)
+            {
+                for &unit in units {
+                    mark_unit(unit);
+                }
+                for &view in views {
+                    mark_view(view);
+                }
+            }
+        }
+        for &unit in address
+            .implicit_uses
             .iter()
-            .chain(std::iter::once(control(&block.terminator).0))
-    }) {
-        implicit_use_units.extend(instruction.implicit_uses.iter().copied());
-        pinned_views.extend(
-            instruction
-                .operands
+            .chain(&load.implicit_uses)
+            .chain(&store.implicit_uses)
+        {
+            mark_unit(unit);
+        }
+        // A transported victim's conversions may read units of their own; they
+        // sit inside the same open intervals, so their implicit units are
+        // excluded from any home the shared reload demands.
+        if let Some(conversion) = &bits_conversion {
+            for &unit in conversion
+                .to_bits
+                .implicit_uses
                 .iter()
-                .filter_map(|operand| operand.fixed_view),
-        );
+                .chain(&conversion.from_bits.implicit_uses)
+            {
+                mark_unit(unit);
+            }
+        }
+        for (idx, &seen) in seen_units.iter().enumerate() {
+            if seen && let Ok(id) = u16::try_from(idx) {
+                implicit_use_units.insert(RegisterUnitId(id));
+            }
+        }
+        pinned_units = seen_views
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, &seen)| seen.then_some(idx))
+            .flat_map(|idx| {
+                model
+                    .views
+                    .get(idx)
+                    .into_iter()
+                    .flat_map(|view| view.units.iter().chain(&view.write_units))
+            })
+            .copied()
+            .collect();
     }
-    implicit_use_units.extend(address.implicit_uses.iter().copied());
-    implicit_use_units.extend(load.implicit_uses.iter().copied());
-    implicit_use_units.extend(store.implicit_uses.iter().copied());
-    // A transported victim's conversions may read units of their own; they
-    // sit inside the same open intervals, so their implicit units are
-    // excluded from any home the shared reload demands.
-    if let Some(conversion) = &bits_conversion {
-        implicit_use_units.extend(conversion.to_bits.implicit_uses.iter().copied());
-        implicit_use_units.extend(conversion.from_bits.implicit_uses.iter().copied());
-    }
-    let pinned_units = pinned_views
-        .iter()
-        .flat_map(|view_id| {
-            environment
-                .physical()
-                .model()
-                .views
-                .get(usize::from(view_id.0))
-                .into_iter()
-                .flat_map(|view| view.units.iter().chain(&view.write_units))
-        })
-        .copied()
-        .collect::<std::collections::BTreeSet<_>>();
     // One reload register stays open for consecutive flexible uses only
     // while the instructions between them cannot destroy register content;
     // a clobber or implicit definition closes it at rewrite time, so under
     // `UnitWriteBounded` no produced interval ever reaches across a call and
     // demands a callee-saved home recovery may not have.
     let empty_writes = std::collections::BTreeSet::new();
-    let shared_reload: Vec<bool> = function
-        .blocks
+    let base_surviving_home = any_flexible
+        && surviving_home_exists(
+            environment,
+            victim.class,
+            &implicit_use_units,
+            &pinned_units,
+            &empty_writes,
+        );
+    let shared_reload: Vec<bool> = flexible_uses
         .iter()
-        .enumerate()
-        .map(|(block_index, _block)| {
-            flexible_uses[block_index]
-                && surviving_home_exists(
-                    environment,
-                    victim.class,
-                    &implicit_use_units,
-                    &pinned_units,
-                    &empty_writes,
-                )
-        })
+        .map(|&flexible| flexible && base_surviving_home)
         .collect();
     // The deferred half of the early-clobber admission: the recorded hazard
     // is real only where the block actually keeps one reload register open
@@ -1628,6 +1666,14 @@ pub(super) fn derive_runtime_spill<'source>(
         .iter()
         .enumerate()
         .map(|(block_index, block)| {
+            if !shared_reload[block_index]
+                && redefinitions[block_index].is_empty()
+                && !structural_uses
+                    .iter()
+                    .any(|pending| pending.block == block_index)
+            {
+                return std::collections::BTreeSet::new();
+            }
             block
                 .instructions
                 .iter()
@@ -1805,16 +1851,6 @@ pub(super) fn derive_runtime_spill<'source>(
         load,
         store,
     )?;
-    // Resolve every emitted access's slot at window granularity: definitions
-    // one reload position may observe merge into a single storage window
-    // because that load can name only one slot, and each window independently
-    // takes the first declared spill slot the last-writer replay proves
-    // disjoint from its accesses. Reuse declares nothing, so a shared slot is
-    // charged to the frame once; windows no candidate admits share the
-    // victim's private slot, appended once. The search scans this function
-    // once per declared local slot. Reuse only shrinks the frame, so a search
-    // that alone would carry the pass over budget is declined rather than
-    // charged: every window then keeps the victim's private slot.
     let reuse_slots = function
         .local_storage_slots
         .len()

@@ -39,12 +39,10 @@ pub(super) fn block_domain(
 pub(super) fn register_fragments(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
-    registers: &BTreeSet<VirtualRegisterId>,
-) -> Result<std::collections::BTreeMap<VirtualRegisterId, Vec<LiveRangeFragment>>, LiveRangeError> {
-    let mut fragments = registers
-        .iter()
-        .map(|register| (*register, Vec::new()))
-        .collect::<std::collections::BTreeMap<_, _>>();
+    register_count: usize,
+    register_index: &[u32],
+) -> Result<Vec<Vec<LiveRangeFragment>>, LiveRangeError> {
+    let mut fragments = vec![Vec::new(); register_count];
     for block in &liveness.blocks {
         for instruction in &block.instructions {
             for (live, accessed, point) in [
@@ -60,8 +58,10 @@ pub(super) fn register_fragments(
                 ),
             ] {
                 for register in live.iter().chain(accessed) {
-                    if let Some(rows) = fragments.get_mut(register) {
-                        append_point(function, rows, block.block, point)?;
+                    if let Some(&idx) = register_index.get(register.0 as usize)
+                        && idx != u32::MAX
+                    {
+                        append_point(function, &mut fragments[idx as usize], block.block, point)?;
                     }
                 }
             }
@@ -98,6 +98,7 @@ pub(super) fn append_point(
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn fragments_from_points(
     block: SelectedBlockId,
     points: BTreeSet<LiveRangePoint>,
@@ -132,29 +133,44 @@ pub(super) fn fragments_from_points(
 
 /// Every pair of virtual registers with overlapping fragments in one block:
 /// `lower` is the register earlier in `rows`.
-pub(super) fn interference(
-    rows: &[super::VirtualLiveRange],
-) -> BTreeSet<super::VirtualInterference> {
-    let fragments = rows
-        .iter()
-        .map(|range| range.fragments.as_slice())
-        .collect::<Vec<_>>();
-    overlapping_rows(&fragments)
-        .into_iter()
-        .map(|(lower, higher)| super::VirtualInterference {
-            lower: rows[lower].virtual_register,
-            higher: rows[higher].virtual_register,
-        })
-        .collect()
+pub(super) fn interference(rows: &[super::VirtualLiveRange]) -> Vec<super::VirtualInterference> {
+    let mut by_block =
+        std::collections::BTreeMap::<SelectedBlockId, Vec<(LiveRangeFragment, usize)>>::new();
+    for (row, range) in rows.iter().enumerate() {
+        for fragment in &range.fragments {
+            by_block
+                .entry(fragment.block)
+                .or_default()
+                .push((*fragment, row));
+        }
+    }
+    let mut pairs = Vec::new();
+    let mut active: Vec<(LiveRangeFragment, usize)> = Vec::new();
+    for fragments in by_block.values_mut() {
+        fragments.sort_unstable_by_key(|&(fragment, row)| (fragment.start, row));
+        active.clear();
+        for &(fragment, row) in fragments.iter() {
+            active.retain(|(live, _)| fragment.start < live.end);
+            for &(live, live_row) in &active {
+                if live_row != row && live.start < fragment.end && fragment.start < live.end {
+                    let lo = live_row.min(row);
+                    let hi = live_row.max(row);
+                    pairs.push(super::VirtualInterference {
+                        lower: rows[lo].virtual_register,
+                        higher: rows[hi].virtual_register,
+                    });
+                }
+            }
+            active.push((fragment, row));
+        }
+    }
+    pairs.sort_unstable();
+    pairs.dedup();
+    pairs
 }
 
 /// The `(lower, higher)` row pairs owning overlapping fragments in one block.
-/// Each block's fragments are swept in start order against the ones still
-/// live; a fragment ending at or before the current start overlaps nothing
-/// that starts later and leaves the active set, and each remaining candidate
-/// takes the exact half-open overlap test. A large function costs its sorted
-/// sweep plus the live pressure at each point, not one comparison per row
-/// pair, and yields the same pairs as testing every row pair.
+#[cfg(test)]
 fn overlapping_rows(rows: &[&[LiveRangeFragment]]) -> BTreeSet<(usize, usize)> {
     let mut by_block =
         std::collections::BTreeMap::<SelectedBlockId, Vec<(LiveRangeFragment, usize)>>::new();

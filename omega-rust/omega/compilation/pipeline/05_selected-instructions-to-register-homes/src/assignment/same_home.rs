@@ -11,6 +11,7 @@ use selected_instructions::{FunctionLiveRanges, VirtualRegisterId};
 pub(super) struct SameHomeComponents {
     registers: Vec<VirtualRegisterId>,
     roots: Vec<usize>,
+    leader_by_id: Vec<u32>,
 }
 
 impl SameHomeComponents {
@@ -41,16 +42,27 @@ impl SameHomeComponents {
             let right = root(&roots, right);
             roots[right] = left;
         }
+        let max_id = registers.last().map_or(0, |reg| reg.0 as usize + 1);
+        let mut leader_by_id = vec![u32::MAX; max_id];
         for position in 0..roots.len() {
-            roots[position] = root(&roots, position);
+            let r = root(&roots, position);
+            roots[position] = r;
+            leader_by_id[registers[position].0 as usize] = registers[r].0;
         }
-        Self { registers, roots }
+        Self {
+            registers,
+            roots,
+            leader_by_id,
+        }
     }
 
+    #[inline]
     pub(super) fn leader(&self, register: VirtualRegisterId) -> VirtualRegisterId {
-        self.registers
-            .binary_search(&register)
-            .map_or(register, |position| self.registers[self.roots[position]])
+        self.leader_by_id
+            .get(register.0 as usize)
+            .copied()
+            .filter(|&leader| leader != u32::MAX)
+            .map_or(register, VirtualRegisterId)
     }
 
     pub(super) fn members(&self, register: VirtualRegisterId) -> Vec<VirtualRegisterId> {

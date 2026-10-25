@@ -1,7 +1,5 @@
 //! Attempt-local copy-affinity incidence prepared from canonical live-range rows.
 
-use std::collections::BTreeMap;
-
 use selected_instructions::{CopyAffinity, VirtualRegisterId};
 
 #[derive(Clone, Copy)]
@@ -17,9 +15,16 @@ pub(super) struct PreparedAffinities {
 impl PreparedAffinities {
     pub(super) fn new(
         domain_count: usize,
-        domain_of: &BTreeMap<VirtualRegisterId, usize>,
+        domain_of: &[u32],
         affinities: &[CopyAffinity],
     ) -> Self {
+        let lookup = |id: VirtualRegisterId| -> Option<usize> {
+            domain_of
+                .get(id.0 as usize)
+                .copied()
+                .filter(|&d| d != u32::MAX)
+                .map(|d| d as usize)
+        };
         let mut by_domain = vec![Vec::new(); domain_count];
         // Placement repeatedly asks only about edges incident to one domain.
         // Retain the canonical input order and multiplicity once per distinct
@@ -28,8 +33,8 @@ impl PreparedAffinities {
         // source-first interpretation, while an absent endpoint stays an
         // ordinary unreachable partner rather than becoming a new error.
         for affinity in affinities {
-            let source_domain = domain_of.get(&affinity.source).copied();
-            let destination_domain = domain_of.get(&affinity.destination).copied();
+            let source_domain = lookup(affinity.source);
+            let destination_domain = lookup(affinity.destination);
             if let Some(source_domain) = source_domain {
                 by_domain[source_domain].push(DomainAffinity {
                     partner: affinity.destination,

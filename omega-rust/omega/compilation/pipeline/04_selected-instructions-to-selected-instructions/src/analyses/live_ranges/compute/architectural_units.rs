@@ -1,53 +1,53 @@
 //! Architectural register-unit discovery, actions, and fragments.
+use super::fragments::append_point;
 use super::{
-    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange, BTreeSet,
+    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     RegisterUnitId,
 };
-use super::{LiveRangeError, after_point, before_point, connector, fragments_from_points};
+use super::{LiveRangeError, after_point, before_point, connector};
 
 pub(super) fn architectural_units(
     function_index: usize,
     liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<ArchitecturalUnitLiveRange>, LiveRangeError> {
-    let mut units = BTreeSet::new();
-    for block in &liveness.blocks {
-        units.extend(block.unit_live_in.iter().copied());
-        units.extend(block.unit_live_out.iter().copied());
-        for instruction in &block.instructions {
-            units.extend(instruction.unit_uses.iter().copied());
-            units.extend(instruction.unit_defs.iter().copied());
-            units.extend(instruction.unit_clobbers.iter().copied());
-            units.extend(instruction.unit_live_in.iter().copied());
-            units.extend(instruction.unit_live_out.iter().copied());
-        }
-        for edge in &block.successors {
-            units.extend(edge.unit_live.iter().copied());
-        }
-    }
-    units
-        .into_iter()
-        .map(|unit| build_unit(function_index, liveness, unit))
-        .collect()
-}
-
-pub(super) fn build_unit(
-    function: usize,
-    liveness: &selected_instructions::FunctionLiveness,
-    unit: RegisterUnitId,
-) -> Result<ArchitecturalUnitLiveRange, LiveRangeError> {
-    let mut actions = Vec::new();
-    let mut fragments = Vec::new();
-    let mut edge_connectors = Vec::new();
-    for block in &liveness.blocks {
-        let mut points = BTreeSet::new();
-        for instruction in &block.instructions {
-            let before = before_point(function, instruction.position)?;
-            let after = after_point(function, instruction.position)?;
-            if instruction.unit_live_in.contains(&unit) {
-                points.insert(before);
+    let mut unit_indices = Vec::<u32>::new();
+    let mut rows = Vec::<ArchitecturalUnitLiveRange>::new();
+    let ensure_unit =
+        |unit: RegisterUnitId, unit_indices: &mut Vec<u32>, rows: &mut Vec<ArchitecturalUnitLiveRange>| -> usize {
+            let idx = usize::from(unit.0);
+            if idx >= unit_indices.len() {
+                unit_indices.resize(idx + 1, u32::MAX);
             }
-            if instruction.unit_live_out.contains(&unit) {
-                points.insert(after);
+            let slot = &mut unit_indices[idx];
+            if *slot == u32::MAX {
+                let new_slot = rows.len();
+                *slot = new_slot as u32;
+                rows.push(ArchitecturalUnitLiveRange {
+                    unit,
+                    actions: Vec::new(),
+                    fragments: Vec::new(),
+                    edge_connectors: Vec::new(),
+                });
+                new_slot
+            } else {
+                *slot as usize
+            }
+        };
+
+    for block in &liveness.blocks {
+        for &unit in block.unit_live_in.iter().chain(&block.unit_live_out) {
+            ensure_unit(unit, &mut unit_indices, &mut rows);
+        }
+        for instruction in &block.instructions {
+            let before = before_point(function_index, instruction.position)?;
+            let after = after_point(function_index, instruction.position)?;
+            for &unit in &instruction.unit_live_in {
+                let slot = ensure_unit(unit, &mut unit_indices, &mut rows);
+                append_point(function_index, &mut rows[slot].fragments, block.block, before)?;
+            }
+            for &unit in &instruction.unit_live_out {
+                let slot = ensure_unit(unit, &mut unit_indices, &mut rows);
+                append_point(function_index, &mut rows[slot].fragments, block.block, after)?;
             }
             for (kind, values, point) in [
                 (
@@ -66,8 +66,12 @@ pub(super) fn build_unit(
                     after,
                 ),
             ] {
-                if values.contains(&unit) {
-                    actions.push(ArchitecturalUnitAction {
+                for (idx, &unit) in values.iter().enumerate() {
+                    if values[..idx].contains(&unit) {
+                        continue;
+                    }
+                    let slot = ensure_unit(unit, &mut unit_indices, &mut rows);
+                    rows[slot].actions.push(ArchitecturalUnitAction {
                         block: block.block,
                         position: instruction.position,
                         point,
@@ -77,19 +81,16 @@ pub(super) fn build_unit(
                 }
             }
         }
-        fragments.extend(fragments_from_points(block.block, points));
-        edge_connectors.extend(
-            block
-                .successors
-                .iter()
-                .filter(|edge| edge.unit_live.contains(&unit))
-                .map(|edge| connector(block.block, edge)),
-        );
+        for edge in &block.successors {
+            for (idx, &unit) in edge.unit_live.iter().enumerate() {
+                if edge.unit_live[..idx].contains(&unit) {
+                    continue;
+                }
+                let slot = ensure_unit(unit, &mut unit_indices, &mut rows);
+                rows[slot].edge_connectors.push(connector(block.block, edge));
+            }
+        }
     }
-    Ok(ArchitecturalUnitLiveRange {
-        unit,
-        actions,
-        fragments,
-        edge_connectors,
-    })
+    rows.sort_by_key(|row| row.unit);
+    Ok(rows)
 }

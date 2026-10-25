@@ -524,3 +524,23 @@ from 6,164.6 ms to 1,444.6 ms (4.27x; `check_flow_call_contracts` 4,028.1 ->
 1,900.0 ms (`ordered_relations.rows` = 616). On the three standard fact
 workloads, all native images are SHA-256 identical and exit 0.
 [Details and tables](stage_five_2026_10_24/README.md).
+
+### Backend register allocation (`06.1.d.05_stage_register_allocation`) dense indexing, memoized block summaries, and incremental spill recovery - 2026-10-25
+
+Base `8023f4f24da7` on Windows x86_64. Retained incremental single-function
+spill reanalysis (`SelectedInstructions::replace_function` and
+`reanalyze_spilled_function`), dense `Vec` and `u64`-bitset indexing across
+`FunctionRanges`, `FunctionLiveness`, `FunctionAllocationLegality`,
+`FunctionDomains`, `PreparedConflicts`, `PreparedAffinities`, `same_home`, and
+`physical_requirement`, sorted interval pruning and single-pass fragment
+collection, and `BlockLookup` memoization of per-block unit liveness transfers
+(`upward_unit_uses`, `unit_kills`) and spill-slot summaries (`BlockSlotSummary`).
+On `thirtytwo_arg_stack_calling_plan/other_machine`, total compilation falls
+from 32,589.1 ms to 5,979.7 ms (5.45x; backend realization 30,906.9 -> 4,669.0 ms,
+6.62x; `06.1.d.05_stage_register_allocation` 41,625.4 -> 4,603.0 ms, 9.04x). On
+`sixteen_arg_stack_calling_plan/other_machine`, total compilation falls from
+2,666.9 ms to 1,482.6 ms (1.80x; backend realization 1,560.7 -> 592.6 ms, 2.63x).
+On the three standard fact workloads (`length`, `dyn_dispatch`, `nested_record`),
+total compilation falls by 14.5–26.0%, and all five emitted native images are
+SHA-256 identical and exit 0.
+[Details and tables](stage_five_2026_10_24/README.md).
