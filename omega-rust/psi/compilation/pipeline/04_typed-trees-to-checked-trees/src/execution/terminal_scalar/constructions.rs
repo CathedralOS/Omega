@@ -348,8 +348,38 @@ pub(crate) fn retain_shapes(
         Some(())
     })();
     if retained.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
+        let call_arguments = plans
+            .nodes
+            .is_valid(failure_scalar)
+            .then(|| match &plans.nodes.get(failure_scalar).kind {
+                CheckedScalarComputationKind::Call {
+                    structural_arguments,
+                    ..
+                } => plans.structural_arguments.span(*structural_arguments),
+                _ => None,
+            })
+            .flatten();
+        let argument_sources = call_arguments.map(|arguments| arguments.iter().filter_map(|argument| {
+            let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
+                return None;
+            };
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } = argument.source else {
+                return None;
+            };
+            let node = program.expression_table.expression_is_valid(expression)
+                .then(|| program.expression_table.expression(expression));
+            let saved_source = match node {
+                Some(typed_trees::expression::ExpressionNode::SavedSubject(saved)) => {
+                    program.expression_table.saved_subject_source(saved)
+                }
+                _ => None,
+            };
+            let saved_node = saved_source.filter(|expression| program.expression_table.expression_is_valid(*expression))
+                .map(|expression| program.expression_table.expression(expression));
+            Some((expression, node, saved_source, saved_node))
+        }).collect::<Vec<_>>());
         eprintln!(
-            "VIEW_CONSTRUCTION_SHAPES_REFUSAL state={:?} phase={} structural={:?} structural_node={:?} structural_exact_roots={:?} scalar={:?} scalar_node={:?} retained_shape_count={}",
+            "VIEW_CONSTRUCTION_SHAPES_REFUSAL state={:?} phase={} structural={:?} structural_node={:?} structural_exact_roots={:?} scalar={:?} scalar_node={:?} retained_shape_count={} call_arguments={:?} argument_sources={:?} state_root_count={} state_roots_prefix={:?}",
             state,
             failure_phase,
             failure_structural,
@@ -370,6 +400,14 @@ pub(crate) fn retain_shapes(
                 .is_valid(failure_scalar)
                 .then(|| plans.nodes.get(failure_scalar)),
             shapes.len(),
+            call_arguments,
+            argument_sources,
+            structural_values.roots_for_state(state).len(),
+            structural_values
+                .roots_for_state(state)
+                .iter()
+                .take(32)
+                .collect::<Vec<_>>(),
         );
     }
     retained
