@@ -800,46 +800,7 @@ impl<'program> CallFrameResolver<'program> {
         state: SymbolHandle,
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
         memoized(&self.caches.reference_result_leaves, state, || {
-            let transports = self.reference_result_transports(state);
-            if std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-                eprintln!(
-                    "RETURNED_TRANSPORT_QUERY state={:?} count={:?}",
-                    state,
-                    transports.as_ref().map(Vec::len),
-                );
-                if let Some(transports) = &transports {
-                    for (index, transport) in transports.iter().take(16).enumerate() {
-                        let (kind, path, source, value_type) = match transport {
-                            super::ReferenceResultTransport::Reference(leaf) => {
-                                ("reference", &leaf.result_path, &leaf.source, None)
-                            }
-                            super::ReferenceResultTransport::Value {
-                                result_path,
-                                source,
-                                type_reference,
-                            } => ("value", result_path, source, Some(*type_reference)),
-                        };
-                        eprintln!(
-                            "RETURNED_TRANSPORT_ACTUAL state={:?} index={} kind={} value_type={:?} result_path_count={} result_path={:?} root={:?} source_path_count={} source_path={:?} image={} invocation={:?} recast_count={} representation={} coarse={}",
-                            state,
-                            index,
-                            kind,
-                            value_type,
-                            path.len(),
-                            &path[..path.len().min(32)],
-                            source.root,
-                            source.segments.len(),
-                            &source.segments[..source.segments.len().min(32)],
-                            source.is_image_storage,
-                            source.invocation_output,
-                            source.recasts.len(),
-                            source.representation.is_some(),
-                            source.collection_coarse,
-                        );
-                    }
-                }
-            }
-            transports?
+            self.reference_result_transports(state)?
                 .into_iter()
                 .map(|transport| match transport {
                     super::ReferenceResultTransport::Reference(leaf) => Some(leaf),

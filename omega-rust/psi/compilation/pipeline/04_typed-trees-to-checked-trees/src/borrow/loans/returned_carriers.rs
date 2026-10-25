@@ -284,53 +284,7 @@ fn completed_field_sources(
             &prepared_frames
         }
     };
-    let sources = call_frames.reference_result_leaf_origins(state.symbol);
-    let trace_sources = std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some();
-    if trace_sources {
-        eprintln!(
-            "RETURNED_FIELD_SOURCE_QUERY target={:?} machine={:?} state={:?} result_type={:?} field_count={} source_count={:?}",
-            target,
-            machine.symbol,
-            state.symbol,
-            state.return_type,
-            fields.len(),
-            sources.as_ref().map(Vec::len),
-        );
-        for (index, field) in fields.iter().take(16).enumerate() {
-            eprintln!(
-                "RETURNED_FIELD_SOURCE_DECL index={} parameter={} source={:?} source_type={:?} lifetime_only={} kind={:?} owner_count={} owner={:?} source_path_count={} source_path={:?}",
-                index,
-                field.parameter_index,
-                field.source,
-                field.source_type,
-                field.lifetime_only,
-                field.kind,
-                field.owner_path.len(),
-                &field.owner_path[..field.owner_path.len().min(32)],
-                field.source_path.len(),
-                &field.source_path[..field.source_path.len().min(32)],
-            );
-        }
-        if let Some(sources) = &sources {
-            for (index, source) in sources.iter().take(16).enumerate() {
-                eprintln!(
-                    "RETURNED_FIELD_SOURCE_ACTUAL index={} result_path_count={} result_path={:?} root={:?} source_path_count={} source_path={:?} image={} invocation={:?} recast_count={} representation={} coarse={}",
-                    index,
-                    source.result_path.len(),
-                    &source.result_path[..source.result_path.len().min(32)],
-                    source.source.root,
-                    source.source.segments.len(),
-                    &source.source.segments[..source.source.segments.len().min(32)],
-                    source.source.is_image_storage,
-                    source.source.invocation_output,
-                    source.source.recasts.len(),
-                    source.source.representation.is_some(),
-                    source.source.collection_coarse,
-                );
-            }
-        }
-    }
-    let sources = sources?;
+    let sources = call_frames.reference_result_leaf_origins(state.symbol)?;
     let parameters = program.state_parameters(state);
     let declared_paths = fields
         .iter()
@@ -407,16 +361,6 @@ fn completed_field_sources(
         }) {
             matched = true;
             covered[index] = true;
-            if trace_sources && index < 16 {
-                eprintln!(
-                    "RETURNED_FIELD_SOURCE_MATCH target={:?} declared_index={} parameter={} projection_count={} projection={:?}",
-                    target,
-                    index,
-                    parameter_index,
-                    projection.len(),
-                    &projection[..projection.len().min(32)],
-                );
-            }
             output.push(CompletedReturnSource::DescriptorCandidate {
                 field: field.clone(),
                 projection: projection.clone(),
@@ -436,16 +380,6 @@ fn completed_field_sources(
                 field: field.clone(),
             });
         }
-    }
-    if trace_sources {
-        eprintln!(
-            "RETURNED_FIELD_SOURCE_COVERAGE target={:?} declared_count={} covered_count={} covered_prefix={:?} output_count={}",
-            target,
-            covered.len(),
-            covered.iter().filter(|covered| **covered).count(),
-            &covered[..covered.len().min(32)],
-            output.len(),
-        );
     }
     Some(Ok(output))
 }

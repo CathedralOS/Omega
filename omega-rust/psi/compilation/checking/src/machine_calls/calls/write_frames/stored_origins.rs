@@ -47,6 +47,7 @@ pub(super) use frozen_bindings::binding_source;
 pub(super) use frozen_bindings::{call_exposes_frozen_binding, expression_exposes_frozen_binding};
 pub(super) use frozen_bindings::{statement_exposes_frozen_binding, writes_may_replace_binding};
 
+pub(super) use projections::reference_carriers_before_statement_for_query;
 pub(super) use projections::reference_leaves_before_statement_for_query;
 pub(super) use projections::symbolic_reference_leaves;
 pub(super) use projections::{path_covers, selected_slot_sources, slot_origins};

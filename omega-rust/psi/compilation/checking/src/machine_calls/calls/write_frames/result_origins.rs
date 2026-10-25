@@ -9,7 +9,7 @@
 
 use super::path_instantiation::aggregate_arguments::{
     AggregateOrigins, ArgumentOrigins, ReferenceLeaf, ReferenceSource, partition_sources,
-    reference_leaves, symbolic_sources,
+    reference_leaves,
 };
 use super::stored_origins::canonical_reference_sources;
 use super::{
@@ -374,44 +374,16 @@ fn merge_result_arm(
                 include_shared,
         &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
             reference: &|expression, reference, _implicit_borrow, inference| {
-                    reference_result_relation(
-                        program,
-                        machine,
-                        state,
-                        boundary_index,
-                        expression,
-                        reference,
-                        symbols,
-                        inference,
-                    )
-                    .and_then(|returned| {
-                        returned.references.into_iter().map(|leaf| leaf.origin).collect()
-                    })
-                    .or_else(|| {
-                        // Unknown shared backing remains an unresolved leaf,
-                        // not a declaration-relative descriptor or empty route.
-                        if include_shared {
-                            super::reference_subjects::unknown_readonly_origin(
-                                program, reference, "",
-                            )
-                            .map(|origin| vec![ReferenceSource::Symbolic(origin)])
-                        } else {
-                            None
-                        }
-                    })
-                },
+                pending_result_reference_sources(
+                    program, machine, state, boundary_index, expression, reference,
+                    symbols, inference, include_shared,
+                )
+            },
             stored: &|expression, reference, _| {
-                    super::stored_origins::reference_leaves_before_statement_for_query(
-                        program,
-                        state,
-                        boundary,
-                        expression,
-                        reference,
-                        Some(&context.stored),
-                        None,
-                        include_shared,
-                    )
-                },
+                super::stored_origins::reference_carriers_before_statement_for_query(
+                    program, state, boundary, expression, reference, &context.stored, include_shared,
+                )
+            },
         },
             )?
         };
@@ -425,6 +397,48 @@ fn merge_result_arm(
             relative,
             include_shared,
         )
+    })
+}
+
+/// Both ordinary result construction and named-edge substitution retain the
+/// descriptor home until the shared merge reads it. A previously captured
+/// pointer must not be resolved through its old slot's later contents.
+#[allow(clippy::too_many_arguments)]
+fn pending_result_reference_sources(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    boundary_index: usize,
+    expression: ExpressionHandle,
+    reference: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    include_shared: bool,
+) -> Option<Vec<ReferenceSource>> {
+    reference_result_relation(
+        program,
+        machine,
+        state,
+        boundary_index,
+        expression,
+        reference,
+        symbols,
+        inference,
+    )
+    .and_then(|returned| {
+        returned
+            .references
+            .into_iter()
+            .map(|leaf| leaf.origin)
+            .collect()
+    })
+    .or_else(|| {
+        if include_shared {
+            super::reference_subjects::unknown_readonly_origin(program, reference, "")
+                .map(|origin| vec![ReferenceSource::Symbolic(origin)])
+        } else {
+            None
+        }
     })
 }
 
@@ -787,43 +801,15 @@ fn instantiate_edge_origins(
             include_shared,
         &crate::machine_calls::calls::write_frames::path_instantiation::aggregate_arguments::SymbolicArguments {
             reference: &|actual, reference, _implicit_borrow, inference| {
-                symbolic_sources(if include_shared {
-                    super::reference_subjects::backing_origins(
-                        program,
-                        machine,
-                        actual,
-                        symbols,
-                        inference,
-                        &context.aliases,
-                        &context.stored,
-                    )
-                    .or_else(|| {
-                        super::reference_subjects::unknown_readonly_origin(program, reference, "")
-                            .map(|origin| vec![origin])
-                    })
-                } else {
-                    super::reference_origins::exclusive_reference_origins(
-                        program, machine, actual, symbols, inference,
-                    )
-                })
+                pending_result_reference_sources(
+                    program, machine, source_state, boundary_index, actual, reference,
+                    symbols, inference, include_shared,
+                )
             },
-            stored: &|actual, reference, inference| {
-                if include_shared {
-                    super::stored_origins::reference_leaves_before_statement_for_query(
-                        program,
-                        source_state,
-                        boundary,
-                        actual,
-                        reference,
-                        Some(&context.stored),
-                        None,
-                        true,
-                    )
-                } else {
-                    super::stored_origins::symbolic_reference_leaves(
-                        program, machine, actual, reference, inference,
-                    )
-                }
+            stored: &|actual, reference, _| {
+                super::stored_origins::reference_carriers_before_statement_for_query(
+                    program, source_state, boundary, actual, reference, &context.stored, include_shared,
+                )
             },
         },
         )?;

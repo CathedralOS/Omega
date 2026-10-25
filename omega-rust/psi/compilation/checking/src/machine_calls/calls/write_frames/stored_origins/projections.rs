@@ -94,6 +94,61 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
     inference: Option<&super::super::FrameInference>,
     include_shared: bool,
 ) -> Option<AggregateOrigins> {
+    reference_leaves_with_projection(
+        program,
+        state,
+        before,
+        expression,
+        expected,
+        stored,
+        inference,
+        include_shared,
+        ReferenceProjection::Origins,
+    )
+}
+
+/// Result canonicalization must load each descriptor once. Keep its current
+/// home until that canonicalizer consumes the frozen binding; returning its
+/// already-resolved pointee here would load a later replacement a second time.
+pub(in crate::machine_calls::calls::write_frames) fn reference_carriers_before_statement_for_query(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+    stored: &[StoredLocalOrigins],
+    include_shared: bool,
+) -> Option<AggregateOrigins> {
+    reference_leaves_with_projection(
+        program,
+        state,
+        before,
+        expression,
+        expected,
+        Some(stored),
+        None,
+        include_shared,
+        ReferenceProjection::DescriptorCarriers,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ReferenceProjection {
+    Origins,
+    DescriptorCarriers,
+}
+
+fn reference_leaves_with_projection(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    before: &StatementNode,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+    stored: Option<&[StoredLocalOrigins]>,
+    inference: Option<&super::super::FrameInference>,
+    include_shared: bool,
+    projection: ReferenceProjection,
+) -> Option<AggregateOrigins> {
     let mut root_expression = expression;
     let root_name = loop {
         match program.expression_table.expression(root_expression) {
@@ -215,9 +270,44 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
                 .any(|segment| matches!(segment, PlaceSegment::Case { .. })))
         .then(AggregateOrigins::default);
     };
-    let mut projected =
-        project_stored_origins(program, established, segments, established.symbolic)?;
     let source = super::super::FrameSourcePlace::from_expression(program, expression);
+    let mut projected = match projection {
+        ReferenceProjection::Origins => {
+            project_stored_origins(program, established, segments, established.symbolic)?
+        }
+        ReferenceProjection::DescriptorCarriers => {
+            if source.root != root {
+                return None;
+            }
+            project_stored_origins_with_sources(
+                program,
+                established,
+                segments,
+                established.symbolic,
+                |_, leaf| {
+                    // Unknown contents stay unknown. Opaque regions expose no
+                    // descriptor boundary; never manufacture a load for them.
+                    if leaf.origin.is_some()
+                        && matches!(leaf.kind, super::StoredOriginKind::Reference(_))
+                    {
+                        let carrier = source.append_segments(&leaf.local_segments);
+                        let (path, precision) = super::super::place_paths::coordinate_storage_path(
+                            program,
+                            source_name,
+                            &carrier.segments,
+                        );
+                        leaf.origin =
+                            Some(ReferenceSource::Symbolic(super::super::FramePlaceOrigin {
+                                path,
+                                precision,
+                                source: carrier,
+                            }));
+                    }
+                    Some(())
+                },
+            )?
+        }
+    };
     for leaf in &mut projected.references {
         if let Some(origin) = &mut leaf.origin {
             origin.place_mut().source.builtin_coordinates &= source.builtin_coordinates;

@@ -250,7 +250,6 @@ pub(super) fn check_call_access_conflicts<'p>(
         }
     }
 
-    let mut traced_loan_conflict = false;
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
             // A completed actual does not compete with the inputs that
@@ -490,82 +489,6 @@ pub(super) fn check_call_access_conflicts<'p>(
                 bound_lookup,
             ) {
                 continue;
-            }
-            if !traced_loan_conflict && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
-                traced_loan_conflict = true;
-                let backings = &operand_backings[index].places;
-                eprintln!(
-                    "CALL_LOAN_CONFLICT machine={:?} state={:?} statement={} ordinal={} target={:?} access_index={} access={:?} access_segment_count={} access_segments={:?} constraints={:?} offending_loan={:?} active_loan_count={} backing_count={}",
-                    state_flow.machine_symbol,
-                    state_flow.state_symbol,
-                    borrow_call.statement_index,
-                    borrow_call.call_ordinal,
-                    borrow_call.target_symbol,
-                    index,
-                    access,
-                    facts.borrow.access_segments(access).len(),
-                    &facts.borrow.access_segments(access)
-                        [..facts.borrow.access_segments(access).len().min(32)],
-                    entry_constraints,
-                    loan_handle,
-                    active_loans.len(),
-                    backings.len(),
-                );
-                let segments = facts.borrow.loan_segments(loan);
-                let owner_path = facts.borrow.loan_owner_path(loan);
-                let suppliers = facts
-                    .borrow
-                    .loan_suppliers
-                    .span_or_empty(loan.supplying_loans);
-                eprintln!(
-                    "CALL_LOAN_CONFLICT_LOAN handle={:?} loan={:?} segment_count={} segments={:?} owner_path_count={} owner_path={:?} supplier_count={} suppliers={:?}",
-                    loan_handle,
-                    loan,
-                    segments.len(),
-                    &segments[..segments.len().min(32)],
-                    owner_path.len(),
-                    &owner_path[..owner_path.len().min(32)],
-                    suppliers.len(),
-                    &suppliers[..suppliers.len().min(16)],
-                );
-                for (backing_index, backing) in backings.iter().take(8).enumerate() {
-                    let segments = &backing.place.segments;
-                    eprintln!(
-                        "CALL_LOAN_CONFLICT_BACKING index={} root={:?} incoming={:?} segment_count={} segments={:?} lineage_count={}",
-                        backing_index,
-                        backing.place.root,
-                        backing.place.incoming_reference,
-                        segments.len(),
-                        &segments[..segments.len().min(32)],
-                        backing.lineage.len(),
-                    );
-                    for ancestor in backing.lineage.iter().take(8) {
-                        if !facts.borrow.loans.is_valid(*ancestor) {
-                            eprintln!(
-                                "CALL_LOAN_CONFLICT_SUPPLIER handle={ancestor:?} unavailable=true"
-                            );
-                            continue;
-                        }
-                        let source = facts.borrow.loans.get(*ancestor);
-                        let segments = facts.borrow.loan_segments(source);
-                        let owner_path = facts.borrow.loan_owner_path(source);
-                        let suppliers = facts
-                            .borrow
-                            .loan_suppliers
-                            .span_or_empty(source.supplying_loans);
-                        eprintln!(
-                            "CALL_LOAN_CONFLICT_SUPPLIER handle={:?} loan={:?} segment_count={} segments={:?} owner_path_count={} owner_path={:?} supplier_count={} suppliers={:?}",
-                            ancestor,
-                            source,
-                            segments.len(),
-                            &segments[..segments.len().min(32)],
-                            owner_path.len(),
-                            &owner_path[..owner_path.len().min(32)],
-                            suppliers.len(),
-                            &suppliers[..suppliers.len().min(16)],
-                        );
-                    }
-                }
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
