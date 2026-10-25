@@ -28,7 +28,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     results: &Results,
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<TransportedLoans> {
-    let Some(borrowing) = super::unique_borrow_state(facts, machine, state.symbol)? else {
+    let Some(borrowing) = trace_query(
+        machine,
+        state.symbol,
+        "unique-borrow-state",
+        super::unique_borrow_state(facts, machine, state.symbol),
+        &(),
+    )?
+    else {
         return Some(Vec::new());
     };
     if borrowing.loans.is_empty() {
@@ -42,15 +49,33 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
     // particular a Unit call can preserve or replace a stored descriptor.
     // Consume its exact supplier edges from the checked state roster before
     // adding relationships recovered from retained constructor value graphs.
-    for (receiver, loan) in facts.borrow.loan_group(borrowing.loans)? {
-        for supplier in facts.borrow.loan_suppliers.span(loan.supplying_loans)? {
+    for (receiver, loan) in trace_query(
+        machine,
+        state.symbol,
+        "loan-group",
+        facts.borrow.loan_group(borrowing.loans),
+        &borrowing.loans,
+    )? {
+        for supplier in trace_query(
+            machine,
+            state.symbol,
+            "supplier-roster",
+            facts.borrow.loan_suppliers.span(loan.supplying_loans),
+            &(receiver, loan.supplying_loans),
+        )? {
             // Checking published this historical supplier from the receiver's
             // exact predecessor roster. Several ordered invocations can share
             // one authored statement, so statement precedence cannot replay
             // that formation judgment. Retain the published edge itself;
             // state membership still authenticates both occurrence handles.
             if !facts.borrow.state_owns_loan(borrowing, *supplier) {
-                return None;
+                return trace_query(
+                    machine,
+                    state.symbol,
+                    "supplier-state-membership",
+                    None,
+                    &(receiver, supplier),
+                );
             }
             if !output.contains(&(receiver, *supplier)) {
                 output.push((receiver, *supplier));
@@ -65,7 +90,13 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     continue;
                 };
                 if registered.next().is_some() {
-                    return None;
+                    return trace_query(
+                        machine,
+                        state.symbol,
+                        "duplicate-result-owner",
+                        None,
+                        &result,
+                    );
                 }
                 (*owner, result.statement_index)
             } else if let Some((owner, formation, _)) =
@@ -75,27 +106,47 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
             } else {
                 continue;
             };
-        let reference = validation::reference_result_custody::storage_owner_type_reference(
-            program, state, owner, formation,
+        let reference = trace_query(
+            machine,
+            state.symbol,
+            "receiver-storage-type",
+            validation::reference_result_custody::storage_owner_type_reference(
+                program, state, owner, formation,
+            ),
+            &(owner, formation),
         )?;
-        for (receiver, loan) in
-            facts
-                .borrow
-                .statement_resource_loans(borrowing)?
-                .filter(|(_, loan)| {
-                    loan.storage_owner == facts::PlaceRoot::Symbol(owner)
-                        && loan.statement_index == formation as usize
-                })
-        {
+        for (receiver, loan) in trace_query(
+            machine,
+            state.symbol,
+            "receiver-resource-loans",
+            facts.borrow.statement_resource_loans(borrowing),
+            &(owner, formation),
+        )?
+        .filter(|(_, loan)| {
+            loan.storage_owner == facts::PlaceRoot::Symbol(owner)
+                && loan.statement_index == formation as usize
+        }) {
             let CheckedUnitEffectOperationPlan::EstablishLocal(
                 checked_trees::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
             ) = operation
             else {
                 continue;
             };
-            let path = carrier_path(program, reference, facts.borrow.loan_owner_path(loan))?;
-            let sources = validation::reference_result_custody::stored_carrier_sources(
-                program, facts, *value, &path,
+            let path = trace_query(
+                machine,
+                state.symbol,
+                "receiver-carrier-path",
+                carrier_path(program, reference, facts.borrow.loan_owner_path(loan)),
+                &(receiver, owner, formation, reference, loan),
+            )?;
+            let sources = trace_query(
+                machine,
+                state.symbol,
+                "stored-carrier-sources",
+                validation::reference_result_custody::stored_carrier_sources(
+                    program, facts, *value, &path,
+                ),
+                &(receiver, owner, formation, value, &path),
             )?;
             for source in sources {
                 let validation::reference_result_custody::StoredCarrierSource::Place(source) =
@@ -113,11 +164,30 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                         let mut holders = results
                             .iter()
                             .filter(|(binding, _)| binding.binding_ordinal == binding_ordinal);
-                        let (binding, facts::PlaceRoot::Symbol(owner)) = holders.next()? else {
-                            return None;
+                        let (binding, facts::PlaceRoot::Symbol(owner)) = trace_query(
+                            machine,
+                            state.symbol,
+                            "supplying-result-owner",
+                            holders.next(),
+                            &(receiver, binding_ordinal),
+                        )?
+                        else {
+                            return trace_query(
+                                machine,
+                                state.symbol,
+                                "supplying-result-root-kind",
+                                None,
+                                &(receiver, binding_ordinal),
+                            );
                         };
                         if holders.next().is_some() {
-                            return None;
+                            return trace_query(
+                                machine,
+                                state.symbol,
+                                "duplicate-supplying-result-owner",
+                                None,
+                                &(receiver, binding_ordinal),
+                            );
                         }
                         (*owner, Some(binding.statement_index as usize))
                     }
@@ -137,21 +207,29 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn collect(
                     continue;
                 };
                 let mut supplying = Vec::new();
-                for (handle, candidate) in
-                    facts
-                        .borrow
-                        .statement_resource_loans(borrowing)?
-                        .filter(|(_, candidate)| {
-                            candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
-                                && order.precedes(candidate.statement_index, loan.statement_index)
-                                && source_formation
-                                    .is_none_or(|formation| candidate.statement_index == formation)
-                        })
-                {
-                    if carrier_path(
-                        program,
-                        supplying_type,
-                        facts.borrow.loan_owner_path(candidate),
+                for (handle, candidate) in trace_query(
+                    machine,
+                    state.symbol,
+                    "supplying-resource-loans",
+                    facts.borrow.statement_resource_loans(borrowing),
+                    &(receiver, source_owner, source_formation),
+                )?
+                .filter(|(_, candidate)| {
+                    candidate.storage_owner == facts::PlaceRoot::Symbol(source_owner)
+                        && order.precedes(candidate.statement_index, loan.statement_index)
+                        && source_formation
+                            .is_none_or(|formation| candidate.statement_index == formation)
+                }) {
+                    if trace_query(
+                        machine,
+                        state.symbol,
+                        "supplying-carrier-path",
+                        carrier_path(
+                            program,
+                            supplying_type,
+                            facts.borrow.loan_owner_path(candidate),
+                        ),
+                        &(receiver, handle, source_owner, supplying_type, candidate),
                     )? == source.path
                     {
                         supplying.push((handle, candidate.statement_index));
@@ -208,4 +286,22 @@ pub(super) fn supplies(
         );
     }
     false
+}
+
+/// Temporary failure-only imaging of an existing query result. No second
+/// semantic lookup is performed; the original Option is returned unchanged.
+/// Remove before publication once the retained refusal is explained.
+pub(in crate::execution::terminal_unit::control::statement_sequence) fn trace_query<T>(
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    query: &str,
+    result: Option<T>,
+    occurrence: &impl std::fmt::Debug,
+) -> Option<T> {
+    if result.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
+        eprintln!(
+            "REFERENCE_TRANSPORT_REFUSAL machine={machine:?} state={state:?} query={query} occurrence={occurrence:?}"
+        );
+    }
+    result
 }

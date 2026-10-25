@@ -1866,54 +1866,22 @@ impl TerminalExecution<'_> {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
-            let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
-                && root.structural_type == leaf.structural_type
-            {
-                let bytes = self
-                    .byte_sequence_values
-                    .get(&source)
-                    .ok_or_else(malformed)?
-                    .immutable()?;
-                if !bytes.matches_descriptor_home(root) {
-                    return Err(malformed());
-                }
-                bytes.clone()
-            } else if let Some(bytes) = self
-                .structural_byte_storage
-                .get(&StructuralRuntimePlace::from(&leaf))
-            {
-                bytes.clone()
-            } else {
-                let mut parent = StructuralRuntimePlace::from(&leaf);
-                parent.path.pop().ok_or_else(malformed)?;
-                let namespace = match &operation.kind {
-                    OperationKind::StructuralLeafCopy { path, .. } => {
-                        StructuralFieldNamespace::for_carrier(&path[..path.len().saturating_sub(1)])
-                    }
-                    OperationKind::StructuralCaseLeafCopy { path, .. } => {
-                        if matches!(
-                            path.iter().rev().nth(1),
-                            Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
-                        ) {
-                            StructuralFieldNamespace::CasePayload
-                        } else {
-                            StructuralFieldNamespace::Member
-                        }
-                    }
-                    _ => return Err(malformed()),
-                };
-                let cell = StructuralByteSequenceRuntimeField {
-                    parent,
-                    namespace,
-                    field: endpoint_field.ok_or_else(malformed)?,
-                };
-                self.structural_byte_sequence_fields
-                    .get(&cell)
-                    .ok_or_else(malformed)?
-                    .immutable()?
-                    .clone()
+            // Resolve the exact selected descriptor through the same custody
+            // owner as calls and byte observations. Aggregate constructors store
+            // descriptors separately from inline byte cells; descriptor copying
+            // retains their existing backing and window, not the source home.
+            let argument = StructuralArgument {
+                place: source,
+                path: copy_path.clone(),
+                access: StructuralAccess::SharedBorrow,
             };
+            self.validate_descriptor_borrow(&argument, StructuralAccess::SharedBorrow)?;
+            let binding = self.byte_descriptor_binding(&argument, &leaf)?;
+            self.byte_descriptor_length(&binding, &leaf)?;
+            let bytes = self
+                .reborrow_byte_sequence_binding(&binding, &leaf, StructuralAccess::SharedBorrow)?
+                .immutable()?
+                .clone();
             // ByteSequenceView clones its backing handle and exact window.
             // This copies the descriptor, not octets; replacing the source
             // slot cannot retarget this completed value's retained backing.
