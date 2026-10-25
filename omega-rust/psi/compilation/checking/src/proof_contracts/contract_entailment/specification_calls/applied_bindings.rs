@@ -237,6 +237,15 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
+                .inspect_err(|reason| {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT call-binding refusal application={handle:?} caller={caller:?} declaration={:?} owner={:?} reason={reason}",
+                            application.binding_declaration,
+                            owner_symbol(owner)
+                        );
+                    }
+                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != declaration.symbol
@@ -267,6 +276,15 @@ impl AppliedProofBindings {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )
+                .inspect_err(|reason| {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT call-binding refusal application={handle:?} caller={caller:?} declaration={:?} owner={:?} reason={reason}",
+                            application.binding_declaration,
+                            owner_symbol(owner)
+                        );
+                    }
+                })
                 .ok()?;
                 if correspondence.public_owner != owner_symbol(owner)
                     || correspondence.declaration != application.binding_declaration

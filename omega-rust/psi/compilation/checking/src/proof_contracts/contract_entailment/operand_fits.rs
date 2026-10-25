@@ -456,7 +456,11 @@ impl StructuralPrefixVisitor for OperandFit {
             self.judgment = Some(CarrierFit::Unknown);
         }
         for entry in entries {
-            let Some(value) = entry.arguments.get(self.request.position) else {
+            let Some(value) = entry
+                .arguments
+                .get(self.request.position)
+                .and_then(Option::as_ref)
+            else {
                 self.judgment = Some(CarrierFit::Unknown);
                 continue;
             };
@@ -491,7 +495,7 @@ impl StructuralPrefixVisitor for OperandFit {
                     references,
                     established_carriers,
                 } => {
-                    let [left, right] = entry.arguments.as_slice() else {
+                    let [Some(left), Some(right)] = entry.arguments.as_slice() else {
                         self.judgment = Some(CarrierFit::Unknown);
                         continue;
                     };

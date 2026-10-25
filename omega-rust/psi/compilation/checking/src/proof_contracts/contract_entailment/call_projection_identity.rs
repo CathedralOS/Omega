@@ -301,6 +301,10 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
             self.valid = false;
         }
         for entry in entries {
+            let Some(arguments) = entry.observed_arguments() else {
+                self.valid = false;
+                continue;
+            };
             let value = match &self.request {
                 ProjectionRequest::IndexEquality {
                     position,
@@ -312,7 +316,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     let mut bindings = self
                         .parameters
                         .iter()
-                        .zip(&entry.arguments)
+                        .zip(&arguments)
                         .map(|(parameter, value)| (parameter.symbol, value.clone()))
                         .collect::<Vec<_>>();
                     if let Some(selected) = super::specification_calls::selected_call_site_contract(
@@ -327,11 +331,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                             self.call,
                             |subject| {
                                 entry.judge.completed_scalar_subject(
-                                    subject,
-                                    self.call,
-                                    &entry.arguments,
-                                    machine,
-                                    state,
+                                    subject, self.call, &arguments, machine, state,
                                 )
                             },
                         ) else {
@@ -344,7 +344,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                                 .map(|(parameter, value)| (parameter.symbol, value)),
                         );
                     }
-                    let actual = entry.arguments.get(*position).cloned().and_then(|value| {
+                    let actual = arguments.get(*position).cloned().and_then(|value| {
                         super::observed_projections::project_observed_value(
                             program,
                             *source_type,
@@ -356,6 +356,38 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     });
                     let expected =
                         bound_index(program, *owner, self.parameters, &bindings, *required);
+                    let trace_refusal = |stage, actual, expected| {
+                        if super::struct_trace() {
+                            let (kind, expression) =
+                                match program.type_reference_table.type_reference(*required) {
+                                    typed_trees::types::TypeReferenceNode::ConstExpression(
+                                        expression,
+                                    ) => ("expression", *expression),
+                                    typed_trees::types::TypeReferenceNode::Named { .. } => {
+                                        ("named", ExpressionHandle::invalid())
+                                    }
+                                    _ => ("other", ExpressionHandle::invalid()),
+                                };
+                            let expression_kind = if expression.is_valid() {
+                                match program.expression_table.expression(expression) {
+                                    ExpressionNode::Member(_) => "member",
+                                    ExpressionNode::SavedSubject(_) => "saved-subject",
+                                    ExpressionNode::Name(_) => "name",
+                                    ExpressionNode::Call(_) => "call",
+                                    _ => "other",
+                                }
+                            } else {
+                                "absent"
+                            };
+                            eprintln!(
+                                "STRUCT index-equality refusal state={:?} statement={} owner={owner:?} position={position} required={required:?} kind={kind} expression={expression:?} expression_kind={expression_kind} stage={stage} actual={actual} expected={expected}",
+                                self.state, self.statement_index,
+                            );
+                        }
+                    };
+                    if actual.is_none() || expected.is_none() {
+                        trace_refusal("projection", actual.is_some(), expected.is_some());
+                    }
                     actual.zip(expected).map(|(actual, expected)| {
                         // Equality consumes the normal observer's established equations,
                         // just as ordinary contract judgment does. Distinct completed
@@ -366,14 +398,17 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                         let expected = entry
                             .judge
                             .resolve(entry.judge.completed_value_identity(expected));
-                        ProjectionValue::Equality(matches!(
+                        let proven = matches!(
                             entry.judge.judge_equation(actual, expected, 0),
                             super::structural_judgment::StructuralJudgment::Proven
-                        ))
+                        );
+                        if !proven {
+                            trace_refusal("equation", true, true);
+                        }
+                        ProjectionValue::Equality(proven)
                     })
                 }
-                ProjectionRequest::Identity { position, path } => entry
-                    .arguments
+                ProjectionRequest::Identity { position, path } => arguments
                     .get(leading + position)
                     .and_then(|value| {
                         super::observed_projections::project_observed_value(
@@ -392,14 +427,14 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                         ))
                     }),
                 ProjectionRequest::Value { owner, argument } => {
-                    if entry.arguments.len() != self.parameters.len() {
+                    if arguments.len() != self.parameters.len() {
                         self.valid = false;
                         continue;
                     }
                     let bindings = self
                         .parameters
                         .iter()
-                        .zip(&entry.arguments)
+                        .zip(&arguments)
                         .map(|(parameter, value)| (parameter.symbol, value.clone()))
                         .collect::<Vec<_>>();
                     let (value, primitive) =

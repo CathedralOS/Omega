@@ -55,8 +55,18 @@ impl NormalOperandResult {
 
 pub(in crate::proof_contracts::contract_entailment) struct NormalOperationEntry<'program> {
     pub expression: ExpressionHandle,
-    pub arguments: Vec<StructuralTerm>,
+    pub arguments: Vec<Option<StructuralTerm>>,
     pub judge: StructuralJudge<'program>,
+}
+
+impl NormalOperationEntry<'_> {
+    /// Complete actuals require every operand observation. Selected-field
+    /// observers instead inspect only their requested positional slots.
+    pub(in crate::proof_contracts::contract_entailment) fn observed_arguments(
+        &self,
+    ) -> Option<Vec<StructuralTerm>> {
+        self.arguments.iter().cloned().collect()
+    }
 }
 
 /// An entry query needs operand values, not the operation's own result.
@@ -404,7 +414,7 @@ impl<'program> StructuralJudge<'program> {
         let paths = completed
             .into_iter()
             .map(|entry| {
-                let [value] = entry.arguments.as_slice() else {
+                let [Some(value)] = entry.arguments.as_slice() else {
                     return None;
                 };
                 Some(NormalReturnPath::observed(value.clone(), entry.judge))
@@ -590,7 +600,7 @@ impl<'program> StructuralJudge<'program> {
                         .collect::<Option<Vec<_>>>()?;
                     Some(NormalOperationEntry {
                         expression: ExpressionHandle::invalid(),
-                        arguments,
+                        arguments: arguments.into_iter().map(Some).collect(),
                         judge,
                     })
                 })
@@ -725,7 +735,7 @@ impl<'program> StructuralJudge<'program> {
                 let value = path.observed_value()?.clone();
                 entries.push(NormalOperationEntry {
                     expression,
-                    arguments: vec![value],
+                    arguments: vec![Some(value)],
                     judge: path.judge,
                 });
             }
@@ -1243,8 +1253,8 @@ impl<'program> StructuralJudge<'program> {
                     entries.push(NormalOperationEntry {
                         expression,
                         arguments: call_inputs.as_ref().map_or_else(
-                            || inputs.iter().map(|(_, result)| result.value.clone()).collect(),
-                            |arguments| arguments.iter().map(|result| result.value.clone()).collect(),
+                            || inputs.iter().map(|(_, result)| result.observed_value().cloned()).collect(),
+                            |arguments| arguments.iter().map(|result| result.observed_value().cloned()).collect(),
                         ),
                         judge: judge.clone(),
                     });
@@ -1261,8 +1271,7 @@ impl<'program> StructuralJudge<'program> {
                     // Entry capture above needs operand snapshots only. Stop
                     // before the operation can publish its own invariant, and
                     // do not reconstruct an unrelated enclosing aggregate.
-                    let value = judge.capture_value_identity(expression, scope)?;
-                    return Some(Some(NormalReturnPath::unobserved(value, judge)));
+                    return Some(Some(NormalReturnPath::unobserved(judge)));
                 }
                 // Entry observers above may keep positional placeholders.
                 // Executing the call's result/guarantees needs every actual value.
@@ -1599,10 +1608,7 @@ impl<'program> StructuralJudge<'program> {
         )
     }
 
-    /// Allocate one distinct typed occurrence without observing storage or
-    /// importing predicates. Even omitted operands need independent identities
-    /// when an operation-entry consumer retains their positional slots.
-    fn capture_value_identity(
+    fn capture_unknown_value(
         &mut self,
         expression: ExpressionHandle,
         scope: ValueScope<'_>,
@@ -1640,15 +1646,6 @@ impl<'program> StructuralJudge<'program> {
                     .map(|_| scope.2)
                 })?,
         };
-        Some(value)
-    }
-
-    fn capture_unknown_value(
-        &mut self,
-        expression: ExpressionHandle,
-        scope: ValueScope<'_>,
-    ) -> Option<StructuralTerm> {
-        let value = self.capture_value_identity(expression, scope)?;
         self.intake_current_storage_fields(scope.0, scope.1, expression, &value);
         if let StructuralTerm::CapturedValue { result_type, .. } = &value {
             self.intake_admitted_scalar_bounds(*result_type, &value);
@@ -1824,6 +1821,7 @@ impl<'program> StructuralJudge<'program> {
         )?;
         let mut results = Vec::with_capacity(entries.len());
         for entry in entries {
+            let arguments = entry.observed_arguments()?;
             let mut judge = entry.judge;
             let writes = judge
                 .frame_resolver()?
@@ -1833,7 +1831,7 @@ impl<'program> StructuralJudge<'program> {
             }
             judge.complete_normal_call(
                 expression,
-                Some(&entry.arguments),
+                Some(&arguments),
                 environment,
                 scope,
                 &writes,
@@ -1937,6 +1935,13 @@ impl<'program> StructuralJudge<'program> {
             owner_symbol(&owner),
             typed_trees::references::StaticArgumentCall::Expression(expression, call),
         ) {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-capture refusal expression={expression:?} stage=independence owner={:?} caller={:?}",
+                    owner_symbol(&owner),
+                    self.machine_symbol
+                );
+            }
             return None;
         }
         let leading_operands = owner_leading_operands(&owner);
@@ -1948,6 +1953,14 @@ impl<'program> StructuralJudge<'program> {
             return None;
         };
         if arguments.len() != parameters.len() {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT normal-capture refusal expression={expression:?} stage=arity owner={:?} leading={leading_operands} arguments={} parameters={}",
+                    owner_symbol(&owner),
+                    arguments.len(),
+                    parameters.len()
+                );
+            }
             return None;
         }
         // The checked local-name gate rejects parameter/local collisions and
@@ -2006,7 +2019,12 @@ impl<'program> StructuralJudge<'program> {
             |subject| {
                 self.completed_scalar_subject(subject, site, completed_arguments, scope.0, scope.1)
             },
-        )?;
+        ).or_else(|| {
+            if super::super::struct_trace() {
+                eprintln!("STRUCT normal-capture refusal expression={expression:?} stage=scalar-substitution owner={:?}", owner_symbol(&owner));
+            }
+            None
+        })?;
         for (parameter, value) in static_bindings {
             if !entry_bindings
                 .iter()
@@ -2378,9 +2396,11 @@ impl<'program> NormalReturnPath<'program> {
         }
     }
 
-    fn unobserved(value: StructuralTerm, judge: StructuralJudge<'program>) -> Self {
+    fn unobserved(judge: StructuralJudge<'program>) -> Self {
         Self {
-            value,
+            // This private traversal token is never published as a value.
+            // Operation entries carry its absence explicitly as None.
+            value: StructuralTerm::Opaque("unobserved traversal".to_owned()),
             judge,
             observation: NormalValueObservation::NotObserved,
         }

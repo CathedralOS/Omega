@@ -950,8 +950,15 @@ impl super::structural_prefix::StructuralPrefixVisitor for CapturedArguments<'_>
             self.complete = false;
             return;
         }
-        self.terms
-            .extend(entries.into_iter().map(|entry| entry.arguments));
+        let Some(arguments) = entries
+            .iter()
+            .map(|entry| entry.observed_arguments())
+            .collect::<Option<Vec<_>>>()
+        else {
+            self.complete = false;
+            return;
+        };
+        self.terms.extend(arguments);
     }
 }
 
@@ -1063,6 +1070,10 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             .as_ref()
             .map_or(self.parameters, |predicate| predicate.parameters.as_slice());
         for entry in entries {
+            let Some(observed_arguments) = entry.observed_arguments() else {
+                self.proven = false;
+                return;
+            };
             let mut requirement_parameters = predicate_parameters.to_vec();
             let mut static_substitution = Vec::new();
             if let Some(site) = self.call_site {
@@ -1083,7 +1094,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                         entry.judge.completed_scalar_subject(
                             subject,
                             site,
-                            &entry.arguments,
+                            &observed_arguments,
                             machine,
                             caller_state,
                         )
@@ -1120,7 +1131,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 Some(Vec::new())
             };
             let subjects = subjects.unwrap_or_default();
-            let Some(arguments) = entry.arguments.get(self.leading_operands..) else {
+            let Some(arguments) = observed_arguments.get(self.leading_operands..) else {
                 self.proven = false;
                 return;
             };

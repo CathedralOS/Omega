@@ -145,7 +145,7 @@ impl StructuralPrefixVisitor for Bounds {
         };
         self.proven &= !entries.is_empty();
         for entry in entries {
-            let Some(collection) = entry.arguments.first() else {
+            let Some(collection) = entry.arguments.first().and_then(Option::as_ref) else {
                 self.proven = false;
                 return;
             };
@@ -184,7 +184,7 @@ impl StructuralPrefixVisitor for Bounds {
                 if !source.is_valid() {
                     return Some(default);
                 }
-                let value = entry.arguments.get(position)?.clone();
+                let value = entry.arguments.get(position)?.as_ref()?.clone();
                 position += 1;
                 // An exact observed integer already has mathematical meaning;
                 // anonymous literals need no invented finite carrier handle.

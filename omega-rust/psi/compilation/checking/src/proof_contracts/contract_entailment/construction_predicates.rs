@@ -367,7 +367,7 @@ impl StructuralPrefixVisitor for ConstructionPredicates<'_> {
             if let Some(state) = program.state_in_machine(machine, self.site.state) {
                 let judgments =
                     self.judge_operands(program, machine, state, &entry.judge, |position| {
-                        entry.arguments.get(position).cloned()
+                        entry.arguments.get(position).cloned().flatten()
                     });
                 for (predicate_index, judgment) in judgments.into_iter().enumerate() {
                     self.retain(predicate_index, judgment);

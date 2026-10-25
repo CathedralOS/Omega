@@ -623,12 +623,15 @@ impl StructuralPrefixVisitor for Observations {
                 continue;
             };
             for entry in observations.operations {
+                let Some(arguments) = entry.observed_arguments() else {
+                    continue;
+                };
                 self.collect_ordering(
                     program,
                     machine,
                     state,
                     entry.expression,
-                    &entry.arguments,
+                    &arguments,
                     &entry.judge,
                 );
             }
