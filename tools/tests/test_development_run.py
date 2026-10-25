@@ -193,6 +193,40 @@ class DevelopmentRun(unittest.TestCase):
         self.assert_exit(result, 1)
         self.assertFalse(output.exists())
 
+    def test_batch_keeps_accepted_target_when_its_sibling_has_no_lock_section(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        rejected = "windows_x86_64" if self.target != "windows_x86_64" else "linux_x86_64"
+        for check_only in (True, False):
+            with self.subTest(check_only=check_only):
+                output = self.project / "build" / ("checked-batch" if check_only else "native-batch")
+                result = self.invoke(*(["--check"] if check_only else []),
+                                     "--build-dir", output, "--target", rejected,
+                                     "--target", self.target, "main.omg")
+                self.assert_exit(result, 1)
+                self.assertIn(f"target {rejected} failed", result.stdout)
+                self.assertIn("cannot prepare accepted omega.lock", result.stdout + result.stderr)
+                self.assertIn(f"target {self.target}:", result.stdout)
+                self.assertNotIn(f"target {self.target} failed", result.stdout,
+                                 result.stdout + result.stderr)
+                self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+                self.assertFalse(list(output.glob(".omega-package-build-*")))
+                paths = [line.removeprefix("published native output to ")
+                         for line in result.stdout.splitlines()
+                         if line.startswith("published native output to ")]
+                if check_only:
+                    self.assertFalse(paths)
+                    self.assertFalse(output.exists())
+                else:
+                    self.assertEqual(len(paths), 1, result.stdout + result.stderr)
+                    executable = Path(paths[0])
+                    self.assertTrue(executable.resolve().is_relative_to(
+                        (output / self.target).resolve()))
+                    observed = subprocess.run([str(executable)], cwd=self.project,
+                                              env=self.environment, capture_output=True,
+                                              text=True, timeout=30)
+                    self.assert_exit(observed, 0)
+
     def test_artifact_only_build_publishes_its_sealed_output(self):
         fixture = REPOSITORY / "tests/omega/pass/build/artifact_only_required_output_completion"
         for name in ("main.omg", "build.omg"):

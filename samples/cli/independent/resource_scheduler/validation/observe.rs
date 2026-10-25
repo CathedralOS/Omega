@@ -3,10 +3,8 @@
 //! each finite fixture executes separately under a fresh private runtime domain.
 //! Both streams and exact statuses are exported before native publication.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, path::PathBuf, process::Command};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 

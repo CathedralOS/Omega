@@ -23,6 +23,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// the emitted artifact cannot satisfy an explicit admission replay. `Some`
 /// (including an explicit empty policy) adjudicates every closure leaf
 /// against exact supplied rows.
+#[derive(Clone)]
 pub struct NativeProductRequest {
     pub private_entry_ram: Vec<terminal_installation::PrivateEntryRamInitialization>,
     pub terminal_authority_policy: TerminalAuthorityPolicy,

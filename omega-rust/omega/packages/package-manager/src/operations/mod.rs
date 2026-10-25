@@ -1,7 +1,9 @@
 //! Complete package-manager operations composed from lower-level owners.
 //!
-//! [`prepare_local_project`] is the ordinary compiler entrance for a project
-//! with `build.omg`. [`inspect_source`] acquires and inspects one source without
+//! [`prepare_local_project`] acquires a project with `build.omg`;
+//! [`admit_project_compilation`] returns compiler inputs and custody without
+//! executing them. Application Build owns ordinary compilation. [`inspect_source`]
+//! acquires and inspects one source without
 //! admitting it. [`review_package_change`]
 //! checks an install/update candidate and joins its comparison and project
 //! decisions to a proposed source lock section. [`stage_build_dependency_edit`]
@@ -10,8 +12,6 @@
 
 mod accepted_compilation;
 pub(crate) use accepted_compilation::compiler_input_identity;
-mod check_project;
-mod compile_project;
 mod inspect_packages;
 pub mod inspect_source;
 mod package_change;
@@ -19,13 +19,9 @@ mod prepare_project;
 mod publication;
 mod stage_build_edit;
 
-pub use check_project::{
-    CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest,
-    check_prepared_local_project_for_targets, inspect_prepared_local_project,
-};
-pub use compile_project::{
-    CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, compile_prepared_local_project_for_native_targets,
+pub use accepted_compilation::{
+    AdmittedProjectCompilation, ProjectCompilationAdmissionRequest, ProjectCompilationCompletion,
+    ProjectCompilationError, ProjectCompilationOutcome, admit_project_compilation,
 };
 pub use inspect_packages::{PackageInspectionOptions, inspect_packages};
 pub(crate) use inspect_source::PackageSourceRequest;

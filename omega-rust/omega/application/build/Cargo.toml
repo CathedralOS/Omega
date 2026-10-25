@@ -12,3 +12,4 @@ artifacts = { path = "../../foundation/artifacts" }
 platform-custody = { path = "../../foundation/platform-custody" }
 target = { path = "../../compilation/backend/target" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
+terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }

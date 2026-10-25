@@ -1,4 +1,4 @@
-//! Assert whole-invocation work through the public package-management API.
+//! Assert whole-invocation work through the public application Build API.
 //!
 //! Run alone: counters are process-wide. The measurement starts before source
 //! preparation and ends after every requested outcome joins, including refusal.
@@ -10,11 +10,11 @@
 //! and 2 checks (Build + Product). Check-only defaults to zero Terminal work.
 
 use artifacts::compile_timings::counters;
-use package_manager::operations::{
+use omega_build::{
     PreparedLocalProjectCheckRequest, PreparedLocalProjectNativeRequest,
     check_prepared_local_project_for_targets, compile_prepared_local_project_for_native_targets,
-    prepare_local_project_for_targets,
 };
+use package_manager::operations::prepare_local_project_for_targets;
 
 #[derive(Debug, PartialEq, Eq)]
 struct WorkCounts {

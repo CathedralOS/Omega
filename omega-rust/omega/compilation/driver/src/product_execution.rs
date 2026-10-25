@@ -21,6 +21,7 @@ use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
 /// Native authority belongs only to a native request, never a checking stop.
+#[derive(Clone)]
 pub enum CompilationProduct {
     Check,
     Terminal(crate::OptimizationRollback),

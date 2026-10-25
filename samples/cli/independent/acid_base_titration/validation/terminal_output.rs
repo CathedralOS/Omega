@@ -3,8 +3,8 @@
 //! retained canonical Terminal artifact and exact runtime provisions. No tree
 //! interpretation, synthetic receiver, reconstructed artifact or trust bypass.
 use std::{fs, path::PathBuf};
-use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions,
-    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use terminal_runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation};
 use terminal_interpreter::TerminalExecutionStatus;
 

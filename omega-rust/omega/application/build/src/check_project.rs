@@ -1,13 +1,12 @@
 //! Checked inspection and reporting for one prepared package or application project.
 
-use super::accepted_compilation::{
-    AcceptedCompilationRequest, compile_accepted_project, compile_accepted_projects,
-};
-use super::{PrepareLocalProjectError, PreparedLocalProject};
-use crate::build_session::PackageBuildSession;
-use crate::review::CompileResolvedPackageReviewsError;
 use compiler::CompileReport;
 use diagnostics::Diagnostic;
+use package_manager::operations::{
+    PrepareLocalProjectError, PreparedLocalProject, ProjectCompilationAdmissionRequest,
+    ProjectCompilationError,
+};
+use package_manager::review::CompileResolvedPackageReviewsError;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
@@ -20,7 +19,7 @@ pub struct PreparedLocalProjectCheckRequest {
     /// accepted lock's restricted-request grants, so findings the lock
     /// previously settled surface again.
     verify: bool,
-    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    build_snapshot: Option<compiler::BuildSnapshotRequest>,
     timings: bool,
 }
 
@@ -69,7 +68,7 @@ impl PreparedLocalProjectCheckRequest {
 
     /// Select the root build's input inventory and output obligations. Dependency
     /// builds retain their independently captured package inventories.
-    pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
+    pub fn with_build_snapshot(mut self, snapshot: compiler::BuildSnapshotRequest) -> Self {
         self.build_snapshot = Some(snapshot);
         self
     }
@@ -98,11 +97,11 @@ impl fmt::Display for CheckPreparedLocalProjectError {
             Self::Review(error) => write!(formatter, "cannot check prepared project: {error}"),
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust:")?;
-                crate::review::render_diagnostics(formatter, diagnostics)
+                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
             }
             Self::ProofProduct(diagnostics) => {
                 write!(formatter, "cannot satisfy the requested proof product:")?;
-                crate::review::render_diagnostics(formatter, diagnostics)
+                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
             }
             Self::Report(message) => formatter.write_str(message),
         }
@@ -119,43 +118,46 @@ pub fn inspect_prepared_local_project(
     build_dir: &Path,
     target_profile: TargetProfile,
     machine: &str,
-) -> Result<terminal_codec::CanonicalTerminalArtifact, CompileResolvedPackageReviewsError> {
-    let (entry_path, source_closure, targets) = prepared.into_target_review_parts();
-    let failure = |message: String| CompileResolvedPackageReviewsError::Compilation {
-        package: source_closure.graph().root().clone(),
-        diagnostics: vec![Diagnostic::error(message)],
-    };
-    let target = targets
-        .into_iter()
-        .find(|target| target.profile == target_profile)
-        .ok_or_else(|| failure("inspection target was not prepared".to_owned()))?;
-    let accepted = target
-        .accepted
-        .map_err(|error| failure(error.to_string()))?;
-    // Inspection consumes accepted compilation inputs, but never arms the
-    // lock's restricted-action grants or turns observed trust into admission.
-    let mut session = PackageBuildSession::create(build_dir)?;
-    let result = compile_accepted_project(
-        AcceptedCompilationRequest {
-            closure: source_closure.for_exact_target(target_profile),
-            accepted: accepted.as_ref(),
-            entry: &entry_path,
-            snapshot: None,
-            verify: true,
-            timings: false,
-            product: compiler::CompilationProduct::Inspection(machine.to_owned()),
-        },
-        &mut session,
-    );
-    session.dispose(result.and_then(|output| {
-        output
-            .into_inspection()
-            .map_err(|error| CompileResolvedPackageReviewsError::Compilation {
-                package: source_closure.graph().root().clone(),
-                diagnostics: error.into_diagnostics(),
-            })
-    }))
+) -> Result<terminal_codec::CanonicalTerminalArtifact, ProjectInspectionError> {
+    let outcome = crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
+        prepared,
+        build_directory: build_dir,
+        target_profiles: &[target_profile],
+        snapshot: None,
+        verify: true,
+        timings: false,
+        product: compiler::CompilationProduct::Inspection(machine.to_owned()),
+    })
+    .pop()
+    .ok_or(ProjectInspectionError::MissingTarget)?;
+    outcome
+        .result
+        .map_err(ProjectInspectionError::Project)?
+        .into_inspection()
+        .map_err(ProjectInspectionError::Product)
 }
+
+#[derive(Debug)]
+pub enum ProjectInspectionError {
+    Project(ProjectCompilationError),
+    Product(compiler::CompilationProductError),
+    MissingTarget,
+}
+
+impl fmt::Display for ProjectInspectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Project(error) => write!(formatter, "{error}"),
+            Self::Product(
+                compiler::CompilationProductError::TrustAdmission(diagnostics)
+                | compiler::CompilationProductError::Production(diagnostics),
+            ) => diagnostics::write_bounded_diagnostics(formatter, diagnostics),
+            Self::MissingTarget => formatter.write_str("inspection target was not prepared"),
+        }
+    }
+}
+
+impl std::error::Error for ProjectInspectionError {}
 
 /// One target's check result inside a shared multi-target request. A failing
 /// target never stops or hides a sibling.
@@ -182,74 +184,31 @@ pub fn check_prepared_local_project_for_targets(
         build_snapshot,
         timings,
     } = request;
-    let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
-    let targets: Vec<_> = prepared_targets
-        .into_iter()
-        .filter(|target| target_profiles.contains(&target.profile))
-        .collect();
-    // The whole batch borrows one invocation: sponsors, staging and the pure
-    // Build store persist across targets rather than replenishing per check.
-    let mut session = match PackageBuildSession::create(&build_dir) {
-        Ok(session) => session,
-        Err(error) => {
-            let message = error.to_string();
-            return targets
-                .iter()
-                .map(|target| CheckedProjectTargetOutcome {
-                    target: target.profile,
-                    result: Err(CheckPreparedLocalProjectError::Review(
-                        CompileResolvedPackageReviewsError::Compilation {
-                            package: source_closure.graph().root().clone(),
-                            diagnostics: vec![Diagnostic::error(message.clone())],
-                        },
-                    )),
-                })
-                .collect();
-        }
-    };
-    let requests = targets
-        .iter()
-        .filter_map(|target| {
-            let accepted = target.accepted.as_ref().ok()?;
-            Some(AcceptedCompilationRequest {
-                closure: source_closure.for_exact_target(target.profile),
-                accepted: accepted.as_ref(),
-                entry: &entry_path,
-                snapshot: build_snapshot.as_ref(),
-                verify,
-                timings,
-                product: compiler::CompilationProduct::Check,
+    crate::project_compilation::compile(ProjectCompilationAdmissionRequest {
+        prepared,
+        build_directory: &build_dir,
+        target_profiles: &target_profiles,
+        snapshot: build_snapshot.as_ref(),
+        verify,
+        timings,
+        product: compiler::CompilationProduct::Check,
+    })
+    .into_iter()
+    .map(|outcome| CheckedProjectTargetOutcome {
+        target: outcome.target,
+        result: outcome
+            .result
+            .map_err(|error| match error {
+                ProjectCompilationError::Prepare(error) => {
+                    CheckPreparedLocalProjectError::Prepare(error)
+                }
+                ProjectCompilationError::Review(error) => {
+                    CheckPreparedLocalProjectError::Review(error)
+                }
             })
-        })
-        .collect();
-    let mut checked = compile_accepted_projects(requests, &mut session).into_iter();
-    let outcomes = targets
-        .into_iter()
-        .map(|prepared_target| {
-            let profile = prepared_target.profile;
-            let result = prepared_target
-                .accepted
-                .map_err(CheckPreparedLocalProjectError::Prepare)
-                .and_then(|_| {
-                    checked
-                        .next()
-                        .ok_or(CheckPreparedLocalProjectError::Report(
-                            "compiler lost a package target outcome",
-                        ))?
-                        .map_err(CheckPreparedLocalProjectError::Review)
-                })
-                .and_then(|product| product.into_report().map_err(product_failure));
-            CheckedProjectTargetOutcome {
-                target: profile,
-                result,
-            }
-        })
-        .collect::<Vec<_>>();
-    // Staging cleanup is disposal work, not a target outcome; the shared
-    // Drop would otherwise swallow it silently.
-    let _ = session.close();
-
-    outcomes
+            .and_then(|product| product.into_report().map_err(product_failure)),
+    })
+    .collect()
 }
 
 fn product_failure(error: compiler::CompilationProductError) -> CheckPreparedLocalProjectError {

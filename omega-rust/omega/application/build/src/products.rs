@@ -20,7 +20,7 @@ pub(crate) fn compile(
                 private_entry_ram, ..
             },
         ) => {
-            let mut product = packages::PreparedLocalProjectNativeRequest::for_targets(
+            let mut product = crate::PreparedLocalProjectNativeRequest::for_targets(
                 prepared,
                 directory,
                 targets.to_vec(),
@@ -31,7 +31,7 @@ pub(crate) fn compile(
             if let Some(snapshot) = &request.build_snapshot {
                 product = product.with_build_snapshot(snapshot.clone());
             }
-            for outcome in packages::compile_prepared_local_project_for_native_targets(product) {
+            for outcome in crate::compile_prepared_local_project_for_native_targets(product) {
                 reports.push((
                     outcome.target,
                     outcome
@@ -45,7 +45,7 @@ pub(crate) fn compile(
             RequestedCompileProduct::Check
                 .validate_optimization_rollback(&request.optimization_rollback)
                 .map_err(|error| BuildError::Diagnostics(vec![error]))?;
-            let mut product = packages::PreparedLocalProjectCheckRequest::for_targets(
+            let mut product = crate::PreparedLocalProjectCheckRequest::for_targets(
                 prepared,
                 directory,
                 targets.to_vec(),
@@ -55,7 +55,7 @@ pub(crate) fn compile(
             if let Some(snapshot) = &request.build_snapshot {
                 product = product.with_build_snapshot(snapshot.clone());
             }
-            for outcome in packages::check_prepared_local_project_for_targets(product) {
+            for outcome in crate::check_prepared_local_project_for_targets(product) {
                 reports.push((
                     outcome.target,
                     outcome
@@ -75,7 +75,7 @@ pub(crate) fn compile(
             };
             let output = match prepared {
                 Some(prepared) => {
-                    packages::inspect_prepared_local_project(prepared, directory, *profile, machine)
+                    crate::inspect_prepared_local_project(prepared, directory, *profile, machine)
                         .map(CompilationOutput::Inspection)
                         .map_err(BuildError::Inspection)
                 }

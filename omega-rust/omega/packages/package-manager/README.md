@@ -111,8 +111,14 @@ remain usable. Missing recorded Git content fails without transport. Offline
 selection does not waive source/compiler identity matching or change the lock
 format.
 
-Per the owner ruling of 2026-10-03, `check_prepared_local_project` and ordinary
-native production use accepted compilation, not the candidate-review pipeline.
+Per the owner ruling of 2026-10-03, ordinary checks and native production use
+accepted compilation, not the candidate-review pipeline. The application
+[`omega-build`](../../application/build/README.md) owns their compiler invocation,
+including inspection and prepared-project SDK consumers. Package management's
+`admit_project_compilation` returns ordered requests plus a completion owner
+retaining staging, aggregate sponsors and source custody. Completion maps occurrence
+failures back to packages, checks compiler-library identity and reports disposal
+failures. Neither admission nor completion invokes compilation.
 Every accepted occurrence's source and compiler input identities must match its
 lock record before Build execution. A match supplies the exact accepted semantic
 bindings for that occurrence; a mismatch rejects with the package name and

@@ -1,10 +1,8 @@
 //! Observe both native and buffered Terminal execution of the authored projects.
 //! Preparation consumes their reviewed package graph; no decisions are rewritten.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{
     fs,
     io::Cursor,

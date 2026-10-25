@@ -20,7 +20,7 @@ def main():
         if record.get('reason')!='compiler-artifact':continue
         name=record['target']['name']
         if name=='omega' and record.get('executable'):binary=Path(record['executable']).resolve()
-        if name not in ('compiler', 'terminal_runtime','package_manager','terminal_interpreter','target'):continue
+        if name not in ('compiler', 'terminal_runtime','omega_build', 'package_manager','terminal_interpreter','target'):continue
         assert name not in selected,('duplicate producer artifact',name)
         selected[name]=[{'path':str(Path(path).resolve()),'sha256':digest(Path(path))}
                         for path in record['filenames'] if Path(path).suffix in ('.rlib','.rmeta')]

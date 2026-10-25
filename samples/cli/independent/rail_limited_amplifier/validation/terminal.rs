@@ -2,10 +2,8 @@
 //! admitted Terminal runtime. It captures streams the CLI's --both exit-only
 //! comparison does not expose. It never supplies a source interpreter fallback.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
-use package_manager::operations::{
-    LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native, prepare_local_project,
-};
+use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
+use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, path::PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 fn main() {
