@@ -945,7 +945,9 @@ fn decode_scalar_restriction(
         }
         10 => {
             let field = StructuralFieldType::AtomicBoundedInteger(bounded_integer::decode(cursor)?);
-            field.atomic_scalar_type().ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(10))?;
+            field
+                .atomic_scalar_type()
+                .ok_or(FixedViewCopyDecodeError::UnknownStructuralFieldType(10))?;
             field
         }
         6 => StructuralFieldType::BoundedInteger(bounded_integer::decode(cursor)?),

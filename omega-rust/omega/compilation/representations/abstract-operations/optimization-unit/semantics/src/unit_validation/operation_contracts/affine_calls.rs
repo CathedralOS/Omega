@@ -127,7 +127,8 @@ fn finite_owned_shape(
                         finite_owned_shape(types, child, active, complete)
                     }
                     terminal_psi::StructuralFieldType::Scalar(_)
-                    | terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                    | terminal_psi::StructuralFieldType::Atomic(_)
+                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                     | terminal_psi::StructuralFieldType::IeeeFloat(_)
                     | terminal_psi::StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
@@ -148,7 +149,8 @@ fn finite_owned_shape(
                             finite_owned_shape(types, child, active, complete)
                         }
                         terminal_psi::StructuralFieldType::Scalar(_)
-                        | terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                        | terminal_psi::StructuralFieldType::Atomic(_)
+                        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                         | terminal_psi::StructuralFieldType::IeeeFloat(_)
                         | terminal_psi::StructuralFieldType::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },

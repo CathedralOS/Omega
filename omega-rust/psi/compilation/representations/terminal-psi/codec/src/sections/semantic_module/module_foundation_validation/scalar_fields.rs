@@ -213,7 +213,8 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             if field.relevance.is_erased()
                 || matches!(
                     field.field_type,
-                    terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                    terminal_psi::StructuralFieldType::Atomic(_)
+                        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
                 )
                 || field.field_type.scalar_type() != Some(row.value_type.scalar_type)
                 || row.value_type.qualifications.is_empty()

@@ -56,7 +56,8 @@ impl MembershipReachability {
                             StructuralFieldType::Erased { .. } => false,
                             // Restricted or inline byte leaves can supply memberships
                             // without a child declaration. Preserve their full query.
-                            StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+                            StructuralFieldType::Atomic(_)
+                            | StructuralFieldType::AtomicBoundedInteger(_)
                             | StructuralFieldType::BoundedInteger(_)
                             | StructuralFieldType::RefinedScalar(_)
                             | StructuralFieldType::ByteSequence(_)

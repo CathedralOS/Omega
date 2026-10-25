@@ -34,7 +34,13 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     use abstract_operations::AbstractAtomicEvent as E;
     bytes.u8(72);
     bytes.id(*psi_operation);
-    match resident_obligation { Some(obligation) => { bytes.u8(1); bytes.id(*obligation); }, None => bytes.u8(0) }
+    match resident_obligation {
+        Some(obligation) => {
+            bytes.u8(1);
+            bytes.id(*obligation);
+        }
+        None => bytes.u8(0),
+    }
     match event {
         E::Load {
             location,

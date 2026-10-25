@@ -403,7 +403,9 @@ impl StructuralFieldType {
     pub fn scalar_type(&self) -> Option<ScalarType> {
         match self {
             Self::Scalar(scalar_type) | Self::Atomic(scalar_type) => Some(*scalar_type),
-            Self::BoundedInteger(integer) | Self::AtomicBoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
+            Self::BoundedInteger(integer) | Self::AtomicBoundedInteger(integer) => {
+                Some(ScalarType::Integer(integer.integer_type()))
+            }
             Self::RefinedScalar(refinement) => Some(refinement.carrier()),
             Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
             Self::ByteSequence(_)

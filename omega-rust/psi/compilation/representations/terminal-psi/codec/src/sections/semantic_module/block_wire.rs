@@ -810,7 +810,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             field,
             event,
             resident_obligation,
-        } => atomic_operations::encode_atomic_access(writer, place, &path, field, event, resident_obligation)?,
+        } => atomic_operations::encode_atomic_access(
+            writer,
+            place,
+            &path,
+            field,
+            event,
+            resident_obligation,
+        )?,
     }
     writer.boolean(operation.suspension_crossing.is_some());
     if let Some(crossing) = operation.suspension_crossing {
@@ -1196,7 +1203,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::ATOMIC_FENCE => atomic_operations::decode_atomic_fence(reader)?,
         operation_tags::ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader, false)?,
-        operation_tags::RESTRICTED_ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader, true)?,
+        operation_tags::RESTRICTED_ATOMIC_ACCESS => {
+            atomic_operations::decode_atomic_access(reader, true)?
+        }
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };
     let suspension_crossing = if reader.boolean()? {

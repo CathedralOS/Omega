@@ -166,7 +166,8 @@ pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_execution_children, atomic_load_carrier,
     atomic_once_carrier, atomic_once_operands, atomic_once_result_type, atomic_once_write_place,
-    atomic_resident_type_reference, atomic_value_operands, place_is_atomic_storage,
+    atomic_resident_type_reference, atomic_result_placeholder, atomic_value_operands,
+    place_is_atomic_storage,
 };
 pub use value_custody::places::{
     AttachedStorageRoot, StructuralScalarField, StructuralSource, assignment_target_indexes,

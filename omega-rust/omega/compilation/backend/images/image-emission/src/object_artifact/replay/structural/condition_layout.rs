@@ -441,12 +441,15 @@ fn replay_structural_field_shape(
                 active,
             )
         }
-        terminal_psi::StructuralFieldType::Atomic(_) | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => replay_structural_field_shape(
-            &terminal_psi::StructuralFieldType::Scalar(field_type.atomic_scalar_type()?),
-            declarations,
-            cache,
-            active,
-        ),
+        terminal_psi::StructuralFieldType::Atomic(_)
+        | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => {
+            replay_structural_field_shape(
+                &terminal_psi::StructuralFieldType::Scalar(field_type.atomic_scalar_type()?),
+                declarations,
+                cache,
+                active,
+            )
+        }
         terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean) => {
             Some(ValueShape::integer(1, 1))
         }

@@ -320,7 +320,8 @@ pub(crate) fn decode_structural_field_type(
                 decode_integer_type(reader)?,
                 decode_integer_value(reader)?,
                 decode_integer_value(reader)?,
-            ).map_err(CodecError::MalformedProposition)?,
+            )
+            .map_err(CodecError::MalformedProposition)?,
         ),
         9 => StructuralFieldType::RefinedScalar(
             semantic_vocabulary::ScalarRefinement::new(

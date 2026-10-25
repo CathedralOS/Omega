@@ -209,7 +209,11 @@ fn address_payload(
                     "free owned value must contain exactly one address payload",
                 ));
             };
-            if field.storage.is_some() || matches!(field.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
+            if field.storage.is_some()
+                || matches!(
+                    field.field_type,
+                    StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+                )
             {
                 return Err(invalid(
                     "free address payload cannot use atomic or encoded storage",

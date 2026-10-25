@@ -427,7 +427,7 @@ impl<'program> Coordinate<'program> {
                 break;
             };
             let (_, local) = program.state_local_declaration(state, symbol)?;
-            if !local.initial_value.is_valid() || depth == 127 {
+            if local.ordinary_value_initializer().is_none() || depth == 127 {
                 return None;
             }
             current = local.initial_value;

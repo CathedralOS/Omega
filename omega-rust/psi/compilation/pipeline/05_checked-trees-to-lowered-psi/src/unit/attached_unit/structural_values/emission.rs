@@ -2963,7 +2963,8 @@ impl Emission<'_, '_, '_> {
         positions.push((field_index, self.values.len()));
         self.values.push(evaluated);
         let range_obligation =
-            if terminal_semantics::scalar_field_requires_evidence(&field.field_type) {
+            if terminal_semantics::scalar_field_requires_initialization_evidence(&field.field_type)
+            {
                 Some(obligation_id(allocate_dense(
                     &mut self.calls.next_obligation_identity,
                 )?))

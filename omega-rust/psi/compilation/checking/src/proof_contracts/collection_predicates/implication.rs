@@ -347,7 +347,8 @@ impl Implication<'_> {
             };
             match statement {
                 StatementNode::LocalData(local)
-                    if local.relevance == language_core::BindingRelevance::Relevant =>
+                    if local.ordinary_value_initializer().is_some()
+                        && local.relevance == language_core::BindingRelevance::Relevant =>
                 {
                     for (path, value) in self.expression(&frame, path, local.initial_value, 0)? {
                         let mut frame = frame.clone();
@@ -1452,6 +1453,7 @@ impl Implication<'_> {
             match statements.get(statement_position)? {
                 StatementNode::LocalData(local)
                     if !local.is_mutable
+                        && local.ordinary_value_initializer().is_some()
                         && local.relevance == language_core::BindingRelevance::Relevant =>
                 {
                     for (path, value) in self.expression(&frame, path, local.initial_value, 0)? {

@@ -1014,7 +1014,8 @@ fn is_material_write_only_type(
                     }
                     match field.field_type {
                         StructuralFieldType::Scalar(_)
-                        | StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+                        | StructuralFieldType::Atomic(_)
+                        | StructuralFieldType::AtomicBoundedInteger(_)
                         | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(child) => pending.push(child),
                         StructuralFieldType::ByteSequence(_)

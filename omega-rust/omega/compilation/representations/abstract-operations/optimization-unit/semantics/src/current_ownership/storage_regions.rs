@@ -140,7 +140,8 @@ fn fields_cannot_retain_loan(
 ) -> bool {
     fields.iter().all(|field| match &field.field_type {
         StructuralFieldType::Scalar(_)
-        | StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
+        | StructuralFieldType::Atomic(_)
+        | StructuralFieldType::AtomicBoundedInteger(_)
         | StructuralFieldType::RefinedScalar(_)
         | StructuralFieldType::BoundedInteger(_)
         | StructuralFieldType::IeeeFloat(_) => true,

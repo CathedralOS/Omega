@@ -113,7 +113,9 @@ pub(crate) fn source_range_decided(
         return Ok(false);
     }
     let decision = checked.facts.proof.integer_assignments.get(range_decision);
-    if decision.atomic_resident { return Ok(false); }
+    if decision.atomic_resident {
+        return Ok(false);
+    }
     let Some(integer) = bounded_integer else {
         return Ok(false);
     };
@@ -143,7 +145,9 @@ pub(crate) fn atomic_source_range_decided(
         return Ok(false);
     }
     let decision = checked.facts.proof.integer_assignments.get(range_decision);
-    if !decision.atomic_resident { return Ok(false); }
+    if !decision.atomic_resident {
+        return Ok(false);
+    }
     let Some(integer) = bounded_integer else {
         return Ok(false);
     };

@@ -456,14 +456,40 @@ pub(super) fn validate<'a, 'p>(
     {
         return;
     }
+    if let Some(event) = atomic.as_ref().filter(|event| event.result.is_valid()) {
+        let observed = arithmetic_domains::atomic_resident_interval(
+            program,
+            machine,
+            current_state,
+            event.place,
+        )
+        .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
+        arithmetic_domains::record_assignment(
+            value_environment,
+            arithmetic_domains::place_path(program, event.result),
+            observed,
+            None,
+        );
+    }
     let assignment_path = arithmetic_domains::place_path(program, assignment.target);
     arithmetic_domains::record_assignment(
         value_environment,
         assignment_path.clone(),
         // CAS failure does not establish the replacement's exact value.
         if atomic.is_some() {
-            current_state.and_then(|state| crate::proof_contracts::default_domains::stored_field_where_interval(program, machine, state, assignment.target)).unwrap_or(arithmetic_domains::Interval::UNBOUNDED)
-        } else { interval },
+            current_state
+                .and_then(|state| {
+                    crate::proof_contracts::default_domains::stored_field_where_interval(
+                        program,
+                        machine,
+                        state,
+                        assignment.target,
+                    )
+                })
+                .unwrap_or(arithmetic_domains::Interval::UNBOUNDED)
+        } else {
+            interval
+        },
         places::declared_place_type_raw(program, machine, current_state, assignment.target)
             .and_then(|handle| arithmetic_domains::enforced_declared_range(program, handle)),
     );
@@ -565,7 +591,10 @@ fn checked_integer_assignment(
         }
     }
     (minimum <= maximum).then_some(checked_trees::CheckedIntegerAssignmentDecision {
-        atomic_resident: crate::value_custody::atomic_operations::atomic_assignment_carrier(program, assignment).is_some(),
+        atomic_resident: crate::value_custody::atomic_operations::atomic_assignment_carrier(
+            program, assignment,
+        )
+        .is_some(),
         machine: machine.symbol,
         state: state.symbol,
         statement_index,

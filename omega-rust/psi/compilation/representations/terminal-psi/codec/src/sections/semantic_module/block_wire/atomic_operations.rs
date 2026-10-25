@@ -34,8 +34,14 @@ pub(super) fn encode_atomic_access(
     event: AtomicAccessEvent,
     resident_obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), CodecError> {
-    writer.u8(if resident_obligation.is_some() { operation_tags::RESTRICTED_ATOMIC_ACCESS } else { operation_tags::ATOMIC_ACCESS });
-    if let Some(obligation) = resident_obligation { writer.id(obligation); }
+    writer.u8(if resident_obligation.is_some() {
+        operation_tags::RESTRICTED_ATOMIC_ACCESS
+    } else {
+        operation_tags::ATOMIC_ACCESS
+    });
+    if let Some(obligation) = resident_obligation {
+        writer.id(obligation);
+    }
     writer.id(place);
     encode_structural_path(writer, "atomic access path", path)?;
     writer.id(field);
@@ -98,8 +104,15 @@ pub(super) fn encode_atomic_access(
     Ok(())
 }
 
-pub(super) fn decode_atomic_access(reader: &mut Reader<'_>, restricted: bool) -> Result<OperationKind, CodecError> {
-    let resident_obligation = if restricted { Some(reader.id("ObligationId")?) } else { None };
+pub(super) fn decode_atomic_access(
+    reader: &mut Reader<'_>,
+    restricted: bool,
+) -> Result<OperationKind, CodecError> {
+    let resident_obligation = if restricted {
+        Some(reader.id("ObligationId")?)
+    } else {
+        None
+    };
     let place = reader.id("PlaceId")?;
     let path = decode_structural_path(reader)?;
     let field = reader.id("StructuralFieldId")?;

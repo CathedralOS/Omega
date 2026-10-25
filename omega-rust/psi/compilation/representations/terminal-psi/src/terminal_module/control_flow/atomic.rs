@@ -119,7 +119,8 @@ impl AtomicAccessEvent {
     pub const fn replacement(self) -> Option<ValueId> {
         match self {
             Self::Store { value, .. } | Self::Swap { value, .. } => Some(value),
-            Self::CompareExchange { replacement, .. } | Self::CompareExchangeOnce { replacement, .. } => Some(replacement),
+            Self::CompareExchange { replacement, .. }
+            | Self::CompareExchangeOnce { replacement, .. } => Some(replacement),
             _ => None,
         }
     }

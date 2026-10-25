@@ -17,6 +17,19 @@ pub fn scalar_field_requires_evidence(field_type: &StructuralFieldType) -> bool 
     )
 }
 
+/// Whole-cell construction owes validity but does not gain mutation authority.
+pub fn scalar_field_requires_initialization_evidence(field: &StructuralFieldType) -> bool {
+    scalar_field_requires_evidence(field)
+        || matches!(field, StructuralFieldType::AtomicBoundedInteger(_))
+}
+
+pub fn scalar_field_initialization_requirement(
+    field: &StructuralFieldType,
+    value: ValueId,
+) -> Option<Proposition> {
+    scalar_field_requirement(field, value).or_else(|| atomic_resident_requirement(field, value))
+}
+
 /// The restriction a scalar initializer or replacement must establish, beyond
 /// its carrier type. `None` means the declaration has no scalar refinement;
 /// byte predicates and structural custody have their own obligation owners.
@@ -34,12 +47,20 @@ pub fn scalar_field_requirement(
 }
 
 /// Atomic validity is independent of ordinary scalar store eligibility.
-pub fn atomic_resident_requirement(field: &StructuralFieldType, value: ValueId) -> Option<Proposition> {
-    let StructuralFieldType::AtomicBoundedInteger(bounds) = field else { return None; };
+pub fn atomic_resident_requirement(
+    field: &StructuralFieldType,
+    value: ValueId,
+) -> Option<Proposition> {
+    let StructuralFieldType::AtomicBoundedInteger(bounds) = field else {
+        return None;
+    };
     Some(integer_range_requirement(*bounds, value))
 }
 
-fn integer_range_requirement(bounds: semantic_vocabulary::BoundedIntegerType, value: ValueId) -> Proposition {
+fn integer_range_requirement(
+    bounds: semantic_vocabulary::BoundedIntegerType,
+    value: ValueId,
+) -> Proposition {
     let integer_type = bounds.integer_type();
     let subject = ScalarTerm::value(value, ScalarType::Integer(integer_type));
     let endpoint = |value| ScalarTerm::Integer {
@@ -82,7 +103,8 @@ pub fn scalar_field_accepts_literal(
         return false;
     }
     let Some(requirement) = scalar_field_requirement(field_type, ValueId::FIRST)
-        .or_else(|| atomic_resident_requirement(field_type, ValueId::FIRST)) else {
+        .or_else(|| atomic_resident_requirement(field_type, ValueId::FIRST))
+    else {
         return true;
     };
     proof_admission::check_predicate_denotations_with_value_equalities(

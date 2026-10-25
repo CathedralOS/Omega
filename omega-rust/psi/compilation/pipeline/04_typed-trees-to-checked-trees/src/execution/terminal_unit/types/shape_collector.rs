@@ -1562,7 +1562,8 @@ fn authored_field_storage(
     let scalar_field = matches!(
         field_type,
         CheckedUnitStructuralFieldType::Scalar(_)
-            | CheckedUnitStructuralFieldType::Atomic(_) | CheckedUnitStructuralFieldType::AtomicBoundedInteger(_)
+            | CheckedUnitStructuralFieldType::Atomic(_)
+            | CheckedUnitStructuralFieldType::AtomicBoundedInteger(_)
             | CheckedUnitStructuralFieldType::BoundedInteger(_)
             | CheckedUnitStructuralFieldType::RefinedScalar { .. }
     );

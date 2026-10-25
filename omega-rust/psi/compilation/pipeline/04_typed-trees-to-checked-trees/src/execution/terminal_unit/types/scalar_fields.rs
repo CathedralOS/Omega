@@ -250,7 +250,9 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
         TypeReferenceNode::Named { symbol, .. }
             if program.symbols.builtin_type_atom(*symbol).is_some_and(|atom| atom.is_atomic()));
     if atomic {
-        if predicate.is_some() || has_non_exact_domain { return None; }
+        if predicate.is_some() || has_non_exact_domain {
+            return None;
+        }
         if declared_bounds.is_none() {
             return Some(CheckedUnitStructuralFieldType::Atomic(primitive));
         }
@@ -269,7 +271,9 @@ pub(in crate::execution::terminal_unit) fn retain_scalar_field(
     let minimum = minimum.max(carrier_integer(integer_type.minimum_value()));
     let maximum = maximum.min(carrier_integer(integer_type.maximum_value()));
     if minimum > maximum {
-        if atomic { return None; }
+        if atomic {
+            return None;
+        }
         // An empty predicate makes construction impossible, not storage
         // undefined. Inactive cases still need their ordinary carrier shape;
         // retain false through the general predicate representation rather

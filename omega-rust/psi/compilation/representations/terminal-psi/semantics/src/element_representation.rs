@@ -124,7 +124,8 @@ pub fn element_representation_layout<'a>(
                     }
                     let child = match &field.field_type {
                         StructuralFieldType::Scalar(scalar) => scalar_layout(*scalar, None)?,
-                        StructuralFieldType::BoundedInteger(bounds) | StructuralFieldType::AtomicBoundedInteger(bounds) => scalar_layout(
+                        StructuralFieldType::BoundedInteger(bounds)
+                        | StructuralFieldType::AtomicBoundedInteger(bounds) => scalar_layout(
                             ScalarType::Integer(bounds.integer_type()),
                             Some(*bounds),
                         )?,

@@ -508,7 +508,11 @@ fn captured_place_subject(
                 // field identity so the ordinary read retains its restrictions.
                 // Atomic cells are a distinct access family, never plain loans.
                 if let Some(scalar_type) = selected.field_type.scalar_type()
-                    && !matches!(selected.field_type, (StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)))
+                    && !matches!(
+                        selected.field_type,
+                        StructuralFieldType::Atomic(_)
+                            | StructuralFieldType::AtomicBoundedInteger(_)
+                    )
                 {
                     if checked.primitive_type_reference(referee).is_none() {
                         return unsupported(
