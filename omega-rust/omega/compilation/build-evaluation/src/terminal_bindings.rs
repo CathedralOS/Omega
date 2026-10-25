@@ -34,6 +34,15 @@ struct BindingState {
     executed: Vec<ExecutedRootBinding>,
 }
 
+impl BindingState {
+    fn take_executed(&mut self) -> Result<Vec<ExecutedRootBinding>, String> {
+        if self.pending.iter().any(Option::is_some) {
+            return Err("Build binding activation ended with an uncommitted request".to_owned());
+        }
+        Ok(std::mem::take(&mut self.executed))
+    }
+}
+
 impl<'context> TerminalBuildBindingHost<'context> {
     pub fn new(
         artifact: terminal_codec::TerminalExecutionView<'_>,
@@ -61,14 +70,19 @@ impl<'context> TerminalBuildBindingHost<'context> {
     }
 
     pub fn into_executed(self) -> Result<Vec<ExecutedRootBinding>, String> {
-        let state = self
-            .state
+        self.state
             .into_inner()
-            .map_err(|_| "Build binding activation lock was poisoned".to_owned())?;
-        if state.pending.iter().any(Option::is_some) {
-            return Err("Build binding activation ended with an uncommitted request".to_owned());
-        }
-        Ok(state.executed)
+            .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
+            .take_executed()
+    }
+
+    /// Retire committed selections after the sole activation has returned.
+    /// The activation owner prevents a second execution with these adapters.
+    pub(crate) fn take_executed(&self) -> Result<Vec<ExecutedRootBinding>, String> {
+        self.state
+            .lock()
+            .map_err(|_| "Build binding activation lock was poisoned".to_owned())?
+            .take_executed()
     }
 }
 

@@ -15,7 +15,7 @@
 //! invented config grammar. When the program (build.omg is ordinary source,
 //! auto-included next to main.omg) defines the conventionally-named free
 //! machine `build(build: &mut Build)`, the compiler evaluates it at build time
-//! (purity-gated, the L0 engine) with a ZII `Build` and reads the augmented
+//! through the admitted Terminal interpreter with a ZII `Build` and reads the augmented
 //! value back:
 //!
 //! ```omega

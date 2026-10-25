@@ -74,17 +74,19 @@ pub(crate) fn execute_admitted_build_program(
         .map_err(|error| refuse(error.to_string()))?;
     let mut requests = Vec::new();
     artifacts::compile_timings::counters::record_build_execution();
-    let completed = crate::terminal_execution::execute(
-        &produced,
-        machine.value_admission,
-        &machine.initial_build,
-        &account,
-        |issued| {
-            requests.extend(issued);
-            Ok(())
-        },
-    )
-    .map_err(&refuse)?;
+    let mut host =
+        crate::terminal_execution::TerminalBuildHost::new(&produced, &account).map_err(&refuse)?;
+    let mut activation = host.start().map_err(&refuse)?;
+    loop {
+        let step = activation.advance(1024).map_err(&refuse)?;
+        requests.extend(step.requests);
+        if step.returned {
+            break;
+        }
+    }
+    let completed = activation
+        .complete(machine.value_admission, &machine.initial_build)
+        .map_err(&refuse)?;
     let declaration = project::declaration(&requests).map_err(&refuse)?;
     // No Product may consume an outstanding edge. This refusal remains until
     // the application coordinator installs the real request/join protocol.

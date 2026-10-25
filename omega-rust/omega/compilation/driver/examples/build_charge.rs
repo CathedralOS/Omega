@@ -172,6 +172,50 @@ fn main() {
 
     logged_build_reuse();
     anonymous_build_completes_before_product();
+    sliced_build_retains_effects();
+}
+
+/// The ordinary source call crosses the production scheduling quantum. Its
+/// early project declaration and late entry bindings must each execute once.
+fn sliced_build_retains_effects() {
+    let root = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/activation_yields_without_replay/main.omg");
+    let account = sponsor(limits(1_000_000));
+    let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
+    request.evaluation_sponsor = Some(account.clone());
+    let before = counters::build_execution_count();
+    CompilationSession::default()
+        .check(request)
+        .result
+        .expect("sliced Build completes");
+    assert_eq!(counters::build_execution_count() - before, 1);
+    let fuel = account.consumed_fuel_units();
+    assert!(
+        fuel > 1024,
+        "witness must cross the production scheduling slice: {fuel}"
+    );
+    assert_eq!(account.live_storage_cells(), 0);
+    assert_eq!(account.live_payload_bytes(), 0);
+    println!("sliced_build_executed_once_with_fuel={fuel}");
+    let limited = sponsor(limits(fuel - 1));
+    let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
+    request.evaluation_sponsor = Some(limited.clone());
+    let before = counters::build_execution_count();
+    let failure = CompilationSession::default()
+        .check(request)
+        .result
+        .expect_err("slice replenishment must not enlarge the invocation allowance");
+    let diagnostics = failure.into_diagnostics();
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("evaluation Fuel allowance exhausted")),
+        "{diagnostics:?}"
+    );
+    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(limited.live_storage_cells(), 0);
+    assert_eq!(limited.live_payload_bytes(), 0);
+    println!("sliced_build_short_allowance_refused_and_storage_retired");
 }
 
 /// Product ownership requires another source context, not another activation.
