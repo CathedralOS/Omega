@@ -14,12 +14,14 @@
 
 mod component_memberships;
 mod component_provider;
+mod component_types;
 mod entry_values;
 mod private_entry_ram;
 mod provider_installation;
 mod target_families;
 
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
+pub use component_types::ComponentTypePresentation;
 pub use entry_values::{TerminalPlacedViewEstablishment, TerminalStructuralValue};
 pub use private_entry_ram::{
     CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,

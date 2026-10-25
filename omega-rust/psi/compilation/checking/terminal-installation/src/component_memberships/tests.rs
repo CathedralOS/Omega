@@ -176,3 +176,53 @@ fn missing_and_ambiguous_receiving_theories_never_drop_actual_tags() {
     provider.structural_domains.push(duplicate);
     assert!(ComponentMemberships::join(&receiver, &provider).is_err());
 }
+
+#[test]
+fn component_type_paths_round_trip_artifact_local_names() {
+    let source = module(0);
+    let destination = module(40);
+    let source_type = &source.structural_types[0];
+    let destination_type = &destination.structural_types[0];
+    let StructuralTypeShape::Record {
+        fields: source_fields,
+        ..
+    } = &source_type.shape
+    else {
+        unreachable!()
+    };
+    let StructuralTypeShape::Record {
+        fields: destination_fields,
+        ..
+    } = &destination_type.shape
+    else {
+        unreachable!()
+    };
+    let presentation =
+        join_component_types(&source, &destination, source_type.id, destination_type.id).unwrap();
+    assert_eq!(presentation.source(), source_type.id);
+    assert_eq!(presentation.destination(), destination_type.id);
+    assert_eq!(
+        presentation.present_type(source_type.id),
+        Some(destination_type.id)
+    );
+    let mut path = vec![terminal_psi::StructuralPathSegment::Field(
+        source_fields[0].identity,
+    )];
+    let original = path.clone();
+    presentation.present_path(&mut path).unwrap();
+    assert_eq!(
+        path,
+        [terminal_psi::StructuralPathSegment::Field(
+            destination_fields[0].identity
+        )]
+    );
+    presentation.original_path(&mut path).unwrap();
+    assert_eq!(path, original);
+    // The source index names an unrelated declaration in the destination.
+    assert!(presentation.original_path(&mut original.clone()).is_err());
+    assert!(
+        presentation
+            .present_path(&mut [terminal_psi::StructuralPathSegment::Referent])
+            .is_err()
+    );
+}

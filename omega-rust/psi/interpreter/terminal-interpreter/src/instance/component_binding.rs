@@ -39,6 +39,9 @@ struct PendingComponent<'host, 'artifact> {
     // Keep the original transferred atom tuple beside the real child through
     // suspension. Resumption never resolves the consumed receiver homes again.
     structural_arguments: Vec<crate::TerminalStructuralValue>,
+    // The view's authenticated owner/coordinate associations stay live through
+    // suspension and receiving acknowledgement, alongside the actual child.
+    _borrowed_storage: super::ComponentBorrowedStorage,
     instance: Option<Box<TerminalInstance<'host, 'artifact>>>,
     completed: Option<ComponentOwnedReturn<'host, 'artifact>>,
 }
@@ -197,6 +200,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         arguments: &[TerminalScalarValue],
         structural_operands: &[terminal_psi::StructuralArgument],
         structural_arguments: &[crate::TerminalStructuralValue],
+        mut borrowed_storage: super::ComponentBorrowedStorage,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<(), String> {
         self.require_ready()?;
@@ -212,6 +216,9 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
                 account,
             })
             .map_err(|error| format!("component instance admission: {error:?}"))?;
+        borrowed_storage
+            .install(&mut instance)
+            .map_err(|error| format!("component shared backing admission: {error:?}"))?;
         if instance.required_imports != self.required_imports {
             return Err("component invocation changed its preflighted import closure".into());
         }
@@ -222,6 +229,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             arguments: arguments.to_vec(),
             structural_operands: structural_operands.to_vec(),
             structural_arguments: structural_arguments.to_vec(),
+            _borrowed_storage: borrowed_storage,
             instance: Some(Box::new(instance)),
             completed: None,
         });

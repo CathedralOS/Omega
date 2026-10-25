@@ -71,6 +71,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     arguments,
                     structural_arguments,
                     &prepared.values,
+                    prepared.borrowed_storage,
                     self.account.as_ref(),
                 )
                 .map_err(&reject)?;

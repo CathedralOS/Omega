@@ -90,6 +90,7 @@ struct TheoryJoin<'module> {
     right: &'module TerminalModule,
     types: BTreeMap<StructuralTypeId, StructuralTypeId>,
     fields: BTreeMap<StructuralFieldId, StructuralFieldId>,
+    field_names: BTreeMap<TerminalIdentityIndex, TerminalIdentityIndex>,
     cases: BTreeMap<StructuralCaseId, StructuralCaseId>,
 }
 
@@ -100,6 +101,7 @@ impl<'module> TheoryJoin<'module> {
             right,
             types: BTreeMap::new(),
             fields: BTreeMap::new(),
+            field_names: BTreeMap::new(),
             cases: BTreeMap::new(),
         }
     }
@@ -309,6 +311,13 @@ impl<'module> TheoryJoin<'module> {
                 {
                     return false;
                 }
+                if self
+                    .field_names
+                    .insert(a.identity, b.identity)
+                    .is_some_and(|previous| previous != b.identity)
+                {
+                    return false;
+                }
                 match (&a.field_type, &b.field_type) {
                     (StructuralFieldType::Structural(a), StructuralFieldType::Structural(b)) => {
                         self.carrier(*a, *b)
@@ -440,4 +449,23 @@ impl<'module> TheoryJoin<'module> {
             _ => false,
         }
     }
+}
+
+pub(super) fn join_component_types(
+    source: &TerminalModule,
+    destination: &TerminalModule,
+    source_type: StructuralTypeId,
+    destination_type: StructuralTypeId,
+) -> Result<crate::component_types::ComponentTypePresentation, String> {
+    let mut joined = TheoryJoin::new(source, destination);
+    if !joined.carrier(source_type, destination_type) {
+        return Err("component carrier declarations retain different logical graphs".into());
+    }
+    Ok(crate::component_types::ComponentTypePresentation::new(
+        source_type,
+        destination_type,
+        joined.types,
+        joined.field_names,
+        joined.cases,
+    ))
 }

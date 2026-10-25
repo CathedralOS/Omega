@@ -58,7 +58,7 @@ fn encode(namespace: u64, root: u64, path: &[Coordinate]) -> Result<u64, Termina
         .ok_or_else(exhausted)
 }
 
-fn path_coordinates(
+pub(crate) fn path_coordinates(
     path: &[StructuralPathSegment],
 ) -> Result<Vec<Coordinate>, TerminalInterpretError> {
     path.iter()
@@ -238,7 +238,15 @@ impl TerminalExecution<'_> {
             &source.path,
         );
         let endpoint = self.storage_address_endpoint(source, scalar_type)?;
-        let (namespace, root, path) = self.endpoint_identity(endpoint)?;
+        let (mut namespace, mut root, mut path) = self.endpoint_identity(endpoint)?;
+        if namespace.is_none()
+            && let Some((owner, original, coordinates)) =
+                self.component_borrowed_address(root, &path)?
+        {
+            namespace = Some(owner);
+            root = original;
+            path = coordinates;
+        }
         let namespace = namespace
             .or(self.local_structural_identities.exposure_namespace)
             .ok_or_else(exhausted)?;

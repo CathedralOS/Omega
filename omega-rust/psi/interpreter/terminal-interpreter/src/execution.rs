@@ -105,6 +105,12 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) private_entry_ram: Vec<crate::reference::placed::PrivateEntryRamAllocation>,
     pub(crate) aggregate_argument_backings:
         RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
+    pub(crate) component_borrowed_origins: std::sync::Arc<
+        RuntimeRows<
+            crate::values::StructuralRuntimePlace,
+            crate::instance::ComponentBorrowedOrigin,
+        >,
+    >,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
     pub(crate) reference_referents:
@@ -502,6 +508,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage,
             structural_values,
             aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
+            component_borrowed_origins: std::sync::Arc::new(RuntimeRows::new(account.as_ref())),
             reference_referents: RuntimeRows::new(account.as_ref()),
             structural_element_view_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_descriptors: RuntimeRows::new(account.as_ref()),

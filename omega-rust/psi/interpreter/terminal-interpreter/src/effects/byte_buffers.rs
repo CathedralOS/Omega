@@ -39,6 +39,33 @@ pub(crate) struct BoundaryArguments {
 }
 
 impl BoundaryArguments {
+    /// A checked component must receive the original call carriers, not the
+    /// foreign host's staged byte/writeback protocol. Keep the ordinary loan
+    /// associations while refusing every unsupported host marshaling sidecar.
+    pub(crate) fn into_component_call_arguments(
+        self,
+        parameters: &[StructuralParameterDeclaration],
+        types: &crate::program::ProgramDeclarations<'_, terminal_psi::StructuralTypeDeclaration>,
+        cases: &std::collections::BTreeMap<
+            StructuralRuntimePlace,
+            crate::structural_inputs::case_membership::StructuralCaseContents,
+        >,
+        account: Option<&EvaluationInvocationAccount>,
+        original_identity_cursor: Option<u64>,
+    ) -> Result<StructuralCallArguments, TerminalInterpretError> {
+        if self.local_identity_cursor != original_identity_cursor
+            || self.bytes.iter().any(Option::is_some)
+            || !self.buffers.is_empty()
+            || !self.bindings.is_empty()
+            || !self.storage_inputs.is_empty()
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "component input requires a distinct byte or writeback storage bridge",
+            ));
+        }
+        self.into_call_arguments(parameters, types, cases, account)
+    }
+
     /// Consume a tuple only when no separate backing, loan, staged allocation
     /// or writeback evidence would be lost. Atom-only transport cannot rebuild
     /// those sidecars from a carrier identity in another execution.

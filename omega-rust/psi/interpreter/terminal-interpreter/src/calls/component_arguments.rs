@@ -26,6 +26,7 @@ pub(super) struct PreparedComponentArguments {
     pub(super) remaining_affine: BTreeSet<StructuralAffineDiscard>,
     pub(super) retired_sources: Vec<PlaceId>,
     pub(super) remaining_claims: BTreeMap<ClaimId, crate::execution::LiveClaim>,
+    pub(super) borrowed_storage: crate::instance::ComponentBorrowedStorage,
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
@@ -60,15 +61,60 @@ impl<'artifact> TerminalExecution<'artifact> {
         crate::custody::validate_boundary_requirements(receiver, |index| {
             prepared.values.get(index)
         })?;
-        let mut values = prepared.into_opaque_values(self.local_structural_identities.cursor())?;
+        let mut values = if receiver
+            .structural_parameters
+            .iter()
+            .all(|parameter| parameter.access == StructuralAccess::Owned)
+        {
+            prepared.into_opaque_values(self.local_structural_identities.cursor())?
+        } else {
+            let carried = prepared.into_component_call_arguments(
+                &receiver.structural_parameters,
+                &self.program.structural_types(),
+                self.structural_cases.as_map(),
+                self.account.as_ref(),
+                self.local_structural_identities.cursor(),
+            )?;
+            if !carried.byte_sequences.is_empty()
+                || !carried.primitive_loans.is_empty()
+                || !carried.element_views.is_empty()
+                || !carried.scalar_arrays.is_empty()
+                || carried.aggregate_backings.iter().any(|(place, backing)| {
+                    backing.placed.is_some()
+                        || backing.region.is_some()
+                        || backing.byte_region.is_some()
+                        || carried.values.get(place) != Some(&backing.value)
+                })
+            {
+                return Err(reject(
+                    "component view retains unsupported primitive, collection or placed backing",
+                ));
+            }
+            // An identity backing is folded into the same original home in
+            // the private loan below. A different backing cannot be discarded.
+            receiver
+                .structural_parameters
+                .iter()
+                .map(|parameter| {
+                    carried
+                        .values
+                        .get(&parameter.place)
+                        .cloned()
+                        .ok_or_else(malformed)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        let mut borrowed_storage =
+            crate::instance::ComponentBorrowedStorage::new(selected, self.account.as_ref());
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.program.structural_types();
         let provider_types = provider.program.structural_types();
-        for (((argument, required), supplied), value) in arguments
+        for (ordinal, (((argument, required), supplied), value)) in arguments
             .iter()
             .zip(&receiver.structural_parameters)
             .zip(&supplied.structural_parameters)
             .zip(&mut values)
+            .enumerate()
         {
             let receiver_type = receiver_types
                 .get(&required.structural_type)
@@ -76,6 +122,36 @@ impl<'artifact> TerminalExecution<'artifact> {
             let provider_type = provider_types
                 .get(&supplied.structural_type)
                 .ok_or_else(malformed)?;
+            if argument.access == StructuralAccess::SharedBorrow
+                && required.access == StructuralAccess::SharedBorrow
+                && supplied.access == StructuralAccess::SharedBorrow
+                && required.multiplicity == StructuralMultiplicity::Unrestricted
+                && supplied.multiplicity == required.multiplicity
+            {
+                let presentation = selected.input_presentation(ordinal).ok_or_else(malformed)?;
+                if presentation.source() != required.structural_type
+                    || presentation.destination() != supplied.structural_type
+                    || value.structural_type != required.structural_type
+                {
+                    return Err(malformed());
+                }
+                borrowed_storage.capture(self, value, presentation.clone())?;
+                value.structural_type = supplied.structural_type;
+                selected
+                    .present_input_memberships(&mut value.qualifications)
+                    .map_err(reject)?;
+                for qualification in &mut value.projected_qualifications {
+                    presentation
+                        .present_qualification_path(&mut qualification.path)
+                        .map_err(reject)?;
+                    selected
+                        .present_input_memberships(std::slice::from_mut(&mut qualification.domain))
+                        .map_err(reject)?;
+                }
+                value.qualifications.sort();
+                value.projected_qualifications.sort();
+                continue;
+            }
             if argument.access != StructuralAccess::Owned
                 || required.access != StructuralAccess::Owned
                 || supplied.access != StructuralAccess::Owned
@@ -191,6 +267,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             remaining_affine,
             retired_sources,
             remaining_claims,
+            borrowed_storage,
         })
     }
 }

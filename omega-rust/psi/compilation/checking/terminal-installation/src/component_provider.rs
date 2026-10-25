@@ -24,6 +24,7 @@ pub struct AdmittedComponentProvider {
     candidate: MachineId,
     selection: AdmittedProviderSelections,
     memberships: crate::component_memberships::ComponentMemberships,
+    inputs: Vec<std::sync::Arc<crate::ComponentTypePresentation>>,
 }
 
 impl AdmittedComponentProvider {
@@ -44,6 +45,13 @@ impl AdmittedComponentProvider {
     }
     pub const fn selection(&self) -> &AdmittedProviderSelections {
         &self.selection
+    }
+
+    pub fn input_presentation(
+        &self,
+        ordinal: usize,
+    ) -> Option<std::sync::Arc<crate::ComponentTypePresentation>> {
+        self.inputs.get(ordinal).cloned()
     }
 
     /// Rebind only memberships already present on the actual argument. Missing
@@ -118,6 +126,28 @@ pub fn admit_component_provider(
         receiver.module(),
         provider.module(),
     )?;
+    if receiving.structural_parameters.len() != supplying.structural_parameters.len() {
+        return Err("component import/export structural parameter counts differ".into());
+    }
+    let inputs = receiving
+        .structural_parameters
+        .iter()
+        .zip(&supplying.structural_parameters)
+        .map(|(source, destination)| {
+            if source.access != destination.access
+                || source.multiplicity != destination.multiplicity
+            {
+                return Err("component import/export parameter custody differs".into());
+            }
+            crate::component_memberships::join_component_types(
+                receiver.module(),
+                provider.module(),
+                source.structural_type,
+                destination.structural_type,
+            )
+            .map(std::sync::Arc::new)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     Ok(AdmittedComponentProvider {
         receiver: receiver.identity(),
         receiving_boundary,
@@ -126,5 +156,6 @@ pub fn admit_component_provider(
         candidate: selected.candidate,
         selection,
         memberships,
+        inputs,
     })
 }
