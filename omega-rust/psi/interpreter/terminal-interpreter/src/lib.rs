@@ -90,8 +90,9 @@ pub use errors::{
 };
 pub use execution::TerminalExecution;
 pub use instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalProcessExitAdmission,
+    TerminalBindingRejection, TerminalComponentBinding, TerminalEntryStorageError,
+    TerminalEntryStorageValue, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+    TerminalProcessExitAdmission,
 };
 pub use program::{TerminalProgram, TerminalProgramEntry};
 pub use provider_storage::{

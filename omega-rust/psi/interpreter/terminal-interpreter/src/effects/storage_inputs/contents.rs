@@ -76,12 +76,12 @@ impl TerminalBoundaryStructuralBuffer {
     }
 }
 
-pub(super) struct StorageLeaf {
+pub(crate) struct StorageLeaf {
     pub path: Vec<Path>,
     pub kind: StorageLeafKind,
 }
 
-pub(super) enum StorageLeafKind {
+pub(crate) enum StorageLeafKind {
     Scalar {
         destination: PrimitiveStorageEndpoint,
         scalar: ScalarType,
@@ -108,7 +108,7 @@ pub(super) enum StorageLeafKind {
     },
 }
 
-pub(super) struct PinnedScalar {
+pub(crate) struct PinnedScalar {
     pub path: Vec<Path>,
     pub storage: PrimitiveStorage,
     pub scalar: ScalarType,
@@ -117,7 +117,7 @@ pub(super) struct PinnedScalar {
     pub restriction: Option<StructuralFieldType>,
 }
 
-pub(super) fn describe(
+pub(crate) fn describe(
     execution: &TerminalExecution,
     referent: &TerminalStructuralValue,
     access: StructuralAccess,
@@ -130,10 +130,32 @@ pub(super) fn describe(
         &StructuralRuntimePlace::from(referent),
         access,
         replacement,
+        None,
         &mut Vec::new(),
         &mut leaves,
     )?;
     Ok(leaves)
+}
+
+/// Select one semantic leaf without expanding sibling records or arrays.
+/// Boundary snapshots still request the complete active roster via `describe`.
+pub(crate) fn select(
+    execution: &TerminalExecution,
+    referent: &TerminalStructuralValue,
+    selected_path: &[Path],
+) -> Result<Option<StorageLeaf>, TerminalInterpretError> {
+    let mut leaves = Vec::new();
+    collect(
+        execution,
+        referent.structural_type,
+        &StructuralRuntimePlace::from(referent),
+        StructuralAccess::SharedBorrow,
+        None,
+        Some(selected_path),
+        &mut Vec::new(),
+        &mut leaves,
+    )?;
+    Ok(leaves.into_iter().find(|leaf| leaf.path == selected_path))
 }
 
 fn collect(
@@ -142,6 +164,7 @@ fn collect(
     destination: &StructuralRuntimePlace,
     access: StructuralAccess,
     replacement: Option<&[TerminalBoundaryStorageValue]>,
+    selected_path: Option<&[Path]>,
     path: &mut Vec<Path>,
     leaves: &mut Vec<StorageLeaf>,
 ) -> Result<(), TerminalInterpretError> {
@@ -166,6 +189,7 @@ fn collect(
             destination,
             access,
             replacement,
+            selected_path,
             path,
             leaves,
             false,
@@ -174,7 +198,14 @@ fn collect(
             if execution.program.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
                 leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), length: *length } });
             }
-            for element_index in 0..*length {
+            let elements = match selected_path {
+                None => 0..*length,
+                Some(selected) => match selected.get(path.len()) {
+                    Some(Path::FixedIndex(index)) if index < length => *index..index + 1,
+                    _ => 0..0,
+                },
+            };
+            for element_index in elements {
                 path.push(Path::FixedIndex(element_index));
                 let mut child = destination.clone();
                 child
@@ -186,6 +217,7 @@ fn collect(
                     &child,
                     access,
                     replacement,
+                    selected_path,
                     path,
                     leaves,
                 )?;
@@ -233,10 +265,16 @@ fn collect(
                     destination,
                     access,
                     replacement,
+                    selected_path,
                     path,
                     leaves,
                     false,
                 )?;
+            }
+            if selected_path
+                .is_some_and(|selected| selected.get(path.len()) != Some(&Path::Case(case)))
+            {
+                return Ok(());
             }
             path.push(Path::Case(case));
             collect_fields(
@@ -245,6 +283,7 @@ fn collect(
                 destination,
                 access,
                 replacement,
+                selected_path,
                 path,
                 leaves,
                 true,
@@ -268,6 +307,7 @@ fn collect_fields(
     parent: &StructuralRuntimePlace,
     access: StructuralAccess,
     replacement: Option<&[TerminalBoundaryStorageValue]>,
+    selected_path: Option<&[Path]>,
     path: &mut Vec<Path>,
     leaves: &mut Vec<StorageLeaf>,
     payload: bool,
@@ -276,6 +316,11 @@ fn collect_fields(
         !field.relevance.is_erased()
             && !matches!(field.field_type, StructuralFieldType::Erased { .. })
     }) {
+        if selected_path
+            .is_some_and(|selected| selected.get(path.len()) != Some(&Path::Field(field.id)))
+        {
+            continue;
+        }
         if matches!(field.field_type, StructuralFieldType::Atomic(_))
             && access != StructuralAccess::MutableBorrow
         {
@@ -318,6 +363,7 @@ fn collect_fields(
                 &child,
                 access,
                 replacement,
+                selected_path,
                 path,
                 leaves,
             )?;
@@ -363,7 +409,7 @@ pub(super) fn scalar_storage(
     }
 }
 
-pub(super) fn capture(
+pub(crate) fn capture(
     execution: &TerminalExecution,
     source: PlaceId,
     referent: &TerminalStructuralValue,
