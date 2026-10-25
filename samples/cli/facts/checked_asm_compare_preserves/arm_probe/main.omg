@@ -7,12 +7,12 @@ machine main() crashes Trap {
         mov w28, 37;
         cmp w28, w28;
         b.eq equal;
-    different requires w28 == 37:
+    different requires false:
         mov output, 1;
         b done;
     equal requires w28 == 37:
         mov output, w28;
-    done requires output == 37:
+    done requires output == 37 ensures output == 37:
         nop
     }
     transition output == 37 { true -> done() false -> bad() }

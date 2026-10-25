@@ -7,12 +7,12 @@ linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures resul
         mov eax, seed;
         cmp eax, eax;
         jz equal;
-    different requires eax == 37:
+    different requires false:
         mov output, 1;
         jmp done;
     equal requires eax == 0:
         mov output, eax;
-    done requires output == 37:
+    done requires output == 37 ensures output == 37:
         nop
     }
     output
@@ -25,12 +25,12 @@ windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures res
         mov eax, seed;
         cmp eax, eax;
         jz equal;
-    different requires eax == 37:
+    different requires false:
         mov output, 1;
         jmp done;
     equal requires eax == 0:
         mov output, eax;
-    done requires output == 37:
+    done requires output == 37 ensures output == 37:
         nop
     }
     output
@@ -43,12 +43,12 @@ linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result
         mov w0, seed;
         cmp w0, w0;
         b.eq equal;
-    different requires w0 == 37:
+    different requires false:
         mov output, 1;
         b done;
     equal requires w0 == 0:
         mov output, w0;
-    done requires output == 37:
+    done requires output == 37 ensures output == 37:
         nop
     }
     output
@@ -61,12 +61,12 @@ macos_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result
         mov w0, seed;
         cmp w0, w0;
         b.eq equal;
-    different requires w0 == 37:
+    different requires false:
         mov output, 1;
         b done;
     equal requires w0 == 0:
         mov output, w0;
-    done requires output == 37:
+    done requires output == 37 ensures output == 37:
         nop
     }
     output

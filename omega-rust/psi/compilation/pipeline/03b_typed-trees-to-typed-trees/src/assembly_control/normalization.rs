@@ -179,6 +179,7 @@ fn check_register_flow(
             }
         }
     }
+    const { assert!(language_core::inline_assembly::ASM_SCRATCH_SLOT_COUNT <= u64::BITS as usize) };
     let mut incoming = vec![u64::MAX; blocks.len()];
     let mut outgoing = incoming.clone();
     let mut reachable = vec![false; blocks.len()];
@@ -715,7 +716,6 @@ fn normalize_graph(
     }
     let blocks = source.statement_table.assembly_blocks(graph.blocks);
     let successors = successors(source, graph, 0)?;
-    let conditional_entry = matches!(blocks[0].exit, AssemblyExit::ZeroFlag(_, _));
     let mut reachable = vec![false; blocks.len()];
     let mut pending = successors.clone();
     while let Some(index) = pending.pop() {
@@ -912,7 +912,7 @@ fn normalize_graph(
             .collect();
         for fact in requires {
             let mut fact = program.proof_facts.get(fact).clone();
-            if conditional_entry {
+            if let AssemblyExit::ZeroFlag(_, when_set) = blocks[0].exit {
                 let typed_trees::domain::ProofFact::Expression(obligation) = fact else {
                     return Err(Diagnostic::error(
                         "conditional assembly entry requires a Boolean edge proposition",
@@ -926,8 +926,9 @@ fn normalize_graph(
                     .ok_or_else(|| Diagnostic::error("conditional entry lost zero flag"))?
                     .1;
                 let flag = name(program, flag_symbol);
-                // Taken: !ZF implies obligation. Fallthrough: ZF implies it.
-                let inverse_guard = if edge == 0 {
+                // Every destination owes !edge_guard || obligation. The
+                // taken and fallthrough guards swap for JZ/B.EQ vs JNZ/B.NE.
+                let inverse_guard = if (edge == 0) != when_set {
                     flag
                 } else {
                     program
@@ -959,6 +960,22 @@ fn normalize_graph(
             );
         }
     }
+    let captured_references: Vec<_> = bindings
+        .iter()
+        .zip(&entry_mapping)
+        .filter(|(binding, _)| binding.access.is_some())
+        .map(|(_, (_, parameter))| *parameter)
+        .collect();
+    super::normal_exit_contracts::append(
+        program,
+        source,
+        state,
+        graph,
+        body_start,
+        &entry_mapping,
+        &captured_references,
+        &mut helper,
+    );
     program.push_machine_state(&mut helper, entry);
     for (index, block) in blocks
         .iter()

@@ -164,7 +164,10 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         // operations. Retain their ISA demand here. Executable catalog calls
         // retain their existing target contract on the call itself.
         if instruction.arithmetic.is_some()
-            || instruction.contract.shape == AsmInstructionShape::RegisterMove
+            || matches!(
+                instruction.contract.shape,
+                AsmInstructionShape::RegisterMove | AsmInstructionShape::JumpState
+            )
         {
             target_requirement = target_requirement
                 .intersect(instruction.contract.target)
@@ -842,6 +845,9 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     )
                 })?;
                 if contract.shape == AsmInstructionShape::Compare {
+                    // Only the zero condition is exposed by AArch64 local
+                    // branches. Full six-bit PUSHFQ images remain x86-only;
+                    // mixing that observation with W-register state rejects.
                     contract.clobbers = match register_target {
                         language_core::inline_assembly::AsmTargetApplicability::Aarch64 => {
                             &["nzcv"]
