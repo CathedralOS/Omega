@@ -474,3 +474,114 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
         }
     }
 }
+
+#[test]
+fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, admission, initial) = produce("build");
+    let artifact = produced.artifact();
+    let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
+    let execute = |meter: &mut TerminalFuelMeter, completes: bool| {
+        let original = TerminalStructuralValue::minted(
+            79,
+            program.entry().unwrap().structural_parameters[0].structural_type,
+            Vec::new(),
+        );
+        let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
+            artifact,
+            produced.build_bindings(),
+            original.clone(),
+        )
+        .unwrap();
+        let arguments = [original];
+        let mut instance = program
+            .instantiate(
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &arguments,
+                    zero_initialized_arguments: &[0],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
+            let declaration = artifact
+                .semantic_module()
+                .boundary_machines
+                .iter()
+                .find(|declaration| declaration.id == boundary)
+                .unwrap();
+            instance
+                .bind_import(boundary, host.adapter(declaration.into()))
+                .unwrap();
+        }
+        let result = instance.invoke(meter);
+        if completes {
+            assert_eq!(
+                result.unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            let (settings, _) =
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                    .unwrap();
+            assert_eq!(
+                settings.application_identifier,
+                Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
+            );
+        } else {
+            let refusal = format!("{:?}", result.unwrap_err());
+            assert!(
+                refusal.contains("InvocationCharge")
+                    && refusal.contains("AllowanceExhausted(Fuel)"),
+                "{refusal}"
+            );
+            assert!(instance.result().is_none());
+            assert!(
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                    .unwrap_err()
+                    .contains("NormalReturnRequired")
+            );
+            let usage = meter.usage().clone();
+            let effects = instance.effects().len();
+            meter.replenish(100_000).unwrap();
+            assert!(instance.invoke(meter).is_err());
+            assert_eq!(meter.usage(), &usage);
+            assert_eq!(
+                instance.effects().len(),
+                effects,
+                "refusal must not replay effects"
+            );
+        }
+        assert_eq!(instance.effects().len(), 8);
+        drop(instance);
+        assert_eq!(host.into_executed().unwrap().len(), 4);
+    };
+    let mut baseline = TerminalFuelMeter::unbounded();
+    execute(&mut baseline, true);
+    let cost = baseline.usage().total_units();
+    assert!(cost > 1);
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: baseline.schedule().identity(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    for budget in [2 * cost, 2 * cost - 1] {
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(budget, 8, 2, 2, 8, 8, 8, 8).unwrap(),
+            measurement,
+        )
+        .unwrap();
+        for ordinal in 0..2 {
+            let account = sponsor.begin_invocation(measurement, cost).unwrap();
+            let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None).unwrap();
+            let completes = ordinal == 0 || budget == 2 * cost;
+            execute(&mut meter, completes);
+            let paid = if completes { cost } else { cost - 1 };
+            assert_eq!(meter.usage().total_units(), paid);
+            assert_eq!(account.snapshot().unwrap().record().fuel_units, paid);
+        }
+        assert_eq!(sponsor.consumed_fuel_units(), budget);
+    }
+}

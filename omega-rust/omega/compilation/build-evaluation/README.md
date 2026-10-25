@@ -72,6 +72,11 @@ This is migration machinery, not a second production execution route. Production
 Build still uses the checked-tree evaluator; Terminal live-storage/result
 accounting, the remaining host operations and dependency/provider suspension
 must join the activation before that route replaces it.
+Terminal's existing fuel meter now accepts the exact invocation sponsor and
+charges it at the ordinary operation/edge sites. The Build integration witness
+uses a shared account across two activations: an exact budget completes both,
+one unit less refuses the second return without publishing settings or replaying
+effects. These are real fuel observations, not complete storage/result receipts.
 
 Filesystem preparation, retained captured-input views, observation identities and
 sealed-output settlement belong to

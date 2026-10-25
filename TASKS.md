@@ -2408,7 +2408,11 @@ then independent claimed restoration slices -> final closure.
   Complete Build embedding tests join settings with ordered bindings through
   retained/loaded artifacts and fuel pauses; nested records, case payloads,
   byte views and invalid configuration controls are covered. Production Build
-  evaluation still uses the checked-tree engine. Join Terminal live-storage and
+  evaluation still uses the checked-tree engine. Terminal's ordinary fuel meter
+  now pays the exact invocation and shared sponsor before each semantic site;
+  complete Build witnesses enforce exact and one-unit-short aggregate budgets
+  without replaying effects. Fuel observations do not certify storage usage.
+  Join Terminal live-storage and
   result accounting, remaining host operations and dependency/provider suspension
   before replacing it; readback alone is not an admitted production activation.
   Core Build now names the backing lifetime of its stored views; ordinary
