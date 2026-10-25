@@ -2629,6 +2629,7 @@ impl Emission<'_, '_, '_> {
         projected_qualifications.sort();
         projected_qualifications.dedup();
         let place = place_id(allocate_dense(self.environment.next_place)?);
+        let first_operation = self.operations.operations.len();
         let operation = self.operations.allocate();
         self.operations.push(terminal_psi::Operation {
             static_reach_binding: None,
@@ -2657,6 +2658,12 @@ impl Emission<'_, '_, '_> {
             ));
         self.operations
             .register_structural_materialization(place, self.state, self.statement)?;
+        // This copy is a new completed value, even when it carries no claims.
+        // Publish its actual operation result before any receiving consumer;
+        // this never revives the source or imports sibling-arm declarations.
+        self.evaluation
+            .current_claims
+            .publish_operations(&self.operations.operations[first_operation..])?;
         Ok(place)
     }
 

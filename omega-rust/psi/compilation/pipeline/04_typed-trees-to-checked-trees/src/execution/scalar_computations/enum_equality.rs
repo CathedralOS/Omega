@@ -283,11 +283,10 @@ impl Builder<'_, '_> {
             self.statement_index,
             expression,
         )?;
-        if self.program.type_multiplicity(reference)
-            != language_semantics::Multiplicity::Unrestricted
-        {
-            return None;
-        }
+        // Observation borrows the completed owner. Its usage multiplicity does
+        // not decide whether that tag can be read. The contextual source-death
+        // owner checks the actual remaining claims and nominal disposition;
+        // emission requires that exact completion before an owned receiver dies.
         let receiver = self.retain_structural_argument(expression, reference)?;
         Some((reference, CheckedScalarComputationStructuralArgument::Place(
             checked_trees::CheckedUnitStructuralArgumentPlan {

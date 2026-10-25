@@ -1666,87 +1666,28 @@ pub(crate) fn field_shape(
     }
 }
 
-/// Independently reconstruct case-qualified copy geometry from declarations;
-/// neither a producer's offset nor its selected-case assertion is layout evidence.
+/// Reconstruct the exact case-qualified copy through the ordinary pointer
+/// regions. Declaration-local case identities select namespaces; they grant
+/// neither membership nor readable authority. No pointer step is an offset.
 pub(crate) fn case_projection(
     root: StructuralTypeId,
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(StructuralTypeId, u32)> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+) -> Option<ReferenceSourceGeometry> {
     let endpoint = terminal_semantics::canonical_case_leaf_type(declarations.iter(), root, path)?;
-    let mut current = root;
-    let mut offset = 0u32;
-    let mut segments = path.iter();
-    while let Some(segment) = segments.next() {
-        let declaration = find_structural_type(declarations, current)?;
-        let (next, displacement) = match segment {
-            Segment::Referent => return None,
-            Segment::Case(identity) => {
-                let cases = declaration.shape.sum_cases()?;
-                let case_position = structural_case_position(cases, *identity)?;
-                let Segment::Field(field) = segments.next()? else {
-                    return None;
-                };
-                let (field_position, field) = cases[case_position]
-                    .fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, candidate)| candidate.id == *field)?;
-                let next = field.field_type.as_structural()?;
-                let layout = case_layout(current, declarations)?;
-                (
-                    next,
-                    layout
-                        .cases
-                        .get(case_position)?
-                        .fields
-                        .get(field_position)?
-                        .byte_offset,
-                )
-            }
-            Segment::Field(identity) => {
-                let (terminal_psi::record_or_mixed_shape_pattern!(fields)) = &declaration.shape
-                else {
-                    return None;
-                };
-                let (field_position, field) = fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .enumerate()
-                    .find(|(_, field)| field.id == *identity)?;
-                let next = field.field_type.as_structural()?;
-                let displacement = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. })
-                {
-                    case_layout(current, declarations)?
-                        .common_fields
-                        .get(field_position)?
-                        .byte_offset
-                } else {
-                    project(
-                        current,
-                        &[StructuralPathSegment::Field(field.identity.clone())],
-                        declarations,
-                    )?
-                    .1
-                };
-                (next, displacement)
-            }
-            Segment::FixedIndex(index) => project(
-                current,
-                &[StructuralPathSegment::FixedIndex(*index)],
-                declarations,
-            )?,
-        };
-        current = next;
-        offset = offset.checked_add(displacement)?;
-    }
-    (current == endpoint).then_some((endpoint, offset))
+    let storage_path =
+        terminal_semantics::canonical_structural_storage_path(declarations.iter(), root, path)?;
+    let geometry = leaf_copy_geometry(root, &storage_path, endpoint, declarations)?;
+    (geometry.selected == endpoint
+        && geometry.readable
+        && geometry.elements.is_empty()
+        && geometry
+            .pointer_slots
+            .iter()
+            .all(|slot| !slot.scalar_descriptor))
+    .then_some(geometry)
 }
 
-/// Reconstruct tag, common-field and case-payload geometry without granting
-/// authority to select or access any case.
 pub(crate) fn case_layout(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

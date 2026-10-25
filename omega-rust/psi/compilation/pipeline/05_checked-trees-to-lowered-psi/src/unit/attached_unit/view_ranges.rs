@@ -644,6 +644,10 @@ pub(crate) fn emit(
     });
     let (start, end) = (start?, end?);
     let end = exclusive_end(site.range.end_inclusive, end)?;
+    // Endpoints have already completed in their actual execution frame. Only
+    // the following straight-line emission publishes this descriptor's birth;
+    // a later constructor, store or return must not infer it from a catalog.
+    let first_operation = operations.operations.len();
     let declaration = view_subslice::emit(
         source.family,
         terminal_psi::StructuralArgument {
@@ -659,6 +663,9 @@ pub(crate) fn emit(
         next_value,
         operations,
     )?;
+    evaluation
+        .current_claims
+        .publish_operations(&operations.operations[first_operation..])?;
     values.truncate(retained_count);
     Ok(declaration)
 }

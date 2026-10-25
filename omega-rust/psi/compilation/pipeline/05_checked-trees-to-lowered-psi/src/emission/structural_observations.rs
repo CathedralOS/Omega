@@ -3,8 +3,8 @@
 //! The source path identifies fields and selectors. Declared reference carriers
 //! supply each stored-pointer crossing. Executable observations require readable
 //! edges; declared predicate coordinates require only the exact typed path and
-//! grant no observation or custody. Both use one geometry walk. Stores retain
-//! their own explicit, exclusive projection walk.
+//! grant no observation or custody. All purposes use one geometry walk. Stores
+//! retain their own explicit, exclusive projection walk.
 
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedUnitStructuralPathSegment;
@@ -26,10 +26,10 @@ pub(crate) struct ObservationPath<'declaration> {
 }
 
 impl ObservationPath<'_> {
-    /// Declared predicate identity is not inline address geometry. Pointer
-    /// crossings remain explicit here; dynamic selectors require their own
-    /// occurrence-bound terms and cannot become canonical predicate segments.
-    fn predicate_path(&self) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    /// Static observation identity keeps pointer crossings explicit rather than
+    /// pretending they are inline offsets. Runtime selectors require their own
+    /// occurrence-bound terms and cannot become static canonical segments.
+    pub(crate) fn static_observation_path(&self) -> Option<Vec<CanonicalStructuralPathSegment>> {
         self.observation
             .as_ref()?
             .iter()
@@ -106,6 +106,7 @@ pub(crate) struct DeclaredPredicatePath {
 #[derive(Clone, Copy)]
 enum PathPurpose {
     ExecutableObservation,
+    StoredValue,
     DeclaredPredicate,
 }
 
@@ -125,6 +126,38 @@ pub(crate) fn explicit_path<'a>(
     )
 }
 
+/// Copy the selected stored value, including a reference descriptor endpoint.
+/// Intermediate references are actual readable loads, just as for an ordinary
+/// observation. The final descriptor is the value being copied, not another
+/// implicit crossing. Static coordinates cannot manufacture selector evidence.
+pub(crate) fn stored_value_path<'a>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    declarations: &'a [StructuralTypeDeclaration],
+) -> Result<ObservationPath<'a>, LoweringError> {
+    use checked_trees::CheckedStructuralPredicatePathSegment as Source;
+    let path = path
+        .iter()
+        .map(|segment| match segment {
+            CheckedUnitStructuralPathSegment::Referent => Ok(Source::Referent),
+            CheckedUnitStructuralPathSegment::Case(identity) => Ok(Source::Case(identity.clone())),
+            CheckedUnitStructuralPathSegment::Field(identity) => {
+                Ok(Source::Field(identity.clone()))
+            }
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(Source::FixedIndex(*index)),
+            _ => unsupported("stored value path requires static declared coordinates"),
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    resolve_path(
+        identities,
+        structural_type,
+        &path,
+        declarations,
+        PathPurpose::StoredValue,
+    )
+}
+
 /// Retain explicit declaration coordinates without observing their contents.
 /// Any scalar/read consumer still owns its separate access and custody checks.
 pub(crate) fn declared_predicate_path(
@@ -140,9 +173,11 @@ pub(crate) fn declared_predicate_path(
         declarations,
         PathPurpose::DeclaredPredicate,
     )?;
-    let path = selected.predicate_path().ok_or(LoweringError::Unsupported(
-        "declared predicate path requires occurrence-bound selector evidence",
-    ))?;
+    let path = selected
+        .static_observation_path()
+        .ok_or(LoweringError::Unsupported(
+            "declared predicate path requires occurrence-bound selector evidence",
+        ))?;
     Ok(DeclaredPredicatePath {
         path,
         field_type: selected.field_type()?,
@@ -177,7 +212,7 @@ fn resolve_path<'a>(
             let StructuralTypeShape::Reference { referent, access } = declaration.shape else {
                 return unsupported("reference observation requires a reference carrier");
             };
-            if matches!(purpose, PathPurpose::ExecutableObservation)
+            if !matches!(purpose, PathPurpose::DeclaredPredicate)
                 && !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
             {
                 return unsupported("reference observation requires readable access");
@@ -194,7 +229,9 @@ fn resolve_path<'a>(
         let (declaration, crossings) = match selected {
             Some(selected) => {
                 let (declaration, crossings) = match purpose {
-                    PathPurpose::ExecutableObservation => readable_carrier(selected, declarations)?,
+                    PathPurpose::ExecutableObservation | PathPurpose::StoredValue => {
+                        readable_carrier(selected, declarations)?
+                    }
                     PathPurpose::DeclaredPredicate => {
                         (carrier_declaration(selected, declarations)?, 0)
                     }
@@ -370,7 +407,7 @@ fn resolve_path<'a>(
     }
     let declaration = match selected {
         Some(selected) => {
-            let (declaration, crossings) = if matches!(purpose, PathPurpose::DeclaredPredicate)
+            let (declaration, crossings) = if !matches!(purpose, PathPurpose::ExecutableObservation)
                 || matches!(path.last(), Some(Source::Referent))
             {
                 (carrier_declaration(selected, declarations)?, 0)
