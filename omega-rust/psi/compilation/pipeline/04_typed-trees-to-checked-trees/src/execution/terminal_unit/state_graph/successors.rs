@@ -669,25 +669,29 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 target_parameters.get(target.position as usize)?,
                                 target.type_identity,
                                 trace,
+                                Some(&|expression| transition_selector(
+                                    facts, machine.symbol, source.symbol, ordinal, target.position, expression,
+                                )),
                             )?;
                             if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }) {
                                 subject.source = super::super::local_storage::source(
                                     program, source, operations, root_symbol,
                                 )?;
                             }
-                            if subject.access != expected_access
-                                || !subject.path.iter().all(|segment| {
-                                    matches!(
-                                        segment,
-                                        CheckedUnitStructuralPathSegment::Field(_)
-                                            | CheckedUnitStructuralPathSegment::Case(_)
-                                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                            | CheckedUnitStructuralPathSegment::Referent
-                                    )
-                                })
-                            {
+                            // The common argument planner has already proved
+                            // the complete projection, including captured runtime
+                            // selectors. Arrival access remains independent of
+                            // that geometry; a fixed-path whitelist would drop
+                            // the operand's retained selector computation.
+                            trace.phase("stored reference arrival: access");
+                            trace.statement(Some(ordinal));
+                            if subject.access != expected_access {
                                 return None;
                             }
+                            let carrier_type_identity = shapes.add_reference_type(
+                                target_parameters.get(target.position as usize)?.type_reference,
+                                &super::super::types::machine_binders(program, machine),
+                            )?;
                             return Some(CheckedStructuralControlTransferPlan {
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     retired_carrier_backing: super::loan_backing::retired_carrier_backing(
@@ -697,7 +701,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     ),
                                     subject,
                                     formation_expression: expression,
-                                    carrier_type_identity: Default::default(),
+                                    carrier_type_identity,
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                                 retained_loan_backing: None,
@@ -894,7 +898,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         &validation::CanonicalPlace { root: owner, segments: Vec::new() },
                         owner, root.type_reference, &result,
                         target_parameters.get(target.position as usize)?, target.type_identity,
-                        trace,
+                        trace, None,
                     )?
                 } else {
                     CheckedUnitStructuralArgumentPlan {
@@ -1224,6 +1228,33 @@ fn projected_value_subject(
 }
 
 /// A projected-loan edge transfer against an already-admitted place:
+/// Resolve one occurrence-owned selector shared by every successor loan route.
+fn transition_selector(
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    source: symbols::SymbolHandle,
+    ordinal: u32,
+    argument_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitStructuralPathSegment> {
+    let computations = &facts.values.scalar_computations;
+    let root = computations.root_at(
+        source,
+        ordinal,
+        CheckedScalarExpressionRole::TransitionSelector {
+            argument_ordinal,
+            expression,
+        },
+    )?;
+    if !computations.nodes.is_valid(root.root) {
+        return None;
+    }
+    let primitive = computations.nodes.get(root.root).primitive_type;
+    (primitive.is_fixed_integer()
+        && computations.is_authored_root(root, machine, expression, primitive))
+    .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+}
+
 /// `subject_source` is the parameter or earlier result the loan rides on.
 ///
 /// A projected loan keeps its original storage root and exact path across
@@ -1253,23 +1284,8 @@ fn projected_loan_transfer(
     target_parameters: &[typed_trees::signature::StateParameter],
     target_index: usize,
 ) -> Option<CheckedStructuralControlTransferPlan> {
-    let computations = &facts.values.scalar_computations;
     let selector = |expression| {
-        let root = computations.root_at(
-            source,
-            ordinal,
-            CheckedScalarExpressionRole::TransitionSelector {
-                argument_ordinal: target.position,
-                expression,
-            },
-        )?;
-        if !computations.nodes.is_valid(root.root) {
-            return None;
-        }
-        let primitive = computations.nodes.get(root.root).primitive_type;
-        (primitive.is_fixed_integer()
-            && computations.is_authored_root(root, machine, expression, primitive))
-        .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
+        transition_selector(facts, machine, source, ordinal, target.position, expression)
     };
     let (projected_type, path) = calls::projected_evaluated_path(
         program,
