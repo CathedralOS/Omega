@@ -803,10 +803,19 @@ fn resolve_realizations<'catalog>(
     let mut candidates = catalog
         .iter()
         .filter(|machine| {
-            row.provisional_realization_ordinal
-                .is_none_or(|ordinal| machine.ordinal == ordinal)
+            (!row.realization_machine.is_valid() || machine.symbol == row.realization_machine)
+                && row
+                    .provisional_realization_ordinal
+                    .is_none_or(|ordinal| machine.ordinal == ordinal)
         })
         .filter_map(|machine| {
+            if row.realization_state.is_valid() {
+                return machine
+                    .states
+                    .iter()
+                    .find(|state| state.symbol == row.realization_state)
+                    .map(|state| (machine, state));
+            }
             let leaf = machine
                 .name
                 .as_str()
@@ -830,7 +839,10 @@ fn resolve_realizations<'catalog>(
             })
         })
         .collect::<Vec<_>>();
-    if row.provisional_realization_ordinal.is_some() {
+    // A normalized row already owns its exact realization. A later source
+    // cohort may add a same-spelled implementation in another checked package;
+    // that cannot reopen the retained row's selection through diagnostic names.
+    if row.realization_machine.is_valid() || row.provisional_realization_ordinal.is_some() {
         return candidates;
     }
     if let Some(reference) = row.authored_realization_source_span {

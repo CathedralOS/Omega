@@ -512,7 +512,7 @@ pub(in crate::checks) fn collection_length_value(
     Some(length_atom(place))
 }
 
-fn length_atom(place: validation::CanonicalPlace) -> ScopedArithmeticValue {
+pub(in crate::checks) fn length_atom(place: validation::CanonicalPlace) -> ScopedArithmeticValue {
     ScopedArithmeticValue::Atom {
         identity: format!("\0call-guarantee:length:{place:?}"),
         unsigned: true,

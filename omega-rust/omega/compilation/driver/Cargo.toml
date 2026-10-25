@@ -109,3 +109,7 @@ path = "tests/placed_view_calls.rs"
 [[test]]
 name = "anonymous_module_owner"
 path = "tests/anonymous_module_owner.rs"
+
+[[test]]
+name = "package_review"
+path = "tests/package_review.rs"

@@ -9,7 +9,7 @@ pub fn validate_behavior_plan(
 
     validate_pure_discards(program, operational, &service_reaches, &mut diagnostics);
     validate_asm_intrinsic_declarations(program, &service_reaches, &mut diagnostics);
-    validate_service_reach_ceilings(program, operational, &service_reaches, &mut diagnostics);
+    validate_service_reach_ceilings(program, &service_reaches, &mut diagnostics);
 
     for machine_summary in operational.machines() {
         let Some(machine) = program.machine(machine_summary.symbol) else {
@@ -58,7 +58,6 @@ pub fn validate_behavior_plan(
 
 fn validate_service_reach_ceilings(
     program: &dyn crate::CheckingInput,
-    operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -75,30 +74,21 @@ fn validate_service_reach_ceilings(
         let declared = program
             .service_reach_rows
             .services(machine.service_reach_row);
-        // A written `reaches` clause is a ceiling, and a bare `reaches` with
-        // no members is the empty ceiling. Direct boundary calls contribute
-        // their requirement's published row, which must fit that ceiling.
-        // Omission is not an empty ceiling: the derived row, including that
-        // direct contribution, is the published reach. Keyword occurrences
-        // are the distinction; an empty service row alone is both shapes.
+        // The same fixed point carries ordinary helpers, callback contracts,
+        // selected cleanup and target-family envelopes. Checking only direct
+        // boundary calls lets a helper launder a service through an empty
+        // ceiling. Omission requests inference; a written empty row still
+        // bounds this complete derived row by the empty set.
         let ceiling_present = program
             .authored_service_reach_rows_for(machine.symbol)
             .next()
             .is_some();
-        let required = if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+            && !ceiling_present
         {
-            service_reaches
-                .services(summary.inferred_transitive)
-                .to_vec()
-        } else if ceiling_present {
-            crate::machine_calls::effect_inference::required_boundary_services(
-                program,
-                operational,
-                machine.symbol,
-            )
-        } else {
-            Vec::new()
-        };
+            continue;
+        }
+        let required = service_reaches.services(summary.inferred_transitive);
         let missing = required
             .iter()
             .copied()

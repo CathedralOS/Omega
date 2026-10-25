@@ -2,6 +2,70 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn package_review_retains_products_not_checked_compiler_state() {
+    for source in [
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/compilation/package_pass.rs"
+        ),
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/compilation/policy.rs"
+        ),
+        include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
+    ] {
+        for forbidden in [
+            "compiler::CheckedCompilation",
+            ".check_package_build(",
+            ".execution()",
+            ".build_admission()",
+            "project_checked_package_policy(",
+            "publish_checked_component(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "package review interprets {forbidden}"
+            );
+        }
+    }
+    let review = include_str!("checked/package_review.rs");
+    assert!(!review.contains("pub fn checked("));
+    assert!(!review.contains("Deref"));
+}
+
+#[test]
+fn package_binding_policy_does_not_interpret_checked_source() {
+    let policy =
+        include_str!("../../../packages/package-manager/src/review/candidate/semantic_bindings.rs");
+    for forbidden in [
+        "CheckedCompilation",
+        "provider_planning::",
+        ".facts",
+        ".symbols",
+        ".traits()",
+        ".machines()",
+        ".providers()",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "binding policy interprets {forbidden}"
+        );
+    }
+    let projection =
+        include_str!("../../../packages/review-evidence/src/capture/semantic_bindings.rs");
+    assert!(!projection.contains("package_manager"));
+    assert!(!projection.contains("PackageKey,"));
+    let evidence = include_str!("../../../packages/review-evidence/Cargo.toml");
+    assert!(!evidence.contains("package-manager ="));
+    assert!(!evidence.contains("compiler ="));
+    let packages = include_str!("../../../packages/package-manager/Cargo.toml");
+    for dependency in ["provider-planning =", "flow-effects =", "symbols ="] {
+        assert!(
+            !packages.contains(dependency),
+            "package review imports {dependency}"
+        );
+    }
+}
+
+#[test]
 fn application_does_not_depend_on_pipeline_stages() {
     let manifest = include_str!("../../../application/cli/Cargo.toml");
     assert!(

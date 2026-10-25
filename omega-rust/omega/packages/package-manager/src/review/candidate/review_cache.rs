@@ -21,7 +21,7 @@
 //! are live. Stale and foreign records are misses — the worst outcome is a
 //! fresh compile.
 //!
-//! `CheckedCompilation` itself is deliberately not persisted: its sealed
+//! The live compiler source owner is deliberately not persisted: its sealed
 //! program storage is not serializable. The cache stores the facts a
 //! carried occurrence's `checked` field is actually consumed for — the
 //! tolerated flag, the source-consumption commitment inputs, the
@@ -63,15 +63,15 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::review_set::CompilerIssuedPackageReview;
-use super::semantic_bindings::SemanticBindingReviewCandidate;
 use crate::declarations::{DependencyPurpose, PackageKey};
+use package_evidence::record::SemanticBindingReviewCandidate;
 
 const RECORD_EXTENSION: &str = "rec";
 const DEFAULT_MAX_RECORDS: usize = 256;
 const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 
 /// The substitution payload replacing a persisted occurrence's
-/// `CheckedCompilation`: the facts needed by carried dependency occurrences.
+/// live compiler source: the facts needed by carried dependency occurrences.
 #[derive(Debug, Clone)]
 pub(crate) struct CachedOccurrenceFacts {
     pub tolerated_unsettled_service_fields: bool,
@@ -108,7 +108,7 @@ pub(crate) struct CachedCompiledReview {
 
 impl CachedCompiledReview {
     /// Rebuild the review the compiler issued plus the carried-compile facts
-    /// the cache substitutes for `CheckedCompilation`. Live `key` and
+    /// the cache substitutes for live compiler custody. Live `key` and
     /// `resolution` supply the provenance fields; the record's stored
     /// digests must match them — a mismatch means the record was filed under
     /// the wrong identity and is dropped as a miss.
@@ -282,13 +282,10 @@ impl CompiledReviewCache {
     }
 }
 
-/// Capture one freshly compiled review into a storable record, together with
-/// the carry-substitution facts derived from its checked compilation.
+/// Capture a completed review and its source-free carry facts into a record.
 pub(crate) fn record_compiled_review(
     review: &CompilerIssuedPackageReview,
-    checked: &compiler::CheckedCompilation,
-    consumed_units: Vec<ConsumedSourceUnit>,
-    component_description: Option<IndependentComponentDescription>,
+    facts: CachedOccurrenceFacts,
     policy_canonical_bytes: usize,
 ) -> Option<CachedCompiledReview> {
     let policy_bytes = review.policy().canonical_bytes().ok()?;
@@ -308,20 +305,7 @@ pub(crate) fn record_compiled_review(
         semantic_binding_candidates: review.semantic_binding_candidates().to_vec(),
         generated_source_bundle: review.generated_source_bundle().clone(),
         policy_bytes,
-        facts: CachedOccurrenceFacts {
-            tolerated_unsettled_service_fields: checked
-                .execution()
-                .tolerated_unsettled_service_fields(),
-            consumed_units,
-            source_consumption_commitment: review.source_consumption_commitment(),
-            component_description,
-            target_entry_candidate: super::semantic_bindings::candidate_target_entry_binding(
-                checked,
-                review.key(),
-                review.generated_source_bundle().target(),
-            )
-            .ok()?,
-        },
+        facts,
         policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,
     })
 }

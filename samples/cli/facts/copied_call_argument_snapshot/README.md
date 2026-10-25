@@ -191,8 +191,24 @@ mutate the saved descriptor's backing; it must reject independently of that slot
 Baseline `3ddc7d1455f` refuses all nine expanded positives for missing completed
 descriptor backing at simultaneous call admission. Acceptance is native/Terminal
 exit 0 for each positive and the unchanged `receive` refusal for every source-9
-twin. Measurements are for macOS ARM64; other-host execution and general cyclic,
-opaque and dependent result composition remain open under the parent acceptance.
+twin. Measurements are for macOS ARM64; other-host execution and general opaque
+and dependent result composition remain open under the parent acceptance.
+
+The computed row now passes its first copied carrier through a ranked identity
+return. Its field place copies that carrier to an immutable local before the
+recursive edge; its const-name place forms a literal window. The original
+snapshot, bound, operation and source-9 twins are unchanged. Baseline `b50066b7530`
+refused the recursive descriptor-length guarantees and completed backing join.
+Finite result equations now distinguish descriptor leaves from paths growing
+inside their pointees. Exact immutable input-slot correspondence establishes
+returned length metadata without citing the recursive guarantee being checked.
+Completed owned bindings retain inline descriptor cells across disjoint writes,
+while typed projections hide old pointee contents. Local copies follow retained
+completed values; contextual window operands supply their captured carrier for
+selected builtin indexing. These relations grant no new access authority.
+The changed-input, swapped-field and shortened-window controls under
+`tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
+own length guarantee. Ranking and recursive premise checks remain independent.
 
 ## Requirements and evidence
 

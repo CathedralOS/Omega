@@ -258,12 +258,23 @@ The compiler owns root permission comparison and completion; ordinary package
 operations do not return checked source or hand it back to finish production.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
-target. The closure retains at most 64 MiB in aggregate canonical policy
+target. The compiler's `review_package_build` returns that evidence together with
+an opaque `PackageReviewSource`; review cannot extract checked trees, Build
+configuration or execution plans from it. Its source-free facts support reuse
+and cache capture, and its component publication operation runs only on demand.
+The compiler checks each projection against the caller's remaining policy budget
+before nomination; the closure still owns aggregate accounting and decisions.
+The closure retains at most 64 MiB in aggregate canonical policy
 encoding size; this is not an exact heap-size limit. Legacy comparison rows,
 commitments, and obligation checks remain separate and unchanged. This retained
 finding is not accepted-lock storage or an additional authorization stage.
-Binding nomination reads the checked callable reach/invocation facts, entry
-requirements and selected provider plans directly. The review exposes the
+Binding nomination belongs to compiler-owned
+[`package-evidence::capture`](../review-evidence/src/capture/semantic_bindings.rs),
+which reads checked callable reach/invocation facts, entry requirements and
+selected provider plans. Package review consumes its inert candidates, attaches
+consumer context to projection errors, and scopes permission proposals; it no
+longer walks checked machines, symbols, traits or provider plans, and has no
+provider-planning, flow-effects or symbols dependency. The review exposes the
 exact checked `ServiceSchema` beside each proposed binding. This is
 non-authoritative review material: a consumer may use complete requirement
 identities from that schema to author terminal-permission rows. Requirement-only

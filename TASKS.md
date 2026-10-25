@@ -133,20 +133,19 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **OPTIONAL-REACH-CEILINGS.** Implement the ratified
+- **OPTIONAL-REACH-CEILINGS.** Complete the ratified
   [optional reach contract](wiki/spec/language/effects.md#declarations).
-  Established by `samples/cli/facts/unannotated_direct_boundary_call`: one
-  unannotated direct boundary call runs across the nine places, and an empty
-  ceiling rejects that hidden direct service. Remaining: unannotated transitive
-  calls; a pinned service-free empty ceiling and rejection of hidden transitive
-  services; a present clause as a bound on the complete derived row rather than
-  an additive union; `A + B` accepts `A` and rejects `C`; injected, generic,
-  dynamic, and target-specific refinement without selection narrowing callers;
-  public bodies, implementation members, and entries that omit `reaches`;
-  boundary-trait requirements that omit their ceiling; audit slack and
-  package-review round trips. Manifest/provider authority, foreign trust,
-  blocking, suspension, and crashes remain separate. Do not count removing
-  source annotations alone as compiler acceptance.
+  Remaining: require explicit ceilings on boundary-trait machine requirements
+  (including empty), migrate affected declarations and retain their runtime
+  oracles; finish injected-provider refinement and package acceptance/round-trip
+  coverage for the full contract.
+  Checked implementations may omit their own clause while refining their pinned
+  requirement. Keep optional versus explicitly empty custody through source,
+  generic substitution, joins, recursive summaries, Terminal production and
+  package comparison. Audit must retain inferred reach, declared slack and exact
+  critical/custom identities. Manifest/provider authority, foreign trust,
+  blocking, suspension and crashes remain separate. A green transport row or
+  annotation-only migration does not close the remaining acceptance.
 
 - **EXPLICIT-ENTRY-STORAGE.** Retire automatic provisioned ZII entry contexts
   under [entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
@@ -346,7 +345,13 @@ helper that passes does not close an item.
     `Selected<Base + 4>` application and its lower-bound contract through all
     nine places, including const evaluation and private package projection,
     with native/Terminal exit 0 on Linux x86-64 and construct-only reject twins.
-    Other hosts remain unexecuted for that row. The reference producer now
+    Other hosts remain unexecuted for that row. The reference producer's
+    `samples/cli/facts/open_record_const_implementation` row projects the
+    substituted nominal-record field `Configuration { minimum: Base + 4 }` at
+    Base = 3 through all nine places, with native/Terminal exit 0 on Windows
+    x86-64 and Reading-mismatch reject twins. Other hosts remain unexecuted
+    for that row. Nested field chains use the same projection. Case-payload
+    fields remain outside this row. The reference producer now
     specializes exact named calling-policy inline plan captures and nested data
     arguments before plan evaluation. `samples/cli/facts/generic_calling_policy`
     qualifies the closed `GenericPolicy<Box<u64>, 8>` result placement across all
@@ -357,7 +362,13 @@ helper that passes does not close an item.
     native/Terminal execution now agrees for the eighteen pinned
     `generic_calling_policy` place fixtures (base `c1c6bc8cb8ec`), while
     Windows x86-64 and Linux ARM64 native execution and other policy/member
-    kinds remain unqualified. Distinct
+    kinds remain unqualified. The reference producer's
+    `samples/cli/facts/named_conformance_dispatch` row preserves
+    `result == left + right` from `Selected`'s inline `combine` through generic
+    evidence dispatch across all nine places, with native/Terminal exit 0 on
+    Windows x86-64. Each reject twin drops only the right operand's upper bound
+    and refuses the specialized `apply` requires. Other hosts remain unexecuted
+    for that row. Distinct
     applications, canonical const projection and prior refusal controls remain
     pinned. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
@@ -662,8 +673,11 @@ defines the complete product bar.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships: ranked structural returns still
-    lose descriptor-length equalities at recursive exits. Preserve copied returns
+    the same producer and custody relationships. Retain the computed-descriptor
+    row's ranked identity return, including a local carrier copy, contextual
+    literal window and disjoint descriptor writes. Finite descriptor-leaf
+    equations retain exact immutable input-slot metadata; growing pointee paths,
+    changed inputs and divergent return identities must not acquire equalities. Preserve copied returns
     from mutated borrowed record fields and stored array elements through the
     existing computed-descriptor fact row, including saved descriptors returned
     after their former slot changes again and untouched element/sibling storage.
@@ -2904,8 +2918,13 @@ crash and native exit behavior.
   Build continuations prevent the application from extracting source IR; source
   checking and component/product publication remain behind the compiler facade.
   Candidate review also completes opaque Build continuations without replaying
-  compilation to answer component demands; its package-owned orchestration and
-  Terminal Build/helper activation scheduling still need migration. Psi
+  compilation to answer component demands. Compiler evidence owns semantic-binding
+  nomination; package review consumes proposals and scopes consumer permissions,
+  rather than interpreting checked machines, traits, reaches or provider plans.
+  Review consumes a compiler-issued evidence product and opaque source owner;
+  checked-state custody, nomination and demand-driven component publication stay
+  behind the compiler facade. Package-owned review orchestration and Terminal
+  Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
@@ -4653,10 +4672,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   delivers the bounded scalar-result link through public Build evaluation,
   provider installation, native call custody and exact package risk consent.
   `samples/cli/facts/assumed_binding_result_bound` carries that exit bound
-  and its evaluated Product risk rows across nine places. Input-side authority
-  issuance, broader invocation correspondence, refutable-connection audit, and
-  the install/update/audit acceptance below remain; unsupported authority or
-  independent compatibility relationships fail closed.
+  and its evaluated Product risk rows across nine places. The risk-row audit
+  classifies disjoint literal integer result bounds and same-index parameter
+  bounds as refuted. Input-side authority issuance, broader invocation
+  correspondence, and the install/update/audit acceptance below remain;
+  unsupported authority or independent compatibility relationships fail closed.
 
   Retain exact entry/exit assumptions, authorized issuer/subject mapping and
   the selected implementation closure through erasure and inlining. Both

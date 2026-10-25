@@ -18,10 +18,7 @@ use crate::build_session::{
 };
 use compilation_products::{CheckedCompileRequest, CompileFailure};
 
-use super::super::semantic_bindings::{
-    SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
-    candidate_target_entry_binding,
-};
+use super::super::semantic_bindings::projection_error;
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
 };
@@ -37,6 +34,8 @@ use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
 };
+use package_evidence::record::PackageReviewEvidence;
+use package_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 
 use super::PackageSourceBindings;
@@ -78,24 +77,21 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) policy_canonical_bytes: usize,
     /// Index of this occurrence's review inside the pass's review vector.
     pub(super) review: usize,
-    /// The checked compilation itself — shared storage with the component
-    /// candidate or checked root this pass retained — or, for an occurrence
-    /// recovered from the persistent review cache, the carried facts that
-    /// stand in for it.
-    pub(super) checked: OccurrenceCompile,
+    /// Opaque live source custody or source-free facts recovered from cache.
+    pub(super) compilation: OccurrenceCompile,
     /// This dependency-closure pass already performed the check, even if a
     /// later component-cache miss temporarily interrupted its consumers.
     compiled_in_pass: bool,
 }
 
 /// One retained occurrence's checked compile. A compile minted in this
-/// process keeps its `CheckedCompilation`; a compile recovered from the
+/// process keeps an opaque compiler source owner; a compile recovered from the
 /// persistent review cache carries only the facts the carried path and the
-/// component publisher consume, since a `CheckedCompilation`'s sealed
+/// component publisher consume, since a source owner's sealed
 /// program storage is not serializable.
 #[derive(Debug, Clone)]
 pub(super) enum OccurrenceCompile {
-    Checked(compiler::CheckedCompilation),
+    Live(compiler::PackageReviewSource),
     Cached(Box<super::super::review_cache::CachedOccurrenceFacts>),
 }
 
@@ -103,17 +99,18 @@ impl OccurrenceCompile {
     fn target_entry_candidate(
         &self,
         owner: &PackageKey,
-        target: target::TargetProfile,
     ) -> Result<Option<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
         match self {
-            Self::Checked(checked) => candidate_target_entry_binding(checked, owner, target),
+            Self::Live(source) => source
+                .target_entry_candidate()
+                .map_err(|error| projection_error(owner, error)),
             Self::Cached(facts) => Ok(facts.target_entry_candidate.clone()),
         }
     }
 
     fn tolerated_unsettled_service_fields(&self) -> bool {
         match self {
-            Self::Checked(checked) => checked.execution().tolerated_unsettled_service_fields(),
+            Self::Live(source) => source.facts().tolerated_unsettled_service_fields,
             Self::Cached(facts) => facts.tolerated_unsettled_service_fields,
         }
     }
@@ -122,14 +119,14 @@ impl OccurrenceCompile {
     /// counts. A persisted occurrence's retained commitment was written by an
     /// earlier invocation, so re-deriving it over the stored consumed units and
     /// this invocation's live inputs is what admits the reuse. A live
-    /// `CheckedCompilation` has nothing to establish: this invocation read
+    /// compiler-owned review source has nothing to establish: this invocation read
     /// those sources and holds the bytes it checked.
     fn verify_current_source_consumption(
         &self,
         inputs: &PackageCompilationInputs,
     ) -> Result<(), Vec<Diagnostic>> {
         match self {
-            Self::Checked(_) => Ok(()),
+            Self::Live(_) => Ok(()),
             Self::Cached(facts) => {
                 let commitment = package_compilation::derive_source_consumption_commitment(
                     &facts.consumed_units,
@@ -431,9 +428,9 @@ impl ClosurePass<'_> {
         if self.carry_prior_compile(occurrence, &unanswered_inputs, &assembled)? {
             return Ok(());
         }
-        let (checked, occurrence_inputs) =
+        let (product, occurrence_inputs) =
             self.compile_fresh(occurrence, unanswered_inputs, &assembled)?;
-        self.project_and_retain_review(occurrence, assembled, checked, occurrence_inputs)
+        self.retain_review(occurrence, assembled, product, occurrence_inputs)
     }
 
     /// Join the occurrence's purpose, semantic bindings and every required
@@ -695,12 +692,12 @@ impl ClosurePass<'_> {
                         occurrence.position == position
                             && occurrence.purpose == purpose
                             && (!self.fresh_components.contains(&(key.identity(), purpose))
-                                || matches!(occurrence.checked, OccurrenceCompile::Checked(_)))
+                                || matches!(occurrence.compilation, OccurrenceCompile::Live(_)))
                             && occurrence.entry == *entry
                             && occurrence.inputs == *unanswered_inputs
                             && occurrence.build_snapshot == *build_snapshot
                             && (tolerance_permitted
-                                || !occurrence.checked.tolerated_unsettled_service_fields())
+                                || !occurrence.compilation.tolerated_unsettled_service_fields())
                     })
                     .and_then(|occurrence| {
                         prior
@@ -713,7 +710,7 @@ impl ClosurePass<'_> {
         let carried = reused
             .map(|(occurrence, review, same_pass)| {
                 (
-                    occurrence.checked.clone(),
+                    occurrence.compilation.clone(),
                     review,
                     occurrence.policy_canonical_bytes,
                     false,
@@ -790,7 +787,7 @@ impl ClosurePass<'_> {
         if self.discovery == TargetEntryDiscovery::Dependencies {
             self.target_entry_candidates.extend(
                 compile
-                    .target_entry_candidate(key, checked_target)?
+                    .target_entry_candidate(key)?
                     .map(|candidate| (purpose, candidate)),
             );
         }
@@ -809,7 +806,7 @@ impl ClosurePass<'_> {
             build_snapshot: build_snapshot.clone(),
             policy_canonical_bytes,
             review: review_position,
-            checked: compile,
+            compilation: compile,
             compiled_in_pass,
         });
         self.carried_occurrences += usize::from(!compiled_in_pass);
@@ -817,15 +814,15 @@ impl ClosurePass<'_> {
     }
 
     /// Execute Build once, answer its independent-component demands, then
-    /// complete Product checking from that same opaque continuation. Returns
-    /// the checked compilation and the exact inputs it consumed.
+    /// complete review from that same opaque continuation. Returns the
+    /// compiler-issued review product and the exact inputs it consumed.
     fn compile_fresh(
         &mut self,
         occurrence: &PackageOccurrence<'_>,
         unanswered_inputs: PackageCompilationInputs,
         assembled: &AssembledOccurrence,
     ) -> Result<
-        (compiler::CheckedCompilation, PackageCompilationInputs),
+        (compiler::PackageReviewProduct, PackageCompilationInputs),
         CompileResolvedPackageReviewsError,
     > {
         let PackageOccurrence {
@@ -933,22 +930,30 @@ impl ClosurePass<'_> {
                 },
             )?;
         let occurrence_inputs = build.package_inputs().clone();
-        let checked = self
+        let review = self
             .session
             .compiler
-            .check_package_build(build)
-            .map_err(refuse)?;
-        Ok((checked, occurrence_inputs))
+            .review_package_build(
+                build,
+                super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
+                    .saturating_sub(self.retained_policy_canonical_total),
+            )
+            .map_err(|failure| match failure {
+                compiler::PackageReviewFailure::Compilation(failure) => refuse(failure),
+                compiler::PackageReviewFailure::Projection(failure) => {
+                    super::policy::projection_failure(key, failure)
+                }
+            })?;
+        Ok((review, occurrence_inputs))
     }
 
-    /// Project a freshly checked compile into its compiler-issued review,
-    /// charge its retained budgets, persist it for later invocations, and
-    /// retain it for this pass's consumers.
-    fn project_and_retain_review(
+    /// Join compiler evidence to resolver custody and consumer nominations,
+    /// charge its retained budget, then cache and retain the occurrence.
+    fn retain_review(
         &mut self,
         occurrence: &PackageOccurrence<'_>,
         assembled: AssembledOccurrence,
-        checked: compiler::CheckedCompilation,
+        product: compiler::PackageReviewProduct,
         occurrence_inputs: PackageCompilationInputs,
     ) -> Result<(), CompileResolvedPackageReviewsError> {
         let PackageOccurrence {
@@ -967,70 +972,42 @@ impl ClosurePass<'_> {
             proposed_entry,
         } = assembled;
         let entry = entry.as_path();
-        let source_consumption_commitment = checked
-            .sources()
-            .source_consumption_commitment()
-            .ok_or_else(
-                || CompileResolvedPackageReviewsError::SourceConsumptionMissing {
-                    package: key.clone(),
-                },
-            )?;
-        let selected_build_machine_identity = checked
-            .build_admission()
-            .selected_build_machine_identity
-            .as_deref()
-            .ok_or_else(|| CompileResolvedPackageReviewsError::Projection {
-                package: key.clone(),
-                diagnostics: vec![Diagnostic::error(
-                    "package review requires one exact selected build-machine identity",
-                )],
-            })?
-            .to_owned();
-        let build_observation_summary = checked.build().observation_summary.clone();
-        let restricted_build_requests = checked.build_admission().restricted_build_requests.clone();
-        let build_evaluation_usage = checked.build().evaluation_usage;
-
-        let semantic_bindings = checked
-            .execution()
-            .accepted_semantic_bindings()
-            .cloned()
-            .collect();
-        let generated_source_bundle =
-            checked.package_generated_source_bundle().map_err(|error| {
-                CompileResolvedPackageReviewsError::Projection {
-                    package: key.clone(),
-                    diagnostics: vec![Diagnostic::error(error)],
-                }
-            })?;
+        let compiler::PackageReviewProduct { evidence, source } = product;
+        let PackageReviewEvidence {
+            source_consumption_commitment,
+            selected_build_machine_identity,
+            build_observation_summary,
+            restricted_build_requests,
+            build_evaluation_usage,
+            semantic_bindings,
+            service_binding_candidates,
+            hosted_exit_binding_candidates,
+            generated_source_bundle,
+            policy,
+            policy_canonical_bytes,
+        } = evidence;
         if generated_source_bundle.package() != key.identity()
-            || generated_source_bundle.source_consumption_commitment()
-                != source_consumption_commitment
+            || generated_source_bundle.target() != checked_target
         {
             return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
                 package: key.clone(),
             });
         }
-        let (policy, policy_total) = super::policy::project(
-            &checked,
-            key,
-            checked_target,
-            self.retained_policy_canonical_total,
-        )?;
-        // This is a source compilation, not a link between independently
-        // compiled artifacts. Psi already checks declaration visibility,
-        // the selected relationship and every by-value representation demand.
-        // The consumer Build owns the combined compilation's choice; a
-        // dependency's historical review selection cannot constrain it.
-        let policy_canonical_bytes = policy_total - self.retained_policy_canonical_total;
-        self.retained_policy_canonical_total = policy_total;
-        let mut semantic_binding_candidates = candidate_service_bindings(&checked, key)?;
+        self.retained_policy_canonical_total =
+            super::policy::reserve(self.retained_policy_canonical_total, policy_canonical_bytes)
+                .ok_or_else(|| {
+                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                        package: key.clone(),
+                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                    }
+                })?;
+        let mut semantic_binding_candidates = service_binding_candidates;
         semantic_binding_candidates.extend(proposed_entry);
         if self.discovery == TargetEntryDiscovery::Dependencies {
             for (candidate_purpose, candidate) in &self.target_entry_candidates {
                 if *candidate_purpose == purpose
-                    && checked
-                        .execution()
-                        .accepted_semantic_bindings()
+                    && semantic_bindings
+                        .iter()
                         .any(|binding| binding == candidate.binding())
                     && !semantic_binding_candidates
                         .iter()
@@ -1040,10 +1017,12 @@ impl ClosurePass<'_> {
                 }
             }
         }
-        semantic_binding_candidates.extend(candidate_hosted_exit_bindings(&checked, key)?);
+        semantic_binding_candidates.extend(hosted_exit_binding_candidates);
         if self.discovery == TargetEntryDiscovery::Dependencies {
             self.target_entry_candidates.extend(
-                candidate_target_entry_binding(&checked, key, checked_target)?
+                source
+                    .target_entry_candidate()
+                    .map_err(|error| projection_error(key, error))?
                     .map(|candidate| (purpose, candidate)),
             );
         }
@@ -1077,20 +1056,25 @@ impl ClosurePass<'_> {
         // the same shape the in-session carry takes.
         if key != closure.graph().root()
             && (self.discovery == TargetEntryDiscovery::Dependencies
-                || !checked.execution().tolerated_unsettled_service_fields())
+                || !source.facts().tolerated_unsettled_service_fields)
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
-            && let Some(subject) = checked.sources().package_subject()
+            && let Some(consumed_units) = source.facts().consumed_units.as_ref()
+            && let Ok(target_entry_candidate) = source.target_entry_candidate()
         {
             let demanded = self.fresh_components.contains(&(key.identity(), purpose));
-            let component_description = demanded
-                .then(|| compiler::publish_checked_component(checked.clone()).ok())
-                .flatten();
+            let component_description = demanded.then(|| source.publish_component().ok()).flatten();
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
-                &checked,
-                subject.consumed_units().to_vec(),
-                component_description,
+                super::super::review_cache::CachedOccurrenceFacts {
+                    tolerated_unsettled_service_fields: source
+                        .facts()
+                        .tolerated_unsettled_service_fields,
+                    consumed_units: consumed_units.to_vec(),
+                    source_consumption_commitment,
+                    component_description,
+                    target_entry_candidate,
+                },
                 policy_canonical_bytes,
             ) && let Some(cache_key) = super::super::review_cache::compiled_review_key(
                 key.identity(),
@@ -1115,20 +1099,17 @@ impl ClosurePass<'_> {
             build_snapshot,
             policy_canonical_bytes,
             review: review_position,
-            checked: OccurrenceCompile::Checked(checked.clone()),
+            compilation: OccurrenceCompile::Live(source.clone()),
             compiled_in_pass: true,
         });
         if key != closure.graph().root() {
-            self.component_candidates.insert(
-                (key.identity(), purpose),
-                OccurrenceCompile::Checked(checked),
-            );
+            self.component_candidates
+                .insert((key.identity(), purpose), OccurrenceCompile::Live(source));
         }
         Ok(())
     }
 
-    /// Hand the retained reviews, root compilation and occurrence compiles to
-    /// the caller.
+    /// Finish root-wide policy joins and return the retained review occurrences.
     fn finish(mut self) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
         let root = self.closure.graph().root();
         let services = self
@@ -1225,13 +1206,13 @@ fn publish_independent_component_descriptions(
             continue;
         }
         let description = match component_candidates.get(&(component, purpose)) {
-            Some(OccurrenceCompile::Checked(component_checked)) => {
-                compiler::publish_checked_component(component_checked.clone()).map_err(
-                    |diagnostics| CompileResolvedPackageReviewsError::Compilation {
+            Some(OccurrenceCompile::Live(source)) => {
+                source.publish_component().map_err(|diagnostics| {
+                    CompileResolvedPackageReviewsError::Compilation {
                         package: key.clone(),
                         diagnostics,
-                    },
-                )?
+                    }
+                })?
             }
             Some(OccurrenceCompile::Cached(facts)) => {
                 facts.component_description.clone().ok_or_else(|| {
