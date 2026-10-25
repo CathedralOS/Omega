@@ -10,6 +10,7 @@
 
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
+use typed_trees::product_operand::{ProductEntryCompatibility, ProductEntryDeclaration};
 
 mod discovery;
 mod extent_layout;
@@ -64,11 +65,11 @@ impl ProductEntryQueryCompatibility {
     }
 }
 
-impl checked_interpreter::ProductEntryCompatibility for ProductEntryQueryCompatibility {
+impl ProductEntryCompatibility for ProductEntryQueryCompatibility {
     fn validate_entry(
         &self,
         typed: &TypedTrees,
-        declaration: checked_interpreter::ProductEntryDeclaration<'_>,
+        declaration: ProductEntryDeclaration<'_>,
         slot: &str,
     ) -> Result<(), String> {
         let (owner, name) = slot.rsplit_once("::").ok_or_else(|| {
@@ -224,7 +225,7 @@ pub fn selected_program_entry_machine<'config>(
 /// not require the provider or layout choices the build is still computing.
 fn validate_program_entry_source_compatibility(
     typed: &TypedTrees,
-    declaration: checked_interpreter::ProductEntryDeclaration<'_>,
+    declaration: ProductEntryDeclaration<'_>,
     slot: target::ProgramEntrySlotDeclaration,
     requires_establishment: fn(
         &TypedTrees,
@@ -449,7 +450,7 @@ fn validate_selected_program_entry_shape(
     })?;
     validate_program_entry_source_compatibility(
         typed,
-        checked_interpreter::ProductEntryDeclaration::from_machine(typed, machine),
+        ProductEntryDeclaration::from_machine(typed, machine),
         selected.slot,
         requires_establishment,
     )?;

@@ -2,7 +2,8 @@
 use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, trap,
 };
-use typed_trees::statement::{RootBinding, StatementHandle};
+use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
+use typed_trees::statement::RootBinding;
 
 impl<'program> Evaluator<'program> {
     /// Only the outer argument-taking build entry installs the activation cell.
@@ -41,7 +42,6 @@ impl<'program> Evaluator<'program> {
 
     pub(in crate::interpreter::evaluator) fn execute_root_binding(
         &mut self,
-        statement: StatementHandle,
         binding: &RootBinding,
         frame: &mut Frame,
     ) -> EvalResult<()> {
@@ -60,20 +60,31 @@ impl<'program> Evaluator<'program> {
         }
         // A delegated operand binds the description the compiler issued for
         // it; the target machine is looked up, never executed.
-        let described = if binding.implementation_operand.is_valid() {
+        let implementation = if binding.implementation_operand.is_valid() {
             let operand = self.eval_expression(binding.implementation_operand, frame)?;
-            Some(self.described_product_entry(&operand)?)
+            RootBindingSelection::Described(self.described_product_entry(&operand)?)
         } else {
-            None
+            RootBindingSelection::AuthoredPath(product_path(&binding.implementation))
         };
         self.executed_root_bindings
             .try_reserve(1)
             .map_err(|_| Halt::Resource("root-binding result allocation was refused".to_owned()))?;
-        self.executed_root_bindings
-            .push(crate::ExecutedRootBinding {
-                statement,
-                described,
-            });
+        self.executed_root_bindings.push(ExecutedRootBinding {
+            source_span: binding.source_span,
+            slot: product_path(&binding.slot),
+            implementation,
+        });
         Ok(())
     }
+}
+
+fn product_path(members: &[typed_trees::name::Identifier]) -> String {
+    let mut path = String::new();
+    for member in members {
+        if !path.is_empty() {
+            path.push_str("::");
+        }
+        path.push_str(member.as_str());
+    }
+    path
 }

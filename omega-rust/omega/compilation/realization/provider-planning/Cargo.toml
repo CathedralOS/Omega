@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 optimization-core = { path = "../../../foundation/optimization-core" }
-checked-interpreter = { path = "../../../../psi/interpreter/checked-interpreter" }
+typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 component-description = { path = "../../backend/artifacts/component-description" }

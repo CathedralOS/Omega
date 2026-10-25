@@ -1631,7 +1631,6 @@ dependencies = [
  "backend-plan",
  "build-time-evaluation",
  "calling-conventions",
- "checked-interpreter",
  "checked-trees",
  "component-description",
  "diagnostics",
@@ -1653,6 +1652,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-psi",
+ "typed-trees",
 ]
 
 [[package]]
