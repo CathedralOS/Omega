@@ -24,6 +24,11 @@ pub(crate) use validation::validate_function_fragment_object_artifact;
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {
+    LayoutObservation {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        reason: terminal_semantics::LayoutObservationError,
+    },
     Source(object_file::RelocationFreeObjectContainerError),
     Unsupported(&'static str),
     UnaccountedOperation {
@@ -48,6 +53,14 @@ pub enum FunctionFragmentObjectArtifactError {
 impl std::fmt::Display for FunctionFragmentObjectArtifactError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::LayoutObservation {
+                machine,
+                operation,
+                reason,
+            } => write!(
+                formatter,
+                "layout observation at {machine:?}/{operation:?}: {reason}"
+            ),
             Self::Source(error) => write!(formatter, "shared object replay: {error}"),
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),

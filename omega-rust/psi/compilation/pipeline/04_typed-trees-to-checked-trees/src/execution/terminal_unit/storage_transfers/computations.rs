@@ -245,7 +245,8 @@ impl Query<'_> {
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                 output.append(self.argument_computations(subject)?)
             }
-            CheckedScalarComputationKind::RetainedConstant { .. }
+            CheckedScalarComputationKind::LayoutObservation { .. }
+            | CheckedScalarComputationKind::RetainedConstant { .. }
             | CheckedScalarComputationKind::Value(_) => {}
         }
         Some(output)

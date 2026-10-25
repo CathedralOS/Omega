@@ -12,6 +12,10 @@ use terminal_psi::CrashCause;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalInterpretError {
+    LayoutObservation {
+        operation: OperationId,
+        reason: terminal_semantics::LayoutObservationError,
+    },
     ZeroInitializedArgumentInvalid {
         argument_index: u32,
     },

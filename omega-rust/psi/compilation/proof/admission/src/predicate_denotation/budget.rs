@@ -116,7 +116,8 @@ impl Budget {
     ) -> Result<(), PredicateDenotationError> {
         self.step(depth)?;
         match value {
-            ScalarTerm::Value { .. }
+            ScalarTerm::LayoutObservation { .. }
+            | ScalarTerm::Value { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::IeeeFloatLiteral(_) => {}

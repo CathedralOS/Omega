@@ -20,6 +20,22 @@ use semantic_vocabulary::ScalarType;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::LayoutObservation {
+            psi_operation,
+            result,
+            scalar_type,
+            kind,
+            carrier,
+        } => {
+            bytes.u8(131);
+            bytes.id(*psi_operation);
+            bytes.id(*result);
+            encode_scalar_type(bytes, *scalar_type);
+            crate::optimization_unit::identity::carrier_encoding::encode_layout_observation_subject(
+                bytes, *kind, *carrier,
+            );
+        }
+
         O::StructuralByteSequenceFieldByteStore {
             psi_operation,
             destination,

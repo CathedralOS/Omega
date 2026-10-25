@@ -53,6 +53,14 @@ pub(crate) fn operation_scalar_types_match(
         return false;
     }
     match operation {
+        O::LayoutObservation { scalar_type, carrier, .. } => {
+            matches!(scalar_type, ScalarType::Integer(integer) if fixed(*integer) && integer.bits() == 64 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+                && match carrier {
+                    terminal_psi::LayoutObservationCarrier::Structural(carrier) => unit.structural_types.iter().any(|row| row.id == *carrier),
+                    terminal_psi::LayoutObservationCarrier::Unit | terminal_psi::LayoutObservationCarrier::Scalar(_) => true,
+                }
+        }
+
         O::EstablishActivationClaim { committed, .. }
         | O::SplitActivationClaim {
             committed_at: committed,

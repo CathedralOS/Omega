@@ -101,6 +101,20 @@ impl PhysicalLayoutContext {
     pub const fn native_target(self) -> NativeTarget {
         self.native
     }
+    pub fn data_layout(self) -> semantic_vocabulary::PhysicalDataLayout {
+        self.native.data_layout()
+    }
+}
+
+impl NativeTarget {
+    pub fn data_layout(self) -> semantic_vocabulary::PhysicalDataLayout {
+        semantic_vocabulary::PhysicalDataLayout {
+            address_byte_size: u64::try_from(self.pointer_size)
+                .expect("physical address size fits a byte count"),
+            address_byte_alignment: u64::try_from(self.pointer_alignment)
+                .expect("physical address alignment fits a byte count"),
+        }
+    }
 }
 
 /// Stable, domain-separated identity of one deployment profile.

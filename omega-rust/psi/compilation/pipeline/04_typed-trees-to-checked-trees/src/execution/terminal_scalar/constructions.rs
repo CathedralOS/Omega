@@ -164,7 +164,8 @@ pub(crate) fn retain_shapes(
                     )?,
                 )?;
             }
-            CheckedScalarComputationKind::RetainedConstant { .. }
+            CheckedScalarComputationKind::LayoutObservation { .. }
+            | CheckedScalarComputationKind::RetainedConstant { .. }
             | CheckedScalarComputationKind::Value(_) => {}
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
                 pending.extend(subject.scalar_operands());

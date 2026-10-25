@@ -382,7 +382,8 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                     *id = actual.id;
                     Ok(())
                 }
-                ScalarTerm::Boolean(_)
+                ScalarTerm::LayoutObservation { .. }
+                | ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_)
                 | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..) => Ok(()),

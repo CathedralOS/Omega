@@ -16,6 +16,7 @@ pub(crate) mod content_wire;
 pub(crate) mod contract_wire;
 pub(crate) mod dynamic_result_admission;
 pub(crate) mod integer_math_term_wire;
+mod layout_observation_wire;
 mod machine_declaration_wire;
 pub(crate) mod machine_wire;
 pub(crate) mod mathematical_certificate_wire;
@@ -111,7 +112,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Whole-value placement demands retain normalized geometry without requiring a view.
 // Content reunion retains completed producer operations and exact claim frontiers.
 // Logical source copy permission is separate from descriptor retirement.
-pub(crate) const FORMAT_MARKER: u16 = 188;
+pub(crate) const FORMAT_MARKER: u16 = 189;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

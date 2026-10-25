@@ -178,6 +178,10 @@ pub fn constant_goal_free_scalar_leaf(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScalarLeafInputs {
+    LayoutObservation {
+        kind: terminal_psi::LayoutObservationKind,
+        carrier: terminal_psi::LayoutObservationCarrier,
+    },
     IntegerLiteral(IntegerValue),
     BooleanLiteral(bool),
     Unary(ValueId),
@@ -186,6 +190,12 @@ enum ScalarLeafInputs {
 
 fn scalar_leaf_inputs(operation: &OperationKind) -> Option<ScalarLeafInputs> {
     match operation {
+        OperationKind::LayoutObservation { kind, carrier } => {
+            Some(ScalarLeafInputs::LayoutObservation {
+                kind: *kind,
+                carrier: *carrier,
+            })
+        }
         OperationKind::IntegerConstant { value } => Some(ScalarLeafInputs::IntegerLiteral(*value)),
         OperationKind::BooleanConstant { value } => Some(ScalarLeafInputs::BooleanLiteral(*value)),
         OperationKind::BooleanNot { operand }
@@ -241,6 +251,11 @@ fn validate_result_shape(
     actual: ScalarType,
 ) -> Result<(), OperationSemanticError> {
     let valid = match shape {
+        ScalarLeafResultShape::ByteCount => actual.as_integer().is_some_and(|integer| {
+            !integer.is_address()
+                && integer.bits() == 64
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+        }),
         ScalarLeafResultShape::DeclaredInteger => matches!(actual, ScalarType::Integer(_)),
         ScalarLeafResultShape::Boolean => actual == ScalarType::Boolean,
     };
@@ -263,6 +278,9 @@ fn validate_operand_shape(
             .ok_or(OperationSemanticError::UnknownValue(value))
     };
     let valid = match (schema.operands, inputs) {
+        (ScalarLeafOperandShape::LayoutObservation, ScalarLeafInputs::LayoutObservation { .. }) => {
+            true
+        }
         (ScalarLeafOperandShape::IntegerLiteral, ScalarLeafInputs::IntegerLiteral(_))
         | (ScalarLeafOperandShape::BooleanLiteral, ScalarLeafInputs::BooleanLiteral(_)) => true,
         (ScalarLeafOperandShape::UnaryBoolean, ScalarLeafInputs::Unary(operand)) => {
@@ -317,6 +335,12 @@ fn denotation_term(
     let term = |value| value_term(value, value_types);
     let invalid = || OperationSemanticError::DenotationShapeMismatch(tag);
     let built = match (schema.denotation, inputs) {
+        (
+            ScalarLeafDenotation::LayoutObservation,
+            ScalarLeafInputs::LayoutObservation { kind, carrier },
+        ) => {
+            return Ok(ScalarTerm::LayoutObservation { kind, carrier });
+        }
         (ScalarLeafDenotation::IntegerConstant, ScalarLeafInputs::IntegerLiteral(value)) => {
             let Some(integer_type) = result_type.as_integer() else {
                 return Err(invalid());

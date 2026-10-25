@@ -91,6 +91,7 @@ impl TerminalFuelSchedule {
             | OperationKind::BoundaryCall { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::RegisterAccess { .. }
+            | OperationKind::LayoutObservation { .. }
             | OperationKind::IntegerConstant { .. }
             | OperationKind::IeeeFloatConstant { .. }
             | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }

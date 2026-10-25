@@ -247,7 +247,7 @@ fn fold_queries(
         });
     let mut inputs = LayoutContextInputs::Ready;
     for (handle, query, reference) in queries {
-        let operand = query.operand.type_reference;
+        let operand = query.carrier;
         let spelling = query.kind.target_name();
         if let Some(held) = proof_only.proof_only_mention(program, operand) {
             return Err(vec![

@@ -371,7 +371,8 @@ impl CheckedScalarComputation {
                 completion_expression,
                 ..
             } => *completion_expression,
-            CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
+            CheckedScalarComputationKind::LayoutObservation { expression, .. }
+            | CheckedScalarComputationKind::RetainedConstant { expression } => *expression,
             CheckedScalarComputationKind::Value(_) => self.value_source,
             CheckedScalarComputationKind::SelectedComparison { .. }
             | CheckedScalarComputationKind::Call { .. } => {
@@ -472,6 +473,16 @@ pub enum CheckedScalarComputationKind {
         source_expression: typed_trees::expression::ExpressionHandle,
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
+    },
+    /// A formed compiler operation, retained independently of any private
+    /// target evaluation used to discharge proof or constant obligations.
+    /// The exact type operand survives until the canonical carrier is emitted.
+    LayoutObservation {
+        expression: typed_trees::expression::ExpressionHandle,
+        machine: SymbolHandle,
+        kind: language_core::data_layout_queries::DataLayoutQueryKind,
+        operand: typed_trees::types::TypeReferenceHandle,
+        carrier_identity: typed_trees::type_identity::TypeIdentityId,
     },
     /// A checked scalar constant whose value belongs to target closure: a
     /// retained `size_of`/`align_of` query, or a `const` whose materialized

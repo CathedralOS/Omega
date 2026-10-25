@@ -935,6 +935,12 @@ pub enum OperationKind {
         service: Option<ServiceId>,
         event: super::RegisterAccessEvent,
     },
+    /// Observe the exact carrier's admitted layout in this execution context.
+    /// The result is a u64 byte count, never host object size or access authority.
+    LayoutObservation {
+        kind: crate::LayoutObservationKind,
+        carrier: crate::LayoutObservationCarrier,
+    },
     IntegerConstant {
         value: IntegerValue,
     },
@@ -1413,6 +1419,7 @@ impl OperationKind {
             | Self::CallStructural { .. }
             | Self::PortWrite { .. }
             | Self::AtomicFence { .. }
+            | Self::LayoutObservation { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }

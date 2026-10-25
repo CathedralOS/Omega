@@ -168,6 +168,10 @@ pub(super) fn encode_content_term(bytes: &mut CanonicalBytes, term: &ContentTerm
 pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
     use ScalarTerm as S;
     match term {
+        S::LayoutObservation { kind, carrier } => {
+            bytes.u8(41);
+            super::carrier_encoding::encode_layout_observation_subject(bytes, *kind, *carrier);
+        }
         S::IeeeFloatField { root, path, format } => {
             bytes.u8(38);
             bytes.id(*root);

@@ -47,6 +47,7 @@ pub struct AdmittedTargetLayouts {
     target: String,
     closures: Vec<TargetLayoutClosure>,
     records: Vec<StructuralTypeDeclaration>,
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
 }
 impl AdmittedTargetLayouts {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
@@ -62,6 +63,9 @@ impl AdmittedTargetLayouts {
     /// the canonical module and this receipt separately; these are not a module.
     pub fn resolved_records(&self) -> &[StructuralTypeDeclaration] {
         &self.records
+    }
+    pub const fn physical(&self) -> Option<semantic_vocabulary::PhysicalDataLayout> {
+        self.physical
     }
     pub fn geometry<'a>(
         &'a self,
@@ -105,6 +109,7 @@ impl<'a> TargetLayoutGeometry<'a> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetLayoutSelectionError {
+    InvalidPhysicalParameters,
     ArtifactIdentityMismatch,
     MissingMember {
         application: LayoutApplicationId,
@@ -119,6 +124,9 @@ pub enum TargetLayoutSelectionError {
 impl std::fmt::Display for TargetLayoutSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidPhysicalParameters => {
+                write!(formatter, "invalid physical data-layout parameters")
+            }
             Self::ArtifactIdentityMismatch => write!(
                 formatter,
                 "layout selections belong to a different Terminal artifact"
@@ -152,7 +160,11 @@ impl std::error::Error for TargetLayoutSelectionError {}
 pub fn admit_target_layouts(
     artifact: TerminalArtifactView<'_>,
     selections: &AdmittedTargetMachineSelections,
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
 ) -> Result<AdmittedTargetLayouts, TargetLayoutSelectionError> {
+    if physical.is_some_and(|physical| !physical.is_valid()) {
+        return Err(TargetLayoutSelectionError::InvalidPhysicalParameters);
+    }
     if artifact.identity() != selections.terminal_psi() {
         return Err(TargetLayoutSelectionError::ArtifactIdentityMismatch);
     }
@@ -242,5 +254,6 @@ pub fn admit_target_layouts(
         target: selections.target().to_owned(),
         closures,
         records,
+        physical,
     })
 }

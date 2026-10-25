@@ -54,7 +54,8 @@ impl ScalarTerm {
                 }
                 Ok(())
             }
-            Self::Value { .. }
+            Self::LayoutObservation { .. }
+            | Self::Value { .. }
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
             | Self::ViewExtent { .. }

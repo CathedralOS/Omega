@@ -740,6 +740,15 @@ pub(super) fn project(
             AbstractOperation::IntegerConstant { value, .. } => {
                 LegalizedScalarInstructionKind::Constant(*value)
             }
+            AbstractOperation::LayoutObservation { .. } => {
+                LegalizedScalarInstructionKind::Constant(
+                    scalar_graph_input::layout_observation_value(
+                        plan.structural_types.as_slice(),
+                        native.target.data_layout(),
+                        &node.operation,
+                    )?,
+                )
+            }
             AbstractOperation::IeeeFloatConstant { value, .. } => {
                 let bits = match value {
                     semantic_vocabulary::IeeeFloatValue::Binary32(bits) => u128::from(*bits),

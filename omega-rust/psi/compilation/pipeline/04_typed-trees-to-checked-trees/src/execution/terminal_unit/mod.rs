@@ -1116,6 +1116,45 @@ pub(crate) fn build_checked_unit_effect_plans(
                 Some(result.type_identity)
             }))
     }));
+    // A query names storage even when no local, formal or result carries a
+    // value of that type. Register the exact stored carrier here and retain
+    // it through the same catalog closure as ordinary operands.
+    for (_, computation) in facts.values.scalar_computations.nodes.iter() {
+        let checked_trees::CheckedScalarComputationKind::LayoutObservation {
+            machine,
+            operand,
+            carrier_identity,
+            ..
+        } = &computation.kind
+        else {
+            continue;
+        };
+        if program.primitive_type_reference(*operand).is_some()
+            || matches!(
+                program.type_reference_table.type_reference(*operand),
+                TypeReferenceNode::Unit
+            )
+        {
+            continue;
+        }
+        let Some(owner) = program.machine_by_symbol(*machine) else {
+            continue;
+        };
+        let binders = types::machine_binders(program, owner);
+        match shapes.add_stored_type(*operand, &binders, &[]) {
+            Some(identity) if identity == *carrier_identity => {
+                retained_type_identities.insert(identity);
+            }
+            _ => gaps.push(plan_gaps::plan_gap(
+                program,
+                *machine,
+                plan_gaps::GapSite::Machine,
+                CheckedUnitPlanGapReason::Unsupported(
+                    "layout observation has no matching checked stored carrier",
+                ),
+            )),
+        }
+    }
     shapes.retain_transitive(&retained_type_identities);
     types::retain_domain_predicates(program, &facts.operators, &mut shapes.domains);
 

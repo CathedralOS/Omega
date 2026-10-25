@@ -32,7 +32,13 @@ machine main() crashes Trap {
     let mut view: View;
     view.payload.value = 51;
     let extent: u64 = size_of<View>();
-    transition view.payload.value == 51u32 && extent == 12u64 {
+    // A reference measures its own carrier; an array excludes runtime headers.
+    let reference_extent: u64 = size_of<&mut View>();
+    let reference_alignment: u64 = align_of<&mut View>();
+    let array_extent: u64 = size_of<[u8; 12]>();
+    transition view.payload.value == 51u32 && extent == 12u64
+        && reference_extent == 8u64 && reference_alignment == 8u64
+        && array_extent == 12u64 {
         true -> good()
         false -> bad()
     }

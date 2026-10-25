@@ -1643,6 +1643,10 @@ pub struct PrivateLayoutOperationRequest {
 pub struct DataLayoutQueryRequest {
     pub kind: language_core::data_layout_queries::DataLayoutQueryKind,
     pub operand: StaticMachineArgument,
+    /// Exact stored carrier after application binding. The authored operand
+    /// remains above; a policy application can bind a synthesized data carrier
+    /// without replacing the source query or losing its original selection.
+    pub carrier: crate::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

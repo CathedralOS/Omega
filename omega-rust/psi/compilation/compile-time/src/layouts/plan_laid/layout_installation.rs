@@ -84,6 +84,88 @@ fn bind_applications(
     Ok(applications)
 }
 
+/// Bind an application's own stored carrier once, while retaining the exact
+/// authored operand. Physical consumers and catalog discovery then read that
+/// association instead of independently recognizing `Policy<Schema>`.
+fn bind_query_carriers(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::types::TypeReferenceNode;
+
+    let expressions = typed_trees::references::collect_program_references(typed).expressions;
+    for expression in expressions {
+        let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
+            continue;
+        };
+        let Some(query) = &call.layout_query else {
+            continue;
+        };
+        let operand = query.operand.type_reference;
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } = typed.type_reference_table.type_reference(operand)
+        else {
+            continue;
+        };
+        let [schema] = typed
+            .type_reference_table
+            .type_reference_handles(*arguments)
+        else {
+            continue;
+        };
+        if !lifetime_arguments.is_empty() {
+            continue;
+        }
+        let schema = typed.type_reference_symbol(*schema);
+        let mut matches = typed.plan_laid_layouts.iter().filter(|layout| {
+            layout.policy_symbol == *base_symbol && layout.schema_symbol == schema
+        });
+        let Some(layout) = matches.next() else {
+            continue;
+        };
+        if matches.next().is_some() {
+            return Err(vec![Diagnostic::error(
+                "layout query has ambiguous policy/schema application custody",
+            )]);
+        }
+        let declaration = typed
+            .data_definition_by_symbol(layout.data_symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "layout query lost its bound application carrier",
+                )]
+            })?
+            .clone();
+        let carrier = typed
+            .type_reference_table
+            .find_named_type_reference(declaration.symbol)
+            .unwrap_or_else(|| {
+                typed.type_reference_table.insert(TypeReferenceNode::Named {
+                    symbol: declaration.symbol,
+                    name: declaration.name.clone(),
+                })
+            });
+        if typed.data_application_definition(operand) != Some(&declaration) {
+            typed.retain_data_application_definition(operand, declaration, true);
+        }
+        if typed
+            .expression_table
+            .call_node(expression)
+            .and_then(|call| call.layout_query.as_ref())
+            .is_some_and(|query| query.carrier != carrier)
+        {
+            let ExpressionNode::Call(call) = typed.expression_table.expression_mut(expression)
+            else {
+                unreachable!("query binding preserves the source call");
+            };
+            call.layout_query.as_mut().expect("formed query").carrier = carrier;
+        }
+    }
+    Ok(())
+}
+
 /// Settle ready application inputs independently of unrelated query values.
 /// Results immediately become prerequisites of later jobs in this same owner.
 pub(crate) fn prepare_plan_laid_layouts_in(
@@ -94,9 +176,11 @@ pub(crate) fn prepare_plan_laid_layouts_in(
     queries: Option<&dyn crate::LayoutQueryPreparation>,
 ) -> Result<Vec<PlanLaidRecord>, Vec<Diagnostic>> {
     if records.is_empty() {
+        bind_query_carriers(typed)?;
         return Ok(Vec::new());
     }
     let applications = bind_applications(typed, records)?;
+    bind_query_carriers(typed)?;
     let library_contexts = queries
         .map(|queries| queries.library_contexts())
         .unwrap_or_default();

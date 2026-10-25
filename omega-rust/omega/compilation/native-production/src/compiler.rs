@@ -45,8 +45,13 @@ pub fn compile_with_components(
             artifact.view(),
             proposal.target_profile().target_name(),
         );
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &selections,
+            target::PhysicalLayoutContext::from_profile(proposal.target_profile())
+                .map(|context| context.data_layout()),
+        )
+        .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
         let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
         for initializer in request.private_entry_ram {

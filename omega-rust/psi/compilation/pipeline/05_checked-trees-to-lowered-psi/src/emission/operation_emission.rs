@@ -28,6 +28,11 @@ use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarBinding {
+    LayoutObservation {
+        kind: terminal_psi::LayoutObservationKind,
+        carrier: terminal_psi::LayoutObservationCarrier,
+        scalar_type: ScalarType,
+    },
     StorageAddress(calls::PreparedStructuralArgument, ScalarType),
     SelectedComparison {
         occurrence: crate::emission::selected_comparison::SelectedComparison,
@@ -48,6 +53,7 @@ impl LoweredScalarBinding {
         parameters: &[QualifiedScalarType],
     ) -> Result<QualifiedScalarType, LoweringError> {
         match self {
+            Self::LayoutObservation { scalar_type, .. } => Ok((*scalar_type).into()),
             Self::StorageAddress(_, scalar_type) => Ok((*scalar_type).into()),
             Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
             Self::Expression(expression) => expression.value_type(parameters),
@@ -58,6 +64,7 @@ impl LoweredScalarBinding {
     }
     pub(crate) const fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::LayoutObservation { scalar_type, .. } => *scalar_type,
             Self::StorageAddress(_, scalar_type) => *scalar_type,
             Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
@@ -79,6 +86,31 @@ pub(crate) fn emit_scalar_binding(
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
     let result = match binding {
+        LoweredScalarBinding::LayoutObservation {
+            kind,
+            carrier,
+            scalar_type,
+        } => {
+            let id = value_id(*next_value_identity);
+            *next_value_identity =
+                next_value_identity
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "layout observation result identity overflow",
+                    ))?;
+            let operation = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation,
+                result: buffer::scalar_result_declaration(id, *scalar_type),
+                kind: OperationKind::LayoutObservation {
+                    kind: *kind,
+                    carrier: *carrier,
+                },
+            });
+            Ok(id)
+        }
         LoweredScalarBinding::StorageAddress(argument, scalar_type) => {
             let source =
                 argument.emit(parameters, call_emission, next_value_identity, operations)?;

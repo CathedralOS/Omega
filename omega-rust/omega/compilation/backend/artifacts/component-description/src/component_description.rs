@@ -768,7 +768,8 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ElementViewRead { .. }
                     | OperationKind::ElementViewWrite { .. }
                     | OperationKind::ElementViewSubslice { .. } => {}
-                    OperationKind::IntegerConstant { .. }
+                    OperationKind::LayoutObservation { .. }
+                    | OperationKind::IntegerConstant { .. }
                     | OperationKind::SelectImplementation { .. }
                     | OperationKind::BooleanConstant { .. }
                     | OperationKind::IeeeFloatConstant { .. }

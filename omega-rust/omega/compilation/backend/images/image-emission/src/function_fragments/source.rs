@@ -443,6 +443,25 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                                         && *plan == row.call.call_plan)
                         })).count() == 1
                 }
+                AbstractOperation::LayoutObservation { psi_operation, result, scalar_type, kind, carrier } => {
+                    let value = terminal_semantics::observe_layout(
+                        abstract_plan.structural_types.iter(), Some(fragments.target.data_layout()), *kind, *carrier,
+                    ).map_err(|reason| Error::LayoutObservation {
+                        machine: abstracted.machine, operation: *psi_operation, reason,
+                    })?;
+                    let mut rows = targeted.graph.operations().filter(|row| {
+                        matches!(row, target_operations::TargetUnitOperation::IntegerConstant {
+                            psi_operation: actual, ..
+                        } if actual == psi_operation)
+                    });
+                    matches!((rows.next(), rows.next()), (Some(target_operations::TargetUnitOperation::IntegerConstant {
+                        result: actual_result, scalar_type: actual_type, value: actual_value, ..
+                    }), None) if actual_result == result
+                        && !actual_type.is_address() && actual_type.bits() == 64
+                        && actual_type.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                        && semantic_vocabulary::ScalarType::Integer(*actual_type) == *scalar_type
+                        && *actual_value == semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)))
+                }
                 AbstractOperation::IntegerConstant { .. }
                 | AbstractOperation::BooleanConstant { .. } => true,
                 AbstractOperation::IeeeFloatConstant { .. } => {

@@ -1343,6 +1343,41 @@ pub(super) fn validate_operation(
                 },
             ));
         }
+        (
+            TargetUnitOperation::IntegerConstant {
+                psi_operation,
+                result,
+                scalar_type,
+                value,
+            },
+            AbstractOperation::LayoutObservation {
+                psi_operation: actual,
+                result: defined,
+                scalar_type: declared,
+                ..
+            },
+        ) if psi_operation == actual
+            && result == defined
+            && *declared == ScalarType::Integer(*scalar_type) =>
+        {
+            let expected = super::super::layout_observation_value(
+                plan.structural_types.as_slice(),
+                native.target.data_layout(),
+                abstracted,
+            )?;
+            if *value != expected {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((
+                *result,
+                Source::IntegerImmediate {
+                    defining_operation: *psi_operation,
+                    source_value: *result,
+                    scalar_type: *scalar_type,
+                    value: expected,
+                },
+            ));
+        }
         (TargetUnitOperation::Call { .. }, _) => {
             direct_calls::validate(
                 target, abstracted, sources, custody, optimized, native, plan, unit,

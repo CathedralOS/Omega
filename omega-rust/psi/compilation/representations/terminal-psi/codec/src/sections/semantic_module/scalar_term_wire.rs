@@ -39,6 +39,11 @@ pub(crate) fn encode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::LayoutObservation { kind, carrier } => {
+            writer.u8(41);
+            super::layout_observation_wire::encode_subject(writer, *kind, *carrier);
+        }
+
         ScalarTerm::StructuralRead {
             root,
             path,
@@ -401,6 +406,11 @@ pub(crate) fn decode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     Ok(match reader.u8()? {
+        41 => {
+            let (kind, carrier) = super::layout_observation_wire::decode_subject(reader)?;
+            ScalarTerm::LayoutObservation { kind, carrier }
+        }
+
         1 => ScalarTerm::value(reader.id("ValueId")?, decode_scalar_type(reader)?),
         2 => ScalarTerm::boolean(reader.boolean()?),
         3 => {

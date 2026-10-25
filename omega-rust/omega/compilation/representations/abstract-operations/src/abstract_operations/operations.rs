@@ -528,6 +528,14 @@ pub enum AbstractOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// Portable until target realization consumes the selected carrier layout.
+    LayoutObservation {
+        psi_operation: OperationId,
+        result: ValueId,
+        scalar_type: ScalarType,
+        kind: terminal_psi::LayoutObservationKind,
+        carrier: terminal_psi::LayoutObservationCarrier,
+    },
     IntegerConstant {
         psi_operation: OperationId,
         result: ValueId,
@@ -1177,6 +1185,7 @@ impl AbstractOperation {
             | Self::PortWrite { psi_operation, .. }
             | Self::RegisterAccess { psi_operation, .. }
             | Self::Call { psi_operation, .. }
+            | Self::LayoutObservation { psi_operation, .. }
             | Self::IntegerConstant { psi_operation, .. }
             | Self::IeeeFloatConstant { psi_operation, .. }
             | Self::IeeeFloatCompare { psi_operation, .. }

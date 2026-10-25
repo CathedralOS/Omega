@@ -10,6 +10,10 @@ pub use terminal_psi_to_abstract_operations::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    LayoutObservation {
+        operation: OperationId,
+        reason: terminal_semantics::LayoutObservationError,
+    },
     ReferenceCarrierUnavailable {
         machine: MachineId,
         source: terminal_psi::StructuralArgument,

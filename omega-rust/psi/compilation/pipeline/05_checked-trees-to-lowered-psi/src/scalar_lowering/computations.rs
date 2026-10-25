@@ -849,6 +849,51 @@ impl<'a> Expansion<'a> {
                 site,
                 active,
             )?,
+            CheckedScalarComputationKind::LayoutObservation {
+                kind,
+                operand,
+                carrier_identity,
+                ..
+            } => {
+                let carrier = if matches!(
+                    self.checked.type_reference_table.type_reference(operand),
+                    typed_trees::types::TypeReferenceNode::Unit
+                ) {
+                    terminal_psi::LayoutObservationCarrier::Unit
+                } else if let Some(primitive) = self.checked.primitive_type_reference(operand) {
+                    terminal_psi::LayoutObservationCarrier::Scalar(super::terminal_scalar_type(
+                        primitive,
+                    )?)
+                } else {
+                    let declaration =
+                        crate::terminal_identities::structural_declaration_by_identity(
+                            self.structural_types,
+                            identities,
+                            self.checked,
+                            carrier_identity,
+                            "layout observation lost its checked carrier in the structural catalog",
+                        )?;
+                    terminal_psi::LayoutObservationCarrier::Structural(declaration.id)
+                };
+                let kind = match kind {
+                    language_core::data_layout_queries::DataLayoutQueryKind::Size => {
+                        terminal_psi::LayoutObservationKind::Size
+                    }
+                    language_core::data_layout_queries::DataLayoutQueryKind::Alignment => {
+                        terminal_psi::LayoutObservationKind::Alignment
+                    }
+                };
+                self.binding(
+                    input_types,
+                    input_types.len(),
+                    target,
+                    LoweredScalarBinding::LayoutObservation {
+                        kind,
+                        carrier,
+                        scalar_type: result_type.scalar_type,
+                    },
+                )
+            }
             CheckedScalarComputationKind::RetainedConstant { expression } => {
                 let Some(literal) = self.checked.landed_integer_constant(expression) else {
                     return unsupported("retained scalar constant is not closed for the target");

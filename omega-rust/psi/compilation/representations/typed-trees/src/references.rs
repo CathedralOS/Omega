@@ -1769,6 +1769,7 @@ fn visit_call_expression(
     }
     if let Some(query) = &call.layout_query {
         visit_static_argument(program, retained, &query.operand);
+        visit_type_reference(program, retained, query.carrier);
     }
     for argument in program.expression_table.expression_handles(call.arguments) {
         visit_expression(program, retained, *argument);

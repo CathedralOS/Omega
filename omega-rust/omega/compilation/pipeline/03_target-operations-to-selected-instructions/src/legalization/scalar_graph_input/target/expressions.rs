@@ -181,6 +181,12 @@ impl Checker<'_> {
             Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.block_nodes().any(|node|
                 match &node.operation {
                     AbstractOperation::IntegerConstant {result,value:actual,..} => *result == resolved && actual == literal,
+                    AbstractOperation::LayoutObservation {psi_operation,result,..} => *result == resolved
+                        && self.available.is_some_and(|sources| sources.iter().any(|(identity, source)| {
+                            matches!(source, target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+                                defining_operation, source_value, value: actual, ..
+                            } if identity == result && source_value == result && defining_operation == psi_operation && actual == literal)
+                        })),
                     AbstractOperation::ByteSequenceLength {result,source,..} => result.value == resolved
                         && (super::super::element_views::byte_length_geometry(self.optimized, source, self.types)
                             .is_some_and(|(_, carrier)| matches!(carrier, terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } if *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity))))

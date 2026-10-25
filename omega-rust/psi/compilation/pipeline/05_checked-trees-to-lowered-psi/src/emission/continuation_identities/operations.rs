@@ -290,6 +290,7 @@ pub(crate) fn map_obligations(
         | OperationKind::EstablishZeroedStructural { .. }
         | OperationKind::EstablishStructuralLocal { .. }
         | OperationKind::StorageAddress { .. }
+        | OperationKind::LayoutObservation { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::MoveStructuralField { .. }

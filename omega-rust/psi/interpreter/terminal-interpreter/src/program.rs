@@ -45,9 +45,71 @@ pub(crate) struct AdmittedTerminalProgram<'artifact> {
     pub(crate) catalogs: std::sync::Arc<Cow<'artifact, TerminalModule>>,
     /// Selected geometry belongs to an execution view, never canonical storage.
     pub(crate) target_layouts: Option<std::sync::Arc<terminal_installation::AdmittedTargetLayouts>>,
+    pub(crate) layout_observations: std::sync::OnceLock<
+        BTreeMap<
+            (
+                terminal_psi::LayoutObservationKind,
+                terminal_psi::LayoutObservationCarrier,
+            ),
+            Result<u64, terminal_semantics::LayoutObservationError>,
+        >,
+    >,
 }
 
 impl AdmittedTerminalProgram<'_> {
+    pub(crate) fn layout_observation(
+        &self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<u64, TerminalInterpretError> {
+        let refusal = |reason| TerminalInterpretError::LayoutObservation {
+            operation: operation.id,
+            reason,
+        };
+        terminal_semantics::validate_layout_observation(operation, |carrier| {
+            self.structural_types().contains_key(&carrier)
+        })
+        .map_err(refusal)?;
+        let terminal_psi::OperationKind::LayoutObservation { kind, carrier } = operation.kind
+        else {
+            return Err(crate::errors::malformed());
+        };
+        // Geometry belongs to the immutable type subject in this execution
+        // view, not an instruction occurrence. Repeated subjects share one
+        // answer; machine-local operation identities never alias cache rows.
+        // Inactive unavailable subjects remain errors until preflight demands
+        // them. Result formation is checked separately at the actual operation.
+        let values = self.layout_observations.get_or_init(|| {
+            let mut values = BTreeMap::new();
+            for operation in self
+                .catalogs
+                .machines
+                .iter()
+                .flat_map(|machine| machine.operations())
+            {
+                if let terminal_psi::OperationKind::LayoutObservation { kind, carrier } =
+                    operation.kind
+                {
+                    values.entry((kind, carrier)).or_insert_with(|| {
+                        terminal_semantics::observe_layout(
+                            self.structural_types().values(),
+                            self.target_layouts
+                                .as_ref()
+                                .and_then(|layouts| layouts.physical()),
+                            kind,
+                            carrier,
+                        )
+                    });
+                }
+            }
+            values
+        });
+        values
+            .get(&(kind, carrier))
+            .ok_or_else(crate::errors::malformed)?
+            .clone()
+            .map_err(refusal)
+    }
+
     /// Resolve this invocation's executable root without changing canonical
     /// storage. Catalog selection identifies a retained body; it grants no
     /// input backing, provider authority, or result issuance.
@@ -341,6 +403,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity,
             catalogs: std::sync::Arc::new(Cow::Owned(module)),
             target_layouts: None,
+            layout_observations: Default::default(),
         }))
     }
 
@@ -352,6 +415,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: artifact.identity(),
             catalogs: std::sync::Arc::new(Cow::Borrowed(artifact.module())),
             target_layouts: None,
+            layout_observations: Default::default(),
         })
     }
 
@@ -365,6 +429,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity,
             catalogs: std::sync::Arc::new(Cow::Owned(module)),
             target_layouts: None,
+            layout_observations: Default::default(),
         }))
     }
 
@@ -587,6 +652,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             identity: self.program.identity,
             catalogs: std::sync::Arc::clone(&self.program.catalogs),
             target_layouts: Some(std::sync::Arc::clone(layouts)),
+            layout_observations: Default::default(),
         })
     }
 
@@ -735,7 +801,7 @@ mod private_entry_target_tests {
         let machines =
             terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
         let layouts =
-            terminal_installation::admit_target_layouts(artifact.view(), &machines).unwrap();
+            terminal_installation::admit_target_layouts(artifact.view(), &machines, None).unwrap();
         let recipe = terminal_installation::admit_private_entry_ram(
             artifact.view(),
             &layouts,
@@ -756,7 +822,7 @@ mod private_entry_target_tests {
             let other_machines =
                 terminal_installation::admit_target_machine_selections(artifact.view(), name);
             let other_layouts =
-                terminal_installation::admit_target_layouts(artifact.view(), &other_machines)
+                terminal_installation::admit_target_layouts(artifact.view(), &other_machines, None)
                     .unwrap();
             let installation = program
                 .admit_runtime_supplies(crate::effects::TerminalRuntimeSupplyRequest {

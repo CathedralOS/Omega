@@ -347,7 +347,8 @@ fn substitute_scalar_term_places(
                 substitute(left, substitutions);
                 substitute(right, substitutions);
             }
-            ScalarTerm::Value { .. }
+            ScalarTerm::LayoutObservation { .. }
+            | ScalarTerm::Value { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::IeeeFloatLiteral(_) => {}
@@ -783,7 +784,8 @@ pub(super) fn substitute_scalar_term_values(
                 .collect(),
             scalar_type: *scalar_type,
         },
-        semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
+        ScalarTerm::LayoutObservation { .. }
+        | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. }
         | ScalarTerm::IeeeFloatLiteral(_) => term.clone(),

@@ -1029,6 +1029,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
         Ok(Some(typed::expression::DataLayoutQueryRequest {
             kind,
+            carrier: lowered.type_reference,
             operand: lowered,
         }))
     }

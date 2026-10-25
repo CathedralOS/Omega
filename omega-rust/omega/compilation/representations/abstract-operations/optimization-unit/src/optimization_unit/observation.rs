@@ -373,6 +373,7 @@ fn operation_observations(
     };
     match operation {
         O::SelectImplementation { .. }
+        | O::LayoutObservation { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

@@ -262,6 +262,13 @@ pub enum ScalarReadProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarTerm {
+    /// Immutable type geometry in the receiving execution context. A generated
+    /// requirement can constrain it; only layout admission establishes its
+    /// physical value. It names no storage occurrence and grants no access.
+    LayoutObservation {
+        kind: crate::LayoutObservationKind,
+        carrier: crate::LayoutObservationCarrier,
+    },
     /// A current scalar observation at an exact root and ordered projection.
     /// Only supplied premises establish its relation to an SSA value; this
     /// term grants no access, bounds, case membership or value guarantee.

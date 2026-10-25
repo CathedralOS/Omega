@@ -19,6 +19,7 @@ use semantic_vocabulary::ValueId;
 /// their successor bindings are the caller's accounting.
 pub(crate) fn rewrite_value_operands(operation: &mut O, mut replace: impl FnMut(&mut ValueId)) {
     match operation {
+        O::LayoutObservation { .. } => {},
         O::EstablishActivationClaim { committed, .. } => replace(committed),
         O::SplitActivationClaim {
             committed_at: committed,

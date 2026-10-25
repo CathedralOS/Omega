@@ -100,6 +100,20 @@ impl TerminalExecution<'_> {
         )
     }
 
+    pub(crate) fn execute_layout_observation(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let value = self.program.layout_observation(operation)?;
+        self.store_scalar(
+            operation,
+            TerminalScalarValue::Integer {
+                scalar_type: integer_scalar_type(operation)?,
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)),
+            },
+        )
+    }
+
     pub(crate) fn execute_integer_equal(
         &mut self,
         operation: &terminal_psi::Operation,

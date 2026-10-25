@@ -60,6 +60,7 @@ pub(crate) fn expected_provenance(
         | O::PortWrite { psi_operation, .. }
         | O::RegisterAccess { psi_operation, .. }
         | O::Call { psi_operation, .. }
+        | O::LayoutObservation { psi_operation, .. }
         | O::IntegerConstant { psi_operation, .. }
         | O::IeeeFloatConstant { psi_operation, .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }

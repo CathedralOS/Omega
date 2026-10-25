@@ -39,7 +39,8 @@ impl super::IdentityMap {
                     pending.push(right);
                     pending.push(left);
                 }
-                ScalarTerm::Boolean(_)
+                ScalarTerm::LayoutObservation { .. }
+                | ScalarTerm::Boolean(_)
                 | ScalarTerm::Integer { .. }
                 | ScalarTerm::IeeeFloatLiteral(_) => {}
             }

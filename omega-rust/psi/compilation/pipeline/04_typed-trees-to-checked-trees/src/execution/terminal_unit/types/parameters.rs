@@ -28,7 +28,7 @@ pub(crate) fn parameter_is_root(parameter: &StateParameter, root: SymbolHandle) 
     parameter.symbol == root
 }
 
-pub(in crate::execution::terminal_unit) fn machine_binders(
+pub(crate) fn machine_binders(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, String)> {

@@ -16,7 +16,8 @@ pub(super) struct ValueEqualities<'input> {
 pub(super) fn is_definition_subject(term: &ScalarTerm) -> bool {
     matches!(
         term,
-        ScalarTerm::Value { .. }
+        ScalarTerm::LayoutObservation { .. }
+            | ScalarTerm::Value { .. }
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IeeeFloatField { .. }
@@ -202,7 +203,8 @@ impl<'input> ValueEqualities<'input> {
                 **left = self.scalar(left, budget, depth + 1, active)?;
                 **right = self.scalar(right, budget, depth + 1, active)?;
             }
-            ScalarTerm::Value { .. }
+            ScalarTerm::LayoutObservation { .. }
+            | ScalarTerm::Value { .. }
             | semantic_vocabulary::scalar_term_predicate_quint_pattern!(..)
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }

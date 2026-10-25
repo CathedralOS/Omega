@@ -19,6 +19,23 @@ use semantic_vocabulary::{
 };
 use terminal_psi::OperationKind;
 
+pub(super) fn encode_layout_observation(
+    writer: &mut Writer,
+    kind: terminal_psi::LayoutObservationKind,
+    carrier: terminal_psi::LayoutObservationCarrier,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::LAYOUT_OBSERVATION);
+    super::super::layout_observation_wire::encode_subject(writer, kind, carrier);
+    Ok(())
+}
+
+pub(super) fn decode_layout_observation(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let (kind, carrier) = super::super::layout_observation_wire::decode_subject(reader)?;
+    Ok(OperationKind::LayoutObservation { kind, carrier })
+}
+
 pub(super) fn encode_establish_primitive_local(
     writer: &mut Writer,
     value: ValueId,

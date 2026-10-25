@@ -276,6 +276,7 @@ fn operation_effect(
     use optimization_unit::ObservationKnowledge::{May, No, Yes};
     match operation {
         O::SelectImplementation { .. }
+        | O::LayoutObservation { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

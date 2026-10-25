@@ -60,6 +60,7 @@ fn value_type(
             qualifications.signature_value_type(checked, signature.return_type)?
         }
         CheckedScalarComputationKind::StorageAddress { .. }
+        | CheckedScalarComputationKind::LayoutObservation { .. }
         | CheckedScalarComputationKind::RetainedConstant { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()
         }

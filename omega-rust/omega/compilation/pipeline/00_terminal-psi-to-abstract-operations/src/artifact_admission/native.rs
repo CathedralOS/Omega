@@ -74,12 +74,17 @@ impl VerifiedNativeArtifactInput {
                 artifact.view(),
                 profile.target_name(),
             );
-            let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-                .map_err(|reason| {
-                    ArtifactLoweringError::TargetFamily(format!(
-                        "private entry RAM selected geometry is unavailable: {reason:?}"
-                    ))
-                })?;
+            let layouts = terminal_installation::admit_target_layouts(
+                artifact.view(),
+                &selections,
+                target::PhysicalLayoutContext::from_profile(profile)
+                    .map(|context| context.data_layout()),
+            )
+            .map_err(|reason| {
+                ArtifactLoweringError::TargetFamily(format!(
+                    "private entry RAM selected geometry is unavailable: {reason:?}"
+                ))
+            })?;
             if recipes.iter().any(|recipe| recipe.layouts() != &layouts) {
                 return Err(ArtifactLoweringError::TargetFamily(
                     "private entry RAM recipe belongs to another target or selected geometry"
@@ -152,8 +157,13 @@ impl VerifiedNativeArtifactInput {
                 terminal_psi::TargetMachineCallable::Machine(input.plan().entry),
             )
             .map_err(|error| crate::NativeExecutionScopeError::TargetFamily(error.to_string()))?;
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .map_err(|error| crate::NativeExecutionScopeError::TargetLayout(error.to_string()))?;
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &selections,
+            target::PhysicalLayoutContext::from_profile(profile)
+                .map(|context| context.data_layout()),
+        )
+        .map_err(|error| crate::NativeExecutionScopeError::TargetLayout(error.to_string()))?;
         if !layouts.resolved_records().is_empty() {
             let declarations = input.optimization_input.plan.structural_types.make_mut();
             for resolved in layouts.resolved_records() {
@@ -436,8 +446,13 @@ mod private_entry_target_tests {
             .clone();
         let selections =
             terminal_installation::admit_target_machine_selections(artifact.view(), "linux_x86_64");
-        let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
-            .expect("actual Linux selected geometry");
+        let layouts = terminal_installation::admit_target_layouts(
+            artifact.view(),
+            &selections,
+            target::PhysicalLayoutContext::from_profile(target::TargetProfile::LinuxX64)
+                .map(|context| context.data_layout()),
+        )
+        .expect("actual Linux selected geometry");
         // Public receiving data controls use the actual canonical entry row.
         // A fresh private allocation cannot answer a stale or changed demand.
         let mut wrong_schema = row.clone();
@@ -493,9 +508,13 @@ mod private_entry_target_tests {
                 artifact.view(),
                 profile.target_name(),
             );
-            let other =
-                terminal_installation::admit_target_layouts(artifact.view(), &other_selections)
-                    .expect("other target has independently admitted geometry");
+            let other = terminal_installation::admit_target_layouts(
+                artifact.view(),
+                &other_selections,
+                target::PhysicalLayoutContext::from_profile(profile)
+                    .map(|context| context.data_layout()),
+            )
+            .expect("other target has independently admitted geometry");
             assert_ne!(recipe.layouts(), &other);
             let failure = VerifiedNativeArtifactInput::prepare_with_private_entry_ram(
                 &artifact,

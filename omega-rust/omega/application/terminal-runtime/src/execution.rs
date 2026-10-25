@@ -232,7 +232,16 @@ pub fn execute_sliced(
         .map(|target| terminal_interpreter::admit_target_machine_selections(artifact, target));
     let target_layouts = target_machines
         .as_ref()
-        .map(|selected| terminal_interpreter::admit_target_layouts(artifact, selected))
+        .map(|selected| {
+            terminal_interpreter::admit_target_layouts(
+                artifact,
+                selected,
+                target::TargetProfile::from_canonical_target_name(selected.target())
+                    .ok()
+                    .and_then(target::PhysicalLayoutContext::from_profile)
+                    .map(|context| context.data_layout()),
+            )
+        })
         .transpose()
         .map_err(|error| {
             TerminalRuntimeError::Requirements(

@@ -279,6 +279,14 @@ fn validate_terms(
     value_type: &impl Fn(ValueId) -> Option<ScalarType>,
 ) -> Result<(), CodecError> {
     while let Some((term, selector)) = scalars.pop() {
+        if let ScalarTerm::LayoutObservation {
+            carrier: semantic_vocabulary::LayoutObservationCarrier::Structural(carrier),
+            ..
+        } = term
+            && module.structural_type(*carrier).is_none()
+        {
+            return malformed("layout predicate has no declared carrier");
+        }
         if let ScalarTerm::BooleanField { root, path }
         | ScalarTerm::IntegerField { root, path, .. }
         | ScalarTerm::IeeeFloatField { root, path, .. } = term

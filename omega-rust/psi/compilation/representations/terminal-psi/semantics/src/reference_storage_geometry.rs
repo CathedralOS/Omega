@@ -37,22 +37,87 @@ fn scalar_geometry(scalar: ScalarType) -> Option<(u64, u64)> {
     Some((width, width))
 }
 
+// Layout observations and byte projections use one storage walk. Knowing a
+// carrier's own extent does not make its interpreter backing directly byte
+// addressable: byte-sequence backing has private execution bookkeeping. Keep
+// that existing projection limit on the produced geometry, not a second walk
+// or a query mode that grants access merely because the size is known.
+pub(crate) struct StorageGeometry {
+    pub(crate) size: u64,
+    pub(crate) alignment: u64,
+    reference_projection_supported: bool,
+}
+impl StorageGeometry {
+    fn reference_layout(self) -> Option<(u64, u64)> {
+        self.reference_projection_supported
+            .then_some((self.size, self.alignment))
+    }
+}
+
 fn field_geometry<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     field: &StructuralFieldDeclaration,
     active: &mut Vec<StructuralTypeId>,
 ) -> Option<(u64, u64)> {
+    physical_field_geometry(types, field, None, active)
+        .ok()?
+        .reference_layout()
+}
+
+pub(crate) fn physical_scalar_geometry(
+    scalar: ScalarType,
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
+) -> Result<StorageGeometry, crate::LayoutObservationError> {
+    if scalar
+        .as_integer()
+        .is_some_and(|integer| integer.is_address())
+    {
+        return physical_address_geometry(physical);
+    }
+    let (size, alignment) =
+        scalar_geometry(scalar).ok_or(crate::LayoutObservationError::UnsupportedScalar(scalar))?;
+    Ok(StorageGeometry {
+        size,
+        alignment,
+        reference_projection_supported: true,
+    })
+}
+
+fn physical_address_geometry(
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
+) -> Result<StorageGeometry, crate::LayoutObservationError> {
+    let physical = physical.ok_or(crate::LayoutObservationError::MissingPhysicalParameters)?;
+    if !physical.is_valid() {
+        return Err(crate::LayoutObservationError::InvalidPhysicalParameters);
+    }
+    Ok(StorageGeometry {
+        size: physical.address_byte_size,
+        alignment: physical.address_byte_alignment,
+        reference_projection_supported: false,
+    })
+}
+
+fn physical_field_geometry<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    field: &StructuralFieldDeclaration,
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
+    active: &mut Vec<StructuralTypeId>,
+) -> Result<StorageGeometry, crate::LayoutObservationError> {
     if let Some(scalar) = field.field_type.scalar_type() {
-        return scalar_geometry(
+        return physical_scalar_geometry(
             field
                 .storage
                 .as_ref()
                 .and_then(AuthoredFieldStorage::stored_scalar)
                 .unwrap_or(scalar),
+            physical,
         );
     }
-    let child = field.field_type.as_structural()?;
-    geometry(types, child, active)
+    let child = field
+        .field_type
+        .as_structural()
+        .expect("structural field has a declared carrier");
+    physical_geometry(types, child, physical, active)
 }
 
 fn geometry<'types>(
@@ -60,36 +125,106 @@ fn geometry<'types>(
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,
 ) -> Option<(u64, u64)> {
-    if active.len() >= 128 || active.contains(&root) {
-        return None;
+    physical_geometry(types, root, None, active)
+        .ok()?
+        .reference_layout()
+}
+
+pub(crate) fn physical_geometry<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    physical: Option<semantic_vocabulary::PhysicalDataLayout>,
+    active: &mut Vec<StructuralTypeId>,
+) -> Result<StorageGeometry, crate::LayoutObservationError> {
+    use crate::LayoutObservationError as Error;
+    use terminal_psi::ByteSequenceCarrier;
+    if active.contains(&root) {
+        return Err(Error::RecursiveCarrier(root));
     }
-    let shape = &types.clone().find(|row| row.id == root)?.shape;
+    if active.len() >= 128 {
+        return Err(Error::NestingLimit(root));
+    }
+    let shape = &types
+        .clone()
+        .find(|row| row.id == root)
+        .ok_or(Error::MissingCarrier(root))?
+        .shape;
     active.push(root);
-    let result = match shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => scalar_geometry(*scalar),
+    // Pop on failed children too; a failed sibling is not a recursive type.
+    let result = (|| match shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => physical_scalar_geometry(*scalar, physical),
         StructuralTypeShape::Record {
             storage: StructuralRecordStorage::Authored(storage),
             ..
-        } => Some((storage.byte_size, storage.byte_alignment)),
+        } => Ok(StorageGeometry {
+            size: storage.byte_size,
+            alignment: storage.byte_alignment,
+            reference_projection_supported: true,
+        }),
         StructuralTypeShape::Record {
             fields,
             storage: StructuralRecordStorage::Packed,
         } => {
             let mut size = 0;
             let mut alignment = 1;
+            let mut reference_projection_supported = true;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let (child_size, child_alignment) = field_geometry(types.clone(), field, active)?;
-                size = align(size, child_alignment)?.checked_add(child_size)?;
-                alignment = alignment.max(child_alignment);
+                let child = physical_field_geometry(types.clone(), field, physical, active)?;
+                size = align(size, child.alignment)
+                    .and_then(|offset| offset.checked_add(child.size))
+                    .ok_or(Error::ExtentOverflow)?;
+                alignment = alignment.max(child.alignment);
+                reference_projection_supported &= child.reference_projection_supported;
             }
-            Some((align(size, alignment)?, alignment))
+            Ok(StorageGeometry {
+                size: align(size, alignment).ok_or(Error::ExtentOverflow)?,
+                alignment,
+                reference_projection_supported,
+            })
         }
         StructuralTypeShape::FixedArray { element, length } => {
-            let (size, alignment) = geometry(types.clone(), *element, active)?;
-            Some((align(size, alignment)?.checked_mul(*length)?, alignment))
+            let element = physical_geometry(types.clone(), *element, physical, active)?;
+            Ok(StorageGeometry {
+                size: align(element.size, element.alignment)
+                    .and_then(|stride| stride.checked_mul(*length))
+                    .ok_or(Error::ExtentOverflow)?,
+                alignment: element.alignment,
+                reference_projection_supported: element.reference_projection_supported,
+            })
         }
-        _ => None,
-    };
+        StructuralTypeShape::Reference { .. }
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
+            physical_address_geometry(physical)
+        }
+        StructuralTypeShape::ElementView { .. }
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
+            let word = physical_address_geometry(physical)?;
+            Ok(StorageGeometry {
+                size: word.size.checked_mul(2).ok_or(Error::ExtentOverflow)?,
+                ..word
+            })
+        }
+        // Capacity is the exact fixed array extent, without execution headers.
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
+            Ok(StorageGeometry {
+                size: *capacity,
+                alignment: 1,
+                reference_projection_supported: false,
+            })
+        }
+        StructuralTypeShape::Record {
+            storage: StructuralRecordStorage::TargetLayout(_),
+            ..
+        } => Err(Error::UnavailableCarrier(root)),
+        StructuralTypeShape::BindingCarrier
+        | StructuralTypeShape::Record {
+            storage:
+                StructuralRecordStorage::PlacedView(_) | StructuralRecordStorage::PlacedAccessor(_),
+            ..
+        }
+        | StructuralTypeShape::Sum { .. }
+        | StructuralTypeShape::Mixed { .. } => Err(Error::UnsupportedCarrier(root)),
+    })();
     active.pop();
     result
 }

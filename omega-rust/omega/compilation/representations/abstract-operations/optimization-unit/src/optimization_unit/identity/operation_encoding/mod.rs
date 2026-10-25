@@ -58,7 +58,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. } => ieee_float::encode(bytes, operation),
 
-        O::IntegerConstant { .. }
+        O::LayoutObservation { .. }
+        | O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::StructuralScalarFieldRead { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)

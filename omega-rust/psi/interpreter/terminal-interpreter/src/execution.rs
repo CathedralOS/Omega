@@ -1087,6 +1087,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     StructuralByteSequenceFieldByteStore => advance execute_structural_byte_sequence_field_byte_store,
                                     StructuralByteSequenceFieldRead => advance execute_structural_byte_sequence_field_read,
                                     IntegerConstant => flow execute_integer_constant,
+                                    LayoutObservation => flow execute_layout_observation,
                                     IeeeFloatConstant => flow execute_ieee_float_constant,
                                     IeeeFloatCompare => flow execute_ieee_float_compare,
                                     ScalarRepresentationView => flow execute_scalar_representation_view,

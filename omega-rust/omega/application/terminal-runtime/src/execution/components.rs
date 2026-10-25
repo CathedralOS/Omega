@@ -27,12 +27,17 @@ pub(super) fn prepare<'host, 'artifact>(
         artifact,
         runtime.target().target_name(),
     );
-    let target_layouts = terminal_interpreter::admit_target_layouts(artifact, &target_machines)
-        .map_err(|error| {
-            TerminalRuntimeError::Requirements(
-                terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
-            )
-        })?;
+    let target_layouts = terminal_interpreter::admit_target_layouts(
+        artifact,
+        &target_machines,
+        target::PhysicalLayoutContext::from_profile(runtime.target())
+            .map(|context| context.data_layout()),
+    )
+    .map_err(|error| {
+        TerminalRuntimeError::Requirements(
+            terminal_interpreter::TerminalInterpretError::TargetLayoutSelection(error),
+        )
+    })?;
     let mut imports = Vec::new();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,

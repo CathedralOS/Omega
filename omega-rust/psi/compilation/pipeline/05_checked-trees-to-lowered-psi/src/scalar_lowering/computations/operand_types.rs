@@ -38,6 +38,20 @@ pub(crate) fn type_requirements(
     let plans = &checked.facts.values.scalar_computations;
     for handle in super::machine_computation_handles(checked, machine)? {
         match &plans.nodes.get(handle).kind {
+            Computation::LayoutObservation {
+                operand,
+                carrier_identity,
+                ..
+            } => {
+                if checked.primitive_type_reference(*operand).is_none()
+                    && !matches!(
+                        checked.type_reference_table.type_reference(*operand),
+                        typed_trees::types::TypeReferenceNode::Unit
+                    )
+                {
+                    types.push(*carrier_identity);
+                }
+            }
             Computation::Call {
                 source_call,
                 structural_arguments,

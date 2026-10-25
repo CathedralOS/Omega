@@ -11,6 +11,11 @@ pub fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, S
             scalar_type,
             ..
         }
+        | O::LayoutObservation {
+            result,
+            scalar_type,
+            ..
+        }
         | O::IntegerConstant {
             result,
             scalar_type,

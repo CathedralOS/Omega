@@ -223,7 +223,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             start, end, length, ..
         } => values.extend([*start, *end, *length]),
         O::ElementViewRead { index, length, .. } => values.extend([*index, *length]),
-        O::IntegerConstant { .. }
+        O::LayoutObservation { .. }
+        | O::IntegerConstant { .. }
         | O::SelectImplementation { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }

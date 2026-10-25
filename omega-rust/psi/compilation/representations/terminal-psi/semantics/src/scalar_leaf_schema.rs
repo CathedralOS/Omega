@@ -3,12 +3,14 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafResultShape {
+    ByteCount,
     DeclaredInteger,
     Boolean,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafOperandShape {
+    LayoutObservation,
     IntegerLiteral,
     BooleanLiteral,
     UnaryBoolean,
@@ -22,6 +24,7 @@ pub enum ScalarLeafOperandShape {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarLeafDenotation {
+    LayoutObservation,
     IntegerConstant,
     BooleanConstant,
     BooleanNot,
@@ -157,7 +160,9 @@ pub(crate) const fn goal_free_scalar_leaf(
             (ScalarLeafResultShape::Boolean, _) => {
                 ScalarLeafFactShape::BooleanResultEquationAndPolarityImplications
             }
-            (ScalarLeafResultShape::DeclaredInteger, _) => ScalarLeafFactShape::ResultEquation,
+            (ScalarLeafResultShape::DeclaredInteger | ScalarLeafResultShape::ByteCount, _) => {
+                ScalarLeafFactShape::ResultEquation
+            }
         },
         crash: ScalarLeafCrashPolicy::Never,
         fuel: ScalarLeafFuelPolicy::ConsumeOne,

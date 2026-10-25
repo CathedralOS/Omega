@@ -192,3 +192,26 @@ pub(super) fn encode_window_root(
         }
     }
 }
+
+/// Executable and erased geometry subjects have the same exact identity.
+pub(super) fn encode_layout_observation_subject(
+    bytes: &mut CanonicalBytes,
+    kind: semantic_vocabulary::LayoutObservationKind,
+    carrier: semantic_vocabulary::LayoutObservationCarrier,
+) {
+    bytes.u8(match kind {
+        semantic_vocabulary::LayoutObservationKind::Size => 1,
+        semantic_vocabulary::LayoutObservationKind::Alignment => 2,
+    });
+    match carrier {
+        semantic_vocabulary::LayoutObservationCarrier::Unit => bytes.u8(1),
+        semantic_vocabulary::LayoutObservationCarrier::Scalar(scalar) => {
+            bytes.u8(2);
+            encode_scalar_type(bytes, scalar);
+        }
+        semantic_vocabulary::LayoutObservationCarrier::Structural(carrier) => {
+            bytes.u8(3);
+            bytes.id(carrier);
+        }
+    }
+}

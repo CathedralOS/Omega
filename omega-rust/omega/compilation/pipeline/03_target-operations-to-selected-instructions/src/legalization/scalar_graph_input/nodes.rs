@@ -129,6 +129,12 @@ pub(in crate::legalization) fn admit(
 }
 fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId), NodeRejection> {
     match &node.operation {
+        AbstractOperation::LayoutObservation {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        } if *scalar_type == ScalarType::Integer(u64_type()) => Ok((*psi_operation, *result)),
         AbstractOperation::SelectImplementation {
             psi_operation,
             result,
@@ -299,7 +305,8 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         // A guard above failed for a listed family: an invalid literal or a
         // byte read/length whose result type the representation fixes is a
         // malformed plan, not a missing lowering.
-        AbstractOperation::IntegerConstant { .. }
+        AbstractOperation::LayoutObservation { .. }
+        | AbstractOperation::IntegerConstant { .. }
         | abstract_operations::byte_read_or_field_read_pattern!(..)
         | AbstractOperation::ByteSequenceLength { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)
@@ -997,7 +1004,8 @@ pub(super) fn validate(
                 }
                 ScalarType::Boolean
             }
-            AbstractOperation::IntegerConstant { scalar_type, .. }
+            AbstractOperation::LayoutObservation { scalar_type, .. }
+            | AbstractOperation::IntegerConstant { scalar_type, .. }
             | AbstractOperation::Call { scalar_type, .. } => *scalar_type,
             AbstractOperation::IntegerBitwiseAnd {
                 scalar_type,

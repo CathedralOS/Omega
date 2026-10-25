@@ -134,6 +134,10 @@ pub(crate) fn check_with_private_entry_ram(
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?;
             for (operation_index, operation) in block.operations.iter().enumerate() {
                 let callee = match &operation.kind {
+                    OperationKind::LayoutObservation { .. } => {
+                        program.layout_observation(operation)?;
+                        continue;
+                    }
                     OperationKind::EstablishNativeCodeLayout { machine } => {
                         return Err(TerminalInterpretError::UnsupportedCapability(
                             TerminalUnsupportedCapability::NativeCodeLayout { machine: *machine },
@@ -468,6 +472,7 @@ mod tests {
             identity,
             catalogs: std::sync::Arc::new(std::borrow::Cow::Owned(module)),
             target_layouts: None,
+            layout_observations: Default::default(),
         };
         set_machine(&mut program, entry, machine(1, Vec::new()));
         let boundary = BoundaryMachineId::new(1).unwrap();

@@ -56,13 +56,62 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     {
         return Err(LoweringError::EntryFunctionMissing(plan.entry));
     }
-    let functions_by_machine = plan
+    // Target realization closes observations only in the retained executable
+    // projection. Canonical Terminal and the abstract optimizer input retain
+    // the portable requests. Both scalar and control-flow lowering consume
+    // this one physical resolution, with their original operation identities.
+    let functions = plan
         .functions
         .iter()
+        .map(|function| {
+            let mut function = std::borrow::Cow::Borrowed(function);
+            for position in 0..function.operations.len() {
+                let AbstractOperation::LayoutObservation {
+                    psi_operation,
+                    result,
+                    scalar_type,
+                    kind,
+                    carrier,
+                } = function.operations[position]
+                else {
+                    continue;
+                };
+                if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
+                    if !integer.is_address() && integer.bits() == 64
+                        && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+                {
+                    return Err(LoweringError::LayoutObservation {
+                        operation: psi_operation,
+                        reason: terminal_semantics::LayoutObservationError::InvalidResult,
+                    });
+                }
+                let value = terminal_semantics::observe_layout(
+                    plan.structural_types.iter(),
+                    Some(target.data_layout()),
+                    kind,
+                    carrier,
+                )
+                .map_err(|reason| LoweringError::LayoutObservation {
+                    operation: psi_operation,
+                    reason,
+                })?;
+                function.to_mut().operations[position] = AbstractOperation::IntegerConstant {
+                    psi_operation,
+                    result,
+                    scalar_type,
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)),
+                };
+            }
+            Ok(function)
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let functions_by_machine = functions
+        .iter()
+        .map(|function| function.as_ref())
         .map(|function| (function.machine, function))
         .collect::<BTreeMap<_, _>>();
     let mut scalar_abis = BTreeMap::new();
-    for function in &plan.functions {
+    for function in functions.iter().map(|function| function.as_ref()) {
         if let Some(abi) = derive_fixed_scalar_function_abi(function, target)? {
             scalar_abis.insert(function.machine, abi);
         }
@@ -71,7 +120,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         verified_input.map(|input| input.context().module().structural_domains.as_slice()),
     );
     let mut mixed_structural_scalar_abis = BTreeMap::new();
-    for function in &plan.functions {
+    for function in functions.iter().map(|function| function.as_ref()) {
         if let Some(abi) =
             derive_mixed_structural_scalar_function_abi(function, target, &structural_types)?
         {
@@ -137,9 +186,9 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             .values()
             .flat_map(|callbacks| callbacks.iter().cloned())
             .collect(),
-        functions: plan
-            .functions
+        functions: functions
             .iter()
+            .map(|function| function.as_ref())
             .map(|function| {
                 let mut lowered = lower_function(
                     function,

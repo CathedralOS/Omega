@@ -268,6 +268,7 @@ impl Expansion<'_> {
                 CheckedScalarComputationKind::StorageAddress { .. }
                 | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
                 | CheckedScalarComputationKind::ByteSequencePredicate { .. }
+                | CheckedScalarComputationKind::LayoutObservation { .. }
                 | CheckedScalarComputationKind::RetainedConstant { .. }
                 | CheckedScalarComputationKind::Value(_)
                 | CheckedScalarComputationKind::StructuralField { .. }

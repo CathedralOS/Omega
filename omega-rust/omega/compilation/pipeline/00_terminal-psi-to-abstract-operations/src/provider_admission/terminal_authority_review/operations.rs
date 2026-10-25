@@ -74,6 +74,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge {
         | AbstractOperation::StructuralLeafCopy { .. }
         | AbstractOperation::MoveStructuralValue { .. }
         | AbstractOperation::TransformContent { .. }
+        | AbstractOperation::LayoutObservation { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IeeeFloatCompare { .. }

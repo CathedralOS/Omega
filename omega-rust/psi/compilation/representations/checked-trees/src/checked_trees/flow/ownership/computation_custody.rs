@@ -636,7 +636,8 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
             | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                 self.argument_evaluation(subject)
             }
-            CheckedScalarComputationKind::RetainedConstant { .. }
+            CheckedScalarComputationKind::LayoutObservation { .. }
+            | CheckedScalarComputationKind::RetainedConstant { .. }
             | CheckedScalarComputationKind::Value(_) => 0,
         }
     }

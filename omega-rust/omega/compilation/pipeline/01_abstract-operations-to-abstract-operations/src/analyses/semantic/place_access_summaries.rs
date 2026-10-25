@@ -883,6 +883,7 @@ fn scan_operation(
         | O::PortWrite { .. }
         | O::Crash { .. }
         | O::SelectImplementation { .. }
+        | O::LayoutObservation { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

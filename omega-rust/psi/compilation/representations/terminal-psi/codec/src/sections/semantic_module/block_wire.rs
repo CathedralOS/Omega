@@ -641,6 +641,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::RegisterAccess { service, event } => {
             call_operations::encode_register_access(writer, service, event)?
         }
+        OperationKind::LayoutObservation { kind, carrier } => {
+            value_operations::encode_layout_observation(writer, kind, carrier)?
+        }
         OperationKind::IntegerConstant { value } => {
             value_operations::encode_integer_constant(writer, value)?
         }
@@ -1067,6 +1070,7 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::ESTABLISH_BYTE_SEQUENCE_LITERAL => {
             value_operations::decode_establish_byte_sequence_literal(reader)?
         }
+        operation_tags::LAYOUT_OBSERVATION => value_operations::decode_layout_observation(reader)?,
         operation_tags::INTEGER_CONSTANT => value_operations::decode_integer_constant(reader)?,
         operation_tags::BOOLEAN_CONSTANT => value_operations::decode_boolean_constant(reader)?,
         operation_tags::IEEE_FLOAT_CONSTANT => {

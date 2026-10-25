@@ -3,7 +3,7 @@ use optimization_core::OptimizationValidatorIdentity;
 
 pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v55",
+        b"omega.terminal-target-legalization-independent-replay.v56",
     )
 }
 
@@ -57,6 +57,10 @@ impl LegalizationValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizationError {
+    LayoutObservation {
+        operation: semantic_vocabulary::OperationId,
+        reason: terminal_semantics::LayoutObservationError,
+    },
     /// The raw target, abstract, and optimization-unit custody disagree, or a
     /// node's own payload violates its representation. This names a producer
     /// or consumer defect, never a missing lowering. `machine` and `operation`

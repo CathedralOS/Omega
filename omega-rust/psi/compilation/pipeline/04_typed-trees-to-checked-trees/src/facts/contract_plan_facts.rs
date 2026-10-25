@@ -964,7 +964,7 @@ fn computation_contains_trapping_operation(
             continue;
         }
         match &plans.nodes.get(handle).kind {
-            Kind::RetainedConstant { .. } => {}
+            Kind::LayoutObservation { .. } | Kind::RetainedConstant { .. } => {}
             Kind::Value(expression) => {
                 if expression.contains_trapping_operation() {
                     return true;

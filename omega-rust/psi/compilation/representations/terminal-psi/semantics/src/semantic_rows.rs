@@ -221,6 +221,8 @@ operation_semantic_rows! {
     CallDynamic => ("algebra:call:call-dynamic", CallComposition, None),
     PortWrite => ("schema:operation:port-write", LeafDenotation, None),
     RegisterAccess => ("schema:operation:register-access", LeafDenotation, None),
+    LayoutObservation => ("schema:operation:layout-observation", LeafDenotation,
+        goal_free_scalar_leaf(ResultShape::ByteCount, Operands::LayoutObservation, Denotation::LayoutObservation)),
     IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::IntegerLiteral, Denotation::IntegerConstant)),
     BooleanConstant => ("schema:operation:boolean-constant", LeafDenotation,

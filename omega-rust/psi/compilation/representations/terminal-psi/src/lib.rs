@@ -8,6 +8,7 @@
 
 mod artifacts;
 pub(crate) use optimization::digest_encoder;
+pub use semantic_vocabulary::{LayoutObservationCarrier, LayoutObservationKind};
 pub mod terminal_module;
 pub use artifacts::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryTerminalReceipt,

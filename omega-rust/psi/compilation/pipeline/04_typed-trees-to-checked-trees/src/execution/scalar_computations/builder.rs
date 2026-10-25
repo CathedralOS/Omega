@@ -437,13 +437,35 @@ impl Builder<'_, '_> {
         if !is_integer(primitive) {
             return None;
         }
-        Some((
-            self.insert(
-                primitive,
-                CheckedScalarComputationKind::RetainedConstant { expression: root },
-            ),
-            primitive,
-        ))
+        let kind = match self.program.expression_table.expression(root) {
+            ExpressionNode::Call(call) if call.layout_query.is_some() => {
+                let query = call.layout_query.as_ref().expect("formed layout query");
+                let binders = self
+                    .program
+                    .machine_by_symbol(self.machine)
+                    .map(|machine| {
+                        crate::execution::terminal_unit::types::machine_binders(
+                            self.program,
+                            machine,
+                        )
+                    })
+                    .unwrap_or_default();
+                CheckedScalarComputationKind::LayoutObservation {
+                    expression: root,
+                    machine: self.machine,
+                    kind: query.kind,
+                    operand: query.carrier,
+                    carrier_identity: validation::stored_structural_type_identity(
+                        self.program,
+                        query.carrier,
+                        &binders,
+                        &[],
+                    ),
+                }
+            }
+            _ => CheckedScalarComputationKind::RetainedConstant { expression: root },
+        };
+        Some((self.insert(primitive, kind), primitive))
     }
 
     pub(super) fn expression(

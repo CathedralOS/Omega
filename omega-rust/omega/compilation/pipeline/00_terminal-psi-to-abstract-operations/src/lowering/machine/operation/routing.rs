@@ -686,6 +686,23 @@ pub(super) fn lower(
             *source,
             abstract_operations::StructuralCopyPath::Case(path.clone()),
         ),
+        OperationKind::LayoutObservation { kind, carrier } => {
+            terminal_semantics::validate_layout_observation(operation, |carrier| {
+                module.structural_type(carrier).is_some()
+            })
+            .map_err(|reason| LoweringError::LayoutObservation {
+                operation: operation.id,
+                reason,
+            })?;
+            let result = operation.result.expect_scalar();
+            Ok(AbstractOperation::LayoutObservation {
+                psi_operation: operation.id,
+                result: result.id,
+                scalar_type: result.scalar_type,
+                kind: *kind,
+                carrier: *carrier,
+            })
+        }
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
         OperationKind::IeeeFloatCompare { .. }
         | OperationKind::FloatResultPolicy { .. }

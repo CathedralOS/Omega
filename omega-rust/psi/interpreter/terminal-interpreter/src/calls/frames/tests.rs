@@ -63,6 +63,7 @@ pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
         identity: terminal_codec::terminal_psi_identity(&module).unwrap(),
         catalogs: Arc::new(Cow::Owned(module)),
         target_layouts: None,
+        layout_observations: Default::default(),
     })
 }
 

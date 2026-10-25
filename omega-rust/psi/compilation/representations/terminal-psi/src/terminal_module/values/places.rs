@@ -103,6 +103,7 @@ macro_rules! call_and_scalar_constant_operations {
             | Self::SelectImplementation { .. }
             | Self::PortWrite { .. }
             | Self::RegisterAccess { .. }
+            | Self::LayoutObservation { .. }
             | Self::IntegerConstant { .. }
             | Self::BooleanConstant { .. }
             | Self::IeeeFloatConstant { .. }

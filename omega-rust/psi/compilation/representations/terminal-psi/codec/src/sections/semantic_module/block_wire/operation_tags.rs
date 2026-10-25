@@ -268,3 +268,5 @@ pub(super) const MERGE_ACTIVATION_CLAIM: u8 = 130;
 
 /// Atomic event with its distinct resident establishment obligation.
 pub(super) const RESTRICTED_ATOMIC_ACCESS: u8 = 131;
+/// A portable query over an exact data carrier's admitted storage.
+pub(super) const LAYOUT_OBSERVATION: u8 = 132;

@@ -21,6 +21,38 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, MachineId, ObligationId, OperationId, ScalarType, ValueId,
 };
 use target_operations::{TargetFunction, TargetOperationPlan, TargetUnitOperation};
+
+/// Replay the query's physical value independently of target lowering. Its
+/// ordinary constant row keeps the query's operation and result identities;
+/// a producer-supplied literal alone cannot establish this correspondence.
+pub(in crate::legalization) fn layout_observation_value(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    physical: semantic_vocabulary::PhysicalDataLayout,
+    operation: &AbstractOperation,
+) -> Result<semantic_vocabulary::IntegerValue, LegalizationError> {
+    let AbstractOperation::LayoutObservation {
+        psi_operation,
+        scalar_type,
+        kind,
+        carrier,
+        ..
+    } = operation
+    else {
+        return Err(LegalizationError::custody());
+    };
+    if *scalar_type != ScalarType::Integer(u64_type()) {
+        return Err(LegalizationError::LayoutObservation {
+            operation: *psi_operation,
+            reason: terminal_semantics::LayoutObservationError::InvalidResult,
+        });
+    }
+    terminal_semantics::observe_layout(types.iter(), Some(physical), *kind, *carrier)
+        .map(|value| semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)))
+        .map_err(|reason| LegalizationError::LayoutObservation {
+            operation: *psi_operation,
+            reason,
+        })
+}
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
 pub(super) mod atomic_access;

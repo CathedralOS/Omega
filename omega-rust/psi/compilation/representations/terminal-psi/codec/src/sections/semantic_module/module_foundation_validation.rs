@@ -743,6 +743,15 @@ fn validate_operation_foundation(
         )?;
     }
     match &operation.kind {
+        OperationKind::LayoutObservation { .. } => {
+            terminal_semantics::validate_layout_observation(operation, |carrier| {
+                module.structural_type(carrier).is_some()
+            })
+            .map_err(|reason| CodecError::LayoutObservation {
+                operation: operation.id,
+                reason,
+            })?;
+        }
         OperationKind::EstablishPlacedReference { .. } => {
             storage_foundations::validate_establish_placed_reference(module, machine, operation)?
         }

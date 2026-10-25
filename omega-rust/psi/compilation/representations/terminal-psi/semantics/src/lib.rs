@@ -61,12 +61,16 @@ pub use domain_preservation::{
     scalar_field_store_preserves_domain_content, store_preserves_content,
     store_preserves_domain_content, store_preserves_qualifications,
 };
+mod layout_observations;
 mod primitive_place;
 mod proof_bearing_scalar;
 mod record_field;
 mod reference_completion;
 mod reference_origins;
 mod reference_storage_geometry;
+pub use layout_observations::{
+    LayoutObservationError, observe_layout, validate_layout_observation,
+};
 mod reference_views;
 pub use reference_completion::{
     ReferenceCompletionError, ReferenceCompletionOccurrence, cleanup_disposes_reference,
