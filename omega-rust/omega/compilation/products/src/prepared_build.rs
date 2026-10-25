@@ -33,8 +33,7 @@ pub struct PreparedBuild {
 /// Complete authored and generated Product source, consumed once by Psi checking.
 /// Realization never receives a mutable copy of this source continuation.
 pub struct PreparedProductSource {
-    pub typed: typed_trees::TypedTrees,
-    pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
+    pub source: psi_compiler::PreparedSource,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,

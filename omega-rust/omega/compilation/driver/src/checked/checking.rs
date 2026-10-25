@@ -272,20 +272,18 @@ pub(super) fn complete_prepared_build(
     } = prepared;
     let retained_build_check = built.retained_build_check.take();
     let base_sources = built.base_sources.clone();
-    let (typed, pending_pre_checks, computed_build_config, admission) =
-        build_continuation::complete_product_frontend(
-            built,
-            &mut build_sources,
-            package_inputs,
-            &mut timings,
-        )
-        .map_err(|mut diagnostics| {
-            attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
-            diagnostics
-        })?;
+    let (source, computed_build_config, admission) = build_continuation::complete_product_frontend(
+        built,
+        &mut build_sources,
+        package_inputs,
+        &mut timings,
+    )
+    .map_err(|mut diagnostics| {
+        attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
+        diagnostics
+    })?;
     Ok(PreparedProductSource {
-        typed,
-        pending_pre_checks,
+        source,
         computed_build_config,
         admission,
         build_sources,

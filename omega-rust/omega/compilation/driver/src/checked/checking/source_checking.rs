@@ -17,20 +17,21 @@ pub(crate) fn check_product_source(
     selections: &mut psi_compiler::ProductSelections,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
-        typed,
-        pending_pre_checks,
+        source,
         computed_build_config,
         admission,
         build_sources,
         mut timings,
         retained_build_check,
     } = source;
+    let (program, pending_pre_checks) = source.into_check_input();
+    let typed = program.typed();
     // A deferred application still needs selected runtime meaning. The shared
     // judgment checks its symbolic recipe; each target closure resumes this
     // continuation under its own selected rows after settlement.
     let constant_recipe_continuations = pending_pre_checks;
     let constant_recipe_source =
-        (!constant_recipe_continuations.is_empty()).then(|| Arc::new(typed.clone()));
+        (!constant_recipe_continuations.is_empty()).then(|| Arc::new((*typed).clone()));
     let build = &computed_build_config.config;
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
@@ -88,7 +89,7 @@ pub(crate) fn check_product_source(
         .record_result(TYPED_TREES_TO_CHECKED_TREES, || {
             let started = std::time::Instant::now();
             let result = psi_compiler::CheckRequest {
-                program: typed,
+                program,
                 admission: source_admission,
                 previous: &previous,
                 retain: reuse.retain,

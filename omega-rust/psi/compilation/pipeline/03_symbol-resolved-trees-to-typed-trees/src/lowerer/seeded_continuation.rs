@@ -21,12 +21,13 @@ pub enum SeededContinuationError {
 /// Opaque ownership of one exact resolved/typed base pair. Prepared symbols,
 /// semantic domains and service rows join the resolved allocation frontier
 /// before either continuation allocates further IDs. Source selection stays exact.
-/// `Clone` copies the owned pair for a caller retaining one frontier while the
-/// original continues into generated-source extension and checking.
+/// Forks retain the same immutable pair. A construction mutation first takes
+/// its own typed storage; a completed source can therefore retain its exact
+/// origin beside a later checked judgment without copying that origin again.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SeededTypingBase {
     resolved: Arc<SymbolResolvedTrees>,
-    typed: TypedTrees,
+    typed: Arc<TypedTrees>,
 }
 
 impl SeededTypingBase {
@@ -77,7 +78,7 @@ impl SeededTypingBase {
     pub fn lower_extension(
         self,
         source: syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees,
-    ) -> Result<TypedTrees, Vec<Diagnostic>> {
+    ) -> Result<Self, Vec<Diagnostic>> {
         let rebased = source
             .rebase_authored_selections_for_typed_continuation(
                 self.typed.authored_declaration_selections(),
@@ -140,11 +141,11 @@ impl SeededTypingBase {
     }
 
     pub fn typed_mut(&mut self) -> &mut TypedTrees {
-        &mut self.typed
+        Arc::make_mut(&mut self.typed)
     }
 
     pub fn into_typed(self) -> TypedTrees {
-        self.typed
+        Arc::unwrap_or_clone(self.typed)
     }
 }
 
@@ -158,16 +159,20 @@ pub fn lower_symbol_resolved_trees_to_seeded_base(
     // generated symbols, so keep that suffix with the typed arenas; the next
     // resolver extension admits it through resolved_base_for_extension.
     let typed = lower_symbol_resolved_trees(&resolved)?;
-    Ok(SeededTypingBase { resolved, typed })
+    Ok(SeededTypingBase {
+        resolved,
+        typed: Arc::new(typed),
+    })
 }
 
 /// Append an ordinarily resolved declaration cohort to an exact retained typed
 /// base. Mutation occurs on a clone, so every error returns the input base
-/// byte-for-byte; no caller is licensed to reconstruct a second frontend.
+/// byte-for-byte. The result keeps the extended resolver and typed arenas
+/// together; no caller is licensed to reconstruct a second frontend.
 pub fn lower_seeded_extension(
     source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
     retained: SeededTypingBase,
-) -> Result<TypedTrees, (SeededTypingBase, SeededContinuationError)> {
+) -> Result<SeededTypingBase, (SeededTypingBase, SeededContinuationError)> {
     let (source, resolved_base) = source.into_typing_continuation_parts();
     if resolved_base != *retained.resolved {
         return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
@@ -198,7 +203,7 @@ pub fn lower_seeded_extension(
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
     let resolved_ledger = source.authored_declaration_selections().clone();
-    let mut candidate = retained.typed.clone();
+    let mut candidate = retained.typed.as_ref().clone();
     if let Err(error) = join_resolved_semantics(&source, &resolved_base, &mut candidate) {
         return Err((retained, SeededContinuationError::Lowering(error)));
     }
@@ -244,7 +249,11 @@ pub fn lower_seeded_extension(
     // Replaying a whole-tree storage comparison here is not a trust boundary:
     // generated declarations legitimately extend retained owners' child spans.
     // Retained preservation belongs to those operations and their fixtures.
-    Ok(lowerer.typed_trees)
+    let typed = lowerer.typed_trees;
+    Ok(SeededTypingBase {
+        resolved: Arc::new(source),
+        typed: Arc::new(typed),
+    })
 }
 
 /// Authored completion shares ordinary body lowering, but admits only the
@@ -292,7 +301,7 @@ fn lower_body_completion(
         ));
     }
     super::validate_resolved_semantics(&source)?;
-    let mut candidate = retained.typed.clone();
+    let mut candidate = retained.typed.as_ref().clone();
     join_resolved_semantics(&source, &predecessor, &mut candidate)?;
     let mut lowerer = Lowerer {
         typed_trees: candidate,
@@ -329,7 +338,7 @@ fn lower_body_completion(
     Ok((
         SeededTypingBase {
             resolved: source,
-            typed,
+            typed: Arc::new(typed),
         },
         frontier,
     ))

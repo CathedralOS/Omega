@@ -124,7 +124,7 @@ pub(crate) fn prepare_checked_build(
                 provisional
             };
             let result = psi_compiler::CheckRequest {
-                program,
+                program: program.into(),
                 admission: psi_compiler::SourceAdmission {
                     declarations: packages
                         .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),

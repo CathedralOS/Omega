@@ -27,7 +27,7 @@ mod source_parsing;
 
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
-    SelectedCheckedSource, SourceAdmission,
+    SelectedCheckedSource, SourceAdmission, SourceCheckInput,
 };
 pub use source_parsing::{ParsedText, SourceInput, SourceParseError, parse_text};
 

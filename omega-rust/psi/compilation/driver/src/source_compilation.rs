@@ -48,10 +48,23 @@ pub struct SourceExtensionRequest {
     pub selection_authority: Arc<dyn BuildTimeSelectionAuthority>,
 }
 
-/// Complete Product typing and any deferred constant obligations, ready for checking.
+/// Complete Product typing and its exact resolver/typing origin, ready for checking.
+/// A checked dependency needs this owner as well as its language judgment: bare
+/// typed trees cannot establish which authored source frontier may be extended.
 pub struct PreparedSource {
-    pub typed: typed_trees::TypedTrees,
-    pub pending_pre_checks: Vec<PreCheckEvaluation>,
+    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    pending_pre_checks: Vec<PreCheckEvaluation>,
+}
+
+impl PreparedSource {
+    /// Transfer the coupled origin to checking. Deferred target recipes remain
+    /// explicit outputs; retaining the source owner grants them no execution.
+    pub fn into_check_input(self) -> (crate::SourceCheckInput, Vec<PreCheckEvaluation>) {
+        (
+            crate::SourceCheckInput::from_source(self.typing),
+            self.pending_pre_checks,
+        )
+    }
 }
 
 impl SourceCompilationRequest {
@@ -191,7 +204,7 @@ impl SourceContinuation {
 impl CompletedSource {
     pub fn finish(self) -> PreparedSource {
         PreparedSource {
-            typed: self.typing.into_typed(),
+            typing: self.typing,
             pending_pre_checks: self.pending_pre_checks,
         }
     }
@@ -227,17 +240,17 @@ impl CompletedSource {
                 },
             )
         })?;
-        let mut typed = observer.record_result(PsiCompilationStage::Typing, || {
+        self.typing = observer.record_result(PsiCompilationStage::Typing, || {
             self.typing.lower_extension(seeded)
         })?;
         self.pending_pre_checks
             .extend(PreCheckEvaluation::evaluate_extension_or_defer(
                 pre_checks,
                 wire_schema_frontier,
-                &mut typed,
+                self.typing.typed_mut(),
             )?);
         Ok(PreparedSource {
-            typed,
+            typing: self.typing,
             pending_pre_checks: self.pending_pre_checks,
         })
     }

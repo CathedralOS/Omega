@@ -10,7 +10,75 @@ use diagnostics::Diagnostic;
 use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
-pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
+pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
+
+/// A complete language judgment beside the source owner that produced its input.
+/// Bare typed requests retain no resolver origin and cannot supply an authored
+/// extension merely because their final trees match another compilation.
+#[derive(Debug, Clone)]
+pub struct RetainedCheck {
+    judgment: typed_trees_to_checked_trees::RetainedCheck,
+    source: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+}
+
+impl RetainedCheck {
+    pub fn same_judgment(&self, other: &Self) -> bool {
+        self.judgment.same_judgment(&other.judgment)
+    }
+}
+
+/// Checking consumes typed work or the coupled source owner that produced it.
+/// Only source completion can construct the latter; callers cannot pair a
+/// resolver snapshot with independently supplied typed trees.
+pub struct SourceCheckInput {
+    owner: CheckInputOwner,
+}
+
+enum CheckInputOwner {
+    Typed(typed_trees::TypedTrees),
+    Source(symbol_resolved_trees_to_typed_trees::SeededTypingBase),
+}
+
+impl From<typed_trees::TypedTrees> for SourceCheckInput {
+    fn from(program: typed_trees::TypedTrees) -> Self {
+        Self {
+            owner: CheckInputOwner::Typed(program),
+        }
+    }
+}
+
+impl SourceCheckInput {
+    pub(crate) fn from_source(
+        source: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    ) -> Self {
+        Self {
+            owner: CheckInputOwner::Source(source),
+        }
+    }
+
+    pub fn typed(&self) -> &typed_trees::TypedTrees {
+        match &self.owner {
+            CheckInputOwner::Typed(program) => program,
+            CheckInputOwner::Source(source) => source.typed(),
+        }
+    }
+
+    fn into_checking_parts(
+        self,
+        retain: bool,
+    ) -> (
+        typed_trees::TypedTrees,
+        Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+    ) {
+        match self.owner {
+            CheckInputOwner::Typed(program) => (program, None),
+            CheckInputOwner::Source(source) => {
+                let origin = retain.then(|| source.clone());
+                (source.into_typed(), origin)
+            }
+        }
+    }
+}
 
 /// Evaluated source permissions and representation facts for this invocation.
 /// These are not provider selections or execution authority.
@@ -27,7 +95,7 @@ pub struct SourceAdmission<'request> {
 /// Consume a complete typed program. Previous judgments belong to the same
 /// invocation; the first is the incremental predecessor, followed by siblings.
 pub struct CheckRequest<'request> {
-    pub program: typed_trees::TypedTrees,
+    pub program: SourceCheckInput,
     pub admission: SourceAdmission<'request>,
     pub previous: &'request [&'request RetainedCheck],
     pub retain: bool,
@@ -53,7 +121,7 @@ pub struct SelectedCheckedSource {
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
-        let mut program = self.program;
+        let (mut program, source) = self.program.into_checking_parts(self.retain);
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -71,15 +139,19 @@ impl CheckRequest<'_> {
             .with_declaration_authority(self.admission.declarations);
         let admission = preparation.admission();
         let matching = phase_profile::scope("05.b.retained_match", || {
-            self.previous
-                .iter()
-                .copied()
-                .find(|prior| prior.judges_preparation_input(&program, &admission))
+            self.previous.iter().copied().find(|prior| {
+                prior
+                    .judgment
+                    .judges_preparation_input(&program, &admission)
+            })
         });
         let outcome = if let Some(prior) = matching {
             phase_profile::count("05.b.retained_match.hit", 1);
-            let outcome =
-                typed_trees_to_checked_trees::reuse_retained_check(prior, &checking, self.retain)?;
+            let outcome = typed_trees_to_checked_trees::reuse_retained_check(
+                &prior.judgment,
+                &checking,
+                self.retain,
+            )?;
             build_time_evaluation::admit_placement_lifecycle_plans(
                 &outcome.checked.typed,
                 self.admission.declarations,
@@ -104,7 +176,7 @@ impl CheckRequest<'_> {
             let prior_dependency_bodies: Vec<_> = self
                 .previous
                 .iter()
-                .flat_map(|prior| prior.strict_dependency_bodies().iter().cloned())
+                .flat_map(|prior| prior.judgment.strict_dependency_bodies().iter().cloned())
                 .collect();
             phase_profile::scope("05.d.lower_typed_trees", || {
                 typed_trees_to_checked_trees::lower_typed_trees_reusing(
@@ -119,7 +191,9 @@ impl CheckRequest<'_> {
         };
         Ok(CheckedSource {
             program: outcome.checked,
-            retained: outcome.retained,
+            retained: outcome
+                .retained
+                .map(|judgment| RetainedCheck { judgment, source }),
             reused: outcome.took_prior,
         })
     }

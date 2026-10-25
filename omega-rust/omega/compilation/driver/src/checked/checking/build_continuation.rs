@@ -166,8 +166,7 @@ pub(super) fn complete_product_frontend(
     timings: &mut CompileTimings,
 ) -> Result<
     (
-        typed_trees::TypedTrees,
-        Vec<build_time_evaluation::PreCheckEvaluation>,
+        psi_compiler::PreparedSource,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
     ),
@@ -216,10 +215,5 @@ pub(super) fn complete_product_frontend(
     } else {
         source.finish()
     };
-    Ok((
-        prepared.typed,
-        prepared.pending_pre_checks,
-        computed_build_config,
-        admission,
-    ))
+    Ok((prepared, computed_build_config, admission))
 }
