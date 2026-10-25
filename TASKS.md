@@ -2775,7 +2775,16 @@ crash and native exit behavior.
 
 - **PIPELINE-ARCHITECTURE-ENFORCEMENT.** (new-scope) Own convergence to, and
   permanent enforcement of, the connected route in
-  [the pipeline contract](omega-rust/pipeline.md): Psi 00-07 and Build execute
+  [the pipeline contract](omega-rust/pipeline.md) and the owner-approved
+  [build/compiler migration](omega-rust/pipeline.md#build-and-compiler-ownership-migration).
+  The application Build coordinator must own scheduling, while two compiler
+  entrances visibly sequence representations and stages. Remove old orchestration
+  and forbidden production dependencies as callers migrate; a shorter wrapper
+  or folder move does not establish this outcome. Current execution starts with
+  consolidating scattered native sequencing and making product orchestration
+  explicit. Psi facade completion, application Build ownership, the common
+  Terminal view and **TERMINAL-BUILD-SEED** remain required.
+  Psi 00-07 and Build execute
   once over every authored target body; one canonical Terminal Psi product is
   the only portable handoff; Omega 00-09 realizes each requested target from
   that product and target-keyed Build rows. This item covers integration and

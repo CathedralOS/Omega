@@ -4,6 +4,7 @@
 //! native pipeline. Their identity, installation and publication contracts stay
 //! with the callers; this operation emits a body and grants no entry authority.
 
+use crate::pipeline::{self, BodyEmissionError, TargetLoweringError};
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::provider_admission::realization_error;
 
@@ -53,24 +54,22 @@ pub(super) fn emit_callable_object(
         calling_applications,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let selections = selections.selections();
-    let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
-        admitted.input.into_optimization_input(),
+    let optimized_target = pipeline::lower_to_target(
+        admitted.input,
+        abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
+            target: admission.providers.target(),
+            settlements: &admitted.providers.settlements,
+            installation: admitted.providers.installation.take(),
+        },
         selections,
-        &selections.project_psi(),
         budget,
     )
-    .map_err(|error| realization_error("callable abstract optimization", error))?;
-    let optimized_target =
-        abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-            optimized,
-            abstract_operations_to_target_operations::OptimizedTargetLoweringRequest {
-                target: admission.providers.target(),
-                settlements: &admitted.providers.settlements,
-                installation: admitted.providers.installation.take(),
-            },
-        )
-        .map_err(|error| realization_error("callable target lowering", error))?;
+    .map_err(|error| match error {
+        TargetLoweringError::AbstractOptimization(error) => {
+            realization_error("callable abstract optimization", error)
+        }
+        TargetLoweringError::Target(error) => realization_error("callable target lowering", error),
+    })?;
     let host =
         host.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
     let runtime = native_artifact::TerminalCallableRuntimeProvisions::capture_native_admission(
@@ -80,10 +79,12 @@ pub(super) fn emit_callable_object(
         host,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let physical =
-        crate::physical_pipeline::stage_optimized_verified_physical_pipeline(optimized_target)
-            .map_err(|error| realization_error("callable physical pipeline", error))?;
-    let projection = native_artifact::emit_fragment_object(physical)?;
+    let projection = pipeline::emit_target(optimized_target).map_err(|error| match error {
+        BodyEmissionError::Physical(error) => {
+            realization_error("callable physical pipeline", error)
+        }
+        BodyEmissionError::Object(diagnostics) => diagnostics,
+    })?;
     Ok(CallableObjectProduct {
         projection,
         runtime,

@@ -88,14 +88,18 @@ impl CompilationSession {
             let selected = self.select(request).result.map_err(|failure| {
                 crate::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-            crate::compiler::produce_products(vec![Ok(crate::product_execution::ProductRequest {
-                realization: selected,
-                root,
-                product,
-                permissions: None,
-            })])
+            crate::compiler::produce_products(vec![(
+                (),
+                Ok(crate::product_execution::ProductRequest {
+                    realization: selected,
+                    root,
+                    product,
+                    permissions: None,
+                }),
+            )])
             .into_iter()
             .next()
+            .map(|(_, outcome)| outcome)
             .ok_or_else(|| {
                 crate::CompilationProductError::Production(vec![diagnostics::Diagnostic::error(
                     "compiler lost the requested source product",

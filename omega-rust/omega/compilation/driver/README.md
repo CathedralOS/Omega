@@ -31,7 +31,7 @@ The crate-internal `produce_products` operation starts from checked source and
 selected target inputs, producing Terminal when required and then the requested
 outputs. It is not a second public entrypoint for compiling an existing Terminal
 artifact. That source-free operation is
-[`native_production::compile`](../native-production/src/native_compilation.rs),
+[`native_production::compile`](../native-production/src/compiler.rs),
 which takes a retained Terminal artifact and explicit realization inputs.
 `cargo run -p compiler --example terminal_sharing` exercises two native targets
 through this route and checks actual production counts and shared backing
@@ -231,7 +231,7 @@ so equal checked programs produce Terminal Psi once before native realization.
 
 [Native product preparation](src/native.rs) produces the same retained
 Terminal product as Terminal-only compilation, then consumes it through
-[`native_production::compile`](../native-production/src/native_compilation.rs).
+[`native_production::compile`](../native-production/src/compiler.rs).
 Fresh compilation and package re-entry share one source-free realization route:
 there is no direct-source native driver, second program-entry artifact, or
 prepared-compilation cache lifecycle. Package acceptance is captured separately
@@ -456,27 +456,26 @@ The [native compiler](../native-production/README.md) consumes canonical Termina
 inputs. Its public contracts are [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../../wiki/spec/build/private_callbacks.md), and
 [component publication](../../../../wiki/spec/build/component_publication.md).
-Start at [native_compilation.rs](../native-production/src/native_compilation.rs):
+Start at [compiler.rs](../native-production/src/compiler.rs):
 validate scope and entry, obtain the abstract input, admit providers, emit the
 object, and assemble the image. One `NativeCompileRequest` carries the image
 request, optimization selections, admitted imports and authority policies.
 The retained Terminal proposal supplies target and provider evidence. Those
 inputs do not select alternate API entrypoints.
 
-Program and callback realization pass verified abstract input directly to
-[Omega's abstract optimization stage](../pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs),
-then feed its validated plan into target lowering. The
+Program and callback realization pass admitted input to the shared
+[native pipeline](../native-production/src/pipeline.rs), which sequences abstract
+optimization, target lowering and body emission. The
 [native request](../native-production/src/request.rs)
 supplies the work budget; optimization stages own its use. Callback and identity
 admission belong to the product and realization owners. The coordinator sequences
 those calls.
 
-[Object emission](../native-production/src/realization/object_emission.rs) feeds the
-target-lowering result directly into the shared physical sequence. That sequence
-returns the backend's fragment-emission input, which publication, callback
-emission and optimization reporting consume directly. No compiler-owned program
-copy or result wrapper sits between these owners; the target stage retains its
-validated translation, and fragment emission independently replays physical custody.
+[Object emission](../native-production/src/realization/object_emission.rs) captures
+target layout companions between the pipeline's lowering and emission operations,
+then publishes the object with its surviving callback bodies. Callable objects
+use the same operations; neither caller rebuilds the stage sequence. The target
+stage retains its validated translation; no compiler-owned program copy is added.
 
 The result distinguishes direct and dynamic ELF artifacts; extracting a direct
 artifact cannot grant dynamic output installation authority. Every rejection

@@ -165,6 +165,103 @@ moves inside stages 02 through 04, and provider settlement moves behind
 Terminal Psi. Source preparation remains package-owned input composition,
 not a new language stage.
 
+## Build and compiler ownership migration
+
+The owner approved this implementation plan on 2026-10-24. It is the acceptance
+for **PIPELINE-ARCHITECTURE-ENFORCEMENT**, not a claim that the current Rust
+implementation already has these boundaries. Build suspension and helper
+compilation also retain the acceptance of **TERMINAL-BUILD-SEED**.
+
+### Destination
+
+One application Build coordinator chooses needed work and schedules it. Two
+compiler drivers own representation-to-representation sequencing. The Terminal
+interpreter owns execution and suspended continuations. Package management owns
+source resolution, acquisition, review and lock decisions. Shared representations,
+foundations, product reports and publication keep independent ownership.
+
+| Entrance | Responsibility |
+| --- | --- |
+| `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
+| `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
+| `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
+| `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
+| Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
+
+These are destination owners, not extra facades above the current compiler.
+Dismantle the existing product coordinator into its actual owners. Reuse the
+source-free `native-production` implementation as the Omega driver. Move paths
+only as their responsibilities and callers migrate; do not create a second
+live driver to satisfy this table. Build-effect evaluation retains a cohesive
+owner outside the language transformation stages.
+
+### Public contracts
+
+Application coordination depends on package, compiler, interpreter and product
+facades, never compiler stages or source/intermediate IRs. Package management
+does not produce checked trees or native images. Psi does not acquire packages
+or permissions or invoke native compilation. Omega cannot depend on source IRs,
+source checkers or interpreters. Stages cannot call the coordinator or adjacent
+stages to reconstruct missing input facts. Enforce production dependency edges;
+independent representations and explicit test-only consumers remain legitimate.
+
+Consumers request meaningful outcomes: checking, Build/helper Terminal production,
+product completion, native realization or inspection. Do not expose arbitrary
+stage numbers or checked-tree checkpoints as a build-system API. Psi owns any
+source continuation across Build/generated-source admission, exposing only the
+operation needed to resume with admitted inputs. Sessions retain storage and
+reusable judgments, not alternate compilation paths.
+
+Both interpreter and native realization consume a common Terminal view: borrow
+same-session storage, or admit external bytes once and borrow that owned storage.
+Keep suspended activation storage alive while separately compiling helpers.
+Target/Build companion inputs travel explicitly; consumers cannot reopen checked
+source. Matching compilation inputs may share work; host Build and product
+contexts are not interchangeable merely because source bytes match.
+
+### Visible execution
+
+The Build entrance shows request admission, activation preparation, dependency
+settlement, frozen Build outputs, product compilation, required tests, publication
+and outcomes in that order. Its execution loop handles actual dependency requests,
+provider readiness, completed helpers, Build return and failure/cancellation.
+It is not a generic event engine for compiler phases. Dependencies may start
+while Build runs; waiting resumes the same activation without replaying effects.
+Build return joins all requests before product completion. Product bindings are
+inert during Build. Generated source cannot change admitted authored meaning.
+Ordinary Build helpers need Psi execution, not native product compilation.
+
+Each compiler entrance shows named representations and actual stage calls in
+execution order. A separate `pipeline.rs` is justified only if it owns meaningful
+sequencing rather than forwarding. Use ordinary locals, loops and matches for
+lifecycle decisions; preserve per-target failures and ordered outcomes without
+splitting identities from products into parallel tables. Parallel work surrounds
+independent jobs or target realizations, not every phase. There is no line quota.
+
+### Execution order and acceptance
+
+1. Record current consumers and focused behavior: ordinary and package
+   compilation/review, inspection, interpreted/native execution, artifact-only
+   outputs and mixed successful/failing targets.
+2. Consolidate actual stage sequencing into the two compiler owners; remove
+   migrated outside stage calls and redundant sequencing routes.
+3. Move Build lifecycle orchestration into its application owner and migrate
+   package/CLI consumers together, deleting replaced orchestration.
+4. Complete source-free Terminal inputs and the accepted Terminal Build/helper
+   continuation contract. Wrapping the legacy tree evaluator does not complete it.
+5. Remove obsolete packages, exports and adapters; reconcile dependency guards,
+   documentation and tests with the resulting ownership.
+
+Each step must preserve working consumers and land through normal validation;
+the overall outcome stays open until all obligations are demonstrated. Acceptance
+includes readable build/stage entrances, absence of forbidden production edges,
+exactly-once Build effects through helper suspension, failed/cyclic dependency
+rejection, generated-source isolation, shared source/Terminal storage across
+applicable targets, loaded and retained artifact execution, meaningful output
+stops, focused runtime/refusal controls and no material iteration-time regression.
+Record the current frontier on the existing task, not as a parallel task board.
+
 ## Placement and semantic ownership
 
 The owner rejected the fat-stages consolidation on 2026-09-26. Durable IRs
@@ -269,7 +366,8 @@ rewrites or clones checked Psi to stamp target-specific authority into facts.
 `omega/compilation/driver/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is
-`native_compilation.rs`; realization captures runtime provisions before the
+`compiler.rs`; `pipeline.rs` owns shared abstract-to-object sequencing for
+application entries, callbacks and component exports. Realization captures runtime provisions before the
 abstract, target and physical stages produce the image. Those provisions belong
 to `native-artifact`, not the source compilation products. Provider evidence
 contains no source-IR helpers: source-to-evidence conversion stays with the
@@ -652,11 +750,12 @@ high-level flow: input preparation, phase ordering or dispatch, subordinate work
 and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
 not substitute for that orchestration.
 
-Use [main.rs](omega/application/cli/src/main.rs) and
-[compiler.rs](omega/compilation/driver/src/compiler.rs) as the gold
-standard: the former shows startup and typed invocation dispatch; the latter
-shows shared preparation, product selection, per-target realization, and outcomes.
-Copy their visible orchestration principle, not their filenames or line counts.
+[main.rs](omega/application/cli/src/main.rs) shows startup and typed invocation
+dispatch. Compiler entrances must likewise expose actual stage order, and the
+Build entrance must expose its lifecycle. The current product coordinator is
+not a completed example of the destination architecture; see the
+[migration acceptance](#build-and-compiler-ownership-migration).
+Judge visible orchestration, not filenames, compact expressions or line counts.
 Representation and utility crates may start with their principal data structure
 and cohesive operations; do not invent an execution pipeline where none exists.
 

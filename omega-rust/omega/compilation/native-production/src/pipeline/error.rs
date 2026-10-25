@@ -2,6 +2,11 @@ use machine_emission::FunctionRelativeOptimizationRealizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
 
+pub(crate) enum TargetLoweringError {
+    AbstractOptimization(abstract_operations_to_abstract_operations::AbstractOptimizationError),
+    Target(abstract_operations_to_target_operations::LoweringError),
+}
+
 /// Each stage owns execution or refusal of its optimization phase; the
 /// coordinator carries the stage's own error and adds no selection policy.
 #[derive(Debug)]

@@ -109,10 +109,12 @@ fn product_production_has_no_installed_checkpoint_mode() {
 #[test]
 fn product_batch_carries_work_instead_of_empty_outcome_slots() {
     let compiler = include_str!("compiler.rs");
-    assert!(compiler.contains("ProductRequest::plan"));
+    assert!(compiler.contains("request.plan()"));
     assert!(compiler.contains("produce_retained_terminal_artifacts(terminal_requests)"));
     assert!(!compiler.contains("map(|_| None)"));
     assert!(!compiler.contains("outcomes["));
+    assert!(!compiler.contains(".unzip()"));
+    assert!(compiler.contains("outcomes.push((owner, outcome))"));
     let execution = include_str!("product_execution.rs");
     assert!(!execution.contains(".settle("));
     assert!(!execution.contains("(settlement, requested)"));

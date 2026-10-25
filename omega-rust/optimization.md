@@ -83,7 +83,7 @@ decision log cannot supply missing transformation authority.
 
 ## One physical sequence
 
-The [native physical entrance](omega/compilation/native-production/src/physical_pipeline.rs)
+The [native pipeline](omega/compilation/native-production/src/pipeline.rs)
 checks the retained selection, then performs instruction selection, selected
 X-to-X execution, allocation, machine construction, and canonical frame
 realization once. Mandatory lowering is not an optional optimization.

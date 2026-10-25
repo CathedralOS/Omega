@@ -1,4 +1,7 @@
-//! Native re-entry: prepare the retained product, admit providers, then realize.
+//! Compile retained Terminal: prepare inputs, admit providers, then realize.
+//!
+//! The representation transformations are sequenced in `pipeline.rs`; this
+//! entrance owns request recovery and the inputs needed for native admission.
 
 use crate::NativeCompileRequest;
 use diagnostics::Diagnostic;
@@ -45,32 +48,30 @@ pub fn compile_with_components(
         let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selections)
             .map_err(|reason| vec![Diagnostic::error(format!("entry RAM layout: {reason:?}"))])?;
         let entry = proposal.program_entry().checked_entry().terminal_entry();
-        let recipes = request
-            .private_entry_ram
-            .iter()
-            .map(|initializer| {
-                let row = artifact
-                    .semantic_module()
-                    .placed_view_inputs
-                    .iter()
-                    .find(|row| row.machine == entry && row.position == initializer.position)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "private entry RAM initializer answers no declared entry position",
-                        )]
-                    })?;
-                terminal_installation::admit_private_entry_ram(
-                    artifact.view(),
-                    &layouts,
-                    entry,
-                    &terminal_installation::PrivateEntryRamRecipe {
-                        input: row.clone(),
-                        contents: initializer.contents.clone(),
-                    },
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut recipes = Vec::with_capacity(request.private_entry_ram.len());
+        for initializer in request.private_entry_ram {
+            let row = artifact
+                .semantic_module()
+                .placed_view_inputs
+                .iter()
+                .find(|row| row.machine == entry && row.position == initializer.position)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "private entry RAM initializer answers no declared entry position",
+                    )]
+                })?;
+            let recipe = terminal_installation::admit_private_entry_ram(
+                artifact.view(),
+                &layouts,
+                entry,
+                &terminal_installation::PrivateEntryRamRecipe {
+                    input: row.clone(),
+                    contents: initializer.contents.clone(),
+                },
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            recipes.push(recipe);
+        }
         let component_selections = components
             .iter()
             .map(|component| component.call())

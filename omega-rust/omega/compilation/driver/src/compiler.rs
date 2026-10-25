@@ -34,55 +34,50 @@ pub(crate) fn compile_with_session(
         let (shared, targets) = request.validate_for_execution()?.into_parts();
         // Admission is occurrence-local. A refused target must not prevent an
         // admitted sibling from preparing the shared source.
-        let admitted: Vec<_> = targets
-            .into_iter()
-            .map(|target| {
-                let profile = target.profile();
-                let admitted = target
-                    .checked_execution(&shared.build_directory)
-                    .admit_package_inputs()
-                    .map(|()| target);
-                (profile, admitted)
-            })
-            .collect();
-        let source = admitted
-            .iter()
-            .find_map(|(_, target)| target.as_ref().ok())
-            .map(|target| session.check_shared_source(&shared, target));
+        let mut admitted = Vec::with_capacity(targets.len());
+        for target in targets {
+            let profile = target.profile();
+            let admission = target
+                .checked_execution(&shared.build_directory)
+                .admit_package_inputs();
+            admitted.push((profile, admission.map(|()| target)));
+        }
 
-        let (profiles, products): (Vec<_>, Vec<_>) = admitted
-            .into_iter()
-            .map(|(profile, target)| {
-                let product = target
-                    .and_then(|target| {
-                        source
-                            .as_ref()
-                            .ok_or_else(|| {
-                                vec![Diagnostic::error(
-                                    "admitted target has no shared source preparation",
-                                )]
-                            })?
-                            .as_ref()
-                            .map_err(Clone::clone)
-                            .and_then(|source| prepare_target(&shared, target, source))
-                    })
-                    .map_err(CompilationProductError::Production);
-                (profile, product)
-            })
-            .unzip();
+        let first_admitted = admitted.iter().find_map(|(_, target)| target.as_ref().ok());
+        let source = match first_admitted {
+            Some(target) => Some(session.check_shared_source(&shared, target)),
+            None => None,
+        };
 
-        let outcomes = profiles
-            .into_iter()
-            .zip(produce_products(products))
-            .map(|(profile, outcome)| {
-                CompileTargetOutcome::new(
-                    profile,
-                    outcome
-                        .and_then(CompilationOutput::into_report)
-                        .map_err(CompilationProductError::into_diagnostics),
-                )
-            })
-            .collect();
+        let mut products = Vec::with_capacity(admitted.len());
+        for (profile, target) in admitted {
+            let product = match target {
+                Err(diagnostics) => Err(diagnostics),
+                Ok(target) => match &source {
+                    Some(Ok(source)) => prepare_target(&shared, target, source),
+                    Some(Err(diagnostics)) => Err(diagnostics.clone()),
+                    None => Err(vec![Diagnostic::error(
+                        "admitted target has no shared source preparation",
+                    )]),
+                },
+            };
+            products.push((
+                profile,
+                product.map_err(CompilationProductError::Production),
+            ));
+        }
+
+        let mut outcomes = Vec::with_capacity(products.len());
+        for (profile, product) in produce_products(products) {
+            let report = match product {
+                Ok(output) => output.into_report(),
+                Err(error) => Err(error),
+            };
+            outcomes.push(CompileTargetOutcome::new(
+                profile,
+                report.map_err(CompilationProductError::into_diagnostics),
+            ));
+        }
         Ok(CompileOutcomes::new(outcomes))
     })
 }
@@ -121,32 +116,42 @@ fn prepare_target(
 /// Completed stops and errors stay in the ordered roster; only executable work
 /// borrows the shared Terminal producer. No parallel index table or empty output
 /// slots need to be reconstructed after production.
-pub(crate) fn produce_products(
-    requests: Vec<Result<ProductRequest, CompilationProductError>>,
-) -> Vec<Result<CompilationOutput, CompilationProductError>> {
-    let mut work: Vec<_> = requests
-        .into_iter()
-        .map(|request| request.and_then(ProductRequest::plan))
-        .collect();
-    let terminal_requests = work
-        .iter_mut()
-        .filter_map(|work| match work {
-            Ok(CompilationWork::Terminal(product)) => Some(product.terminal_request()),
-            Ok(CompilationWork::Complete(_)) | Err(_) => None,
-        })
-        .collect();
+pub(crate) fn produce_products<Owner>(
+    requests: Vec<(Owner, Result<ProductRequest, CompilationProductError>)>,
+) -> Vec<(Owner, Result<CompilationOutput, CompilationProductError>)> {
+    // The caller's target/package identity travels with its work and outcome.
+    let mut work = Vec::with_capacity(requests.len());
+    for (owner, request) in requests {
+        let planned = match request {
+            Ok(request) => request.plan(),
+            Err(error) => Err(error),
+        };
+        work.push((owner, planned));
+    }
+
+    let mut terminal_requests = Vec::new();
+    for (_, planned) in &mut work {
+        if let Ok(CompilationWork::Terminal(product)) = planned {
+            terminal_requests.push(product.terminal_request());
+        }
+    }
     let mut terminals = produce_retained_terminal_artifacts(terminal_requests).into_iter();
-    work.into_iter()
-        .map(|work| match work? {
-            CompilationWork::Complete(output) => Ok(output),
-            CompilationWork::Terminal(product) => {
-                let terminal = terminals.next().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "Terminal production lost a requested application",
-                    )]
-                })??;
-                product.finish(terminal)
-            }
-        })
-        .collect()
+
+    let mut outcomes = Vec::with_capacity(work.len());
+    for (owner, planned) in work {
+        let outcome = match planned {
+            Err(error) => Err(error),
+            Ok(CompilationWork::Complete(output)) => Ok(output),
+            Ok(CompilationWork::Terminal(product)) => match terminals.next() {
+                Some(Ok(terminal)) => product.finish(terminal),
+                Some(Err(diagnostics)) => Err(diagnostics.into()),
+                None => Err(vec![Diagnostic::error(
+                    "Terminal production lost a requested application",
+                )]
+                .into()),
+            },
+        };
+        outcomes.push((owner, outcome));
+    }
+    outcomes
 }
