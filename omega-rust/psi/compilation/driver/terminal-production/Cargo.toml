@@ -1,0 +1,18 @@
+[package]
+name = "psi-terminal-production"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+checked-trees = { path = "../../representations/checked-trees" }
+checked-trees-to-lowered-psi = { path = "../../pipeline/05_checked-trees-to-lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../../pipeline/06_lowered-psi-to-lowered-psi" }
+lowered-psi-to-terminal-psi = { path = "../../pipeline/07_lowered-psi-to-terminal-psi" }
+optimization = { path = "../../../foundation/optimization-selections" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+diagnostics = { path = "../../../foundation/diagnostics" }
+source = { path = "../../../foundation/source" }
+symbols = { path = "../../../foundation/symbols" }
+semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }

@@ -871,6 +871,10 @@ fail/borrows/byte_view_shared_element_mutable_reference rejected 514ms expected 
 	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/call_transfer_scalar_observation rejected 1574ms @b35a8336954a+wt
 	state `receive` receives `control` as both mutable and read-only
+fail/borrows/callable_multi_input_elision_needs_relation rejected 800ms expected @ddaf8758ca5e+wt
+	machine `choose` returns a view but takes 2 candidate ref inputs (`first carried source []`, `second carried source []`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
+fail/borrows/callable_shared_candidate_cannot_supply_mutable_result rejected 740ms expected @ddaf8758ca5e+wt
+	machine `choose` returns a view whose access cannot be supplied by matching input `first`
 fail/borrows/captured_reference_membership_ignores_later_selector rejected 1390ms expected @5f668826adf3
 	cannot prove requires contract for call consume from stale: held.value in u64::Positive in state `entry`
 fail/borrows/captured_window_write_invalidates_backing rejected 1441ms expected @5f668826adf3
@@ -977,6 +981,8 @@ fail/borrows/copied_input_descriptor_retarget_rejected rejected 1293ms expected 
 fail/borrows/copied_reference_cohort_live_source_write rejected 1723ms expected @5f668826adf3
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cell.value` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 5 and it is released at state exit)
+fail/borrows/copied_shared_descendant_keeps_owner rejected 502ms expected @7fd97495b148+wt
+	state `drop$specialized$9e8160205d459d88$0` receives an owned value while local borrow `views` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/borrows/cyclic_arrival_duplicates_exclusive_reference rejected 1554ms expected @5f668826adf3
 	state `spin` receives `sibling` as mutable more than once
 fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 778ms expected @5f668826adf3
@@ -1009,6 +1015,24 @@ fail/borrows/dropped_reference_refresh_does_not_restore_payload rejected 580ms e
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket.number == 7; no exact incoming reference origin for ticket
 fail/borrows/duplicate_retained_subject_arguments rejected 1502ms expected @5f668826adf3
 	state `take` receives `main` as mutable more than once
+fail/borrows/dyn_multi_input_result_retains_actual_backing rejected 736ms expected @ddaf8758ca5e+wt
+	state `receive` receives `storage` as both mutable and read-only
+	state `receive` receives `storage` as both mutable and read-only
+fail/borrows/dyn_multi_input_result_retains_other_region rejected 728ms expected @ddaf8758ca5e+wt
+	state `receive` receives `sibling` as both mutable and read-only
+	state `receive` receives `sibling` as both mutable and read-only
+fail/borrows/dyn_result_retains_actual_backing rejected 951ms expected @032e85a7991d+wt
+	state `receive` receives `storage` while local borrow `original` is still active
+	state `after` receives `storage` while local borrow `original` is still active
+	state `mutate` receives `storage` while local borrow `original` is still active
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 2
+	statement 2 mutates `storage[0]` while local borrow `original` is still active (borrowed at statement 1)
+fail/borrows/dyn_result_retains_all_public_regions rejected 886ms expected @032e85a7991d+wt
+	state `receive` receives `sibling` while local borrow `original` is still active
+	state `after` receives `sibling` while local borrow `original` is still active
+	state `mutate` receives `sibling` while local borrow `original` is still active
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 3
+	statement 3 mutates `sibling[0]` while local borrow `original` is still active (borrowed at statement 2)
 fail/borrows/dynamic_byte_result_retains_first_candidate rejected 1646ms expected @5f668826adf3
 	statement 2 mutates `main.first[0]` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/dynamic_byte_result_retains_second_candidate rejected 2885ms expected @5f668826adf3
@@ -1213,6 +1237,8 @@ fail/borrows/nested_array_reference_call_stale_index rejected 1546ms expected @5
 	cannot prove index `external` is within length 2 in exercise::entry
 fail/borrows/nested_array_shared_view_write rejected 584ms expected @5f668826adf3
 	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/nested_callable_field_regions_swapped rejected 651ms expected @ddaf8758ca5e+wt
+	machine `Separate::join` state `join` does not satisfy trait `Joining` machine `join`: conformance borrow contract: callable returned view has a different input-source relation
 fail/borrows/nested_owned_call_backing_keeps_input_loan rejected 642ms expected @7b9581cd8838
 	statement 3 mutates `second.payload` while local borrow `__hoist_14` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/nested_reference_call_stale_index rejected 1372ms expected @5f668826adf3
@@ -2336,7 +2362,7 @@ fail/comptime/const_array_length_dependency_cycle rejected 339ms expected @5f668
 fail/comptime/effectful_const_array_length rejected 798ms expected @5f668826adf3
 	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `@array-extent-2-2` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/comptime/fuel_exhausted_const_array_length rejected 837ms expected @5f668826adf3
-	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
+	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: constant Terminal execution exhausted its fuel allowance after 100000 units
 fail/comptime/negative_const_array_length rejected 686ms expected @5f668826adf3
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
 fail/comptime/recipe_endpoint_membership_refused_at_closure rejected 7668ms expected @5f668826adf3
@@ -2481,6 +2507,14 @@ fail/contracts/current_computed_scalar_guard_overwritten rejected 1585ms expecte
 	cannot prove requires contract for call consume from check: width.value <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/current_computed_scalar_guard_skipped rejected 1693ms expected @5f668826adf3
 	cannot prove requires contract for call selected from check: width <= 256 - offset (needs fact `width <= 256 - offset` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/cyclic_descriptor_result_changed_input rejected 1609ms expected @b50066b75303+wt
+	cannot prove ensures contract for exit from retain_view at statement 2: result.bytes.len == selected.bytes.len
+fail/contracts/cyclic_descriptor_result_shorter_window rejected 994ms expected @b50066b75303+wt
+	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 1
+	cannot prove ensures contract for exit from retain_view at statement 2: result.bytes.len == selected.bytes.len
+fail/contracts/cyclic_descriptor_result_swapped_fields rejected 1078ms expected @b50066b75303+wt
+	cannot prove ensures contract for exit from retain_view at statement 2: result.bytes.len == selected.bytes.len
+	cannot prove ensures contract for exit from retain_view at statement 2: result.sibling.len == selected.sibling.len
 fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 1889ms expected @5f668826adf3
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining > 0
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining - 1 < 8
@@ -4087,7 +4121,7 @@ fail/effects/finite_requirement_block_required rejected 1354ms expected @5f66882
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/global_key_polling_is_not_window_input rejected 1493ms expected @1654d389500c+wt
 	machine `Client::read` state `read` does not satisfy trait `WindowInputClient` machine `read`: service `GlobalInputObservation` is not allowed by the trait requirement
-fail/effects/graphics_provider_cannot_hide_filesystem_write rejected 376ms expected @1654d389500c+wt
+fail/effects/graphics_provider_cannot_hide_filesystem_write rejected 1494ms expected @b50066b75303+wt
 	machine `Renderer::present` state `present` does not satisfy trait `GraphicsPlatform` machine `present`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/invoked_family_block_marker_redundant rejected 2244ms expected @5f668826adf3
 	call to `emit` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
@@ -4095,13 +4129,22 @@ fail/effects/macos_dispatch_cannot_hide_filesystem_write rejected 1518ms expecte
 	machine `RuntimePresentation::send` state `send` does not satisfy trait `PresentationClient` machine `send`: service `FilesystemContentWrite` is not allowed by the trait requirement
 fail/effects/nominal_callback_console_const_reach rejected 356ms expected @5f668826adf3
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `@array-extent-2-9` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/effects/optional_reach_declared_slack_rejected rejected 1192ms expected @b50066b75303+wt
+	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Unused`
+fail/effects/optional_reach_disjoint_service_rejected rejected 1127ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `Mark + Unused` but its checked body reaches undeclared service `Forbidden`
+fail/effects/optional_reach_generic_narrow_rejected rejected 1365ms expected @b50066b75303+wt
+	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Unused`
+fail/effects/optional_reach_target_union_rejected rejected 1354ms expected @b50066b75303+wt
+	machine `main` publishes service reach `Mark` but its checked body reaches undeclared service `Forbidden`
 fail/effects/pacing_poll_cannot_observe_descriptors rejected 3531ms expected @1654d389500c+wt
 	cannot prove requires contract for call poll from invalid_wait: 1 == 0 && 1 == 0 (needs fact `fds == 0 && nfds == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/effects/portable_filesystem_write_needs_write_reach rejected 7075ms expected @d81382f05a6c+wt
 	machine `read_only` publishes service reach `FilesystemContentRead` but its checked body reaches undeclared service `FilesystemContentWrite`
 fail/effects/provider_authored_reach_beyond_invocation rejected 1979ms expected @5f668826adf3
 	machine `Provider::measure` state `measure` does not satisfy trait `Measure` machine `measure`: service `Length` is not allowed by the trait requirement
-fail/effects/reviewed_service_rows_missing_capability checked 2149ms @5f668826adf3
+fail/effects/reviewed_service_rows_missing_capability rejected 1295ms expected regressed-from:checked @b50066b75303+wt
+	machine `omitted` publishes service reach `<none>` but its checked body reaches undeclared service `ReadCapability`
 fail/effects/static_boundary_callback_reach rejected 1328ms expected @3b18b32f7117+wt
 	machine `main` state `entry` does not satisfy trait `Published` machine `run`: service `Read` is not allowed by the trait requirement
 fail/effects/synchronous_callback_block_required rejected 1827ms expected @5f668826adf3
@@ -4110,7 +4153,8 @@ fail/effects/synchronous_callback_reach_required rejected 1528ms expected @5f668
 	machine `missing_capability` publishes service reach `Registrar` but its checked body reaches undeclared service `Read`
 fail/effects/top_level_callback_block_required rejected 1162ms expected @5f668826adf3
 	call to `execute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-fail/effects/top_level_callback_reach_required checked 2117ms @5f668826adf3
+fail/effects/top_level_callback_reach_required rejected 880ms expected regressed-from:checked @b50066b75303+wt
+	machine `caller` publishes service reach `<none>` but its checked body reaches undeclared service `Read`
 fail/effects/windows_canonical_path_requires_metadata rejected 7637ms expected @873d5df486fe
 	machine `inspect` publishes service reach `DirectoryEnumeration` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/windows_copy_move_requires_content rejected 1746ms expected @034b5e35c420
@@ -4494,6 +4538,24 @@ fail/facts/as_slice_views_through_target_body_short_extent rejected 4504ms expec
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call require_four from extent: view.len == 4 (needs fact `length == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/assumed_binding_input_authority_through_call_result_rejected rejected 1924ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_const_name_rejected rejected 1922ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_field_rejected rejected 1903ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_local_rejected rejected 1600ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_match_join_rejected rejected 1584ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_other_machine_rejected rejected 1505ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_other_state_rejected rejected 1355ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_parameter_rejected rejected 1346ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
+fail/facts/assumed_binding_input_authority_through_target_body_rejected rejected 1359ms expected @0aa860d93fd4+wt
+	cannot prove index `index.value` is within length 2 in Actual::get::get
 fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 1421ms expected @6f94b4f3cae8+wt
 	cannot prove index `acquire()` is within length 2 in main::entry
 fail/facts/assumed_binding_result_bound_through_const_name_rejected rejected 1386ms expected @6f94b4f3cae8+wt
@@ -4610,27 +4672,63 @@ fail/facts/borrowed_content_partition_through_parameter_rejected rejected 4477ms
 fail/facts/borrowed_content_partition_through_target_body_rejected rejected 5013ms expected @0559d33e69da+wt
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 31057ms expected @fa145e0af975
+fail/facts/borrowed_projection_cleanup_through_call_result_prerequisite rejected 516ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 27079ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_const_name_prerequisite rejected 496ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 19887ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_field_prerequisite rejected 497ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 17179ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_local_prerequisite rejected 492ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 16658ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_match_join_prerequisite rejected 494ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from through state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 17007ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_machine_prerequisite rejected 504ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 16964ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_other_state_prerequisite rejected 495ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from main state next after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 16591ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from main state next after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state next after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from main state next after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_parameter_prerequisite rejected 499ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from through state entry after statement 0: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
-fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 16297ms expected @fa145e0af975
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 2: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 5: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from through state entry after statement 8: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
+fail/facts/borrowed_projection_cleanup_through_target_body_prerequisite rejected 501ms expected @daf76df20a9d+wt
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 	cannot prove automatic cleanup requires at selected edge from across state entry after statement 1: Pair.second does not establish Receipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 3: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 6: CapturedReceipt does not establish CapturedReceipt::drop clause `receipt.code == 7`
+	cannot prove automatic cleanup requires at selected edge from across state entry after statement 9: CapturedPair.second does not establish CapturedToken::drop clause `token.code == 7`
 fail/facts/borrowed_restoration_window_through_call_result_rejected rejected 14978ms expected @8f970335dca4+wt
 	state `write_cell` receives `c` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `c.value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -5302,27 +5400,39 @@ fail/facts/compound_index_guard_through_target_body_rejected rejected 7427ms exp
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
-fail/facts/computed_byte_view_argument_snapshot_through_call_result_rejected rejected 2244ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_const_name_rejected rejected 1764ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_field_rejected rejected 1875ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_local_rejected rejected 1864ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_match_join_rejected rejected 1884ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_other_machine_rejected rejected 1870ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_other_state_rejected rejected 1542ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_parameter_rejected rejected 1531ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from drive: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_byte_view_argument_snapshot_through_target_body_rejected rejected 1774ms expected @a8d49c50220d+wt
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_call_result_rejected rejected 1471ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_const_name_rejected rejected 1318ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_field_rejected rejected 1243ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_local_rejected rejected 1257ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_match_join_rejected rejected 1161ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_other_machine_rejected rejected 1225ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_other_state_rejected rejected 1172ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_parameter_rejected rejected 1201ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from drive: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from drive: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_byte_view_argument_snapshot_through_target_body_rejected rejected 1214ms expected @ddaf8758ca5e+wt
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: ranged_original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/computed_constant_array_extent_index rejected 12852ms expected @7d49d2c3a6f2+wt
 	cannot prove index `1` is within length 1
 fail/facts/computed_constant_array_extent_mismatch rejected 535ms expected @7d49d2c3a6f2+wt
@@ -10434,31 +10544,31 @@ fail/facts/readonly_byte_pool_relocation_bound_through_target_body_rejected reje
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call inspect_bytes from evaluate_bytes: [111, 109, 101, 103].len >= 5 && [111, 109, 101, 103].len <= 5 (needs fact `bytes.len >= 5 && bytes.len <= 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/open_record_const_implementation_through_call_result_rejected rejected 1615ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_call_result_rejected rejected 1367ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_const_name_rejected rejected 88ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_const_name_rejected rejected 157ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_field_rejected rejected 1477ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_field_rejected rejected 1387ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_local_rejected rejected 2329ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_local_rejected rejected 1143ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_match_join_rejected rejected 2897ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_match_join_rejected rejected 1059ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_other_machine_rejected rejected 2498ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_other_machine_rejected rejected 1221ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_other_state_rejected rejected 2198ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_other_state_rejected rejected 1044ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_parameter_rejected rejected 2417ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_parameter_rejected rejected 1199ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_record_const_implementation_through_target_body_rejected rejected 2591ms expected @ab30b42820ea+wt
+fail/facts/open_record_const_implementation_through_target_body_rejected rejected 1087ms expected @3ddc7d1455f1+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/record_layout_geometry_unproved_call_result rejected 3932ms expected @45cbafd80d9c
@@ -13825,23 +13935,86 @@ fail/facts/twentyfour_arg_stack_calling_plan_through_target_body_rejected reject
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate24` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 1067ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 835ms expected @b50066b75303+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_const_name_rejected rejected 1071ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_const_name_rejected rejected 879ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_field_rejected rejected 1043ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_field_rejected rejected 964ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_local_rejected rejected 1038ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_local_rejected rejected 1354ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_match_join_rejected rejected 1030ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_match_join_rejected rejected 1241ms expected @b50066b75303+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_other_machine_rejected rejected 1050ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_other_machine_rejected rejected 1136ms expected @b50066b75303+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejected 1030ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejected 1162ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1033ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1153ms expected @b50066b75303+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 1019ms expected @c2e06b875ba2+wt
+fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 1051ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_call_result_rejected rejected 1085ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_const_name_rejected rejected 949ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_field_rejected rejected 1261ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_local_rejected rejected 1611ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_match_join_rejected rejected 2050ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_other_machine_rejected rejected 1331ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_other_state_rejected rejected 981ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_parameter_rejected rejected 1995ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 1978ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_call_result_rejected rejected 1234ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_const_name_rejected rejected 945ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_field_rejected rejected 1755ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_local_rejected rejected 1291ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_match_join_rejected rejected 1451ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_other_machine_rejected rejected 1656ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_other_state_rejected rejected 1644ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_parameter_rejected rejected 1982ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 1805ms expected @b50066b75303+wt
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_call_result_rejected rejected 1095ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_const_name_rejected rejected 1409ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_field_rejected rejected 1401ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_local_rejected rejected 1393ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_match_join_rejected rejected 1085ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_other_machine_rejected rejected 977ms expected @b50066b75303+wt
+	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_other_state_rejected rejected 709ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejected 860ms expected @b50066b75303+wt
+	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 695ms expected @b50066b75303+wt
 	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
@@ -15190,39 +15363,39 @@ fail/facts/unsigned_shift_right_bound_through_target_body_rejected rejected 508m
 	exact arithmetic in machine `shift_right_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_right_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `shift_right_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_call_result_unproved rejected 3447ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_const_name_unproved rejected 3445ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_field_unproved rejected 3431ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_local_unproved rejected 3449ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_match_join_unproved rejected 3448ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_other_machine_unproved rejected 3433ms expected @cb34fd2f01d4
-	exact arithmetic in machine `forward` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `forward` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_other_state_unproved rejected 3433ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `active` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `active` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_parameter_unproved rejected 3433ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/view_extent_after_write_through_target_body_unproved rejected 3437ms expected @cb34fd2f01d4
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_34` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_35` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_36` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_37` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_38` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_39` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_40` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_41` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_call_result_unproved rejected 1323ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_const_name_unproved rejected 1763ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_field_unproved rejected 1560ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_local_unproved rejected 1117ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_match_join_unproved rejected 1330ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_other_machine_unproved rejected 1029ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `forward` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `forward` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_other_state_unproved rejected 1114ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `active` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `active` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_parameter_unproved rejected 1078ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/view_extent_after_write_through_target_body_unproved rejected 1032ms expected @3ddc7d1455f1+wt
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_15` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_16` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_17` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_18` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_19` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_20` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_21` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `preserve_suffix` state `entry` local `__hoist_22` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/wildcard_structural_return_through_call_result rejected 631ms expected @ba7501de3288+wt
 	exact arithmetic in machine `consume` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/wildcard_structural_return_through_const_name rejected 674ms expected @ba7501de3288+wt
@@ -18658,6 +18831,8 @@ fail/slices/result_length_contract_requires_returned_view rejected 1798ms expect
 	cannot prove ensures contract for exit from bogus at statement 0: result.len == 2
 fail/slices/retired_collection_view_receiver rejected 1218ms expected @5f668826adf3
 	machine `Main::main` state `main`: value call `entries.as_slice(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+fail/slices/returned_inclusive_window_extent_mismatch rejected 774ms expected @daf76df20a9d+wt
+	cannot prove ensures contract for exit from clip at statement 0: result.bytes.len == 6
 fail/slices/returned_mutable_slice_local_escape rejected 1648ms expected @5f668826adf3
 	machine `escape` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/slices/returned_mutable_slice_overlapping_arguments rejected 2149ms expected @5f668826adf3
@@ -18679,6 +18854,8 @@ fail/slices/returned_record_window_lengths_disagree rejected 1780ms expected @5f
 	cannot prove ensures contract for exit from span at statement 0: result.values.len == 2
 fail/slices/returned_shared_slice_mutable_call rejected 1821ms expected @5f668826adf3
 	argument `items` for state `entry` is declared `&mut` (`&mut [i32]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/slices/returned_window_extent_mismatch rejected 772ms expected @daf76df20a9d+wt
+	cannot prove ensures contract for exit from Trailer::window at statement 0: result.bytes.len == 7
 fail/slices/runtime_matched_window_lengths_disagree rejected 1599ms expected @5f668826adf3
 	cannot prove ensures contract for exit from half at statement 0: result.len == count
 fail/slices/same_carrier_cast_reassigned_index rejected 1265ms expected @5f668826adf3
@@ -18766,6 +18943,10 @@ fail/slices/unguarded_slice_parameter_index_compile rejected 1499ms expected @5f
 	cannot prove index `index` is within unknown slice length of `entries` in Main::main::choose
 fail/slices/utf8_subslice_byte_cut rejected 1276ms expected @5f668826adf3
 	cannot prove requires contract for call inspect from relay: bytes[0..1] in [u8]::Utf8 in state `entry`
+fail/slices/window_extent_does_not_establish_bounds rejected 823ms expected @daf76df20a9d+wt
+	cannot prove subslice range end bound `2..9` is within unknown slice length of `source` in clip::entry
+fail/slices/window_extent_does_not_form_endpoint rejected 381ms expected @daf76df20a9d+wt
+	exact arithmetic in machine `selected` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/slices/window_shrink_index_out_of_length rejected 1236ms expected @5f668826adf3
 	cannot prove index `3` is within length 3
 fail/slices/wrapping_count_window_cast_needs_lower_bound rejected 545ms expected @5f668826adf3
@@ -20007,6 +20188,9 @@ pass/borrows/runtime_direct_immutable_scalar_loan_exit checked 10347ms check-tar
 pass/borrows/runtime_discarded_reference_release_exit checked 11161ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 10390ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_dropped_reference_qualification_exit checked 976ms check-target:macos_arm64 @147c3a05de1b
+pass/borrows/runtime_dyn_image_result_snapshot_exit checked 1838ms check-target:macos_arm64 @032e85a7991d+wt
+pass/borrows/runtime_dyn_multi_input_window_snapshot_exit checked 1611ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/borrows/runtime_dyn_result_region_snapshot_exit checked 1749ms check-target:macos_arm64 @032e85a7991d+wt
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit checked 892ms check-target:macos_arm64 @77f91fb3da34
 pass/borrows/runtime_expired_call_carrier_selection_exit checked 2356ms check-target:macos_arm64 @b35a8336954a+wt
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit checked 27142ms check-target:macos_arm64 @5d70318dade2
@@ -20051,6 +20235,7 @@ pass/borrows/runtime_nested_array_range_record_domains_exit rejected 1847ms chec
 	cannot prove default-domain field requirement for call main from Main::main$entry_context::entry: parameter main.groups[0][1].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from Main::main$entry_context::entry: parameter main.groups[1][0].room.label requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for call main from Main::main$entry_context::entry: parameter main.groups[1][1].room.label requires [u8; N]::Utf8
+pass/borrows/runtime_nested_callable_field_regions_exit checked 1606ms check-target:macos_arm64 @ddaf8758ca5e+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 11146ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 11084ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/runtime_nested_owned_call_backing_exit checked 3551ms check-target:macos_arm64 @7b9581cd8838
@@ -21445,8 +21630,7 @@ pass/drops/contextual_core_drop_exit rejected 2421ms check-target:macos_arm64 re
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$891e52af04cc4b60$0 state entry after statement 0: missing value.ready == true required by Token::drop clause `token.ready`
 pass/drops/contextual_hook_cleanup checked 9420ms @5041ef1af684+wt
 pass/drops/contextual_receiver_drop_exit checked 727ms check-target:macos_arm64 @cf5a1803718b+wt
-pass/drops/copied_scalar_temporary_completion_exit rejected 1789ms check-target:macos_arm64 @5f668826adf3
-	cleanup prerequisite has no exact outgoing edge context in main
+pass/drops/copied_scalar_temporary_completion_exit checked 708ms check-target:macos_arm64 @7fd97495b148+wt
 pass/drops/core_drop_explicit_consume checked 12957ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/drops/core_drop_generic_chain checked 9551ms @5041ef1af684+wt
 pass/drops/core_drop_owner_hook checked 12727ms check-target:macos_arm64 @a9ae30e1c334+wt
@@ -21584,13 +21768,17 @@ pass/effects/core_critical_service_catalog checked 642ms @1654d389500c+wt
 pass/effects/exact_synchronous_callback_rows checked 1237ms @c5a7c1ce1957+wt
 pass/effects/finite_requirement_block_acknowledged_exit checked 9603ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/generic_callback_schema_reach checked 1651ms @a9ae30e1c334+wt
-pass/effects/graphics_provider_declares_filesystem_write checked 642ms @1654d389500c+wt
+pass/effects/graphics_provider_declares_filesystem_write checked 1936ms @b50066b75303+wt
 pass/effects/gui_semantic_services checked 4106ms @1654d389500c+wt
 pass/effects/nominal_callback_const_reach checked 654ms @cf5a1803718b+wt
 pass/effects/nominal_callback_dependency checked 1598ms @a9ae30e1c334+wt
+pass/effects/optional_reach_declared_slack_exit checked 1889ms check-target:macos_arm64 @b50066b75303+wt
+pass/effects/optional_reach_empty_exit checked 1591ms check-target:macos_arm64 @b50066b75303+wt
+pass/effects/optional_reach_generic_narrow_exit checked 1592ms check-target:macos_arm64 @b50066b75303+wt
+pass/effects/optional_reach_target_union_exit checked 1582ms check-target:macos_arm64 @b50066b75303+wt
 pass/effects/reach_inferred_wrapper checked 9161ms @5041ef1af684+wt
 pass/effects/reach_through_machine_param checked 9378ms @5041ef1af684+wt
-pass/effects/reviewed_service_rows_exit checked 13265ms check-target:macos_arm64 @088321186835+wt
+pass/effects/reviewed_service_rows_exit checked 6903ms check-target:macos_arm64 @b50066b75303+wt
 pass/effects/root_service_audit checked 639ms @1654d389500c+wt
 pass/effects/runtime_empty_boundary_reach_exit checked 8163ms check-target:macos_arm64 @03d6ab4d9d4c
 pass/effects/static_boundary_callback_reach checked 4794ms @3b18b32f7117+wt
@@ -21798,6 +21986,15 @@ pass/facts/as_slice_views_through_other_machine_exit checked 13911ms check-targe
 pass/facts/as_slice_views_through_other_state_exit checked 16196ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_parameter_exit checked 17697ms check-target:macos_arm64 @d68dc74a14e0
 pass/facts/as_slice_views_through_target_body_exit checked 14573ms check-target:macos_arm64 @d68dc74a14e0
+pass/facts/assumed_binding_input_authority_through_call_result_exit checked 2726ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_const_name_exit checked 2713ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_field_exit checked 2676ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_local_exit checked 2680ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_match_join_exit checked 2728ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_other_machine_exit checked 2738ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_other_state_exit checked 2825ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_parameter_exit checked 2678ms check-target:macos_arm64 @0aa860d93fd4+wt
+pass/facts/assumed_binding_input_authority_through_target_body_exit checked 2846ms check-target:macos_arm64 @0aa860d93fd4+wt
 pass/facts/assumed_binding_result_bound_through_call_result_exit checked 8799ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_const_name_exit checked 8748ms check-target:macos_arm64 @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_field_exit checked 8710ms check-target:macos_arm64 @6f94b4f3cae8+wt
@@ -21845,15 +22042,15 @@ pass/facts/borrowed_content_partition_through_other_machine_exit checked 8704ms 
 pass/facts/borrowed_content_partition_through_other_state_exit checked 5200ms check-target:macos_arm64 @0559d33e69da+wt
 pass/facts/borrowed_content_partition_through_parameter_exit checked 5053ms check-target:macos_arm64 @0559d33e69da+wt
 pass/facts/borrowed_content_partition_through_target_body_exit checked 5824ms check-target:macos_arm64 @0559d33e69da+wt
-pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 68778ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 69562ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_field_exit checked 68926ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_local_exit checked 68907ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_match_join_exit checked 69433ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 69116ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 69997ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 70106ms check-target:macos_arm64 @fa145e0af975
-pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 69127ms check-target:macos_arm64 @fa145e0af975
+pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 760ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 760ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_field_exit checked 756ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_local_exit checked 756ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_match_join_exit checked 656ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_other_machine_exit checked 654ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_other_state_exit checked 655ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_parameter_exit checked 653ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/facts/borrowed_projection_cleanup_through_target_body_exit checked 675ms check-target:macos_arm64 @daf76df20a9d+wt
 pass/facts/borrowed_restoration_window_through_call_result_exit checked 49094ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/borrowed_restoration_window_through_const_name_exit checked 39108ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/borrowed_restoration_window_through_field_exit checked 44013ms check-target:macos_arm64 @8f970335dca4+wt
@@ -22147,15 +22344,15 @@ pass/facts/compound_index_guard_through_other_machine_exit checked 81376ms check
 pass/facts/compound_index_guard_through_other_state_exit checked 54653ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_parameter_exit checked 54193ms check-target:macos_arm64 @8137d4f697de+wt
 pass/facts/compound_index_guard_through_target_body_exit checked 54819ms check-target:macos_arm64 @8137d4f697de+wt
-pass/facts/computed_byte_view_argument_snapshot_through_call_result_exit checked 14968ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_const_name_exit checked 14800ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_field_exit checked 14583ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_local_exit checked 14310ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_match_join_exit checked 14050ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_other_machine_exit checked 14213ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_other_state_exit checked 14343ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_parameter_exit checked 9938ms check-target:macos_arm64 @a8d49c50220d+wt
-pass/facts/computed_byte_view_argument_snapshot_through_target_body_exit checked 14020ms check-target:macos_arm64 @a8d49c50220d+wt
+pass/facts/computed_byte_view_argument_snapshot_through_call_result_exit checked 21336ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_const_name_exit checked 20132ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_field_exit checked 19825ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_local_exit checked 19718ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_match_join_exit checked 20248ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_other_machine_exit checked 19967ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_other_state_exit checked 20059ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_parameter_exit checked 6761ms check-target:macos_arm64 @ddaf8758ca5e+wt
+pass/facts/computed_byte_view_argument_snapshot_through_target_body_exit checked 18855ms check-target:macos_arm64 @ddaf8758ca5e+wt
 pass/facts/computed_constant_array_extent_exit checked 32318ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_constant_array_extent_through_call_result_exit checked 47400ms check-target:macos_arm64 @7d49d2c3a6f2+wt
 pass/facts/computed_constant_array_extent_through_const_name_exit checked 33605ms check-target:macos_arm64 @7d49d2c3a6f2+wt
@@ -24251,23 +24448,15 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 22317ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 22767ms check-target:macos_arm64 @8f970335dca4+wt
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 21843ms check-target:macos_arm64 @8f970335dca4+wt
-pass/facts/open_record_const_implementation_through_call_result_exit checked 806ms check-target:macos_arm64 @e250c3425d3f+wt
-pass/facts/open_record_const_implementation_through_const_name_exit rejected 97ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_field_exit rejected 2730ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_local_exit rejected 1707ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_match_join_exit rejected 2151ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_machine_exit rejected 1880ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_other_state_exit rejected 2388ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_parameter_exit rejected 3002ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
-pass/facts/open_record_const_implementation_through_target_body_exit rejected 2345ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	cannot prove ensures contract for exit from selected$specialized$42f973a39ff43e76$0 at statement 0: result >= Configuration.minimum
+pass/facts/open_record_const_implementation_through_call_result_exit checked 3095ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_const_name_exit checked 10223ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_field_exit checked 3080ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_local_exit checked 3085ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_match_join_exit checked 3067ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_other_machine_exit checked 3077ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_other_state_exit checked 3067ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_parameter_exit checked 3068ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/open_record_const_implementation_through_target_body_exit checked 3101ms check-target:macos_arm64 @3ddc7d1455f1+wt
 pass/facts/record_layout_geometry_through_call_result_exit checked 7952ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_const_name_exit checked 7761ms check-target:macos_arm64 @45cbafd80d9c
 pass/facts/record_layout_geometry_through_field_exit checked 7941ms check-target:macos_arm64 @45cbafd80d9c
@@ -25671,15 +25860,42 @@ pass/facts/twentyfour_arg_stack_calling_plan_through_other_machine_exit checked 
 pass/facts/twentyfour_arg_stack_calling_plan_through_other_state_exit checked 145772ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/twentyfour_arg_stack_calling_plan_through_parameter_exit checked 141593ms check-target:macos_arm64 @9b001b8f6afa+wt
 pass/facts/twentyfour_arg_stack_calling_plan_through_target_body_exit checked 328705ms check-target:macos_arm64 @9b001b8f6afa+wt
-pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 1705ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 1703ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_field_exit checked 1718ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_local_exit checked 1708ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 1711ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 1697ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 1673ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 1668ms check-target:macos_arm64 @c2e06b875ba2+wt
-pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 1681ms check-target:macos_arm64 @c2e06b875ba2+wt
+pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 1303ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 1951ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_field_exit checked 1611ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_local_exit checked 1872ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 1357ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 1605ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 1555ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 1935ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 1487ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_call_result_exit checked 1739ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_const_name_exit checked 1750ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_field_exit checked 1605ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_local_exit checked 1708ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_match_join_exit checked 1319ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_other_machine_exit checked 1951ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_other_state_exit checked 1987ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_parameter_exit checked 1606ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 1462ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_call_result_exit checked 2026ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_const_name_exit checked 1583ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_field_exit checked 1883ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_local_exit checked 1862ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_match_join_exit checked 1579ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_other_machine_exit checked 1816ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_other_state_exit checked 1993ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_parameter_exit checked 1716ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 1683ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_call_result_exit checked 1613ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_const_name_exit checked 1754ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_field_exit checked 1603ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_local_exit checked 1620ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_match_join_exit checked 1610ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_other_machine_exit checked 1693ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_other_state_exit checked 1723ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_parameter_exit checked 1815ms check-target:macos_arm64 @b50066b75303+wt
+pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 1597ms check-target:macos_arm64 @b50066b75303+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_call_result_exit checked 39435ms check-target:macos_arm64 @e9ba6b59ba84+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_const_name_exit checked 39388ms check-target:macos_arm64 @e9ba6b59ba84+wt
 pass/facts/unsigned_16bit_bitwise_and_mask_bound_through_field_exit checked 34323ms check-target:macos_arm64 @e9ba6b59ba84+wt
@@ -26256,16 +26472,15 @@ pass/facts/unsigned_shift_right_bound_through_other_machine_exit checked 1534ms 
 pass/facts/unsigned_shift_right_bound_through_other_state_exit checked 1589ms check-target:macos_arm64 @5648483032b7+wt
 pass/facts/unsigned_shift_right_bound_through_parameter_exit checked 1604ms check-target:macos_arm64 @5648483032b7+wt
 pass/facts/unsigned_shift_right_bound_through_target_body_exit checked 1611ms check-target:macos_arm64 @5648483032b7+wt
-pass/facts/view_extent_after_write_through_call_result_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_const_name_exit checked 3552ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_field_exit incomplete 2604ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	`main` calls `preserve_suffix`; `preserve_suffix` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `preserve_suffix::entry`
-pass/facts/view_extent_after_write_through_local_exit checked 3522ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_match_join_exit checked 3522ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_other_machine_exit checked 3519ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_other_state_exit checked 3523ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_parameter_exit checked 3515ms check-target:macos_arm64 @86af356b96fb+wt
-pass/facts/view_extent_after_write_through_target_body_exit checked 3560ms check-target:macos_arm64 @86af356b96fb+wt
+pass/facts/view_extent_after_write_through_call_result_exit checked 3536ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_const_name_exit checked 3547ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_field_exit checked 3553ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_local_exit checked 2889ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_match_join_exit checked 2893ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_other_machine_exit checked 3518ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_other_state_exit checked 3551ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_parameter_exit checked 2939ms check-target:macos_arm64 @3ddc7d1455f1+wt
+pass/facts/view_extent_after_write_through_target_body_exit checked 2895ms check-target:macos_arm64 @3ddc7d1455f1+wt
 pass/facts/wildcard_structural_return_through_call_result_exit checked 1705ms check-target:macos_arm64 @ba7501de3288+wt
 pass/facts/wildcard_structural_return_through_const_name_exit checked 1792ms check-target:macos_arm64 @ba7501de3288+wt
 pass/facts/wildcard_structural_return_through_field_exit checked 1709ms check-target:macos_arm64 @ba7501de3288+wt
@@ -28000,6 +28215,8 @@ pass/slices/runtime_nested_subslice_fixed_index_exit checked 11923ms check-targe
 pass/slices/runtime_nested_view_candidate_backings_exit checked 5696ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nested_view_descriptor_reseat_exit checked 5643ms check-target:macos_arm64 @f329f97f57f7+wt
 pass/slices/runtime_nonzero_predicate_scalar_snapshot_exit checked 8046ms check-target:macos_arm64 @a0ebcac9edda+wt
+pass/slices/runtime_nonzero_window_result_snapshot_exit checked 1335ms check-target:macos_arm64 @daf76df20a9d+wt
+pass/slices/runtime_observed_window_extents_exit checked 1337ms check-target:macos_arm64 @daf76df20a9d+wt
 pass/slices/runtime_ordered_nested_length_observation_exit checked 671ms check-target:macos_arm64 @3d64278a43eb
 pass/slices/runtime_policy_element_view_tail_recursion_exit checked 12241ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/slices/runtime_predicate_qualified_scalar_copy_exit checked 10797ms check-target:macos_arm64 @a9ae30e1c334+wt

@@ -89,10 +89,14 @@ impl CurrentScalarValues<'_> {
             self.machine.symbol,
             self.state.symbol,
             self.statement_index,
-            arguments_by_binding
+            goal.bindings
                 .iter()
-                .copied()
-                .filter(|argument| argument.is_valid())
+                .zip(&arguments_by_binding)
+                .filter_map(|(binding, argument)| {
+                    (argument.is_valid()
+                        && !matches!(binding.value, ScopedArithmeticValue::Integer(_)))
+                    .then_some(*argument)
+                })
                 .collect(),
         );
         goal.bindings = goal

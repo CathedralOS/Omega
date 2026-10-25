@@ -21,10 +21,14 @@ use crate::machine_calls::graph_components::component_ids;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 enum Root {
     Receiver,
     Parameter(SymbolHandle),
+    ParameterLeaf {
+        parameter: SymbolHandle,
+        path: Vec<facts::PlaceSegment>,
+    },
 }
 
 struct StateRoot {
@@ -50,6 +54,27 @@ impl Substitutions {
     pub(super) fn parameter(&mut self, state: SymbolHandle, parameter: SymbolHandle) -> usize {
         self.root(state, Root::Parameter(parameter))
     }
+    /// Descriptor leaves have finite identities independent of their containing
+    /// parameter. A field selector before the first reference boundary names
+    /// that leaf; only selectors beyond it can grow a pointee path.
+    pub(super) fn parameter_leaf(
+        &mut self,
+        state: SymbolHandle,
+        parameter: SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> usize {
+        if path.is_empty() {
+            return self.parameter(state, parameter);
+        }
+        self.root(
+            state,
+            Root::ParameterLeaf {
+                parameter,
+                path: path.to_vec(),
+            },
+        )
+    }
+
     fn root(&mut self, state: SymbolHandle, root: Root) -> usize {
         if let Some(position) = self
             .roots

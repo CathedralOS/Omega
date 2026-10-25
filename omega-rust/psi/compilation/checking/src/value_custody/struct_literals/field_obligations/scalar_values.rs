@@ -122,15 +122,14 @@ fn analyze_scalar_value(
             .flatten();
     }
 
-    let environment = if matches!(
+    let is_literal = matches!(
         program.expression_table.expression(expression),
         typed_trees::expression::ExpressionNode::Integer(_)
             | typed_trees::expression::ExpressionNode::Float(_)
             | typed_trees::expression::ExpressionNode::Boolean(_)
             | typed_trees::expression::ExpressionNode::String(_)
-    ) && !crate::proof_contracts::arithmetic_domains::declares_bracketed_range(
-        program, field_type,
-    ) {
+    );
+    let environment = if is_literal {
         ValueEnvironment::default()
     } else {
         environment_for(expression)
@@ -169,8 +168,12 @@ fn analyze_scalar_value(
     if diagnostics.len() != before {
         return None;
     }
-    let interval = immutable_integer_expression_interval(program, machine, state, expression)
-        .map_or(interval, |standing| interval.intersect(standing));
+    let interval = if is_literal {
+        interval
+    } else {
+        immutable_integer_expression_interval(program, machine, state, expression)
+            .map_or(interval, |standing| interval.intersect(standing))
+    };
     Some(ConstructionScalarValue {
         interval,
         primitive,

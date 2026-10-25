@@ -106,6 +106,27 @@ pub(crate) fn captured_lifetime_roots(
     Some(roots)
 }
 
+/// A receiver's read needs its captured storage as well as the backing of any
+/// reference leaves it carries. Projecting a reference-free child does not
+/// detach that storage before the read. Completed-result lifetime queries stay
+/// separate so later scalar copies do not prolong their old backing.
+pub(crate) fn captured_observation_roots(
+    program: &dyn validation::CheckingInput,
+    control: &FlowControlFacts,
+    operand: &FlowOperandFact,
+) -> Option<Vec<PlaceRoot>> {
+    let mut roots = captured_lifetime_roots(program, control, operand)?;
+    for referent in control.operand_referents.span(operand.referents)? {
+        if !referent.root.is_valid() {
+            return None;
+        }
+        if !roots.contains(&referent.root) {
+            roots.push(referent.root);
+        }
+    }
+    Some(roots)
+}
+
 pub(crate) fn captured_value_places(
     program: &dyn ::validation::CheckingInput,
     flow: &FlowFacts,

@@ -29,6 +29,7 @@ pub(super) fn select(
         TargetProfile::LinuxArm64 => cfg!(all(target_os = "linux", target_arch = "aarch64")),
         TargetProfile::MacosArm64 => cfg!(all(target_os = "macos", target_arch = "aarch64")),
         TargetProfile::MacosX64 => cfg!(all(target_os = "macos", target_arch = "x86_64")),
+        TargetProfile::WindowsX64 => cfg!(all(target_os = "windows", target_arch = "x86_64")),
         _ => false,
     };
     if !host {
@@ -56,6 +57,10 @@ pub(super) fn select(
                     symbol: format!("_{symbol}").into_bytes(),
                 }
             }
+            TargetProfile::WindowsX64 => target::ForeignLocatorCandidate::PeByName {
+                library: runtime_abi::WINDOWS_INTERNET_PROVIDER_LIBRARY.to_vec(),
+                export: symbol.as_bytes().to_vec(),
+            },
             _ => return Ok(None),
         };
         let offered = target::normalize_foreign_locator(candidate, target).map_err(|_| {

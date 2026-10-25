@@ -191,8 +191,134 @@ mutate the saved descriptor's backing; it must reject independently of that slot
 Baseline `3ddc7d1455f` refuses all nine expanded positives for missing completed
 descriptor backing at simultaneous call admission. Acceptance is native/Terminal
 exit 0 for each positive and the unchanged `receive` refusal for every source-9
-twin. Measurements are for macOS ARM64; other-host execution and general cyclic,
-opaque and dependent result composition remain open under the parent acceptance.
+twin. Measurements are for macOS ARM64; other-host execution and general opaque
+and dependent result composition remain open under the parent acceptance.
+
+The computed row now passes its first copied carrier through a ranked identity
+return. Its field place copies that carrier to an immutable local before the
+recursive edge; its const-name place forms a literal window. The original
+snapshot, bound, operation and source-9 twins are unchanged. Baseline `b50066b7530`
+refused the recursive descriptor-length guarantees and completed backing join.
+Finite result equations now distinguish descriptor leaves from paths growing
+inside their pointees. Exact immutable input-slot correspondence establishes
+returned length metadata without citing the recursive guarantee being checked.
+Completed owned bindings retain inline descriptor cells across disjoint writes,
+while typed projections hide old pointee contents. Local copies follow retained
+completed values; contextual window operands supply their captured carrier for
+selected builtin indexing. These relations grant no new access authority.
+The changed-input, swapped-field and shortened-window controls under
+`tests/omega/fail/contracts/cyclic_descriptor_result_*` must refuse the helper's
+own length guarantee. Ranking and recursive premise checks remain independent.
+
+
+## Public local dispatch results
+
+The computed-byte-view row carries the same first-argument snapshot through
+`Preserving::retain`, selected at runtime from two implementations. Its public
+contract preserves both descriptor lengths. One implementation returns the
+input; the other copies it through a local. Each place executes both selections
+before a later argument overwrites the former descriptor home. The source-9 twin
+still changes only the first extent and refuses `receive`'s unchanged 7 obligation.
+
+At baseline `032e85a7991`, all nine positives wrongly refuse a staged backing
+overlap. Result capture retained lifetime roots but lost the completed input
+regions promised by the local dynamic slot. The repair retains those regions for
+conservative exclusion and write invalidation. Slot admission independently checks
+every implementation's returned origins against that public region contract;
+this does not turn arbitrary provider lifetime relations into spatial evidence.
+Region rows grant neither descriptor equality, pointee contents nor loan ancestry,
+and remain separate from exact supplier rows used by permission construction.
+Unknown candidates still withhold coverage. Immutable image returns remain legal
+and retain the public input debt; their image backing grants no exclusive access.
+
+Public result declarations and receiving calls also use the same materialized
+carrier multiplicity. A source-copyable record can still own affine descriptor
+retirement. The common structural-operand query includes direct, boundary and
+dynamic calls, so transferred copies do not receive a second caller cleanup.
+
+`controls/dynamic_window/main.omg` returns a shorter window from either of two
+captured input regions, checks its actual first byte and consumes its declared
+extent 7 directly. `controls/dynamic_image/main.omg` retains the legal immutable
+image alternative. Their pins are
+`pass/borrows/runtime_dyn_{result_region,image_result}_snapshot_exit`.
+`fail/borrows/dyn_result_retains_actual_backing` and
+`dyn_result_retains_all_public_regions` replace the former descriptor home before
+attempting a write to actual or same-lifetime sibling backing; both must reject.
+
+Acceptance is native/Terminal exit 0 for all nine computed places and both
+controls, with all nine source-9 twins and backing controls rejecting. These runs
+are for macOS ARM64. Other-host execution, general opaque/provider and dependent
+results remain open.
+
+### Returned window extents
+
+Each computed byte-view place also creates its snapshot through
+`initial_snapshot`, returning `source.bytes[2..2 + WINDOW_LENGTH]` from a
+record field. The completed result establishes length 7 before another operand
+replaces its former home with length 9. The consumer uses that retained length
+directly; the sentinel byte 49 checks the nonzero offset at runtime. Its twin
+changes the window bound to 9 and must reject `ranged_original.bytes.len == 7`,
+independently of the earlier twin obligation. All nine positive and negative
+places have matching fact pins.
+
+The fresh baseline refuses the helper’s own result-length contract in all nine
+places. The repair records builtin window length as a mathematical difference
+of its captured endpoints, embeds finite scalar endpoints in the existing
+mathematical judgment, and normalizes inclusive and omitted bounds there. It
+does not replay expressions, grant custom range machines builtin geometry,
+justify endpoint arithmetic, or establish storage access.
+
+`controls/dynamic_nonzero_window` retains the original failing dynamic-call
+witness; `controls/returned_window_extents` executes symbolic endpoints,
+inclusive bounds, open suffixes and empty windows. Their pins are
+`pass/slices/runtime_nonzero_window_result_snapshot_exit` and
+`runtime_observed_window_extents_exit`. The reject pins
+`fail/slices/returned_window_extent_mismatch`,
+`returned_inclusive_window_extent_mismatch`,
+`window_extent_does_not_establish_bounds` and
+`window_extent_does_not_form_endpoint` preserve false-length, bounds and overflow
+refusals. Acceptance is observed native/Terminal exit 0 on macOS ARM64 for both
+controls and all nine places, plus fact-sensitive rejection of their twins.
+Other-host execution remains unverified.
+
+### Applied callable field regions
+
+The computed byte-view row now composes the existing ranked/dynamic result’s
+`bytes` projection with a separate `sibling` input through `Composing::compose`.
+Both named implementations construct a `View` from two explicit references;
+the second returns an immutable local copy. Every place retains this same
+production, length 7, overwrite to 9 and consuming operation. The source-9
+reject twins require the `Composing::compose` result to fail at `receive`, as
+well as the existing returned-window obligation. Earlier producers and their
+once-only replacement counter remain exercised inside the composed expression.
+
+The fresh baseline rejects both conformance maps in all nine places. Preparing
+a declaration field retains its lexical owner; scoped lifetime traversal must
+use the active application frame for that schema, including its fresh invocation
+regions. That frame now carries its region map together with Type substitutions.
+A supplied operand outside the active frames still re-enters its captured scope.
+The result relation remains the conservative union of every matching input;
+field names and length guarantees cannot choose a referent. Nested-call result
+discovery also uses the shared completed-carrier classifier, removing a dynamic-only
+borrow-free restriction that had rejected a projection of the existing result.
+Call custody and cleanup still belong to the common call planner.
+
+`controls/dynamic_multi_input_window` is the original failing two-input dynamic
+window program, pinned as
+`pass/borrows/runtime_dyn_multi_input_window_snapshot_exit`.
+`controls/nested_applied_regions` applies one nested field schema twice with
+independent result lifetimes, pinned as
+`pass/borrows/runtime_nested_callable_field_regions_exit`.
+`fail/borrows/dyn_multi_input_result_retains_actual_backing` and
+`dyn_multi_input_result_retains_other_region` reject writes to either retained
+input while consuming just the result’s byte field. Swapped nested output
+regions, ambiguous two-input result elision and a shared candidate for mutable
+output reject in `nested_callable_field_regions_swapped`,
+`callable_multi_input_elision_needs_relation` and
+`callable_shared_candidate_cannot_supply_mutable_result`. Existing captured/fresh
+scope controls remain part of focused validation. Runtime qualification is
+macOS ARM64 native/Terminal agreement; other-host execution and the broader
+opaque/provider/dependent result acceptance remain open.
 
 ## Requirements and evidence
 

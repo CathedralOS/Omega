@@ -133,11 +133,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
             continue;
         }
 
-        for (loan_handle, loan) in borrow
-            .loans
-            .iter()
-            .filter(|(handle, _)| borrow.state_owns_loan(state, *handle))
-        {
+        for (loan_handle, loan) in borrow.state_loans(state) {
             match &loan.lineage {
                 BorrowLoanLineage::DirectRoot => {
                     // A direct-root loan formed on a reference-typed binding is

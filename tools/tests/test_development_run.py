@@ -10,6 +10,7 @@ import argparse
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -68,6 +69,106 @@ class DevelopmentRun(unittest.TestCase):
         self.assertIn("native exit 0", result.stdout + result.stderr)
         self.assertFalse((self.project / "omega.lock").exists())
         self.assertFalse((self.project / "build/package-manager").exists())
+
+    def independent_review(self, generated, sealed=True, second_component=False):
+        if self.target == "windows_x86_64":
+            self.skipTest("independent-component fixture supplies Unix libc bindings only")
+        fixture = REPOSITORY / "tests/omega/pass/facts/opaque_independent_closed_carrier_through_other_machine_exit"
+        shutil.copytree(fixture, self.project, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("build", "omega.lock"))
+        packages = 2
+        if second_component:
+            shutil.copytree(self.project / "producer", self.project / "other")
+            package_build = self.project / "other/build.omg"
+            package_build.write_text(package_build.read_text().replace(
+                '"opaque_address_producer"', '"other_address_producer"')
+                .replace("Address", "OtherAddress")
+                .replace("component_entry", "other_component_entry"))
+            package_source = self.project / "other/main.omg"
+            other_source = package_source.read_text()
+            other_source = re.sub(r"\b(make|host)\b", r"other_\1", other_source)
+            package_source.write_text(other_source
+                .replace("Address", "OtherAddress")
+                .replace("host_binding", "other_host_binding")
+                .replace("make_binding", "other_make_binding")
+                .replace("component_entry", "other_component_entry"))
+            main = self.project / "main.omg"
+            main.write_text("use other::main;\n" + main.read_text().replace(
+                "reaches AddressParts, AddressBridge crashes Trap {",
+                "reaches AddressParts, AddressBridge, OtherAddressParts, OtherAddressBridge crashes Trap {\n"
+                " other_component_entry();"))
+            build = self.project / "build.omg"
+            source = build.read_text()
+            closing = source.rfind("}")
+            build.write_text(source[:closing] + '''
+ Build::depend_as(builder, "other", Source::Path { location: "other" });
+ Build::select_representation<other::InternetOtherAddress, other::OtherAddressRepresentation>(builder);
+ Build::select_provider<other::OtherAddressBridge, other::OtherAddressBridgeProvider>(builder, CompositionMode::Independent);
+''' + source[closing:])
+            packages += 1
+        if generated:
+            build = self.project / "build.omg"
+            source = build.read_text()
+            closing = source.rfind("}")
+            source = source[:closing] + '''
+ let generated: BuildPath = BuildOutput::resolve(&builder.output, "review_generated.omg");
+ let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
+ _ = BuildOutput::write(&mut builder.output, writer, "const REVIEW_VALUE: u8 = 7;\\n");
+ _ = BuildOutput::close(&mut builder.output, writer);
+ BuildOutput::include_source(&mut builder.output, generated);
+''' + source[closing:]
+            build.write_text(source)
+            if not sealed:
+                build.write_text(source.replace(
+                    " _ = BuildOutput::close(&mut builder.output, writer);\n", ""))
+        # The single-component variants establish native/Terminal execution.
+        # The two-component case targets review-cache recovery: native execution
+        # currently rejects its image roster on the unchanged baseline.
+        if sealed and not second_component:
+            runtime = self.invoke("run", "--both", "main.omg")
+            self.assert_exit(runtime, 0)
+            self.assertIn("native exit 0", runtime.stdout + runtime.stderr)
+            self.assertIn("interp exit: 0", runtime.stdout + runtime.stderr)
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("update", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assertFalse((self.project / "omega.lock").exists())
+        if not sealed:
+            self.assert_exit(result, 1)
+            self.assertIn("staging entry is not sealed", result.stderr)
+            return
+        self.assert_exit(result, 3)  # Dependency review awaits an explicit decision.
+        self.assertIn(f"checked {packages} source packages", result.stdout)
+        passes = re.findall(r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) "
+                            r"carried=(\d+).*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
+                            result.stderr)
+        self.assertEqual(passes, [("discovery", str(packages), str(packages), "0",
+                                  str(packages), str(2 * packages))],
+                         result.stdout + result.stderr)
+        resumed = self.invoke("update", "--project", self.project, "--resume", "--offline")
+        self.assert_exit(resumed, 3)
+        resumed_passes = re.findall(
+            r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) carried=(\d+)"
+            r".*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
+            resumed.stderr)
+        self.assertTrue(resumed_passes, resumed.stdout + resumed.stderr)
+        for _, occurrences, compiled, carried, preliminary, settled in resumed_passes:
+            self.assertEqual(int(compiled) + int(carried), int(occurrences),
+                             resumed.stdout + resumed.stderr)
+            self.assertLessEqual(int(preliminary), int(compiled), resumed.stderr)
+            self.assertLessEqual(int(settled), 2 * int(compiled), resumed.stderr)
+
+    def test_independent_review_completes_each_occurrence_once(self):
+        self.independent_review(generated=False)
+
+    def test_generated_independent_review_completes_each_occurrence_once(self):
+        self.independent_review(generated=True)
+
+    def test_independent_review_rejects_unsealed_generated_source(self):
+        self.independent_review(generated=True, sealed=False)
+
+    def test_component_cache_refresh_retains_completed_sibling_work(self):
+        self.independent_review(generated=True, second_component=True)
 
     def test_unlocked_compile_uses_the_same_native_route(self):
         result = self.invoke("--build-dir", self.project / "output", "--target", self.target, "main.omg")
@@ -277,6 +378,94 @@ class DevelopmentRun(unittest.TestCase):
         self.assert_exit(result, 0)
         self.assertIn("native exit 0", result.stdout + result.stderr)
         self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+
+    def test_package_update_joins_all_targets_before_publication(self):
+        result = self.invoke("update", "--project", self.project, "--offline",
+                             "--target", "linux_x86_64", "--target", "macos_arm64")
+        self.assert_exit(result, 0)
+        self.assertIn("across 2 targets", result.stdout)
+        self.assertTrue((self.project / "omega.lock").is_file())
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+        for target in ("linux_x86_64", "macos_arm64"):
+            self.assertIn(f"{target}: checked 1 source packages", result.stdout)
+
+    def test_package_audit_uses_review_execution_without_publishing(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assert_exit(result, 0)
+        self.assertIn("fresh-analysis complete", result.stdout)
+        self.assertIn("note=review_pass discovery", result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_package_audit_reports_failed_review_without_changing_lock(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        (self.project / "main.omg").write_text("this is deliberately not Omega")
+        result = self.invoke("audit", "packages", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assert_exit(result, 1)
+        self.assertIn("fresh-analysis unavailable", result.stdout)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_failed_review_target_cannot_publish_successful_sibling(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        result = self.invoke("update", "--project", self.project, "--offline",
+                             "--target", self.target, "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        self.assertNotIn("Published build.omg", result.stdout)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_unlocked_audit_keeps_success_after_failed_target(self):
+        # Canonical order puts UEFI first. Its unavailable entry must not hide
+        # the later hosted target, and neither report admits a new lock.
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", "windows_x86_64", "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        refused, accepted = result.stdout.split("target omega.target-profile.v1:windows_x86_64", 1)
+        self.assertIn("target omega.target-profile.v1:uefi_x86_64", refused)
+        self.assertIn("fresh-analysis unavailable", refused)
+        self.assertIn("fresh-analysis complete", accepted)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
+    def test_audit_duplicate_targets_reject_before_review(self):
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", self.target, "--target", self.target)
+        self.assert_exit(result, 64)
+        self.assertIn("duplicate target", result.stderr)
+        self.assertNotIn("note=review_pass", result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
+    def test_locked_audit_refuses_unaccepted_target(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        self.assertIn("no accepted target uefi_x86_64", result.stderr)
+        self.assertNotIn("note=review_pass", result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_discard_review_does_not_run_invalid_source(self):
+        # Discard is a transaction operation, not a Build or review request.
+        (self.project / "main.omg").write_text("this is deliberately not Omega")
+        result = self.invoke("update", "--project", self.project, "--discard-review")
+        self.assert_exit(result, 0)
+        self.assertIn("No pending package review", result.stdout)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
 
     def test_source_edit_does_not_fall_back_to_development(self):
         self.accept_project()

@@ -61,25 +61,11 @@ pub(super) fn append_replacement(
         ) else {
             return Ok(Vec::new());
         };
-        let mut bounds = validation::ImmutableBoundLookup::new(program);
-        let Some(shape) = validation::array_window_shape(
+        let Some(collection) = validation::canonical_place_from_expression_in_state(
             program,
-            machine_definition,
-            state_definition,
-            assignment.target,
-            &mut bounds,
-        ) else {
-            return Ok(Vec::new());
-        };
-        let (Some(start), Some(end), Some(collection)) = (
-            shape.start,
-            shape.end,
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state,
-                statement_index,
-                indexed.collection,
-            ),
+            state,
+            statement_index,
+            indexed.collection,
         ) else {
             return Ok(Vec::new());
         };
@@ -93,10 +79,42 @@ pub(super) fn append_replacement(
             return Ok(Vec::new());
         };
         let TypeReferenceNode::FixedArray {
+            element_type,
             length: typed_trees::types::FixedArrayLength::Literal(length),
-            ..
         } = program.type_reference_table.type_reference(collection_type)
         else {
+            return Ok(Vec::new());
+        };
+        let endpoint = *element_type;
+        let descriptor =
+            validation::reference_result_custody::stored_loan_parts(program, endpoint).is_some();
+        let frontier = remaining.has_storage_frontier(collection.root);
+        let has_owner = places.iter().any(|owner| {
+            owner.root == collection.root
+                && owner.path.is_empty()
+                && (owner.live || frontier)
+                && owner.multiplicity == Multiplicity::Affine
+        });
+        let affine = type_multiplicity(program, endpoint) == Multiplicity::Affine && !descriptor;
+        if !descriptor
+            && ((!has_owner && !frontier)
+                || type_reference_is_reference(program, endpoint)
+                || type_multiplicity(program, endpoint) == Multiplicity::Linear
+                || (!affine && !frontier))
+        {
+            return Ok(Vec::new());
+        }
+        let mut bounds = validation::ImmutableBoundLookup::new(program);
+        let Some(shape) = validation::array_window_shape(
+            program,
+            machine_definition,
+            state_definition,
+            assignment.target,
+            &mut bounds,
+        ) else {
+            return Ok(Vec::new());
+        };
+        let (Some(start), Some(end)) = (shape.start, shape.end) else {
             return Ok(Vec::new());
         };
         // Bounds validation owns the diagnostic. Invalid geometry creates no
@@ -166,6 +184,29 @@ fn append_place_replacement(
             && (owner.live || remaining.has_storage_frontier(place.root))
             && owner.multiplicity == Multiplicity::Affine
     });
+    let Some(endpoint) =
+        validation::canonical_place_type_reference(program, state, statement_index, &place)
+    else {
+        return Ok(None);
+    };
+    let descriptor =
+        validation::reference_result_custody::stored_loan_parts(program, endpoint).is_some();
+    let affine = type_multiplicity(program, endpoint) == Multiplicity::Affine && !descriptor;
+    if descriptor && place.segments.is_empty() {
+        return Ok(None);
+    }
+    if !descriptor
+        && ((owner.is_none() && !remaining.has_storage_frontier(place.root))
+            || type_reference_is_reference(program, endpoint)
+            || type_multiplicity(program, endpoint) == Multiplicity::Linear)
+    {
+        return Ok(None);
+    }
+    if !affine && !descriptor && !remaining.has_storage_frontier(place.root) {
+        // Copy-field stores establish only a retained construction frontier;
+        // complete ordinary scalar stores remain with their existing owner.
+        return Ok(None);
+    }
     // Strict prefixes own the selected slot. The endpoint may itself be a
     // stored descriptor; crossing it instead would write someone else's value.
     for length in 0..place.segments.len() {
@@ -181,17 +222,6 @@ fn append_place_replacement(
         if type_reference_is_reference(program, reference) {
             return Ok(None);
         }
-    }
-    let Some(endpoint) =
-        validation::canonical_place_type_reference(program, state, statement_index, &place)
-    else {
-        return Ok(None);
-    };
-    let descriptor =
-        validation::reference_result_custody::stored_loan_parts(program, endpoint).is_some();
-    let affine = type_multiplicity(program, endpoint) == Multiplicity::Affine && !descriptor;
-    if descriptor && place.segments.is_empty() {
-        return Ok(None);
     }
     if descriptor {
         if append_descriptor_death(
@@ -209,17 +239,6 @@ fn append_place_replacement(
         {
             return Ok(None);
         }
-    } else if (owner.is_none() && !remaining.has_storage_frontier(place.root))
-        || type_reference_is_reference(program, endpoint)
-        || type_multiplicity(program, endpoint) == Multiplicity::Linear
-    {
-        return Ok(None);
-    }
-    if !affine && !descriptor && !remaining.has_storage_frontier(place.root) {
-        // Copy-field stores carry no disposal event in a complete value.
-        // They matter here only as establishment of reserved construction
-        // storage; ordinary scalar write semantics stay with their owner.
-        return Ok(None);
     }
     let discarded = if affine {
         remaining.disposal_paths(program, place.root, &place.segments)

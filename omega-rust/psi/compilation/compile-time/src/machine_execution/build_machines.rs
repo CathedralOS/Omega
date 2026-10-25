@@ -10,6 +10,10 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+mod numeric_imports;
+#[cfg(test)]
+mod tests;
+
 pub use checked_interpreter::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
     CapturedFilesystemRoot as BuildMachineCapturedFilesystemRoot,
@@ -180,32 +184,70 @@ impl PreparedBuildMachineProgram {
         }
     }
 
-    /// Return one admitted zero-argument constant through this checked
-    /// preparation's exact entry identity. The caller still owns ConstEvaluable
-    /// and package selection admission; this entrance retains every CheckFact
-    /// and selected operation while the existing evaluator remains in use.
+    /// Execute an admitted zero-argument constant through the common Terminal
+    /// producer and instance lifecycle. Source admission and exact selected
+    /// operator custody precede execution, which cannot rewrite that judgment.
+    /// Only admitted numeric supplies are installed; other imports refuse.
     pub(crate) fn evaluate_checked_constant(
         &self,
         entry: &PreparedBuildMachineEntry,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
-    ) -> Result<BuildTimeValue, String> {
-        if !matches!(self.program, PreparedBuildMachineBody::Checked(_)) {
+    ) -> Result<terminal_interpreter::TerminalExecutionResult, String> {
+        let PreparedBuildMachineBody::Checked(program) = &self.program else {
             return Err("constant invocation requires a checked preparation".into());
-        }
+        };
         let symbol = self
             .validate_entry(entry)
             .map_err(|error| error.to_string())?;
         super::selected_operators::validate_selected_operators(self.typed(), operators)?;
-        accounting
-            .evaluate(
-                self.interpreter_program(),
-                checked_interpreter::BuildMachineEvaluationRequest {
-                    operators,
-                    ..checked_interpreter::BuildMachineEvaluationRequest::symbol(symbol, Vec::new())
-                },
-            )
-            .map(checked_interpreter::BuildTimeOperationEvaluation::into_value)
+        accounting.evaluate_terminal(
+            self.interpreter_program(),
+            symbol,
+            operators,
+            |meter, retained_artifact| {
+                let toolchain_sources = source::source_identity::toolchain_source_identities(
+                    program.checked.symbols.source_files(),
+                )?;
+                let produced = psi_terminal_production::TerminalProductionRequest::new(
+                    &program.checked,
+                    psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
+                    &toolchain_sources,
+                )
+                .produce(
+                    Default::default(),
+                    &mut psi_terminal_production::UnmeasuredProduction,
+                )
+                .map_err(|error| error.to_string())?;
+                *retained_artifact = Some(Arc::new(produced));
+                let artifact = retained_artifact.as_ref().ok_or_else(|| {
+                    "constant Terminal production lost its exact artifact".to_owned()
+                })?;
+                let program = terminal_interpreter::TerminalProgram::borrow(artifact.artifact().view());
+                let mut instance = program
+                    .instantiate(&[], Default::default())
+                    .map_err(|error| error.to_string())?;
+                numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
+                // The accounting owner supplies the finite Terminal semantic meter.
+                // Exhaustion refuses this constant; it never retries in another engine.
+                match instance
+                    .invoke(meter)
+                    .map_err(|error| format!("constant Terminal invocation failed: {error:?}"))?
+                {
+                    terminal_interpreter::TerminalExecutionStatus::Complete(value) => Ok(value),
+                    terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => Err(format!(
+                        "constant Terminal execution exhausted its fuel allowance after {} units",
+                        meter.usage().total_units(),
+                    )),
+                    terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {
+                        Err(format!("constant Terminal execution crashed: {crash:?}"))
+                    }
+                    terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion) => Err(
+                        format!("constant Terminal execution completed externally: {completion:?}"),
+                    ),
+                }
+            },
+        )
     }
 
     fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {

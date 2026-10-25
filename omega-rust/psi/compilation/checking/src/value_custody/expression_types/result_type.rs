@@ -157,6 +157,26 @@ fn result_type(
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return None;
     }
+    let memo = match owner {
+        ExpressionOwner::State { machine, state } => {
+            crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+                crate::proof_contracts::bound_expression_meaning::meaning_key(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .map(|key| (memos, key))
+            })
+        }
+        _ => None,
+    };
+    if let Some((memos, key)) = memo
+        && let Ok(types) = memos.expression_result_types.lock()
+        && let Some(&cached) = types.get(&key)
+    {
+        return cached;
+    }
     // Const substitution erases value storage, not the declaration's checked
     // type. Rejoin this exact authored selection before inferring a bare
     // constructor or numeric carrier from its materialized payload.
@@ -639,11 +659,18 @@ fn result_type(
         },
     };
     active.pop();
-    result.filter(|reference| {
+    let result = result.filter(|reference| {
         program
             .type_reference_table
             .contains_type_reference(*reference)
-    })
+    });
+    if let Some((memos, key)) = memo
+        && (result.is_some() || active.is_empty())
+        && let Ok(mut types) = memos.expression_result_types.lock()
+    {
+        types.insert(key, result);
+    }
+    result
 }
 
 /// Join declaration-backed result types without exporting one arm's predicates

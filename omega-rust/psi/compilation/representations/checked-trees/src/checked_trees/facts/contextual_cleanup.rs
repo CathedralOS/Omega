@@ -187,6 +187,11 @@ pub struct ContextualCleanupDisposition {
     /// evaluation. Zero retains the statement, call or exit boundary. This
     /// identity keeps branch-local cleanup with its actual produced value.
     pub completion: typed_trees::expression::ExpressionHandle,
+    /// Exact constraints selected by the producer at this value's completion.
+    /// None is unavailable evidence; Some(empty) is a known completion without
+    /// semantic premises. The dying root may be backing of the receiver rather
+    /// than its syntactic root, so consumers must not rediscover this relation.
+    pub completion_constraints: Option<HandleSpan<crate::FlowConstraintRef>>,
     pub root: facts::PlaceRoot,
     /// A displaced borrowed referent owns the stored value's type, not its
     /// access route's reference carrier. Zero retains the ordinary owned-place

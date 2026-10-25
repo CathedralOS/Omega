@@ -11,6 +11,7 @@ mod network_address;
 mod processor_flags;
 mod runtime_abi;
 mod scalar_reference;
+mod windows_provider;
 
 pub use borrowed_storage::{
     NativeBorrowedStorageDiscriminator, NativeBorrowedStorageField, NativeBorrowedStorageLayout,
@@ -23,3 +24,7 @@ pub use network_address::HostInternetAddress;
 pub use processor_flags::capture_host_x86_flags;
 pub use runtime_abi::{FatDescriptorLayout, fat_descriptor_layout};
 pub use scalar_reference::ScalarStorageCodec;
+pub use windows_provider::{
+    WINDOWS_INTERNET_PROVIDER_LIBRARY, image_imports_windows_internet_provider,
+    windows_internet_provider_dll,
+};

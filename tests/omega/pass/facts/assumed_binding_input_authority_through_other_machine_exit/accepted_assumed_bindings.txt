@@ -1,0 +1,1 @@
+Accept this fixture's exact checked root assumed binding contract rows.

@@ -10,7 +10,6 @@ version.workspace = true
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
-provider-planning = { path = "../../compilation/realization/provider-planning" }
 build-declarations = { path = "../build-declarations" }
 build-evaluation = { path = "../../compilation/build-evaluation" }
 build-output = { path = "../build-output" }
@@ -29,8 +28,6 @@ terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_te
 arena = { path = "../../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
-flow-effects = { path = "../../../psi/foundation/flow-effects" }
-symbols = { path = "../../../psi/foundation/symbols" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

@@ -7,6 +7,7 @@
 //! a loop invariant nor permission to replay mutable storage observations.
 
 mod array_elements;
+mod collection_extents;
 mod operand_types;
 mod owned_arguments;
 
@@ -1249,7 +1250,7 @@ impl<'program> StructuralJudge<'program> {
                     && (matches!(node, ExpressionNode::Call(_))
                         || matches!(node, ExpressionNode::Indexed(indexed)
                             if program.expression_table.range_node(indexed.index).is_some()
-                                && crate::value_custody::places::place_has_builtin_coordinates(program, scope.0, Some(scope.1), expression))
+                                && judge.completed_builtin_coordinates(expression, scope))
                         || judge.storage_observation_invalidated(expression)
                         || discarded_value_has_no_own_effects(program, scope, expression)
                         || matches!(node, ExpressionNode::Cast(cast)
@@ -1370,80 +1371,7 @@ impl<'program> StructuralJudge<'program> {
                         judge.intake_admitted_value_predicates(reference, value.clone());
                     }
                 }
-                if let ExpressionNode::Indexed(indexed) = node
-                    && let Some(range) = program.expression_table.range_node(indexed.index)
-                {
-                    // A completed runtime view keeps its captured descriptor;
-                    // there is no element observation to form. Its extent is
-                    // exactly the authored window: the formation's own bounds
-                    // check already admitted start <= end <= len(collection).
-                    let input_value = |source: ExpressionHandle| {
-                        inputs
-                            .iter()
-                            .find(|(input, _)| *input == source)
-                            .map(|(_, value)| value.clone())
-                    };
-                    let Some(collection) = input_value(indexed.collection) else {
-                        return None;
-                    };
-                    let start = range
-                        .start
-                        .is_valid()
-                        .then(|| input_value(range.start))
-                        .flatten();
-                    let end = range
-                        .end
-                        .is_valid()
-                        .then(|| input_value(range.end))
-                        .flatten();
-                    let collection_measure =
-                        |collection: &StructuralTerm, collection_source| {
-                            let receiver = crate::expression_result_type_reference(
-                                program,
-                                scope.0,
-                                scope.1,
-                                collection_source,
-                            )?;
-                            super::super::structural_terms::observed_collection_measure(
-                                program,
-                                receiver,
-                                language_semantics::declaration_selection::CollectionMeasure::Length,
-                                || Some(collection.clone()),
-                            )
-                        };
-                    let difference = |left: StructuralTerm, right: StructuralTerm| {
-                        StructuralTerm::MathematicalBinary {
-                            operator: BinaryOperator::Subtract,
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    };
-                    let extent = match (start, end) {
-                        (Some(start), Some(end)) => Some(match start {
-                            StructuralTerm::Integer(ref literal) if literal.is_zero() => end,
-                            _ => difference(end, start),
-                        }),
-                        (None, Some(end)) => Some(end),
-                        (start, None) => collection_measure(&collection, indexed.collection).map(
-                            |full| match start {
-                                Some(start) => difference(full, start),
-                                None => full,
-                            },
-                        ),
-                    };
-                    if let Some(extent) = extent
-                        && let Some(view) = judge.normal_value_type_reference(expression, scope)
-                        && let Some(measure) =
-                            super::super::structural_terms::observed_collection_measure(
-                                program,
-                                view,
-                                language_semantics::declaration_selection::CollectionMeasure::Length,
-                                || Some(value.clone()),
-                            )
-                    {
-                        judge.assume_normal_equation(measure, extent);
-                    }
-                }
+                judge.observe_completed_window(expression, &inputs, scope, &value)?;
                 if let ExpressionNode::Borrow(borrow) = node {
                     // A checked borrow selects its referent; it does not create
                     // a new case-bearing value. The referent's completed term
@@ -1492,6 +1420,45 @@ impl<'program> StructuralJudge<'program> {
             .map(|paths| paths.into_iter().flatten().collect())
     }
 
+    /// Operand completion retains the actual contextual carrier. Receiving
+    /// types alone cannot authenticate an indexed source or its geometry.
+    fn completed_collection_type(
+        &self,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> Option<TypeReferenceHandle> {
+        crate::expression_result_type_reference(self.program, scope.0, scope.1, expression).or_else(
+            || {
+                let (_, value) = self
+                    .normal_results
+                    .iter()
+                    .rev()
+                    .find(|(source, _)| *source == expression)?;
+                match value {
+                    StructuralTerm::CapturedValue { result_type, .. }
+                    | StructuralTerm::Application { result_type, .. } => Some(*result_type),
+                    StructuralTerm::ObservedValue { observed_type, .. } => Some(*observed_type),
+                    _ => None,
+                }
+                .filter(|reference| reference.is_valid())
+            },
+        )
+    }
+
+    fn completed_builtin_coordinates(
+        &self,
+        expression: ExpressionHandle,
+        scope: ValueScope<'_>,
+    ) -> bool {
+        crate::value_custody::places::value_has_builtin_coordinates_with_types(
+            self.program,
+            scope.0,
+            scope.1,
+            expression,
+            |source| self.completed_collection_type(source, scope),
+        )
+    }
+
     fn normal_value_type_reference(
         &self,
         expression: ExpressionHandle,
@@ -1503,20 +1470,10 @@ impl<'program> StructuralJudge<'program> {
                 let indexed = program.expression_table.indexed_node(expression)?;
                 program.expression_table.range_node(indexed.index)?;
                 crate::slice_view_shell(program, scope.2, &[])?;
-                if !crate::value_custody::places::place_has_builtin_coordinates(
-                    program,
-                    scope.0,
-                    Some(scope.1),
-                    expression,
-                ) {
+                if !self.completed_builtin_coordinates(expression, scope) {
                     return None;
                 }
-                let source = crate::expression_result_type_reference(
-                    program,
-                    scope.0,
-                    scope.1,
-                    indexed.collection,
-                )?;
+                let source = self.completed_collection_type(indexed.collection, scope)?;
                 let source_element =
                     crate::value_custody::places::collection_element_type_reference(
                         program, source,

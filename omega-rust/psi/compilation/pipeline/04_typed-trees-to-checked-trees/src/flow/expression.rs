@@ -44,6 +44,7 @@ mod live_memberships;
 mod reference_projection;
 mod result_facts;
 mod returned_descriptors;
+mod returned_regions;
 mod stored_call_values;
 mod transitions;
 mod view_footprints;

@@ -1,0 +1,2 @@
+clip
+result.bytes.len == 6

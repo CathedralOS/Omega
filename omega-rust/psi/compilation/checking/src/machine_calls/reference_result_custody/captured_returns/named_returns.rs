@@ -168,6 +168,7 @@ impl Captures<'_> {
         relative: &crate::LocalWriteSource,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<crate::LocalWriteSource>> {
+        let operand = self.completed_operand_source(operand)?;
         let mut relative = relative.clone();
         let mut selected = operand;
         if crate::reference_shell(self.program, reference).is_none() {
@@ -277,12 +278,68 @@ impl Captures<'_> {
         Some(output)
     }
 
+    /// Follow the producer's identity-preserving whole-value links. A local
+    /// copy can retain an incoming carrier without authoring new child values;
+    /// its former local home supplies neither backing nor loan authority.
+    fn completed_operand_source<'fact>(
+        &'fact self,
+        mut operand: &'fact checked_trees::FlowOperandFact,
+    ) -> Option<&'fact checked_trees::FlowOperandFact> {
+        let mut visited = Vec::new();
+        loop {
+            let source = if operand.value_source.is_valid() {
+                operand.value_source
+            } else if crate::reference_shell(self.program, operand.type_reference).is_none()
+                && self
+                    .facts
+                    .flow
+                    .control
+                    .operand_retentions
+                    .is_valid(operand.retention)
+            {
+                let retained = self
+                    .facts
+                    .flow
+                    .control
+                    .operand_retentions
+                    .get(operand.retention);
+                // For an owned carrier this is its completed copied value.
+                // For a reference it denotes the pointee instead, so that
+                // association must never substitute descriptor identity.
+                if !retained.stored_projection.is_empty() {
+                    break;
+                }
+                retained.stored_value
+            } else {
+                break;
+            };
+            if !source.is_valid() {
+                break;
+            }
+            if visited.contains(&source) || !self.facts.flow.control.operands.is_valid(source) {
+                return None;
+            }
+            visited.push(source);
+            let value = self.facts.flow.control.operands.get(source);
+            if !crate::storage_origin_types_match(
+                self.program,
+                operand.type_reference,
+                value.type_reference,
+            ) {
+                return None;
+            }
+            operand = value;
+        }
+        Some(operand)
+    }
+
     pub(super) fn completed_operand_leaf<'fact>(
         &'fact self,
         mut operand: &'fact checked_trees::FlowOperandFact,
         mut path: &[CheckedUnitStructuralPathSegment],
     ) -> Option<&'fact checked_trees::FlowOperandFact> {
         while !path.is_empty() {
+            operand = self.completed_operand_source(operand)?;
             let mut selected = None;
             for child in self
                 .facts

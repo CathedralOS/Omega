@@ -1,0 +1,54 @@
+// The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
+// Expected exit: 0
+
+data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+trait Windowing {
+    machine window<'storage>(source: View<'storage>) -> View<'storage>
+    requires source.bytes.len == 9 && source.sibling.len == 9
+    ensures result.bytes.len == 7, result.sibling.len == 4;
+}
+Header satisfies Windowing {
+    machine window<'storage>(source: View<'storage>) -> View<'storage>
+    requires source.bytes.len == 9 && source.sibling.len == 9
+    ensures result.bytes.len == 7, result.sibling.len == 4
+    { View { bytes: &source.bytes[0..7], sibling: &source.sibling[0..4] } }
+}
+Trailer satisfies Windowing {
+    machine window<'storage>(source: View<'storage>) -> View<'storage>
+    requires source.bytes.len == 9 && source.sibling.len == 9
+    ensures result.bytes.len == 7, result.sibling.len == 4
+    { View { bytes: &source.sibling[0..7], sibling: &source.bytes[0..4] } }
+}
+machine choose(first: bool) -> dyn Windowing {
+    transition first { true -> (Header as dyn Windowing) false -> (Trailer as dyn Windowing) }
+}
+machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 {
+    slot.bytes = replacement;
+    0
+}
+machine receive<'storage>(selected: View<'storage>, ignored: u64, expected: u8) -> u64
+requires selected.bytes.len == 7
+ensures result == 7
+crashes Trap {
+    transition selected.bytes[0] == expected {
+        true -> (selected.bytes.len)
+        false -> wrong()
+    }
+    state wrong() -> u64 { crash Trap; }
+}
+machine main() crashes Trap {
+    let storage: [u8; 9] = [11, 2, 29, 4, 5, 6, 7, 8, 9];
+    let alternate: [u8; 9] = [29, 2, 3, 4, 5, 6, 7, 8, 9];
+    let mut original: View = View { bytes: &storage[..], sibling: &alternate[..] };
+    let first: u64 = receive(Windowing::window(choose(true), original), overwrite(&mut original, "123456789"), 11);
+    let mut other: View = View { bytes: &storage[..], sibling: &alternate[..] };
+    let second: u64 = receive(Windowing::window(choose(false), other), overwrite(&mut other, "123456789"), 29);
+    let difference: u64 = first - 7;
+    let second_difference: u64 = second - 7;
+    transition difference == 0 && second_difference == 0 && original.bytes.len == 9 && other.bytes.len == 9 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

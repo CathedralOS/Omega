@@ -80,10 +80,11 @@ pub(super) fn check_statement_borrows<'p>(
             );
         }
 
-        for (loan_handle, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrow_state, *handle)
-                && loan.statement_index == statement.statement_index
-        }) {
+        for (loan_handle, loan) in facts
+            .borrow
+            .state_loans(borrow_state)
+            .filter(|(_, loan)| loan.statement_index == statement.statement_index)
+        {
             let supplying_accesses = super::access_sources::resolve_all(
                 program,
                 facts,
@@ -344,9 +345,8 @@ pub(super) fn check_statement_borrows<'p>(
                             }
                         }
                     }
-                    for (handle, _) in facts.borrow.loans.iter().filter(|(handle, loan)| {
-                        facts.borrow.state_owns_loan(borrow_state, *handle)
-                            && loan.statement_index == statement.statement_index
+                    for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
+                        loan.statement_index == statement.statement_index
                             && !loan.established_by_call.is_valid()
                             && loan.formation_expression == *expression
                     }) {

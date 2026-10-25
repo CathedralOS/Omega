@@ -113,9 +113,13 @@ impl Resolver<'_, '_> {
             && crate::reference_shell(self.program, capture.type_reference).is_some()
             && let Some(profile) = self.profile(&capture)
             && profile.alternatives.is_empty()
-            && profile.enclosing_storage.is_valid()
         {
-            return self.enclosing(profile.enclosing_storage);
+            if profile.enclosing_storage.is_valid() {
+                return self.enclosing(profile.enclosing_storage);
+            }
+            if !profile.enclosing_regions.is_empty() {
+                return self.regions(profile.enclosing_regions);
+            }
         }
         let Some(selected) = super::reference_captures_at_path(
             self.program,
@@ -160,6 +164,10 @@ impl Resolver<'_, '_> {
                     && profile.enclosing_storage.is_valid()
                 {
                     self.enclosing(profile.enclosing_storage)?
+                } else if let Some(profile) = profile
+                    && !profile.enclosing_regions.is_empty()
+                {
+                    self.regions(profile.enclosing_regions)?
                 } else if !descriptor.referents.is_empty() {
                     self.referents_or_loan(selected.capture, &[], descriptor.referents)?
                 } else {
@@ -250,6 +258,9 @@ impl Resolver<'_, '_> {
                 self.enclosing(row.enclosing_storage)?,
             ));
         }
+        if !row.enclosing_regions.is_empty() {
+            return Some(ProfileBacking::Known(self.regions(row.enclosing_regions)?));
+        }
         if row.descriptor.is_valid() {
             return Some(ProfileBacking::Known(self.places(row.descriptor, &[])?));
         }
@@ -274,6 +285,33 @@ impl Resolver<'_, '_> {
             Self::append(&mut output, self.places(supplier.operand, &path)?);
         }
         Some(ProfileBacking::Known(output))
+    }
+
+    /// Every region contributes to the conservative interference footprint.
+    /// These are admitted WithinRegion inputs, not exact pointer suppliers.
+    /// One unavailable region withholds the complete result.
+    fn regions(
+        &mut self,
+        regions: HandleSpan<checked_trees::FlowOperandRetainedRegion>,
+    ) -> Option<Vec<CapturedPlace>> {
+        let regions = self
+            .control
+            .operand_retained_regions
+            .span(regions)?
+            .to_vec();
+        if regions.is_empty() {
+            return None;
+        }
+        let mut output = Vec::new();
+        for region in regions {
+            let projection = self
+                .control
+                .operand_retained_paths
+                .span(region.projection)?
+                .to_vec();
+            Self::append(&mut output, self.places(region.operand, &projection)?);
+        }
+        Some(output)
     }
 
     fn enclosing(&mut self, enclosing: Handle<FlowOperandFact>) -> Option<Vec<CapturedPlace>> {

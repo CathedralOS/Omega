@@ -2,6 +2,68 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn package_review_retains_products_not_checked_compiler_state() {
+    for source in [
+        include_str!(
+            "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
+        ),
+        include_str!("../../../packages/package-manager/src/review/candidate/passes/policy.rs"),
+        include_str!("../../../packages/package-manager/src/review/candidate/review_cache.rs"),
+    ] {
+        for forbidden in [
+            "compiler::CheckedCompilation",
+            ".check_package_build(",
+            ".execution()",
+            ".build_admission()",
+            "project_checked_package_policy(",
+            "publish_checked_component(",
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "package review interprets {forbidden}"
+            );
+        }
+    }
+    let review = include_str!("checked/package_review.rs");
+    assert!(!review.contains("pub fn checked("));
+    assert!(!review.contains("Deref"));
+}
+
+#[test]
+fn package_binding_policy_does_not_interpret_checked_source() {
+    let policy =
+        include_str!("../../../packages/package-manager/src/review/candidate/semantic_bindings.rs");
+    for forbidden in [
+        "CheckedCompilation",
+        "provider_planning::",
+        ".facts",
+        ".symbols",
+        ".traits()",
+        ".machines()",
+        ".providers()",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "binding policy interprets {forbidden}"
+        );
+    }
+    let projection =
+        include_str!("../../../packages/review-evidence/src/capture/semantic_bindings.rs");
+    assert!(!projection.contains("package_manager"));
+    assert!(!projection.contains("PackageKey,"));
+    let evidence = include_str!("../../../packages/review-evidence/Cargo.toml");
+    assert!(!evidence.contains("package-manager ="));
+    assert!(!evidence.contains("compiler ="));
+    let packages = include_str!("../../../packages/package-manager/Cargo.toml");
+    for dependency in ["provider-planning =", "flow-effects =", "symbols ="] {
+        assert!(
+            !packages.contains(dependency),
+            "package review imports {dependency}"
+        );
+    }
+}
+
+#[test]
 fn application_does_not_depend_on_pipeline_stages() {
     let manifest = include_str!("../../../application/cli/Cargo.toml");
     assert!(
@@ -161,6 +223,38 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
+fn early_constants_share_terminal_production_without_tree_fallback() {
+    let early = include_str!(
+        "../../../../psi/compilation/compile-time/src/machine_execution/build_machines.rs"
+    );
+    let constant = early
+        .split("pub(crate) fn evaluate_checked_constant(")
+        .nth(1)
+        .expect("constant entry")
+        .split("fn interpreter_program(")
+        .next()
+        .expect("constant body");
+    assert!(constant.contains("psi_terminal_production::TerminalProductionRequest::new("));
+    assert!(constant.contains("terminal_interpreter::TerminalProgram::borrow("));
+    assert!(constant.contains(".invoke(&mut meter)"));
+    assert!(!constant.contains("checked_interpreter::"));
+
+    let facade = include_str!("../../../../psi/compilation/driver/Cargo.toml");
+    let producer =
+        include_str!("../../../../psi/compilation/driver/terminal-production/Cargo.toml");
+    assert!(facade.contains("psi-terminal-production ="));
+    assert!(!producer.contains("build-time-evaluation ="));
+    for stage in [
+        "checked-trees-to-lowered-psi =",
+        "lowered-psi-to-lowered-psi =",
+        "lowered-psi-to-terminal-psi =",
+    ] {
+        assert!(!facade.contains(stage), "source facade reassembles {stage}");
+        assert!(producer.contains(stage), "shared producer lost {stage}");
+    }
+}
+
+#[test]
 fn product_consumers_do_not_assemble_source_stages() {
     for manifest in [
         include_str!("../Cargo.toml"),
@@ -246,7 +340,7 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
     for source in [
         include_str!("../../../packages/package-manager/src/operations/accepted_compilation.rs"),
         include_str!(
-            "../../../packages/package-manager/src/review/candidate/compilation/package_pass.rs"
+            "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"
         ),
         include_str!("../../../packages/package-manager/src/build_session.rs"),
         include_str!("../../../packages/package-manager/src/build_session/bindings.rs"),

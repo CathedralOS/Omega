@@ -7,6 +7,9 @@
 //! authority and die before their backing owners.
 //! Carrier disposal grants no ownership of borrowed backing storage. Borrowing
 //! a carrier across an edge retains its original disposal debt until exit.
+//! An affine borrowed view that arrives as a parameter owes that same carrier
+//! death. When no loan action names it, every normal return it can reach
+//! discards the descriptor and leaves the borrowed elements in place.
 //! Region disposal retains its exact checked action stream independently of
 //! whole-home liveness; explicit retirement ends that home's current epoch.
 //! A separately selected whole-home discard can enter the same equations only
@@ -15,7 +18,7 @@
 //! Cycles preserve the same finite carrier frontier; nominal cleanup remains
 //! outside this pass.
 use crate::lowering_error::{LoweringError, unsupported};
-use semantic_vocabulary::{BlockId, StructuralPlaceKind};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, TerminalAffineCleanupAction, Terminator,
@@ -95,7 +98,166 @@ pub(crate) fn complete(
         blocks,
         types,
         &extractions,
-    )
+    )?;
+    retire_borrowed_descriptor_arrivals(entry_parameters, entry, blocks, types)
+}
+
+/// Close affine borrowed view arrivals that no selected loan death names.
+///
+/// A mutable byte view can be copied into a block parameter. That parameter
+/// is an affine descriptor: execution records the carrier on the live
+/// frontier at the arrival and accepts a normal return only after the
+/// carrier is discarded. The discard does not own the borrowed elements.
+/// Loan cleanup, an owned transfer, or a reference release already accounts
+/// for the arrivals it names. A structural return of the same place keeps
+/// the frontier entry that result transfer checks.
+fn retire_borrowed_descriptor_arrivals(
+    entry_parameters: &[StructuralParameterDeclaration],
+    entry: BlockId,
+    blocks: &mut [Block],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
+    let mut arrivals = Vec::new();
+    for parameter in entry_parameters
+        .iter()
+        .filter(|parameter| borrowed_descriptor_arrival(parameter, types))
+    {
+        if !arrivals.iter().any(|(place, _)| *place == parameter.place) {
+            arrivals.push((parameter.place, vec![entry]));
+        }
+    }
+    for block in blocks.iter() {
+        for parameter in block
+            .structural_parameters
+            .iter()
+            .filter(|parameter| borrowed_descriptor_arrival(parameter, types))
+        {
+            if let Some((_, births)) = arrivals
+                .iter_mut()
+                .find(|(place, _)| *place == parameter.place)
+            {
+                if !births.contains(&block.id) {
+                    births.push(block.id);
+                }
+            } else {
+                arrivals.push((parameter.place, vec![block.id]));
+            }
+        }
+    }
+    let pending = arrivals
+        .into_iter()
+        .filter(|(place, _)| !descriptor_death_is_scheduled(blocks, *place))
+        .collect::<Vec<_>>();
+    for (place, births) in pending {
+        let mut reachable = births;
+        let mut cursor = 0;
+        while cursor < reachable.len() {
+            let current = reachable[cursor];
+            cursor += 1;
+            let Some(block) = blocks.iter().find(|block| block.id == current) else {
+                continue;
+            };
+            for target in block.terminator.successor_targets() {
+                if !reachable.contains(&target) {
+                    reachable.push(target);
+                }
+            }
+        }
+        for block in blocks.iter_mut() {
+            if !reachable.contains(&block.id) {
+                continue;
+            }
+            if matches!(
+                block.terminator,
+                Terminator::ReturnStructural { source, .. } if source == place
+            ) {
+                continue;
+            }
+            let Some(actions) = return_cleanup(&mut block.terminator) else {
+                continue;
+            };
+            if actions.iter().any(|action| action.place() == place) {
+                continue;
+            }
+            actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+        }
+    }
+    Ok(())
+}
+
+fn borrowed_descriptor_arrival(
+    parameter: &StructuralParameterDeclaration,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    parameter.multiplicity == StructuralMultiplicity::Affine
+        && parameter.access != StructuralAccess::Owned
+        && terminal_semantics::view_descriptor_parameter(parameter, types.iter())
+}
+
+/// A named death, owned whole transfer, or reference release already ends
+/// this carrier. A second discard on a later return would miss the frontier.
+fn descriptor_death_is_scheduled(blocks: &[Block], place: PlaceId) -> bool {
+    blocks.iter().any(|block| {
+        block
+            .terminator
+            .cleanup_rosters()
+            .any(|(_, actions)| actions.iter().any(|action| action.place() == place))
+            || block.operations.iter().any(|operation| {
+                structural_operands(&operation.kind).any(|argument| {
+                    argument.place == place
+                        && argument.path.is_empty()
+                        && argument.access == StructuralAccess::Owned
+                }) || matches!(
+                    &operation.kind,
+                    terminal_psi::OperationKind::ReleaseReference { source, path }
+                        if *source == place && path.is_empty()
+                )
+            })
+            || terminator_owns_place(&block.terminator, place)
+    })
+}
+
+fn terminator_owns_place(terminator: &Terminator, place: PlaceId) -> bool {
+    let owned = |argument: &terminal_psi::StructuralArgument| {
+        argument.place == place
+            && argument.path.is_empty()
+            && argument.access == StructuralAccess::Owned
+    };
+    match terminator {
+        Terminator::Jump {
+            structural_arguments,
+            ..
+        }
+        | Terminator::ExternalCompletion {
+            structural_arguments,
+            ..
+        } => structural_arguments.iter().any(owned),
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => when_true
+            .structural_arguments
+            .iter()
+            .chain(when_false.structural_arguments.iter())
+            .any(owned),
+        _ => false,
+    }
+}
+
+fn return_cleanup(terminator: &mut Terminator) -> Option<&mut Vec<TerminalAffineCleanupAction>> {
+    match terminator {
+        Terminator::Return {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnUnit {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnStructural {
+            cleanup_actions, ..
+        } => Some(cleanup_actions),
+        _ => None,
+    }
 }
 
 pub(super) fn copyable_descriptor_type_ids(

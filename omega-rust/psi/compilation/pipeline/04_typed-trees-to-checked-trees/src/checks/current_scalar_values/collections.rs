@@ -26,14 +26,10 @@ pub(super) struct CapturedFieldLength {
 }
 
 impl CurrentScalarValues<'_> {
-    pub(crate) fn postcondition(
-        &mut self,
-        expression: ExpressionHandle,
-        returned: ExpressionHandle,
-        origins: impl Iterator<Item = (SymbolHandle, SymbolHandle)>,
-    ) -> Option<ScopedArithmeticExpression> {
-        if let Some(value) = self.collection_length(returned, 0) {
-            let entry = self.program.machine_states(self.machine).first()?;
+    pub(crate) fn prepare_exit_return(&mut self, returned: ExpressionHandle) {
+        if let Some(value) = self.collection_length(returned, 0)
+            && let Some(entry) = self.program.machine_states(self.machine).first()
+        {
             self.lengths.push(Length {
                 subject: LengthSubject::Result(self.machine.symbol),
                 name: String::new(),
@@ -43,6 +39,14 @@ impl CurrentScalarValues<'_> {
             });
         }
         self.record_returned_field_lengths(returned);
+    }
+
+    pub(crate) fn postcondition(
+        &self,
+        expression: ExpressionHandle,
+        returned: ExpressionHandle,
+        origins: impl Iterator<Item = (SymbolHandle, SymbolHandle)>,
+    ) -> Option<ScopedArithmeticExpression> {
         // The declaration's postcondition names invocation parameters, while
         // the live hypotheses name the exit state's parameters. Bind those
         // namespaces through the independently established incoming origins;
@@ -127,12 +131,12 @@ impl CurrentScalarValues<'_> {
         expression: ExpressionHandle,
         statement: usize,
     ) {
-        let value = self.collection_length(expression, 0);
         self.lengths
             .retain(|length| length.subject != LengthSubject::Storage(symbol));
         // Only descriptors of reference collection types participate. Bounded
         // owners have live counts, not a frozen length equal to their capacity.
         if fixed_length(self.program, type_reference, String::new).is_some() {
+            let value = self.collection_length(expression, 0);
             self.lengths.push(Length {
                 subject: LengthSubject::Storage(symbol),
                 name: name.to_owned(),

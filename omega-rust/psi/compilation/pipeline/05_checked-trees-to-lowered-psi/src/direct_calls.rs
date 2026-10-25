@@ -16,8 +16,8 @@
 //!
 //! Consumers go the other way: [`direct_call_parts`] reads the callee, result
 //! role and operand lanes back from whichever operation a call took, and
-//! [`call_structural_arguments`] adds boundary calls for the consumers that
-//! walk every structural argument a direct or boundary call passes. A
+//! [`crate::call_operands::structural_arguments`] supplies all dispatch kinds
+//! when the consumer needs argument custody rather than a direct callee. A
 //! consumer that needs only those facts never lists the five operations.
 
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -218,6 +218,4 @@ impl DirectCall {
     }
 }
 
-pub(crate) use terminal_psi::{
-    DirectCallParts, DirectCallRole, call_structural_arguments, direct_call_parts,
-};
+pub(crate) use terminal_psi::{DirectCallParts, DirectCallRole, direct_call_parts};

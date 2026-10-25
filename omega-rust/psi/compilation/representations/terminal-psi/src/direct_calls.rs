@@ -97,11 +97,15 @@ pub fn direct_call_parts(kind: &OperationKind) -> Option<DirectCallParts<'_>> {
     })
 }
 
-/// The structural arguments a direct or boundary call passes; empty for any
-/// other operation.
+/// The structural arguments passed by direct, boundary or dynamic calls.
+/// Operand custody is independent of dispatch; non-call operations are empty.
 pub fn call_structural_arguments(kind: &OperationKind) -> &[StructuralArgument] {
     match kind {
         OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallDynamic {
             structural_arguments,
             ..
         } => structural_arguments,

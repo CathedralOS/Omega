@@ -3,7 +3,11 @@
 //! the difference between `reach(Step)` and `reach(Step) + Console`; subtracting
 //! that bound afterwards also loses a real Console contribution. Retain fixed
 //! services and exact nominal binder symbols separately from the beginning.
-//! The ordinary rows still use requirement ceilings for universal body checks.
+//! A declaration is a ceiling, not a body contribution. Keep the complete
+//! derived body row beside the published contract: callers consume an authored
+//! ceiling (including its slack), or the inferred row when the clause is absent.
+//! Universal body checks always use pinned requirement ceilings, never a selected
+//! implementation's smaller body.
 
 use arena::HandleSpan;
 use language_semantics::{ServiceReachId, ServiceReachInterface};
@@ -19,9 +23,9 @@ use flow_effects::{
 struct MachineReachWork {
     symbol: SymbolHandle,
     family_members: Vec<FamilyMemberReach>,
-    declared: Vec<ServiceReachId>,
     published: Vec<ServiceReachId>,
     checked_body: bool,
+    authored_ceiling: bool,
     uses_published: bool,
     concrete_declared: Vec<ServiceReachId>,
     direct: Vec<ServiceReachId>,
@@ -69,7 +73,6 @@ struct DependencyWork {
 #[derive(Debug, Clone, Default)]
 struct DirectServiceReach {
     services: Vec<ServiceReachId>,
-    boundary_services: Vec<ServiceReachId>,
     concrete_services: Vec<ServiceReachId>,
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
 }
@@ -122,6 +125,10 @@ pub(crate) fn infer_service_reaches_uncached(
             .collect::<Vec<_>>();
         let checked_body =
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
+        let authored_ceiling = program
+            .authored_service_reach_rows_for(machine.symbol)
+            .next()
+            .is_some();
         let mut published = if family_members.is_empty() {
             program
                 .service_reach_rows
@@ -208,18 +215,15 @@ pub(crate) fn infer_service_reaches_uncached(
             uses_published: family_members.is_empty()
                 && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                     || machine.is_public
-                    || program
-                        .authored_service_reach_rows_for(machine.symbol)
-                        .next()
-                        .is_some()
+                    || authored_ceiling
                     || !program
                         .service_reach_rows
                         .services(machine.service_reach_row)
                         .is_empty()),
             family_members,
-            declared: published.clone(),
             published: published.clone(),
             checked_body,
+            authored_ceiling,
             concrete_declared: concrete_declared.clone(),
             direct: direct.clone(),
             transitive: direct,
@@ -350,20 +354,20 @@ pub(crate) fn infer_service_reaches_uncached(
             work[machine_index].dependency = dependency;
             work[machine_index].cleanup_contribution = cleanup_contribution;
             let machine = &mut work[machine_index];
-            // A checked body's declaration contributes to its row; it does not
-            // cap calls through private helpers or exported wrappers. Pinned
-            // requirements keep their declared ceiling independently of bodies.
-            if machine.checked_body {
-                machine.published = machine.declared.clone();
-                extend_service_set(&mut machine.published, &machine.transitive);
+            // A checked body without a clause publishes its derived row.
+            // A written ceiling stays fixed while the body is independently
+            // inferred and validated against it. Unioning the two here hides
+            // violations and makes declared slack look like executed reach.
+            if machine.checked_body && !machine.authored_ceiling {
+                machine.published = machine.transitive.clone();
             }
-            machine.concrete_effective = machine.concrete_declared.clone();
-            if machine.checked_body || !machine.family_members.is_empty() {
-                extend_service_set(
-                    &mut machine.concrete_effective,
-                    &machine.concrete_transitive,
-                );
-            }
+            machine.concrete_effective = if machine.checked_body && !machine.authored_ceiling
+                || !machine.family_members.is_empty()
+            {
+                machine.concrete_transitive.clone()
+            } else {
+                machine.concrete_declared.clone()
+            };
         }
         if work.iter().zip(&previous).all(|(machine, previous)| {
             machine.transitive == previous.0
@@ -560,25 +564,6 @@ fn with_operational_index<R>(
     operational.with_machine_index(run)
 }
 
-pub(crate) fn required_boundary_services(
-    program: &dyn crate::CheckingInput,
-    operational: &OperationalPlan,
-    machine: SymbolHandle,
-) -> Vec<ServiceReachId> {
-    let mut required = Vec::new();
-    if let Some(summary) = with_operational_index(operational, |index| index.get(&machine).copied())
-        .map(|index| &operational.machines()[index])
-    {
-        for state in operational.states.span_or_empty(summary.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                let reach = direct_service_reach_for_operational_call(program, call);
-                extend_service_set(&mut required, &reach.boundary_services);
-            }
-        }
-    }
-    required
-}
-
 fn indexed_contract_view<'program>(
     program: &'program dyn crate::CheckingInput,
     index: &CallTargetIndex,
@@ -634,8 +619,6 @@ fn direct_service_reach_for_operational_call(
     }) {
         // Selection substitutes nominal reach only. Structural requirements
         // remain fixed even when the selected implementation has a smaller row.
-        // A binder call is not a newly authored direct boundary invocation.
-        reach.boundary_services.clear();
         if let typed_trees::data::MachineParameterContractView::Structural(signature) = contract {
             extend_signature_service_rows(program, signature, &mut reach);
             record_signature_reach(program, signature, &mut reach);
@@ -808,19 +791,23 @@ fn direct_service_reach_for_call(
     // An evaluated-binding leaf is an ordinary bodyless machine, not a
     // boundary declaration. Its satisfied requirement supplies its published
     // reach (foreign bindings, operational coherence), so a call to it
-    // propagates that reach like any machine call and is not newly authored
-    // direct boundary use. The call plans as a boundary call on the same
+    // propagates that exact requirement reach. It plans as a boundary call on the same
     // requirement, so it must also publish the same reach as a field call on
     // that requirement, or the requirement keeps no single boundary plan.
     if intrinsic.is_none()
         && let Some((requirement, _)) =
             crate::exact_external_leaf_boundary_requirement(program, target)
     {
-        let mut reach = direct_service_reach_for_call(program, requirement);
-        reach.boundary_services.clear();
-        return reach;
+        return direct_service_reach_for_call(program, requirement);
     }
     let target = intrinsic.map_or(target, |(requirement, _)| requirement);
+    // Dynamic lowering retargets the occurrence to a dispatch slot. Effects
+    // belong to the slot's pinned requirement, not to that slot symbol or a
+    // selected implementation body. The selector is a dispatch operand and
+    // cannot erase or narrow the requirement's published service row.
+    let target = program
+        .dynamic_slot_by_symbol(target)
+        .map_or(target, |slot| slot.requirement);
     let mut reach = DirectServiceReach::default();
     if !target.is_valid() {
         return reach;
@@ -843,7 +830,6 @@ fn direct_service_reach_for_call(
             reach.services.sort_by_key(|service| service.0);
             reach.services.dedup();
             reach.concrete_services = reach.services.clone();
-            reach.boundary_services = reach.services.clone();
         }
         return reach;
     }
@@ -870,15 +856,12 @@ fn direct_service_reach_for_call(
         return reach;
     }
 
-    if let Some((trait_definition, signature)) = program.trait_machine_signature(target) {
+    if let Some((_, signature)) = program.trait_machine_signature(target) {
         // The provider interface identifies the requirement, not an implicit
         // effect. A raw OS interface can expose several portable capabilities,
         // and an empty requirement row remains empty even when it has a provider.
         extend_signature_service_rows(program, signature, &mut reach);
         record_signature_reach(program, signature, &mut reach);
-        if trait_definition.is_boundary {
-            reach.boundary_services = reach.services.clone();
-        }
         return reach;
     }
     if let Some(machine) = with_call_target_index(program, |index| {
@@ -896,7 +879,6 @@ fn direct_service_reach_for_call(
             reach.concrete_services = reach.services.clone();
         }
         extend_machine_invoked_binding_services(program, machine, &mut reach);
-        reach.boundary_services = reach.services.clone();
     }
     reach
 }

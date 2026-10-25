@@ -337,11 +337,10 @@ impl<'selection> LengthJobs<'selection> {
             typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;
         let checked =
             typed_trees_to_checked_trees::lower_typed_trees(execution, preparation, &checking)?;
-        // Admission sees the selected operation's executable meaning, not a
-        // bodyless requirement introduced by ordinary call normalization.
-        // Derive that semantic view from the fully checked graph: preparation
-        // also resolves member meaning such as a newly-known array length.
-        // The executed checked graph and all its facts remain immutable.
+        // Admission follows selected executable meaning, while the checked
+        // program retains its public requirement calls. Terminal installs only
+        // those independently admitted numeric supplies; it does not rewrite
+        // the source or borrow another occurrence's selected implementation.
         let admitted = crate::machine_execution::selected_operators::prepare_selected_execution(
             &checked.typed,
             &[],
@@ -406,9 +405,31 @@ fn require_zero_argument_entry(typed: &TypedTrees, machine: &Machine) -> Result<
 fn decode_length_result(
     typed: &TypedTrees,
     machine: &Machine,
-    value: crate::BuildTimeValue,
+    value: terminal_interpreter::TerminalExecutionResult,
 ) -> Result<usize, String> {
-    let value = decode_integer_result(typed, machine, value)?;
+    let value = match value {
+        terminal_interpreter::TerminalExecutionResult::Scalar(
+            terminal_interpreter::TerminalScalarValue::Integer { value, .. },
+        ) => match value {
+            semantic_vocabulary::IntegerValue::Signed(value) => BigInt::from_i128(value),
+            semantic_vocabulary::IntegerValue::Unsigned(value) => BigInt::from_u128(value),
+        },
+        _ => {
+            let primitive = entry_state(typed, machine)
+                .and_then(|state| typed.primitive_type_reference(state.return_type));
+            return Err(match primitive {
+                Some(primitive) => format!(
+                    "machine `{}` returns `{}`, not an integer type",
+                    machine.name.as_str(),
+                    primitive.name(),
+                ),
+                None => format!(
+                    "machine `{}` does not declare an integer return type",
+                    machine.name.as_str(),
+                ),
+            });
+        }
+    };
     if value.is_negative() {
         return Err(format!(
             "the call returned {value}, but an array length must be a non-negative integer"

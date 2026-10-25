@@ -31,10 +31,11 @@ pub(super) fn analyze(
     // including calls whose result folds before reaching this result query.
     // Speculative interval queries below must not repeat those diagnostics.
     let analysis = named_operator_result(walk, call).unwrap_or_else(|| {
+        let mut cached_actuals = None;
         [
             selected_const_call_result(walk, expression),
-            declared_return_range(walk, expression, call),
-            inferred_return_range(walk, call),
+            declared_return_range(walk, expression, call, &mut cached_actuals),
+            inferred_return_range(walk, call, &mut cached_actuals),
             returned_referent_range(walk, expression, call),
         ]
         .into_iter()
@@ -292,12 +293,21 @@ fn declared_return_range(
     walk: &ExpressionWalk,
     expression: ExpressionHandle,
     call: &TableCallExpression,
+    cached_actuals: &mut Option<
+        Vec<(
+            symbols::SymbolHandle,
+            Interval,
+            Option<checked_trees::IntegerRangeRecipe>,
+        )>,
+    >,
 ) -> Option<Analysis> {
     let program = walk.program;
     let return_type = call_return_type(program, call)?;
     let primitive = program.primitive_type_reference(return_type);
     let declared = range_constraint_interval(program, return_type);
-    let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
+    let actuals = cached_actuals
+        .get_or_insert_with(|| exact_ordinary_actual_intervals(walk, call).unwrap_or_default())
+        .as_slice();
     let values: Vec<_> = actuals
         .iter()
         .map(|(symbol, interval, _)| (*symbol, *interval))
@@ -468,7 +478,17 @@ fn exact_ordinary_actual_intervals(
 
 /// Infer an additional call-specific bound from a completely captured body.
 /// This bound intersects the declared result range at the common call join.
-fn inferred_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
+fn inferred_return_range(
+    walk: &ExpressionWalk,
+    call: &TableCallExpression,
+    cached_actuals: &mut Option<
+        Vec<(
+            symbols::SymbolHandle,
+            Interval,
+            Option<checked_trees::IntegerRangeRecipe>,
+        )>,
+    >,
+) -> Option<Analysis> {
     let program = walk.program;
     if !walk.infer_call_bodies
         || !call.selects_only_nominal_route()
@@ -482,8 +502,10 @@ fn inferred_return_range(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         return None;
     }
     let primitive = program.primitive_type_reference(state.return_type);
-    let actuals = exact_ordinary_actual_intervals(walk, call).unwrap_or_default();
-    let (interval, recipe) = infer_return_interval(program, callee, state, primitive, &actuals)?;
+    let actuals = cached_actuals
+        .get_or_insert_with(|| exact_ordinary_actual_intervals(walk, call).unwrap_or_default())
+        .as_slice();
+    let (interval, recipe) = infer_return_interval(program, callee, state, primitive, actuals)?;
     Some(Analysis {
         recipe,
         domain: None,

@@ -449,6 +449,13 @@ impl CheckingInput for CheckingProjection<'_> {
         }
     }
 
+    fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
+        match self.projected {
+            Some(_) => None,
+            None => self.original.call_frame_tables(),
+        }
+    }
+
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
@@ -474,6 +481,8 @@ pub struct CheckingMemos {
     pub(crate) requirement_satisfiers:
         OnceLock<Arc<crate::machine_calls::denotational_calls::RequirementSatisfierIndex>>,
     pub(crate) erased_initializers: OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
+    pub(crate) mathematical_expression_nodes:
+        OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
     pub(crate) owned_field_domains:
         OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
     pub(crate) claim_frontiers:
@@ -562,13 +571,34 @@ pub struct CheckingMemos {
     >,
     pub(crate) binary_meanings:
         Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
-    /// Whole bound-expression meaning, including the remaining traversal
-    /// budget. Guard DAGs reuse children; caching only each binary's local
-    /// meaning still re-expands those children for every enclosing guard.
-    /// Depth is part of the key so a shallow success cannot waive the
-    /// existing recursion limit when reused inside a deeper expression.
+    /// Whole bound-expression meaning height (`Some(height)` when every node in
+    /// the subtree has builtin meaning, `None` when any node lacks builtin
+    /// meaning). Guard DAGs and chained binary expressions reuse children at
+    /// varying depths; storing the subtree height preserves the exact depth
+    /// limit (`depth + height <= 128`) without re-walking subtrees per depth.
     pub(crate) bound_subtree_meanings: Mutex<
-        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle, u8), bool>,
+        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
+    >,
+    pub(crate) expression_result_types: Mutex<
+        symbols::SymbolKeyMap<
+            (u32, u32, typed_trees::expression::ExpressionHandle),
+            Option<typed_trees::types::TypeReferenceHandle>,
+        >,
+    >,
+    pub(crate) ordered_integer_meanings: Mutex<
+        symbols::SymbolKeyMap<
+            (u32, u32, typed_trees::expression::ExpressionHandle),
+            Option<(
+                typed_trees::types::PrimitiveType,
+                numerics::arithmetic::ArithmeticDomain,
+            )>,
+        >,
+    >,
+    pub(crate) parameter_requires_intervals: Mutex<
+        symbols::SymbolKeyMap<
+            (u32, u32, symbols::SymbolHandle, bool),
+            crate::proof_contracts::arithmetic_domains::Interval,
+        >,
     >,
     /// Exact case-reference paths depend only on this immutable input's
     /// expression, symbol and data tables. Retain the declaration position,
@@ -651,6 +681,7 @@ impl CheckingMemos {
         Self {
             requirement_satisfiers: self.requirement_satisfiers,
             erased_initializers: self.erased_initializers,
+            mathematical_expression_nodes: self.mathematical_expression_nodes,
             owned_field_domains: self.owned_field_domains,
             claim_frontiers: self.claim_frontiers,
             establishment: self.establishment,
@@ -673,6 +704,7 @@ impl CheckingMemos {
         Self {
             requirement_satisfiers: self.requirement_satisfiers.clone(),
             erased_initializers: self.erased_initializers.clone(),
+            mathematical_expression_nodes: self.mathematical_expression_nodes.clone(),
             proof_only: self.proof_only.clone(),
             license_candidates: self.license_candidates.clone(),
             entry_machines: self.entry_machines.clone(),

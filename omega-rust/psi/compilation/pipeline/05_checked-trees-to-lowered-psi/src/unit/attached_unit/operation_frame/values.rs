@@ -258,21 +258,28 @@ impl OperationEnvironment<'_> {
         } else {
             operations.computed_values.push((value, binding));
         }
-        // The receiving home is the completed value, not a replacement for the
-        // raw call's operation result or a nested operand's separate expression.
-        let root = facts::PlaceRoot::Expression(node.expression);
-        evaluation
-            .structural_locals
-            .retain(|binding| binding.root != root);
-        crate::expression_preparation::bindings::retain_completed_structural_homes(
-            &mut evaluation.structural_locals,
-            &[StructuralLocalBinding {
-                result_binding_ordinal: None,
-                root,
-                argument,
-                structural_type,
-            }],
-        )?;
+        // A captured copy has its own checked value identity and physical
+        // birth. Its consumers and normal death use computed_values above;
+        // publishing the supplying expression as an alias would conflate it
+        // with the ordinary value produced at that same source coordinate.
+        // Only ordinary roots publish an authored expression home.
+        if !root.captured_copy.is_valid() {
+            // The receiving home is the completed value, not a replacement for the
+            // raw call's operation result or a nested operand's separate expression.
+            let root = facts::PlaceRoot::Expression(node.expression);
+            evaluation
+                .structural_locals
+                .retain(|binding| binding.root != root);
+            crate::expression_preparation::bindings::retain_completed_structural_homes(
+                &mut evaluation.structural_locals,
+                &[StructuralLocalBinding {
+                    result_binding_ordinal: None,
+                    root,
+                    argument,
+                    structural_type,
+                }],
+            )?;
+        }
         values.truncate(source_value_count);
         Ok(())
     }

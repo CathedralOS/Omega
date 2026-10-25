@@ -1,0 +1,12 @@
+// Expected exit: 0
+machine read_mark() -> u64 reaches {
+    let mut value: u64 = 0;
+    value = 7;
+    value
+}
+machine main() reaches crashes Trap {
+    let value: u64 = read_mark();
+    transition value == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

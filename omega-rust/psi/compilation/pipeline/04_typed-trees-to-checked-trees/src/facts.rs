@@ -257,6 +257,7 @@ pub(crate) fn build_check_facts(
             program,
             &mut prepared,
             &mut claim_outcomes,
+            mutation_summaries,
             call_frames.as_ref(),
         )? {
             continue;

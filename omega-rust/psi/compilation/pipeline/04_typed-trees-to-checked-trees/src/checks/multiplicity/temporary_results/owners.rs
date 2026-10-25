@@ -44,6 +44,7 @@ pub(crate) struct TemporaryOwner {
     /// retains the exact call continuation named by `consumer`.
     pub(crate) completion: typed_trees::expression::ExpressionHandle,
     pub(crate) destination: TemporaryDestination,
+    pub(crate) completion_constraints: Option<arena::HandleSpan<checked_trees::FlowConstraintRef>>,
     completion_ordinal: usize,
 }
 
@@ -308,6 +309,7 @@ pub(crate) fn temporary_owners(
                 destination: TemporaryDestination::CallArgument,
                 completion_ordinal,
                 completion: typed_trees::expression::ExpressionHandle::invalid(),
+                completion_constraints: None,
             });
         }
     }
@@ -439,14 +441,33 @@ pub(crate) fn temporary_owners(
                 continue;
             }
             let capture = facts.flow.control.operands.get(observation.receiver);
-            let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, capture)
+            let roots = crate::flow::captured_observation_roots(program, &facts.flow.control, capture)
                 .ok_or_else(|| diagnostics::Diagnostic::error(format!(
-                    "temporary backing lifetime coverage is unavailable for an observed receiver in state `{}` at statement {}",
+                    "temporary backing observation coverage is unavailable for an observed receiver in state `{}` at statement {}",
                     state.name, statement_index,
                 )).with_source_span(program.expression_table.source_span(observation.expression)))?;
             if roots.contains(&facts::PlaceRoot::Expression(owner.expression)) {
+                if facts
+                    .flow
+                    .control
+                    .value_observations
+                    .span_or_empty(statement.value_observations)
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.expression == observation.expression
+                            && candidate.evaluation == owner.evaluation
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(diagnostics::Diagnostic::error(format!(
+                        "temporary owner has ambiguous value completion in state `{}` at statement {}",
+                        state.name, statement_index,
+                    )).with_source_span(program.expression_table.source_span(observation.expression)));
+                }
                 owner.consumer = PermissionEventSource::Statement { statement_index };
                 owner.completion = observation.expression;
+                owner.completion_constraints = Some(observation.constraints);
                 last_completion = completion;
             }
         }

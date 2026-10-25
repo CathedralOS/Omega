@@ -133,20 +133,19 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **OPTIONAL-REACH-CEILINGS.** Implement the ratified
+- **OPTIONAL-REACH-CEILINGS.** Complete the ratified
   [optional reach contract](wiki/spec/language/effects.md#declarations).
-  Established by `samples/cli/facts/unannotated_direct_boundary_call`: one
-  unannotated direct boundary call runs across the nine places, and an empty
-  ceiling rejects that hidden direct service. Remaining: unannotated transitive
-  calls; a pinned service-free empty ceiling and rejection of hidden transitive
-  services; a present clause as a bound on the complete derived row rather than
-  an additive union; `A + B` accepts `A` and rejects `C`; injected, generic,
-  dynamic, and target-specific refinement without selection narrowing callers;
-  public bodies, implementation members, and entries that omit `reaches`;
-  boundary-trait requirements that omit their ceiling; audit slack and
-  package-review round trips. Manifest/provider authority, foreign trust,
-  blocking, suspension, and crashes remain separate. Do not count removing
-  source annotations alone as compiler acceptance.
+  Remaining: require explicit ceilings on boundary-trait machine requirements
+  (including empty), migrate affected declarations and retain their runtime
+  oracles; finish injected-provider refinement and package acceptance/round-trip
+  coverage for the full contract.
+  Checked implementations may omit their own clause while refining their pinned
+  requirement. Keep optional versus explicitly empty custody through source,
+  generic substitution, joins, recursive summaries, Terminal production and
+  package comparison. Audit must retain inferred reach, declared slack and exact
+  critical/custom identities. Manifest/provider authority, foreign trust,
+  blocking, suspension and crashes remain separate. A green transport row or
+  annotation-only migration does not close the remaining acceptance.
 
 - **EXPLICIT-ENTRY-STORAGE.** Retire automatic provisioned ZII entry contexts
   under [entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
@@ -346,7 +345,13 @@ helper that passes does not close an item.
     `Selected<Base + 4>` application and its lower-bound contract through all
     nine places, including const evaluation and private package projection,
     with native/Terminal exit 0 on Linux x86-64 and construct-only reject twins.
-    Other hosts remain unexecuted for that row. The reference producer now
+    Other hosts remain unexecuted for that row. The reference producer's
+    `samples/cli/facts/open_record_const_implementation` row projects the
+    substituted nominal-record field `Configuration { minimum: Base + 4 }` at
+    Base = 3 through all nine places, with native/Terminal exit 0 on Windows
+    x86-64 and Reading-mismatch reject twins. Other hosts remain unexecuted
+    for that row. Nested field chains use the same projection. Case-payload
+    fields remain outside this row. The reference producer now
     specializes exact named calling-policy inline plan captures and nested data
     arguments before plan evaluation. `samples/cli/facts/generic_calling_policy`
     qualifies the closed `GenericPolicy<Box<u64>, 8>` result placement across all
@@ -357,7 +362,13 @@ helper that passes does not close an item.
     native/Terminal execution now agrees for the eighteen pinned
     `generic_calling_policy` place fixtures (base `c1c6bc8cb8ec`), while
     Windows x86-64 and Linux ARM64 native execution and other policy/member
-    kinds remain unqualified. Distinct
+    kinds remain unqualified. The reference producer's
+    `samples/cli/facts/named_conformance_dispatch` row preserves
+    `result == left + right` from `Selected`'s inline `combine` through generic
+    evidence dispatch across all nine places, with native/Terminal exit 0 on
+    Windows x86-64. Each reject twin drops only the right operand's upper bound
+    and refuses the specialized `apply` requires. Other hosts remain unexecuted
+    for that row. Distinct
     applications, canonical const projection and prior refusal controls remain
     pinned. Reflection selection rejects a
     named implementation as a member's operation until callable-contract checking lands
@@ -661,12 +672,17 @@ defines the complete product bar.
     copies, retained local-array backing and untouched sibling descriptors.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
-    Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships: ranked structural returns still
-    lose descriptor-length equalities at recursive exits. Preserve copied returns
-    from mutated borrowed record fields and stored array elements through the
-    existing computed-descriptor fact row, including saved descriptors returned
-    after their former slot changes again and untouched element/sibling storage.
+    Complete remaining cyclic, opaque/provider and dependent result composition
+    through the same producer and custody relationships. Retain copied returns
+    through ranked identities and public local-dyn slots, including immutable
+    local copies, contextual windows, disjoint writes, borrowed record fields,
+    stored array elements and later replacement of former slots. Descriptor-leaf
+    equations preserve exact immutable input metadata; admitted dynamic regions
+    supply conservative backing independently of scalar identity and permission
+    ancestry. Reject growing pointee paths, changed inputs, divergent identities
+    and writes to any possible retained backing. Retain returned window extents
+    as mathematical endpoint differences, including symbolic, inclusive and open
+    bounds, without deriving endpoint formation or bounds from the result.
     Keep
     `pass/ownership/runtime_{captured_exclusive_argument,exclusive_argument_before_descriptor_retarget}_exit`
     and `runtime_{fixed_selector_collection_capture,index_before_descriptor_retarget,fixed_selector_owned_argument}_exit`
@@ -1139,10 +1155,10 @@ defines the complete product bar.
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
-    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path. Preserve the
-    exact completion-time cleanup facts for copied descriptor leaves, and end
-    borrowed carriers' loans before disposing their supplier storage; anonymous
-    descriptor-source completion remains unfinished.
+    call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path.
+    Keep `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context,
+    detached-carrier and reference-free projected-supplier read control while
+    completing those remaining moved-value and computed-call claims.
     Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not
@@ -2465,7 +2481,7 @@ then independent claimed restoration slices -> final closure.
   operation into its Psi owner. Depends on **INTERPRETER-CORE-ENTRY**.
   Owners: `omega-rust/psi/compilation/compile-time/src/machine_execution/`,
   `omega-rust/psi/compilation/compile-time/src/const_evaluation/const_lengths.rs`,
-  `omega-rust/omega/compilation/driver/terminal-production/src/` and the owning
+  `omega-rust/psi/compilation/driver/terminal-production/src/` and the owning
   Psi stages. One immutable declaration/type arena supplies every job. Job-local
   overlays retain selected closures, evaluated values and materialized results;
   compile-time evaluation must not clone `SyntaxTrees`/`TypedTrees`, inject a
@@ -2482,14 +2498,19 @@ then independent claimed restoration slices -> final closure.
   still reject. Record a precise dependency if the demanded closure itself
   cannot yet check; do not establish a permanent typed-tree execution exception.
   Current frontier: the shared stage 05-07 production operation is now owned by
-  `omega-rust/psi/compilation/driver/`; the Omega product adapter
+  `omega-rust/psi/compilation/driver/terminal-production/`; the Omega product adapter
   delegates to it and retains product timing/report vocabulary. Fixed-array
   jobs now demand within the original executable roster, settle shared type
   prerequisites in one private arena and reject actual cycles with their chain.
   Each job retains its checked facts and exact prepared entry; selected-provider
-  meaning survives ordinary call normalization. Common Terminal job production
-  and execution still depend on **INTERPRETER-CORE-ENTRY**. The current evaluator
-  remains the existing tree engine; this does not close the Terminal acceptance.
+  meaning survives ordinary call normalization. Fixed-array jobs use that common
+  producer and execute through a Terminal instance, with admitted primitive
+  numeric imports, call-local result policy and Terminal semantic fuel. Early Psi
+  and package review share the exact source-identity protocol in the source
+  foundation. Remaining acceptance: remove private arena cloning/rechecking and
+  admission projections, migrate the other early-evaluation consumers, and
+  measure shared-dependency memory. This does not close those requirements or
+  migrate general Build execution.
 
 - **TERMINAL-BUILD-SEED.** (new-scope) Establish the minimum package-aware
   Build activation that lets agents keep building/checking/running the compiler
@@ -2549,14 +2570,15 @@ then independent claimed restoration slices -> final closure.
   resolution/review, Psi requirement admission, and Terminal continuation plus
   provider-slot installation as their existing owners rather than another Build
   driver. The seed's
-  runtime work is its four authored `Build::bind` rows. Unpublished source
-  preparation carries generalized `RootBinding` plans, exact declaration
-  coordinates and authenticated original Build inputs through the common core;
-  its four ordered observations, pause/resume without replay, actual settings
-  readback and foreign/malformed-input refusals are measured. This is not the
-  default package Build route. Forwarded identifier mutation still refuses
-  `InvalidStructuralByteViewFieldStore(OperationId(8))`: the mutable boundary
-  receiver has no portable stored-descriptor effect/lifetime contract.
+  runtime work is its four authored `Build::bind` rows. On published
+  `0f544a8a211`, inspecting this Build through Terminal refuses `root binding`
+  at statement 2; prior unpublished RootBinding preparation is not a current
+  implementation or acceptance result. General binding operations must carry
+  exact declaration coordinates and authenticated original Build inputs through
+  the common core. Verify ordered observations, pause/resume without replay,
+  settings readback and foreign/malformed-input refusal on the resulting route.
+  Mutable boundary receivers also need a portable stored-descriptor
+  effect/lifetime contract.
   `RetainedBorrow` covers shared inputs returned as structural results, not
   Unit-return receiver writeback. Carry an authenticated general mutable-slot
   effect/backing relation through checked admission, boundary declarations,
@@ -2910,8 +2932,21 @@ crash and native exit behavior.
   completing demanded components before their consumers. Compiler-owned opaque
   Build continuations prevent the application from extracting source IR; source
   checking and component/product publication remain behind the compiler facade.
-  Candidate review and Terminal Build/helper activation scheduling still need
-  migration. Psi
+  Candidate review also completes opaque Build continuations without replaying
+  compilation to answer component demands. Compiler evidence owns semantic-binding
+  nomination; package review consumes proposals and scopes consumer permissions,
+  rather than interpreting checked machines, traits, reaches or provider plans.
+  Review consumes a compiler-issued evidence product and opaque source owner;
+  checked-state custody, nomination and demand-driven component publication stay
+  behind the compiler facade. Application Build runs install/update target reviews
+  from package-admitted requests; package management retains transaction custody,
+  decisions and publication. Application Build also executes the admitted review
+  dependency passes for commands and audit, retaining suspended Builds through
+  cache-miss recovery. Package policy selects discovery/bound passes and owns
+  occurrence reuse, evidence joins and optional cache writes. Application Build
+  owns audit session lifetime and target execution; package completion retains
+  ordered report joins and unchanged-file checks. Terminal Build/helper activation
+  scheduling still needs migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
@@ -4668,10 +4703,15 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md)
   delivers the bounded scalar-result link through public Build evaluation,
   provider installation, native call custody and exact package risk consent.
-  `samples/cli/facts/assumed_binding_result_bound` exercises the same result
-  bound across nine places. Input-side authority issuance, broader invocation
-  correspondence and the complete acceptance below remain; unsupported
-  authority or independent compatibility relationships fail closed.
+  `samples/cli/facts/assumed_binding_result_bound` carries that exit bound
+  and its evaluated Product risk rows across nine places. The risk-row audit
+  classifies disjoint literal integer result bounds and same-index parameter
+  bounds as refuted. `samples/cli/facts/assumed_binding_input_authority`
+  carries the input qualification `Index::Bounded` (`value <= 1`) through
+  that same index operation across nine places; a direct supplier call does
+  not receive it. Result qualifications, content guarantees, and program-local
+  root introductions still fail closed. Broader invocation and lifetime
+  correspondence, and the install/update/audit acceptance below, remain.
 
   Retain exact entry/exit assumptions, authorized issuer/subject mapping and
   the selected implementation closure through erasure and inlining. Both
@@ -4863,14 +4903,21 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   [closed carrier exchange](samples/cli/facts/opaque_closed_carrier_exchange/README.md)
   checks actual libc values through public Terminal/native agreement on Linux
   x86-64 across transport places, with cleanup-only rejects. Its named constants
-  are construction inputs, not compile-time opaque occurrences. Matching-host
-  qualification on Linux ARM64 and a verified Windows provider remain; entry
-  declarations do not establish those results. Independent two-package
+  are construction inputs, not compile-time opaque occurrences. The same row
+  runs on windows_x86_64: the four-byte closed carrier is passed and returned
+  by value through `omega_host.dll`'s classful `inet_makeaddr` / `inet_lnaof`
+  exports, with Terminal agreement and cleanup-only rejects. Matching-host
+  qualification on Linux ARM64 remains; an entry declaration does not establish
+  that result. Independent two-package
   closed Affine Inert inputs and results now preserve the same exchange across
   all nine places with Linux native/Terminal agreement and cleanup twins;
   canonical macOS checking realizes separate dylib products, and the nine
   independent places now run on macOS ARM64 at native 0 with Terminal
-  agreement. Selected satisfied exports are retained independently
+  agreement. The same nine places run on windows_x86_64: publication emits a
+  PE shared component, the executable imports that content-addressed DLL, and
+  the component's classful `inet_makeaddr` / `inet_lnaof` calls resolve
+  `omega_host.dll`, with Terminal agreement and cleanup-only rejects.
+  Selected satisfied exports are retained independently
   of outgoing calls. Real child suspension preserves the captured owned input
   and disjoint sibling without replaying effects or ownership tokens.
   Same-layout carrier drift rejects at the exact composition join. Copy,

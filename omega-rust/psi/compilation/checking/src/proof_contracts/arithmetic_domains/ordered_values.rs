@@ -387,7 +387,7 @@ impl Relation {
             let constant = literal.value_i64()?;
             // Only a representable literal can contribute a bound here. Do
             // not build an equality graph for a relation this query cannot use.
-            comparison.same_value(candidate, subject).then_some((
+            comparison.same_value(subject, candidate).then_some((
                 constant,
                 self.constraint,
                 subject_on_left,
@@ -713,41 +713,64 @@ fn integer_meaning(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {
-    if collection_length_receiver(program, machine, Some(state), expression).is_some() {
-        return Some((PrimitiveType::U64, ArithmeticDomain::Exact));
+    let memo = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+        crate::proof_contracts::bound_expression_meaning::meaning_key(
+            program,
+            machine,
+            Some(state),
+            expression,
+        )
+        .map(|key| (memos, key))
+    });
+    if let Some((memos, key)) = memo
+        && let Ok(meanings) = memos.ordered_integer_meanings.lock()
+        && let Some(&cached) = meanings.get(&key)
+    {
+        return cached;
     }
-    // Reuse the arithmetic owner's operand-driven carrier/policy selection.
-    // This query supplies no range proof; ordinary validation still owes all
-    // formation diagnostics, and the empty environment contains no relations.
-    let analysis = analyze_meaning(
-        program,
-        machine,
-        Some(state),
-        expression,
-        "ordered operand type",
-    )
-    .value;
-    // Ordinary call arithmetic deliberately leaves an unconstrained result
-    // neutral. Ordering still knows the exact selected declaration's carrier;
-    // querying it here does not grant repeat-call equality or a body-derived
-    // range contract.
-    let declared_call = match program.expression_table.expression(expression) {
-        ExpressionNode::Call(call) => super::return_ranges::call_return_type(program, call),
-        _ => None,
-    };
-    let primitive = analysis.primitive.or_else(|| {
-        declared_call.and_then(|reference| program.primitive_type_reference(reference))
-    })?;
-    (primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()).then_some((
-        primitive,
-        analysis
-            .domain
-            .or_else(|| {
-                declared_call
-                    .map(|reference| program.arithmetic_domain_for_type_reference(reference))
-            })
-            .unwrap_or(ArithmeticDomain::Exact),
-    ))
+    let computed = (|| {
+        if collection_length_receiver(program, machine, Some(state), expression).is_some() {
+            return Some((PrimitiveType::U64, ArithmeticDomain::Exact));
+        }
+        // Reuse the arithmetic owner's operand-driven carrier/policy selection.
+        // This query supplies no range proof; ordinary validation still owes all
+        // formation diagnostics, and the empty environment contains no relations.
+        let analysis = analyze_meaning(
+            program,
+            machine,
+            Some(state),
+            expression,
+            "ordered operand type",
+        )
+        .value;
+        // Ordinary call arithmetic deliberately leaves an unconstrained result
+        // neutral. Ordering still knows the exact selected declaration's carrier;
+        // querying it here does not grant repeat-call equality or a body-derived
+        // range contract.
+        let declared_call = match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => super::return_ranges::call_return_type(program, call),
+            _ => None,
+        };
+        let primitive = analysis.primitive.or_else(|| {
+            declared_call.and_then(|reference| program.primitive_type_reference(reference))
+        })?;
+        (primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()).then_some((
+            primitive,
+            analysis
+                .domain
+                .or_else(|| {
+                    declared_call
+                        .map(|reference| program.arithmetic_domain_for_type_reference(reference))
+                })
+                .unwrap_or(ArithmeticDomain::Exact),
+        ))
+    })();
+    if let Some((memos, key)) = memo
+        && let Ok(mut meanings) = memos.ordered_integer_meanings.lock()
+    {
+        meanings.insert(key, computed);
+    }
+    computed
 }
 
 /// One element observation, whether read in source or instantiated from a
@@ -1133,8 +1156,8 @@ pub(super) fn subtract_floor_limited(
         .ordered_values
         .iter()
         .filter(|relation| {
-            comparison.same_value(&relation.left, &left_operand)
-                && comparison.same_value(&relation.right, &right_operand)
+            comparison.same_value(&left_operand, &relation.left)
+                && comparison.same_value(&right_operand, &relation.right)
         })
         .filter_map(Relation::minimum_difference)
         .max()
@@ -1160,12 +1183,17 @@ pub(super) fn excludes_integer_value(
     };
     let mut comparison = ValueComparison::new(&environment.ordered_values);
     environment.ordered_values.iter().any(|relation| {
-        for (constant, constraint, subject_is_left) in relation
-            .literal_comparisons(&subject, &mut comparison)
-            .into_iter()
-            .flatten()
-        {
-            let excludes = match constraint {
+        for (candidate, opposite, subject_is_left) in [
+            (&relation.left, &relation.right, true),
+            (&relation.right, &relation.left, false),
+        ] {
+            let Operand::Integer(literal, _) = opposite else {
+                continue;
+            };
+            let Some(constant) = literal.value_i64() else {
+                continue;
+            };
+            let excludes = match relation.constraint {
                 RelationConstraint::Unequal => constant == value,
                 RelationConstraint::MinimumDifference(floor) if subject_is_left => {
                     i128::from(constant) + i128::from(floor) > i128::from(value)
@@ -1174,7 +1202,7 @@ pub(super) fn excludes_integer_value(
                     i128::from(constant) - i128::from(floor) < i128::from(value)
                 }
             };
-            if excludes {
+            if excludes && comparison.same_value(&subject, candidate) {
                 return true;
             }
         }
@@ -1204,36 +1232,58 @@ pub(super) fn refine_place_interval(
         return interval;
     };
     let mut comparison = ValueComparison::new(&environment.ordered_values);
-    for relation in &environment.ordered_values {
-        let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
-            continue;
-        };
-        for (constant, _, subject_on_left) in relation
-            .literal_comparisons(&subject, &mut comparison)
-            .into_iter()
-            .flatten()
-        {
-            // Widen before computing an endpoint. Overflow of the interval's
-            // i64 window loses precision; it never fabricates a clamped bound.
-            let endpoint = if subject_on_left {
-                i128::from(constant) + i128::from(distance)
-            } else {
-                i128::from(constant) - i128::from(distance)
-            };
-            let Ok(endpoint) = i64::try_from(endpoint) else {
+    for exact_only in [true, false] {
+        for relation in &environment.ordered_values {
+            let RelationConstraint::MinimumDifference(distance) = relation.constraint else {
                 continue;
             };
-            interval = interval.intersect(if subject_on_left {
-                Interval {
-                    low: Some(endpoint),
-                    high: None,
+            for (candidate, opposite, subject_on_left) in [
+                (&relation.left, &relation.right, true),
+                (&relation.right, &relation.left, false),
+            ] {
+                let Operand::Integer(literal, _) = opposite else {
+                    continue;
+                };
+                let Some(constant) = literal.value_i64() else {
+                    continue;
+                };
+                // Widen before computing an endpoint. Overflow of the interval's
+                // i64 window loses precision; it never fabricates a clamped bound.
+                let endpoint = if subject_on_left {
+                    i128::from(constant) + i128::from(distance)
+                } else {
+                    i128::from(constant) - i128::from(distance)
+                };
+                let Ok(endpoint) = i64::try_from(endpoint) else {
+                    continue;
+                };
+                let tightens = if subject_on_left {
+                    interval.low.is_none_or(|low| endpoint > low)
+                } else {
+                    interval.high.is_none_or(|high| endpoint < high)
+                };
+                if !tightens {
+                    continue;
                 }
-            } else {
-                Interval {
-                    low: None,
-                    high: Some(endpoint),
+                let matched = if exact_only {
+                    &subject == candidate
+                } else {
+                    &subject != candidate && comparison.same_value(&subject, candidate)
+                };
+                if matched {
+                    interval = interval.intersect(if subject_on_left {
+                        Interval {
+                            low: Some(endpoint),
+                            high: None,
+                        }
+                    } else {
+                        Interval {
+                            low: None,
+                            high: Some(endpoint),
+                        }
+                    });
                 }
-            });
+            }
         }
     }
     interval
@@ -1365,30 +1415,68 @@ fn ordered_gaps<'relations>(
     .into_iter()
 }
 
+/// Reuse a caller's congruence query while keeping the same bounded gap walk.
+pub(super) fn ordered_gaps_with_comparison<'relations>(
+    relations: &'relations [Relation],
+    value: &'relations Operand,
+    comparison: &mut congruence::ValueComparison<'relations>,
+) -> Vec<(&'relations Operand, i64)> {
+    ordered_gaps_by(relations, value, |left, right| {
+        comparison.same_value(left, right)
+    })
+}
+
 fn ordered_gaps_by<'relations>(
     relations: &'relations [Relation],
     value: &'relations Operand,
     mut same_value: impl FnMut(&Operand, &Operand) -> bool,
 ) -> Vec<(&'relations Operand, i64)> {
-    let mut operands: Vec<&Operand> = vec![value];
+    let mut operands: Vec<&'relations Operand> = vec![value];
+    let mut indexed_relations = Vec::with_capacity(relations.len());
     for relation in relations {
-        for operand in [&relation.left, &relation.right] {
-            if !operands.contains(&operand) {
-                operands.push(operand);
-            }
+        let left_idx = operands
+            .iter()
+            .position(|existing| *existing == &relation.left)
+            .unwrap_or_else(|| {
+                let idx = operands.len();
+                operands.push(&relation.left);
+                idx
+            });
+        let right_idx = operands
+            .iter()
+            .position(|existing| *existing == &relation.right)
+            .unwrap_or_else(|| {
+                let idx = operands.len();
+                operands.push(&relation.right);
+                idx
+            });
+        if let Some(floor) = relation.minimum_difference() {
+            indexed_relations.push((left_idx, right_idx, floor));
         }
     }
-    let mut dist: Vec<(&Operand, i64)> = vec![(value, 0)];
-    for _ in 1..operands.len() {
+    let count = operands.len();
+    let mut same_cache: Vec<Option<bool>> = vec![None; count * count];
+    let mut same_indexed = |left_idx: usize, right_idx: usize| -> bool {
+        if left_idx == right_idx {
+            return true;
+        }
+        let cell = left_idx * count + right_idx;
+        if let Some(cached) = same_cache[cell] {
+            return cached;
+        }
+        let result = same_value(operands[left_idx], operands[right_idx]);
+        same_cache[cell] = Some(result);
+        same_cache[right_idx * count + left_idx] = Some(result);
+        result
+    };
+    let mut dist: Vec<(usize, &'relations Operand, i64)> = vec![(0, value, 0)];
+    for _ in 1..count {
         let mut improved = false;
-        for relation in relations {
-            let Some(floor) = relation.minimum_difference() else {
-                continue;
-            };
+        for &(left_idx, right_idx, floor) in &indexed_relations {
             let Some(gap) = dist
                 .iter()
-                .find(|(known, _)| same_value(known, &relation.right))
-                .map(|(_, gap)| *gap)
+                .find(|&&(known_idx, _, _)| same_indexed(known_idx, right_idx))
+                .map(|&(_, _, gap)| gap)
             else {
                 continue;
             };
@@ -1397,15 +1485,15 @@ fn ordered_gaps_by<'relations>(
             };
             match dist
                 .iter_mut()
-                .find(|(known, _)| same_value(known, &relation.left))
+                .find(|(known_idx, _, _)| same_indexed(*known_idx, left_idx))
             {
-                Some((_, known)) if *known >= gap => {}
-                Some((_, known)) => {
+                Some((_, _, known)) if *known >= gap => {}
+                Some((_, _, known)) => {
                     *known = gap;
                     improved = true;
                 }
                 None => {
-                    dist.push((&relation.left, gap));
+                    dist.push((left_idx, operands[left_idx], gap));
                     improved = true;
                 }
             }
@@ -1414,5 +1502,7 @@ fn ordered_gaps_by<'relations>(
             break;
         }
     }
-    dist
+    dist.into_iter()
+        .map(|(_, operand, gap)| (operand, gap))
+        .collect()
 }

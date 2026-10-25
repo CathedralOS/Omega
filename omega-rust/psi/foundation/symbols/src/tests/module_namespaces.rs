@@ -74,6 +74,38 @@ fn data_reference(
 }
 
 #[test]
+fn syntax_only_module_import_stays_in_its_checked_package() {
+    let (mut symbols, declarations, _) = namespace_table([1, 1, 2], Vec::new());
+    register_module(&mut symbols, 0, &["generated"]);
+    register_module(&mut symbols, 1, &["main"]);
+    register_module(&mut symbols, 2, &["main"]);
+    symbols.register_source_import(SourceId(0), "main");
+    assert_eq!(
+        data_reference(&symbols, 0, "main::Item"),
+        Some(declarations[1]),
+        "loaded foreign namespaces cannot compete with a package-local import",
+    );
+
+    let (mut symbols, declarations, _) = namespace_table(
+        [1, 1, 2],
+        vec![SourceScopedTopLevelBinding::module_import(
+            SourceId(0),
+            SourceId(2),
+            "dependency::main",
+            1,
+        )],
+    );
+    register_module(&mut symbols, 0, &["generated"]);
+    register_module(&mut symbols, 1, &["main"]);
+    register_module(&mut symbols, 2, &["main"]);
+    assert_eq!(
+        data_reference(&symbols, 0, "dependency::main::Item"),
+        Some(declarations[2]),
+        "loader-certified imports retain their exact foreign package",
+    );
+}
+
+#[test]
 fn unmoduled_exact_imports_select_their_checked_instance_independent_of_order() {
     use source::DependencyScope::{Build, Product};
     for reversed_sources in [false, true] {
@@ -163,8 +195,20 @@ fn unmoduled_exact_import_exposes_the_dependency_generated_stratum() {
     let rows = [
         ("consumer", "main.omg", consumer, Product, Base),
         ("kit", "main.omg", kit, Product, Base),
-        ("kit", ".omega/generated/generated.omg", kit, Product, DependencyActivationExtension),
-        ("kit", ".omega/generated/generated.omg", kit, Build, DependencyActivationExtension),
+        (
+            "kit",
+            ".omega/generated/generated.omg",
+            kit,
+            Product,
+            DependencyActivationExtension,
+        ),
+        (
+            "kit",
+            ".omega/generated/generated.omg",
+            kit,
+            Build,
+            DependencyActivationExtension,
+        ),
     ];
     for (root, file, identity, scope, stratum) in rows {
         let root = PathBuf::from(root);

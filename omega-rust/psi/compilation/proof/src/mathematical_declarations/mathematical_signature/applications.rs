@@ -27,8 +27,10 @@ impl Elaborator<'_> {
         )>,
         Vec<Diagnostic>,
     > {
-        let owned = validation::mathematical_applications::expression_nodes(self.program);
-        let calls = self
+        if self.authored_index.is_empty() {
+            return Ok(Vec::new());
+        }
+        let candidate_calls = self
             .program
             .expression_table
             .iter_expressions()
@@ -36,11 +38,22 @@ impl Elaborator<'_> {
                 let ExpressionNode::Call(call) = node else {
                     return None;
                 };
-                (self.authored_index.contains_key(&call.target_symbol)
-                    && !owned.contains(&expression))
-                .then_some((expression, call.clone()))
+                self.authored_index
+                    .contains_key(&call.target_symbol)
+                    .then_some((expression, call.clone()))
             })
             .collect::<Vec<_>>();
+        if candidate_calls.is_empty() {
+            return Ok(Vec::new());
+        }
+        let owned = validation::mathematical_applications::expression_nodes(self.program);
+        let calls = candidate_calls
+            .into_iter()
+            .filter(|(expression, _)| !owned.contains(expression))
+            .collect::<Vec<_>>();
+        if calls.is_empty() {
+            return Ok(Vec::new());
+        }
         let owners = validation::expression_owners::OwnerEnvironmentIndex::new(
             self.program,
             &arena::Arena::default(),

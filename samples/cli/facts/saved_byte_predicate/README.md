@@ -6,7 +6,7 @@ Parent: **R5**, caller-visible mutation summaries and their current-content cons
 
 `ascii_only(view)` executes once. A separate buffer receives byte 255, and the saved decision must still justify `inspect(view)`'s ASCII requirement. `inspect` returns the observed byte; the program traps unless it is 65. Each reject twin changes only the store target to `view[0]`, making that saved decision insufficient. The Boolean snapshot itself remains a value after the write.
 
-The nine places vary the observed byte storage's carrier or executing body: local array, record field, borrowed parameter, array call result, joined array result, named constant initializer, nested machine, another machine and target body. Every place executes the same saved-observation/write/contract-consumption operation. All four hosted entry bindings are authored; execution here is Linux x86-64 only.
+The nine places vary the observed byte storage's carrier or executing body: local array, record field, borrowed parameter, array call result, joined array result, named constant initializer, nested machine, another machine and target body. Every place executes the same saved-observation/write/contract-consumption operation. All four hosted entry bindings are authored. This host executed Windows x86-64.
 
 | Place | Positive | Overlapping twin |
 |---|---|---|
@@ -22,11 +22,9 @@ The nine places vary the observed byte storage's carrier or executing body: loca
 
 ## Baseline and repair
 
-At `0dce4dc599e2596206d3ae5ce209729ec3800b6b`, a fresh optimized compiler incorrectly accepts the unchanged reachable lane-38 program under `tests/omega/fail/slices/lane38_saved_predicate_reachable`. It also accepts the local disjoint positive. The direct guard prover compared backing-normalized writes against local operand names, so a write to the backing could miss a saved predicate's view dependency.
+At `3ddc7d1455f182d54645df101870ea9b441b9019`, `omega run --both` of `local/main.omg` exited 200. Lowering `probe` failed with `InvalidUnitMachinePlan` reason `reference alias changes its referent carrier`. A borrowed destination was treated as an alias whenever its access was a loan, and any carrier change was refused. A shared reborrow of a mutable byte view is a different type identity with the same pointer and extent. That reborrow stays an alias when the borrowed-referent presentation is unchanged and the source access can supply the destination ceiling. Addressing inline backing, and any other carrier change, still uses the shared descriptor producer.
 
-The direct prover now consumes the shared saved-guard currentness judgment. That judgment uses complete conservative backing-read footprints, including slice windows, from the existing authenticated backing-origin owner. Exact reference identity remains a separate query. Unknown backing cannot prove disjointness; a coarse footprint never establishes predicate equality. Operand writes before invocation participate in the same judgment. Diagnostics retain the authored operand spelling beside the canonical backing label.
-
-The nine positives execute with native and Terminal exit 0; all nine twins reject at `inspect`'s ASCII precondition. The exact reachable source and its original diagnostic oracle are retained separately. Additional controls cover copied Boolean decisions, separate fields within one record, and preservation of the historical Boolean value.
+On Windows x86-64, all nine positives then return native exit 0 and Terminal exit 0. All nine twins reject with `cannot prove requires contract for call inspect`. The reachable lane-38 control remains `tests/omega/fail/slices/lane38_saved_predicate_reachable`.
 
 ## Requirements and evidence
 
@@ -37,6 +35,6 @@ The nine positives execute with native and Terminal exit 0; all nine twins rejec
 - **Psi 05–07:** Actual `omega run --both` carries the checked Boolean, view and selected transition through Terminal emission and interpretation. The runtime result tests the observed byte.
 - **Omega 00–02:** Each hosted Build companion supplies ProgramEntry; the ordinary view/scalar calling plans and provider settlement carry `inspect` and its result.
 - **Omega 03–06:** Native execution exercises the selected predicate operations, live saved Boolean, mutation, calls, register homes and activation frames.
-- **Omega 07–09 and emission:** The Linux x86-64 ELF executes with the authored result and agrees with Terminal. Other hosted targets are authored but were not executed on this host.
+- **Omega 07–09 and emission:** The Windows x86-64 image executes with the authored result and agrees with Terminal. The other three hosted targets are authored and were not executed on this host.
 
 This completes the bounded saved-byte-predicate currentness repair, not all R5 or exact disjointness between windows within one coarsened collection.

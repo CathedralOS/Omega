@@ -6,9 +6,9 @@
 //! a new unknown observation; unrelated owned bindings retain their facts.
 //! A reference-free aggregate keeps a sibling field when the exposure names a
 //! different field. The whole root still dies when the write covers it.
-//! Reference-bearing or opaque roots remain conservative until their exact
-//! preservation is available: a disjoint spelling alone cannot preserve
-//! aliased contents.
+//! Owned reference-bearing roots can retain inline cells across disjoint
+//! writes, with typed projections masking the old pointee contents. References
+//! and opaque reachable storage retain their conservative alias fence.
 
 /// Exclusive exposures recorded for one judge. Opaque means the frame did not
 /// name places, so every invalidated binding stays retired. A path list lets a
@@ -51,7 +51,9 @@ impl CapturedStorageCoordinate {
         crate::frame_coordinate_path(program, root, &segments)
     }
 
-    /// Owned reference-free storage has a stable backing namespace. An
+    /// Owned inline storage has a stable backing namespace up to its first
+    /// reference boundary. Preserving that value separately erases old pointee
+    /// observations. An
     /// incoming exclusive formal likewise names its caller-owned referent for
     /// the invocation. Local reference aliases and nested descriptors require
     /// an independently retained backing join; spelling alone cannot preserve
@@ -69,6 +71,19 @@ impl CapturedStorageCoordinate {
             return false;
         };
         if frames.value_is_reference_free(reference) {
+            return true;
+        }
+        if crate::reference_shell(program, reference).is_none() {
+            let mut current = reference;
+            for segment in &self.segments {
+                if crate::reference_shell(program, current).is_some() {
+                    return false;
+                }
+                let Some(projected) = segment.projected_type(program, current) else {
+                    return false;
+                };
+                current = projected;
+            }
             return true;
         }
         program
@@ -232,14 +247,31 @@ impl StructuralJudge<'_> {
             self.stored_values
                 .iter()
                 .map(|stored| {
-                    written.is_some_and(|written| {
+                    let stable = written.is_some_and(|written| {
                         stored.coordinate.has_stable_backing(program, state, frames)
                             && stored.coordinate.frame_path(program).is_some_and(|path| {
                                 written
                                     .iter()
                                     .all(|written| !crate::frame_paths_overlap(written, &path))
                             })
-                    })
+                    });
+                    let inline = stored
+                        .coordinate
+                        .root
+                        .as_symbol()
+                        .and_then(|root| crate::declaration_type_reference(program, root))
+                        .filter(|reference| crate::reference_shell(program, *reference).is_none())
+                        .and_then(|reference| {
+                            stored
+                                .coordinate
+                                .segments
+                                .iter()
+                                .try_fold(reference, |reference, segment| {
+                                    segment.projected_type(program, reference)
+                                })
+                        })
+                        .filter(|reference| !frames.value_is_reference_free(*reference));
+                    (stable, inline)
                 })
                 .collect::<Vec<_>>()
         };
@@ -248,8 +280,19 @@ impl StructuralJudge<'_> {
         // current contents at their former addresses, not detached copies.
         let mut preservation = preservation.into_iter();
         std::sync::Arc::make_mut(&mut self.stored_values).retain_mut(|stored| {
-            if !preservation.next().unwrap_or(false) {
+            let (stable, inline) = preservation.next().unwrap_or((false, None));
+            if !stable {
                 stored.current = None;
+            } else if let Some(reference) = inline
+                && let Some(value) = stored.current.take()
+            {
+                // Retain inline cells only. Typed reference projection keeps
+                // descriptor words while erasing the old pointee observation.
+                stored.current = Some(
+                    super::super::structural_terms::owned_projection_observation(
+                        program, reference, value,
+                    ),
+                );
             }
             // A retained current value is not a new observation after the write.
             stored.completed_read = None;
@@ -651,14 +694,15 @@ impl StructuralJudge<'_> {
         reference: TypeReferenceHandle,
         value: super::StructuralTerm,
     ) {
-        if !self.requires_value_preservation()
-            || !symbol.is_valid()
-            || !self
-                .frame_resolver()
-                .is_some_and(|frames| frames.value_is_reference_free(reference))
-        {
+        if !self.requires_value_preservation() || !symbol.is_valid() {
             return;
         }
+        // A completed owned binding retains its inline cells. The same typed
+        // observation as an owned argument masks contained pointee contents;
+        // a local reference alias is not an owned storage namespace.
+        let Some(value) = self.owned_argument_observation(reference, &value) else {
+            return;
+        };
         self.retain_storage_value(
             CapturedStorageCoordinate {
                 root: facts::PlaceRoot::Symbol(symbol),

@@ -25,6 +25,13 @@ pub(crate) struct PeHeaderInput {
     /// PE optional-header Subsystem: console 3, gui 2, efi_application 10
     /// (`subsystem <word>` in the target block; console is the default).
     pub(crate) subsystem: u16,
+    /// COFF file characteristics. Executables stay `EXECUTABLE_IMAGE |
+    /// LARGE_ADDRESS_AWARE` (`0x0022`). A shared component adds `DLL`
+    /// (`0x2000`).
+    pub(crate) file_characteristics: u16,
+    /// Export directory RVA and size. Both stay zero for a process executable.
+    pub(crate) export_directory_rva: u32,
+    pub(crate) export_directory_size: usize,
 }
 
 pub(crate) fn write_dos_header(bytes: &mut Vec<u8>) {
@@ -42,7 +49,7 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     write_u32(bytes, 0);
     write_u32(bytes, 0);
     write_u16(bytes, OPTIONAL_HEADER_SIZE as u16);
-    write_u16(bytes, 0x0022);
+    write_u16(bytes, input.file_characteristics);
 
     write_u16(bytes, 0x20b);
     bytes.push(0);
@@ -81,6 +88,10 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
 
     for directory_index in 0..16 {
         match directory_index {
+            0 => {
+                write_u32(bytes, input.export_directory_rva);
+                write_u32(bytes, input.export_directory_size as u32);
+            }
             1 => {
                 write_u32(bytes, input.import_directory_rva);
                 write_u32(bytes, input.import_directory_size as u32);

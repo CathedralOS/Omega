@@ -9,4 +9,4 @@ where machine Callback satisfies Handler::read;
 invokes Handler;
 
 machine Provider::callback() -> u64 satisfies Handler::read reaches Read { 7 }
-machine caller() -> u64 { block Operations::execute<Provider::callback>() }
+machine caller() -> u64 reaches { block Operations::execute<Provider::callback>() }

@@ -25,6 +25,7 @@ pub mod read_accounting;
 mod source_bytes;
 mod source_file;
 mod source_file_system;
+pub mod source_identity;
 mod source_map;
 mod source_snapshot;
 pub use source_bytes::SourceBytes;

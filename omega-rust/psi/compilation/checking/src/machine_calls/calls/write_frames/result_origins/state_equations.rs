@@ -410,8 +410,9 @@ fn finite_substitutions(
                     inference,
                     include_shared,
                 )?;
-                let from = substitutions.parameter(edge.target.symbol, parameter.symbol);
-                let mut record = |source: &super::super::FrameSourcePlace, coarse: bool| {
+                let mut record = |destination: Option<&[facts::PlaceSegment]>,
+                                  source: &super::super::FrameSourcePlace,
+                                  coarse: bool| {
                     if !source.builtin_coordinates {
                         return None;
                     }
@@ -422,13 +423,60 @@ fn finite_substitutions(
                         .state_parameters(equation.state)
                         .iter()
                         .find(|candidate| candidate.symbol == source.root)?;
-                    let to =
-                        substitutions.parameter(equation.state.symbol, source_parameter.symbol);
+                    // The first reference frontier is a descriptor value, not
+                    // a projection into its referent. Keep leaf-to-leaf cycles
+                    // finite while retaining every suffix that can grow.
+                    let declared = if destination.is_some() {
+                        Some(super::super::stored_origins::declared_origins_for_query(
+                            program,
+                            source_parameter.symbol,
+                            source_parameter.name.as_str(),
+                            source_parameter.type_reference,
+                            include_shared,
+                        )?)
+                    } else {
+                        None
+                    };
+                    let boundary = declared
+                        .as_ref()
+                        .into_iter()
+                        .flat_map(|declared| &declared.references)
+                        .filter(|leaf| {
+                            destination.is_some()
+                                && matches!(
+                                    leaf.kind,
+                                    super::super::stored_origins::StoredOriginKind::Reference(_)
+                                )
+                                && leaf.local_segments.iter().all(|segment| {
+                                    matches!(segment,
+                                    facts::PlaceSegment::Field { symbol } if symbol.is_valid())
+                                        || matches!(segment,
+                                    facts::PlaceSegment::Case { variant } if variant.is_valid())
+                                        || matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                                })
+                                && source.segments.starts_with(&leaf.local_segments)
+                        })
+                        .map(|leaf| leaf.local_segments.as_slice())
+                        .min_by_key(|path| path.len());
+                    let (prefix, suffix) = boundary
+                        .map_or((&[][..], source.segments.as_slice()), |prefix| {
+                            (prefix, &source.segments[prefix.len()..])
+                        });
+                    let from = if let Some(path) = destination {
+                        substitutions.parameter_leaf(edge.target.symbol, parameter.symbol, path)
+                    } else {
+                        substitutions.parameter(edge.target.symbol, parameter.symbol)
+                    };
+                    let to = substitutions.parameter_leaf(
+                        equation.state.symbol,
+                        source_parameter.symbol,
+                        prefix,
+                    );
                     substitutions.insert(
                         from,
                         to,
-                        coarse
-                            || !source.segments.is_empty()
+                        (coarse && boundary.is_none())
+                            || !suffix.is_empty()
                             || !source.recasts.is_empty()
                             || source.representation.is_some(),
                     );
@@ -437,12 +485,21 @@ fn finite_substitutions(
                 for leaf in actual.references {
                     let origin = leaf.origin?.into_symbolic_place()?;
                     record(
+                        Some(&leaf.local_segments),
                         &origin.source,
                         origin.precision != FramePathPrecision::Exact,
                     )?;
+                    for dependency in leaf.lifetime_dependencies {
+                        record(
+                            Some(&leaf.local_segments),
+                            &dependency.origin.source,
+                            dependency.origin.precision != FramePathPrecision::Exact,
+                        )?;
+                        record(Some(&leaf.local_segments), &dependency.carrier, false)?;
+                    }
                 }
                 for moved in actual.moves {
-                    record(&moved.source, false)?;
+                    record(None, &moved.source, false)?;
                 }
             }
         }

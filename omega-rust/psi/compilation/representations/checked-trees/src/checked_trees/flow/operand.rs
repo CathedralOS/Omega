@@ -66,6 +66,10 @@ pub struct FlowOperandRetention {
     /// Zero withholds enclosure evidence. Reference-valued children need their
     /// own pointer relation and cannot inherit their containing storage's scope.
     pub enclosing_storage: Handle<FlowOperandFact>,
+    /// Complete conservative input regions promised by an admitted local
+    /// dispatch slot. These name possible backing, never exact descriptor
+    /// identity, pointee contents or permission suppliers.
+    pub enclosing_regions: HandleSpan<FlowOperandRetainedRegion>,
     /// Body-derived association to a completed returned descriptor. This is
     /// a post-call observation, not an evaluated child, loan authority, scalar
     /// equality or a snapshot of the referent. Zero withholds exact geometry.
@@ -92,6 +96,14 @@ pub struct FlowOperandRetention {
     /// A selected subtree of that captured value. Selection retains lifetime
     /// evidence without inventing an evaluated child or address observation.
     pub stored_projection: HandleSpan<facts::PlaceSegment>,
+}
+
+/// One completed input region enclosing a returned footprint. Projection
+/// selects its captured descriptor, not that descriptor's former storage home.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlowOperandRetainedRegion {
+    pub operand: Handle<FlowOperandFact>,
+    pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

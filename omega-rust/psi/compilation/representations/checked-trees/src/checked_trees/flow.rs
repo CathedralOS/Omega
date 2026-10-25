@@ -112,8 +112,8 @@ pub use operand::{
     FlowAtomicExecutionFact, FlowCapturedReferenceLeaf, FlowCaseAccessFact, FlowCopiedValue,
     FlowCopiedValueUse, FlowDescriptorContextObservation, FlowOperandAlternative, FlowOperandChild,
     FlowOperandCompletion, FlowOperandFact, FlowOperandReferent, FlowOperandRetainedLeaf,
-    FlowOperandRetainedSupplier, FlowOperandRetention, FlowReferentFormation,
-    FlowValueObservationFact,
+    FlowOperandRetainedRegion, FlowOperandRetainedSupplier, FlowOperandRetention,
+    FlowReferentFormation, FlowValueObservationFact,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,

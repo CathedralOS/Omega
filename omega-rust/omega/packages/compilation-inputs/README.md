@@ -68,9 +68,12 @@ Retained acquisition storage supplies package source bytes without reopening the
 root. A physical-custody adapter captures sealed roots when no retained tree is
 available. A matching file length is not a matching snapshot.
 
-[source_consumption.rs](src/source_consumption.rs) owns the exact source units
-actually consumed by compilation and their package commitment, including generated
-source custody. This is distinct from the complete root visible to build evaluation.
+[source_consumption.rs](src/source_consumption.rs) owns the consumed-source package
+commitment and generated-source custody. Exact source-unit identity and canonical
+encoding live in the shared [source foundation](../../../psi/foundation/source/src/source_identity.rs),
+so early Psi jobs and package review use the same protocol without a dependency
+from Psi to package management. This is distinct from the complete root visible
+to build evaluation.
 [BuildSourceCustody](src/source_consumption/checked_sources.rs) admits the current
 activation's generated extension: package context, exact root and source coordinates,
 checked source counts, and retained generated-output custody. Empty output needs no

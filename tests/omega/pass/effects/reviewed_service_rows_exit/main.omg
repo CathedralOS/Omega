@@ -10,7 +10,7 @@ Reader satisfies Operations {
 machine read_value_provider(value: i32) -> i32 { value }
 machine identity_provider(value: i32) -> i32 { value }
 data Main { }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + ReadCapability {
     let read: i32 = read_value(17);
     let pure: i32 = pure_value(39);
     transition read == 17 && pure == 39 { true -> good() false -> bad() }

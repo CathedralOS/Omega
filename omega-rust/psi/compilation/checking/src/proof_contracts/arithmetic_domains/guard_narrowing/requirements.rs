@@ -66,7 +66,6 @@ pub(super) fn machine_written_paths(
 pub(super) struct RequirementSeeds {
     conditions: Vec<ExpressionHandle>,
     memberships: Vec<(String, Interval)>,
-    required: ValueEnvironment,
 }
 
 impl RequirementSeeds {
@@ -166,24 +165,9 @@ impl RequirementSeeds {
                 memberships.push((path, interval));
             }
         }
-        let mut required = ValueEnvironment::new();
-        for condition in &conditions {
-            narrow_environment_by_condition(
-                program,
-                machine,
-                Some(state),
-                &mut required,
-                *condition,
-                true,
-            );
-        }
-        for (path, interval) in &memberships {
-            required.narrow(path.clone(), *interval);
-        }
         Self {
             conditions,
             memberships,
-            required,
         }
     }
 
@@ -217,7 +201,21 @@ impl RequirementSeeds {
             // checker. Check this body's return under its authored
             // assumptions, without using an empty interval as evidence for a
             // produced value.
-            *environment = self.required.clone();
+            let mut required = ValueEnvironment::new();
+            for condition in &self.conditions {
+                narrow_environment_by_condition(
+                    program,
+                    machine,
+                    Some(state),
+                    &mut required,
+                    *condition,
+                    true,
+                );
+            }
+            for (path, interval) in &self.memberships {
+                required.narrow(path.clone(), *interval);
+            }
+            *environment = required;
         }
     }
 }

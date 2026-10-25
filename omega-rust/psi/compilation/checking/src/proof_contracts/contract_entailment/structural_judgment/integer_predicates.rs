@@ -799,6 +799,13 @@ impl StructuralJudge<'_> {
             }
             return Some(value);
         }
+        // A completed scalar observation can have a recorded mathematical
+        // denotation (for example a window's end minus start). Keep that
+        // equation visible to the existing polynomial owner. Executable
+        // operands embedded inside it still owe their original formation.
+        if matches!(value, StructuralTerm::MathematicalBinary { .. }) {
+            return self.mathematical_value(value, observations, depth + 1);
+        }
         if let StructuralTerm::ScalarBinary {
             references,
             operator,
@@ -883,6 +890,11 @@ impl StructuralJudge<'_> {
         };
         match value.semantic_value() {
             StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
+            // Authenticated descriptor metadata is an observed u64 quantity,
+            // independently of the contents behind the descriptor.
+            StructuralTerm::CollectionMeasure { .. } => {
+                self.integer_value(&value, PrimitiveType::U64, observations, depth + 1)
+            }
             StructuralTerm::BoundValue(symbol)
                 if self.program.symbols.builtin_type_member(*symbol)
                     == Some(symbols::BuiltinTypeMember::AddressBound) =>

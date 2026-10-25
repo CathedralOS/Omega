@@ -1,4 +1,4 @@
-//! Compile checked review candidates, compare them, and apply root decisions.
+//! Admit review candidates, join compiler evidence, compare and apply root decisions.
 
 mod audit;
 mod candidate;
@@ -13,10 +13,15 @@ pub(crate) use audit::{
     PackageSourcePatchError, PackageSourcePatchLimits, render_package_source_patch,
 };
 pub use candidate::CompileResolvedPackageReviewsError;
+pub use candidate::PackageReviewCacheWrite;
 pub(crate) use candidate::{
-    CandidateCompilation, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
-    PackageSourceBindings, PackageSourceVerificationPhase, SemanticBindingReview,
-    compile_resolved_package_reviews_reusing,
+    CandidateReview, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
+    PackageSourceBindings, PackageSourceVerificationPhase, review_resolved_packages,
+};
+pub use candidate::{
+    PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
+    PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,
+    RetainedPackageReviews,
 };
 pub(crate) use compare::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,

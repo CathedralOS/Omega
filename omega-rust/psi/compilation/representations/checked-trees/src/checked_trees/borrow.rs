@@ -800,6 +800,17 @@ impl BorrowFacts {
         self.loans_contain(state.loans, loan)
     }
 
+    pub fn state_loans(
+        &self,
+        state: &StateBorrowFact,
+    ) -> impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)> {
+        state.loans.handles().filter_map(|handle| {
+            self.loans
+                .is_valid(handle)
+                .then(|| (handle, self.loans.get(handle)))
+        })
+    }
+
     /// Exact state membership and the statement-resource role share one
     /// constant-time predicate. Invocation associations remain provenance.
     pub fn state_owns_statement_resource(

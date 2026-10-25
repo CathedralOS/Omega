@@ -110,6 +110,7 @@ pub use guard_narrowing::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
+    occurrence_integer_expressions_bounds,
 };
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,

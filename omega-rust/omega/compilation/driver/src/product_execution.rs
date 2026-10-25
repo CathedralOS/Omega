@@ -223,7 +223,12 @@ fn admit_permissions(
     permissions: Option<&TerminalPermissionAcceptance>,
     runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
-    if runtime_product
+    // A retained lock is compared as historical consent. An activation with no
+    // lock still has to carry the root's Product risk rows, and those rows come
+    // from the Build this compilation already evaluated. Writing `omega.lock`
+    // here would accept one source graph as a side effect and leave every other
+    // place of the same fact without consent.
+    let evaluated_rows = if runtime_product
         && permissions.is_none()
         && checked.sources().package_identity().is_some()
         && !checked
@@ -232,12 +237,14 @@ fn admit_permissions(
             .assumed_bindings()
             .is_empty()
     {
-        return Err(CompilationProductError::TrustAdmission(vec![
-            Diagnostic::error(
-                "assumed binding requires explicit accepted root Product risk rows; run omega update",
-            ),
-        ]));
-    }
+        Some(
+            TerminalPermissionAcceptance::from_public_build(checked)
+                .map_err(CompilationProductError::TrustAdmission)?,
+        )
+    } else {
+        None
+    };
+    let permissions = evaluated_rows.as_ref().or(permissions);
     if let Some(permissions) = permissions {
         permissions
             .validate(checked)

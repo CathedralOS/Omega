@@ -7,7 +7,7 @@
 mod bindings;
 mod inputs;
 mod order;
-pub(crate) use bindings::PackageSourceBindings;
+pub use bindings::PackageSourceBindings;
 pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 
@@ -58,7 +58,7 @@ pub struct PackageBuildSession {
     /// Membership stays exact input equality: a hit replays no output and
     /// carries no checked product, entry token, or host grant, and a round
     /// whose closure no longer matches simply misses.
-    pub(crate) compiler: compiler::CompilationSession,
+    compiler: compiler::CompilationSession,
     next_occurrence: u64,
     active: bool,
 }
@@ -73,6 +73,12 @@ impl std::fmt::Debug for PackageBuildSession {
 }
 
 impl PackageBuildSession {
+    /// Application-owned work uses the invocation's one compiler session;
+    /// source and pure Build reuse do not replenish the package sponsors.
+    pub fn compiler(&mut self) -> &mut compiler::CompilationSession {
+        &mut self.compiler
+    }
+
     /// Reserve private staging and bounded sponsors for one invocation. The
     /// caller owns disposal after all targets and review rounds have finished.
     pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {

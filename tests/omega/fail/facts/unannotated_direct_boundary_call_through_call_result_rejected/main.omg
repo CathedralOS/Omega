@@ -1,4 +1,4 @@
-// An unannotated direct call of Mark::read returns 7.
+// A checked call publishes its complete Mark reach, so an empty ceiling cannot hide it.
 // Expected exit: 0
 public boundary trait Mark {
     machine read() -> u64

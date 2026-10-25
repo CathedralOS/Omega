@@ -3,10 +3,10 @@
 pub(crate) mod audit;
 pub(crate) mod source;
 
+use omega_build::execute_package_command;
 use package_manager::{
     PackageBuildSession, PackageCommand, PackageCommandError, PackageCommandKind,
     PackageCommandOptions, PackageCommandOutcome, PackageCommandStatus, discard_package_review,
-    execute_package_command,
 };
 use std::path::Path;
 
@@ -35,8 +35,7 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
             // This owner spans all targets and automatic review rounds. A
             // later user-issued command creates its own resource grant.
             let result = (|| -> Result<PackageCommandOutcome, PackageCommandError> {
-                let mut outcome =
-                    execute_package_command(command, options.clone(), None, &mut session)?;
+                let mut outcome = execute_package_command(command, options.clone(), &mut session)?;
                 // The saved proposal owns its target and input inventory.
                 // Automatic acceptance changes decisions, not resource grants.
                 options.targets.clear();
@@ -58,7 +57,6 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                     outcome = execute_package_command(
                         PackageCommand::Resume { kind },
                         options.clone(),
-                        None,
                         &mut session,
                     )?;
                 }
