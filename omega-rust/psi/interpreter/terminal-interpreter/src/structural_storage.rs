@@ -46,8 +46,8 @@ impl StorageKey for StructuralByteSequenceRuntimeField {
         &self.parent
     }
 }
-pub(crate) fn cells<'a, K: StorageKey, V>(
-    map: &'a BTreeMap<K, V>,
+pub(crate) fn cells<'a, K: StorageKey + 'a, V: 'a>(
+    map: &'a impl std::borrow::Borrow<BTreeMap<K, V>>,
     root: &'a StructuralRuntimePlace,
 ) -> impl Iterator<Item = (&'a K, &'a V)> {
     let lower = Included(K::identity_start(root.opaque_identity));
@@ -55,10 +55,23 @@ pub(crate) fn cells<'a, K: StorageKey, V>(
         .opaque_identity
         .checked_add(1)
         .map_or(Unbounded, |identity| Excluded(K::identity_start(identity)));
-    map.range((lower, upper))
+    map.borrow()
+        .range((lower, upper))
         .filter(move |(key, _)| key.parent().path.starts_with(&root.path))
 }
 pub(crate) fn prune<K: StorageKey, V>(map: &mut BTreeMap<K, V>, root: &StructuralRuntimePlace) {
+    let keys: Vec<_> = cells(map, root).map(|(key, _)| key.clone()).collect();
+    for key in keys {
+        map.remove(&key);
+    }
+}
+
+/// Retire selected cells through their reservation owner, retaining the same
+/// identity-range traversal as the remaining unaccounted storage tables.
+pub(crate) fn prune_rows<K: StorageKey, V>(
+    map: &mut crate::runtime_rows::RuntimeRows<K, V>,
+    root: &StructuralRuntimePlace,
+) {
     let keys: Vec<_> = cells(map, root).map(|(key, _)| key.clone()).collect();
     for key in keys {
         map.remove(&key);

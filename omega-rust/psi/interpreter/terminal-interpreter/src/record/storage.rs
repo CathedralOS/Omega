@@ -9,6 +9,7 @@ use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{
     StructuralByteSequenceRuntimeField, StructuralRuntimePlace, StructuralScalarRuntimeField,
@@ -250,7 +251,6 @@ impl<'execution> ConstructorValue<'execution> {
     }
 }
 
-#[derive(Default)]
 pub(crate) struct ConstructorStorage {
     completed_profiles: BTreeMap<
         StructuralRuntimePlace,
@@ -261,7 +261,7 @@ pub(crate) struct ConstructorStorage {
     activation_descriptors:
         BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     host_atoms: BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
-    scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    scalars: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
     bytes: BTreeMap<
         StructuralByteSequenceRuntimeField,
         crate::byte_sequences::binding::ByteSequenceBinding,
@@ -270,7 +270,7 @@ pub(crate) struct ConstructorStorage {
     byte_descriptors:
         BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
+    primitives: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
     byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
@@ -283,16 +283,39 @@ pub(crate) struct ConstructorStorage {
 }
 
 /// Fresh-identity storage has no writes through pinned pre-existing owners.
-/// Its publication cannot refuse partway through a compound custody commit.
+/// Install its funded rows before committing source custody or external writes.
 pub(crate) struct DetachedConstructorStorage(ConstructorStorage);
 
 impl DetachedConstructorStorage {
-    pub(crate) fn publish(self, execution: &mut TerminalExecution<'_>) {
-        self.0.publish_cells(execution);
+    pub(crate) fn install(
+        self,
+        execution: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        self.0.publish_cells(execution)
     }
 }
 
 impl ConstructorStorage {
+    pub(crate) fn new(
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Self {
+        Self {
+            completed_profiles: BTreeMap::new(),
+            provider_descriptors: BTreeMap::new(),
+            activation_descriptors: BTreeMap::new(),
+            host_atoms: BTreeMap::new(),
+            scalars: RuntimeRows::new(account),
+            bytes: BTreeMap::new(),
+            views: BTreeMap::new(),
+            byte_descriptors: BTreeMap::new(),
+            references: BTreeMap::new(),
+            primitives: RuntimeRows::new(account),
+            byte_arrays: BTreeMap::new(),
+            owner_writes: Vec::new(),
+            cases: BTreeMap::new(),
+        }
+    }
+
     /// Stage the resident's actual retained provenance beside newly decoded
     /// physical cells. Bytes do not supply these bindings. The lifecycle must
     /// transfer every original claim/affine region and retire the resident in
@@ -302,7 +325,7 @@ impl ConstructorStorage {
         execution: &TerminalExecution<'_>,
         retained: &super::owned_value::StagedOwnedValue,
         destination: &StructuralRuntimePlace,
-        decoded: ConstructorStorage,
+        mut decoded: ConstructorStorage,
     ) -> Result<(), TerminalInterpretError> {
         let original = &retained.storage;
         if !original.references.is_empty() || !original.owner_writes.is_empty() {
@@ -360,8 +383,8 @@ impl ConstructorStorage {
         // Physical data is reconstructed in the ordinary constructor format,
         // not overlaid on stale byte-array or scalar aliases in the snapshot.
         // All non-byte associations above continue from the original value.
-        self.scalars.extend(decoded.scalars);
-        self.primitives.extend(decoded.primitives);
+        self.scalars.append(&mut decoded.scalars)?;
+        self.primitives.append(&mut decoded.primitives)?;
         self.bytes.extend(decoded.bytes);
         self.byte_arrays.extend(decoded.byte_arrays);
         self.cases.extend(decoded.cases);
@@ -542,10 +565,10 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         match destination {
             crate::primitive_storage::PrimitiveStorageEndpoint::Scalar(home) => {
-                self.primitives.insert(home.clone(), value);
+                self.primitives.insert(home.clone(), value)?;
             }
             crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(field) => {
-                self.scalars.insert(field.clone(), value);
+                self.scalars.insert(field.clone(), value)?;
             }
             _ => return Err(malformed()),
         }
@@ -599,7 +622,7 @@ impl ConstructorStorage {
                 if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(*value) {
                     return Err(malformed());
                 }
-                self.primitives.insert(destination.clone(), *value);
+                self.primitives.insert(destination.clone(), *value)?;
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let (scalar_type, leaf_count) = terminal_semantics::scalar_array_leaf_shape(
@@ -919,7 +942,7 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_scalar_fields, source)
         {
             if let Some(parent) = relocate(&field.parent) {
-                self.scalars.insert(field.relocated(parent), *scalar);
+                self.scalars.insert(field.relocated(parent), *scalar)?;
             }
         }
         for (field, bytes) in
@@ -941,7 +964,7 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_primitive_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.primitives.insert(target, *value);
+                self.primitives.insert(target, *value)?;
             }
         }
         for (home, bytes) in
@@ -972,17 +995,31 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         // Validate every pinned home before publishing any part of the
         // transaction. None of these writes retires another owner's frame.
+        execution
+            .structural_scalar_fields
+            .validate_append(&self.scalars)?;
+        execution
+            .structural_primitive_storage
+            .validate_append(&self.primitives)?;
         for (home, _) in &self.owner_writes {
             execution.byte_owner_bytes(home)?;
         }
         for (home, bytes) in std::mem::take(&mut self.owner_writes) {
             *execution.byte_owner_bytes_mut(&home)? = bytes;
         }
-        self.publish_cells(execution);
-        Ok(())
+        self.publish_cells(execution)
     }
 
-    fn publish_cells(self, execution: &mut TerminalExecution<'_>) {
+    fn publish_cells(
+        mut self,
+        execution: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        execution
+            .structural_scalar_fields
+            .append(&mut self.scalars)?;
+        execution
+            .structural_primitive_storage
+            .append(&mut self.primitives)?;
         execution
             .activation_storage
             .claim_descriptors
@@ -995,18 +1032,15 @@ impl ConstructorStorage {
             .provider_storage
             .completed_profiles
             .extend(self.completed_profiles);
-        execution.structural_scalar_fields.extend(self.scalars);
         execution.structural_byte_sequence_fields.extend(self.bytes);
         execution.structural_element_view_fields.extend(self.views);
         execution
             .structural_byte_descriptors
             .extend(self.byte_descriptors);
         execution.reference_referents.extend(self.references);
-        execution
-            .structural_primitive_storage
-            .extend(self.primitives);
         execution.structural_byte_storage.extend(self.byte_arrays);
         execution.structural_cases.extend(self.cases);
         execution.structural_host_atoms.extend(self.host_atoms);
+        Ok(())
     }
 }

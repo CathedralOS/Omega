@@ -179,7 +179,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             self.invalidate_stored_provenance(&cell.parent);
-            self.structural_scalar_fields.insert(cell, replacement);
+            self.structural_scalar_fields.insert(cell, replacement)?;
         }
         Ok(())
     }

@@ -44,7 +44,7 @@ impl TerminalExecution<'_> {
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
-        let mut staged = ConstructorStorage::default();
+        let mut staged = ConstructorStorage::new(self.account.as_ref());
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
         let mut claim_operands = Vec::new();
@@ -78,10 +78,11 @@ impl TerminalExecution<'_> {
             &mut frontier,
             &|current| staged.case_at_projection(self, &value, &current.path),
         )?;
-        self.commit_constructor_operands(frontier, &consumed, claims)?;
-        self.local_structural_identities.commit_cursor(cursor);
+        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         staged.publish(self)?;
         self.structural_values.insert(result.place, value)?;
+        retirement.commit(self);
+        self.local_structural_identities.commit_cursor(cursor);
         Ok(crate::execution::OperationFlow::Advance)
     }
 }
