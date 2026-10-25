@@ -1,6 +1,7 @@
 //! The 22 binary integer constant folds: exact, wrapping and saturating
 //! arithmetic, quotient and remainder, shifts, and bitwise operations, each
-//! one row of the table below over the one traversal in `propose`.
+//! one row of the table below over the family's shared constant-fold
+//! traversal.
 //!
 //! `IntegerBinaryKind` is the closed rule vocabulary the table names: an
 //! arithmetic or shift policy pair, or one bitwise operator.
@@ -16,20 +17,17 @@ use abstract_operations::{
     IntegerShiftDirection as Direction, IntegerShiftPolicy,
 };
 use optimization_core::{
-    AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
+    OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
-use optimization_unit::{
-    IntegerConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRealizationSite,
-    PsiRewriteCandidate,
-};
+use optimization_unit::{IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate};
 use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ValueId};
 
 use super::integer_binary_shapes;
 use crate::rules::accepted_obligations::accepted_obligation_fact;
 use crate::rules::sparse_conditional_constant_propagation::{
-    constant_evaluation_contract as contract, integer_constant, node_location,
+    constant_evaluation_contract as contract, integer_constant,
 };
-use crate::{AnalysisProduct, PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
+use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 
 constant_fold_rules! {
     ExactIntegerAddConstantsRule = (b"omega.psi-rule.exact-integer-add-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Add));
@@ -113,65 +111,44 @@ fn propose(
     contract: OptimizationRuleContract,
     kind: IntegerBinaryKind,
 ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-    required_analysis!(analyses, AnalysisKind::ScalarConstants => Some(AnalysisProduct::ScalarConstants(constants)));
-    let mut candidates = Vec::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            for (node_index, node) in block.nodes.iter().enumerate() {
-                let Some(shape) = integer_binary_shapes::classify(&node.operation) else {
-                    continue;
-                };
-                if shape.operation.kind() != kind {
-                    continue;
-                }
-                let Some((left_value, left_fact)) =
-                    integer_constant(constants, function.machine, shape.left)
-                else {
-                    continue;
-                };
-                let Some((right_value, right_fact)) =
-                    integer_constant(constants, function.machine, shape.right)
-                else {
-                    continue;
-                };
-                let Some(constant) = evaluate(&shape, left_value, right_value) else {
-                    continue;
-                };
-                let location = node_location(
-                    function.machine,
-                    block.id,
-                    u32::try_from(node_index).expect("optimization node indices are u32"),
-                );
-                candidates.push(
-                    PsiRewriteCandidate::new_integer_evaluation(
-                        unit.identity,
-                        contract,
-                        vec![block.id],
-                        Vec::new(),
-                        vec![realized_node_provenance!(location, node)],
-                        witness(
-                            unit,
-                            function.machine,
-                            shape.source,
-                            contract.safety_class(),
-                            left_fact,
-                            right_fact,
-                        )?,
-                        -1,
-                        IntegerConstantRewrite {
-                            location,
-                            source_operation: shape.source,
-                            result: shape.result,
-                            scalar_type: shape.scalar_type,
-                            constant,
-                        },
-                    )
-                    .map_err(RuleProposalError::InvalidCandidate)?,
-                );
+    super::propose_integer_constant_folds(
+        unit,
+        analyses,
+        contract,
+        |unit, machine, node, constants| {
+            let Some(shape) = integer_binary_shapes::classify(&node.operation) else {
+                return Ok(None);
+            };
+            if shape.operation.kind() != kind {
+                return Ok(None);
             }
-        }
-    }
-    Ok(candidates)
+            let Some((left_value, left_fact)) = integer_constant(constants, machine, shape.left)
+            else {
+                return Ok(None);
+            };
+            let Some((right_value, right_fact)) = integer_constant(constants, machine, shape.right)
+            else {
+                return Ok(None);
+            };
+            let Some(constant) = evaluate(&shape, left_value, right_value) else {
+                return Ok(None);
+            };
+            Ok(Some(super::IntegerConstantFold {
+                source_operation: shape.source,
+                result: shape.result,
+                scalar_type: shape.scalar_type,
+                constant,
+                witness: witness(
+                    unit,
+                    machine,
+                    shape.source,
+                    contract.safety_class(),
+                    left_fact,
+                    right_fact,
+                )?,
+            }))
+        },
+    )
 }
 
 fn evaluate(
