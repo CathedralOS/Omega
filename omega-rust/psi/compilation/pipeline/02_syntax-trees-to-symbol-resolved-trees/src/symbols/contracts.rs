@@ -94,11 +94,12 @@ pub(super) fn assign_contract_reference_symbols(
         let entry_parameters = entry
             .map(|state| state_parameters.span_or_empty(state.parameters))
             .unwrap_or_default();
-        assign_contract_span(
+        assign_callable_value_symbols(
             symbols,
             &scope,
             &[],
             entry_parameters,
+            None,
             entry_symbol,
             machine.contracts,
             signature_contracts,
@@ -109,11 +110,12 @@ pub(super) fn assign_contract_reference_symbols(
 
         for handle in states {
             let state = machine_states.get(*handle);
-            assign_contract_span(
+            assign_callable_value_symbols(
                 symbols,
                 &scope,
                 &[],
                 state_parameters.span_or_empty(state.parameters),
+                state.return_type.as_ref(),
                 state.symbol,
                 state.contracts,
                 signature_contracts,
@@ -139,11 +141,12 @@ pub(super) fn assign_contract_reference_symbols(
             &[],
         );
         for signature in trait_machine_signatures.span_or_empty(trait_definition.machines) {
-            assign_contract_span(
+            assign_callable_value_symbols(
                 symbols,
                 &scope,
                 data_type_parameters.span_or_empty(signature.type_parameters),
                 state_parameters.span_or_empty(signature.parameters),
+                signature.return_type.as_ref(),
                 signature.symbol,
                 signature.contracts,
                 signature_contracts,
@@ -176,11 +179,12 @@ pub(super) fn assign_contract_reference_symbols(
             None,
             &[],
         );
-        assign_contract_span(
+        assign_callable_value_symbols(
             symbols,
             &scope,
             &[],
             state_parameters.span_or_empty(operator.parameters),
+            operator.return_type.as_ref(),
             operator.symbol,
             operator.contracts,
             signature_contracts,
@@ -211,11 +215,12 @@ pub(super) fn assign_contract_reference_symbols(
             None,
             &[],
         );
-        assign_contract_span(
+        assign_callable_value_symbols(
             symbols,
             &scope,
             &[],
             state_parameters.span_or_empty(signature.parameters),
+            signature.return_type.as_ref(),
             signature.symbol,
             signature.contracts,
             signature_contracts,
@@ -228,11 +233,12 @@ pub(super) fn assign_contract_reference_symbols(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn assign_contract_span(
+fn assign_callable_value_symbols(
     symbols: &SymbolTable,
     machine: &MachineScope<'_>,
     signature_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
     parameters: &[symbol_resolved_trees::signature::StateParameter],
+    return_type: Option<&symbol_resolved_trees::types::TypeReference>,
     state_symbol: SymbolHandle,
     contracts: arena::HandleSpan<symbol_resolved_trees::signature::SignatureContract>,
     signature_contracts: &arena::Arena<symbol_resolved_trees::signature::SignatureContract>,
@@ -252,6 +258,24 @@ fn assign_contract_span(
         type_parameters: &type_parameters,
         ..*machine
     };
+    // Parameter and result applications use this exact value telescope too.
+    // Type-reference identity resolution alone deliberately skips value trees.
+    for reference in parameters
+        .iter()
+        .map(|parameter| &parameter.type_reference)
+        .chain(return_type)
+    {
+        let mut reference = reference.clone();
+        crate::symbols::type_references::assign_type_value_expression_symbols(
+            symbols,
+            contract_scope,
+            parameters,
+            state_symbol,
+            expression_table,
+            child_type_references,
+            &mut reference,
+        );
+    }
     for contract in signature_contracts.span_or_empty(contracts) {
         for fact in proof_facts.span_or_empty(contract.facts) {
             let expression = match fact {

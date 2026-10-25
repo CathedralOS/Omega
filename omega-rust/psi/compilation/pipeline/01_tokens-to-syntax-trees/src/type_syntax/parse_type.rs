@@ -1,11 +1,8 @@
-//! Type-reference syntax retains value arguments that require semantic admission.
+//! Generic argument syntax retains the authored value expression.
 //!
-//! A generic argument's destination and operator selections are unavailable here.
-//! In particular, literal Boolean expressions cannot use the integer-only parser
-//! fold: retain their trees so the typed evaluator can check operand carriers,
-//! preserve operator custody and choose the logical evaluation schedule.
-//! Match likewise retains its whole tree: only semantic checking can establish
-//! coverage, compatible arms, and the selected execution path.
+//! Binder kind, carrier and selected operations belong to semantic admission.
+//! A direct name remains ambiguous between a type and a value until resolution;
+//! every other value tree is retained without parser-side evaluation.
 
 use crate::expressions::parse_expression::{
     parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
@@ -13,7 +10,7 @@ use crate::expressions::parse_expression::{
 use crate::input::token_cursor::{Input, ParseResult};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionNode};
+use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{
     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
@@ -326,15 +323,7 @@ fn parse_static_argument_reference<'tokens, 'source>(
         || input.at_contextual("true")
         || input.at_contextual("false")
     {
-        let expression_start = input;
         let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
-        if let ExpressionNode::Boolean(value) = syntax_trees.expressions.expression(expression) {
-            let name = Identifier::new(
-                value.to_string(),
-                syntax_trees.expressions.source_span(expression),
-            );
-            return Ok((syntax_trees.type_references.insert_named(name), rest));
-        }
         if let ExpressionNode::Name(_) = syntax_trees.expressions.expression(expression) {
             // Parentheses do not turn a direct binder or named constant into
             // a computed index. Retain the same leaf as its unparenthesized
@@ -345,25 +334,12 @@ fn parse_static_argument_reference<'tokens, 'source>(
             );
             return Ok((syntax_trees.type_references.insert_named(name), rest));
         }
-        if const_expression_requires_semantic_admission(syntax_trees, expression)
-            || syntax_trees.const_expression_contains_name(expression)
-        {
-            Ok((
-                syntax_trees
-                    .type_references
-                    .insert(TypeReferenceNode::ConstExpression(expression)),
-                rest,
-            ))
-        } else {
-            let value = evaluate_closed_const_integer_expression(syntax_trees, expression)
-                .map_err(|reason| expression_start.error_here(reason))?;
-            Ok((
-                syntax_trees
-                    .type_references
-                    .insert_named(Identifier::generated(value.to_string())),
-                rest,
-            ))
-        }
+        Ok((
+            syntax_trees
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(expression)),
+            rest,
+        ))
     } else if input
         .tokens
         .first()
@@ -373,15 +349,14 @@ fn parse_static_argument_reference<'tokens, 'source>(
         // declaration supplies its parameter kinds: `Box<T>` is a type
         // argument, `Buffer<N>` is a const argument, and
         // `Buffer<N + 1>` is an unmistakable symbolic const expression.
-        // Parse the delimiter-safe integer operator subset first. A
-        // binary result is retained through the pre-resolution generic
-        // instance pass; a lone name keeps the established type/scoped-
-        // const leaf representation.
+        // Retain a delimiter-safe expression recipe until the receiving
+        // binder determines its Value/Const role. A lone name remains
+        // ambiguous with a type and keeps the ordinary resolved leaf.
         let const_expression = parse_const_integer_expression_handle(syntax_trees, input).ok();
         if let Some((expression, expression_rest)) = const_expression
-            && matches!(
+            && !matches!(
                 syntax_trees.expressions.expression(expression),
-                ExpressionNode::Binary(_) | ExpressionNode::Call(_)
+                ExpressionNode::Name(_)
             )
             && (expression_rest.at_punctuation(PunctuationKind::Comma)
                 || expression_rest.at_punctuation(PunctuationKind::Greater))
@@ -398,134 +373,6 @@ fn parse_static_argument_reference<'tokens, 'source>(
     } else {
         parse_type_reference_handle(syntax_trees, input)
     }
-}
-
-/// Shifts and bitwise operations need declared width; remainder needs operand
-/// type admission. Boolean expressions need their own result identity and exact
-/// operator selection, even when every operand is a literal. Preserve these
-/// expressions for the semantic owner; the integer-only parser fold cannot
-/// establish their meaning or decide which logical operand executes.
-fn const_expression_requires_semantic_admission(
-    syntax_trees: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> bool {
-    // Decimal literals and division need exact anonymous evaluation before a
-    // declaration requests integer landing. Structural literals likewise require
-    // their selected nominal carriers; the parser must not render their atoms.
-    if matches!(
-        syntax_trees.expressions.expression(expression),
-        ExpressionNode::Float(_)
-            | ExpressionNode::Boolean(_)
-            | ExpressionNode::StructLiteral(_)
-            | ExpressionNode::ArrayLiteral(_)
-            | ExpressionNode::Match(_)
-            | ExpressionNode::Unary(_)
-            | ExpressionNode::Cast(_)
-            | ExpressionNode::Call(_)
-    ) {
-        return true;
-    }
-    let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(expression) else {
-        return false;
-    };
-    matches!(
-        binary.operator,
-        BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual
-            | BinaryOperator::And
-            | BinaryOperator::Or
-            | BinaryOperator::Divide
-            | BinaryOperator::Modulo
-            | BinaryOperator::ShiftLeft
-            | BinaryOperator::ShiftRight
-            | BinaryOperator::BitwiseAnd
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseXor
-    ) || const_expression_requires_semantic_admission(syntax_trees, binary.left)
-        || const_expression_requires_semantic_admission(syntax_trees, binary.right)
-}
-
-/// Fold the first richer const-argument slice before generic-instance
-/// synthesis: closed integer expressions in the language's current 64-bit
-/// signed/unsigned envelope. The folded decimal
-/// leaf is the same representation a literal argument already used, so symbol
-/// resolution, type identity, layout, and runtime specialization remain
-/// unchanged. Symbolic expressions are intentionally left for the subsequent
-/// const-fact slice, where declaration types and parameter bindings are known.
-fn evaluate_closed_const_integer_expression(
-    syntax_trees: &SyntaxTrees,
-    expression: syntax_trees::expression::ExpressionHandle,
-) -> Result<i128, String> {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Integer(value) => const_literal_value(value),
-        ExpressionNode::Binary(binary) => {
-            let left = evaluate_closed_const_integer_expression(syntax_trees, binary.left)?;
-            let right = evaluate_closed_const_integer_expression(syntax_trees, binary.right)?;
-            match binary.operator {
-                BinaryOperator::Add => checked_const_integer(left.checked_add(right), "addition"),
-                BinaryOperator::Subtract => {
-                    checked_const_integer(left.checked_sub(right), "subtraction")
-                }
-                BinaryOperator::Multiply => {
-                    checked_const_integer(left.checked_mul(right), "multiplication")
-                }
-                BinaryOperator::Divide => left.checked_div(right).ok_or_else(|| {
-                    "const data argument division by zero is invalid".to_string()
-                }),
-                BinaryOperator::Modulo => left.checked_rem(right).ok_or_else(|| {
-                    "const data argument remainder by zero is invalid".to_string()
-                }),
-                BinaryOperator::ShiftLeft if left >= 0 && right >= 0 => {
-                    let shifted = u32::try_from(right)
-                        .ok()
-                        .filter(|amount| *amount < u64::BITS)
-                        .and_then(|amount| left.checked_shl(amount));
-                    checked_const_integer(shifted, "left shift")
-                }
-                BinaryOperator::ShiftRight if left >= 0 && right >= 0 => u32::try_from(right)
-                    .ok()
-                    .filter(|amount| *amount < u64::BITS)
-                    .and_then(|amount| left.checked_shr(amount))
-                    .ok_or_else(|| {
-                        "const data argument right shift exceeds the `u64` width".to_string()
-                    }),
-                BinaryOperator::BitwiseAnd if left >= 0 && right >= 0 => Ok(left & right),
-                BinaryOperator::BitwiseOr if left >= 0 && right >= 0 => Ok(left | right),
-                BinaryOperator::BitwiseXor if left >= 0 && right >= 0 => Ok(left ^ right),
-                _ => Err(
-                    "signed const data arguments support arithmetic; signed shifts and bitwise operators require declared-width semantics"
-                        .to_string(),
-                ),
-            }
-        }
-        _ => Err(
-            "const data arguments currently support only closed integer expressions".to_string(),
-        ),
-    }
-}
-
-fn const_literal_value(value: &numerics::literals::IntegerLiteral) -> Result<i128, String> {
-    value
-        .value_i64()
-        .map(i128::from)
-        .or_else(|| value.value_u64().map(i128::from))
-        .ok_or_else(|| {
-            "const data arguments must fit either the signed or unsigned 64-bit range".to_string()
-        })
-}
-
-fn checked_const_integer(value: Option<i128>, operation: &str) -> Result<i128, String> {
-    let value = value.ok_or_else(|| format!("const data argument {operation} overflows"))?;
-    if value < i128::from(i64::MIN) || value > i128::from(u64::MAX) {
-        return Err(format!(
-            "const data argument {operation} exceeds the signed/unsigned 64-bit envelope"
-        ));
-    }
-    Ok(value)
 }
 
 /// Apply an optional `in <Domain>` suffix to a just-parsed type reference.

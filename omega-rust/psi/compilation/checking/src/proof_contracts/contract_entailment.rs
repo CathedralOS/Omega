@@ -107,7 +107,9 @@ mod ranking_range;
 mod refuted_requires;
 mod result_bounds;
 mod scalar_observations;
-pub use call_projection_identity::{captured_call_subject_identity, owned_contract_subject};
+pub use call_projection_identity::{
+    captured_call_index_value, captured_call_subject_identity, owned_contract_subject,
+};
 mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;

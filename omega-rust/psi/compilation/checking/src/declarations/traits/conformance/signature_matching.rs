@@ -427,6 +427,21 @@ pub(crate) fn validate_applied_trait_signature(
         }
     }
 
+    // Dependent parameter/result recipes use the same positional value
+    // correspondence as the callable's ordinary operands. Parameter spelling
+    // never identifies a binder across two declarations.
+    type_bindings.extend(
+        required_parameters
+            .iter()
+            .zip(actual_parameters.iter())
+            .map(|(required, actual)| TraitTypeBinding {
+                parameter_symbol: required.symbol,
+                parameter_name: required.name.to_string(),
+                target: TraitTypeBindingTarget::Parameter(actual.symbol),
+                scope_start: 0,
+            }),
+    );
+
     for (index, (actual, required)) in actual_parameters
         .iter()
         .zip(required_parameters.iter())
@@ -825,6 +840,38 @@ pub(crate) fn type_references_match_for_trait_bindings(
                         bindings,
                     )
                 })
+        }
+        (TypeReferenceNode::ConstExpression(_), _) | (_, TypeReferenceNode::ConstExpression(_)) => {
+            let pairs = bindings
+                .iter()
+                .filter_map(|binding| match binding.target {
+                    TraitTypeBindingTarget::Parameter(actual) => {
+                        Some((binding.parameter_symbol, actual))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let required_binders = pairs
+                .iter()
+                .enumerate()
+                .map(|(ordinal, (required, _))| (*required, format!("callable-value:{ordinal}")))
+                .collect::<Vec<_>>();
+            let actual_binders = pairs
+                .iter()
+                .enumerate()
+                .map(|(ordinal, (_, actual))| (*actual, format!("callable-value:{ordinal}")))
+                .collect::<Vec<_>>();
+            let identity = |reference, binders: &[(symbols::SymbolHandle, String)]| {
+                typed_trees::type_identity::try_normalized_index_identity(
+                    program,
+                    typed_trees::type_identity::IndexIdentityArgument::TypeReference(reference),
+                    binders,
+                    &[],
+                )
+            };
+            identity(actual, &actual_binders)
+                .zip(identity(required, &required_binders))
+                .is_some_and(|(actual, required)| actual == required)
         }
         _ => type_references_match(program, actual, required),
     }

@@ -660,9 +660,13 @@ defines the complete product bar.
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque/provider and dependent result composition
     through the same producer and custody relationships. Runtime-indexed returned
-    carriers still need field-valued index subjects in their result applications;
-    those subjects must retain their captured values across later slot writes,
-    without requiring a closed integer constant or erasing the dependency. Retain copied returns
+    carriers must also forward inferred machine Value binders without static
+    specialization or importing a callee-local recipe, and preserve post-write
+    descriptor observations when an earlier operand mutates a source before the
+    indexed producer runs. Retain the field-valued direct/public result row in
+    `copied_call_argument_snapshot/*/indexed_byte_view`: its type invariant carries
+    the captured length across a later slot write without erasing the index.
+    Retain copied returns
     through ranked identities and public local-dyn slots, including immutable
     local copies, contextual windows, disjoint writes, borrowed record fields,
     stored array elements and later replacement of former slots. Descriptor-leaf

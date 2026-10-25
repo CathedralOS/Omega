@@ -125,7 +125,7 @@ pub fn expression_has_inert_prefix(
 /// bodies. A completed selection before the endpoint remains a whole subtree:
 /// its consumer still unions every possible effect. Repeated endpoint handles
 /// decline: a static handle cannot select between different occurrences.
-pub(crate) fn expressions_before_occurrence(
+pub fn expressions_before_occurrence(
     program: &dyn crate::CheckingInput,
     roots: &[ExpressionHandle],
     endpoint: ExpressionHandle,

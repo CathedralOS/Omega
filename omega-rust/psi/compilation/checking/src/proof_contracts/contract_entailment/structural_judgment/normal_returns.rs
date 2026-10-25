@@ -1874,6 +1874,7 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
+        self.intake_result_indices(result_type, &captured, callable, parameters, &bindings);
         if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
             equations.extend(self.returned_field_equations(
                 callee,

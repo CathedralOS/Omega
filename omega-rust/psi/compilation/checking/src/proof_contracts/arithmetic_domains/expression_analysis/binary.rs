@@ -22,7 +22,7 @@ use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_oper
 use crate::proof_contracts::arithmetic_domains::return_ranges::overflow_operand_value_call_target;
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, BinaryOperator, Diagnostic, ExpressionHandle, ExpressionNode, Interval,
-    PrimitiveType, bitwise, division_definedness, guard_narrowing, is_arithmetic, ordered_values,
+    PrimitiveType, bitwise, guard_narrowing, is_arithmetic, ordered_values,
     unsigned_representability,
 };
 use crate::value_custody::literals;
@@ -41,23 +41,30 @@ pub(super) fn analyze(
 ) -> Analysis {
     let mut operation =
         Operation::analyze_operands(walk, expression, binary, diagnostics, decisions);
-    if !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
-        walk.program,
-        walk.machine,
-        walk.state,
-        expression,
-    ) {
+    if !walk.builtin_binary(expression) {
         return operation.declared_operator_result();
     }
-    crate::proof_contracts::arithmetic_domains::report_mismatched_integer_operands(
-        walk.program,
-        walk.machine,
-        walk.state,
-        binary.operator,
-        binary.left,
-        binary.right,
-        diagnostics,
-    );
+    if let Some(machine) = walk.machine {
+        crate::proof_contracts::arithmetic_domains::report_mismatched_integer_operands(
+            walk.program,
+            machine,
+            walk.state,
+            binary.operator,
+            binary.left,
+            binary.right,
+            diagnostics,
+        );
+    } else if let (Some(left), Some(right)) = (operation.left.primitive, operation.right.primitive)
+        && left != right
+        && !operation.is_shift()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "integer operands in {} have different carriers `{}` and `{}`",
+            walk.owner,
+            primitive_name(left),
+            primitive_name(right)
+        )));
+    }
     if !operation.is_shift() {
         operation.land_anonymous_operands(diagnostics);
     }
@@ -91,17 +98,12 @@ pub(super) fn analyze(
     let primitive = operation.result_primitive(interval);
     let effective_domain = domain.unwrap_or(ArithmeticDomain::Exact);
     if let Some(primitive) = primitive
-        && crate::proof_contracts::arithmetic_domains::division_definedness::validate_operands(
-            walk.program,
-            walk.machine,
-            walk.state,
-            walk.environment,
+        && walk.division_formation(
             binary,
             effective_domain,
             primitive,
             operation.left.interval,
             operation.right.interval,
-            walk.owner,
             diagnostics,
         )
     {
@@ -135,11 +137,11 @@ pub(super) fn analyze(
     let recipe = if effective_domain == ArithmeticDomain::Exact {
         operation
             .left
-            .range_recipe(walk.program, walk.machine.symbol, binary.left)
+            .range_recipe(walk.program, walk.lexical_owner, binary.left)
             .zip(
                 operation
                     .right
-                    .range_recipe(walk.program, walk.machine.symbol, binary.right),
+                    .range_recipe(walk.program, walk.lexical_owner, binary.right),
             )
             .and_then(|(left, right)| left.binary(operator, &right))
             .filter(checked_trees::IntegerRangeRecipe::is_target_dependent)
@@ -273,13 +275,15 @@ impl<'w, 'a> Operation<'w, 'a> {
         decisions: &mut super::ArithmeticDecisions,
     ) -> Self {
         let left = walk.analyze(binary.left, diagnostics, decisions);
-        let right_environment = guard_narrowing::short_circuit_operand_environment(
-            walk.program,
-            walk.machine,
-            walk.state,
-            expression,
-            walk.environment,
-        );
+        let right_environment = walk.machine.and_then(|machine| {
+            guard_narrowing::short_circuit_operand_environment(
+                walk.program,
+                machine,
+                walk.state,
+                expression,
+                walk.environment,
+            )
+        });
         let right_walk = ExpressionWalk {
             environment: right_environment.as_ref().unwrap_or(walk.environment),
             ..*walk
@@ -372,17 +376,12 @@ impl Operation<'_, '_> {
             self.operator(),
             BinaryOperator::Divide | BinaryOperator::Modulo
         ) {
-            return division_definedness::validate_operands(
-                walk.program,
-                walk.machine,
-                walk.state,
-                walk.environment,
+            return walk.division_formation(
                 &self.binary,
                 ArithmeticDomain::Exact,
                 primitive,
                 self.left.interval,
                 self.right.interval,
-                walk.owner,
                 &mut unproven,
             );
         }
@@ -458,14 +457,7 @@ impl Operation<'_, '_> {
     fn declared_operator_result(&self) -> Analysis {
         let walk = self.walk;
         let program = walk.program;
-        let result = walk.state.and_then(|state| {
-            crate::value_custody::expression_types::expression_result_type_reference(
-                program,
-                walk.machine,
-                state,
-                self.expression,
-            )
-        });
+        let result = walk.result_type(self.expression);
         let primitive = result.and_then(|result| program.primitive_type_reference(result));
         Analysis {
             recipe: None,
@@ -700,29 +692,44 @@ impl Operation<'_, '_> {
         let (program, machine, state) = (walk.program, walk.machine, walk.state);
         let (left, right) = (self.binary.left, self.binary.right);
         let interval = match self.operator() {
-            BinaryOperator::Add => refine_dependent_product(
-                program,
-                machine,
-                state,
-                left,
-                right,
-                self.left.interval.add(self.right.interval),
+            BinaryOperator::Add => machine.map_or_else(
+                || self.left.interval.add(self.right.interval),
+                |machine| {
+                    refine_dependent_product(
+                        program,
+                        machine,
+                        state,
+                        left,
+                        right,
+                        self.left.interval.add(self.right.interval),
+                    )
+                },
             ),
-            BinaryOperator::Subtract => refine_dependent_subtract(
-                program,
-                machine,
-                state,
-                left,
-                right,
-                self.left.interval.subtract(self.right.interval),
+            BinaryOperator::Subtract => machine.map_or_else(
+                || self.left.interval.subtract(self.right.interval),
+                |machine| {
+                    refine_dependent_subtract(
+                        program,
+                        machine,
+                        state,
+                        left,
+                        right,
+                        self.left.interval.subtract(self.right.interval),
+                    )
+                },
             ),
-            BinaryOperator::Multiply => refine_dependent_product_factor(
-                program,
-                machine,
-                state,
-                left,
-                right,
-                self.left.interval.multiply(self.right.interval),
+            BinaryOperator::Multiply => machine.map_or_else(
+                || self.left.interval.multiply(self.right.interval),
+                |machine| {
+                    refine_dependent_product_factor(
+                        program,
+                        machine,
+                        state,
+                        left,
+                        right,
+                        self.left.interval.multiply(self.right.interval),
+                    )
+                },
             ),
             BinaryOperator::Modulo => self.left.interval.modulo(self.right.interval),
             BinaryOperator::Divide
@@ -751,20 +758,17 @@ impl Operation<'_, '_> {
             _ => Interval::UNBOUNDED,
         };
         if self.operator() == BinaryOperator::Subtract
-            && guard_narrowing::has_builtin_bound_arithmetic(
-                program,
-                machine,
-                state,
-                self.expression,
-            )
-            && let Some(floor) = ordered_values::subtract_floor(
-                program,
-                machine,
-                state,
-                walk.environment,
-                left,
-                right,
-            )
+            && walk.builtin_binary(self.expression)
+            && let Some(floor) = machine.and_then(|machine| {
+                ordered_values::subtract_floor(
+                    program,
+                    machine,
+                    state,
+                    walk.environment,
+                    left,
+                    right,
+                )
+            })
         {
             return interval.intersect(Interval {
                 low: Some(floor),
@@ -783,19 +787,16 @@ impl Operation<'_, '_> {
                 .left
                 .primitive
                 .is_some_and(|primitive| integer_bit_width(primitive).is_some())
-            && guard_narrowing::has_builtin_bound_arithmetic(
-                walk.program,
-                walk.machine,
-                walk.state,
-                self.expression,
-            )
-            && ordered_values::same_place(
-                walk.program,
-                walk.machine,
-                walk.state,
-                self.binary.left,
-                self.binary.right,
-            )
+            && walk.builtin_binary(self.expression)
+            && walk.machine.is_some_and(|machine| {
+                ordered_values::same_place(
+                    walk.program,
+                    machine,
+                    walk.state,
+                    self.binary.left,
+                    self.binary.right,
+                )
+            })
     }
 
     /// Relational facts (joint operand bounds, a widened unsigned product, a
@@ -812,17 +813,20 @@ impl Operation<'_, '_> {
             self.operator(),
             BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
         ) && let Some((minimum, maximum)) = primitive.and_then(PrimitiveType::integer_bounds)
-            && walk.state.is_some_and(|state| {
-                super::super::live_integer_constraints::proves_range(
-                    program,
-                    walk.machine,
-                    state,
-                    environment,
-                    self.expression,
-                    Some(&numerics::bignum::BigInt::from_i128(minimum)),
-                    Some(&numerics::bignum::BigInt::from_i128(maximum)),
-                )
-            })
+            && walk
+                .machine
+                .zip(walk.state)
+                .is_some_and(|(machine, state)| {
+                    super::super::live_integer_constraints::proves_range(
+                        program,
+                        machine,
+                        state,
+                        environment,
+                        self.expression,
+                        Some(&numerics::bignum::BigInt::from_i128(minimum)),
+                        Some(&numerics::bignum::BigInt::from_i128(maximum)),
+                    )
+                })
         {
             return true;
         }
@@ -836,13 +840,11 @@ impl Operation<'_, '_> {
                 environment.proves_joint_multiply_bound(program, left, right)
                     || environment.proves_signed_joint_multiply_bounds(program, left, right)
                     || environment.proves_signed_joint_multiply_negation_bound(program, left, right)
-                    || exact_unsigned_widened_multiply_fits(
-                        program,
-                        walk.machine,
-                        walk.state,
-                        left,
-                        right,
-                    )
+                    || walk.machine.is_some_and(|machine| {
+                        exact_unsigned_widened_multiply_fits(
+                            program, machine, walk.state, left, right,
+                        )
+                    })
             }
             BinaryOperator::ShiftLeft => {
                 primitive == Some(PrimitiveType::U64)
@@ -935,7 +937,7 @@ impl Operation<'_, '_> {
                     decisions.integer_range_obligations.push(
                         checked_trees::IntegerRangeObligation::retain(
                             self.expression,
-                            self.walk.machine.symbol,
+                            self.walk.lexical_owner,
                             recipe.clone(),
                             BigInt::from_i64(minimum),
                             maximum,
@@ -1002,28 +1004,34 @@ impl Operation<'_, '_> {
     /// bridge while the structural judgment reconstructs operand denotations.
     fn completed_operands_fit(&self) -> bool {
         self.walk.checks_occurrence_fit
-            && self.walk.state.is_some_and(|state| {
-                crate::proof_contracts::contract_entailment::exact_binary_fits_at_occurrence(
-                    self.walk.program,
-                    self.walk.machine,
-                    state,
-                    self.expression,
-                )
-            })
+            && self
+                .walk
+                .machine
+                .zip(self.walk.state)
+                .is_some_and(|(machine, state)| {
+                    crate::proof_contracts::contract_entailment::exact_binary_fits_at_occurrence(
+                        self.walk.program,
+                        machine,
+                        state,
+                        self.expression,
+                    )
+                })
     }
 
     fn unsigned_increase_fits(&self, ceiling: Option<i64>) -> bool {
         let walk = self.walk;
         let fits = |base, increment: Interval| {
-            ordered_values::unsigned_increase_fits(
-                walk.program,
-                walk.machine,
-                walk.state,
-                walk.environment,
-                base,
-                increment,
-                ceiling,
-            )
+            walk.machine.is_some_and(|machine| {
+                ordered_values::unsigned_increase_fits(
+                    walk.program,
+                    machine,
+                    walk.state,
+                    walk.environment,
+                    base,
+                    increment,
+                    ceiling,
+                )
+            })
         };
         fits(self.binary.left, self.right.interval) || fits(self.binary.right, self.left.interval)
     }
@@ -1109,17 +1117,21 @@ impl Operation<'_, '_> {
         // Saved Boolean values contribute the same live resolved relations as
         // direct guards. Ask the common integer judgment for both complements;
         // count validity never supplies left-shift result representability.
-        let relationally_in_range = self.walk.state.is_some_and(|state| {
-            super::super::live_integer_constraints::proves_range(
-                self.walk.program,
-                self.walk.machine,
-                state,
-                self.walk.environment,
-                self.binary.right,
-                Some(&numerics::bignum::BigInt::from_i64(0)),
-                Some(&numerics::bignum::BigInt::from_i64(width - 1)),
-            )
-        });
+        let relationally_in_range =
+            self.walk
+                .machine
+                .zip(self.walk.state)
+                .is_some_and(|(machine, state)| {
+                    super::super::live_integer_constraints::proves_range(
+                        self.walk.program,
+                        machine,
+                        state,
+                        self.walk.environment,
+                        self.binary.right,
+                        Some(&numerics::bignum::BigInt::from_i64(0)),
+                        Some(&numerics::bignum::BigInt::from_i64(width - 1)),
+                    )
+                });
         if relationally_in_range {
             return true;
         }
