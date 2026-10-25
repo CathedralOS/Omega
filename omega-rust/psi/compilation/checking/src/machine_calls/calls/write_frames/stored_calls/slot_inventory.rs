@@ -24,6 +24,14 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     let parameters = if let Some(slot) = program.dynamic_slot_by_symbol(target) {
         &slot.parameters
     } else if let Some((_, signature)) = crate::selected_requirement_signature(program, target) {
+        // A complete empty output frontier needs no call-site relation. In an
+        // open generic body the applied callable may not exist yet; that cannot
+        // invent a borrowed output for a reference-free public signature.
+        if parameter_destination_inventory(program, program.state_signature_parameters(signature))
+            .is_some_and(|inventory| inventory.slots.is_empty() && !inventory.template_dependent)
+        {
+            return false;
+        }
         let signature = if call_expression.is_valid() {
             let Some(call) = program.expression_table.call_node(call_expression) else {
                 return true;
