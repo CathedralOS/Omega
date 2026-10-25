@@ -8,6 +8,7 @@ use crate::byte_sequences::{
 };
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
+use crate::runtime_rows::RuntimeRows;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use extents::{
     ActivationClaimBranch, ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest,
@@ -167,7 +168,7 @@ impl TerminalExecution<'_> {
             })
         })?;
         self.live_affine_frontier = frontier;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -250,7 +251,7 @@ impl TerminalExecution<'_> {
             .collect::<std::collections::BTreeSet<_>>();
         let frame_has_loan =
             |bindings: &BTreeMap<semantic_vocabulary::PlaceId, ByteSequenceBinding>,
-             values: &BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+             values: &RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
              honor_retired: bool|
              -> Result<bool, TerminalInterpretError> {
                 for (place, binding) in bindings {
@@ -631,7 +632,7 @@ impl TerminalExecution<'_> {
             (current.place == result.place && current.path.is_empty()).then_some(case)
         })?;
         self.live_affine_frontier = frontier;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
 }

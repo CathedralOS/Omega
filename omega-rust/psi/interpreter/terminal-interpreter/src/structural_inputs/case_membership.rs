@@ -3,6 +3,7 @@
 use crate::custody::{project_structural_value, resolve_structural_path_type};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralTypeId,
@@ -445,7 +446,7 @@ impl TerminalExecution<'_> {
 /// omitting it from the physical path; two cases may use the same field names.
 pub(crate) fn validate_case_projection(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
     source: PlaceId,
     path: &[StructuralPathSegment],
@@ -464,7 +465,7 @@ pub(crate) fn validate_case_projection(
 /// runtime contents to inspect.
 pub(crate) fn case_projection_is_active(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
     source: PlaceId,
     path: &[StructuralPathSegment],

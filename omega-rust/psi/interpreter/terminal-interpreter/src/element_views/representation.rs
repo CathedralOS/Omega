@@ -6,12 +6,12 @@ use super::{ElementView, ElementViewBacking};
 use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralTypeId,
 };
-use std::collections::BTreeMap;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeShape,
 };
@@ -134,9 +134,12 @@ impl TerminalExecution<'_> {
             }
         } else {
             let mut cursor = self.local_structural_identities.cursor();
-            let (root, home) =
-                self.array_storage_root_staged(source.place, &mut cursor, &mut BTreeMap::new())?;
-            let values = BTreeMap::from([(source.place, root)]);
+            let (root, home) = self.array_storage_root_staged(
+                source.place,
+                &mut cursor,
+                &mut RuntimeRows::new(self.account.as_ref()),
+            )?;
+            let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
             let referent = crate::custody::resolve_single_structural_argument(
                 &self.program.structural_types(),
                 &values,

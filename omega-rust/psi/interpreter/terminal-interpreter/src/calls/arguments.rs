@@ -8,6 +8,7 @@
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId, ValueId};
@@ -18,7 +19,7 @@ pub(crate) struct StructuralCallArguments {
     pub(crate) local_identity_cursor: Option<u64>,
     /// Ordered declarations for the opaque carriers, not the full signature.
     pub(crate) descriptor_parameters: Vec<StructuralParameterDeclaration>,
-    pub(crate) values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     /// Borrowed re-views keep their original storage declaration beside the
     /// logical ingress carrier. Field projection consumes this association.
     pub(crate) aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
@@ -119,6 +120,7 @@ impl TerminalExecution<'_> {
                 &opaque_parameters,
                 &self.program.structural_types(),
                 &self.structural_cases,
+                self.account.as_ref(),
             )
             .map_err(|error| error.in_argument_preparation("admit argument carriers"))?;
         prepared.scalar_arrays = scalar_arrays;

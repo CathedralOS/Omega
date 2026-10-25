@@ -38,7 +38,7 @@ impl TerminalExecution<'_> {
                 scalar_type: count_type,
                 value: IntegerValue::Unsigned(u128::from(length)),
             },
-        );
+        )?;
         Ok(())
     }
 
@@ -142,7 +142,7 @@ impl TerminalExecution<'_> {
                 scalar_type: byte_type,
                 value: IntegerValue::Unsigned(u128::from(byte)),
             },
-        );
+        )?;
         Ok(())
     }
 }

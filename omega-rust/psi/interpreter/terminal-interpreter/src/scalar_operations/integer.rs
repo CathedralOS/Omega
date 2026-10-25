@@ -374,7 +374,7 @@ impl TerminalExecution<'_> {
         value: TerminalScalarValue,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         self.values
-            .insert(operation.result.expect_scalar().id, value);
+            .insert(operation.result.expect_scalar().id, value)?;
         Ok(OperationFlow::Advance)
     }
 }

@@ -14,6 +14,7 @@
 //! return. No helper creates a second host establishment or remints authority.
 
 use crate::errors::{TerminalInterpretError, malformed};
+use crate::runtime_rows::RuntimeRows;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
@@ -204,7 +205,7 @@ impl crate::execution::TerminalExecution<'_> {
         &self,
         callee: MachineId,
         arguments: &[terminal_psi::StructuralArgument],
-        values: &BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+        values: &RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>, TerminalInterpretError>
     {
         let module = &self.program.catalogs;

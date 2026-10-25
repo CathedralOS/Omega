@@ -71,8 +71,15 @@ Aliases share the backing's lease; even a small window keeps the full backing
 reserved. Copy-on-write reserves the overlapping replacement before copying.
 Boundary byte buffers own the same storage type: capture and growth reserve
 before copying, and whole-owner writeback moves the reservation with the bytes.
-Retirement releases live bytes, not consumed fuel. Runtime descriptor/array rows,
-other storage families and result publication are not yet completely accounted;
+Retirement releases live bytes, not consumed fuel.
+[Runtime rows](src/runtime_rows.rs) own one cell per live scalar or structural
+table entry, including staged call/edge bindings and cleanup copies. New entries
+and overlapping copies reserve first; replacements retain their cell, frame moves
+carry the lease, and table joins transfer reservations without charging again.
+Removal and teardown release only retired rows. The complete source-produced
+Build control checks exact and one-cell-short budgets across fuel pauses, retaining
+faults without replaying effects. Descriptor maps, frame headers, array payload
+elements, other storage families and result publication are not yet completely accounted;
 these partial snapshots must not become production Build usage receipts.
 
 A failed execution retains its exact host fault and unfinished custody. Calling

@@ -6,6 +6,7 @@
 //! before invocation custody is committed. Unbounded integer initialization
 //! remains checked when read, allowing stores to establish those contents.
 
+use crate::runtime_rows::RuntimeRows;
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
@@ -48,7 +49,7 @@ impl From<&TerminalStructuralBooleanFieldValue> for TerminalStructuralScalarFiel
 pub(crate) fn bind(
     machine: &TerminalMachine,
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    structural_values: &BTreeMap<PlaceId, TerminalStructuralValue>,
+    structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralScalarFieldValue],
     mut values: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],

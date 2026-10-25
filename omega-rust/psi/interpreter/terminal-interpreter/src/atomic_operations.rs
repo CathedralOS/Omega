@@ -169,7 +169,7 @@ impl TerminalExecution<'_> {
                 if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) {
                     return Err(malformed());
                 }
-                self.values.insert(result.id, prior);
+                self.values.insert(result.id, prior)?;
             }
             (None, OperationResult::Unit) => {}
             _ => return Err(malformed()),

@@ -17,6 +17,7 @@ use crate::effects::{
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
@@ -31,6 +32,7 @@ use crate::values::{
 use crate::values::{
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use evaluation_accounting::EvaluationInvocationAccount;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
     ValueId,
@@ -67,7 +69,7 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
-    pub(crate) account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    pub(crate) account: Option<EvaluationInvocationAccount>,
     /// A host fault is not a resumable pause. Retain its exact site and custody
     /// so retry cannot repeat an operation that may already have had effects.
     failure: Option<TerminalInterpretError>,
@@ -95,8 +97,8 @@ pub struct TerminalExecution<'artifact> {
     /// `provider_candidates` and `boundary_supplies`, so a direct call of
     /// either requirement gains no assumed facts.
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
-    pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
-    pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
+    pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     /// Host-lent entry storage outlives frame-local views. Keep only borrowed
     /// inputs: an owned argument transfers custody and cannot be read back.
     pub(crate) borrowed_entry_storage: Vec<(u32, PlaceId, TerminalStructuralValue)>,
@@ -188,8 +190,8 @@ pub struct TerminalExecution<'artifact> {
 pub(crate) struct SuspendedCall {
     pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
-    pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
-    pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
+    pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
@@ -373,7 +375,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         zero_initialized_arguments: &[u32],
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
         installation: Option<&TerminalRuntimeSupplies>,
-        account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+        account: Option<EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
         let current_machine = program.resolve_entry(installation)?;
         // A nonempty placed-view roster declares direct entry inputs whose
@@ -419,9 +421,12 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             return Err(TerminalInterpretError::ScalarEntryQualificationUnsupported);
         }
-        let values = bind_arguments(&machine.parameters, scalar_arguments)?;
-        let structural_values =
-            bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
+        let values = bind_arguments(&machine.parameters, scalar_arguments, account.as_ref())?;
+        let structural_values = bind_structural_arguments(
+            &machine.structural_parameters,
+            structural_arguments,
+            account.as_ref(),
+        )?;
         let live_affine_frontier = bind_affine_frontier(
             &machine.structural_parameters,
             &structural_values,

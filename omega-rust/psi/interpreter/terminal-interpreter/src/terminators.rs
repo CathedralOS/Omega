@@ -23,9 +23,9 @@ use crate::results::{
     TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalScalarCaseResult, TerminalStructuralResult,
 };
+use crate::runtime_rows::RuntimeRows;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
-use std::collections::BTreeMap;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
@@ -58,7 +58,7 @@ impl TerminalExecution<'_> {
     /// every terminator-side frontier and exclusion call passes in.
     fn stored_case_at_discard(
         &self,
-        structural_values: &BTreeMap<PlaceId, crate::values::TerminalStructuralValue>,
+        structural_values: &RuntimeRows<PlaceId, crate::values::TerminalStructuralValue>,
         discard: &StructuralAffineDiscard,
     ) -> Option<semantic_vocabulary::StructuralCaseId> {
         crate::structural_inputs::case_membership::stored_case_at_projection(
@@ -268,7 +268,8 @@ impl TerminalExecution<'_> {
             }
             bindings.push((parameter.id, scalar));
         }
-        let bindings = block_bindings::BlockBindings::from_scalars(bindings);
+        let bindings =
+            block_bindings::BlockBindings::from_scalars(bindings, self.account.as_ref())?;
         let cleanup_actions =
             bindings.prepare_cleanup_actions(self, &[], &successor.cleanup_actions)?;
         if let Err(error) = meter.charge_edge(successor.edge, terminator) {

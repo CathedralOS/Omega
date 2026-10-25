@@ -53,6 +53,7 @@ mod record;
 mod reference;
 mod results;
 mod runtime_indexes;
+mod runtime_rows;
 mod scalar_array;
 mod scalar_operations;
 mod storage_addresses;
