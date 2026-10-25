@@ -46,7 +46,7 @@ python tools/ci/compiler_pilot.py
 Reports, captured Terminal/native artifacts, the exact corpus runner and its build-profile receipt upload as
 `compiler-regression-OS-SHA-attempt`,
 retained seven days. `summary.json` separates build and test timing and identifies
-the producer. The 30-minute job does not cancel a running predecessor; pending
+the producer. The 45-minute job does not cancel a running predecessor; pending
 push runs coalesce to the newest revision. This is a bounded Linux smoke, not
 all supported hosts, the full corpus, or Cathedral UEFI boot. Host/customer and
 release qualification remain explicit separate acceptance.
