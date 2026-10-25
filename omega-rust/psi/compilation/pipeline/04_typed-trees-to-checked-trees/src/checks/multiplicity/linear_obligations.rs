@@ -560,9 +560,12 @@ pub(super) fn prepare_storage_deaths(
         let path = facts.flow.ownership.segments.insert_many(place.segments);
         let exclusions = excluded
             .into_iter()
-            .map(|segments| facts::Place {
+            .map(|segments| checked_trees::ContextualCleanupExcludedRegion {
                 root: place.root,
                 segments: facts.contextual_cleanup.segments.insert_many(segments),
+                // This window owns exclusion geometry, not a receiving
+                // establishment proving that the selected value never existed.
+                cause: checked_trees::ContextualCleanupExclusionCause::Unknown,
             })
             .collect::<Vec<_>>();
         facts

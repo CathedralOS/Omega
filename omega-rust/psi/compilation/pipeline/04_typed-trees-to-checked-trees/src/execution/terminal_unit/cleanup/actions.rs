@@ -246,11 +246,24 @@ pub(super) fn disposition_actions(
         {
             let excluded = facts.contextual_cleanup.segments.span(removed.segments)?;
             phase = "excluded case reachability";
+            // The shared selected-leaf query already checked disjointness
+            // from exclusions outside this exact dying subtree. Sibling
+            // geometry must not ask for an unrelated case observation.
+            if !excluded.starts_with(place.segments.as_slice())
+                && !place.segments.starts_with(excluded)
+            {
+                continue;
+            }
             match case_reachability(excluded)? {
                 validation::CleanupCaseReachability::Inactive => continue,
                 validation::CleanupCaseReachability::Selected => {}
-                // An uncertain earlier transfer needs its own selected custody
-                // join. A tag condition alone cannot establish that transfer.
+                validation::CleanupCaseReachability::Runtime
+                    if removed.cause
+                        == checked_trees::ContextualCleanupExclusionCause::Unestablished => {}
+                // Only a positive, all-path receiving absence can exclude a
+                // value without selecting its case. This remains runtime tag
+                // geometry, never membership or whole-owner disposal proof.
+                // Uncertain moves still need their selected custody join.
                 validation::CleanupCaseReachability::Runtime => return None,
             }
             // The contextual row remembers earlier transfers under the original

@@ -432,6 +432,17 @@ pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnosti
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(errors)
+        // Undefined anonymous arithmetic has no type to materialize. At this
+        // final selected-tree fence, report its source formation obligation
+        // before the consequent missing-storage diagnostic. Reuse the same
+        // checker as ordinary validation; other unresolved subjects retain
+        // their existing refusal, and no missing type implies anonymity.
+        let mut formation_errors = Vec::new();
+        validation::validate_anonymous_numeric_formation(program, &mut formation_errors);
+        if formation_errors.is_empty() {
+            Err(errors)
+        } else {
+            Err(formation_errors)
+        }
     }
 }

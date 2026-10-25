@@ -37,7 +37,8 @@ pub use checked_trees::{
 pub use checked_trees::{
     CheckedStoredIntegerWrite, ConstantRecipeObligation, ConstantRecipeRequirement,
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts, ContextualStorageEstablishment,
+    ContextualCleanupEntryRequirements, ContextualCleanupExcludedRegion,
+    ContextualCleanupExclusionCause, ContextualCleanupFacts, ContextualStorageEstablishment,
     StoredIntegerWriteSite,
 };
 

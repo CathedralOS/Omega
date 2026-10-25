@@ -57,7 +57,8 @@ pub use facts::{
 pub use facts::{
     CheckedStoredIntegerWrite, ConstantRecipeObligation, ConstantRecipeRequirement,
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts, ContextualStorageEstablishment,
+    ContextualCleanupEntryRequirements, ContextualCleanupExcludedRegion,
+    ContextualCleanupExclusionCause, ContextualCleanupFacts, ContextualStorageEstablishment,
     DecidedCallRequires, ProvenAssignmentIndex, StoredIntegerWriteSite,
 };
 

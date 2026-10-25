@@ -317,6 +317,14 @@ impl Builder<'_, '_> {
             }
         }
         let source = self.structural_value(root_expression, root_reference)?;
+        if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+            // The selected copy and its evaluated containing owner have
+            // independent completions. Publish the actual backing producer
+            // even when the selected leaf owns a new copied value; contextual
+            // cleanup must rejoin this owner, never the copy's source label.
+            // This association neither evaluates it again nor grants disposal.
+            self.retain_structural_value_root(source, root_reference)?;
+        }
         // Copy permission belongs to the selected value. The source's own
         // checked disposition is independent: an anonymous owner's eventual
         // death cannot turn an observation into a partial ownership move.

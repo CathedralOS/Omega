@@ -433,19 +433,23 @@ fn append_descriptor_death(
             .then_some(());
     }
     let exclusions = remaining
-        .removed_paths(program, place.root, &[])
+        .removed_regions(program, place.root, &[])
         .into_iter()
-        .map(|path| facts::Place {
-            root: place.root,
-            segments: cleanup.segments.insert_many(path.iter().copied()),
-        })
+        .map(
+            |(path, cause)| checked_trees::ContextualCleanupExcludedRegion {
+                root: place.root,
+                segments: cleanup.segments.insert_many(path.iter().copied()),
+                cause,
+            },
+        )
         .collect::<Vec<_>>();
     let inactive_cases = remaining
         .inactive_case_paths(place.root, &[])
         .into_iter()
-        .map(|path| facts::Place {
+        .map(|path| checked_trees::ContextualCleanupExcludedRegion {
             root: place.root,
             segments: cleanup.segments.insert_many(path.iter().copied()),
+            cause: checked_trees::ContextualCleanupExclusionCause::InactiveCase,
         })
         .collect::<Vec<_>>();
     disposition.exclusions = cleanup.exclusions.insert_many(exclusions);

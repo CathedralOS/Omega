@@ -359,6 +359,7 @@ pub use value_custody::literals::land_anonymous_integer_expression;
 pub use value_custody::literals::land_float_literal_destinations;
 pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
+pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
     ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, closed_record_scalar_projection, closed_scalar_place_projection,
