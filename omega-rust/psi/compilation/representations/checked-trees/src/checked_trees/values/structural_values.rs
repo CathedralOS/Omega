@@ -484,6 +484,9 @@ impl CheckedStructuralValuePlans {
     /// execution nor dominance; scheduling must require an existing lexical
     /// completion before consuming a saved alias. Catalog-only readers may omit
     /// the statement, but still require a unique root within the state.
+    /// Captured-copy roots have their own completion identity and may share
+    /// this authored expression. Only root_for_captured_copy may select them;
+    /// an expression dependency selects the ordinary produced occurrence.
     pub fn completed_expression_dependency(
         &self,
         expressions: &typed_trees::expression::ExpressionTable,
@@ -518,7 +521,8 @@ impl CheckedStructuralValuePlans {
                             .iter()
                             .map(|handle| self.roots.get(*handle))
                             .filter(|root| {
-                                root.state == state
+                                !root.captured_copy.is_valid()
+                                    && root.state == state
                                     && root.expression == expression
                                     && statement
                                         .is_none_or(|statement| root.statement_ordinal == statement)
