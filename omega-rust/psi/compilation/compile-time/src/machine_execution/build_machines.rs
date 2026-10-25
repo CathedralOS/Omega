@@ -217,7 +217,11 @@ impl PreparedBuildMachineProgram {
         .into_artifact();
         let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
         let mut instance = program
-            .instantiate(&[], Default::default())
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: Default::default(),
+                ..Default::default()
+            })
             .map_err(|error| error.to_string())?;
         numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
         // This is a Terminal semantic allowance, not a checked-tree step count.

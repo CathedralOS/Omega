@@ -117,14 +117,15 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
             }
             let arguments = [argument];
             let mut instance = program
-                .instantiate(
-                    &[],
-                    TerminalStructuralInputs {
+                .instantiate(terminal_interpreter::TerminalInstantiation {
+                    scalar_arguments: &[],
+                    structural_inputs: TerminalStructuralInputs {
                         arguments: &arguments,
                         zero_initialized_arguments: &[0],
                         ..Default::default()
                     },
-                )
+                    ..Default::default()
+                })
                 .expect("host establishes zero-backed borrowed input");
             assert_eq!(
                 instance.observe_borrowed_entry(0, &identifier_path),
@@ -264,14 +265,15 @@ fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
             Vec::new(),
         )];
         let mut instance = program
-            .instantiate(
-                &[],
-                TerminalStructuralInputs {
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs {
                     arguments: &arguments,
                     zero_initialized_arguments: &[0],
                     ..Default::default()
                 },
-            )
+                ..Default::default()
+            })
             .unwrap();
         let status = instance
             .invoke(&mut TerminalFuelMeter::unbounded())
@@ -333,14 +335,15 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             )
             .unwrap();
             let mut instance = program
-                .instantiate(
-                    &[],
-                    TerminalStructuralInputs {
+                .instantiate(terminal_interpreter::TerminalInstantiation {
+                    scalar_arguments: &[],
+                    structural_inputs: TerminalStructuralInputs {
                         arguments: &arguments,
                         zero_initialized_arguments: &[0],
                         ..Default::default()
                     },
-                )
+                    ..Default::default()
+                })
                 .unwrap();
             for boundary in instance.unbound_imports().collect::<Vec<_>>() {
                 let declaration = artifact
@@ -498,14 +501,15 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         .unwrap();
         let arguments = [original];
         let mut instance = program
-            .instantiate(
-                &[],
-                TerminalStructuralInputs {
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs {
                     arguments: &arguments,
                     zero_initialized_arguments: &[0],
                     ..Default::default()
                 },
-            )
+                ..Default::default()
+            })
             .unwrap();
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
             let declaration = artifact
@@ -584,4 +588,201 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
         }
         assert_eq!(sponsor.consumed_fuel_units(), budget);
     }
+}
+
+#[test]
+fn full_build_reserves_actual_byte_backings_and_retains_storage_faults() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, admission, initial) = produce("build");
+    let artifact = produced.artifact();
+    let program = TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap();
+    let execute = |limit, competing_byte: bool| {
+        let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, 100_000, limit, 100_000, 100_000)
+                .unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let competing = competing_byte.then(|| account.reserve_storage(0, 1).unwrap());
+        let original = TerminalStructuralValue::minted(
+            79,
+            program.entry().unwrap().structural_parameters[0].structural_type,
+            Vec::new(),
+        );
+        let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
+            artifact,
+            produced.build_bindings(),
+            original.clone(),
+        )
+        .unwrap();
+        let arguments = [original];
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                structural_inputs: TerminalStructuralInputs {
+                    arguments: &arguments,
+                    zero_initialized_arguments: &[0],
+                    ..Default::default()
+                },
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        for boundary in instance.unbound_imports().collect::<Vec<_>>() {
+            let declaration = artifact
+                .semantic_module()
+                .boundary_machines
+                .iter()
+                .find(|declaration| declaration.id == boundary)
+                .unwrap();
+            instance
+                .bind_import(boundary, host.adapter(declaration.into()))
+                .unwrap();
+        }
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None).unwrap();
+        let result = instance.invoke(&mut meter);
+        if competing_byte {
+            let refusal = result.unwrap_err();
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert!(
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                    .unwrap_err()
+                    .contains("NormalReturnRequired")
+            );
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+            let usage = meter.usage().clone();
+            let effects = instance.effects().to_vec();
+            drop(competing);
+            // Capacity is now available, but a fault is not a paused activation.
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(meter.usage(), &usage);
+            assert_eq!(instance.effects(), effects.as_slice());
+        } else {
+            assert_eq!(
+                result.unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            let (settings, _) =
+                build_evaluation::terminal_settings::extract(&instance, admission, &initial)
+                    .unwrap();
+            assert_eq!(
+                settings.application_identifier,
+                Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
+            );
+            assert_eq!(instance.effects().len(), 8);
+            assert!(
+                sponsor.live_payload_bytes() > 0,
+                "readback retains the original backing"
+            );
+            instance.close().unwrap();
+            assert_eq!(sponsor.live_payload_bytes(), 0);
+        }
+        drop(instance);
+        assert_eq!(
+            sponsor.live_payload_bytes(),
+            0,
+            "all byte owners retire with the instance"
+        );
+        let bindings = host.into_executed().unwrap();
+        if !competing_byte {
+            assert_eq!(bindings.len(), 4);
+        }
+        let usage = account.snapshot().unwrap();
+        assert!(usage.record().fuel_units > 0);
+        usage.record().peak_live_payload_bytes
+    };
+    let peak = execute(100_000, false);
+    assert!(peak > 1);
+    assert_eq!(execute(peak, false), peak);
+    assert!(execute(peak, true) <= peak);
+}
+
+#[test]
+fn a_fault_after_a_host_effect_cannot_reenter_the_same_call() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct RejectAfterEffect<'host> {
+        signature: terminal_interpreter::TerminalImportSignature,
+        calls: &'host AtomicUsize,
+    }
+    impl terminal_interpreter::TerminalImportAdapter for RejectAfterEffect<'_> {
+        fn implemented_signature(&self) -> terminal_interpreter::TerminalImportSignature {
+            self.signature.clone()
+        }
+    }
+    impl terminal_interpreter::TerminalEffectHandler for RejectAfterEffect<'_> {
+        fn handle_effect(
+            &mut self,
+            _: &terminal_interpreter::TerminalEffect,
+        ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Err(terminal_interpreter::TerminalEffectRejection::new(
+                "host failed after its effect",
+            ))
+        }
+    }
+    let (produced, _, _) = produce("configure_build_boundary");
+    let artifact = produced.artifact();
+    let program = TerminalProgram::borrow(artifact.view());
+    let arguments = [TerminalStructuralValue::minted(
+        79,
+        program.entry().unwrap().structural_parameters[0].structural_type,
+        Vec::new(),
+    )];
+    let calls = AtomicUsize::new(0);
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            structural_inputs: TerminalStructuralInputs {
+                arguments: &arguments,
+                zero_initialized_arguments: &[0],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+    let imports = instance.unbound_imports().collect::<Vec<_>>();
+    assert_eq!(imports.len(), 1);
+    let boundary = artifact
+        .semantic_module()
+        .boundary_machines
+        .iter()
+        .find(|declaration| declaration.id == imports[0])
+        .unwrap();
+    instance
+        .bind_import(
+            imports[0],
+            RejectAfterEffect {
+                signature: boundary.into(),
+                calls: &calls,
+            },
+        )
+        .unwrap();
+    let mut meter = TerminalFuelMeter::unbounded();
+    let failure = instance.invoke(&mut meter).unwrap_err();
+    assert!(format!("{failure:?}").contains("host failed after its effect"));
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    let usage = meter.usage().clone();
+    let effects = instance.effects().to_vec();
+    assert_eq!(instance.invoke(&mut meter), Err(failure));
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert_eq!(meter.usage(), &usage);
+    assert_eq!(instance.effects(), effects.as_slice());
+    assert!(instance.result().is_none());
+    assert_eq!(
+        instance.close(),
+        Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+    );
 }

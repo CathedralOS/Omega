@@ -377,13 +377,10 @@ impl TerminalExecution<'_> {
                 return self.stored_byte_array_write(&backing, index, byte);
             }
         };
-        bytes
-            .ok_or_else(malformed)?
-            .replace_byte(
-                usize::try_from(backing_index).map_err(|_| malformed())?,
-                byte,
-            )
-            .ok_or_else(malformed)?;
+        bytes.ok_or_else(malformed)?.replace_byte(
+            usize::try_from(backing_index).map_err(|_| malformed())?,
+            byte,
+        )?;
         if let Some(parent) = changed_parent {
             self.invalidate_stored_provenance(&parent);
         }

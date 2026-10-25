@@ -159,13 +159,14 @@ fn qualify_helper(machine: &str, writes: bool) {
         .expect("native input retains the exact placed entry establishment");
     }
     assert!(matches!(
-        program.instantiate(
-            &[],
-            TerminalStructuralInputs {
+        program.instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: std::slice::from_ref(&view),
                 ..Default::default()
-            }
-        ),
+            },
+            ..Default::default()
+        }),
         Err(
             terminal_interpreter::TerminalArtifactInterpretError::Execution(
                 terminal_interpreter::TerminalInterpretError::PlacedViewInputsRequireCustody
@@ -173,14 +174,15 @@ fn qualify_helper(machine: &str, writes: bool) {
         )
     ));
     let mut instance = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: std::slice::from_ref(&view),
                 placed_view_establishments: std::slice::from_ref(&establishment),
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .expect("exact host establishment");
     let registers = Arc::new(Mutex::new(Registers {
         status: 41,
@@ -300,14 +302,15 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
         })
         .collect::<Vec<_>>();
     let mut instance = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &views,
                 placed_view_establishments: &establishments,
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .unwrap();
     for boundary in instance.unbound_imports().collect::<Vec<_>>() {
         let declaration = artifact
@@ -345,40 +348,43 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
     let mut stale = establishments.clone();
     stale[0].input.placement_commitment[0] ^= 1;
     let error = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &views,
                 placed_view_establishments: &stale,
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .err()
         .expect("stale placement answers no declared row");
     assert!(format!("{error:?}").contains("PlacedViewInputEstablishmentUnexpected"));
     let duplicates = [establishments[0].clone(), establishments[0].clone()];
     let error = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &views,
                 placed_view_establishments: &duplicates,
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .err()
         .expect("duplicate establishment refuses");
     assert!(format!("{error:?}").contains("PlacedViewInputEstablishmentDuplicate"));
     let ambiguous = [views[0].clone(), views[0].clone()];
     let error = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &ambiguous,
                 placed_view_establishments: &establishments,
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .err()
         .expect("one descriptor cannot claim two backings");
     assert!(format!("{error:?}").contains("PlacedViewInputEstablishmentAliasing"));
@@ -391,14 +397,15 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
     ];
     // Shared aliases of the same exact association remain legal.
     program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &ambiguous,
                 placed_view_establishments: &same_backing,
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .unwrap()
         .close()
         .unwrap();
@@ -453,14 +460,15 @@ fn exclusive_backing_aliases_refuse_before_effects() {
             })
             .collect::<Vec<_>>();
         let error = program
-            .instantiate(
-                &[],
-                TerminalStructuralInputs {
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs {
                     arguments: &views,
                     placed_view_establishments: &establishments,
                     ..Default::default()
                 },
-            )
+                ..Default::default()
+            })
             .err()
             .expect("exclusive backing alias rejects");
         assert!(
@@ -516,15 +524,16 @@ fn mixed_parameters_rejoin_checked_dense_coordinate() {
         events: Vec::new(),
     }));
     let mut instance = program
-        .instantiate(
-            &[scalar(7, 32)],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[scalar(7, 32)],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: &views,
                 scalar_fields: &fields,
                 placed_view_establishments: &[establishment],
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .unwrap();
     for boundary in instance.unbound_imports().collect::<Vec<_>>() {
         let declaration = artifact

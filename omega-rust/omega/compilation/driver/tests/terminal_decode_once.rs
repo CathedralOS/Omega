@@ -260,10 +260,18 @@ fn exercise_owned_and_borrowed_instances() {
         "execution descriptions must borrow the original declarations"
     );
     let mut first = borrowed
-        .instantiate(&[], TerminalStructuralInputs::default())
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs::default(),
+            ..Default::default()
+        })
         .unwrap();
     let mut second = borrowed
-        .instantiate(&[], TerminalStructuralInputs::default())
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs::default(),
+            ..Default::default()
+        })
         .unwrap();
     drop(borrowed);
     assert!(matches!(
@@ -302,15 +310,20 @@ fn exercise_owned_and_borrowed_instances() {
     drop(retained);
     assert!(
         owned
-            .instantiate(
-                &[terminal_interpreter::TerminalScalarValue::Boolean(true)],
-                TerminalStructuralInputs::default()
-            )
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[terminal_interpreter::TerminalScalarValue::Boolean(true)],
+                structural_inputs: TerminalStructuralInputs::default(),
+                ..Default::default()
+            })
             .is_err(),
         "wrong entry arguments must reject"
     );
     let mut instance = owned
-        .instantiate(&[], TerminalStructuralInputs::default())
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs::default(),
+            ..Default::default()
+        })
         .unwrap();
     drop(owned);
     assert_eq!(

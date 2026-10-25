@@ -16,6 +16,7 @@ pub(crate) mod field_store;
 pub(crate) mod operands;
 pub(crate) mod predicate;
 pub(crate) mod read;
+pub(crate) mod storage;
 pub(crate) mod store;
 pub(crate) mod subslice;
 pub(crate) mod write;
@@ -32,7 +33,7 @@ pub(crate) struct ByteSequenceView {
 }
 
 struct ByteSequenceBacking {
-    bytes: Vec<u8>,
+    storage: storage::ByteSequenceStorage,
     exposure_namespace: Option<u64>,
 }
 
@@ -47,11 +48,11 @@ impl PartialEq for ByteSequenceView {
 impl Eq for ByteSequenceView {}
 
 impl ByteSequenceView {
-    pub(crate) fn new(bytes: Vec<u8>) -> Self {
-        let length = bytes.len();
+    pub(crate) fn new(storage: storage::ByteSequenceStorage) -> Self {
+        let length = storage.bytes().len();
         Self {
             backing: Arc::new(ByteSequenceBacking {
-                bytes,
+                storage,
                 exposure_namespace: crate::structural_identities::new_exposure_namespace(),
             }),
             window: 0..length,
@@ -116,7 +117,7 @@ impl ByteSequenceView {
     }
 
     pub(crate) fn bytes(&self) -> &[u8] {
-        &self.backing.bytes[self.window.clone()]
+        &self.backing.storage.bytes()[self.window.clone()]
     }
 
     pub(crate) fn get(&self, index: usize) -> Option<&u8> {
@@ -125,19 +126,32 @@ impl ByteSequenceView {
 
     /// Replace one live byte without changing another view's immutable value.
     /// Shared backing detaches only this window, not unused source bytes.
-    pub(crate) fn replace_byte(&mut self, byte_index: usize, value: u8) -> Option<()> {
+    pub(crate) fn replace_byte(
+        &mut self,
+        byte_index: usize,
+        value: u8,
+    ) -> Result<(), crate::errors::TerminalInterpretError> {
         if byte_index >= self.len() {
-            return None;
+            return Err(crate::errors::malformed());
         }
-        let storage_index = self.window.start.checked_add(byte_index)?;
+        let storage_index = self
+            .window
+            .start
+            .checked_add(byte_index)
+            .ok_or_else(crate::errors::malformed)?;
         if let Some(bytes) = Arc::get_mut(&mut self.backing) {
-            *bytes.bytes.get_mut(storage_index)? = value;
+            *bytes
+                .storage
+                .bytes_mut()
+                .get_mut(storage_index)
+                .ok_or_else(crate::errors::malformed)? = value;
         } else {
-            let mut bytes = self.bytes().to_vec();
-            *bytes.get_mut(byte_index)? = value;
-            *self = Self::new(bytes);
+            let mut storage =
+                storage::ByteSequenceStorage::copy(self.bytes(), self.backing.storage.account())?;
+            storage.bytes_mut()[byte_index] = value;
+            *self = Self::new(storage);
         }
-        Some(())
+        Ok(())
     }
 
     pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
