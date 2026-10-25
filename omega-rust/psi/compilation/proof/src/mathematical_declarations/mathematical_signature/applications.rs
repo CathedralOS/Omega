@@ -486,7 +486,7 @@ impl Elaborator<'_> {
     /// The caller's judgment scope at the application site: its own level
     /// arity, the signature prefix elaborated so far, and the in-flight
     /// telescope scope the argument terms were built under.
-    fn instantiation_context(&self) -> Context {
+    pub(super) fn instantiation_context(&self) -> Context {
         let mut context =
             Context::with_level_arity(self.level_binders.len() as u32 + self.generalized_levels)
                 .with_signature(Signature::from_declarations(self.declarations.clone()));

@@ -185,7 +185,7 @@ struct Conjunct {
     fact: ProofFact,
     identity: Option<CorrespondenceFact>,
     law_checked: bool,
-    float: Option<FloatObservation>,
+    float: Vec<FloatObservation>,
 }
 
 impl ContractFacts {
@@ -310,7 +310,7 @@ impl ContractFacts {
                         float: if source_index_meaning {
                             FloatObservation::collect(program, owner, parameters, &binders, &fact)
                         } else {
-                            None
+                            Vec::new()
                         },
                         fact,
                         law_checked,
@@ -429,11 +429,7 @@ fn entailed(
     {
         return true;
     }
-    if goal
-        .float
-        .as_ref()
-        .is_some_and(|goal| goal.entailed_by(premises))
-    {
+    if !goal.float.is_empty() && goal.float.iter().all(|goal| goal.entailed_by(premises)) {
         return true;
     }
     let ProofFact::Expression(expression) = goal.fact else {
