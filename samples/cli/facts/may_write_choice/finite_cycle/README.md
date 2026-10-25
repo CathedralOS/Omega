@@ -51,7 +51,7 @@ reference permutation; its possible return roots include the indexed input and
 the stale bound rejects. The [unknown-selector control](unknown_selector/invalid/main.omg)
 also rejects: finite convergence must not invent a selector value.
 
-## Acceptance and remaining dependency
+## Acceptance
 
 On Linux x86-64, all nine finite-cycle positives exit `0` in Terminal Psi and
 native execution; all nine overlap twins reject their stale index bounds. The
@@ -59,15 +59,16 @@ same-query positive also agrees at `0`, and its swap twin and the unknown
 selector reject. All seven older may-write rows (including stored codec
 references) retain their 63 dual-engine positives and 63 overlap rejections.
 Existing root programs and the written-selector witness also retain exit `0`.
-The affected `validation` crate check passes. Focused corpus records pin ten
+The affected `validation` crate check passes. Finite-cycle corpus records pin ten
 positives and eleven rejecting controls; no unrelated golden rows are changed.
 
-The parser check converges: baseline `395.85 s`, repaired `370.76 s`. The
-zero-argument harness wrapper fixes the baseline arrival-parameter diagnostics.
-A successful check from accepted package inputs remains blocked by normal
-standard-library admission: `omega update --project tests/psi/parser --target
-linux_x86_64` rejects ten `FloatMeaning` contract entailments. The preserved
-baseline compiler produces the exact same ten diagnostics. R5 remains open for
-that dependency; these finite-cycle observations do not claim package acceptance.
-Other hosted targets are bound and source-checked; foreign native execution was
-not available on this Linux executor.
+Normal standard-library admission and the parser gate now pass with the
+`FloatMeaning` proof contracts intact. After the project's normal policy review
+was explicitly accepted, `omega update --resume --project tests/psi/parser`
+published accepted inputs for three source packages on Linux x86-64.
+`omega --check tests/psi/parser/main.omg` then checked 60 source files and exited
+`0` in `351.0 s`, leaving the accepted lock unchanged. This checked the parser;
+it did not execute the parser product.
+
+The dual-engine executions above were measured on Linux x86-64. Other hosted
+targets are bound and source-checked; no foreign native execution is claimed.
