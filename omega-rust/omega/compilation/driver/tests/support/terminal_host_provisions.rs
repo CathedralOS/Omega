@@ -8,6 +8,8 @@ mod extent_view;
 mod mutable_boundary;
 #[path = "terminal_resident_storage.rs"]
 mod resident_storage;
+#[path = "terminal_result_custody.rs"]
+mod result_custody;
 #[path = "terminal_storage_budget.rs"]
 mod storage_budget;
 
@@ -18,6 +20,9 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["result-custody", cells, bytes, oracle @ ..] => {
+            result_custody::observe(artifact, cells, bytes, oracle)
+        }
         ["storage-cells", cells, value] => storage_budget::observe(artifact, cells, value, None),
         ["storage-cells", cells, value, "primitive", initial] => {
             storage_budget::observe(artifact, cells, value, Some(initial))

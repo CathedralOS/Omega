@@ -173,6 +173,10 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) next_operation: usize,
     pub(crate) call_stack: Vec<SuspendedCall>,
     pub(crate) result: Option<TerminalExecutionResult>,
+    /// Root return descriptors outlive their retired source place. Keep their
+    /// shared backing until the embedding closes the completed instance.
+    pub(crate) returned_byte_sequence: Option<ByteSequenceBinding>,
+    pub(crate) returned_element_view: Option<crate::element_views::ElementView>,
     /// The paid outer return's exact claim paths. The returning frame retires
     /// before host handback, so its live roster cannot authorize that handback.
     pub(crate) returned_claims: Vec<terminal_psi::StructuralResultClaimBinding>,
@@ -532,6 +536,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_operation: 0,
             call_stack: Vec::new(),
             result: None,
+            returned_byte_sequence: None,
+            returned_element_view: None,
             returned_claims: Vec::new(),
             crash: None,
             external_completion: None,
