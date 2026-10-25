@@ -522,7 +522,7 @@ impl TerminalExecution<'_> {
         result_type: semantic_vocabulary::StructuralTypeId,
         roles: terminal_psi::ResidentReferenceSource,
     ) -> Result<PlacedReference, TerminalInterpretError> {
-        use crate::provider_storage::{ProviderStorageSlot, ResidentStorageSlot};
+        use crate::provider_storage::ProviderStorageSlot;
         let plan = terminal_semantics::resident_reference_plan(
             &self.program.catalogs,
             source.structural_type,
@@ -547,22 +547,7 @@ impl TerminalExecution<'_> {
                 "resident reference has no live original resident claim",
             ));
         }
-        let ResidentStorageSlot::Live {
-            initialized_by,
-            custody,
-            compatibility,
-            ..
-        } = self.provider_storage.residents.get(binding.resident)
-        else {
-            return Err(malformed());
-        };
-        let initialized = self
-            .program
-            .catalogs
-            .placement_lifecycle_plans
-            .iter()
-            .find(|row| row.boundary == *initialized_by)
-            .ok_or_else(malformed)?;
+        let (initialized, custody, compatibility) = self.live_resident_custody(binding.resident)?;
         if source.structural_type != initialized.storage.carrier
             || !source.qualifications.contains(&roles.granted)
             || !source.qualifications.contains(&roles.resident)

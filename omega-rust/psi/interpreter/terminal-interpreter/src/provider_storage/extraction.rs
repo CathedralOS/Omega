@@ -6,7 +6,7 @@
 //! and non-byte bindings travel separately. Every refusing operation precedes
 //! retirement. The original allocation and its unused tail are never replaced.
 
-use super::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
+use super::{ProviderStorageBinding, ProviderStorageSlot};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -115,21 +115,7 @@ impl TerminalExecution<'_> {
                 "extraction has no live resident custody",
             ));
         }
-        let ResidentStorageSlot::Live {
-            initialized_by,
-            custody,
-            compatibility,
-            ..
-        } = self.provider_storage.residents.get(binding.resident)
-        else {
-            return Err(malformed());
-        };
-        let initialized = program
-            .catalogs
-            .placement_lifecycle_plans
-            .iter()
-            .find(|row| row.boundary == *initialized_by)
-            .ok_or_else(malformed)?;
+        let (initialized, custody, compatibility) = self.live_resident_custody(binding.resident)?;
         if initialized.schema != plan.schema
             || custody.value.structural_type != plan.schema
             || initialized.schema_identity != plan.schema_identity
