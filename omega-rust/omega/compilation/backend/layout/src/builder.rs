@@ -72,7 +72,7 @@ pub fn build_layout_plan_for_roots(
     let roots = roots.into_iter().collect::<Vec<_>>();
     let mut builder = LayoutBuilder::new(
         program,
-        target,
+        Some(target),
         opaque_representation_selections,
         OpaqueRepresentationDemand::CatalogConstruction,
     );
@@ -119,30 +119,53 @@ pub fn layout_type_reference(
 ) -> Result<TypeLayout, Diagnostic> {
     LayoutBuilder::new(
         program,
-        target,
+        Some(target),
         opaque_representation_selections,
         OpaqueRepresentationDemand::ByValue,
     )
     .layout_type_reference_handle(type_reference, &[])
 }
 
-/// Query one carrier using the ordinary layout traversal, retaining the
-/// distinction between a genuine zero size and an extent whose constant has
-/// not closed. A fresh builder owns each query; no provisional geometry escapes.
-pub fn try_layout_type_reference(
+/// An exact input the ordinary layout traversal still needs. A descriptor
+/// does not depend on its pointee's geometry; only actual by-value traversal
+/// can produce these prerequisites.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutQueryPrerequisite {
+    ArrayExtent(TypeReferenceHandle),
+    PlanGeometry(symbols::SymbolHandle),
+    TargetGeometry,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeLayoutQuery {
+    Ready(TypeLayout),
+    Pending(LayoutQueryPrerequisite),
+}
+
+/// Query one carrier through the ordinary layout producer. Pending inputs
+/// propagate through records, arrays, generic bindings and opaque carriers;
+/// provisional geometry never escapes this query's private builder.
+/// With no target, an actual target read becomes a prerequisite. Retained
+/// policy results also wait because a single stored geometry does not record
+/// whether its earlier evaluation consumed target inputs.
+pub fn query_type_reference_layout(
     program: &TypedTrees,
-    target: NativeTarget,
+    target: Option<NativeTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
-) -> Result<Option<TypeLayout>, Diagnostic> {
+) -> Result<TypeLayoutQuery, Diagnostic> {
     let mut builder = LayoutBuilder::new(
         program,
         target,
         opaque_representation_selections,
         OpaqueRepresentationDemand::ByValue,
     );
+    builder.geometry_query = true;
     let layout = builder.layout_type_reference_handle(type_reference, &[])?;
-    Ok((!builder.unresolved_array_extent).then_some(layout))
+    Ok(match builder.pending_geometry {
+        Some(prerequisite) => TypeLayoutQuery::Pending(prerequisite),
+        None => TypeLayoutQuery::Ready(layout),
+    })
 }
 
 /// The complete layout catalog eagerly visits declarations that may never be
@@ -158,9 +181,9 @@ struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,
     data_visiting: LayoutVisitStack,
-    /// Set by the actual by-value traversal, after generic binding lookup.
-    /// Query callers discard provisional geometry when this flag is set.
-    unresolved_array_extent: bool,
+    /// Query-only suspension is separate from strict native layout production.
+    geometry_query: bool,
+    pending_geometry: Option<LayoutQueryPrerequisite>,
     fields: Arena<FieldLayout>,
     bit_fields: Vec<BitFieldLayout>,
     stored_integers: Vec<StoredIntegerLayout>,
@@ -179,7 +202,7 @@ struct LayoutBuilder<'program> {
     generic_instance_signatures: Vec<(SymbolHandle, String)>,
     trait_definitions: &'program [TraitDefinition],
     program: &'program TypedTrees,
-    target: NativeTarget,
+    target: Option<NativeTarget>,
     variants: Arena<VariantLayout>,
 }
 
@@ -236,7 +259,7 @@ impl LayoutVisitStack {
 impl<'program> LayoutBuilder<'program> {
     fn new(
         program: &'program TypedTrees,
-        target: NativeTarget,
+        target: Option<NativeTarget>,
         opaque_representation_selections: &'program [OpaqueRepresentationSelection],
         opaque_representation_demand: OpaqueRepresentationDemand,
     ) -> Self {
@@ -266,7 +289,8 @@ impl<'program> LayoutBuilder<'program> {
             data_definitions,
             data_layouts: Arena::with_capacity(data_definitions.len()),
             data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
-            unresolved_array_extent: false,
+            geometry_query: false,
+            pending_geometry: None,
             fields: Arena::with_capacity(field_capacity),
             bit_fields: Vec::new(),
             stored_integers: Vec::new(),
@@ -284,13 +308,16 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn finish(self) -> Result<LayoutPlan, Diagnostic> {
+        let target = self.target.ok_or_else(|| {
+            Diagnostic::error("native layout production requires exact target geometry")
+        })?;
         let (data_layout_identities, private_callback_layouts) = close_private_callback_layouts(
             self.program,
             &self.data_layouts,
             &self.fields,
             &self.data_layout_identities,
             &self.private_callback_demands,
-            self.target,
+            target,
         )?;
         Ok(LayoutPlan {
             data_layouts: self.data_layouts,
@@ -374,11 +401,29 @@ impl<'program> LayoutBuilder<'program> {
             .find(|(_, data_layout)| data_layout.symbol == symbol)
     }
 
-    fn builtin_type_layout(&self, symbol: SymbolHandle) -> Option<TypeLayout> {
+    fn await_target_geometry(&mut self) -> TypeLayout {
+        self.pending_geometry
+            .get_or_insert(LayoutQueryPrerequisite::TargetGeometry);
+        TypeLayout::default()
+    }
+
+    fn pointer_type_layout(&mut self) -> TypeLayout {
+        self.target
+            .map(pointer_layout)
+            .unwrap_or_else(|| self.await_target_geometry())
+    }
+
+    fn descriptor_type_layout(&mut self) -> TypeLayout {
+        self.target
+            .map(crate::sizing::fat_descriptor_layout)
+            .unwrap_or_else(|| self.await_target_geometry())
+    }
+
+    fn builtin_type_layout(&mut self, symbol: SymbolHandle) -> Option<TypeLayout> {
         if Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::UInt)
             || Some(symbol) == self.program.symbols.builtin_type_symbol(BuiltinType::Int)
         {
-            return Some(pointer_layout(self.target));
+            return Some(self.pointer_type_layout());
         }
 
         None

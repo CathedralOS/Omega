@@ -7,7 +7,6 @@ use crate::builder::semantic_ranges::canonical_plan_laid_data_identity;
 use crate::packing::{
     PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan, placement_overflow,
 };
-use crate::sizing::pointer_layout;
 use crate::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, RepeatedFieldLayout,
     StoredIntegerLayout, TargetClosedDataLayoutIdentity, TypeLayout, VariantLayout,
@@ -22,6 +21,28 @@ impl<'program> LayoutBuilder<'program> {
         definition: &DataDefinition,
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
+        if self.geometry_query
+            && self
+                .program
+                .plan_laid_layout(definition.symbol)
+                .is_some_and(|plan| {
+                    // `Invariant` means one stored geometry, not evidence that
+                    // its earlier evaluator consumed no target inputs. Until
+                    // that custody is carried, only a selected query may read
+                    // an installed policy result.
+                    self.target.is_none() || plan.invariant_geometry().is_none()
+                })
+        {
+            self.pending_geometry.get_or_insert(
+                crate::builder::LayoutQueryPrerequisite::PlanGeometry(definition.symbol),
+            );
+            return Ok(DataLayout {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+                shape: DataShape::default(),
+                layout: TypeLayout::default(),
+            });
+        }
         // A compiler-derived placed accessor is opaque to source construction,
         // but it is not zero-sized at runtime: helpers may receive one without
         // the enclosing Placed view, so the value must retain its exact field
@@ -40,7 +61,7 @@ impl<'program> LayoutBuilder<'program> {
                 shape: DataShape::Record {
                     fields: arena::HandleSpan::empty(),
                 },
-                layout: pointer_layout(self.target),
+                layout: self.pointer_type_layout(),
             });
         }
 
@@ -182,6 +203,9 @@ impl<'program> LayoutBuilder<'program> {
                     element_stride: repeated_field.element_stride,
                 });
             }
+            let target = self.target.ok_or_else(|| {
+                Diagnostic::error("installed policy geometry requires exact target custody")
+            })?;
             let canonical_layout_subject = self
                 .program
                 .normalized_hermetic_symbol_identity(plan.policy_symbol)
@@ -229,8 +253,8 @@ impl<'program> LayoutBuilder<'program> {
                     });
             let terminal_layout_identity = callback_layout_plan_id(
                 native_layout_report_fingerprint,
-                self.target.pointer_size,
-                self.target.pointer_alignment,
+                target.pointer_size,
+                target.pointer_alignment,
             );
             let closed_demands = if geometry.private_callback_demands.is_empty() {
                 Vec::new()
@@ -248,7 +272,7 @@ impl<'program> LayoutBuilder<'program> {
                     self.fields
                         .span(fields)
                         .expect("newly inserted plan-laid fields retain their span"),
-                    self.target,
+                    target,
                     canonical_layout_subject,
                     terminal_layout_identity,
                 )?
@@ -263,8 +287,8 @@ impl<'program> LayoutBuilder<'program> {
                         native_layout_report_fingerprint,
                         &canonical_data_identity,
                         &canonical_layout_subject,
-                        self.target.pointer_size,
-                        self.target.pointer_alignment,
+                        target.pointer_size,
+                        target.pointer_alignment,
                     ),
                     data_identity: canonical_data_identity.into(),
                     layout_subject_identity: Some(canonical_layout_subject.into()),

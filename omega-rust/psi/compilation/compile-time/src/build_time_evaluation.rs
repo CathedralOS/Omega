@@ -7,6 +7,17 @@
 use std::sync::Arc;
 use typed_trees::references::DeclarationSelection;
 
+/// Layout answers supplied by the physical layout owner before source checking.
+/// Only target-invariant answers may replace occurrences in the portable input;
+/// unresolved or guarded answers retain their query requests.
+pub trait LayoutQueryPreparation {
+    fn prepare(
+        &self,
+        program: &mut typed_trees::TypedTrees,
+        selection: &DeclarationSelection,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>>;
+}
+
 /// Work ownership is narrower than executable lookup. Product work excludes
 /// completed Build jobs but still needs shared toolchain declarations. Build
 /// execution instead keeps exactly its admitted roster: a Product descriptor
@@ -474,6 +485,7 @@ impl PreCheckEvaluation {
             &self.plan_laid_records,
             self.selection_authority.clone(),
             &mut self.domain,
+            None,
         )?;
         // A waiting policy does not own unrelated array jobs. Publish their
         // independent results even when this continuation must remain pending.
@@ -522,6 +534,23 @@ impl PreCheckEvaluation {
         }
         self.evaluate(typed)?;
         Ok(None)
+    }
+
+    /// Complete ready geometry under this invocation's layout inputs before
+    /// the source judgment or its deferred evaluation snapshot is constructed.
+    pub fn prepare_source_layouts(
+        &mut self,
+        typed: &mut typed_trees::TypedTrees,
+        queries: Option<&dyn LayoutQueryPreparation>,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        self.plan_laid_records = plan_laid::prepare_plan_laid_layouts_in(
+            typed,
+            &self.plan_laid_records,
+            self.selection_authority.clone(),
+            &mut self.domain,
+            queries,
+        )?;
+        Ok(())
     }
 
     /// Complete one generated cohort in unit order, retaining deferred work

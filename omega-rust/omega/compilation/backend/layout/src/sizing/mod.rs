@@ -39,7 +39,15 @@ pub(crate) fn primitive_layout(
     pointer_alignment: usize,
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
-    match primitive_type {
+    fixed_primitive_layout(primitive_type).unwrap_or(TypeLayout {
+        size: pointer_size,
+        alignment: pointer_alignment,
+    })
+}
+
+/// `None` names precisely the primitives whose geometry is a target input.
+fn fixed_primitive_layout(primitive_type: PrimitiveType) -> Option<TypeLayout> {
+    Some(match primitive_type {
         PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
             size: 1,
             alignment: 1,
@@ -56,20 +64,13 @@ pub(crate) fn primitive_layout(
             size: 8,
             alignment: 8,
         },
-        PrimitiveType::Addr | PrimitiveType::Selector => TypeLayout {
-            size: pointer_size,
-            alignment: pointer_alignment,
-        },
-    }
+        PrimitiveType::Addr | PrimitiveType::Selector => return None,
+    })
 }
 
 pub(super) fn primitive_type_layout(
-    target: NativeTarget,
+    target: Option<NativeTarget>,
     primitive_type: PrimitiveType,
-) -> TypeLayout {
-    primitive_layout(
-        target.pointer_size,
-        target.pointer_alignment,
-        primitive_type,
-    )
+) -> Option<TypeLayout> {
+    fixed_primitive_layout(primitive_type).or_else(|| target.map(pointer_layout))
 }

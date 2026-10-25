@@ -98,6 +98,7 @@ pub struct SourceAdmission<'request> {
     pub asm_authority: Option<validation::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
     pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+    pub layout_queries: Option<&'request dyn build_time_evaluation::LayoutQueryPreparation>,
 }
 
 /// Consume a complete typed program. Previous judgments belong to the same
@@ -158,7 +159,11 @@ pub struct SelectedCheckedSource {
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
-        let (mut program, deferred_recipes, source) = self.program.into_checking_parts(self.retain);
+        let (mut program, mut deferred_recipes, source) =
+            self.program.into_checking_parts(self.retain);
+        for continuation in &mut deferred_recipes {
+            continuation.prepare_source_layouts(&mut program, self.admission.layout_queries)?;
+        }
         let deferred_evaluation =
             (!deferred_recipes.is_empty()).then(|| DeferredSourceEvaluation {
                 source: Arc::new(program.clone()),

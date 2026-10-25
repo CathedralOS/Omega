@@ -26,8 +26,8 @@ pub use boundary_values::{
     substitute_boundary_type_reference,
 };
 pub use builder::{
-    build_layout_plan, build_layout_plan_for_roots, layout_type_reference,
-    try_layout_type_reference,
+    LayoutQueryPrerequisite, TypeLayoutQuery, build_layout_plan, build_layout_plan_for_roots,
+    layout_type_reference, query_type_reference_layout,
 };
 pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
 pub(crate) use layout_plan::{

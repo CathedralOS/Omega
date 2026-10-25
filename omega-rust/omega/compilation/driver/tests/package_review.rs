@@ -7,7 +7,7 @@ use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
 #[test]
-fn policy_layout_queries_preserve_executed_and_skipped_branches() {
+fn policy_layout_queries_preserve_input_values_and_branching() {
     let target = "linux_x86_64";
     let fixture = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/layouts/policy_layout_query_values/main.omg");
@@ -15,7 +15,7 @@ fn policy_layout_queries_preserve_executed_and_skipped_branches() {
         fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
             .expect("policy query fixture has admitted package inputs");
     let inputs = prepared.package_inputs.clone().expect("root custody");
-    for entry in ["main.omg", "skipped.omg"] {
+    for entry in ["main.omg", "skipped.omg", "computed_extent.omg"] {
         let request = CheckedCompileRequest {
             package_inputs: Some(inputs.clone()),
             ..CheckedCompileRequest::new(&prepared.root_path.with_file_name(entry), Some(target))
@@ -23,6 +23,34 @@ fn policy_layout_queries_preserve_executed_and_skipped_branches() {
         fixture_package_inputs::check_fixture_request(&mut prepared, request)
             .expect("policy input queries settle before formation without executing skipped arms");
     }
+    let request = CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(
+            &prepared.root_path.with_file_name("invalid_extent.omg"),
+            Some(target),
+        )
+    };
+    let refused = fixture_package_inputs::check_fixture_request(&mut prepared, request)
+        .expect_err("the actual query extent must contain every policy field");
+    let rendered = refused
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("field `value` ends at bit 96, past the fixed size 32 bits"),
+        "{rendered}"
+    );
+
+    let request = CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(
+            &prepared.root_path.with_file_name("target_geometry.omg"),
+            Some(target),
+        )
+    };
+    fixture_package_inputs::check_fixture_request(&mut prepared, request)
+        .expect("target-dependent policy input retains its exact geometry guard");
 }
 
 #[test]

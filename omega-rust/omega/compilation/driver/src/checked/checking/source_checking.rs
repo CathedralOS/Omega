@@ -41,6 +41,9 @@ pub(crate) fn check_product_source(
         .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
         .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
+    let layout_queries = provider_planning::data_layout_queries::InvariantLayoutQueries {
+        opaque_representation_selections: &representations,
+    };
     let source_admission = psi_compiler::SourceAdmission {
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
@@ -72,6 +75,7 @@ pub(crate) fn check_product_source(
         wire_demands: &build.wire_compatibility_demands,
         declarations: package_inputs
             .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+        layout_queries: Some(&layout_queries),
     };
     let previous: Vec<_> = reuse
         .prior

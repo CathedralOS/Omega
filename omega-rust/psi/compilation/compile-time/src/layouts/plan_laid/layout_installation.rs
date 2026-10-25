@@ -85,6 +85,7 @@ pub(crate) fn prepare_plan_laid_layouts_in(
     records: &[PlanLaidRecord],
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &mut crate::build_time_evaluation::EvaluationDomain,
+    queries: Option<&dyn crate::LayoutQueryPreparation>,
 ) -> Result<Vec<PlanLaidRecord>, Vec<Diagnostic>> {
     let applications = bind_applications(typed, records)?;
     let mut pending: Vec<_> = records.iter().zip(applications).collect();
@@ -94,7 +95,8 @@ pub(crate) fn prepare_plan_laid_layouts_in(
         let mut waiting = Vec::new();
         let mut completed = false;
         for (record, application) in pending {
-            if !application_prerequisites(typed, application, authority.clone(), domain)?.is_empty()
+            if !application_prerequisites(typed, application, authority.clone(), domain, queries)?
+                .is_empty()
             {
                 waiting.push((record, application));
                 continue;
@@ -120,7 +122,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &mut crate::build_time_evaluation::EvaluationDomain,
 ) -> Result<(), Vec<Diagnostic>> {
-    let pending = prepare_plan_laid_layouts_in(typed, records, authority.clone(), domain)?;
+    let pending = prepare_plan_laid_layouts_in(typed, records, authority.clone(), domain, None)?;
     if pending.is_empty() {
         return Ok(());
     }
@@ -135,7 +137,7 @@ pub(crate) fn compute_plan_laid_layouts_in(
             })?;
         let application = data.symbol;
         let prerequisites =
-            application_prerequisites(typed, application, authority.clone(), domain)?;
+            application_prerequisites(typed, application, authority.clone(), domain, None)?;
         diagnostics.push(Diagnostic::error(format!(
             "plan-laid value type `{}` has unresolved prerequisites: {}",
             record.synthetic_name,
@@ -367,6 +369,7 @@ fn application_prerequisites(
     application: symbols::SymbolHandle,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     domain: &mut crate::build_time_evaluation::EvaluationDomain,
+    queries: Option<&dyn crate::LayoutQueryPreparation>,
 ) -> Result<Vec<String>, Vec<Diagnostic>> {
     let layout = typed.plan_laid_layout(application).ok_or_else(|| {
         vec![Diagnostic::error(
@@ -407,6 +410,9 @@ fn application_prerequisites(
     }
     if !pending.is_empty() {
         return Ok(pending);
+    }
+    if let Some(queries) = queries {
+        queries.prepare(typed, demanded.work())?;
     }
     if crate::const_evaluation::const_lengths::evaluate_independent_lengths(
         typed,
@@ -468,6 +474,9 @@ fn application_prerequisites(
         // New instances may introduce lengths, domains or further applications.
         // Revisit their exact input closure before reflecting any geometry.
         return Ok(vec!["newly realized schema inputs".to_owned()]);
+    }
+    if let Some(queries) = queries {
+        queries.prepare(typed, demanded.work())?;
     }
     let execution = demanded.execution_program(typed);
     let admission = crate::BuildTimeAdmissionPlan::infer(&execution, authority);

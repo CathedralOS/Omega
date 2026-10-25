@@ -1,0 +1,28 @@
+// Expected exit: 0
+use omega::language::core::layout;
+
+data Header { tag: u8; words: [u32; 0]; }
+data Policy {}
+data Payload [copy] { value: u32; }
+data View { payload: Policy<Payload>; }
+
+machine Policy::plan(schema: Schema) -> Plan {
+    let extent: u64 = size_of<Header>();
+    let alignment: u64 = align_of<Header>();
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, placement: FieldPlan::At { offset: 8 } };
+    Plan { entries: entries, entry_count: 1, size_fixed: extent, size_is_dynamic: false, align: alignment }
+}
+
+machine good() {}
+machine bad() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let mut view: View;
+    view.payload.value = 51;
+    let extent: u64 = size_of<View>();
+    let alignment: u64 = align_of<View>();
+    transition view.payload.value == 51u32 && extent == 12u64 && alignment == 4u64 {
+        true -> good()
+        false -> bad()
+    }
+}

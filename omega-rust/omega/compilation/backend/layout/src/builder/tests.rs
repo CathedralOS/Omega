@@ -16,6 +16,89 @@ fn typed_fixture(source: &str) -> TypedTrees {
     lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
+#[test]
+fn query_distinguishes_zero_pending_and_borrowed_storage() {
+    let mut typed = typed_fixture(
+        r#"
+        data Empty {}
+        data Payload { value: u32; }
+        data Envelope { payload: Payload; }
+        data Probes { empty: Empty; owned: Envelope; borrowed: &Payload; }
+        "#,
+    );
+    let payload = typed
+        .data_definition_by_name_str("Payload")
+        .expect("payload");
+    let payload_symbol = payload.symbol;
+    let payload_fields = typed
+        .live_data_fields(typed.data_members(payload))
+        .map(|field| field.symbol)
+        .collect::<Vec<_>>();
+    let probes = typed.data_definition_by_name_str("Probes").expect("probes");
+    let [empty, owned, borrowed] = typed
+        .live_data_fields(typed.data_members(probes))
+        .map(|field| field.type_reference)
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("three query subjects");
+    typed.plan_laid_layouts.push(typed_trees::PlanLaidLayout {
+        data_name: "Payload".to_owned(),
+        data_symbol: payload_symbol,
+        field_symbols: payload_fields.clone(),
+        schema_symbol: payload_symbol,
+        schema_field_symbols: payload_fields,
+        policy_symbol: symbols::SymbolHandle::invalid(),
+        policy_plan_machine_symbol: symbols::SymbolHandle::invalid(),
+        schema_argument: None,
+        realizations: typed_trees::PlanLaidRealizations::Pending,
+    });
+    let target = NativeTarget::linux_arm64();
+    assert_eq!(
+        super::query_type_reference_layout(&typed, None, &[], empty).expect("empty layout"),
+        super::TypeLayoutQuery::Ready(TypeLayout {
+            size: 0,
+            alignment: 1
+        }),
+    );
+    assert_eq!(
+        super::query_type_reference_layout(&typed, None, &[], owned).expect("pending layout"),
+        super::TypeLayoutQuery::Pending(super::LayoutQueryPrerequisite::PlanGeometry(
+            payload_symbol
+        )),
+    );
+    assert_eq!(
+        super::query_type_reference_layout(&typed, Some(target), &[], borrowed)
+            .expect("descriptor layout"),
+        super::TypeLayoutQuery::Ready(TypeLayout {
+            size: 8,
+            alignment: 8
+        }),
+    );
+    assert_eq!(
+        super::query_type_reference_layout(&typed, None, &[], borrowed).expect("target input"),
+        super::TypeLayoutQuery::Pending(super::LayoutQueryPrerequisite::TargetGeometry),
+    );
+    assert!(
+        build_layout_plan(&typed, target, &[]).is_err(),
+        "strict native production must still refuse pending geometry"
+    );
+    // A legacy single-geometry result may have consumed target-selected
+    // queries earlier. Absence of a family is not portable input custody.
+    let mut materialized = private_callback_layout(0, 4);
+    let geometry = fixture_geometry_mut(&mut materialized);
+    geometry.private_callback_demands.clear();
+    geometry.align = 4;
+    geometry.validated_layout.align = 4;
+    geometry.validated_layout.entries[0].field = "value".to_owned();
+    typed.plan_laid_layouts[0].realizations = materialized.realizations;
+    assert_eq!(
+        super::query_type_reference_layout(&typed, None, &[], owned).expect("retained custody"),
+        super::TypeLayoutQuery::Pending(super::LayoutQueryPrerequisite::PlanGeometry(
+            payload_symbol
+        )),
+    );
+}
+
 fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees::PlanLaidLayout {
     typed_trees::typed_trees::PlanLaidLayout {
         data_name: "Spread<ForeignRecord>".to_owned(),

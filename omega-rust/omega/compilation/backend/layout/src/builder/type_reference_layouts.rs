@@ -6,7 +6,7 @@ use crate::builder::generic_bindings::{
     GenericLayoutBinding, binding_for_type, fixed_array_length,
 };
 use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
-use crate::sizing::{fat_descriptor_layout, pointer_layout, primitive_type_layout};
+use crate::sizing::primitive_type_layout;
 use diagnostics::Diagnostic;
 use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
@@ -48,11 +48,11 @@ impl<'program> LayoutBuilder<'program> {
                     referee_node = self.program.type_reference_table.type_reference(*base_type);
                 }
                 match referee_node {
-                    TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
+                    TypeReferenceNode::Slice { .. } => Ok(self.descriptor_type_layout()),
                     TypeReferenceNode::Named { name, .. } if name.as_str() == "string" => {
-                        Ok(fat_descriptor_layout(self.target))
+                        Ok(self.descriptor_type_layout())
                     }
-                    _ => Ok(pointer_layout(self.target)),
+                    _ => Ok(self.pointer_type_layout()),
                 }
             }
             TypeReferenceNode::Constrained { base_type, .. } => {
@@ -68,7 +68,9 @@ impl<'program> LayoutBuilder<'program> {
                 let Some(length) =
                     fixed_array_length(self.program, type_reference, length, bindings)
                 else {
-                    self.unresolved_array_extent = true;
+                    self.pending_geometry.get_or_insert(
+                        crate::builder::LayoutQueryPrerequisite::ArrayExtent(type_reference),
+                    );
                     return Ok(TypeLayout::default());
                 };
 
@@ -89,11 +91,11 @@ impl<'program> LayoutBuilder<'program> {
                     alignment: element_layout.alignment,
                 })
             }
-            TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
+            TypeReferenceNode::Slice { .. } => Ok(self.descriptor_type_layout()),
             // A selector is one reference to its implementation's immutable
             // table. It carries no data word: data is always a separate
             // argument of the call the selector reaches.
-            TypeReferenceNode::DynamicTrait { .. } => Ok(pointer_layout(self.target)),
+            TypeReferenceNode::DynamicTrait { .. } => Ok(self.pointer_type_layout()),
             TypeReferenceNode::Generic {
                 base_symbol,
                 base_name,
@@ -336,7 +338,8 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         if let Some(primitive_type) = PrimitiveType::from_name(name) {
-            return Ok(primitive_type_layout(self.target, primitive_type));
+            return Ok(primitive_type_layout(self.target, primitive_type)
+                .unwrap_or_else(|| self.await_target_geometry()));
         }
 
         if let Some(layout) = self.builtin_type_layout(symbol) {
