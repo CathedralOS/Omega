@@ -207,10 +207,11 @@ Start explicit full-package candidate review at
 binding discovery, final checking, then immutable result handoff. Both public
 candidate entrances borrow the caller's session; neither creates sponsors nor
 disposes them. Standalone callers create an owner and dispose it after their
-complete operation. Every fresh compilation attempt, including component
-retries and later target/round passes, receives a new sponsored directory from
-the invocation's monotonic sequence. Closing an owner prevents another review
-from using it.
+complete operation. Every fresh occurrence in a target/round pass receives a new
+sponsored directory from the invocation's monotonic sequence. Component demands
+join the completed Build's opaque continuation before Product checking; they do
+not trigger a second compilation or replay Build effects. Closing an owner
+prevents another review from using it.
 Its `package_pass.rs` owns dependency-order compilation and projection for each
 required build/product occurrence, using the same roster as lock comparison and
 reconstruction. Acquisition and parsed source are shared; checked targets,

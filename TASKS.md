@@ -2903,8 +2903,9 @@ crash and native exit behavior.
   completing demanded components before their consumers. Compiler-owned opaque
   Build continuations prevent the application from extracting source IR; source
   checking and component/product publication remain behind the compiler facade.
-  Candidate review and Terminal Build/helper activation scheduling still need
-  migration. Psi
+  Candidate review also completes opaque Build continuations without replaying
+  compilation to answer component demands; its package-owned orchestration and
+  Terminal Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

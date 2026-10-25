@@ -10,6 +10,7 @@ import argparse
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -68,6 +69,55 @@ class DevelopmentRun(unittest.TestCase):
         self.assertIn("native exit 0", result.stdout + result.stderr)
         self.assertFalse((self.project / "omega.lock").exists())
         self.assertFalse((self.project / "build/package-manager").exists())
+
+    def independent_review(self, generated, sealed=True):
+        fixture = REPOSITORY / "tests/omega/pass/facts/opaque_independent_closed_carrier_through_other_machine_exit"
+        shutil.copytree(fixture, self.project, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("build", "omega.lock"))
+        if generated:
+            build = self.project / "build.omg"
+            source = build.read_text()
+            closing = source.rfind("}")
+            source = source[:closing] + '''
+ let generated: BuildPath = BuildOutput::resolve(&builder.output, "review_generated.omg");
+ let writer: i32 = BuildOutput::create(&mut builder.output, generated, 0);
+ _ = BuildOutput::write(&mut builder.output, writer, "const REVIEW_VALUE: u8 = 7;\\n");
+ _ = BuildOutput::close(&mut builder.output, writer);
+ BuildOutput::include_source(&mut builder.output, generated);
+''' + source[closing:]
+            build.write_text(source)
+            if not sealed:
+                build.write_text(source.replace(
+                    " _ = BuildOutput::close(&mut builder.output, writer);\n", ""))
+        if sealed:
+            runtime = self.invoke("run", "--both", "main.omg")
+            self.assert_exit(runtime, 0)
+            self.assertIn("native exit 0", runtime.stdout + runtime.stderr)
+            self.assertIn("interp exit: 0", runtime.stdout + runtime.stderr)
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("update", "--project", self.project,
+                             "--target", self.target, "--offline")
+        self.assertFalse((self.project / "omega.lock").exists())
+        if not sealed:
+            self.assert_exit(result, 1)
+            self.assertIn("staging entry is not sealed", result.stderr)
+            return
+        self.assert_exit(result, 3)  # Dependency review awaits an explicit decision.
+        self.assertIn("checked 2 source packages", result.stdout)
+        passes = re.findall(r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) "
+                            r"carried=(\d+).*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
+                            result.stderr)
+        self.assertEqual(passes, [("discovery", "2", "2", "0", "2", "4")],
+                         result.stdout + result.stderr)
+
+    def test_independent_review_completes_each_occurrence_once(self):
+        self.independent_review(generated=False)
+
+    def test_generated_independent_review_completes_each_occurrence_once(self):
+        self.independent_review(generated=True)
+
+    def test_independent_review_rejects_unsealed_generated_source(self):
+        self.independent_review(generated=True, sealed=False)
 
     def test_unlocked_compile_uses_the_same_native_route(self):
         result = self.invoke("--build-dir", self.project / "output", "--target", self.target, "main.omg")
