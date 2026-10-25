@@ -72,11 +72,7 @@ pub(crate) fn summarize_state_written_paths_for_cycles<'program>(
     if named_state_transition_subgraph_is_acyclic(program, machine, entry) {
         return None;
     }
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return None;
-    }
+    let machine_symbols = super::demand::machine_symbols(program, machine)?;
 
     let mut equations = Vec::<CycleFrameEquation<'program>>::new();
     let mut pending = vec![entry.symbol];

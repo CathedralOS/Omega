@@ -31,7 +31,13 @@ use symbols::SymbolHandle;
 pub(crate) struct StateMutationSummaryCache {
     // Completed summaries depend only on the immutable program and borrow
     // facts. Publish after the fixed point, never during recursive inference.
-    states: std::sync::OnceLock<Vec<StateMutationSummary>>,
+    states: std::sync::OnceLock<BuiltStateMutationSummaries>,
+}
+
+#[derive(Debug, Clone)]
+struct BuiltStateMutationSummaries {
+    summaries: Vec<StateMutationSummary>,
+    index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize>,
 }
 
 /// Complete transitive writes in a state's own incoming storage namespace.
@@ -190,34 +196,22 @@ fn state_mutation_summary<'cache>(
     state: &typed_trees::state::State,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<&'cache StateMutationSummary> {
-    cache
+    let built = cache
         .states
-        .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames))
-        .iter()
-        .find(|entry| entry.state_symbol == state.symbol)
-        .filter(|entry| entry.complete)
+        .get_or_init(|| build_state_mutation_summaries(program, borrow, call_frames));
+    let &index = built.index_by_state.get(&state.symbol)?;
+    built.summaries.get(index).filter(|entry| entry.complete)
 }
 
 fn build_state_mutation_summaries(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Vec<StateMutationSummary> {
-    let mut states = Vec::new();
-    let mut inferred_completeness = Vec::new();
+) -> BuiltStateMutationSummaries {
     let mut owned_frames = None;
     let call_frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
-    if let Some(resolver) = call_frames {
-        for machine in program.machines() {
-            for (state, frame) in program
-                .machine_states(machine)
-                .iter()
-                .zip(resolver.inferred_machine_state_write_frames(machine))
-            {
-                inferred_completeness.push((state.symbol, frame.is_complete()));
-            }
-        }
-    }
+    let mut states = Vec::with_capacity(borrow.states.len());
+    let mut borrow_states_for_summaries = Vec::with_capacity(borrow.states.len());
 
     for borrow_state in borrow.states.iter().map(|(_, state)| state) {
         let Some(state) = program.state_by_symbol(borrow_state.state_symbol) else {
@@ -226,26 +220,52 @@ fn build_state_mutation_summaries(
         let direct_writes = collect_state_mutation_summary_places(program, state, call_frames);
         let direct_complete = direct_writes.is_some();
         let writes = direct_writes.unwrap_or_default();
+        let complete = direct_complete
+            && state_has_concrete_body_signature(program, state)
+            && call_frames.is_some_and(|resolver| {
+                validation::find_state(program, state.symbol)
+                    .is_some_and(|(machine, _)| {
+                        resolver
+                            .inferred_state_write_frame(machine, state)
+                            .is_complete()
+                    })
+            });
         states.push(StateMutationSummary {
             state_symbol: state.symbol,
             held_writes: held_accesses(program, state, &writes),
-            complete: direct_complete
-                && state_has_concrete_body_signature(program, state)
-                && inferred_completeness
-                    .iter()
-                    .find_map(|(symbol, complete)| (*symbol == state.symbol).then_some(*complete))
-                    .unwrap_or(false),
+            complete,
             writes,
         });
+        borrow_states_for_summaries.push(borrow_state);
     }
 
-    propagate_state_mutation_summaries(program, borrow, &mut states, call_frames);
-    states
+    // The first summary for a symbol answers lookups, as the former linear
+    // search did.
+    let mut index_by_state: symbols::SymbolKeyMap<SymbolHandle, usize> =
+        symbols::SymbolKeyMap::default();
+    for (index, summary) in states.iter().enumerate() {
+        index_by_state.entry(summary.state_symbol).or_insert(index);
+    }
+
+    propagate_state_mutation_summaries(
+        program,
+        borrow,
+        &borrow_states_for_summaries,
+        &index_by_state,
+        &mut states,
+        call_frames,
+    );
+    BuiltStateMutationSummaries {
+        summaries: states,
+        index_by_state,
+    }
 }
 
 fn propagate_state_mutation_summaries(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
+    borrow_states: &[&StateBorrowFact],
+    index_by_state: &symbols::SymbolKeyMap<SymbolHandle, usize>,
     states: &mut [StateMutationSummary],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
@@ -261,11 +281,12 @@ fn propagate_state_mutation_summaries(
     // identities. Resolve each dependency once while retaining authored call order.
     let calls: Vec<_> = states
         .iter()
+        .zip(borrow_states)
         .zip(&owners)
-        .map(|(state, owner)| {
-            borrow_state_for_symbol(borrow, state.state_symbol)
-                .map(|borrow_state| borrow.calls.span_or_empty(borrow_state.calls))
-                .unwrap_or_default()
+        .map(|((state, borrow_state), owner)| {
+            borrow
+                .calls
+                .span_or_empty(borrow_state.calls)
                 .iter()
                 .map(|call| {
                     let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
@@ -276,7 +297,7 @@ fn propagate_state_mutation_summaries(
                     // the (necessarily incomplete) structured body summary.
                     let body_summary = validation::find_state(program, call.target_symbol)
                         .filter(|(machine, _)| machine.body_is_present)
-                        .and_then(|_| summary_index_from(states, call.target_symbol));
+                        .and_then(|_| index_by_state.get(&call.target_symbol).copied());
                     (call, body_summary, run)
                 })
                 .collect::<Vec<_>>()
@@ -481,26 +502,6 @@ fn instantiate_target_writes(
         }
     }
     Some(instantiated)
-}
-
-fn borrow_state_for_symbol(
-    borrow: &BorrowFacts,
-    state_symbol: SymbolHandle,
-) -> Option<&StateBorrowFact> {
-    borrow
-        .states
-        .iter()
-        .map(|(_, state)| state)
-        .find(|state| state.state_symbol == state_symbol)
-}
-
-fn summary_index_from(
-    summaries: &[StateMutationSummary],
-    state_symbol: SymbolHandle,
-) -> Option<usize> {
-    summaries
-        .iter()
-        .position(|summary| summary.state_symbol == state_symbol)
 }
 
 fn machine_symbol_for_state(

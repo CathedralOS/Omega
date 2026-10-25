@@ -589,11 +589,7 @@ fn caller_isolated_initializer_origins<'program>(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let mut diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return None;
-    }
+    let machine_symbols = super::demand::machine_symbols(program, machine)?;
     stable_alias_initializer_origins(
         program,
         machine,

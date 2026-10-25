@@ -139,11 +139,11 @@ fn parameter_relative_place_origins_in(
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
-                let mut diagnostics = Vec::new();
-                let machine_symbols =
-                    MachineSymbols::build(program, current_machine, &mut diagnostics);
-                if !diagnostics.is_empty()
-                    || !parameter_relative_expression_preserves_transparent_result(
+                let Some(machine_symbols) = super::demand::machine_symbols(program, current_machine)
+                else {
+                    return None;
+                };
+                if !parameter_relative_expression_preserves_transparent_result(
                         program,
                         current_machine,
                         indexed.index,

@@ -248,6 +248,12 @@ impl Execution<'_, '_, '_> {
             // Aggregate children can themselves be constructions or moved
             // storage. Rebase their current scalar observations, including
             // nested fields and array members, onto the new destination.
+            //
+            // Case selection reads tag observations from these same captured
+            // contexts at this statement; no subject changes them. Prepare that
+            // evidence once for the whole member walk instead of rescanning
+            // every captured fact for each member that crosses a case.
+            let mut case_evidence: Option<Option<crate::flow::CaseEvidence<'_>>> = None;
             for context in &captured_contexts {
                 for fact in self
                     .semantic
@@ -285,15 +291,24 @@ impl Execution<'_, '_, '_> {
                     if values.iter().any(|(existing, _)| *existing == path) {
                         continue;
                     }
-                    if !crate::flow::place_cases_are_selected(
-                        self.program,
-                        self.semantic,
-                        &captured_contexts,
-                        self.machine.symbol,
-                        self.state.symbol,
-                        self.statement_index,
-                        &place,
-                    ) {
+                    if place
+                        .segments
+                        .iter()
+                        .any(|segment| matches!(segment, PlaceSegment::Case { .. }))
+                        && !case_evidence
+                            .get_or_insert_with(|| {
+                                crate::flow::CaseEvidence::prepare(
+                                    self.program,
+                                    self.semantic,
+                                    &captured_contexts,
+                                    self.machine.symbol,
+                                    self.state.symbol,
+                                    self.statement_index,
+                                )
+                            })
+                            .as_ref()
+                            .is_some_and(|evidence| evidence.cases_are_selected(&place))
+                    {
                         continue;
                     }
                     let value = match fact.payload {
