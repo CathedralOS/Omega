@@ -451,7 +451,7 @@ pub(crate) fn validate_machine_contracts(
             program.proof_facts.span_or_empty(contract.facts),
             diagnostics,
             ProofFactOwner::MachineContract {
-                machine: machine.name.as_str(),
+                machine,
                 kind: contract_kind_label(&contract.kind),
             },
         );

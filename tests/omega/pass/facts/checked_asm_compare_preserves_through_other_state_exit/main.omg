@@ -76,7 +76,7 @@ machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 machine main() crashes Trap {
     transition { _ -> received(compare(37)) }
-    state received(value: u32) requires value == 37 {
+    machine received(value: u32) requires value == 37 {
     transition value == 37 { true -> finished() false -> failed() }
     }
 }
