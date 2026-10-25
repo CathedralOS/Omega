@@ -212,6 +212,11 @@ sponsored directory from the invocation's monotonic sequence. Component demands
 join the completed Build's opaque continuation before Product checking; they do
 not trigger a second compilation or replay Build effects. Closing an owner
 prevents another review from using it.
+If a persisted dependency review lacks a demanded component description, refresh
+that dependency while retaining completed sibling reviews and the consumer's
+Build continuation. Reuse still compares complete inputs, entry and snapshot;
+changed generated inputs require fresh work. Interrupted review sets are private
+progress, not an accepted root-wide review.
 Its `package_pass.rs` owns dependency-order compilation and projection for each
 required build/product occurrence, using the same roster as lock comparison and
 reconstruction. Acquisition and parsed source are shared; checked targets,
