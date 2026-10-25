@@ -810,7 +810,7 @@ impl ClosurePass<'_> {
                 custody.resolution(),
                 purpose,
             )?),
-            package_inputs: Some(unanswered_inputs.clone()),
+            package_inputs: Some(unanswered_inputs),
             filesystem_sponsor: Some(self.session.filesystem_sponsor().clone()),
             evaluation_sponsor: Some(self.session.evaluation_sponsor().clone()),
             build_snapshot: Some(build_snapshot.clone()),
