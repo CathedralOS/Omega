@@ -5,8 +5,10 @@ Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,
 including replacement of one field without disturbing its sibling. This is
 host-boundary evidence and initial independent closed Affine input/result
-exchange. Copy, qualified or claim-bearing component inputs, remaining mismatch
-admission and replacement lifecycle acceptance remain open.
+exchange. The [checked Copy continuation](independent_copy/README.md) also
+preserves the caller's original across an independently consuming call.
+Qualified or claim-bearing component inputs, remaining mismatch admission and
+replacement lifecycle acceptance remain open.
 
 **Closed nested Inert carrier transport preserves libc host numbers 66051 and
 513 and replacement 1027 while retaining the disjoint sibling.**

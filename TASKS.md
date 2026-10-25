@@ -1527,9 +1527,11 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     to provider call-frame transport and backend emission across all nine places
     of `samples/cli/facts/opaque_closed_carrier_exchange` on Linux ARM64
     (Linux x86-64, macOS ARM64, and Windows x86-64 now pass across all nine
-    places), and extend independent component exchange to copy, linear,
-    qualified, and view-backed opaque inputs with exact composition-edge drift
-    rejection.
+    places). The [checked Copy continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
+    now passes its root and nine places on macOS ARM64 with copy-only rejects;
+    other matching-host Copy execution remains pending. Extend independent
+    component exchange to linear, qualified, and view-backed opaque inputs with
+    exact composition-edge drift rejection.
   - Connect stage 05 `retention/retained_borrow_custody.rs` and native
     marshaling to installed-provider custody and default Terminal adapters for
     moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine
