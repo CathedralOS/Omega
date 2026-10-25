@@ -1,10 +1,7 @@
-use isa_aarch64::Aarch64FrameSlot;
-use isa_x86_64::X86_64FrameSlot;
-
 use crate::frame_layout::frame_unwind_policy;
 use crate::frame_protocol::{ValidatedTargetFrameLayout, ValidatedTargetRegisterEnvironment};
 
-use super::codec::{FrameProtocolCodec, frame_protocol_codec};
+use super::codec::frame_protocol_codec;
 use super::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding, TargetFrameProtocolEncodingError,
     TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
@@ -59,58 +56,8 @@ pub(super) fn derive(
         if !continuation.admits(function.return_address) {
             return Err(TargetFrameProtocolEncodingError::UnsupportedReturnAddressCustody);
         }
-        // The encoded protocol performs exactly the validated unwind roster:
-        // the declared codec's save list runs in reverse roster order so its
-        // epilogue restores in roster order — a saved link register first,
-        // then preservation slots in descending frame offset.
-        let (prologue_bytes, epilogue_bytes) = match codec {
-            FrameProtocolCodec::X86_64 => {
-                let slots = function
-                    .unwind
-                    .restores
-                    .iter()
-                    .rev()
-                    .map(|restore| X86_64FrameSlot {
-                        view: restore.view,
-                        offset_bytes: restore.frame_offset_bytes,
-                        size_bytes: restore.size_bytes,
-                    })
-                    .collect::<Vec<_>>();
-                isa_x86_64::encode_system_v_amd64_frame_protocol(
-                    environment.physical(),
-                    committed_bytes,
-                    isa_x86_64::X86_64StackProbe {
-                        interval_bytes: function.stack_probe.interval_bytes,
-                        touches: function.stack_probe.touches,
-                    },
-                    &slots,
-                )
-                .map_err(TargetFrameProtocolEncodingError::X86)?
-            }
-            FrameProtocolCodec::Aarch64 => {
-                let slots = function
-                    .unwind
-                    .restores
-                    .iter()
-                    .rev()
-                    .map(|restore| Aarch64FrameSlot {
-                        view: restore.view,
-                        offset_bytes: restore.frame_offset_bytes,
-                        size_bytes: restore.size_bytes,
-                    })
-                    .collect::<Vec<_>>();
-                isa_aarch64::encode_aapcs64_frame_protocol(
-                    environment.physical(),
-                    committed_bytes,
-                    isa_aarch64::Aarch64StackProbe {
-                        interval_bytes: function.stack_probe.interval_bytes,
-                        touches: function.stack_probe.touches,
-                    },
-                    &slots,
-                )
-                .map_err(TargetFrameProtocolEncodingError::Aarch64)?
-            }
-        };
+        let (prologue_bytes, epilogue_bytes) =
+            super::encode_frame_function(codec, environment, function, committed_bytes)?;
         let prologue = append(&mut bytes, &prologue_bytes)?;
         let epilogue = append(&mut bytes, &epilogue_bytes)?;
         functions.push(FunctionTargetFrameProtocolEncoding {
