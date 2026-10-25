@@ -33,35 +33,8 @@ pub fn project_build_program(
     // the purpose of the use that demanded the instance. In particular, a
     // Product application of a toolchain generic is not an independent Build
     // declaration. Exact references and concrete carrier ownership admit it.
-    let mut instances = original
-        .data_definitions()
-        .iter()
-        .filter(|data| data.generic_instance.is_some())
-        .map(|data| data.symbol)
-        .collect::<HashSet<_>>();
-    instances.extend(
-        original
-            .machines()
-            .iter()
-            .filter(|machine| machine.generic_data_template.is_valid())
-            .map(|machine| machine.symbol),
-    );
-    instances.extend(
-        original
-            .machine_specializations
-            .iter()
-            .map(|specialization| specialization.instance),
-    );
-    let is_generated = |mut symbol: SymbolHandle| {
-        while symbol.is_valid() {
-            let declaration = original.symbols.get(symbol);
-            if instances.contains(&symbol) || declaration.generated_from.is_valid() {
-                return true;
-            }
-            symbol = declaration.parent;
-        }
-        false
-    };
+    let instances = instantiated_declarations(original);
+    let is_generated = |symbol| is_derived_declaration(original, &instances, symbol);
     let in_build_context = |symbol| {
         original
             .symbols
@@ -126,6 +99,109 @@ pub fn project_build_program(
     );
     program.product_declaration_frontier = Some(Arc::new(original.typed_program().clone()));
     Ok(program)
+}
+
+/// Select a new source activation without compacting the retained declarations.
+/// This is source membership, not executable reachability: every authored root
+/// of a selected source remains an obligation, including uncalled machines.
+/// Derived instances follow their actual uses rather than their template's
+/// diagnostic location. The source/typing owner must project its resolver roots
+/// with this same declaration selection before appending another cohort.
+pub fn project_source_program(original: &TypedTrees, sources: &source::SourceMap) -> TypedTrees {
+    let instances = instantiated_declarations(original);
+    let derived = |symbol| is_derived_declaration(original, &instances, symbol);
+    let generated_methods = original
+        .machines()
+        .iter()
+        .filter(|machine| machine.generic_data_template.is_valid())
+        .map(|machine| (machine.attached_data_symbol, machine.symbol))
+        .collect::<Vec<_>>();
+    let mut program = project_declarations(
+        original,
+        |symbol| {
+            !derived(symbol)
+                && original
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .is_none_or(|span| sources.source_is_selected(span.source_id))
+        },
+        |symbol| {
+            derived(symbol)
+                || original
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .is_none()
+        },
+        &generated_methods,
+        None,
+    );
+    let references = typed_trees::references::collect_program_references(&program);
+    let mut excluded =
+        std::mem::take(&mut program.excluded_authored_selection_occurrences).into_occurrences();
+    // Folded expressions can outlive their declaration root. Source ownership
+    // removes those inactive occurrences too, but an unknown/default span is
+    // not evidence of ownership by source zero. Shared live uses stay obligations.
+    excluded.extend(
+        original
+            .authored_declaration_selections()
+            .iter()
+            .filter_map(|selection| {
+                let span = selection.source_span();
+                (span.span.start != span.span.end
+                    && !sources.source_is_selected(span.source_id)
+                    && !references
+                        .authored_selection_occurrences
+                        .contains(&selection.occurrence_id()))
+                .then_some(selection.occurrence_id())
+            }),
+    );
+    let expressions = &original.expression_table;
+    program.expression_table.retain_expression_roots(|handle| {
+        references.expressions.contains(&handle)
+            || expressions
+                .authored_selection_occurrences(handle)
+                .any(|occurrence| !excluded.contains(&occurrence))
+    });
+    program.excluded_authored_selection_occurrences = excluded.into();
+    program
+}
+
+fn instantiated_declarations(program: &dyn crate::CheckingInput) -> HashSet<SymbolHandle> {
+    let mut instances = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.generic_instance.is_some())
+        .map(|data| data.symbol)
+        .collect::<HashSet<_>>();
+    instances.extend(
+        program
+            .machines()
+            .iter()
+            .filter(|machine| machine.generic_data_template.is_valid())
+            .map(|machine| machine.symbol),
+    );
+    instances.extend(
+        program
+            .machine_specializations
+            .iter()
+            .map(|specialization| specialization.instance),
+    );
+    instances
+}
+
+fn is_derived_declaration(
+    program: &dyn crate::CheckingInput,
+    instances: &HashSet<SymbolHandle>,
+    mut symbol: SymbolHandle,
+) -> bool {
+    while symbol.is_valid() {
+        let declaration = program.symbols.get(symbol);
+        if instances.contains(&symbol) || declaration.generated_from.is_valid() {
+            return true;
+        }
+        symbol = declaration.parent;
+    }
+    false
 }
 
 /// A description can mention an entire carrier/conformance graph. None of that

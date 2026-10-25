@@ -47,9 +47,10 @@ mod constant;
 // The entrance, its post-base re-entry, and the requests and carriers both
 // name.
 pub use resolution::{
-    DeferredResolvedFrontier, ExtensionRequest, RebasedResolvedBodyCompletion,
-    RebasedSeededSymbolResolvedTrees, ResolutionRequest, ResolvedBodyCompletion,
-    SeededSymbolResolvedTrees, resolve, resolve_deferred, resolve_extension,
+    DeferredResolvedExtension, DeferredResolvedFrontier, ExtensionRequest,
+    RebasedResolvedBodyCompletion, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
+    ResolvedBodyCompletion, SeededSymbolResolvedTrees, resolve, resolve_deferred,
+    resolve_deferred_extension, resolve_extension,
 };
 
 /// What build-time evaluation drives before this stage can run.

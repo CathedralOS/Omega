@@ -44,10 +44,15 @@ pub(crate) fn prepare(
     sources: Option<Arc<SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     constants: crate::resolution::lowerer::ConstResolutionMode,
+    base: Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
     target_families::normalize(&mut syntax, sources.as_deref())?;
-    let constant_selection =
-        declaration_selection::ConstantSelection::new(&syntax, sources, top_level_bindings)?;
+    let constant_selection = declaration_selection::ConstantSelection::with_shared_base(
+        &syntax,
+        sources,
+        top_level_bindings,
+        base,
+    )?;
     // Initializer-selection probes can arrive before generic synthesis. Their
     // module constant admission needs the same lexical carrier-head binding.
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;

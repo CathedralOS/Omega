@@ -81,10 +81,43 @@ pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Di
 pub fn resolve_deferred(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    resolve_deferred_from(request, None)
+}
+
+/// Append authored declarations to an already activated source base. Their
+/// implementations remain pending, exactly as in a fresh source request.
+pub fn resolve_deferred_extension(
+    request: ExtensionRequest,
+) -> Result<DeferredResolvedExtension, Vec<Diagnostic>> {
+    let ExtensionRequest {
+        base,
+        syntax,
+        sources,
+        top_level_bindings,
+    } = request;
+    let predecessor = Arc::new(base);
+    let successor = resolve_deferred_from(
+        ResolutionRequest {
+            syntax,
+            sources: Some(sources),
+            top_level_bindings,
+        },
+        Some(Arc::clone(&predecessor)),
+    )?;
+    Ok(DeferredResolvedExtension {
+        successor,
+        predecessor,
+    })
+}
+
+fn resolve_deferred_from(
+    request: ResolutionRequest,
+    base: Option<Arc<SymbolResolvedTrees>>,
+) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
-    if preparation::machine_equations::required(&syntax, None) {
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete, base.clone())?;
+    if preparation::machine_equations::required(&syntax, base.as_deref()) {
         // Header applications need exact declaration selection, not executable
         // bodies. Body applications retain their syntax and complete on demand.
         loop {
@@ -92,6 +125,9 @@ pub fn resolve_deferred(
             provisional.constant_selection = lowerer.constant_selection.clone();
             provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
             provisional.equation_sources = Some(Default::default());
+            if let Some(base) = &base {
+                provisional.seed_resolved_base(base.as_ref().clone())?;
+            }
             index_declarations(&mut provisional, &syntax)?;
             // Settlement also demands receipt helpers for normalized constants.
             // Their links belong to this batch just like header applications.
@@ -111,8 +147,40 @@ pub fn resolve_deferred(
         }
         lowerer.equation_sources = Some(Default::default());
     }
+    if let Some(base) = base {
+        lowerer.seed_resolved_base(Arc::unwrap_or_clone(base))?;
+    }
     lowerer.structural_type_equations_pending = false;
     index_deferred(syntax, lowerer, sources, bindings)
+}
+
+/// New deferred syntax and its exact resolved predecessor travel together.
+pub struct DeferredResolvedExtension {
+    successor: DeferredResolvedFrontier,
+    predecessor: Arc<SymbolResolvedTrees>,
+}
+
+impl DeferredResolvedExtension {
+    /// Join the typed predecessor's selection suffix once, on both the
+    /// declaration input and the frontier which will later complete its bodies.
+    pub fn rebase_for_typed_continuation(
+        mut self,
+        selections: &symbol_resolved_trees::AuthoredDeclarationSelections,
+    ) -> Result<(RebasedSeededSymbolResolvedTrees, DeferredResolvedFrontier), Vec<Diagnostic>> {
+        let source = SeededSymbolResolvedTrees {
+            trees: self.successor.trees.as_ref().clone(),
+            authored_selection_frontier: self.predecessor.authored_selection_extension_frontier(),
+            retained_base: Box::new(Arc::unwrap_or_clone(self.predecessor)),
+        }
+        .rebase_authored_selections_for_typed_continuation(selections)
+        .map_err(|(_, reason)| {
+            vec![Diagnostic::error(format!(
+                "authored declaration extension lost its typed selection prefix: {reason:?}"
+            ))]
+        })?;
+        self.successor.trees = Arc::new(source.trees().clone());
+        Ok((source, self.successor))
+    }
 }
 
 /// Normalize numeric-probe declarations while retaining equation obligations
@@ -122,7 +190,7 @@ pub fn resolve_deferred_numeric_probe(
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete, None)?;
     index_deferred(syntax, lowerer, sources, bindings)
 }
 
@@ -182,7 +250,7 @@ fn index_declarations(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(),
 pub fn resolve_const_argument_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection, None)?;
     index_declarations(&mut lowerer, &syntax)?;
     crate::symbols::assign_lexical_inputs(
         &mut lowerer,
@@ -199,7 +267,7 @@ pub fn resolve_const_argument_selection(
 pub fn resolve_numeric_probe(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::Complete, None)?;
     drive(lowerer, &syntax).map(|(trees, _)| trees)
 }
 
@@ -212,7 +280,7 @@ pub fn resolve_deferred_initializer_probe(
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection, None)?;
     index_deferred(syntax, lowerer, sources, bindings)
 }
 
@@ -228,7 +296,7 @@ pub fn prepare_const_initializer_selection(
 ) -> Result<ConstInitializerSelection, Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection)?;
+    let (syntax, lowerer) = begin(request, ConstResolutionMode::InitializerSelection, None)?;
     let mut frontier = index_deferred(syntax, lowerer, sources, bindings)?;
     let initializers = frontier
         .trees()
@@ -311,7 +379,11 @@ fn begin_complete(
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete)?;
+    let (mut syntax, mut lowerer) = begin(
+        request,
+        ConstResolutionMode::Complete,
+        base.clone().map(Arc::new),
+    )?;
     if preparation::machine_equations::required(&syntax, base.as_ref()) {
         let mut provisional = Lowerer::new(sources, bindings);
         provisional.constant_selection = lowerer.constant_selection.take();
@@ -341,6 +413,7 @@ fn begin_complete(
 fn begin(
     request: ResolutionRequest,
     constants: ConstResolutionMode,
+    base: Option<Arc<SymbolResolvedTrees>>,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
     let ResolutionRequest {
         syntax,
@@ -352,6 +425,7 @@ fn begin(
         sources.clone(),
         top_level_bindings.clone(),
         constants,
+        base,
     )?;
     preparation::machine_equations::validate_declarations(&prepared.syntax)?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);
@@ -468,7 +542,7 @@ fn finish_resolved_tables(
 pub fn resolve_call_result_selection(
     request: ResolutionRequest,
 ) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection)?;
+    let (syntax, mut lowerer) = begin(request, ConstResolutionMode::ArgumentSelection, None)?;
     index_declarations(&mut lowerer, &syntax)?;
     let inputs = crate::symbols::assign_lexical_inputs(
         &mut lowerer,

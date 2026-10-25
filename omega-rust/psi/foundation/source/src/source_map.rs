@@ -156,6 +156,25 @@ impl SourceMap {
         source.0 < self.files.len() && self.selection.includes(source)
     }
 
+    /// Narrow this activation without changing any source coordinate or payload.
+    pub fn retain_selected_sources(&mut self, mut keep: impl FnMut(&SourceFile) -> bool) {
+        self.selection = SourceSelection::Explicit(
+            self.files
+                .iter()
+                .map(|file| self.source_is_selected(file.source_id) && keep(file))
+                .collect(),
+        );
+    }
+
+    /// Complete Product alias authority for one requester, including absences.
+    pub fn same_product_dependency_scope(
+        &self,
+        other: &Self,
+        requester: PackageKeyIdentity,
+    ) -> bool {
+        self.product_dependencies.get(&requester) == other.product_dependencies.get(&requester)
+    }
+
     /// Coordinate preservation compares backing, not current activation.
     pub fn retains_source_storage(&self, predecessor: &Self) -> bool {
         self.files.starts_with(&predecessor.files)

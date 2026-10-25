@@ -18,7 +18,7 @@ pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
 #[derive(Debug, Clone)]
 pub struct RetainedCheck {
     judgment: typed_trees_to_checked_trees::RetainedCheck,
-    source: Option<Arc<crate::PreparedSource>>,
+    pub(crate) source: Option<Arc<crate::PreparedSource>>,
 }
 
 impl RetainedCheck {

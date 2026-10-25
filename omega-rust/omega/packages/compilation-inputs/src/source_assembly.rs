@@ -26,6 +26,9 @@ use syntax_trees::SyntaxTrees;
 #[derive(Clone)]
 pub struct AssembledSyntax {
     pub syntax_trees: SyntaxTrees,
+    /// Parser-issued source ownership for authored item roots. Later synthesis
+    /// owns its own cohort; diagnostic template spans are not membership.
+    pub source_items: Vec<(source::SourceId, Vec<syntax_trees::item::ItemHandle>)>,
     pub sources: Arc<source::SourceMap>,
     /// Exact companion `build.omg` selected during project discovery. Build
     /// authority is attached to this source, never reconstructed from a leaf
@@ -327,6 +330,11 @@ impl ImmutableSourceParseCheckpoint {
             .map(|file| file.source_id)
             .collect();
         let syntax = AssembledSyntax {
+            source_items: source_storage
+                .source_roots
+                .iter()
+                .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
+                .collect(),
             syntax_trees: source_storage.syntax_trees,
             sources: Arc::new(source_storage.sources),
             build_source_id: self.build_source_id,

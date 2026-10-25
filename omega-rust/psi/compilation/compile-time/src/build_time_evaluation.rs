@@ -413,11 +413,28 @@ impl PreCheckEvaluation {
         )
     }
 
-    /// Retain Product work after a Build projection completed successfully.
-    /// Call only after its independent checking and fold replay succeeded.
-    /// Newly synthesized Build declarations must be present in the completed
-    /// projection, so subtraction carries their exact identities too.
-    pub fn exclude_projection(
+    /// A source activation changes the canonical declaration roster, unlike a
+    /// private checking projection. Rebase its positional wire checkpoint onto
+    /// the selected prefix while retaining exact work and execution owners.
+    pub fn activate_sources(
+        &self,
+        original: &typed_trees::TypedTrees,
+        activation: &typed_trees::TypedTrees,
+    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
+        let mut pending = self.project(original, activation)?;
+        let selected = DeclarationSelection::from_program(activation);
+        pending.wire_schema_frontier = original.wire_schemas()[..self.wire_schema_frontier]
+            .iter()
+            .filter(|schema| selected.contains(schema.symbol))
+            .count();
+        Ok(pending)
+    }
+
+    /// Remove work completed by another owned cohort, not its execution context.
+    /// The caller retains that cohort's remaining recipes independently. For a
+    /// Build projection, checking and fold replay must succeed before excluding
+    /// its work; synthesized declarations belong to that completed roster too.
+    pub fn exclude_completed_work(
         &self,
         original: &typed_trees::TypedTrees,
         completed_projection: &typed_trees::TypedTrees,

@@ -23,7 +23,26 @@ use syntax_trees::item::{ConstDefinition, DataDefinition, DataMember, Item};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
-    retained: Option<&'base symbol_resolved_trees::SymbolResolvedTrees>,
+    retained: Option<SelectionBase<'base>>,
+}
+
+/// Ephemeral syntax normalization borrows its predecessor; a deferred resolver
+/// owns that same predecessor across later body demands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SelectionBase<'base> {
+    Borrowed(&'base symbol_resolved_trees::SymbolResolvedTrees),
+    Shared(Arc<symbol_resolved_trees::SymbolResolvedTrees>),
+}
+
+impl std::ops::Deref for SelectionBase<'_> {
+    type Target = symbol_resolved_trees::SymbolResolvedTrees;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Borrowed(base) => base,
+            Self::Shared(base) => base,
+        }
+    }
 }
 
 impl<'base> ConstantSelection<'base> {
@@ -43,6 +62,21 @@ impl<'base> ConstantSelection<'base> {
         bindings: Vec<SourceScopedTopLevelBinding>,
     ) -> Result<Self, Vec<Diagnostic>> {
         Self::with_retained_base(syntax, sources, bindings, None)
+    }
+
+    pub(crate) fn with_shared_base(
+        syntax: &SyntaxTrees,
+        sources: Option<Arc<SourceMap>>,
+        bindings: Vec<SourceScopedTopLevelBinding>,
+        base: Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>>,
+    ) -> Result<ConstantSelection<'static>, Vec<Diagnostic>> {
+        let symbols =
+            ConstantSelection::with_retained_base(syntax, sources, bindings, base.as_deref())?
+                .symbols;
+        Ok(ConstantSelection {
+            symbols,
+            retained: base.map(SelectionBase::Shared),
+        })
     }
 
     pub(crate) fn with_retained_base(
@@ -149,7 +183,10 @@ impl<'base> ConstantSelection<'base> {
         // Machine and other nondata import targets are absent from this
         // partial header table. Complete resolution validates those imports.
         namespaces.register(&mut symbols)?;
-        Ok(Self { symbols, retained })
+        Ok(Self {
+            symbols,
+            retained: retained.map(SelectionBase::Borrowed),
+        })
     }
 
     /// Select an exposed family after the caller has bound the authored
@@ -217,7 +254,7 @@ impl<'base> ConstantSelection<'base> {
                             if name.as_str(syntax) == parameter.name.as_str(syntax)
                     )
             });
-            let retained_generic_carrier = self.retained.is_some_and(|retained| {
+            let retained_generic_carrier = self.retained.as_deref().is_some_and(|retained| {
                 retained.domain_definitions.iter().any(|domain| {
                     if domain.symbol != symbol {
                         return false;
@@ -297,7 +334,7 @@ impl<'base> ConstantSelection<'base> {
             &[kind],
             name.source_span(),
         )?;
-        let retained = self.retained?;
+        let retained = self.retained.as_deref()?;
         (retained.symbols.get(selected).kind == kind).then_some(selected)
     }
 
@@ -307,9 +344,10 @@ impl<'base> ConstantSelection<'base> {
     pub(super) fn retained_data_header(
         &self,
         selected: symbols::SymbolHandle,
-    ) -> Option<&'base symbol_resolved_trees::data::DataDefinition> {
+    ) -> Option<&symbol_resolved_trees::data::DataDefinition> {
         let mut definitions = self
-            .retained?
+            .retained
+            .as_deref()?
             .data_definitions
             .iter()
             .filter(|definition| definition.symbol == selected);
@@ -328,7 +366,7 @@ impl<'base> ConstantSelection<'base> {
             &[SymbolKind::BuiltinType, SymbolKind::Data],
             carrier.source_span(),
         )?;
-        let retained = self.retained?;
+        let retained = self.retained.as_deref()?;
         if !matches!(
             retained.symbols.get(carrier).kind,
             SymbolKind::BuiltinType | SymbolKind::Data

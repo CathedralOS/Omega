@@ -81,6 +81,13 @@ pub struct SourceScopedTopLevelBinding {
     declaration_source: SourceId,
     name: Arc<str>,
     module_import: Option<modules::ModuleImport>,
+    producer: BindingProducer,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BindingProducer {
+    Loader,
+    AuthoredImport,
 }
 
 impl SourceScopedTopLevelBinding {
@@ -94,6 +101,7 @@ impl SourceScopedTopLevelBinding {
             declaration_source,
             name: name.into(),
             module_import: None,
+            producer: BindingProducer::Loader,
         }
     }
 
@@ -494,8 +502,9 @@ impl SymbolTable {
 
     /// Start a new compilation view over retained declaration coordinates.
     /// Unlike an extension within one activation, its complete loader-supplied
-    /// import roster replaces historical bindings, even when both endpoints
-    /// remain selected for unrelated imports. Backing is not import authority.
+    /// loader import roster replaces historical loader bindings, even when both
+    /// endpoints remain selected for unrelated imports. Selected declarations
+    /// retain their own authored imports; backing is not loader authority.
     pub fn begin_source_activation(
         mut self,
         sources: Arc<SourceMap>,
@@ -528,6 +537,15 @@ impl SymbolTable {
                 }
             }
         }
+        let authored_imports = self
+            .source_scoped_top_level_bindings
+            .iter()
+            .filter(|binding| {
+                binding.producer == BindingProducer::AuthoredImport
+                    && sources.source_is_selected(binding.reference_source)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         self.inherited_symbols = inherited;
         self.sources = Some(sources);
         self.source_scoped_top_level_bindings = source_scoped_top_level_bindings;
@@ -535,6 +553,14 @@ impl SymbolTable {
         self.root_names.clear();
         self.module_path_index.clear();
         self.module_scope_index.clear();
+        // Syntax imports belong to retained declarations. Loader rows belong
+        // to the current request and were completely replaced above. Reinsert
+        // through their producer so a current certified import takes precedence.
+        for binding in authored_imports {
+            if let Some(import) = &binding.module_import {
+                self.register_source_import(binding.reference_source, &import.path);
+            }
+        }
         Ok(SymbolTableExtension { table: self })
     }
 

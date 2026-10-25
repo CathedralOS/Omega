@@ -338,6 +338,73 @@ fn current_import_roster_replaces_historical_authority_even_with_active_endpoint
 }
 
 #[test]
+fn source_activation_retains_authored_imports_without_borrowing_a_foreign_namespace() {
+    let owner = PackageKeyIdentity::from_digest([31; 32]).expect("owner");
+    let foreign = PackageKeyIdentity::from_digest([32; 32]).expect("foreign owner");
+    let mut sources = SourceMap::default();
+    let declarations = [
+        ("kit/left.omg", "left Helper", "kit", owner, 5, 11),
+        ("kit/right.omg", "right Local", "kit", owner, 6, 11),
+        ("foreign/left.omg", "left Helper", "foreign", foreign, 5, 11),
+    ]
+    .map(|(path, text, root, package, start, end)| {
+        sources
+            .add_with_metadata(
+                PathBuf::from(path),
+                text.to_owned(),
+                PathBuf::from(root),
+                Some(package),
+                SourceOrigin::User,
+            )
+            .source_span(Span::new(start, end))
+    });
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources.clone())));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let handles = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        declarations.map(|span| (SymbolKind::Data, SymbolNameRef::Source(span))),
+    ))
+    .collect::<Vec<_>>();
+    let mut symbols = builder.finish();
+    for (span, module) in declarations.into_iter().zip(["left", "right", "left"]) {
+        symbols
+            .register_source_module(
+                span.source_id,
+                [(
+                    module,
+                    SourceSpan::new(span.source_id, Span::new(0, module.len())),
+                )],
+            )
+            .expect("one module");
+    }
+    symbols.register_source_import(declarations[1].source_id, "left::Helper");
+    let lookup = |symbols: &crate::SymbolTable| {
+        symbols.find_top_level_by_name_and_kinds_from_source(
+            "Helper",
+            &[SymbolKind::Data],
+            declarations[1],
+        )
+    };
+    assert_eq!(lookup(&symbols), Some(handles[0]));
+    let activated = symbols
+        .begin_source_activation(Arc::new(sources.clone()), Vec::new())
+        .expect("same source custody, no loader bindings")
+        .finish();
+    assert_eq!(lookup(&activated), Some(handles[0]));
+    let mut selected = sources;
+    selected.retain_selected_sources(|file| file.source_id != declarations[0].source_id);
+    let activated = activated
+        .begin_source_activation(Arc::new(selected), Vec::new())
+        .expect("remove the exact imported owner")
+        .finish();
+    assert_eq!(
+        lookup(&activated),
+        None,
+        "a same-name foreign module supplies no authority"
+    );
+}
+
+#[test]
 fn inactive_bindings_cannot_change_declaration_collision_scopes() {
     let dependency = PackageKeyIdentity::from_digest([15; 32]).expect("dependency");
     let consumer = PackageKeyIdentity::from_digest([16; 32]).expect("consumer");

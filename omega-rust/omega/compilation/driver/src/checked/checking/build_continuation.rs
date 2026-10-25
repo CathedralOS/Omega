@@ -110,6 +110,7 @@ pub(super) fn lower_typed_frontier(
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
     execution_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    previous: &compilation_products::RetainedCompilationChecks,
     timings: &mut CompileTimings,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
@@ -139,11 +140,20 @@ pub(super) fn lower_typed_frontier(
     let build_source_id = syntax.build_source_id;
     let source = psi_compiler::SourceCompilationRequest {
         syntax: syntax.syntax_trees,
+        source_items: syntax.source_items,
         sources: syntax.sources,
         top_level_bindings: syntax.source_scoped_top_level_bindings,
         selection_authority: package_inputs.map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
+        previous: previous
+            .product
+            .iter()
+            .chain(&previous.sibling_product_checks)
+            .cloned()
+            .collect(),
+        root_package: package_inputs.map(PackageCompilationInputs::root),
+        build_helper_identity: execution.identity().as_str(),
     }
     .prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {

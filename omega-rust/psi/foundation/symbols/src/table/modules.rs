@@ -18,7 +18,7 @@ use crate::{Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ModuleImport {
-    path: Arc<str>,
+    pub(super) path: Arc<str>,
     package_prefix_members: usize,
     exact_source: bool,
 }
@@ -55,6 +55,7 @@ impl SourceScopedTopLevelBinding {
                 package_prefix_members,
                 exact_source: true,
             }),
+            producer: super::BindingProducer::Loader,
         }
     }
 }
@@ -150,6 +151,7 @@ impl SymbolTable {
         if let Some(import) = &mut binding.module_import {
             import.exact_source = false;
         }
+        binding.producer = super::BindingProducer::AuthoredImport;
         self.source_scoped_top_level_bindings.push(binding);
         self.binding_source_index.clear();
     }
