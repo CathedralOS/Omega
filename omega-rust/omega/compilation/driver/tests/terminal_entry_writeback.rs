@@ -8,6 +8,7 @@ mod terminal_mutable_boundary;
 use compiler::{CheckedCompileRequest, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
+use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
