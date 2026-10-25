@@ -394,6 +394,26 @@ fn admit_provider_selections(
     })
 }
 
+/// Runtime input carriers, without declaration-local places or the entry
+/// qualifications a root assumption may discharge.
+///
+/// Places are allocated per boundary from one unit counter, so equal
+/// signatures do not share place ids. Parameter qualifications are
+/// invocation premises, not a second copy of the structural type, access,
+/// or multiplicity.
+fn same_structural_input_carriers(
+    required: &[terminal_psi::StructuralParameterDeclaration],
+    supplied: &[terminal_psi::StructuralParameterDeclaration],
+) -> bool {
+    required.len() == supplied.len()
+        && required.iter().zip(supplied).all(|(required, supplied)| {
+            required.position == supplied.position
+                && required.structural_type == supplied.structural_type
+                && required.multiplicity == supplied.multiplicity
+                && required.access == supplied.access
+        })
+}
+
 /// Replay each root-authorized assumed binding against the verified catalog
 /// and the admitted checked selections.
 ///
@@ -437,9 +457,11 @@ fn admit_assumed_bindings(
         if !boundary_ids.contains(&assumption.supplied_requirement) {
             return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
         }
-        // Semantic entry/exit assumptions cannot recast carriers or grant
-        // custody, calling-mode or operational compatibility. Both declarations
-        // come from the independently verified catalog and retain their identities.
+        // Semantic entry assumptions may discharge input qualifications the
+        // caller-facing requirement does not carry. They cannot recast
+        // carriers, grant custody or calling mode, or mint result authority,
+        // content guarantees, or program-local roots. Both declarations come
+        // from the independently verified catalog and retain their identities.
         let required =
             terminal_psi::find_boundary_machine(&module.boundary_machines, assumption.required)
                 .unwrap();
@@ -456,7 +478,6 @@ fn admit_assumed_bindings(
             || !supplied.program_local_root_introductions.is_empty()
             || !required.content_guarantees.is_empty()
             || !supplied.content_guarantees.is_empty()
-            || required.requires != supplied.requires
             || qualified_result(required)
             || qualified_result(supplied)
         {
@@ -464,7 +485,10 @@ fn admit_assumed_bindings(
         }
         if required.parameter_order != supplied.parameter_order
             || required.scalar_parameters != supplied.scalar_parameters
-            || required.structural_parameters != supplied.structural_parameters
+            || !same_structural_input_carriers(
+                &required.structural_parameters,
+                &supplied.structural_parameters,
+            )
             || required.result != supplied.result
             || required.reference_outputs != supplied.reference_outputs
             || required.attachment != supplied.attachment

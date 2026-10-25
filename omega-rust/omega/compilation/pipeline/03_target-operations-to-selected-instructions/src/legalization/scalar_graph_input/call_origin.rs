@@ -196,6 +196,13 @@ pub(in crate::legalization) fn selected_boundary_operation(
     };
     let callee = *callee;
     let family = matches!(origin, NativeCallOrigin::TargetFamily { .. });
+    let assumed_entry = matches!(
+        origin,
+        NativeCallOrigin::InstalledProvider {
+            assumption: Some(_),
+            ..
+        }
+    );
     let entry = matches!(origin, NativeCallOrigin::ProgramEntry { .. });
     let provider = match origin {
         NativeCallOrigin::ProgramEntry {
@@ -285,8 +292,11 @@ pub(in crate::legalization) fn selected_boundary_operation(
         || declaration.structural_parameters.len() != structural_arguments.len()
         || candidate.structural_parameters.len() != structural_arguments.len()
         || provider.is_some_and(|provider| {
+            // A checked provider implements the caller-facing requirement.
+            // An assumed binding implements the supplied requirement: its
+            // input domains are admitted entry premises, not the caller's rows.
             provider.signature.parameters.len() != structural_arguments.len()
-                || provider.refinement.required_domains != declaration.requires
+                || provider.refinement.required_domains != provider_declaration.requires
                 || provider.refinement.realized_service_ceiling
                     != candidate.published_service_ceiling
         })
@@ -324,6 +334,7 @@ pub(in crate::legalization) fn selected_boundary_operation(
             || expected.access != actual.access
             || expected.multiplicity != actual.multiplicity
             || (!family
+                && !assumed_entry
                 && (expected.qualifications != actual.qualifications
                     || expected.projected_qualifications != actual.projected_qualifications))
             || (family
@@ -341,8 +352,10 @@ pub(in crate::legalization) fn selected_boundary_operation(
                     || expected.structural_type != signature.structural_type
                     || expected.access != signature.access
                     || expected.multiplicity != signature.multiplicity
-                    || expected.qualifications != signature.qualifications
-                    || expected.projected_qualifications != signature.projected_qualifications
+                    || (!assumed_entry
+                        && (expected.qualifications != signature.qualifications
+                            || expected.projected_qualifications
+                                != signature.projected_qualifications))
             })
         {
             return Err(LegalizationError::custody());
