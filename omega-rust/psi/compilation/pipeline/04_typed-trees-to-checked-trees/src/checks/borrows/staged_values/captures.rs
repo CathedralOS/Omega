@@ -5,6 +5,7 @@ use arena::Handle;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 
 pub(super) struct HeldLeaf {
+    pub(super) operand: Handle<FlowOperandFact>,
     pub(super) expression: typed_trees::expression::ExpressionHandle,
     pub(super) completion: usize,
     pub(super) route: Option<usize>,
@@ -36,6 +37,7 @@ pub(super) fn append(
                 })
         }) {
             leaves.push(HeldLeaf {
+                operand,
                 expression: capture.expression,
                 completion: 0,
                 route: None,
@@ -68,6 +70,7 @@ pub(super) fn append(
             .span(capture.constructed_children())
         else {
             leaves.push(HeldLeaf {
+                operand,
                 expression: capture.expression,
                 completion: 0,
                 route: None,
@@ -81,6 +84,7 @@ pub(super) fn append(
         for child in children {
             if !facts.flow.control.operands.is_valid(child.value) {
                 leaves.push(HeldLeaf {
+                    operand,
                     expression: capture.expression,
                     completion: 0,
                     route: None,
@@ -120,6 +124,7 @@ pub(super) fn append(
         validation::borrow_contracts::carried_reference_paths(program, capture.type_reference)
     else {
         leaves.push(HeldLeaf {
+            operand,
             expression: capture.expression,
             completion,
             route,
@@ -170,6 +175,7 @@ pub(super) fn append(
             Some(places) => {
                 for place in places {
                     leaves.push(HeldLeaf {
+                        operand,
                         expression: capture.expression,
                         completion,
                         route,
@@ -181,6 +187,7 @@ pub(super) fn append(
                 }
             }
             None => leaves.push(HeldLeaf {
+                operand,
                 expression: capture.expression,
                 completion,
                 route,

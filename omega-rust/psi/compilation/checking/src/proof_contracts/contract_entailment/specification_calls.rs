@@ -1237,17 +1237,29 @@ pub(super) fn call_scalar_substitution(
             program.state_signature_type_parameters(signature)
         }
     };
-    let values = applied
+    let mut values = applied
         .constants
         .iter()
         .map(|binding| Some((binding.symbol, binding.value_term()?)))
-        .chain(
-            applied
-                .runtime_parameters
-                .iter()
-                .map(|binding| Some((binding.symbol, observed(binding.observation_subject()?)?))),
-        )
         .collect::<Option<Vec<_>>>()?;
+    if !applied.runtime_parameters.is_empty() {
+        let executable = call_parameter_scope(program, caller, owner, site)?;
+        for binding in &applied.runtime_parameters {
+            let mut receiving = executable
+                .iter()
+                .filter(|parameter| parameter.symbol == binding.symbol);
+            if let Some(parameter) = receiving.next() {
+                if receiving.next().is_some() || parameter.is_const || parameter.is_mutable {
+                    return None;
+                }
+                // Realization already made this exact Value binder an ordinary
+                // trailing formal. Its completed argument owns the substitution;
+                // it has no second declaration-header name or source replay.
+                continue;
+            }
+            values.push((binding.symbol, observed(binding.observation_subject()?)?));
+        }
+    }
     let mut result = Vec::new();
     for (symbol, value) in values {
         let parameter = parameters
