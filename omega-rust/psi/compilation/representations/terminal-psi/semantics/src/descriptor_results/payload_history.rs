@@ -1549,6 +1549,9 @@ mod tests {
         let predicate = Proposition::Conjunction(vec![condition(3), condition(4)]);
         for retire in [false, true] {
             let (mut machine, source) = forked_history(&[2]);
+            // This single-arm input has no route through the other fork.
+            // Descriptor replay requires the whole supplied graph to be reachable.
+            let _ = machine.flow.remove(&position(3));
             let types = [StructuralTypeDeclaration {
                 quotient_carrier: None,
                 id: source.carrier,
