@@ -20,6 +20,10 @@ pub struct CheckedCompileRequest {
     /// `None` selects the host, or stays unprofiled on an uncatalogued host.
     pub build_execution_profile: Option<TargetProfile>,
     pub package_inputs: Option<PackageCompilationInputs>,
+    /// Acquired physical source before Build declares its package identity.
+    /// Mutually exclusive with a supplied package graph. No later live read may
+    /// replace these bytes, including Product imports after Build returns.
+    pub source_capture: Option<package_compilation::CapturedLocalSource>,
     /// Writable staging, separate from immutable package snapshots.
     pub build_dir: Option<std::path::PathBuf>,
     pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
@@ -52,6 +56,7 @@ impl CheckedCompileRequest {
             target_name: target_name.map(str::to_owned),
             build_execution_profile: None,
             package_inputs: None,
+            source_capture: None,
             build_dir: None,
             filesystem_sponsor: None,
             evaluation_sponsor: None,
@@ -123,29 +128,7 @@ impl CheckedExecutionRequest<'_> {
         let Some(inputs) = self.package_inputs else {
             return Ok(());
         };
-        if inputs.compilation_purpose() == build_declarations::DependencyPurpose::Build
-            && (self.build_execution_profile.is_none()
-                || self.selected_target_profile != self.build_execution_profile)
-        {
-            return Err(vec![Diagnostic::error(
-                "build-purpose package compilation requires its target to equal the admitted build execution profile",
-            )]);
-        }
         inputs
-            .validate_dependency_generated_source_execution_profile(self.build_execution_profile)
-            .map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| Diagnostic::error(error.to_string()))
-                    .collect::<Vec<_>>()
-            })?;
-        inputs
-            .validate_dependency_generated_source_target(self.selected_target_profile)
-            .map_err(|errors| {
-                errors
-                    .into_iter()
-                    .map(|error| Diagnostic::error(error.to_string()))
-                    .collect::<Vec<_>>()
-            })
+            .validate_execution_context(self.selected_target_profile, self.build_execution_profile)
     }
 }

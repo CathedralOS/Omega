@@ -24,6 +24,7 @@
 
 mod anonymous_owner;
 pub use anonymous_owner::AnonymousSourceCapture;
+pub use package_source::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
 mod canonical_fs;
 mod checked_source_cache;

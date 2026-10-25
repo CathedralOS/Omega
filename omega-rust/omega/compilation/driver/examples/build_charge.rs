@@ -31,6 +31,7 @@ fn main() {
     }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
+    unbound_build_invocation();
     interleaved_build_invocations();
     foreign_build_return_refuses();
     ignored_build_request_still_requires_join();
@@ -189,6 +190,7 @@ fn initial_build_source_isolation() {
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
+        None,
         &mut timings,
     )
     .expect("captured Build sources");
@@ -266,6 +268,7 @@ fn deferred_product_uses_captured_imports() {
     let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
         &root,
         None,
+        None,
         &mut timings,
     )
     .expect("directory-root Build capture");
@@ -286,6 +289,274 @@ fn deferred_product_uses_captured_imports() {
     );
     std::fs::remove_dir_all(&root).expect("remove exclusive temporary fixture");
     println!("deferred_product_import_used_captured_namespace_after_live_deletion");
+}
+
+fn unbound_build_invocation() {
+    let authored = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/separate_build_product_imports_exit");
+    let temporary =
+        platform_custody::temporary_directory::TemporaryDirectory::create("unbound-build", false)
+            .expect("exclusive source workspace");
+    for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
+        std::fs::copy(authored.join(name), temporary.path().join(name))
+            .expect("copy authored source");
+    }
+    let capture = package_source::local::operations::capture_local_source_input(
+        temporary.path(),
+        package_source::LocalSourceLimits::default(),
+    )
+    .expect("acquire source before its Build declares an owner");
+    let root = capture.canonical_live_root().join("main.omg");
+    for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
+        std::fs::remove_file(temporary.path().join(name))
+            .expect("remove live copy after acquisition");
+    }
+    let request = CheckedCompileRequest {
+        source_capture: Some(capture.clone()),
+        ..CheckedCompileRequest::new(
+            &root,
+            Some(
+                target::TargetProfile::host_if_supported()
+                    .expect("host target")
+                    .target_name(),
+            ),
+        )
+    };
+    let mut compiler = CompilationSession::default();
+    let before = counters::build_execution_count();
+    let mut invocation = compiler
+        .begin_package_build(request)
+        .unwrap_or_else(|failure| {
+            panic!(
+                "Build must precede its declared package identity: {:?}",
+                failure.into_diagnostics()
+            )
+        });
+    let returned = return_build(&mut invocation);
+    let inputs = unbound_join_inputs(
+        &capture,
+        capture.tree().clone(),
+        "separate_build_product_imports_exit",
+    );
+    invocation
+        .join_package_inputs(inputs)
+        .expect("join exact source owner");
+    let build = compiler
+        .complete_package_build(invocation, returned)
+        .unwrap_or_else(|failure| panic!("unbound completion: {:?}", failure.into_diagnostics()));
+    let product = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        private_entry_ram: Vec::new(),
+        terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+        terminal_authority_permission_policy: None,
+        optimization_rollback: Default::default(),
+    });
+    let mut outcomes = compiler
+        .complete_package_products(vec![(
+            (),
+            compiler::PreparedPackageProduct {
+                build,
+                product,
+                permissions: None,
+            },
+        )])
+        .expect("joined Product batch");
+    let (_, outcome) = outcomes.pop().expect("one Product outcome");
+    let report = outcome
+        .and_then(compiler::CompilationOutput::into_report)
+        .unwrap_or_else(|error| panic!("joined native Product: {:?}", error.into_diagnostics()));
+    let artifact = report
+        .retained_native_artifact()
+        .expect("native product")
+        .psi_artifact();
+    let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .expect("named Product publishes portable Terminal");
+    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        x86_flags: None,
+        provider_proposal: None,
+        artifact: &reloaded,
+        target: Some(
+            target::TargetProfile::host_if_supported()
+                .unwrap()
+                .target_name(),
+        ),
+        provisions: report.runtime_provisions(),
+        fuel_allowance: 100_000,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        standard_input: None,
+        clock: None,
+    })
+    .expect("execute joined Terminal Product");
+    assert!(
+        matches!(
+            observation.status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "{:?}",
+        observation.status
+    );
+    let output = temporary.path().join("output");
+    let published = compilation_products::publication::publish_compilation(report, &output)
+        .expect("publish native Product");
+    let observed = std::process::Command::new(
+        published
+            .checked_native_executable_path()
+            .expect("native executable"),
+    )
+    .output()
+    .expect("execute joined native Product");
+    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+    assert_eq!(counters::build_execution_count(), before + 1);
+    println!(
+        "acquired_unbound_build_joined_named_product_native_and_terminal_exit0_without_live_source_or_replay"
+    );
+
+    let other = package_source::local::operations::capture_local_source_input(
+        fixture_package_inputs::repo_root()
+            .join("tests/omega/pass/build/activation_yields_without_replay"),
+        package_source::LocalSourceLimits::default(),
+    )
+    .expect("different acquired namespace for refusal control");
+    let wrong_capture = unbound_join_inputs(
+        &capture,
+        other.tree().clone(),
+        "separate_build_product_imports_exit",
+    );
+    let wrong_name = unbound_join_inputs(&capture, capture.tree().clone(), "wrong_name");
+    let wrong_purpose = unbound_join_inputs(
+        &capture,
+        capture.tree().clone(),
+        "separate_build_product_imports_exit",
+    )
+    .with_compilation_purpose(build_declarations::DependencyPurpose::Build)
+    .expect("Build-purpose control");
+    let root_owner = fixture_package_inputs::fixture_package_identity(71);
+    let dependency_owner = fixture_package_inputs::fixture_package_identity(72);
+    let extra_dependency = package_compilation::PackageCompilationInputs::new(
+        root_owner,
+        build_declarations::BuildDeclarationKind::Application,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                root_owner,
+                "separate_build_product_imports_exit",
+                capture.canonical_live_root().to_path_buf(),
+            )
+            .with_captured_source(capture.tree().clone())
+            .expect("root custody"),
+            package_compilation::PackageSourceBinding::new(
+                dependency_owner,
+                "unrequested",
+                other.canonical_live_root().to_path_buf(),
+            ),
+        ],
+        vec![package_compilation::PackageDependencyBinding::new(
+            root_owner,
+            "unrequested",
+            dependency_owner,
+        )],
+    )
+    .expect("well-formed but unrequested graph");
+    for (inputs, fragment) in [
+        (
+            Some(wrong_capture),
+            "joined package source differs from the original Build capture",
+        ),
+        (
+            Some(wrong_name),
+            "joined package identity does not match the executed Build declaration",
+        ),
+        (
+            Some(extra_dependency),
+            "joined package dependencies require executed-request settlement",
+        ),
+        (
+            Some(wrong_purpose),
+            "build-purpose package compilation requires its target to equal the admitted build execution profile",
+        ),
+        (
+            None,
+            "Build completion requires joined package source custody",
+        ),
+    ] {
+        let mut session = CompilationSession::default();
+        let mut invocation = session
+            .begin_package_build(CheckedCompileRequest {
+                source_capture: Some(capture.clone()),
+                build_execution_profile: Some(
+                    target::TargetProfile::from_omega_target_name(Some("macos_arm64"))
+                        .expect("control Build profile"),
+                ),
+                ..CheckedCompileRequest::new(&root, Some("linux_x86_64"))
+            })
+            .expect("admit same unbound source for control");
+        let returned = return_build(&mut invocation);
+        if let Some(inputs) = inputs {
+            invocation
+                .join_package_inputs(inputs)
+                .expect("supply control join");
+        }
+        let failure = session
+            .complete_package_build(invocation, returned)
+            .err()
+            .expect("invalid join must refuse");
+        let diagnostics = failure.into_diagnostics();
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(fragment)),
+            "{diagnostics:?}"
+        );
+    }
+    println!(
+        "unbound_join_rejected_changed_capture_wrong_declaration_unrequested_dependency_and_missing_custody"
+    );
+    let mixed = CheckedCompileRequest {
+        source_capture: Some(capture.clone()),
+        package_inputs: Some(unbound_join_inputs(
+            &capture,
+            capture.tree().clone(),
+            "separate_build_product_imports_exit",
+        )),
+        ..CheckedCompileRequest::new(&root, Some("linux_x86_64"))
+    };
+    let before = counters::build_execution_count();
+    let failure = CompilationSession::default()
+        .begin_package_build(mixed)
+        .err()
+        .expect("mixed source modes refuse");
+    assert!(
+        failure
+            .into_diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "source preparation cannot combine an unbound capture with a supplied package graph"
+            ))
+    );
+    assert_eq!(counters::build_execution_count(), before);
+}
+
+fn unbound_join_inputs(
+    capture: &package_compilation::CapturedLocalSource,
+    tree: std::sync::Arc<source::CapturedSourceTree>,
+    name: &str,
+) -> package_compilation::PackageCompilationInputs {
+    let identity = fixture_package_inputs::fixture_package_identity(71);
+    package_compilation::PackageCompilationInputs::new(
+        identity,
+        build_declarations::BuildDeclarationKind::Application,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                identity,
+                name,
+                capture.canonical_live_root().to_path_buf(),
+            )
+            .with_captured_source(tree)
+            .expect("retained source binding"),
+        ],
+        Vec::new(),
+    )
+    .expect("final owner supplied after Build return")
 }
 
 fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequest {

@@ -19,6 +19,7 @@ pub(super) struct BuildSourceInvocation {
     frontier: TypedCompilationFrontier,
     evaluation: build_evaluation::PreparedBuildEvaluation,
     package_inputs: Option<PackageCompilationInputs>,
+    selected_target_profile: Option<target::TargetProfile>,
     build_execution_profile: Option<target::TargetProfile>,
     timings: CompileTimings,
     started: std::time::Instant,
@@ -35,7 +36,7 @@ pub(super) fn prepare_build_invocation(
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
     let CheckedExecutionRequest {
-        selected_target_profile: _,
+        selected_target_profile,
         build_execution_profile,
         package_inputs,
         build_dir,
@@ -95,6 +96,7 @@ pub(super) fn prepare_build_invocation(
         },
         evaluation,
         package_inputs: package_inputs.cloned(),
+        selected_target_profile,
         build_execution_profile,
         timings,
         started,
@@ -109,29 +111,70 @@ impl BuildSourceInvocation {
     pub(super) fn complete(
         self,
         returned: Option<build_evaluation::ReturnedBuild>,
+        joined_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
         let Self {
             frontier,
             evaluation,
             package_inputs,
+            selected_target_profile,
             build_execution_profile,
             mut timings,
             started,
         } = self;
+        if let (Some(original), Some(joined)) = (package_inputs.as_ref(), joined_inputs)
+            && original != joined
+        {
+            return Err(vec![Diagnostic::error(
+                "Build completion cannot replace its original package inputs",
+            )]
+            .into());
+        }
+        let initially_unbound = package_inputs.is_none();
+        let package_inputs = joined_inputs.or(package_inputs.as_ref());
+        if initially_unbound && let Some(inputs) = package_inputs {
+            inputs.validate_execution_context(selected_target_profile, build_execution_profile)?;
+        }
         let initial_sources = frontier.base_sources.clone();
         let evaluated = evaluation.complete(returned).map_err(|failure| {
-            super::attribute_failure(failure, &initial_sources, package_inputs.as_ref())
+            super::attribute_failure(failure, &initial_sources, package_inputs)
         })?;
+        if initially_unbound && let Some(inputs) = package_inputs {
+            if frontier.product_sources.is_none() {
+                return Err(vec![Diagnostic::error(
+                    "unbound package completion requires a deferred Product context",
+                )]
+                .into());
+            }
+            let declaration = evaluated.configuration.project_declaration.as_ref();
+            let name = match declaration {
+                Some(build_declarations::BuildDeclaration::Package(package)) => {
+                    Some(package.name.as_str())
+                }
+                Some(build_declarations::BuildDeclaration::Application(application)) => {
+                    Some(application.name.as_str())
+                }
+                _ => None,
+            };
+            if name.is_none()
+                || name != inputs.package_name(inputs.root())
+                || declaration.map(build_declarations::BuildDeclaration::kind)
+                    != Some(inputs.root_role())
+            {
+                return Err(vec![Diagnostic::error(
+                    "joined package identity does not match the executed Build declaration",
+                )]
+                .into());
+            }
+        }
         let completed = complete_build_source(
             frontier,
             evaluated,
-            package_inputs.as_ref(),
+            package_inputs,
             build_execution_profile,
             &mut timings,
         )
-        .map_err(|failure| {
-            super::attribute_failure(failure, &initial_sources, package_inputs.as_ref())
-        })?;
+        .map_err(|failure| super::attribute_failure(failure, &initial_sources, package_inputs))?;
         timings.add_completed(
             artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
             started.elapsed().as_micros(),

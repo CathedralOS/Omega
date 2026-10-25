@@ -1130,7 +1130,11 @@ narrows realization only.
   now begin, step and complete opaque Build invocations without holding a compiler
   session borrow; interleaved compilation preserves the paused activation. The
   activation retains its full request ledger and completion checks its exact code
-  owner. Ordinary one-shot compiler calls still own their execution loop. The
+  owner. Acquired unbound source can now run Build before package identity exists,
+  then join a matching named owner before Product typing, preserving captured bytes
+  even after live source deletion. The join still refuses new dependency custody
+  without executed-request settlement; package management still projects the graph
+  statically. Ordinary one-shot compiler calls still own their execution loop. The
   application still needs executed-request acquisition
   and final joining in place of package management's static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this

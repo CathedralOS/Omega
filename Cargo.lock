@@ -475,6 +475,7 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "package-evidence",
+ "package-source",
  "platform-custody",
  "proof-admission",
  "provider-planning",

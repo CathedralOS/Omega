@@ -27,6 +27,7 @@ use std::path::Path;
 pub(crate) fn prepare_checked_source(
     root_path: &Path,
     package_sources: Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
+    source_capture: Option<&package_compilation::CapturedLocalSource>,
     collect_timings: bool,
 ) -> Result<PreparedCheckedSource, Vec<Diagnostic>> {
     let mut timings = if collect_timings {
@@ -37,6 +38,7 @@ pub(crate) fn prepare_checked_source(
     let sources = ImmutableSourceParseCheckpoint::prepare_from_sources(
         root_path,
         package_sources,
+        source_capture,
         &mut timings,
     )?;
     Ok(PreparedCheckedSource::from_parsed(sources, timings))
@@ -94,13 +96,29 @@ fn prepare_typed_frontier(
 pub(super) struct PreparedPackageInvocation {
     root: std::path::PathBuf,
     target: target::TargetProfile,
-    inputs: PackageCompilationInputs,
+    inputs: Option<PackageCompilationInputs>,
     rollback: optimization_core::OptimizationRollback,
     permit_unsettled_fused_service_fields: bool,
     source: build_continuation::BuildSourceInvocation,
 }
 
 impl PreparedPackageInvocation {
+    pub(super) fn join_package_inputs(
+        &mut self,
+        inputs: PackageCompilationInputs,
+    ) -> Result<(), CompileFailure> {
+        if let Some(original) = &self.inputs
+            && original != &inputs
+        {
+            return Err(vec![Diagnostic::error(
+                "Build invocation cannot replace supplied package inputs",
+            )]
+            .into());
+        }
+        self.inputs = Some(inputs);
+        Ok(())
+    }
+
     pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.source.execution()
     }
@@ -109,18 +127,23 @@ impl PreparedPackageInvocation {
         self,
         returned: Option<build_evaluation::ReturnedBuild>,
     ) -> Result<PreparedPackageBuild, CompileFailure> {
-        let prepared = self.source.complete(returned)?;
+        let inputs = self.inputs.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build completion requires joined package source custody",
+            )]
+        })?;
+        let prepared = self.source.complete(returned, Some(&inputs))?;
         let base_sources = prepared.built.base_sources.clone();
         PreparedPackageBuild::seal(
             self.root,
             self.target,
-            self.inputs.clone(),
+            inputs.clone(),
             self.rollback,
             prepared,
             self.permit_unsettled_fused_service_fields,
         )
         .map_err(|mut diagnostics| {
-            attribute_diagnostics(&mut diagnostics, &base_sources, Some(&self.inputs));
+            attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
             CompileFailure::from(diagnostics)
         })
     }
@@ -135,17 +158,13 @@ pub(super) fn begin_package_build_worker(
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
-    let inputs = request.package_inputs.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "dependency Build preparation requires package source custody",
-        )]
-    })?;
+    let inputs = request.package_inputs;
     let child = CheckedExecutionRequest {
         selected_target_profile: Some(selected_target),
         build_execution_profile: request
             .build_execution_profile
             .or_else(target::TargetProfile::host_if_supported),
-        package_inputs: Some(&inputs),
+        package_inputs: inputs.as_ref(),
         build_dir: request.build_dir.as_deref(),
         filesystem_sponsor: request.filesystem_sponsor,
         evaluation_sponsor: request.evaluation_sponsor,
@@ -153,7 +172,7 @@ pub(super) fn begin_package_build_worker(
         // canonical Source metadata selects its sealed inventory, the same
         // way the product route derives it.
         build_snapshot: request.build_snapshot.or_else(|| {
-            package_compilation::BuildSnapshotRequest::automatic_package_inventory(Some(&inputs))
+            package_compilation::BuildSnapshotRequest::automatic_package_inventory(inputs.as_ref())
         }),
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
@@ -273,7 +292,7 @@ fn prepare_build_source(
     } else {
         None
     };
-    invocation.complete(returned)
+    invocation.complete(returned, None)
 }
 
 fn prepare_build_source_invocation(

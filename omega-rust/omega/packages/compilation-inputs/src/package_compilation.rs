@@ -102,6 +102,57 @@ struct PackageCompilationSourceRecord {
 }
 
 impl PackageCompilationInputs {
+    /// Admit the purpose and generated-source attachments of one compiler
+    /// occurrence, whether supplied initially or acquired during its Build.
+    pub fn validate_execution_context(
+        &self,
+        selected_target: Option<target::TargetProfile>,
+        build_profile: Option<target::TargetProfile>,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        use diagnostics::Diagnostic;
+        if self.compilation_purpose() == DependencyPurpose::Build
+            && (build_profile.is_none() || selected_target != build_profile)
+        {
+            return Err(vec![Diagnostic::error(
+                "build-purpose package compilation requires its target to equal the admitted build execution profile",
+            )]);
+        }
+        let diagnostics = |errors: Vec<PackageCompilationInputError>| {
+            errors
+                .into_iter()
+                .map(|error| Diagnostic::error(error.to_string()))
+                .collect::<Vec<_>>()
+        };
+        self.validate_dependency_generated_source_execution_profile(build_profile)
+            .map_err(diagnostics)?;
+        self.validate_dependency_generated_source_target(selected_target)
+            .map_err(diagnostics)
+    }
+
+    /// Admit ownership after an initially unbound Build. Until executed request
+    /// settlement supplies dependency receipts, only the empty roster can join.
+    pub(crate) fn validate_unbound_source_join(
+        &self,
+        root: &Path,
+        capture: &source::CapturedSourceTree,
+    ) -> Result<(), String> {
+        let record = self
+            .source
+            .packages
+            .get(&self.source.root)
+            .ok_or("joined package inputs lost their root")?;
+        if record.source_root != root || record.captured_source.as_deref() != Some(capture) {
+            return Err("joined package source differs from the original Build capture".into());
+        }
+        if self.source.packages.len() != 1
+            || !record.dependencies.is_empty()
+            || !record.build_dependencies.is_empty()
+        {
+            return Err("joined package dependencies require executed-request settlement".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn source_filesystem(&self) -> &source::SourceFileSystem {
         &self.source.filesystem
     }

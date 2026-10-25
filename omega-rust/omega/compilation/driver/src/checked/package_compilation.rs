@@ -40,6 +40,16 @@ pub struct PackageBuildInvocation {
 }
 
 impl PackageBuildInvocation {
+    /// Supply the package owner's final custody after Build has declared its
+    /// identity. Completion compares it with the original acquired capture and
+    /// executed role; this cannot replace inputs supplied before Build.
+    pub fn join_package_inputs(
+        &mut self,
+        inputs: package_compilation::PackageCompilationInputs,
+    ) -> Result<(), CompileFailure> {
+        self.source.join_package_inputs(inputs)
+    }
+
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
         self.source.execution()
     }
@@ -87,6 +97,8 @@ pub struct PreparedPackageProduct {
 
 impl CompilationSession {
     /// Admit an occurrence without executing Build or loading Product imports.
+    /// An acquired unbound capture needs no provisional package identity. Its
+    /// final package custody must join before completion prepares Product.
     pub fn begin_package_build(
         &mut self,
         request: CheckedCompileRequest,

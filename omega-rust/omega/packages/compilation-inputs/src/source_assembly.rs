@@ -1,12 +1,16 @@
 //! Assemble one source forest with exact package, import and generated-source custody.
 //!
-//! `ImmutableSourceParseCheckpoint::prepare` captures sources and parses the
-//! authored Build's import closure, or the Product roots for a default Build.
+//! `ImmutableSourceParseCheckpoint::prepare` consumes an acquired capture or
+//! captures sources, then parses the authored Build's import closure, or the
+//! Product roots for a default Build.
 //! `assemble` admits the selected scope's inputs and prelude. An authored Build
 //! retains `DeferredProductSources`: after its dependency join, Product imports
 //! and target entry contracts join the same captured namespace and parse prefix.
 //! Product imports cannot supply names to the initial Build context. Each source
 //! frontier goes through Psi's parser; no host source is recaptured at the join.
+//! An initially unbound capture may acquire its exact named package owner on
+//! that separate parsed prefix, before Product resolution. This never rewrites
+//! the checked Build's private invocation identity.
 //! `GeneratedSourceExtension::parse` consumes the activation's admitted output
 //! through that same facade, preserving separate generated-unit forests.
 //! No Build machine executes here; resolution and typing consume the result.
@@ -81,14 +85,21 @@ impl Clone for DeferredProductSources {
 
 impl DeferredProductSources {
     /// Load Product roots after successful Build return and dependency settlement.
-    /// The current route requires the original package inputs; installing newly
-    /// acquired dependency custody belongs to the pending coordinator migration.
+    /// A previously unbound capture may receive its exact named owner here.
+    /// Already supplied package inputs cannot be replaced. New dependency custody
+    /// still requires the pending executed-request settlement protocol.
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
         let mut checkpoint = self.checkpoint;
+        if checkpoint.package_source_inputs.is_none()
+            && let Some(inputs) = package_inputs
+        {
+            Arc::make_mut(&mut checkpoint.source_storage).join_package_inputs(inputs)?;
+            checkpoint.package_source_inputs = Some(inputs.source_inputs());
+        }
         checkpoint.validate_child(package_inputs)?;
         let roots = checkpoint.product_roots.take().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -149,6 +160,7 @@ impl ImmutableSourceParseCheckpoint {
     pub fn prepare_from_sources(
         root_path: &Path,
         package_sources: Option<Arc<crate::PackageCompilationSourceInputs>>,
+        source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
         let package_inputs = package_sources
@@ -160,15 +172,16 @@ impl ImmutableSourceParseCheckpoint {
                     .map(|error| Diagnostic::error(error.to_string()))
                     .collect::<Vec<_>>()
             })?;
-        Self::prepare(root_path, package_inputs.as_ref(), timings)
+        Self::prepare(root_path, package_inputs.as_ref(), source_capture, timings)
     }
 
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&PackageCompilationInputs>,
+        source_capture: Option<&crate::CapturedLocalSource>,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
+        let mut source_storage = SourceStorage::prepare(root_path, package_inputs, source_capture)?;
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
         let has_build = project
