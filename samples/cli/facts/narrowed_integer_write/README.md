@@ -18,17 +18,17 @@ oracle. Every twin changes only the supplied value from 70 to 200. It must
 reject the physical write obligation, rather than report unknown layout reach
 in an unrelated generic library declaration.
 
-| Place | Transport |
-| --- | --- |
-| [local](local/main.omg) | Local scalar |
-| [field](field/main.omg) | Owned record field |
-| [parameter](parameter/main.omg) | Forwarded call parameter |
-| [call result](call_result/main.omg) | Completed identity result |
-| [match join](match_join/main.omg) | Both normal-return arms, including an inline result |
-| [const name](const_name/main.omg) | Named static value |
-| [other state](other_state/main.omg) | Named state arrival |
-| [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder |
-| [target body](target_body/main.omg) | Checked body for each hosted target |
+| Place | Transport | Reject twin |
+| --- | --- | --- |
+| [local](local/main.omg) | Local scalar [invalid](local/invalid/main.omg) |
+| [field](field/main.omg) | Owned record field [invalid](field/invalid/main.omg) |
+| [parameter](parameter/main.omg) | Forwarded call parameter [invalid](parameter/invalid/main.omg) |
+| [call result](call_result/main.omg) | Completed identity result [invalid](call_result/invalid/main.omg) |
+| [match join](match_join/main.omg) | Both normal-return arms, including an inline result [invalid](match_join/invalid/main.omg) |
+| [const name](const_name/main.omg) | Named static value [invalid](const_name/invalid/main.omg) |
+| [other state](other_state/main.omg) | Named state arrival [invalid](other_state/invalid/main.omg) |
+| [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](other_machine/invalid/main.omg) |
+| [target body](target_body/main.omg) | Checked body for each hosted target [invalid](target_body/invalid/main.omg) |
 
 Each place has an `invalid/main.omg` twin and a corresponding pin under
 `tests/omega/{pass,fail}/facts/narrowed_integer_write_through_<place>_*`.
