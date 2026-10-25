@@ -662,12 +662,7 @@ defines the complete product bar.
     Retain completed descriptor operands across later argument-driven slot
     replacement, including direct views and constructed children with local backing.
     Complete remaining cyclic, opaque and dependent result composition through
-    the same producer and custody relationships. In
-    `pass/layouts/runtime_recursive_encoded_reference_exit`, preserve the
-    completed encoded leaf descriptor across preceding pointee-only recursive
-    writes: the later `select_recursive` call still refuses its backing. Trace
-    descriptor-binding invalidation separately from unknown content writes;
-    retain actual descriptor-replacement rejection.
+    the same producer and custody relationships.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
