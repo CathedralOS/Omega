@@ -7,6 +7,7 @@ version.workspace = true
 
 [dependencies]
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 psi-compiler = { path = "../../../psi/compilation/driver" }

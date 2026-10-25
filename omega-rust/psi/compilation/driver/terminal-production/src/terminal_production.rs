@@ -140,9 +140,9 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .collect();
         let binding_calls = crate::build_bindings::capture(checked, optimized.lowered())
-            .map_err(TerminalArtifactProductionError::BuildBindings)?;
+            .map_err(TerminalArtifactProductionError::BuildContext)?;
         let request_calls = crate::build_requests::capture(checked, optimized.lowered())
-            .map_err(TerminalArtifactProductionError::BuildBindings)?;
+            .map_err(TerminalArtifactProductionError::BuildContext)?;
         let artifact = observer
             .record_result(PsiCompilationStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
@@ -173,7 +173,7 @@ impl<'a> TerminalProductionRequest<'a> {
 
 #[derive(Debug)]
 pub enum TerminalArtifactProductionError {
-    BuildBindings(Diagnostic),
+    BuildContext(Diagnostic),
     Lowering(LoweringError),
     Optimization(PsiOptimizationStageError),
     Artifact(terminal_codec::CanonicalTerminalArtifactError),
@@ -190,7 +190,7 @@ impl TerminalArtifactProductionError {
     /// source span, as an `Incomplete` coverage provision.
     pub fn diagnostic(&self) -> Diagnostic {
         match self {
-            Self::BuildBindings(error) => Some(error.clone()),
+            Self::BuildContext(error) => Some(error.clone()),
             Self::Lowering(error) => error.plan_gap().cloned(),
             _ => None,
         }

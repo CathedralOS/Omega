@@ -185,6 +185,15 @@ impl PreparedBuildMachineProgram {
         }
     }
 
+    /// Borrow the admitted language judgment for ordinary Terminal production.
+    /// This exposes content, not host grants or an executable entry token.
+    pub fn checked_trees(&self) -> Option<&checked_trees::CheckedTrees> {
+        match &self.program {
+            PreparedBuildMachineBody::Checked(program) => Some(&program.checked),
+            PreparedBuildMachineBody::Typed(_) => None,
+        }
+    }
+
     /// Execute an admitted zero-argument constant through the common Terminal
     /// producer and instance lifecycle. Source admission and exact selected
     /// operator custody precede execution, which cannot rewrite that judgment.

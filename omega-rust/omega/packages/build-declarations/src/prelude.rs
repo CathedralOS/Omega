@@ -190,48 +190,47 @@ public boundary trait BuildRequestOperations {
     machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches;
     machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches;
 }
-public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations {
+public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
     Build::request_dependency(builder, false, false, "", source);
 }
-public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations {
+public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
     Build::request_dependency(builder, false, true, alias, source);
 }
-public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations {
+public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
     Build::request_dependency(builder, true, false, "", source);
 }
-public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations {
+public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations; {
     Build::request_dependency(builder, true, true, alias, source);
 }
 machine Build::request_dependency(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
     transition source {
-        Source::Path { location } -> path(builder, build_scope, explicit_alias, alias, location)
-        Source::Git { repository, revision, selection } -> git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
-    }
-    machine path(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches BuildRequestOperations {
-        BuildRequestOperations::depend_path(builder, build_scope, explicit_alias, alias, location);
-    }
-    machine git(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) reaches BuildRequestOperations {
-        transition selection {
-            PackageSelection::Root -> selected(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
-            PackageSelection::Named { package } -> selected(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
-        }
-        machine selected(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
-            BuildRequestOperations::depend_git(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
-        }
+        Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location)
+        Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
     }
 }
-public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations {
+machine Build::request_path(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::depend_path(builder, build_scope, explicit_alias, alias, location);
+}
+machine Build::request_git(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) reaches BuildRequestOperations {
+    transition selection {
+        PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
+        PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
+    }
+}
+machine Build::request_selected_git(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::depend_git(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
+}
+public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
     BuildRequestOperations::package(builder, name);
 }
-public machine Build::application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations {
+public machine Build::application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
     BuildRequestOperations::application(builder, name);
 }
-public machine Build::member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations {
+public machine Build::member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations; {
     BuildRequestOperations::member(builder, path);
 }
-// Artifact-only application modifier: a declaration statement harvested
-// statically; the declared body is the evaluator no-op.
-public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOperations {
+// The executed request is joined with the application role and required outputs.
+public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOperations invokes BuildRequestOperations; {
     BuildRequestOperations::artifact_only(builder);
 }
 // Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a

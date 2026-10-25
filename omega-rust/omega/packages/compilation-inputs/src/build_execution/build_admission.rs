@@ -90,6 +90,17 @@ pub fn admit_build_machine(
         .unwrap_or(&[]);
     let transitive_names = transitive
         .iter()
+        .filter(|service| {
+            !typed
+                .service_reaches
+                .definition(**service)
+                .is_some_and(|definition| {
+                    language_semantics::build_requests::is_project_request_protocol(
+                        &typed.symbols,
+                        definition.symbol,
+                    )
+                })
+        })
         .map(|service| {
             typed
                 .service_reaches

@@ -19,6 +19,7 @@
 
 pub(crate) use optimization::codec_bytes;
 
+pub mod build_requests;
 pub mod byte_predicates;
 pub mod const_value;
 pub mod content;

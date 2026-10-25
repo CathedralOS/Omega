@@ -54,17 +54,12 @@ pub(super) fn capture(
 ) -> Result<Vec<TerminalBuildRequestCall>, diagnostics::Diagnostic> {
     let mut declarations = Vec::new();
     for definition in checked.traits() {
-        if !definition.is_boundary || definition.name.as_str() != "BuildRequestOperations" {
-            continue;
-        }
-        let source = checked
-            .symbols
-            .symbol_source_span(definition.symbol)
-            .and_then(|span| checked.symbols.source_file(span));
-        if !source.is_some_and(|source| {
-            source.origin == source::SourceOrigin::Toolchain
-                && source.path == std::path::Path::new("<build-prelude>")
-        }) {
+        if !definition.is_boundary
+            || !language_semantics::build_requests::is_project_request_protocol(
+                &checked.symbols,
+                definition.symbol,
+            )
+        {
             continue;
         }
         for signature in checked.trait_machine_signatures(definition) {
