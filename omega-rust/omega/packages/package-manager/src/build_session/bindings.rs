@@ -10,10 +10,6 @@ pub struct PackageSourceBindings {
 }
 
 impl PackageSourceBindings {
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
     pub(crate) fn for_closure(closure: &ResolvedPackageSourceClosure) -> Self {
         Self {
             collect_timings: false,

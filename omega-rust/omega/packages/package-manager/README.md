@@ -53,8 +53,8 @@ does not make the compiler depend on install/update orchestration. Source
 acquisition constructs input custody; compiler consumption records the exact
 source units it used; review joins those results to package policy.
 
-[`operations::inspect_packages`](src/operations/inspect_packages/README.md)
-drives `omega audit packages`: current project source, pinned dependencies,
+[`PackageInspectionTransaction`](src/operations/inspect_packages/README.md)
+admits `omega audit packages`: current project source, pinned dependencies,
 fresh compiler findings, and comparison with accepted policy without publishing
 changes. Default summaries and `--details` separate readable inspection from
 the complete normalized policy.
@@ -203,8 +203,10 @@ exemption. Broader host scopes still project restricted requests, whose retained
 lock meaning is distinct from actual invocation grants.
 
 The top-level invocation owns one `PackageBuildSession` across its review
-targets and rounds. [`inspect_packages.rs`](src/operations/inspect_packages.rs)
-creates and disposes the audit's owner. The CLI's
+targets and rounds. Application Build's
+[`package_inspection.rs`](../../application/build/src/package_inspection.rs)
+creates and disposes the audit's owner and executes its ordered target roster.
+The CLI's
 [`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
 to `omega_build::execute_package_command`. A later user-issued command creates its own

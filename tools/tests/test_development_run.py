@@ -422,6 +422,42 @@ class DevelopmentRun(unittest.TestCase):
         self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
         self.assertFalse((self.project / "build/package-manager/proposal").exists())
 
+    def test_unlocked_audit_keeps_success_after_failed_target(self):
+        # Canonical order puts UEFI first. Its unavailable entry must not hide
+        # the later hosted target, and neither report admits a new lock.
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", "windows_x86_64", "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        refused, accepted = result.stdout.split("target omega.target-profile.v1:windows_x86_64", 1)
+        self.assertIn("target omega.target-profile.v1:uefi_x86_64", refused)
+        self.assertIn("fresh-analysis unavailable", refused)
+        self.assertIn("fresh-analysis complete", accepted)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
+    def test_audit_duplicate_targets_reject_before_review(self):
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", self.target, "--target", self.target)
+        self.assert_exit(result, 64)
+        self.assertIn("duplicate target", result.stderr)
+        self.assertNotIn("note=review_pass", result.stderr)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
+    def test_locked_audit_refuses_unaccepted_target(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        self.environment["OMEGA_REVIEW_TIMINGS"] = "1"
+        result = self.invoke("audit", "packages", "--project", self.project, "--offline",
+                             "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        self.assertIn("no accepted target uefi_x86_64", result.stderr)
+        self.assertNotIn("note=review_pass", result.stderr)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
     def test_discard_review_does_not_run_invalid_source(self):
         # Discard is a transaction operation, not a Build or review request.
         (self.project / "main.omg").write_text("this is deliberately not Omega")

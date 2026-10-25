@@ -1,6 +1,39 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn package_audit_owns_session_and_target_execution_in_build() {
+    let mut application = include_str!("package_inspection.rs");
+    for operation in [
+        "PackageInspectionTransaction::open(options)",
+        "PackageBuildSession::create(",
+        "transaction.prepare(None)",
+        "for target in inspection.targets().to_vec()",
+        "inspection.review_target(",
+        "inspection.finish()",
+        "session.dispose(result)",
+    ] {
+        let position = application
+            .find(operation)
+            .expect("ordered audit lifecycle");
+        application = &application[position + operation.len()..];
+    }
+    let policy =
+        include_str!("../../../packages/package-manager/src/operations/inspect_packages.rs");
+    for forbidden in [
+        "PackageBuildSession::create(",
+        "session.dispose(",
+        "for target in targets",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "package policy schedules {forbidden}"
+        );
+    }
+    assert!(policy.contains("self.completed_targets != self.targets.len()"));
+    assert!(policy.contains("after != self.before"));
+}
+
+#[test]
 fn review_policy_admits_work_and_application_executes_it() {
     let policy = include_str!(
         "../../../packages/package-manager/src/review/candidate/passes/occurrences.rs"

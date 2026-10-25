@@ -17,17 +17,6 @@ struct PendingReviewBuild {
     snapshot: Option<package_compilation::BuildSnapshotRequest>,
 }
 
-/// Audit uses the same dependency execution as install/update, while package
-/// policy retains per-target reporting and never admits publication decisions.
-pub fn inspect_packages(
-    options: package_manager::operations::PackageInspectionOptions,
-) -> Result<
-    package_manager::operations::PackageInspectionOutcome,
-    package_manager::operations::PackageInspectionError,
-> {
-    package_manager::operations::inspect_packages(options, None, execute_pass)
-}
-
 /// A demanded cache record may lack an executable component description.
 /// Refresh that dependency while retaining completed reviews and the waiting
 /// consumer's Build. Each restart adds a newly demanded occurrence; exact

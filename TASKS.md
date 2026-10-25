@@ -2930,9 +2930,10 @@ crash and native exit behavior.
   decisions and publication. Application Build also executes the admitted review
   dependency passes for commands and audit, retaining suspended Builds through
   cache-miss recovery. Package policy selects discovery/bound passes and owns
-  occurrence reuse, evidence joins and optional cache writes. The audit's outer
-  target/session lifecycle and Terminal Build/helper activation scheduling still
-  need migration. Psi
+  occurrence reuse, evidence joins and optional cache writes. Application Build
+  owns audit session lifetime and target execution; package completion retains
+  ordered report joins and unchanged-file checks. Terminal Build/helper activation
+  scheduling still needs migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
