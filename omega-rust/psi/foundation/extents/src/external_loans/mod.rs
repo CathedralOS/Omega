@@ -9,15 +9,8 @@ use crate::identities::{
     NormalizedIdentitySet,
 };
 use crate::loans::{ExtentLoan, LoanPolarity};
-
-normalized_extent_identity! {
-
-    ExternalBorrowerId, "external-borrower"
-}
-normalized_extent_identity! {
-
-    ExternalLoanId, "external-loan"
-}
+normalized_extent_identity! { ExternalBorrowerId, "external-borrower" }
+normalized_extent_identity! { ExternalLoanId, "external-loan" }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalLoanDirection {
     /// The external borrower observes memory. CPU reads remain compatible, but
@@ -28,14 +21,8 @@ pub enum ExternalLoanDirection {
     DeviceWrites,
 }
 
-normalized_extent_identity! {
-
-    ExternalCompletionFactId, "external-completion-fact"
-}
-normalized_extent_identity! {
-
-    ExternalReachReceiptId, "external-reach receipt"
-}
+normalized_extent_identity! { ExternalCompletionFactId, "external-completion-fact" }
+normalized_extent_identity! { ExternalReachReceiptId, "external-reach receipt" }
 /// Why the provider may assert that the invisible borrower can reach only the
 /// exact range named by one external loan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
