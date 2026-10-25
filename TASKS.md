@@ -416,7 +416,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view,ranked_indexed_byte_view,computed_ranked_indexed_byte_view,captured_window_indices}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
