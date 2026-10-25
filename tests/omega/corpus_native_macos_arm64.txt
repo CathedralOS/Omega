@@ -50,6 +50,15 @@ pass/facts/descriptor_replacement_order_through_other_state_exit built 1116ms ex
 pass/facts/descriptor_replacement_order_through_parameter_exit built 1109ms exit:0 @007086c4fb46
 pass/facts/descriptor_replacement_order_through_target_body_exit built 1111ms exit:0 @007086c4fb46
 pass/facts/exclusive_descriptor_array_access_exit built 1083ms exit:0 @007086c4fb46
+pass/facts/foreign_scalar_record_result_through_call_result_exit built 1007ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_const_name_exit built 1111ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_field_exit built 756ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_local_exit built 752ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_match_join_exit built 761ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_other_machine_exit built 763ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_other_state_exit built 763ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_parameter_exit built 743ms exit:0 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_target_body_exit built 755ms exit:0 @0360a23ad5f5+wt
 pass/facts/nested_eight_level_record_field_bound_through_call_result_exit built 1912ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eight_level_record_field_bound_through_const_name_exit built 1830ms exit:0 @4c23cc3391c2+wt
 pass/facts/nested_eight_level_record_field_bound_through_field_exit built 1716ms exit:0 @4c23cc3391c2+wt

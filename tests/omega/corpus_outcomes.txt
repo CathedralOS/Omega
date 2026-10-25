@@ -6705,6 +6705,24 @@ fail/facts/foreign_retained_shared_borrow_retained_redemption rejected 1813ms ex
 	callable `Reader::redeem` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending`; retained-after-return authority requires a consumed owned input
 fail/facts/foreign_retained_shared_borrow_target_body rejected 1931ms expected @b0640f0a9309
 	statement 4 mutates `buffer.value` while local borrow `routed` is still active (borrowed at statement 3; its last use is at statement 6)
+fail/facts/foreign_scalar_record_result_through_call_result_rejected rejected 400ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_const_name_rejected rejected 416ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_field_rejected rejected 423ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_local_rejected rejected 417ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_match_join_rejected rejected 412ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_other_machine_rejected rejected 422ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_other_state_rejected rejected 426ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_parameter_rejected rejected 406ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_target_body_rejected rejected 399ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/forty_variant_enum_payload_bound_through_call_result_rejected rejected 2577ms expected @9d9ba4fb6251+wt
 	cannot prove ensures contract for exit from extract_payload at statement 79: result >= 40 && result <= 80
 fail/facts/forty_variant_enum_payload_bound_through_const_name_rejected rejected 1856ms expected @9d9ba4fb6251+wt
@@ -22892,6 +22910,15 @@ pass/facts/foreign_retained_shared_borrow_parameter checked 2653ms check-target:
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_borrow checked 2755ms check-target:macos_arm64 @b0640f0a9309
 pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called checked 2939ms check-target:macos_arm64 @b0640f0a9309
 pass/facts/foreign_retained_shared_borrow_target_body checked 2167ms check-target:macos_arm64 @b0640f0a9309
+pass/facts/foreign_scalar_record_result_through_call_result_exit checked 723ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_const_name_exit checked 723ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_field_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_local_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_match_join_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_other_machine_exit checked 681ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_other_state_exit checked 637ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_parameter_exit checked 710ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_target_body_exit checked 656ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/forty_variant_enum_payload_bound_through_call_result_exit checked 2261ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_const_name_exit checked 2452ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_field_exit checked 2354ms check-target:macos_arm64 @9d9ba4fb6251+wt

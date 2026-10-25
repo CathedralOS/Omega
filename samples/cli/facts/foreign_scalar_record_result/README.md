@@ -48,6 +48,18 @@ identities and retained products are recorded separately in qualification/PR
 evidence; declarations and cross-target builds provide no runtime credit.
 Linux ARM64 remains unmeasured until a matching host runs the row.
 
+Matching-host evidence for this row: optimized Mac producer `2cffebee3b86`
+passed all nine pinned positives and rejects plus the root and nine ordinary
+public `run --both` routes. Hosted run
+[40201214950](https://github.com/CathedralOS/Omega/actions/runs/40201214950)
+built producer `ffb3227a24d6` on Linux x86-64 and Windows x64: each host passed
+nine positives with native/Terminal exit zero and agreement, and nine exact
+`holds no value` rejects. Windows also resolved the named API-set export to
+the loaded UCRT image and called both signed input pairs. The retained ZIPs,
+producer profiles, native/Terminal products and original reports are bound
+in the scoped qualification evidence. These observations keep their actual
+producer identities after documentation and golden-only commits.
+
 This advances real Windows indirect C results when qualified there. It does
 not qualify a macOS indirect C result (this pair is register-returned), borrowed
 descriptor arguments, stack-slot overflow, or the parent's complete host matrix.
