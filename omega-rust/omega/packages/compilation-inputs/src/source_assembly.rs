@@ -269,8 +269,16 @@ impl ImmutableSourceParseCheckpoint {
         // an authored import. Loading supplies no selection or provider
         // authority: normal operand applicability, ambiguity, checked boundary
         // applications and selected ProviderPlans still own those judgments.
-        if sources_mention_floats(&source_storage, source_scope) {
-            imports.seed(core_root.join("float_operations.omg"), source_scope);
+        // The joined Product forest retains Build declarations too. Supply
+        // implicit vocabulary for each present checked scope, not only the
+        // roots being appended in this phase.
+        for scope in [
+            source::DependencyScope::Build,
+            source::DependencyScope::Product,
+        ] {
+            if sources_mention_floats(&source_storage, scope) {
+                imports.seed(core_root.join("float_operations.omg"), scope);
+            }
         }
         load_imports(
             &mut source_storage,

@@ -230,6 +230,14 @@ fn initial_build_source_isolation() {
     assert_eq!(retained.path, original.path);
     assert!(std::sync::Arc::ptr_eq(&retained.source, &original.source));
     assert!(product.product_sources.is_none());
+    for sources in [&syntax.sources, &product.sources] {
+        assert!(
+            sources
+                .files()
+                .any(|file| file.path.ends_with("float_operations.omg")
+                    && file.dependency_scope == source::DependencyScope::Build)
+        );
+    }
     println!("product_preparation_retained_the_exact_build_source_bytes");
 }
 
