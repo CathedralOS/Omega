@@ -46,7 +46,7 @@ Host: Linux x86_64. Producer: `target/debug/omega`, dev profile, `opt-level` 1, 
 
 ## Reject twins
 
-Each positive and its `invalid/main.omg` differ only in the entry contract: `machine start()` versus `machine start(unprovided: u64)`. The hosted contract supplies no arrival parameter, so the twin rejects. The pinned fragment is `hosted ProgramEntry exposes no arrival parameters`.
+The nine place positives and their `invalid/main.omg` twins differ only in the entry contract: `machine start()` versus `machine start(unprovided: &mut Unprovided)`. Both contain the same ordinary record declaration. The hosted contract supplies no arrival parameter or backing, so the twin must reject even though an all-zero `Unprovided` would be an ordinary valid local. The root twin retains the separate unprovided `u64` control. The pinned fragment is `hosted ProgramEntry exposes no arrival parameters`.
 
 ## Pinned fixtures
 
@@ -65,3 +65,32 @@ The nine pass fixtures under `tests/omega/pass/facts/free_entry_local_state_thro
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** The hosted image runs the free entry and agrees with Terminal Psi on this machine.
 
 What remains open on `EXPLICIT-ENTRY-STORAGE`: static-backed state with exclusive access and no ambient globals; an installed handoff that receives exactly its declared arguments; rejection of invented backing, invalid initialization, and overlapping root claims; removal of `NoneOrProvisionedZii` and signature-scanned mutable-context provisioning, including migration of existing entry-context samples. Windows, macOS, and QEMU runs are not available on this Linux machine. Only `linux_x86_64` native execution is observed here; the other three `ProgramEntry` bindings are declared and unchecked on this host.
+
+## Automatic-context retirement baseline
+
+On macOS ARM64 at `b50066b75303e6e899f27764c28e57deb5dbb1ab`,
+the public checker wrongly accepted an otherwise ordinary entry with an unprovided
+`&mut Context`. The preceding `3ddc7d1455f182d54645df101870ea9b441b9019`
+producer also executed that entry with native exit 0 and Terminal exit 0 by
+manufacturing backing. Those are refusal-control failures, not successful
+acceptance of an installed argument. The frozen probe and qualification receipt
+are retained in the outcome claim.
+
+The repair removes the signature scan and source-generated context caller,
+interpreter construction, implicit receiver entry shape, and native receiver
+construction. Former contextual applications now select authored free wrappers
+that own ordinary local state and pass an explicit borrow into the unchanged
+application machine. Their normal construction, cleanup and complete WCSU apply.
+Explicit installed placed-RAM recipes remain separate: their exact backing,
+initial bytes, occurrence identity and loan retirement are still required.
+
+Fresh macOS ARM64 execution at source checkpoint
+`9a080b560fe3803f9244108c75a2d74f90c6e552`, using its optimized candidate
+producer, reports native exit 0 and Terminal exit 0 for the root and all nine
+places. The root scalar twin and all nine mutable-record twins reject with
+`hosted ProgramEntry exposes no arrival parameters`: 20 discriminating public
+CLI observations. Their raw commands, exits, streams and binary digest are
+retained in the outcome's qualification/claim record. The earlier Linux runs
+above retain their original producer and source identities; they do not qualify
+this repair. Static-backed exclusive state and complete installed handoff
+acceptance remain open until their actual executions are recorded.
