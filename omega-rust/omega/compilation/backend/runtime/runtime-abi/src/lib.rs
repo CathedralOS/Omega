@@ -9,7 +9,12 @@ mod affine_transform;
 mod borrowed_storage;
 mod descriptor_io;
 mod integer_division;
+mod native_foreign_frame;
 mod network_address;
+pub use native_foreign_frame::{
+    NATIVE_FOREIGN_FRAME_ARGUMENTS_BYTE_OFFSET, NATIVE_FOREIGN_FRAME_RESULT_BYTE_OFFSET,
+    NativeForeignFrame,
+};
 mod processor_flags;
 mod runtime_abi;
 mod scalar_reference;

@@ -290,11 +290,21 @@ pub fn emit_native_foreign_bridge(
     }
     encoding.memory(&mut bytes, *frame_register, frame_pointer, 8, false)?;
     encoding.memory(&mut bytes, address_scratch, frame_pointer, 8, true)?;
-    encoding.pointer_memory(&mut bytes, 0, 8, true)?;
+    encoding.pointer_memory(
+        &mut bytes,
+        runtime_abi::NATIVE_FOREIGN_FRAME_ARGUMENTS_BYTE_OFFSET,
+        8,
+        true,
+    )?;
     encoding.memory(&mut bytes, scratch, input_array, 8, false)?;
     if let Some(offset) = output_pointer {
         encoding.memory(&mut bytes, address_scratch, frame_pointer, 8, true)?;
-        encoding.pointer_memory(&mut bytes, 8, 8, true)?;
+        encoding.pointer_memory(
+            &mut bytes,
+            runtime_abi::NATIVE_FOREIGN_FRAME_RESULT_BYTE_OFFSET,
+            8,
+            true,
+        )?;
         encoding.memory(&mut bytes, scratch, offset, 8, false)?;
     }
     for (ordinal, argument) in arguments.iter().enumerate() {

@@ -191,6 +191,7 @@ foundations, product reports and publication keep independent ownership.
 | `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
+| `omega/application/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
 
 These are destination owners, not extra facades above the current compiler.
 Dismantle the existing product coordinator into its actual owners. Reuse the
