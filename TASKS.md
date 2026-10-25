@@ -1147,10 +1147,9 @@ defines the complete product bar.
     as value-home, occurrence and invalid-custody controls.
   - Complete scalar materialization of moved linear places and claim-bearing
     call results on **STATE-LOCAL-VALUE-FRONTIER**'s computed-call path.
-    Anonymous scalar projections from linear-aggregate suppliers
-    still reach Terminal `AffineFrontierMismatch`. Keep
-    `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context
-    and detached-carrier control while completing those residual claims.
+    Keep `samples/cli/facts/borrowed_projection_cleanup/` as the captured-context,
+    detached-carrier and reference-free projected-supplier read control while
+    completing those remaining moved-value and computed-call claims.
     Preserve the checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_lowering/computations/calls.rs`
     with exact live-claim dispositions; claim-free discard/hook actions do not

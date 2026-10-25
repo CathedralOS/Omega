@@ -432,9 +432,9 @@ pub(crate) fn temporary_owners(
                 continue;
             }
             let capture = facts.flow.control.operands.get(observation.receiver);
-            let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, capture)
+            let roots = crate::flow::captured_observation_roots(program, &facts.flow.control, capture)
                 .ok_or_else(|| diagnostics::Diagnostic::error(format!(
-                    "temporary backing lifetime coverage is unavailable for an observed receiver in state `{}` at statement {}",
+                    "temporary backing observation coverage is unavailable for an observed receiver in state `{}` at statement {}",
                     state.name, statement_index,
                 )).with_source_span(program.expression_table.source_span(observation.expression)))?;
             if roots.contains(&facts::PlaceRoot::Expression(owner.expression)) {
