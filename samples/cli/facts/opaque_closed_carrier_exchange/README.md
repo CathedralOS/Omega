@@ -79,8 +79,9 @@ are established as follows:
   Equal byte size alone does not admit float, array, shifted or cyclic shapes.
 - **Instruction selection and activation (`Omega 03–06`):** native calls carry the
   four-byte address record through ordinary helper/state/field storage and the
-  selected Linux x86-64 C register lanes. This row does not establish stack-slot
-  boundary crossings, indirect aggregate returns or other ISA placement classes.
+  selected Linux x86-64 and Windows x64 C register lanes. This row does not
+  establish stack-slot boundary crossings, indirect aggregate returns or other
+  ISA placement classes.
 - **Encoding and emission (`Omega 07–09`):** the emitted Linux ELF executes its
   actual versioned libc relocations and agrees with Terminal execution on all
   observed values. Other image formats and branch-range boundaries are not
@@ -102,14 +103,16 @@ with the fact-sensitive diagnostics. Producer digests, source hashes, exact
 commands and raw outputs are retained in this change's qualification evidence;
 these observations are distinct from final candidate review.
 
-Every positive declares the four hosted `ProgramEntry` bindings. Linux x86-64 and
-macOS ARM64 are observed execution targets: all nine places and all nine
-independent places run `omega run --both` on macOS ARM64 with native exit 0 and
-Terminal agreement, and every cleanup twin rejects at checking. Linux ARM64
-bindings are declared but have no matching-host runtime observation here. This
-exact BSD inet API has no verified Windows provider in this row: a Windows entry
-declaration does not establish provider availability. Full crosshost coverage
-therefore remains open.
+Every positive declares the four hosted `ProgramEntry` bindings. Linux x86-64,
+macOS ARM64, and Windows x86-64 are observed execution targets for the direct
+row: all nine places run `omega run --both` with native exit 0 and Terminal
+agreement, and every cleanup twin rejects at checking. Windows has no
+`inet_makeaddr` or `inet_lnaof` export, so those requirements bind
+`omega_host.dll`, the classful definition of those C functions, and the loader
+finds that image beside the published executable. Linux ARM64 bindings are
+declared but have no matching-host runtime observation here. The nine
+independent places remain observed on Linux x86-64 and macOS ARM64. Full
+crosshost coverage of the independent exchange therefore remains open.
 
 ### Matching-host execution (macos_arm64)
 
@@ -185,7 +188,10 @@ contract or turning a description into execution authority.
 Each twin changes only the producing carrier's nominal cleanup obligation in
 [the invalid producing package](independent/producer_invalid/main.omg). Its
 consumer source is identical to the positive. The four hosted entries remain
-in every positive build, while execution observations are Linux x86-64 only.
+in every positive build. Execution observations for this exchange are Linux
+x86-64 and macOS ARM64. On windows_x86_64 the producer declares the same
+`omega_host.dll` binding, and publication rejects before execution because a
+shared component still requires an admitted ELF or Mach-O container.
 The paired sources are pinned under
 `tests/omega/{pass,fail}/facts/opaque_independent_closed_carrier_through_*`.
 

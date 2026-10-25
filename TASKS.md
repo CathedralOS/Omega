@@ -4833,9 +4833,12 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   [closed carrier exchange](samples/cli/facts/opaque_closed_carrier_exchange/README.md)
   checks actual libc values through public Terminal/native agreement on Linux
   x86-64 across transport places, with cleanup-only rejects. Its named constants
-  are construction inputs, not compile-time opaque occurrences. Matching-host
-  qualification on Linux ARM64 and a verified Windows provider remain; entry
-  declarations do not establish those results. Independent two-package
+  are construction inputs, not compile-time opaque occurrences. The same row
+  runs on windows_x86_64: the four-byte closed carrier is passed and returned
+  by value through `omega_host.dll`'s classful `inet_makeaddr` / `inet_lnaof`
+  exports, with Terminal agreement and cleanup-only rejects. Matching-host
+  qualification on Linux ARM64 remains; an entry declaration does not establish
+  that result. Independent two-package
   closed Affine Inert inputs and results now preserve the same exchange across
   all nine places with Linux native/Terminal agreement and cleanup twins;
   canonical macOS checking realizes separate dylib products, and the nine
