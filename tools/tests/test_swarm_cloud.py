@@ -1275,6 +1275,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_open_pr_is_not_publication(self):
         self.receipt['state']='OPEN'
+        self.receipt['mergeCommit']=None
         with self.assertRaisesRegex(RecoveryError,'merged main PR'):self.validate()
 
     def test_historical_cannot_fill_final_manifest_without_explicit_reuse(self):

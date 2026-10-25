@@ -82,3 +82,27 @@ overriding checks or jumping the queue. Use the documented helper or GitHub UI.
 If the queue itself breaks, inspect its required check and workflow first.
 Changing protection or disabling the queue is an explicit owner/admin operation,
 not an author fallback. Preserve failed runs and PRs for diagnosis.
+
+## Production cutover observed: 2026-10-25 UTC
+
+Main ruleset **25803202** is active with no bypass actors. The old publication
+queue was empty at cutover. The isolated pilot ruleset **25802197** and its
+workflow are disabled; their definitions and observations remain historical.
+
+- [Default-main admission/cache seed](https://github.com/CathedralOS/Omega/actions/runs/40148269956)
+  passed in 1m48s.
+- [Cold production runtime smoke](https://github.com/CathedralOS/Omega/actions/runs/40148228977)
+  passed in 12m44s: three native/Terminal positives and four intended rejections.
+- [Migration PR #21](https://github.com/CathedralOS/Omega/pull/21) passed
+  [PR admission](https://github.com/CathedralOS/Omega/actions/runs/40149107230)
+  in 32s (Cargo 2.51s), then
+  [queue admission](https://github.com/CathedralOS/Omega/actions/runs/40149184976)
+  with Cargo 3.48s. Both restored the default-main cache.
+- Source stayed `3b29d843632aab7898812d7927d411990551ff84` throughout submission;
+  the queue squash-published `4f1915ed5b2347f3636764e9440d2ff43629a323` at 01:05:41 UTC.
+  No author rebase/rebuild was needed. An attempted direct fast-forward of that
+  valid source returned HTTP 422 requiring the queue, leaving main unchanged.
+
+These are measured jobs, not a performance guarantee for compiler-changing PRs.
+The compile-error refusal control remains in the isolated pilot record; no broken
+source was pushed to main to demonstrate it.

@@ -30,10 +30,10 @@ Reuse a settled session for its next dependency-ready assignment. The coordinato
 selects fact witnesses under `samples/cli/facts`, reconciles ownership and verifies complete results.
 
 Each session qualifies coherently on one checkpoint with the executable
-[qualification runner](../../../tools/qualification.md). Integrate main near
-publication outside the queue; assess actual changed dependencies, reuse only
-justified unchanged observations and rerun affected/final-candidate checks.
-Preserve exact producer artifacts and final review/build/publication gates.
+[qualification runner](../../../tools/qualification.md). When actual conflicts
+or changed assumptions require integration, assess changed dependencies, reuse
+justified unchanged observations and rerun affected source checks. Preserve exact
+producer artifacts and required source review; GitHub owns integration admission.
 
 Compiler work dispatch requires the focused canonical passages by default.
 Configure `semantic_contracts` and a checkout at the recorded source through

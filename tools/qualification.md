@@ -148,8 +148,8 @@ the original receipt, review, process evidence and raw streams alongside the
 new receipt: ordinary applicability checks authenticate the indexed receipt,
 not every external recovery-provenance reference recursively.
 Assess normally afterward: recovery does not waive
-ordinary check applicability, final review, package acceptance or the exact
-landing build.
+ordinary check applicability, required source review, package acceptance or
+GitHub's integrated admission check.
 
 For a completed **nonaccepted** capture, use `recover-completed --disposition
 nonaccepted` instead. This covers an unexpected integer exit or any retained

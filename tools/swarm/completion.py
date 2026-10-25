@@ -78,10 +78,10 @@ def validate(repository, root, assignment, manifest, observation, cleanup_requir
     require(manifest.get("outcome") == assignment["outcome"], "acceptance outcome mismatch")
     require(manifest.get("user_rescue") is False, "user rescue prevents batch promotion")
     receipt = manifest["final_receipt"]
-    published = sha(receipt.get("mergeCommit", {}).get("oid"))
     require(receipt.get("state") == "MERGED" and receipt.get("baseRefName") == "main"
             and receipt.get("headRefOid") == candidate and receipt.get("url"),
             "merged main PR for the submitted source required")
+    published = sha((receipt.get("mergeCommit") or {}).get("oid"))
     require(observation.get("publication") == receipt, "fresh GitHub PR observation required")
     require(observation.get("landed_head") == published and observation.get("main") == manifest.get("remote_main")
             and observation.get("remote_evidence"), "fresh remote ancestry receipt required")
