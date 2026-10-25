@@ -13,6 +13,8 @@ use crate::fixture_package_inputs::{
     fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
 };
 
+#[path = "dynamic_image_controls.rs"]
+mod dynamic_image_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
@@ -28,6 +30,7 @@ enum InspectionControls {
     BoundaryCallables,
     IndexedFamily,
     MathematicalActuals,
+    DynamicImage,
 }
 
 #[derive(Clone, Copy)]
@@ -90,12 +93,15 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MathematicalActuals),
             ),
+            [machine, "dynamic-image-controls"] => {
+                (*machine, false, Some(InspectionControls::DynamicImage))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls`, `indexed-family-controls`, `mathematical-actuals` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -198,6 +204,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
+                InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }

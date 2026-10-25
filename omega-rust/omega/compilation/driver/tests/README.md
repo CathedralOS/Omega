@@ -163,6 +163,12 @@ producer and reloads its canonical artifact. Debug companions
 must retain the same program identity; changing that identity must reject at
 external ingress. This tests inspection without requiring a native program entry.
 
+`dynamic-image-controls` selects an existing Source-produced image-view fixture.
+It round-trips its isolated literal-returning dynamic row, then requires exact
+canonical refusals for mutable/write-only public regions and an Invocation-origin
+contract. The access mutations exercise the earlier public access guard; the
+Invocation mutation exercises image-origin admission. No forged module executes.
+
 An optional `expected_native_component_descriptions.txt` contains the nonzero
 number of independently emitted native component products expected by a fixture.
 The native leg consumes each canonical description through `verify_component`,
