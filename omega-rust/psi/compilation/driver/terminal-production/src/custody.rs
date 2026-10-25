@@ -20,11 +20,15 @@ use terminal_psi::CheckedProgramEntryTerminalReceipt;
 pub struct ProducedTerminalArtifact {
     pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
     pub(super) build_bindings: crate::TerminalBuildBindings,
+    pub(super) build_requests: crate::TerminalBuildRequests,
     pub(super) applications:
         Vec<Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<diagnostics::Diagnostic>>>,
 }
 
 impl ProducedTerminalArtifact {
+    pub const fn build_requests(&self) -> &crate::TerminalBuildRequests {
+        &self.build_requests
+    }
     pub const fn build_bindings(&self) -> &crate::TerminalBuildBindings {
         &self.build_bindings
     }

@@ -91,27 +91,33 @@ pub(super) fn capture(
                 ));
             }
         };
-        let emitted = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .find(|emitted| emitted.id == operation)
-            .ok_or_else(|| {
-                diagnostics::Diagnostic::error("Build binding lost its emitted operation")
-            })?;
-        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &emitted.kind else {
-            return Err(diagnostics::Diagnostic::error(
-                "Build binding no longer names a boundary call",
-            ));
-        };
+        let boundary = emitted_boundary(lowered, operation)?;
         calls.push(TerminalBuildBindingCall {
             operation,
-            boundary: *boundary,
+            boundary,
             action,
             request: request.clone(),
         });
     }
     Ok(calls)
+}
+
+pub(super) fn emitted_boundary(
+    lowered: &lowered_psi::LoweredPsi,
+    operation: OperationId,
+) -> Result<semantic_vocabulary::BoundaryMachineId, diagnostics::Diagnostic> {
+    let emitted = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find(|emitted| emitted.id == operation)
+        .ok_or_else(|| diagnostics::Diagnostic::error("Build operation lost its emitted call"))?;
+    let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &emitted.kind else {
+        return Err(diagnostics::Diagnostic::error(
+            "Build operation no longer names a boundary call",
+        ));
+    };
+    Ok(*boundary)
 }

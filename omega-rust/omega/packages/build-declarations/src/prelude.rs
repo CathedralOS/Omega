@@ -180,23 +180,59 @@ public data Source {
     case Path(location: &[u8]);
     case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
 }
-public machine Build::depend(builder: &mut Build, source: Source) {
+// Executed project requests cross one compiler-issued host protocol. Source
+// variants are decomposed by ordinary Omega code, not a host syntax visitor.
+public boundary trait BuildRequestOperations {
+    machine package(builder: &Build, name: &[u8]) reaches;
+    machine application(builder: &Build, name: &[u8]) reaches;
+    machine member(builder: &Build, path: &[u8]) reaches;
+    machine artifact_only(builder: &Build) reaches;
+    machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches;
+    machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches;
 }
-public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) {
+public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations {
+    Build::request_dependency(builder, false, false, "", source);
 }
-public machine Build::build_depend(builder: &mut Build, source: Source) {
+public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations {
+    Build::request_dependency(builder, false, true, alias, source);
 }
-public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) {
+public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations {
+    Build::request_dependency(builder, true, false, "", source);
 }
-public machine Build::package(builder: &mut Build, name: &[u8]) {
+public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations {
+    Build::request_dependency(builder, true, true, alias, source);
 }
-public machine Build::application(builder: &mut Build, name: &[u8]) {
+machine Build::request_dependency(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
+    transition source {
+        Source::Path { location } -> path(builder, build_scope, explicit_alias, alias, location)
+        Source::Git { repository, revision, selection } -> git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
+    }
+    machine path(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches BuildRequestOperations {
+        BuildRequestOperations::depend_path(builder, build_scope, explicit_alias, alias, location);
+    }
+    machine git(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) reaches BuildRequestOperations {
+        transition selection {
+            PackageSelection::Root -> selected(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
+            PackageSelection::Named { package } -> selected(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
+        }
+        machine selected(builder: &mut Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
+            BuildRequestOperations::depend_git(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
+        }
+    }
 }
-public machine Build::member(builder: &mut Build, path: &[u8]) {
+public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::package(builder, name);
+}
+public machine Build::application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::application(builder, name);
+}
+public machine Build::member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations {
+    BuildRequestOperations::member(builder, path);
 }
 // Artifact-only application modifier: a declaration statement harvested
 // statically; the declared body is the evaluator no-op.
-public machine Build::artifact_only(builder: &mut Build) {
+public machine Build::artifact_only(builder: &mut Build) reaches BuildRequestOperations {
+    BuildRequestOperations::artifact_only(builder);
 }
 // Behavior exclusion (wiki/spec/build/behavior_exclusions.md): a
 // product-admission requirement that the selected executable composition

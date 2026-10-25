@@ -163,6 +163,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                         host_provisions::observe_portable(
                             &decoded,
                             produced.build_bindings(),
+                            produced.build_requests(),
                             words,
                         )
                         .map_err(|error| format!("inspection {machine} runtime: {error}"))?;

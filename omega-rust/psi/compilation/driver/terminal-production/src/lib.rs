@@ -9,6 +9,7 @@
 //! sequence, source preparation or execution engine here.
 
 mod build_bindings;
+mod build_requests;
 mod composition_admission;
 mod custody;
 mod observation;
@@ -16,6 +17,9 @@ mod terminal_production;
 
 pub use build_bindings::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
+};
+pub use build_requests::{
+    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
 pub use composition_admission::TerminalCompositionAdmission;

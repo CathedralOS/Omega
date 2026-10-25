@@ -19,10 +19,11 @@ mod storage_budget;
 pub(super) fn observe_portable(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     bindings: &psi_compiler::TerminalBuildBindings,
+    requests: &psi_compiler::TerminalBuildRequests,
     words: &[&str],
 ) -> Result<(), String> {
     match words {
-        ["project-requests"] => project_requests::observe(artifact),
+        ["project-requests"] => project_requests::observe(artifact, requests),
         ["result-custody", cells, bytes, oracle @ ..] => {
             result_custody::observe(artifact, cells, bytes, oracle)
         }

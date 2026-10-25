@@ -141,6 +141,8 @@ impl<'a> TerminalProductionRequest<'a> {
             .collect();
         let binding_calls = crate::build_bindings::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildBindings)?;
+        let request_calls = crate::build_requests::capture(checked, optimized.lowered())
+            .map_err(TerminalArtifactProductionError::BuildBindings)?;
         let artifact = observer
             .record_result(PsiCompilationStage::Publication, || {
                 lowered_psi_to_terminal_psi::finalize_terminal_artifact(optimized)
@@ -159,9 +161,11 @@ impl<'a> TerminalProductionRequest<'a> {
             })
             .collect();
         let build_bindings = crate::TerminalBuildBindings::new(&artifact, binding_calls);
+        let build_requests = crate::TerminalBuildRequests::new(&artifact, request_calls);
         Ok(ProducedTerminalArtifact {
             artifact,
             build_bindings,
+            build_requests,
             applications,
         })
     }
