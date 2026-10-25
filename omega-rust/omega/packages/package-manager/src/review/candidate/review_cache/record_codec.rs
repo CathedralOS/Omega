@@ -2,7 +2,6 @@
 //! every enum is a checked tag. Unknown tags, trailing bytes and length
 //! overflows are all decode failures.
 
-use super::super::semantic_bindings::SemanticBindingReviewCandidate;
 use super::{CachedCompiledReview, CachedOccurrenceFacts};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
@@ -24,6 +23,7 @@ use package_compilation::{
     IndependentComponentDescription, PackageDependencyBinding, PackageDependencyClosure,
     PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
+use package_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";

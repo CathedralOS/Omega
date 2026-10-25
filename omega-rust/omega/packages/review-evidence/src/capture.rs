@@ -14,7 +14,12 @@ mod input;
 mod package_policy;
 mod providers;
 mod representation;
+mod semantic_bindings;
 mod semantics;
+pub use semantic_bindings::{
+    SemanticBindingProjectionError, candidate_hosted_exit_bindings, candidate_service_bindings,
+    candidate_target_entry_binding,
+};
 mod source;
 mod terminal_authority_permissions;
 

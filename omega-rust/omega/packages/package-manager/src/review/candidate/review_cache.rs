@@ -63,8 +63,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::review_set::CompilerIssuedPackageReview;
-use super::semantic_bindings::SemanticBindingReviewCandidate;
 use crate::declarations::{DependencyPurpose, PackageKey};
+use package_evidence::record::SemanticBindingReviewCandidate;
 
 const RECORD_EXTENSION: &str = "rec";
 const DEFAULT_MAX_RECORDS: usize = 256;
@@ -315,9 +315,9 @@ pub(crate) fn record_compiled_review(
             consumed_units,
             source_consumption_commitment: review.source_consumption_commitment(),
             component_description,
-            target_entry_candidate: super::semantic_bindings::candidate_target_entry_binding(
+            target_entry_candidate: package_evidence::candidate_target_entry_binding(
                 checked,
-                review.key(),
+                review.key().identity(),
                 review.generated_source_bundle().target(),
             )
             .ok()?,

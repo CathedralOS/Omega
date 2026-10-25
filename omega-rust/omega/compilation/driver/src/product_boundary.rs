@@ -2,6 +2,33 @@
 //! representations remain legitimate dependencies; transform crates do not.
 
 #[test]
+fn package_binding_policy_does_not_interpret_checked_source() {
+    let policy =
+        include_str!("../../../packages/package-manager/src/review/candidate/semantic_bindings.rs");
+    for forbidden in [
+        "CheckedCompilation",
+        "provider_planning::",
+        ".facts",
+        ".symbols",
+        ".traits()",
+        ".machines()",
+        ".providers()",
+    ] {
+        assert!(
+            !policy.contains(forbidden),
+            "binding policy interprets {forbidden}"
+        );
+    }
+    let projection =
+        include_str!("../../../packages/review-evidence/src/capture/semantic_bindings.rs");
+    assert!(!projection.contains("package_manager"));
+    assert!(!projection.contains("PackageKey,"));
+    let evidence = include_str!("../../../packages/review-evidence/Cargo.toml");
+    assert!(!evidence.contains("package-manager ="));
+    assert!(!evidence.contains("compiler ="));
+}
+
+#[test]
 fn application_does_not_depend_on_pipeline_stages() {
     let manifest = include_str!("../../../application/cli/Cargo.toml");
     assert!(
