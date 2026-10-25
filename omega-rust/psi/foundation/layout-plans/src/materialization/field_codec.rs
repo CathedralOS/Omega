@@ -53,6 +53,94 @@ pub fn decode_aggregate_field(
     byte_order: ByteOrder,
     source: &[u8],
 ) -> Result<Vec<u8>, MaterializationDiagnostic> {
+    let prepared = prepare_aggregate_field(layout, field, byte_order, source)?;
+    let width = prepared.width();
+    let mut decoded = Vec::new();
+    decoded
+        .try_reserve_exact(width)
+        .map_err(|_| MaterializationDiagnostic("field exceeds available storage".into()))?;
+    decoded.resize(width, 0);
+    prepared.copy_into(&mut decoded)?;
+    Ok(decoded)
+}
+
+/// Decode into a caller-owned field payload of exactly the declared extent.
+/// No byte payload is allocated inside this operation. Destination contents
+/// are unspecified on refusal; the caller keeps them private until success.
+pub fn decode_aggregate_field_into(
+    layout: &LayoutPlanReport,
+    field: &AggregateFieldSchema,
+    byte_order: ByteOrder,
+    source: &[u8],
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    prepare_aggregate_field(layout, field, byte_order, source)?.copy_into(destination)
+}
+
+/// Geometry and source ranges are established before either API allocates or
+/// writes a payload. The prepared form owns only one inline scalar or borrowed
+/// source slices; it never hides another heap byte image.
+enum DecodedAggregateField<'source> {
+    Scalar {
+        value: u64,
+        byte_order: ByteOrder,
+        width: usize,
+    },
+    Chunks {
+        width: usize,
+        parts: Vec<&'source [u8]>,
+    },
+}
+
+impl DecodedAggregateField<'_> {
+    fn width(&self) -> usize {
+        match self {
+            Self::Scalar { width, .. } | Self::Chunks { width, .. } => *width,
+        }
+    }
+
+    fn copy_into(self, destination: &mut [u8]) -> Result<(), MaterializationDiagnostic> {
+        if destination.len() != self.width() {
+            return Err(MaterializationDiagnostic(
+                "aggregate field destination differs from the complete field extent".into(),
+            ));
+        }
+        match self {
+            Self::Scalar {
+                value,
+                byte_order,
+                width,
+            } => match byte_order {
+                ByteOrder::LittleEndian => {
+                    destination.copy_from_slice(&value.to_le_bytes()[..width])
+                }
+                ByteOrder::BigEndian => {
+                    destination.copy_from_slice(&value.to_be_bytes()[8 - width..])
+                }
+            },
+            Self::Chunks { parts, .. } => {
+                let mut remaining = destination;
+                for part in parts {
+                    let Some((receiving, tail)) = remaining.split_at_mut_checked(part.len()) else {
+                        return Err(MaterializationDiagnostic(
+                            "aggregate field source ranges exceed its complete extent".into(),
+                        ));
+                    };
+                    receiving.copy_from_slice(part);
+                    remaining = tail;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn prepare_aggregate_field<'source>(
+    layout: &LayoutPlanReport,
+    field: &AggregateFieldSchema,
+    byte_order: ByteOrder,
+    source: &'source [u8],
+) -> Result<DecodedAggregateField<'source>, MaterializationDiagnostic> {
     let failure = |reason: &str| {
         MaterializationDiagnostic(format!(
             "aggregate field `{}` cannot decode: {reason}",
@@ -136,9 +224,10 @@ pub fn decode_aggregate_field(
         let [value] = decoded.as_slice() else {
             return Err(failure("scalar decoder lost its field"));
         };
-        return Ok(match byte_order {
-            ByteOrder::LittleEndian => value.value.to_le_bytes()[..width].to_vec(),
-            ByteOrder::BigEndian => value.value.to_be_bytes()[8 - width..].to_vec(),
+        return Ok(DecodedAggregateField::Scalar {
+            value: value.value,
+            byte_order,
+            width,
         });
     }
     let mut offsets = entries
@@ -185,10 +274,7 @@ pub fn decode_aggregate_field(
     if chunk_size.checked_mul(offsets.len()) != Some(width) {
         return Err(failure("placements do not cover the complete field"));
     }
-    let mut decoded = Vec::new();
-    decoded
-        .try_reserve_exact(width)
-        .map_err(|_| failure("field exceeds available storage"))?;
+    let mut parts = Vec::with_capacity(offsets.len());
     for offset in offsets {
         let start =
             usize::try_from(offset).map_err(|_| failure("offset exceeds host coordinates"))?;
@@ -198,9 +284,9 @@ pub fn decode_aggregate_field(
         let bytes = source
             .get(start..end)
             .ok_or_else(|| failure("field exceeds the retained layout extent"))?;
-        decoded.extend_from_slice(bytes);
+        parts.push(bytes);
     }
-    Ok(decoded)
+    Ok(DecodedAggregateField::Chunks { width, parts })
 }
 
 #[cfg(test)]
@@ -208,7 +294,7 @@ mod tests {
     use super::*;
     use crate::{
         AggregateFieldValue, IntegerInterpretation, LayoutFieldEntryReport,
-        materialize_aggregate_layout_into,
+        materialize_aggregate_layout_into, stage_aggregate_layout,
     };
 
     fn entry(field: &str, placement: LayoutPlacementReport) -> LayoutFieldEntryReport {
@@ -341,10 +427,28 @@ mod tests {
             let mut image = vec![0xa5; 16];
             materialize_aggregate_layout_into(&layout, &schemas, &values, order, &mut image)
                 .unwrap();
+            let borrowed = values
+                .iter()
+                .map(|value| {
+                    AggregateFieldValue::from_storage(&value.field, value.bytes.as_slice()).unwrap()
+                })
+                .collect::<Vec<_>>();
+            let mut scratch = [0xa5; 16];
+            stage_aggregate_layout(&layout, &schemas, &borrowed, order, &mut scratch).unwrap();
+            assert_eq!(scratch.as_slice(), image);
             for (schema, original) in schemas.iter().zip(&values) {
                 assert_eq!(
                     decode_aggregate_field(&layout, schema, order, &image).unwrap(),
                     original.bytes
+                );
+                let mut receiving = vec![0xa5; schema.byte_size as usize];
+                decode_aggregate_field_into(&layout, schema, order, &image, &mut receiving)
+                    .unwrap();
+                assert_eq!(receiving, original.bytes);
+                receiving.push(0);
+                assert!(
+                    decode_aggregate_field_into(&layout, schema, order, &image, &mut receiving)
+                        .is_err()
                 );
             }
             assert_eq!(&image[12..], &[0xa5; 4]);
@@ -379,6 +483,16 @@ mod tests {
         )
         .unwrap();
         assert_eq!(image, [1, 2, 0, 0, 3, 4, 0, 0, 5, 6]);
+        let mut receiving = [0; 6];
+        decode_aggregate_field_into(
+            &layout,
+            &schema,
+            ByteOrder::LittleEndian,
+            &image,
+            &mut receiving,
+        )
+        .unwrap();
+        assert_eq!(receiving.as_slice(), original.bytes);
         assert_eq!(
             decode_aggregate_field(&layout, &schema, ByteOrder::LittleEndian, &image).unwrap(),
             original.bytes
@@ -411,6 +525,32 @@ mod tests {
         // The supplied allocation has a second byte, but this plan does not.
         assert!(
             decode_aggregate_field(&layout, &schema, ByteOrder::LittleEndian, &[7, 8]).is_err()
+        );
+    }
+
+    #[test]
+    fn decode_rejects_invalid_geometry_before_allocating_declared_payload() {
+        let mut layout = LayoutPlanReport {
+            schema_report_fingerprint: 0,
+            offsets: None,
+            size: Some(1),
+            align: 1,
+            entries: vec![entry("value", LayoutPlacementReport::At { offset: 0 })],
+        };
+        let absent = AggregateFieldSchema::new("absent", u64::MAX).unwrap();
+        let error =
+            decode_aggregate_field(&layout, &absent, ByteOrder::LittleEndian, &[7]).unwrap_err();
+        assert!(error.0.contains("field is absent"), "{error:?}");
+        let present = AggregateFieldSchema::new("value", u64::MAX).unwrap();
+        let error =
+            decode_aggregate_field(&layout, &present, ByteOrder::LittleEndian, &[]).unwrap_err();
+        assert!(error.0.contains("source is shorter"), "{error:?}");
+        layout.size = None;
+        let error =
+            decode_aggregate_field(&layout, &present, ByteOrder::LittleEndian, &[7]).unwrap_err();
+        assert!(
+            error.0.contains("requires a fixed-size layout plan"),
+            "{error:?}"
         );
     }
 }

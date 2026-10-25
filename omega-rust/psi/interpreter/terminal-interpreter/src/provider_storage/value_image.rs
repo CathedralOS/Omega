@@ -7,12 +7,18 @@
 //! strides. This reader neither moves custody nor writes provider storage.
 //! Initialization must commit this image together with the original value's
 //! custody; serializing equal bits is not a replacement for that value.
+//! Every image payload uses the interpreter's byte-storage owner, including
+//! nested field and array scratch. The shared codec writes into that private
+//! funded image rather than allocating a second hidden staging image. Layout
+//! metadata is not a payload and this is not a generic temporary-memory bound.
 
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use evaluation_accounting::EvaluationInvocationAccount;
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, IntegerInterpretation,
-    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport, MaterializationDiagnostic,
+    LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
 };
 use semantic_vocabulary::{AuthoredFieldStorage, IntegerSign, ScalarType, StructuralTypeId};
 use terminal_psi::{
@@ -28,7 +34,7 @@ pub(crate) fn prepare(
     plan: &TerminalPlacementLifecyclePlan,
     source: &StructuralArgument,
     byte_order: ByteOrder,
-) -> Result<Vec<u8>, TerminalInterpretError> {
+) -> Result<ByteSequenceStorage, TerminalInterpretError> {
     let value = execution.resolve_live_projection(source.place, &source.path, source.access)?;
     if source.access != terminal_psi::StructuralAccess::Owned
         || value.structural_type != plan.schema
@@ -74,7 +80,13 @@ pub(crate) fn prepare(
         schemas.push(schema);
         values.push(value);
     }
-    materialize(plan.placement.layout(), &schemas, &values, byte_order)
+    materialize(
+        plan.placement.layout(),
+        &schemas,
+        &values,
+        byte_order,
+        execution.account.as_ref(),
+    )
 }
 
 struct ValueImageReader<'execution, 'program, 'source> {
@@ -86,7 +98,7 @@ struct ValueImageReader<'execution, 'program, 'source> {
 }
 
 impl ValueImageReader<'_, '_, '_> {
-    fn scalar(&self, scalar: ScalarType) -> Result<Vec<u8>, TerminalInterpretError> {
+    fn scalar(&self, scalar: ScalarType) -> Result<ByteSequenceStorage, TerminalInterpretError> {
         // Use the ordinary observation route: an owned record field is not a
         // reference-forming primitive home. The shared reader already joins
         // field namespaces, retained codecs and captured backing correctly.
@@ -97,10 +109,15 @@ impl ValueImageReader<'_, '_, '_> {
         let width = usize::from(
             terminal_semantics::reference_storage_byte_width(scalar).ok_or_else(malformed)?,
         );
-        Ok(match self.byte_order {
-            ByteOrder::LittleEndian => bits.to_le_bytes()[..width].to_vec(),
-            ByteOrder::BigEndian => bits.to_be_bytes()[16 - width..].to_vec(),
-        })
+        let encoded = match self.byte_order {
+            ByteOrder::LittleEndian => bits.to_le_bytes(),
+            ByteOrder::BigEndian => bits.to_be_bytes(),
+        };
+        let bytes = match self.byte_order {
+            ByteOrder::LittleEndian => &encoded[..width],
+            ByteOrder::BigEndian => &encoded[16 - width..],
+        };
+        ByteSequenceStorage::copy(bytes, self.execution.account.as_ref())
     }
 
     fn field(
@@ -108,7 +125,13 @@ impl ValueImageReader<'_, '_, '_> {
         field: &StructuralFieldDeclaration,
         name: &str,
         member_identity: Option<u64>,
-    ) -> Result<(AggregateFieldSchema, AggregateFieldValue), TerminalInterpretError> {
+    ) -> Result<
+        (
+            AggregateFieldSchema,
+            AggregateFieldValue<ByteSequenceStorage>,
+        ),
+        TerminalInterpretError,
+    > {
         let schema = field_schema(self.execution, field, name, member_identity)?;
         self.path.push(StructuralPathSegment::Field(field.identity));
         let bytes = match field.field_type.scalar_type() {
@@ -116,12 +139,15 @@ impl ValueImageReader<'_, '_, '_> {
             None => self.structure(field.field_type.as_structural().ok_or_else(malformed)?),
         }?;
         self.path.pop();
-        let value =
-            AggregateFieldValue::new(name, bytes).map_err(TerminalInterpretError::ValueImage)?;
+        let value = AggregateFieldValue::from_storage(name, bytes)
+            .map_err(TerminalInterpretError::ValueImage)?;
         Ok((schema, value))
     }
 
-    fn structure(&mut self, root: StructuralTypeId) -> Result<Vec<u8>, TerminalInterpretError> {
+    fn structure(
+        &mut self,
+        root: StructuralTypeId,
+    ) -> Result<ByteSequenceStorage, TerminalInterpretError> {
         if self.active.contains(&root) || self.active.len() >= 128 {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "owned image has cyclic or excessive structural depth",
@@ -140,7 +166,7 @@ impl ValueImageReader<'_, '_, '_> {
                 let (stride, _) =
                     terminal_semantics::reference_storage_layout(types.values(), *element)
                         .ok_or_else(malformed)?;
-                let mut bytes = zeroed(size)?;
+                let mut bytes = zeroed(size, self.execution.account.as_ref())?;
                 // Zero-byte arrays retain custody but need no per-element image work.
                 if stride != 0 {
                     for index in 0..*length {
@@ -150,11 +176,14 @@ impl ValueImageReader<'_, '_, '_> {
                         let start =
                             usize::try_from(index.checked_mul(stride).ok_or_else(malformed)?)
                                 .map_err(|_| malformed())?;
-                        let end = start.checked_add(element.len()).ok_or_else(malformed)?;
+                        let end = start
+                            .checked_add(element.bytes().len())
+                            .ok_or_else(malformed)?;
                         bytes
+                            .bytes_mut()
                             .get_mut(start..end)
                             .ok_or_else(malformed)?
-                            .copy_from_slice(&element);
+                            .copy_from_slice(element.bytes());
                     }
                 }
                 Ok(bytes)
@@ -170,7 +199,13 @@ impl ValueImageReader<'_, '_, '_> {
                     schemas.push(schema);
                     values.push(value);
                 }
-                materialize(&layout, &schemas, &values, self.byte_order)
+                materialize(
+                    &layout,
+                    &schemas,
+                    &values,
+                    self.byte_order,
+                    self.execution.account.as_ref(),
+                )
             }
             _ => Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "owned image shape is outside the retained schema reflection contract",
@@ -364,28 +399,23 @@ fn require_runtime_fields(
     Ok(())
 }
 
-fn zeroed(size: u64) -> Result<Vec<u8>, TerminalInterpretError> {
+fn zeroed(
+    size: u64,
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<ByteSequenceStorage, TerminalInterpretError> {
     let length = usize::try_from(size).map_err(|_| malformed())?;
-    let mut bytes = Vec::new();
-    bytes.try_reserve_exact(length).map_err(|_| {
-        TerminalInterpretError::ValueImage(MaterializationDiagnostic(
-            "owned image exceeds available interpreter storage".into(),
-        ))
-    })?;
-    bytes.resize(length, 0);
-    Ok(bytes)
+    ByteSequenceStorage::zeroed(length, account)
 }
 
 fn materialize(
     layout: &LayoutPlanReport,
     schemas: &[AggregateFieldSchema],
-    values: &[AggregateFieldValue],
+    values: &[AggregateFieldValue<ByteSequenceStorage>],
     byte_order: ByteOrder,
-) -> Result<Vec<u8>, TerminalInterpretError> {
-    let mut bytes = zeroed(layout.size.ok_or_else(malformed)?)?;
-    layout_plans::materialize_aggregate_layout_into(
-        layout, schemas, values, byte_order, &mut bytes,
-    )
-    .map_err(TerminalInterpretError::ValueImage)?;
+    account: Option<&EvaluationInvocationAccount>,
+) -> Result<ByteSequenceStorage, TerminalInterpretError> {
+    let mut bytes = zeroed(layout.size.ok_or_else(malformed)?, account)?;
+    layout_plans::stage_aggregate_layout(layout, schemas, values, byte_order, bytes.bytes_mut())
+        .map_err(TerminalInterpretError::ValueImage)?;
     Ok(bytes)
 }

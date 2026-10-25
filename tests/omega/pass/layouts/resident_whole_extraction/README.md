@@ -28,4 +28,9 @@ admits the complete journey; one cell less refuses without publishing a result
 or replaying effects. Resumption uses one-unit fuel grants. Failed instances
 retain their custody until teardown, which releases all live cells. Successful
 handback releases the allocation record and its descriptors and cannot repeat.
-These are logical record counts, not byte-buffer capacity or RSS limits.
+The image's separate payload ceiling is 16 bytes: its eight-byte field and
+eight-byte complete image overlap during encoding. One byte less refuses, as
+does a one-byte allowance. A root-owned reservation after that image retires
+leaves one byte for extraction, independently exercising decoder refusal.
+Every private image retires its reservation on success or failure. These are
+logical records and owned payload bytes, not host-buffer capacity or RSS limits.
