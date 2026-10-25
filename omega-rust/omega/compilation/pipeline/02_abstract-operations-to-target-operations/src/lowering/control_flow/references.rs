@@ -1532,15 +1532,22 @@ pub(super) fn call_results(
                 });
             }
             let mut leaf = if transfers_existing {
-                // An owned-carrier ingress mapping relocates one of the leaves the
-                // moved arguments just transferred; possible backing follows
-                // the descriptor bytes to the declared result path.
+                // Exact descriptor transport preserves its established backing
+                // whether its carrier moved into the call or remained in lent
+                // storage. Argument moves have already been committed; their
+                // captured roster and the still-resident roster are disjoint
+                // storage dispositions of the same source-coordinate lookup.
                 let Some((StructuralPathSegment::Referent, carrier_path)) =
                     source.path.split_last()
                 else {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
-                let Some(leaf) = moved.get(&(source.place, carrier_path.to_vec())) else {
+                let coordinate = (source.place, carrier_path.to_vec());
+                let Some(leaf) = moved
+                    .get(&coordinate)
+                    .map(std::borrow::Cow::Borrowed)
+                    .or_else(|| reference_leaf(function, live, types, source.place, carrier_path))
+                else {
                     // The declared slot may be guarded by an inactive input
                     // case. Compose resident storage with declared origins;
                     // type geometry alone cannot supply its descriptor.
@@ -1552,7 +1559,7 @@ pub(super) fn call_results(
                     }
                     continue;
                 };
-                leaf.clone()
+                leaf.into_owned()
             } else {
                 ReferenceStorage {
                     root: normalized_source(function, live, types, source)?

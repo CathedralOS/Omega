@@ -47,6 +47,14 @@ pub(crate) fn dynamic_selector_call<'program>(
     let target = program
         .dynamic_slot_by_symbol(target)
         .map_or(target, |slot| slot.requirement);
+    // Static const applications may already name a closed requirement whose
+    // where facts have been evaluated. The declaring requirement still owns
+    // the dynamic roster; a specialized true/false predicate is not a family.
+    // Retain the exact outer application and rejoin it to the selector below.
+    let closed = program.closed_requirement_application(target);
+    let target = closed
+        .as_ref()
+        .map_or(target, |application| application.template);
     if !receiver.is_valid() || program.symbols.get(receiver).kind != symbols::SymbolKind::Trait {
         return Ok(None);
     }
@@ -115,6 +123,13 @@ pub(crate) fn dynamic_selector_call<'program>(
             declaring.name
         ));
     };
+    if let Some(closed) = closed
+        && !program.requirement_application_matches_scope(closed.signature.symbol, &application)
+    {
+        return Err(
+            "dynamic call's closed requirement belongs to a different trait application".to_owned(),
+        );
+    }
     if let Some(reason) = crate::declarations::traits::dynamic_requirement_ineligibility(
         program, declaring, signature,
     ) {
@@ -223,10 +238,10 @@ fn validate_family_tuple(
                 )));
             }
         }
-        typed_trees::finite_family::FamilyProbe::NotFinite(_) => {
+        typed_trees::finite_family::FamilyProbe::NotFinite(reason) => {
             if !machine_arguments.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "dynamic requirement call `{declaring}::{requirement}` supplies static machine arguments, but the requirement declares no finite family"
+                    "dynamic requirement call `{declaring}::{requirement}` supplies static machine arguments, but the requirement declares no finite family: {reason}"
                 )));
             }
         }
