@@ -125,3 +125,19 @@ workflow are disabled; their definitions and observations remain historical.
 These are measured jobs, not a performance guarantee for compiler-changing PRs.
 The compile-error refusal control remains in the isolated pilot record; no broken
 source was pushed to main to demonstrate it.
+
+Manual dispatch with `foreign_records=true` instead measures the nine-place
+libc `lldiv` scalar-record result row and its nine copy-custody rejects on
+Ubuntu and Windows. `tools/ci/compiler_foreign_records.py` uses the same corpus
+validator, profiles and retained products as smoke. On Windows it additionally
+loads the exact SDK API-set DLL/export, observes real two-i64 C return values,
+and records the resolved image digest. This is Windows indirect-result evidence
+only after actual execution; macOS/Linux return this pair in registers. It
+never records goldens or grants unmeasured Linux ARM64 acceptance.
+
+```text
+gh workflow run compiler-regression.yml --ref BRANCH -f foreign_records=true
+```
+
+Read `build/compiler-foreign-records/{summary,checking,both}.json` and the
+Windows-only `windows-lldiv.json`; failures and absent engine facts remain red.
