@@ -12,17 +12,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::MachineId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SpillChoiceIdentity(pub(crate) [u8; 32]);
-
-impl SpillChoiceIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+crate::identity_newtype!(pub struct SpillChoiceIdentity(pub(crate) [u8; 32]););
 
 /// Stable structural policy for the first locally witnessed pressure point.
 /// This is not an optimization level or a target cost model.

@@ -10,18 +10,7 @@ use crate::{
     SelectedFormInternalMachineFixupState,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]);
-
-impl ResolvedSelectedFormLayoutIdentity {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
+register_homes::identity_newtype! { pub struct ResolvedSelectedFormLayoutIdentity(pub(super) [u8; 32]); }
 
 const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v17";
 

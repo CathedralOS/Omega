@@ -11,6 +11,7 @@
 pub mod codec;
 pub mod constraints;
 pub mod identity;
+mod identity_newtype;
 pub mod post_allocation_manifest;
 pub mod preservation;
 pub mod recovery;
