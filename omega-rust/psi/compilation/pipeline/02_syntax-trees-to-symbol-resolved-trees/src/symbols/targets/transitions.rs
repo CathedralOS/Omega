@@ -97,8 +97,10 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
         }
     }
 
-    // A receiverless static binder call retains the same exact requirement
-    // identity as an ordinary call. State targets keep precedence above.
+    // Terminal calls retain the same exact lexical entry or requirement as
+    // ordinary calls. Discarding an independently owned entry here forced
+    // typed checking to rediscover a target by its unqualified name.
+    // The current invocation's private state targets keep precedence above.
     if path.len() == 1
         && let Some(target_name) = target_name.as_ref()
     {
@@ -111,7 +113,10 @@ pub(in crate::symbols) fn assign_transition_target_symbols(
             child_type_references,
             symbols,
         );
-        if symbols.get(target_symbol).kind == SymbolKind::MachineParameter {
+        if matches!(
+            symbols.get(target_symbol).kind,
+            SymbolKind::MachineParameter | SymbolKind::State
+        ) {
             named.head_symbol = target_symbol;
             named.symbol = target_symbol;
             return;

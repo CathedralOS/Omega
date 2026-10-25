@@ -117,7 +117,17 @@ pub(crate) fn normalize_closed_conformance_blocks(
         }
     }
     program.machines = Default::default();
-    for machine in retained_machines {
+    for mut machine in retained_machines {
+        // Every ordinal-keyed source sidecar follows the retained roster.
+        // Lexical ancestry is declaration context, never a new root slot.
+        if let Some(parent) = machine.lexical_parent {
+            machine.lexical_parent = ordinals.get(parent).copied().flatten();
+            if machine.lexical_parent.is_none() {
+                return Err(Diagnostic::error(
+                    "retained nested machine lost its enclosing declaration",
+                ));
+            }
+        }
         program.machines.push(machine);
     }
     Ok(ordinals)
