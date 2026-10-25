@@ -15,9 +15,11 @@ pub(crate) fn validate_declaration_value_range(
     target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
         program, lexical_owner, parameters, expression, &[], owner, diagnostics,
+        formation_obligations,
     );
     // A known scalar projection does not waive formation of a constructor
     // evaluated to obtain its receiver. Closed structural values use the
@@ -99,7 +101,7 @@ pub(crate) fn validate_declaration_value_range(
         }
         crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
-    super::expression_analysis::analyze_declaration(
+    let analysis = super::expression_analysis::analyze_declaration(
         program,
         lexical_owner,
         parameters,
@@ -110,4 +112,5 @@ pub(crate) fn validate_declaration_value_range(
         owner,
         diagnostics,
     );
+    formation_obligations.extend(analysis.decisions.integer_range_obligations);
 }

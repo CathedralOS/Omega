@@ -268,6 +268,7 @@ pub fn validate_closed_const_argument(
         ))]);
     }
     let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
     validate_const_data_argument(
         program,
         owner,
@@ -285,7 +286,16 @@ pub fn validate_closed_const_argument(
             lifetime_parameters: &[],
         },
         &mut diagnostics,
+        &mut formation_obligations,
     );
+    // This entry admits normalized values only; it owns no declaration in
+    // which a conditional formation obligation could remain pending.
+    if !formation_obligations.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "const parameter `{}` of `{owner}` has unresolved formation obligations",
+            parameter.name,
+        )));
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -314,6 +324,7 @@ pub(crate) fn const_argument_matches_parameter(
         return false;
     }
     let mut diagnostics = Vec::new();
+    let mut formation_obligations = Vec::new();
     validate_const_data_argument(
         program,
         "call",
@@ -327,8 +338,9 @@ pub(crate) fn const_argument_matches_parameter(
             lifetime_parameters: &[],
         },
         &mut diagnostics,
+        &mut formation_obligations,
     );
-    !diagnostics.iter().any(Diagnostic::is_error)
+    formation_obligations.is_empty() && !diagnostics.iter().any(Diagnostic::is_error)
 }
 
 /// A declared carrier and its one simultaneous application scope.
@@ -471,6 +483,7 @@ pub(crate) fn validate_const_data_argument(
     argument: TypeReferenceHandle,
     type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
     let carrier = carrier.resolved(program);
     let parameter_type = carrier.reference;
@@ -529,6 +542,7 @@ pub(crate) fn validate_const_data_argument(
             program.arithmetic_domain_for_type_reference(parameter_type),
             &format!("value argument `{}` of `{base_name}`", parameter.name),
             diagnostics,
+            formation_obligations,
         );
         return;
     }

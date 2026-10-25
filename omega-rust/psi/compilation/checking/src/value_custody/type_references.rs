@@ -887,6 +887,7 @@ fn validate_type_reference_node(
                                 *argument,
                                 type_parameter_scope,
                                 diagnostics,
+                                formation_obligations,
                             );
                         }
                         TypeParameterKind::Machine { contract } => {
