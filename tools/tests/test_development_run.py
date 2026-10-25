@@ -379,6 +379,35 @@ class DevelopmentRun(unittest.TestCase):
         self.assertIn("native exit 0", result.stdout + result.stderr)
         self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
 
+    def test_package_update_joins_all_targets_before_publication(self):
+        result = self.invoke("update", "--project", self.project, "--offline",
+                             "--target", "linux_x86_64", "--target", "macos_arm64")
+        self.assert_exit(result, 0)
+        self.assertIn("across 2 targets", result.stdout)
+        self.assertTrue((self.project / "omega.lock").is_file())
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+        for target in ("linux_x86_64", "macos_arm64"):
+            self.assertIn(f"{target}: checked 1 source packages", result.stdout)
+
+    def test_failed_review_target_cannot_publish_successful_sibling(self):
+        self.accept_project()
+        lock = (self.project / "omega.lock").read_bytes()
+        result = self.invoke("update", "--project", self.project, "--offline",
+                             "--target", self.target, "--target", "uefi_x86_64")
+        self.assert_exit(result, 1)
+        self.assertNotIn("Published build.omg", result.stdout)
+        self.assertEqual((self.project / "omega.lock").read_bytes(), lock)
+        self.assertFalse((self.project / "build/package-manager/proposal").exists())
+
+    def test_discard_review_does_not_run_invalid_source(self):
+        # Discard is a transaction operation, not a Build or review request.
+        (self.project / "main.omg").write_text("this is deliberately not Omega")
+        result = self.invoke("update", "--project", self.project, "--discard-review")
+        self.assert_exit(result, 0)
+        self.assertIn("No pending package review", result.stdout)
+        self.assertFalse((self.project / "omega.lock").exists())
+        self.assertFalse(list((self.project / "build/package-manager").glob(".omega-package-build-*")))
+
     def test_source_edit_does_not_fall_back_to_development(self):
         self.accept_project()
         lock = (self.project / "omega.lock").read_bytes()

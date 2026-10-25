@@ -1,5 +1,14 @@
 # Project Build
 
+Install/update/resume enter [package_commands.rs](src/package_commands.rs):
+open package transaction custody, admit the command, execute every requested
+target review, then return the complete roster for decisions and publication.
+An error leaves accepted files unchanged and releases the transaction on return.
+One caller-owned sponsored session spans all targets and automatic resume rounds;
+discard stays a package-file operation and does not compile source. Package
+management still owns the review policy passes and their inner dependency loop;
+moving that compiler scheduling remains part of the ownership migration.
+
 Start at [build.rs](src/build.rs). One typed `BuildRequest` selects a host,
 single explicit target or batch, and a check, native or named Terminal inspection
 product. Inspection has one target context and uses a private workspace without

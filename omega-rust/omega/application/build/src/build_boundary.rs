@@ -1,6 +1,32 @@
 //! Source guards for the application/compiler ownership boundary.
 
 #[test]
+fn package_commands_schedule_work_outside_package_policy() {
+    let mut execution = include_str!("package_commands.rs");
+    for operation in [
+        "PackageCommandTransaction::open(options)",
+        "transaction.prepare(command, None)",
+        "for request in prepared.review_requests()",
+        "request.review(session, &mut source_bindings)",
+        "prepared.complete(reviews, session)",
+    ] {
+        let position = execution
+            .find(operation)
+            .expect("ordered package command lifecycle");
+        execution = &execution[position + operation.len()..];
+    }
+    let policy = include_str!("../../../packages/package-manager/src/package_manager.rs");
+    for forbidden in ["execute_package_command(", "CompilationSession"] {
+        assert!(
+            !policy.contains(forbidden),
+            "package policy schedules {forbidden}"
+        );
+    }
+    let cli = include_str!("../../cli/src/cli/packages/mod.rs");
+    assert!(cli.contains("use omega_build::execute_package_command;"));
+}
+
+#[test]
 fn application_depends_on_facades_not_language_stages() {
     let manifest = include_str!("../Cargo.toml");
     for forbidden in [
