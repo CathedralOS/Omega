@@ -29,344 +29,398 @@ pub(super) fn actions(
     parameters: &[CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<super::temporary_actions::SelectedActions> {
-    let CheckedUnitEffectOperationPlan::ContinuationCleanup {
-        boundary:
-            checked_trees::CheckedUnitCleanupBoundary::Replacement {
-                statement_index,
-                destination,
-                old_value,
-                ..
-            },
-        ..
-    } = operation
-    else {
-        return None;
-    };
-    let source = &destination.source;
-    let root = match *source {
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            PlaceRoot::Symbol(symbol)
-        }
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let parameter = parameters.get(parameter_index as usize)?;
-            let declaration = program.state_by_symbol(state)?;
-            PlaceRoot::Symbol(
-                program
-                    .state_parameters(declaration)
-                    .get(parameter.position as usize)?
-                    .symbol,
-            )
-        }
-        _ => return None,
-    };
-    let displaced = old_value.source != *source;
-    let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
-        program
-            .statement_table
-            .statements(declaration.statement_nodes)
-            .get(*statement_index as usize)
-    }) {
-        Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {
-            validation::canonical_place_from_expression_in_state(
-                program,
-                state,
-                *statement_index as usize,
-                assignment.target,
-            )
-        }
-        _ => None,
-    };
-    // The operand keeps the immediate loan carrier, while the permission
-    // producer may name its backing as the dying storage subject. These are
-    // two coordinates of this one replacement, not alternative cleanup plans.
-    let stored_place = replaced_place.as_ref().and_then(|place| {
-        let declaration = program.state_by_symbol(state)?;
-        let (root, segments) = super::super::borrowed_windows::resolve_storage_place(
-            program,
-            declaration,
+    let mut phase = "replacement boundary";
+    let mut current_disposition = None;
+    let selected = (|| {
+        let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary:
+                checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                    statement_index,
+                    destination,
+                    old_value,
+                    ..
+                },
+            ..
+        } = operation
+        else {
+            return None;
+        };
+        phase = "destination root";
+        let source = &destination.source;
+        let root = match *source {
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                PlaceRoot::Symbol(symbol)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                let parameter = parameters.get(parameter_index as usize)?;
+                let declaration = program.state_by_symbol(state)?;
+                PlaceRoot::Symbol(
+                    program
+                        .state_parameters(declaration)
+                        .get(parameter.position as usize)?
+                        .symbol,
+                )
+            }
+            _ => return None,
+        };
+        let displaced = old_value.source != *source;
+        let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
             program
                 .statement_table
-                .statements(declaration.statement_nodes),
-            *statement_index as usize,
-            place.root.as_symbol()?,
-            &place.segments,
-        );
-        Some(validation::CanonicalPlace { root, segments })
-    });
-    let mut actions = Vec::new();
-    let mut selected_regions = Vec::new();
-    let mut selected_disposition = false;
-    let carrier_death = validation::reference_result_custody::replaced_reference_carrier(
-        program,
-        facts,
-        machine,
-        program.state_by_symbol(state)?,
-        root,
-        *statement_index,
-        &destination.path,
-    );
-    let carrier_discard = if let Some(carrier) = carrier_death {
-        let declaration = shapes.types.get(&destination.type_identity)?;
-        let reference = validation::canonical_place_type_reference(
+                .statements(declaration.statement_nodes)
+                .get(*statement_index as usize)
+        }) {
+            Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {
+                validation::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    *statement_index as usize,
+                    assignment.target,
+                )
+            }
+            _ => None,
+        };
+        // The operand keeps the immediate loan carrier, while the permission
+        // producer may name its backing as the dying storage subject. These are
+        // two coordinates of this one replacement, not alternative cleanup plans.
+        let stored_place = replaced_place.as_ref().and_then(|place| {
+            let declaration = program.state_by_symbol(state)?;
+            let (root, segments) = super::super::borrowed_windows::resolve_storage_place(
+                program,
+                declaration,
+                program
+                    .statement_table
+                    .statements(declaration.statement_nodes),
+                *statement_index as usize,
+                place.root.as_symbol()?,
+                &place.segments,
+            );
+            Some(validation::CanonicalPlace { root, segments })
+        });
+        let mut actions = Vec::new();
+        let mut selected_regions = Vec::new();
+        let mut selected_disposition = false;
+        let carrier_death = validation::reference_result_custody::replaced_reference_carrier(
             program,
-            state,
-            *statement_index as usize,
-            replaced_place.as_ref()?,
-        )?;
-        let shell = validation::reference_shell(program, reference)?;
-        // Custody retains the qualified source type; executable shapes name
-        // storage. Rejoin both through this exact assigned declaration, never
-        // by treating equal layouts as authority to retire another descriptor.
-        // Pointer custody crosses a Referent edge; view custody names the
-        // descriptor itself. Neither disposition owns the borrowed backing.
-        let source_matches = match declaration.shape {
-            checked_trees::CheckedUnitStructuralTypeShape::Reference {
-                referent_identity,
-                access,
-            } => {
-                program.normalized_type_identity(shell.referee) == carrier.source.type_identity
-                    && validation::stored_structural_type_identity(program, shell.referee, &[], &[])
-                        == referent_identity
-                    && access == carrier.source.access
-                    && carrier
-                        .source
-                        .path
-                        .strip_suffix(&[checked_trees::CheckedUnitStructuralPathSegment::Referent])
-                        == Some(destination.path.as_slice())
-            }
-            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                program.normalized_type_identity(reference) == carrier.source.type_identity
-                    && carrier.source.path == destination.path
-            }
-            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
-                if bytes.is_borrowed() =>
-            {
-                program.normalized_type_identity(reference) == carrier.source.type_identity
-                    && carrier.source.path == destination.path
-            }
-            _ => false,
-        };
-        let carrier_matches = source_matches
-            && checked_trees::CheckedStructuralAccess::from(shell.access) == carrier.source.access
-            && validation::stored_structural_type_identity(program, reference, &[], &[])
-                == destination.type_identity;
-        if !carrier_matches
-            || !declaration.descriptor_cleanup
-            || old_value.type_identity != destination.type_identity
-        {
-            return None;
-        }
-        Some(CheckedNormalCleanupAction::Discard(
-            checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                source: old_value.source.clone(),
-                path: old_value.path.clone(),
-                type_identity: old_value.type_identity,
-                case_conditions: Default::default(),
-            },
-        ))
-    } else {
-        None
-    };
-    for disposition_handle in facts
-        .contextual_cleanup
-        .state_disposition_handles(machine, state)
-    {
-        let disposition = facts
-            .contextual_cleanup
-            .dispositions
-            .get(disposition_handle);
-        if !(disposition.root == root
-            || replaced_place
-                .as_ref()
-                .is_some_and(|replaced| replaced.root == disposition.root)
-            || stored_place
-                .as_ref()
-                .is_some_and(|stored| stored.root == disposition.root))
-            || disposition.source
-                != (PermissionEventSource::Statement {
-                    statement_index: *statement_index as usize,
-                })
-        {
-            continue;
-        }
-        let place = validation::CanonicalPlace {
-            root: disposition.root,
-            segments: facts
-                .flow
-                .ownership
-                .segments
-                .span(disposition.path)?
-                .to_vec(),
-        };
-        // The death of exactly the assigned place is the old value this store
-        // displaces, whose path the store already names, including a
-        // runtime-selected element that has no static argument path.
-        // A store through a view writes the view's backing, while the old
-        // element dies at the view's own place; only that exact death crosses
-        // namespaces, as the store's destination.
-        let replaced =
-            replaced_place.as_ref() == Some(&place) || stored_place.as_ref() == Some(&place);
-        if disposition.root != root && !replaced {
-            continue;
-        }
-        let path = if replaced {
-            destination.path.clone()
-        } else {
-            crate::execution::terminal_unit::calls::projected_argument_path(
+            facts,
+            machine,
+            program.state_by_symbol(state)?,
+            root,
+            *statement_index,
+            &destination.path,
+        );
+        let carrier_discard = if let Some(carrier) = carrier_death {
+            phase = "stored reference carrier correspondence";
+            let declaration = shapes.types.get(&destination.type_identity)?;
+            let reference = validation::canonical_place_type_reference(
                 program,
                 state,
                 *statement_index as usize,
-                &place,
-                None,
-                None,
-            )?
-            .1
-        };
-        // A death can cover the replaced place or an enclosing value. Keep
-        // only actions within the destination; replacing a whole array keeps
-        // all of its child actions, while an indexed replacement excludes
-        // sibling elements. Action paths still select the actual old values.
-        if !path.starts_with(&destination.path) && !destination.path.starts_with(&path) {
-            continue;
-        }
-        if facts
-            .contextual_cleanup
-            .is_selected_disposition(disposition_handle)
-        {
-            // A conditional old value is still selected at its original storage.
-            // Owned replacements clean in place; borrowing cannot manufacture an
-            // absent displaced value before this static continuation is chosen.
-            if displaced {
+                replaced_place.as_ref()?,
+            )?;
+            let shell = validation::reference_shell(program, reference)?;
+            // Custody retains the qualified source type; executable shapes name
+            // storage. Rejoin both through this exact assigned declaration, never
+            // by treating equal layouts as authority to retire another descriptor.
+            // Pointer custody crosses a Referent edge; view custody names the
+            // descriptor itself. Neither disposition owns the borrowed backing.
+            let source_matches = match declaration.shape {
+                checked_trees::CheckedUnitStructuralTypeShape::Reference {
+                    referent_identity,
+                    access,
+                } => {
+                    program.normalized_type_identity(shell.referee) == carrier.source.type_identity
+                        && validation::stored_structural_type_identity(
+                            program,
+                            shell.referee,
+                            &[],
+                            &[],
+                        ) == referent_identity
+                        && access == carrier.source.access
+                        && carrier.source.path.strip_suffix(&[
+                            checked_trees::CheckedUnitStructuralPathSegment::Referent,
+                        ]) == Some(destination.path.as_slice())
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
+                    program.normalized_type_identity(reference) == carrier.source.type_identity
+                        && carrier.source.path == destination.path
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(bytes)
+                    if bytes.is_borrowed() =>
+                {
+                    program.normalized_type_identity(reference) == carrier.source.type_identity
+                        && carrier.source.path == destination.path
+                }
+                _ => false,
+            };
+            let carrier_matches = source_matches
+                && checked_trees::CheckedStructuralAccess::from(shell.access)
+                    == carrier.source.access
+                && validation::stored_structural_type_identity(program, reference, &[], &[])
+                    == destination.type_identity;
+            if !carrier_matches
+                || !declaration.descriptor_cleanup
+                || old_value.type_identity != destination.type_identity
+            {
                 return None;
             }
-            let mut region = super::actions::selected_region(
+            Some(CheckedNormalCleanupAction::Discard(
+                checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                    source: old_value.source.clone(),
+                    path: old_value.path.clone(),
+                    type_identity: old_value.type_identity,
+                    case_conditions: Default::default(),
+                },
+            ))
+        } else {
+            None
+        };
+        for disposition_handle in facts
+            .contextual_cleanup
+            .state_disposition_handles(machine, state)
+        {
+            current_disposition = Some(disposition_handle);
+            phase = "disposition path";
+            let disposition = facts
+                .contextual_cleanup
+                .dispositions
+                .get(disposition_handle);
+            if !(disposition.root == root
+                || replaced_place
+                    .as_ref()
+                    .is_some_and(|replaced| replaced.root == disposition.root)
+                || stored_place
+                    .as_ref()
+                    .is_some_and(|stored| stored.root == disposition.root))
+                || disposition.source
+                    != (PermissionEventSource::Statement {
+                        statement_index: *statement_index as usize,
+                    })
+            {
+                continue;
+            }
+            let place = validation::CanonicalPlace {
+                root: disposition.root,
+                segments: facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span(disposition.path)?
+                    .to_vec(),
+            };
+            // The death of exactly the assigned place is the old value this store
+            // displaces, whose path the store already names, including a
+            // runtime-selected element that has no static argument path.
+            // A store through a view writes the view's backing, while the old
+            // element dies at the view's own place; only that exact death crosses
+            // namespaces, as the store's destination.
+            let replaced =
+                replaced_place.as_ref() == Some(&place) || stored_place.as_ref() == Some(&place);
+            if disposition.root != root && !replaced {
+                continue;
+            }
+            phase = "typed old-value path";
+            let path = if replaced {
+                destination.path.clone()
+            } else {
+                crate::execution::terminal_unit::calls::projected_argument_path(
+                    program,
+                    state,
+                    *statement_index as usize,
+                    &place,
+                    None,
+                    None,
+                )?
+                .1
+            };
+            // A death can cover the replaced place or an enclosing value. Keep
+            // only actions within the destination; replacing a whole array keeps
+            // all of its child actions, while an indexed replacement excludes
+            // sibling elements. Action paths still select the actual old values.
+            if !path.starts_with(&destination.path) && !destination.path.starts_with(&path) {
+                continue;
+            }
+            if facts
+                .contextual_cleanup
+                .is_selected_disposition(disposition_handle)
+            {
+                // A conditional old value is still selected at its original storage.
+                // Owned replacements clean in place; borrowing cannot manufacture an
+                // absent displaced value before this static continuation is chosen.
+                if displaced {
+                    return None;
+                }
+                phase = "selected old-value region";
+                let mut region = super::actions::selected_region(
+                    program,
+                    facts,
+                    shapes,
+                    disposition_handle,
+                    source.clone(),
+                    replaced.then_some(destination.path.as_slice()),
+                )?;
+                if destination.path.starts_with(&region.path) {
+                    region = destination.clone();
+                }
+                if !selected_regions.contains(&region) {
+                    selected_regions.push(region);
+                }
+            }
+            phase = "old-value disposition actions";
+            let selected_actions = super::actions::disposition_actions(
                 program,
                 facts,
+                targets,
                 shapes,
                 disposition_handle,
                 source.clone(),
                 replaced.then_some(destination.path.as_slice()),
             )?;
-            if destination.path.starts_with(&region.path) {
-                region = destination.clone();
-            }
-            if !selected_regions.contains(&region) {
-                selected_regions.push(region);
-            }
-        }
-        let selected_actions = super::actions::disposition_actions(
-            program,
-            facts,
-            targets,
-            shapes,
-            disposition_handle,
-            source.clone(),
-            replaced.then_some(destination.path.as_slice()),
-        )?;
-        // A completed empty complement still authenticates this old home.
-        // Missing disposition evidence remains different from zero actions.
-        selected_disposition = true;
-        for mut action in selected_actions {
-            let action_path = match &action {
-                CheckedNormalCleanupAction::Discard(action) => &action.path,
-                CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
-                CheckedNormalCleanupAction::RetireHome { .. } => return None,
-            };
-            if !action_path.starts_with(&destination.path) {
-                if !destination.path.starts_with(action_path) {
-                    continue;
-                }
-                // A discard of an enclosing value discards this place within
-                // it. An enclosing hook observes the whole value and cannot
-                // run piecewise.
-                let CheckedNormalCleanupAction::Discard(_) = action else {
-                    return None;
-                };
-                action = CheckedNormalCleanupAction::Discard(
-                    checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                        source: source.clone(),
-                        path: destination.path.clone(),
-                        type_identity: destination.type_identity.clone(),
-                        case_conditions: action.case_conditions(),
-                    },
-                );
-            }
-            if displaced {
-                let conditions = shapes
-                    .cleanup_control
-                    .conditions
-                    .span_or_empty(action.case_conditions())
-                    .to_vec();
-                let conditions = conditions
-                    .into_iter()
-                    .map(|mut condition| {
-                        let path = shapes.cleanup_control.paths.span_or_empty(condition.path);
-                        let path = path.strip_prefix(destination.path.as_slice())?.to_vec();
-                        condition.path = shapes.cleanup_control.paths.insert_many(path);
-                        Some(condition)
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
-                let (source, path) = match &mut action {
-                    CheckedNormalCleanupAction::Discard(action) => {
-                        action.case_conditions = case_conditions;
-                        (&mut action.source, &mut action.path)
-                    }
-                    CheckedNormalCleanupAction::InvokeNominal(action) => {
-                        action.case_conditions = case_conditions;
-                        (&mut action.source, &mut action.path)
-                    }
+            // A completed empty complement still authenticates this old home.
+            // Missing disposition evidence remains different from zero actions.
+            selected_disposition = true;
+            for mut action in selected_actions {
+                phase = "selected action boundary";
+                let action_path = match &action {
+                    CheckedNormalCleanupAction::Discard(action) => &action.path,
+                    CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
                     CheckedNormalCleanupAction::RetireHome { .. } => return None,
                 };
-                *path = path.strip_prefix(destination.path.as_slice())?.to_vec();
-                *source = old_value.source.clone();
+                if !action_path.starts_with(&destination.path) {
+                    if !destination.path.starts_with(action_path) {
+                        continue;
+                    }
+                    // A discard of an enclosing value discards this place within
+                    // it. An enclosing hook observes the whole value and cannot
+                    // run piecewise.
+                    let CheckedNormalCleanupAction::Discard(_) = action else {
+                        return None;
+                    };
+                    action = CheckedNormalCleanupAction::Discard(
+                        checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                            source: source.clone(),
+                            path: destination.path.clone(),
+                            type_identity: destination.type_identity.clone(),
+                            case_conditions: action.case_conditions(),
+                        },
+                    );
+                }
+                if displaced {
+                    phase = "displaced action correspondence";
+                    let conditions = shapes
+                        .cleanup_control
+                        .conditions
+                        .span_or_empty(action.case_conditions())
+                        .to_vec();
+                    let conditions = conditions
+                        .into_iter()
+                        .map(|mut condition| {
+                            let path = shapes.cleanup_control.paths.span_or_empty(condition.path);
+                            let path = path.strip_prefix(destination.path.as_slice())?.to_vec();
+                            condition.path = shapes.cleanup_control.paths.insert_many(path);
+                            Some(condition)
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
+                    let (source, path) = match &mut action {
+                        CheckedNormalCleanupAction::Discard(action) => {
+                            action.case_conditions = case_conditions;
+                            (&mut action.source, &mut action.path)
+                        }
+                        CheckedNormalCleanupAction::InvokeNominal(action) => {
+                            action.case_conditions = case_conditions;
+                            (&mut action.source, &mut action.path)
+                        }
+                        CheckedNormalCleanupAction::RetireHome { .. } => return None,
+                    };
+                    *path = path.strip_prefix(destination.path.as_slice())?.to_vec();
+                    *source = old_value.source.clone();
+                }
+                actions.push(action);
             }
-            actions.push(action);
+        }
+        if let Some(discard) = carrier_discard
+            && !actions.iter().any(|action| {
+                action.source() == discard.source()
+                    && action.path() == discard.path()
+                    && action.type_identity() == discard.type_identity()
+            })
+        {
+            actions.push(discard);
+        }
+        // An occupied affine value cannot silently become a raw discard when its
+        // source death is absent. The producer must supply that occurrence first.
+        phase = "replacement disposition coverage";
+        if actions.is_empty() && !selected_disposition {
+            return None;
+        }
+        if selected_regions
+            .iter()
+            .any(|region| !region.path.is_empty())
+        {
+            // Owned selected replacements have no displaced temporary: these
+            // paths still name the original containing owner before its store.
+            phase = "selected replacement cleanup order";
+            super::order::merge(
+                program,
+                state,
+                *statement_index as usize,
+                root,
+                &mut actions,
+                &old_value.source,
+            )?;
+        }
+        // The authenticated replacement join distinguishes the displaced value's
+        // home from the retained containing record. A root rebind also ends its old
+        // occurrence; a field store only ends that selected field value.
+        if displaced || destination.path.is_empty() {
+            super::actions::finish_home(
+                &mut actions,
+                CheckedNormalCleanupAction::RetireHome {
+                    source: old_value.source.clone(),
+                    type_identity: destination.type_identity.clone(),
+                },
+            );
+        }
+        Some(super::temporary_actions::SelectedActions {
+            actions,
+            selected_regions,
+        })
+    })();
+    if selected.is_none() && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some() {
+        eprintln!(
+            "REPLACEMENT_CLEANUP_REFUSAL machine={} state={} phase={} disposition={:?} operation={:?}",
+            program.symbols.name(machine),
+            program.symbols.name(state),
+            phase,
+            current_disposition,
+            operation,
+        );
+        if let CheckedUnitEffectOperationPlan::ContinuationCleanup {
+            boundary:
+                checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                    statement_index, ..
+                },
+            ..
+        } = operation
+        {
+            for (handle, row) in facts.contextual_cleanup.dispositions.iter() {
+                if row.machine == machine
+                    && row.state == state
+                    && row.source
+                        == (PermissionEventSource::Statement {
+                            statement_index: *statement_index as usize,
+                        })
+                {
+                    eprintln!(
+                        "REPLACEMENT_CLEANUP_INPUT handle={handle:?} row={row:?} path={:?} exclusions={:?} inactive={:?}",
+                        facts.flow.ownership.segments.span(row.path),
+                        facts.contextual_cleanup.exclusions.span(row.exclusions),
+                        facts.contextual_cleanup.exclusions.span(row.inactive_cases),
+                    );
+                }
+            }
         }
     }
-    if let Some(discard) = carrier_discard
-        && !actions.iter().any(|action| {
-            action.source() == discard.source()
-                && action.path() == discard.path()
-                && action.type_identity() == discard.type_identity()
-        })
-    {
-        actions.push(discard);
-    }
-    // An occupied affine value cannot silently become a raw discard when its
-    // source death is absent. The producer must supply that occurrence first.
-    if actions.is_empty() && !selected_disposition {
-        return None;
-    }
-    if selected_regions
-        .iter()
-        .any(|region| !region.path.is_empty())
-    {
-        // Owned selected replacements have no displaced temporary: these
-        // paths still name the original containing owner before its store.
-        super::order::merge(
-            program,
-            state,
-            *statement_index as usize,
-            root,
-            &mut actions,
-            &old_value.source,
-        )?;
-    }
-    // The authenticated replacement join distinguishes the displaced value's
-    // home from the retained containing record. A root rebind also ends its old
-    // occurrence; a field store only ends that selected field value.
-    if displaced || destination.path.is_empty() {
-        super::actions::finish_home(
-            &mut actions,
-            CheckedNormalCleanupAction::RetireHome {
-                source: old_value.source.clone(),
-                type_identity: destination.type_identity.clone(),
-            },
-        );
-    }
-    Some(super::temporary_actions::SelectedActions {
-        actions,
-        selected_regions,
-    })
+    selected
 }
