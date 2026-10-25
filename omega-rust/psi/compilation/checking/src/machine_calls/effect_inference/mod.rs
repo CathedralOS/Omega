@@ -1,8 +1,9 @@
 //! Derive target-neutral effects from typed bodies and declared contracts.
 //! Stored summaries live in `flow-effects`; fixed-point work stays here.
-//! Checked service rows union authored contributions with all callees, including
-//! through exported wrappers. Direct boundary uses still need declarations;
-//! opaque requirements and operational may-ceilings retain their fixed contracts.
+//! Checked service rows derive from the complete call closure. Optional authored
+//! ceilings bound that row; callers retain a written contract's slack rather
+//! than narrowing it to a selected body. Opaque requirements and operational
+//! may-ceilings retain their independent fixed contracts.
 
 mod call_sites;
 mod callback_requirements;
@@ -19,7 +20,6 @@ pub use invocations::{
 };
 pub(crate) use operational::signature_operational;
 pub use operational::{infer_operational_may, infer_operational_may_for_cleanup_dependencies};
-pub(crate) use service_reach::required_boundary_services;
 pub(crate) use service_reach::signature_service_reach;
 pub use service_reach::{
     boundary_signature_service_reach, fixed_installation_boundary_service_reach,

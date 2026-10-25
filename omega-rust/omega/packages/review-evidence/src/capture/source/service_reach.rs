@@ -67,8 +67,9 @@ fn checked_machine_service_reach<'a>(
             language_semantics::ServiceReachInterface::InternalInferred
         }
     };
-    // Authored custody remains exact above; publication additionally includes
-    // ordinary checked callees, reconstructed once for this capture request.
+    // Authored custody remains exact above. Publication retains an authored
+    // ceiling, or derives the complete checked-call row when it is omitted;
+    // reconstruct that distinction once for this capture request.
     let published = compilation
         .facts
         .service_reaches

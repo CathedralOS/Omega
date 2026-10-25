@@ -17,7 +17,7 @@ machine write_cache() reaches FilesystemContentWrite invokes NativeFilesystem; {
 
 data Renderer {}
 machine Renderer::present() satisfies GraphicsPlatform::present
-reaches SurfacePresentation invokes NativeFilesystem; {
+reaches SurfacePresentation + FilesystemContentWrite invokes NativeFilesystem; {
     write_cache();
 }
 

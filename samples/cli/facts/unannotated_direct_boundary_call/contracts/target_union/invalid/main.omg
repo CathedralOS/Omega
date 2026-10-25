@@ -1,0 +1,16 @@
+// Expected exit: 0
+public boundary trait Mark { machine read() -> u64 reaches Mark; }
+public boundary trait Forbidden { machine read() -> u64 reaches Forbidden; }
+public boundary trait Unused {}
+MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
+ForbiddenMark satisfies Forbidden { machine read() -> u64 { 7 } }
+macos_arm64 machine read_mark() -> u64 { Mark::read() }
+windows_x86_64 machine read_mark() -> u64 { Forbidden::read() }
+linux_x86_64 machine read_mark() -> u64 { Mark::read() }
+linux_arm64 machine read_mark() -> u64 { Mark::read() }
+machine main() reaches Mark crashes Trap {
+    let value: u64 = read_mark();
+    transition value == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
