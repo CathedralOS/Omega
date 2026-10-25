@@ -8,8 +8,9 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, Sc
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
-    BoundaryRealization, BoundarySettlementBinding, ScalarFunctionAbi, TargetStructuralParameter,
-    TargetUnitOperation, TargetUnitScalarHomeRequirement,
+    BoundaryRealization, BoundarySettlementBinding, BoundarySettlementRealization,
+    ScalarFunctionAbi, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement,
 };
 use terminal_psi::StructuralTypeShape;
 
@@ -614,107 +615,97 @@ pub(super) fn lower_operation(
                 site.provenance,
             )
         }
-        AbstractOperation::BoundaryCall { boundary, .. }
-            if settlements.get(boundary).is_some_and(|binding| {
-                matches!(
-                    binding.realization,
-                    target_operations::BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::PlacementLifecycle { .. }
-                    )
-                )
-            }) =>
-        {
-            super::placement_lifecycles::lower(operation, site, boundary_machines, settlements)
-        }
-        AbstractOperation::BoundaryCall { boundary, .. }
-            if settlements.get(boundary).is_some_and(|binding| {
-                matches!(
-                    binding.realization,
-                    target_operations::BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::PlacedScalarAccess(_)
-                    )
-                )
-            }) =>
-        {
-            super::placed_scalar_access::lower(operation, site, settlements)
-        }
-        AbstractOperation::BoundaryCall { boundary, .. }
-            if settlements.get(boundary).is_some_and(|binding| {
-                matches!(
-                    binding.realization,
-                    target_operations::BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::ProgramImageRetainedSuffixStart
-                    )
-                )
-            }) =>
-        {
-            super::program_image::lower(operation, target, boundary_machines, settlements, site)
-        }
-        AbstractOperation::BoundaryCall { boundary, .. }
-            if super::ieee_float_arithmetic::is_inline_arithmetic(*boundary, settlements) =>
-        {
-            super::ieee_float_arithmetic::lower(
-                operation,
-                site,
-                target,
-                boundary_machines,
-                settlements,
-            )
-        }
-        AbstractOperation::BoundaryCall { boundary, .. }
-            if settlements.get(boundary).is_some_and(|binding| {
-                matches!(
-                    binding.realization,
-                    target_operations::BoundarySettlementRealization::Builtin(
-                        BoundaryRealization::HostedWriteByteI32(_)
-                            | BoundaryRealization::HostedExitProcessI32(_)
-                            | BoundaryRealization::HostedReadByte(_)
-                    ) | target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
-                )
-            }) =>
-        {
-            crate::lowering::unit::boundary_call::lower_boundary_call(
-                operation,
-                function,
-                target,
-                structural_types,
-                boundary_machines,
-                settlements,
-                native_callbacks,
-                parameters_by_place,
-                &site.live.structural_homes,
-                &site.live.address_joins,
-                &site.live.block_views,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-                &BTreeMap::new(),
-                &mut site.live.integers,
-                &mut site.live.scalar_homes,
-                &site.live.booleans,
-                &site.live.ieee_float_constants,
-                &site.live.scalar_block_parameters,
-                site.operations,
-                site.provenance,
-            )?;
-            if let Some(
-                TargetUnitOperation::BoundarySettlement {
-                    result: target_operations::TargetBoundaryResult::Structural(home),
-                    ..
-                }
-                | TargetUnitOperation::NormalizedForeignCall {
-                    result: target_operations::TargetBoundaryResult::Structural(home),
-                    ..
-                },
-            ) = site.operations.last()
-                && site
-                    .live
-                    .structural_homes
-                    .insert(home.place(), home.clone())
-                    .is_some()
-            {
+        AbstractOperation::BoundaryCall { boundary, .. } => {
+            // One admitted settlement selects the row owner; the recognizer is
+            // read once here instead of once per guard, and the row owners no
+            // longer re-derive the same realization.
+            let Some(realization) = settlements
+                .get(boundary)
+                .map(|binding| &binding.realization)
+            else {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
+            };
+            match realization {
+                BoundarySettlementRealization::Builtin(
+                    BoundaryRealization::PlacementLifecycle { .. },
+                ) => super::placement_lifecycles::lower(
+                    operation,
+                    site,
+                    boundary_machines,
+                    settlements,
+                ),
+                BoundarySettlementRealization::Builtin(
+                    BoundaryRealization::PlacedScalarAccess(_),
+                ) => super::placed_scalar_access::lower(operation, site, settlements),
+                BoundarySettlementRealization::Builtin(
+                    BoundaryRealization::ProgramImageRetainedSuffixStart,
+                ) => super::program_image::lower(
+                    operation,
+                    target,
+                    boundary_machines,
+                    settlements,
+                    site,
+                ),
+                BoundarySettlementRealization::Builtin(
+                    BoundaryRealization::NearestIeeeFloatArithmetic(_),
+                ) => super::ieee_float_arithmetic::lower(
+                    operation,
+                    site,
+                    target,
+                    boundary_machines,
+                    settlements,
+                ),
+                BoundarySettlementRealization::Builtin(
+                    BoundaryRealization::HostedWriteByteI32(_)
+                    | BoundaryRealization::HostedExitProcessI32(_)
+                    | BoundaryRealization::HostedReadByte(_),
+                )
+                | BoundarySettlementRealization::NormalizedForeignCall(_) => {
+                    crate::lowering::unit::boundary_call::lower_boundary_call(
+                        operation,
+                        function,
+                        target,
+                        structural_types,
+                        boundary_machines,
+                        settlements,
+                        native_callbacks,
+                        parameters_by_place,
+                        &site.live.structural_homes,
+                        &site.live.address_joins,
+                        &site.live.block_views,
+                        &mut BTreeMap::new(),
+                        &mut BTreeSet::new(),
+                        &BTreeMap::new(),
+                        &mut site.live.integers,
+                        &mut site.live.scalar_homes,
+                        &site.live.booleans,
+                        &site.live.ieee_float_constants,
+                        &site.live.scalar_block_parameters,
+                        site.operations,
+                        site.provenance,
+                    )?;
+                    if let Some(
+                        TargetUnitOperation::BoundarySettlement {
+                            result: target_operations::TargetBoundaryResult::Structural(home),
+                            ..
+                        }
+                        | TargetUnitOperation::NormalizedForeignCall {
+                            result: target_operations::TargetBoundaryResult::Structural(home),
+                            ..
+                        },
+                    ) = site.operations.last()
+                        && site
+                            .live
+                            .structural_homes
+                            .insert(home.place(), home.clone())
+                            .is_some()
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    Ok(())
+                }
+                _ => Err(LoweringError::unsupported_control_flow(function.machine)),
             }
-            Ok(())
         }
         AbstractOperation::ByteSequenceLength { .. }
         | abstract_operations::byte_read_predicate_equal_pattern!(..)

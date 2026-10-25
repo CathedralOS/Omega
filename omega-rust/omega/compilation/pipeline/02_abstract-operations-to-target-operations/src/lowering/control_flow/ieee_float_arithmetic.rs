@@ -21,21 +21,6 @@ use target_operations::{
     TargetUnitScalarHomeRequirement,
 };
 
-/// Whether this boundary's admitted settlement realizes inline arithmetic.
-pub(super) fn is_inline_arithmetic(
-    boundary: BoundaryMachineId,
-    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
-) -> bool {
-    settlements.get(&boundary).is_some_and(|binding| {
-        matches!(
-            binding.realization,
-            BoundarySettlementRealization::Builtin(
-                BoundaryRealization::NearestIeeeFloatArithmetic(_)
-            )
-        )
-    })
-}
-
 pub(super) fn lower(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
