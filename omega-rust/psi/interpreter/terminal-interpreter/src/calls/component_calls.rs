@@ -1,7 +1,7 @@
 //! Checked cross-instance calls. Host adapters never enter this result lane.
 
 use terminal_fuel::TerminalFuelMeter;
-use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult};
+use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult, StructuralMultiplicity};
 
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::{AdmittedBoundarySupply, TerminalEffectRejection};
@@ -34,12 +34,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                 "component dispatch reached another operation".to_owned(),
             ));
         };
-        if !completion_receipts.is_empty() {
-            return Err(reject(
-                "component invocation needs an exact completion-receipt transfer carrier"
-                    .to_owned(),
-            ));
-        }
         // Dispatch reaches this lane only under an admitted installation
         // supply, so this roster is the receiving host's — the raw lane
         // carries an empty one and can never select a component provider.
@@ -67,6 +61,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                 receiver,
                 binding.provider_program(),
                 selected.provider_boundary(),
+                selected.candidate(),
+                completion_receipts,
             )?;
             binding
                 .prepare(
@@ -81,6 +77,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             // checks finished before preparing it; commit the ordinary transfer
             // before allowing that child to consume the original atoms.
             self.live_affine_frontier = prepared.remaining_affine;
+            self.live_claims = prepared.remaining_claims;
             for place in prepared.retired_sources {
                 self.structural_values
                     .remove(&place)
@@ -128,6 +125,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             .program
             .verified_boundary_machine(&selected.provider_boundary())?
             .result;
+        let mut result_claims = self.live_claims.clone();
         let returned = match (&receiver, supplied, completed.value()) {
             (
                 BoundaryMachineResult::Unit,
@@ -160,9 +158,13 @@ impl<'artifact> TerminalExecution<'artifact> {
                     || !right.qualifications.is_empty()
                     || !left.projected_qualifications.is_empty()
                     || !right.projected_qualifications.is_empty()
-                    || !returned.claims.is_empty()
                     || receiver_type.owns_linear_claim
-                    || !receiver_type.no_code_affine_cleanup
+                        != (left.multiplicity == StructuralMultiplicity::Linear)
+                    || provider_type.owns_linear_claim != receiver_type.owns_linear_claim
+                    || returned.claims.len() != usize::from(receiver_type.owns_linear_claim)
+                    || (!receiver_type.owns_linear_claim
+                        && (!receiver_type.no_code_affine_cleanup
+                            || !provider_type.no_code_affine_cleanup))
                     || !self
                         .program
                         .catalogs
@@ -193,11 +195,24 @@ impl<'artifact> TerminalExecution<'artifact> {
                             .live_affine_frontier
                             .iter()
                             .any(|value| value.place == result.place)
-                        || !result.claims.is_empty()
+                        || result.claims.len() != returned.claims.len()
+                        || result.claims.iter().any(|binding| !binding.path.is_empty())
                     {
                         return Err(reject(
                             "component receiving result place still owns custody".to_owned(),
                         ));
+                    }
+                    // ComponentOwnedReturn owns the actual edge-authenticated
+                    // root receipt. Claim IDs are local to each artifact; bind
+                    // the receiving operation's exact root ID once, rather
+                    // than importing the producer's numeric claim key.
+                    for binding in &result.claims {
+                        crate::custody::bind_result_claim(
+                            &mut result_claims,
+                            binding,
+                            result.place,
+                            result.multiplicity,
+                        )?;
                     }
                 }
                 self.local_structural_identities
@@ -214,6 +229,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let candidate = completed.candidate();
         let instance_namespace = completed.instance_namespace();
         self.commit_boundary_result(&operation.result, &receiver, returned)?;
+        self.live_claims = result_claims;
         self.effects
             .push(crate::effects::TerminalEffect::ComponentCall {
                 operation: operation.id,

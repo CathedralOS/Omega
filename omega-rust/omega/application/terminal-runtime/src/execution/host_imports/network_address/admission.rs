@@ -16,12 +16,14 @@ use terminal_psi::{
 
 use super::{AddressOperation, TerminalRuntimeError};
 
-/// Affine and copy are both owned inert carriers. Linear debt, loans, and
-/// qualifications stay outside this host operation.
+/// Physical Inert placement is independent of guest multiplicity. The
+/// interpreter transfers linear claims; this adapter never creates receipts.
 fn owned_inert(multiplicity: StructuralMultiplicity) -> bool {
     matches!(
         multiplicity,
-        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+        StructuralMultiplicity::Affine
+            | StructuralMultiplicity::Unrestricted
+            | StructuralMultiplicity::Linear
     )
 }
 

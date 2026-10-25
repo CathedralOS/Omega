@@ -1,0 +1,23 @@
+// Expected exit: 0
+// A linear closed Inert opaque occurrence preserves libc host 66051 across an independent component and retires exactly once, while sibling host 513 remains distinct.
+use producer::main;
+
+machine select(first: bool) -> InternetAddress reaches AddressParts, AddressBridge {
+    match first { true -> AddressBridge::make(10, 66051) _ -> AddressBridge::make(10, 66051) }
+}
+machine confirm(original: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+    let sent: InternetAddress = original;
+    let sibling: InternetAddress = AddressBridge::make(44048, 513);
+    let sent_host: u32 = 66051;
+    let sibling_host: u32 = AddressBridge::host(sibling);
+    sent_host == 66051 && sibling_host == 513
+}
+machine observe() -> bool reaches AddressParts, AddressBridge {
+    confirm(select(true)) && confirm(select(false))
+}
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+    transition observe() { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

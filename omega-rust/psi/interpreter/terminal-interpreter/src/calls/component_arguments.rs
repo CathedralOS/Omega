@@ -2,17 +2,18 @@
 //!
 //! Ordinary argument presentation and affine partitioning stay authoritative.
 //! An owned affine atom moves. An owned copyable atom crosses as another
-//! occurrence and the caller keeps its own. Linear debt, materialized backing,
-//! loans, routed claims and memberships need their own transfer carriers.
+//! occurrence and the caller keeps its own. Linear debt follows the ordinary
+//! exact claim-transfer join. Materialized backing, loans and memberships
+//! need their own transfer carriers.
 //! Preparing these values executes nothing. The caller commits the staged
 //! frontier only after a real installed child has accepted the tuple.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BoundaryMachineId, PlaceId};
+use semantic_vocabulary::{BoundaryMachineId, ClaimId, MachineId, PlaceId};
 use terminal_psi::{
-    BoundaryMachineDeclaration, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity,
+    BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
 };
 
 use crate::errors::{TerminalInterpretError, malformed};
@@ -24,6 +25,7 @@ pub(super) struct PreparedComponentArguments {
     pub(super) values: Vec<TerminalStructuralValue>,
     pub(super) remaining_affine: BTreeSet<StructuralAffineDiscard>,
     pub(super) retired_sources: Vec<PlaceId>,
+    pub(super) remaining_claims: BTreeMap<ClaimId, crate::execution::LiveClaim>,
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
@@ -33,6 +35,8 @@ impl<'artifact> TerminalExecution<'artifact> {
         receiver: &BoundaryMachineDeclaration,
         provider: &TerminalProgram<'artifact>,
         provider_boundary: BoundaryMachineId,
+        provider_entry: MachineId,
+        completion_receipts: &[CompletionReceipt],
     ) -> Result<PreparedComponentArguments, TerminalInterpretError> {
         let reject = |reason| TerminalInterpretError::UnsupportedSemanticVariant(reason);
         let supplied = provider
@@ -77,7 +81,9 @@ impl<'artifact> TerminalExecution<'artifact> {
                 || required.multiplicity != supplied.multiplicity
                 || !matches!(
                     required.multiplicity,
-                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    StructuralMultiplicity::Affine
+                        | StructuralMultiplicity::Unrestricted
+                        | StructuralMultiplicity::Linear
                 )
                 || !required.qualifications.is_empty()
                 || !supplied.qualifications.is_empty()
@@ -86,9 +92,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                 || !value.qualifications.is_empty()
                 || !value.projected_qualifications.is_empty()
                 || receiver_type.owns_linear_claim
-                || provider_type.owns_linear_claim
-                || !receiver_type.no_code_affine_cleanup
-                || !provider_type.no_code_affine_cleanup
+                    != (required.multiplicity == StructuralMultiplicity::Linear)
+                || provider_type.owns_linear_claim != receiver_type.owns_linear_claim
+                || (required.multiplicity != StructuralMultiplicity::Linear
+                    && (!receiver_type.no_code_affine_cleanup
+                        || !provider_type.no_code_affine_cleanup))
                 || !self
                     .program
                     .catalogs
@@ -102,13 +110,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                             .text(provider_type.identity),
                     )
                     .is_some_and(|(left, right)| !left.is_empty() && left == right)
-                || self.live_claims.values().any(|claim| {
-                    claim.place == Some(argument.place)
-                        && terminal_semantics::structural_paths_may_overlap(
-                            &claim.path,
-                            &argument.path,
-                        )
-                })
                 || crate::custody::has_live_loan(&self.reference_referents, value)
             {
                 return Err(reject(
@@ -158,10 +159,36 @@ impl<'artifact> TerminalExecution<'artifact> {
             &receiver.structural_parameters,
             &self.structural_values,
         )?;
+        let entry = provider.program.verified_machine(provider_entry)?;
+        let callee_values = crate::custody::bind_structural_arguments(
+            &entry.structural_parameters,
+            &values,
+            self.account.as_ref(),
+        )?;
+        let transfers = completion_receipts
+            .iter()
+            .map(|receipt| ClaimTransfer {
+                claim: receipt.claim,
+                argument_index: receipt.argument_index,
+                path: receipt.path.clone(),
+            })
+            .collect::<Vec<_>>();
+        let (remaining_claims, _) = crate::custody::transfer_claims(
+            &provider_types,
+            &BTreeMap::new(),
+            &self.live_claims,
+            arguments,
+            &transfers,
+            &entry.structural_parameters,
+            &entry.entry_claims,
+            &entry.content_entry_claims,
+            &callee_values,
+        )?;
         Ok(PreparedComponentArguments {
             values,
             remaining_affine,
             retired_sources,
+            remaining_claims,
         })
     }
 }

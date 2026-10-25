@@ -78,12 +78,20 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                         .structural_types()
                         .get(&returned.value.structural_type)
                         .ok_or("component return lost its structural declaration")?;
-                    if !returned.claims.is_empty()
+                    // The returning edge already authenticated and removed
+                    // these exact claims from its live table. An opaque root
+                    // may transfer its single linear debt, never a nested or
+                    // independently manufactured completion receipt.
+                    let expected_claims = usize::from(declaration.owns_linear_claim);
+                    if returned.claims.len() != expected_claims
+                        || execution.returned_claims.len() != expected_claims
+                        || execution.returned_claims.iter().any(|binding| {
+                            !binding.path.is_empty() || !returned.claims.contains(&binding.claim)
+                        })
                         || !returned.value.qualifications.is_empty()
                         || !returned.value.projected_qualifications.is_empty()
                         || !returned.value.path.is_empty()
-                        || declaration.owns_linear_claim
-                        || !declaration.no_code_affine_cleanup
+                        || (!declaration.owns_linear_claim && !declaration.no_code_affine_cleanup)
                     {
                         return Err(
                             "component return requires a checked claim, membership or cleanup transfer carrier",
