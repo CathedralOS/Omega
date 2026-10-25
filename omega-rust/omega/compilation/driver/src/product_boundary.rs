@@ -223,6 +223,38 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
+fn early_constants_share_terminal_production_without_tree_fallback() {
+    let early = include_str!(
+        "../../../../psi/compilation/compile-time/src/machine_execution/build_machines.rs"
+    );
+    let constant = early
+        .split("pub(crate) fn evaluate_checked_constant(")
+        .nth(1)
+        .expect("constant entry")
+        .split("fn interpreter_program(")
+        .next()
+        .expect("constant body");
+    assert!(constant.contains("psi_terminal_production::TerminalProductionRequest::new("));
+    assert!(constant.contains("terminal_interpreter::TerminalProgram::borrow("));
+    assert!(constant.contains(".invoke(&mut meter)"));
+    assert!(!constant.contains("checked_interpreter::"));
+
+    let facade = include_str!("../../../../psi/compilation/driver/Cargo.toml");
+    let producer =
+        include_str!("../../../../psi/compilation/driver/terminal-production/Cargo.toml");
+    assert!(facade.contains("psi-terminal-production ="));
+    assert!(!producer.contains("build-time-evaluation ="));
+    for stage in [
+        "checked-trees-to-lowered-psi =",
+        "lowered-psi-to-lowered-psi =",
+        "lowered-psi-to-terminal-psi =",
+    ] {
+        assert!(!facade.contains(stage), "source facade reassembles {stage}");
+        assert!(producer.contains(stage), "shared producer lost {stage}");
+    }
+}
+
+#[test]
 fn product_consumers_do_not_assemble_source_stages() {
     for manifest in [
         include_str!("../Cargo.toml"),
