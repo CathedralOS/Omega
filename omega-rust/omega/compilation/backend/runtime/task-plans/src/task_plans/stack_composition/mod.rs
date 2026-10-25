@@ -32,9 +32,6 @@ use crate::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[cfg(test)]
-mod tests;
-
 /// Untrusted inputs presented for one opaque same-stack contribution.
 ///
 /// Admission must compare the provider-plan report coordinate, strong

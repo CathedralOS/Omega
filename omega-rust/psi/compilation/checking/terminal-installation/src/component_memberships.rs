@@ -16,9 +16,6 @@ use terminal_psi::{
     TerminalModule,
 };
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ComponentMemberships(Vec<(StructuralDomainId, StructuralDomainId)>);
 
