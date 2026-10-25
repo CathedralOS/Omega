@@ -13,10 +13,8 @@ use crate::checks::ownership_occurrences::{InvocationIdentity, StatementOccurren
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
-mod backing;
 mod captures;
 mod conflicts;
-mod incoming;
 
 pub(super) fn check<'program>(
     program: &'program dyn validation::CheckingInput,

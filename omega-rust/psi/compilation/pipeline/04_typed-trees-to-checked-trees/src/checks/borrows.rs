@@ -19,6 +19,7 @@ mod persistent;
 // Call, aggregate formation and statement judgments, plus resource rows
 // consumed by lowering.
 mod aggregates;
+mod captured_descriptors;
 mod completed_custody;
 pub(crate) use completed_custody::require_unborrowed_completion;
 pub(crate) mod calls;

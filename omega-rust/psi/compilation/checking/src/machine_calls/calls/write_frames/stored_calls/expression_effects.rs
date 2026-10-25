@@ -3,6 +3,12 @@
 //! operand. Alternatives join complete relations to their common entry, so a
 //! skipped call preserves incoming contents and a later overwrite replaces an
 //! earlier one. Unknown relations remain unknown.
+//!
+//! Immutable completion cuts share storage until slots change. Intermediate
+//! child cuts retain possible backing roots for constructed and returned values;
+//! scalar predicates still belong to their exact Flow operand captures. The
+//! instantiator consumes these cuts without replaying argument effects, while
+//! incomplete-call obligations accumulate independently of later overwrites.
 
 use super::{
     CollectedStatementPrefix, FrameInference, Machine, SlotEffect, SlotRelationTransfer,
@@ -28,66 +34,131 @@ pub(in super::super) fn statement_effects(
     };
     let mut context = context.clone();
     let mut effects = SlotRelationTransfer::default();
+    let mut history = Vec::new();
     if let StatementNode::Transition(transition) = statement {
-        if let TransitionGuardNode::When(guard) = transition.guard {
-            query.expression(guard, &mut context, &mut effects, inference)?;
-        }
-        let mut alternatives = Vec::new();
-        for target in [transition.target, transition.continuation] {
-            let mut branch = SlotRelationTransfer::default();
-            let mut branch_context = context.clone();
-            let mut branch_inference = inference.clone();
-            if program.statement_table.transition_target_is_valid(target) {
-                let arguments = match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        program.statement_table.expression_handles(*arguments)
-                    }
-                    TransitionTargetNode::Value(value) => std::slice::from_ref(value),
-                    TransitionTargetNode::Terminal => &[],
-                };
-                for argument in arguments {
-                    query.expression(
-                        *argument,
-                        &mut branch_context,
-                        &mut branch,
-                        &mut branch_inference,
-                    )?;
-                }
-            }
-            alternatives.push(branch);
-        }
-        install(
-            program,
+        return Some(join(
+            completed_transition(
+                program, machine, state, transition, &context, symbols, inference,
+            )?
+            .into_iter()
+            .map(|edge| edge.effects)
+            .collect(),
+        ));
+    } else if let Some(call) = statement.as_call() {
+        let arguments = program.statement_table.expression_handles(call.arguments);
+        let completed = query.arguments(
+            arguments,
             &mut context,
             &mut effects,
-            join(alternatives),
             inference,
-        );
+            &mut history,
+        )?;
+        let called = super::call_effects(
+            program, machine, state, call, &completed, &context, symbols, inference,
+        )
+        .unwrap_or_else(|| {
+            SlotRelationTransfer::unknown(
+                &context,
+                call.target_symbol,
+                false,
+                super::provider_output_relation_required(
+                    program,
+                    machine.symbol,
+                    call.target_symbol,
+                    ExpressionHandle::invalid(),
+                ),
+            )
+        });
+        install(program, &mut context, &mut effects, called, inference);
+        history.push(std::sync::Arc::new(context.clone()));
     } else if !matches!(statement, StatementNode::AssemblyFact(_)) {
         for expression in super::super::demand::statement_value_expression_roots(program, statement)
         {
-            query.expression(expression, &mut context, &mut effects, inference)?;
-        }
-        if let Some(call) = statement.as_call() {
-            let called =
-                super::call_effects(program, machine, state, call, &context, symbols, inference)
-                    .unwrap_or_else(|| {
-                        SlotRelationTransfer::unknown(
-                            &context,
-                            call.target_symbol,
-                            false,
-                            super::provider_output_relation_required(
-                                program,
-                                machine.symbol,
-                                call.target_symbol,
-                                ExpressionHandle::invalid(),
-                            ),
-                        )
-                    });
-            install(program, &mut context, &mut effects, called, inference);
+            query.expression(
+                expression,
+                &mut context,
+                &mut effects,
+                inference,
+                &mut history,
+            )?;
         }
     }
     Some(effects)
+}
+
+/// Source descriptor words belong to their own completion cuts. The final
+/// invocation inventory separately owns reads through captured borrowed addresses.
+#[derive(Clone, Default)]
+pub(super) struct CompletedArguments {
+    pub expressions: Vec<ExpressionHandle>,
+    pub contexts: Vec<std::sync::Arc<CollectedStatementPrefix>>,
+    pub histories: Vec<Vec<std::sync::Arc<CollectedStatementPrefix>>>,
+}
+
+pub(super) struct CompletedEdge {
+    pub target: typed_trees::statement::TransitionTargetHandle,
+    pub arguments: CompletedArguments,
+    pub context: CollectedStatementPrefix,
+    pub effects: SlotRelationTransfer,
+}
+
+/// State equations and ordinary statement effects consume the same selected
+/// guard/operand schedule. A return expression's writes precede its normal exit.
+pub(super) fn completed_transition(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    transition: &typed_trees::statement::TableTransition,
+    prefix: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+) -> Option<Vec<CompletedEdge>> {
+    let query = Evaluation {
+        program,
+        machine,
+        state,
+        symbols,
+    };
+    let mut context = prefix.clone();
+    let mut guard_effects = SlotRelationTransfer::default();
+    let mut history = Vec::new();
+    if let TransitionGuardNode::When(guard) = transition.guard {
+        query.expression(
+            guard,
+            &mut context,
+            &mut guard_effects,
+            inference,
+            &mut history,
+        )?;
+    }
+    let mut result = Vec::new();
+    for target in transition.targets() {
+        let mut context = context.clone();
+        let mut effects = guard_effects.clone();
+        let mut inference = inference.clone();
+        let mut history = history.clone();
+        let expressions = match program.statement_table.transition_target(target) {
+            TransitionTargetNode::Named { arguments, .. } => {
+                program.statement_table.expression_handles(*arguments)
+            }
+            TransitionTargetNode::Value(value) => std::slice::from_ref(value),
+            TransitionTargetNode::Terminal => &[],
+        };
+        let arguments = query.arguments(
+            expressions,
+            &mut context,
+            &mut effects,
+            &mut inference,
+            &mut history,
+        )?;
+        result.push(CompletedEdge {
+            target,
+            arguments,
+            context,
+            effects,
+        });
+    }
+    Some(result)
 }
 
 struct Evaluation<'request, 'symbols> {
@@ -98,12 +169,49 @@ struct Evaluation<'request, 'symbols> {
 }
 
 impl Evaluation<'_, '_> {
+    fn arguments(
+        &self,
+        expressions: &[ExpressionHandle],
+        context: &mut CollectedStatementPrefix,
+        effects: &mut SlotRelationTransfer,
+        inference: &mut FrameInference,
+        history: &mut Vec<std::sync::Arc<CollectedStatementPrefix>>,
+    ) -> Option<CompletedArguments> {
+        let mut completed = CompletedArguments {
+            expressions: expressions.to_vec(),
+            contexts: Vec::new(),
+            histories: Vec::new(),
+        };
+        let mut cut = std::sync::Arc::new(context.clone());
+        for expression in expressions {
+            let start = history.len();
+            history.push(cut.clone());
+            let mut operand_effects = SlotRelationTransfer::default();
+            self.expression(
+                *expression,
+                context,
+                &mut operand_effects,
+                inference,
+                history,
+            )?;
+            if !operand_effects.effects.is_empty() {
+                cut = std::sync::Arc::new(context.clone());
+                history.push(cut.clone());
+            }
+            completed.contexts.push(cut.clone());
+            completed.histories.push(history[start..].to_vec());
+            compose(effects, operand_effects);
+        }
+        Some(completed)
+    }
+
     fn expression(
         &self,
         expression: ExpressionHandle,
         context: &mut CollectedStatementPrefix,
         effects: &mut SlotRelationTransfer,
         inference: &mut FrameInference,
+        history: &mut Vec<std::sync::Arc<CollectedStatementPrefix>>,
     ) -> Option<()> {
         if !expression.is_valid() {
             return Some(());
@@ -111,7 +219,7 @@ impl Evaluation<'_, '_> {
         let node = self.program.expression_table.expression(expression);
         match node {
             ExpressionNode::Match(dispatch) => {
-                self.expression(dispatch.subject, context, effects, inference)?;
+                self.expression(dispatch.subject, context, effects, inference, history)?;
                 let mut prefix_context = context.clone();
                 let mut prefix_effects = SlotRelationTransfer::default();
                 let mut prefix_inference = inference.clone();
@@ -127,6 +235,7 @@ impl Evaluation<'_, '_> {
                             &mut prefix_context,
                             &mut prefix_effects,
                             &mut prefix_inference,
+                            history,
                         )?;
                     }
                     let mut branch_context = prefix_context.clone();
@@ -137,6 +246,7 @@ impl Evaluation<'_, '_> {
                         &mut branch_context,
                         &mut branch,
                         &mut branch_inference,
+                        history,
                     )?;
                     alternatives.push(branch);
                     if matches!(arm.pattern, MatchPattern::Wildcard) {
@@ -150,6 +260,7 @@ impl Evaluation<'_, '_> {
                     join(alternatives),
                     inference,
                 );
+                history.push(std::sync::Arc::new(context.clone()));
                 return Some(());
             }
             ExpressionNode::Binary(binary)
@@ -161,7 +272,7 @@ impl Evaluation<'_, '_> {
                         expression,
                     ) =>
             {
-                self.expression(binary.left, context, effects, inference)?;
+                self.expression(binary.left, context, effects, inference, history)?;
                 let mut branch_context = context.clone();
                 let mut branch = SlotRelationTransfer::default();
                 self.expression(
@@ -169,6 +280,7 @@ impl Evaluation<'_, '_> {
                     &mut branch_context,
                     &mut branch,
                     &mut inference.clone(),
+                    history,
                 )?;
                 install(
                     self.program,
@@ -177,18 +289,22 @@ impl Evaluation<'_, '_> {
                     join(vec![SlotRelationTransfer::default(), branch]),
                     inference,
                 );
+                history.push(std::sync::Arc::new(context.clone()));
                 return Some(());
             }
             _ => {}
         }
-        let mut children = Vec::new();
-        crate::expression_traversal::executable_children(self.program, node, |child| {
-            children.push(child)
-        });
-        for child in children {
-            self.expression(child, context, effects, inference)?;
-        }
         if let ExpressionNode::Call(call) = node {
+            self.expression(call.receiver, context, effects, inference, history)?;
+            let completed = self.arguments(
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+                context,
+                effects,
+                inference,
+                history,
+            )?;
             // Primitive queries observe operands without installing reference
             // slots. Their operands have already executed above, including any
             // calls that do install slots. The declaration classifier keeps a
@@ -205,9 +321,7 @@ impl Evaluation<'_, '_> {
                 self.state,
                 call.target_symbol,
                 expression,
-                self.program
-                    .expression_table
-                    .expression_handles(call.arguments),
+                &completed,
                 call.machine_arguments.is_empty(),
                 context,
                 self.symbols,
@@ -227,6 +341,15 @@ impl Evaluation<'_, '_> {
                 )
             });
             install(self.program, context, effects, called, inference);
+            history.push(std::sync::Arc::new(context.clone()));
+        } else {
+            let mut children = Vec::new();
+            crate::expression_traversal::executable_children(self.program, node, |child| {
+                children.push(child)
+            });
+            for child in children {
+                self.expression(child, context, effects, inference, history)?;
+            }
         }
         Some(())
     }
@@ -253,6 +376,12 @@ fn install(
     for record in &context.stored {
         inference.record_local(record);
     }
+    compose(accumulated, next);
+}
+
+/// Compose already-evaluated transfers without executing or installing them a
+/// second time. This keeps operand completion capture separate from commit.
+fn compose(accumulated: &mut SlotRelationTransfer, next: SlotRelationTransfer) {
     accumulated.template_dependent |= next.template_dependent;
     accumulated.incomplete_calls.extend(next.incomplete_calls);
     for mut effect in next.effects {

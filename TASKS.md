@@ -656,7 +656,10 @@ defines the complete product bar.
     including captured backing exclusion after descriptor replacement, inline image-backed
     sources, computed image/input results with once-only content effects, named result
     copies, retained local-array backing and untouched sibling descriptors.
-    Argument-driven descriptor replacement still needs its post-evaluation inventory.
+    Retain completed descriptor operands across later argument-driven slot
+    replacement, including direct views and constructed children with local backing.
+    Complete remaining cyclic, opaque and dependent result composition through
+    the same producer and custody relationships.
     Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
@@ -815,8 +818,11 @@ defines the complete product bar.
     keep `python3 tools/corpus_gate.py --both --filter
     runtime_call_endpoint,runtime_inclusive_call_endpoint` (70),
     `fail/slices/inclusive_*` for bounds/overlap rejection, and
-    `layouts/runtime_reborrow_preserves_store_origin_exit` (70) for address
-    origins across shared-value and write-prefix queries. Carry exact
+    `layouts/runtime_reborrow_preserves_store_origin_exit` for address origins
+    across shared-value and write-prefix queries: current baseline `a8d49c50220`
+    refuses `NativePlacement::initialize` / `Placed::initialize_owned` with
+    “effectful invocation has unknown encoded reach”; restore its authored 70
+    in both engines. Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.

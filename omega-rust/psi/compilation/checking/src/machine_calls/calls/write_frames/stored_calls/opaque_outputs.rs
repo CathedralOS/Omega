@@ -11,11 +11,12 @@ pub(super) fn effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     parameters: &[StateParameter],
-    arguments: &[ExpressionHandle],
+    completed: &CompletedArguments,
     context: &CollectedStatementPrefix,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<SlotRelationTransfer> {
+    let arguments = &completed.expressions;
     if parameters.len() != arguments.len() {
         return None;
     }
@@ -30,6 +31,7 @@ pub(super) fn effects(
             parameter,
             arguments[parameter_index],
             &owner_segments(&output.owner_path)?,
+            completed.contexts.get(parameter_index)?,
             context,
             symbols,
             inference,
@@ -56,14 +58,30 @@ pub(super) fn effects(
                 carrier: relative.clone(),
                 lifetime_access: Some(dependency.access),
             };
-            let captured =
-                if !super::super::type_reference_is_reference(program, dependency.source_type) {
+            for captured_context in completed.histories.get(dependency.parameter_index)? {
+                let captured = if !super::super::type_reference_is_reference(
+                    program,
+                    dependency.source_type,
+                ) {
                     aggregate_argument_sources(
-                        program, machine, parameter, actual, &selected, context, symbols, inference,
+                        program,
+                        machine,
+                        parameter,
+                        actual,
+                        &selected,
+                        captured_context,
+                        symbols,
+                        inference,
                     )?
                 } else {
                     let captured = argument_origin(
-                        program, machine, parameter, actual, context, symbols, inference,
+                        program,
+                        machine,
+                        parameter,
+                        actual,
+                        captured_context,
+                        symbols,
+                        inference,
                     )?;
                     let mut projected = captured.clone();
                     projected.source = captured.source.append_relative(program, &relative);
@@ -104,9 +122,10 @@ pub(super) fn effects(
                         }
                     }
                 };
-            for source in captured {
-                if !sources.contains(&source) {
-                    sources.push(source);
+                for source in captured {
+                    if !sources.contains(&source) {
+                        sources.push(source);
+                    }
                 }
             }
         }
