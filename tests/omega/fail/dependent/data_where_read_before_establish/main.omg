@@ -1,6 +1,6 @@
-// An entry bridge cannot lend zero storage as a valid Main: its Player
-// field needs establishment. An ordinary incoming &mut Main would already
-// satisfy the declared domains; qualification creates no storage exception.
+// Ordinary local zero storage cannot be borrowed as an established Main:
+// its Player field excludes zero. An established incoming borrow still
+// carries its declared domains independently of the caller's machine name.
 data Player
 where
     health >= 1,
