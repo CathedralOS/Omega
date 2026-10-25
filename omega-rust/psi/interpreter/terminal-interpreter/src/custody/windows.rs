@@ -70,11 +70,11 @@ impl TerminalExecution<'_> {
                 if claims
                     .insert(
                         binding.claim,
-                        LiveClaim {
-                            place: Some(completion.place),
-                            path: binding.path.clone(),
-                            multiplicity: Some(StructuralMultiplicity::Linear),
-                        },
+                        LiveClaim::at(
+                            completion.place,
+                            binding.path.clone(),
+                            StructuralMultiplicity::Linear,
+                        ),
                     )
                     .is_some()
                 {
