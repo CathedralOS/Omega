@@ -332,6 +332,13 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
     let mut calls = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
+            // One walk coordinate per statement scope: every expression visit
+            // inside it collects under the same caller machine and state.
+            let walk = ElisionWalk {
+                program,
+                caller_machine: machine.symbol,
+                caller_state: state.symbol,
+            };
             for handle in state.statement_nodes.handles() {
                 match program.statement_table.statement(handle) {
                     StatementNode::Call(call) => {
@@ -347,54 +354,18 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
                             machine_arguments: call.machine_arguments.clone(),
                         });
                         for argument in program.statement_table.expression_handles(call.arguments) {
-                            collect_expression_elision_calls(
-                                program,
-                                machine.symbol,
-                                state.symbol,
-                                *argument,
-                                &mut calls,
-                            );
+                            walk.visit(*argument, &mut calls);
                         }
                     }
-                    StatementNode::Expression(expression) => collect_expression_elision_calls(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        *expression,
-                        &mut calls,
-                    ),
-                    StatementNode::LocalData(local) => collect_expression_elision_calls(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        local.initial_value,
-                        &mut calls,
-                    ),
+                    StatementNode::Expression(expression) => walk.visit(*expression, &mut calls),
+                    StatementNode::LocalData(local) => walk.visit(local.initial_value, &mut calls),
                     StatementNode::Assignment(assignment) => {
-                        collect_expression_elision_calls(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            assignment.target,
-                            &mut calls,
-                        );
-                        collect_expression_elision_calls(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            assignment.value,
-                            &mut calls,
-                        );
+                        walk.visit(assignment.target, &mut calls);
+                        walk.visit(assignment.value, &mut calls);
                     }
                     StatementNode::AssemblyFact(fact) => {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
-                            collect_expression_elision_calls(
-                                program,
-                                machine.symbol,
-                                state.symbol,
-                                expression,
-                                &mut calls,
-                            );
+                            walk.visit(expression, &mut calls);
                         }
                     }
                     _ => {}
@@ -405,178 +376,90 @@ fn collect_elision_calls(program: &dyn ::validation::CheckingInput) -> Vec<Elisi
     calls
 }
 
-fn collect_expression_elision_calls(
-    program: &dyn ::validation::CheckingInput,
+/// The caller coordinate every elision call in one statement scope shares.
+/// The walk's program, machine and state are bound once here; each visit
+/// borrows them instead of re-threading the same five arguments per recursion.
+struct ElisionWalk<'a> {
+    program: &'a dyn ::validation::CheckingInput,
     caller_machine: SymbolHandle,
     caller_state: SymbolHandle,
-    expression: ExpressionHandle,
-    calls: &mut Vec<ElisionCall>,
-) {
-    if !expression.is_valid()
-        || calls.iter().any(
-            |call| matches!(call.site, ElisionCallSite::Expression(handle) if handle == expression),
-        )
-    {
-        return;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(_) => {}
-        ExpressionNode::Call(call) => {
-            calls.push(ElisionCall {
-                site: ElisionCallSite::Expression(expression),
-                caller_machine,
-                caller_state,
-                target: call.target_symbol,
-                arguments: program
+}
+
+impl ElisionWalk<'_> {
+    /// Collect the call rows `expression` reaches, in pre-order, one row per
+    /// expression site. `SavedSubject` and literal expressions carry none.
+    fn visit(&self, expression: ExpressionHandle, calls: &mut Vec<ElisionCall>) {
+        if !expression.is_valid()
+            || calls.iter().any(
+                |call| matches!(call.site, ElisionCallSite::Expression(handle) if handle == expression),
+            )
+        {
+            return;
+        }
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::Call(call) => {
+                calls.push(ElisionCall {
+                    site: ElisionCallSite::Expression(expression),
+                    caller_machine: self.caller_machine,
+                    caller_state: self.caller_state,
+                    target: call.target_symbol,
+                    arguments: self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .to_vec(),
+                    machine_arguments: call.machine_arguments.clone(),
+                });
+                self.visit(call.receiver, calls);
+                for argument in self
+                    .program
                     .expression_table
                     .expression_handles(call.arguments)
-                    .to_vec(),
-                machine_arguments: call.machine_arguments.clone(),
-            });
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                call.receiver,
-                calls,
-            );
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_elision_calls(
-                    program,
-                    caller_machine,
-                    caller_state,
-                    *argument,
-                    calls,
-                );
+                {
+                    self.visit(*argument, calls);
+                }
             }
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_expression_elision_calls(
-                    program,
-                    caller_machine,
-                    caller_state,
-                    *value,
-                    calls,
-                );
+            ExpressionNode::ArrayLiteral(values) => {
+                for value in self.program.expression_table.expression_handles(*values) {
+                    self.visit(*value, calls);
+                }
             }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                atomic.value,
-                calls,
-            );
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                atomic.result,
-                calls,
-            );
-        }
-        ExpressionNode::Match(dispatch) => {
-            program.expression_table.match_deep_all(dispatch, |handle| {
-                collect_expression_elision_calls(
-                    program,
-                    caller_machine,
-                    caller_state,
-                    handle,
-                    calls,
-                );
-                true
-            });
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                binary.left,
-                calls,
-            );
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                binary.right,
-                calls,
-            );
-        }
-        ExpressionNode::Cast(cast) => collect_expression_elision_calls(
-            program,
-            caller_machine,
-            caller_state,
-            cast.value,
-            calls,
-        ),
-        ExpressionNode::Indexed(indexed) => {
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                indexed.collection,
-                calls,
-            );
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                indexed.index,
-                calls,
-            );
-        }
-        ExpressionNode::Member(member) => collect_expression_elision_calls(
-            program,
-            caller_machine,
-            caller_state,
-            member.receiver,
-            calls,
-        ),
-        ExpressionNode::Borrow(inner) => collect_expression_elision_calls(
-            program,
-            caller_machine,
-            caller_state,
-            inner.target,
-            calls,
-        ),
-        ExpressionNode::Range(range) => {
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                range.start,
-                calls,
-            );
-            collect_expression_elision_calls(
-                program,
-                caller_machine,
-                caller_state,
-                range.end,
-                calls,
-            );
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                collect_expression_elision_calls(
-                    program,
-                    caller_machine,
-                    caller_state,
-                    field.value,
-                    calls,
-                );
+            ExpressionNode::Atomic(atomic) => {
+                self.visit(atomic.value, calls);
+                self.visit(atomic.result, calls);
             }
+            ExpressionNode::Match(dispatch) => {
+                self.program
+                    .expression_table
+                    .match_deep_all(dispatch, |handle| {
+                        self.visit(handle, calls);
+                        true
+                    });
+            }
+            ExpressionNode::Binary(binary) => {
+                self.visit(binary.left, calls);
+                self.visit(binary.right, calls);
+            }
+            ExpressionNode::Cast(cast) => self.visit(cast.value, calls),
+            ExpressionNode::Indexed(indexed) => {
+                self.visit(indexed.collection, calls);
+                self.visit(indexed.index, calls);
+            }
+            ExpressionNode::Member(member) => self.visit(member.receiver, calls),
+            ExpressionNode::Borrow(inner) => self.visit(inner.target, calls),
+            ExpressionNode::Range(range) => {
+                self.visit(range.start, calls);
+                self.visit(range.end, calls);
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                for field in self.program.expression_table.struct_fields(literal.fields) {
+                    self.visit(field.value, calls);
+                }
+            }
+            ExpressionNode::Unary(unary) => self.visit(unary.operand, calls),
+            typed_trees::literal_expression_pattern!() => {}
         }
-        ExpressionNode::Unary(unary) => collect_expression_elision_calls(
-            program,
-            caller_machine,
-            caller_state,
-            unary.operand,
-            calls,
-        ),
-        typed_trees::literal_expression_pattern!() => {}
     }
 }
 

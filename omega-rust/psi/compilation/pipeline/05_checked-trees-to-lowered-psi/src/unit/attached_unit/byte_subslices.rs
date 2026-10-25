@@ -92,33 +92,21 @@ pub(super) fn emit(
     let (argument, site) = locate(context.state, operation, ordinal)?;
     let structural_type = lookup_type_id(context.type_ids, &argument.type_identity)?;
     let destination = place_id(allocate_dense(environment.next_place)?);
-    let storage = view_ranges::storage(
+    let (source, establishment) = view_ranges::stage_source(
         identities,
         checked,
         context.state,
         site.statement,
         argument,
         context.structural_types,
-    )?;
-    let whole = storage
-        .requires_establishment()
-        .then(|| allocate_dense(environment.next_place).map(place_id))
-        .transpose()?;
-    let (source, establishment) = storage.bind(
-        identities,
-        checked,
-        context.state,
         context.bindings,
-        whole,
-        context.structural_types,
+        environment.next_place,
+        values,
+        next_value,
+        operations,
     )?;
-    if let Some(establishment) = establishment {
-        environment.private_places.push(view_ranges::establish(
-            &establishment,
-            values,
-            next_value,
-            operations,
-        )?);
+    if let Some(declaration) = establishment {
+        environment.private_places.push(declaration);
     }
     let declaration = view_ranges::emit(
         identities,

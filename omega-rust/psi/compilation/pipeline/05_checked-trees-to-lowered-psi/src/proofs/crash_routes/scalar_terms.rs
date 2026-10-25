@@ -307,150 +307,38 @@ pub(crate) fn lowered_direct_scalar_term(
             let Some(integer_type) = scalar_type.as_integer() else {
                 return unsupported("crash predicate arithmetic has a non-integer type");
             };
-            let left = Box::new(lowered_direct_scalar_term(left, values, erased)?);
-            let right = Box::new(lowered_direct_scalar_term(right, values, erased)?);
+            let left = lowered_direct_scalar_term(left, values, erased)?;
+            let right = lowered_direct_scalar_term(right, values, erased)?;
             match kind {
-                LoweredIntegerBinaryKind::BitwiseAnd => ScalarTerm::IntegerBitwiseAnd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::BitwiseOr => ScalarTerm::IntegerBitwiseOr {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::BitwiseXor => ScalarTerm::IntegerBitwiseXor {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
+                // Shift rows stage their separate count type, then every
+                // remaining row applies through the one construction table.
                 LoweredIntegerBinaryKind::WrappingShiftLeft => {
                     let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
-                    ScalarTerm::WrappingIntegerShiftLeft {
-                        value_type: integer_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
+                    ScalarTerm::wrapping_integer_shift_left(integer_type, count_type, left, right)
+                        .map_err(LoweringError::InvalidCrashPredicate)?
                 }
                 LoweredIntegerBinaryKind::WrappingShiftRight => {
                     let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
-                    ScalarTerm::WrappingIntegerShiftRight {
-                        value_type: integer_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
+                    ScalarTerm::wrapping_integer_shift_right(integer_type, count_type, left, right)
+                        .map_err(LoweringError::InvalidCrashPredicate)?
                 }
                 LoweredIntegerBinaryKind::ExactShiftLeft => {
                     let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
-                    ScalarTerm::ExactIntegerShiftLeft {
-                        value_type: integer_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
+                    ScalarTerm::exact_integer_shift_left(integer_type, count_type, left, right)
+                        .map_err(LoweringError::InvalidCrashPredicate)?
                 }
                 LoweredIntegerBinaryKind::ExactShiftRight => {
                     let Some(count_type) = right.scalar_type().as_integer() else {
                         return unsupported("crash shift count is not an integer");
                     };
-                    ScalarTerm::ExactIntegerShiftRight {
-                        value_type: integer_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
-                }
-                LoweredIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::ExactSubtract => ScalarTerm::ExactIntegerSubtract {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::ExactMultiply => ScalarTerm::ExactIntegerMultiply {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::ExactDivide => ScalarTerm::ExactIntegerDivide {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::ExactRemainder => ScalarTerm::ExactIntegerRemainder {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::WrappingDivide => ScalarTerm::WrappingIntegerDivide {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::WrappingRemainder => {
-                    ScalarTerm::WrappingIntegerRemainder {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
-                }
-                LoweredIntegerBinaryKind::SaturatingDivide => ScalarTerm::SaturatingIntegerDivide {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::SaturatingRemainder => {
-                    ScalarTerm::SaturatingIntegerRemainder {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
-                }
-                LoweredIntegerBinaryKind::WrappingAdd => ScalarTerm::WrappingIntegerAdd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::SaturatingAdd => ScalarTerm::SaturatingIntegerAdd {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::WrappingSubtract => ScalarTerm::WrappingIntegerSubtract {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::SaturatingSubtract => {
-                    ScalarTerm::SaturatingIntegerSubtract {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
-                }
-                LoweredIntegerBinaryKind::WrappingMultiply => ScalarTerm::WrappingIntegerMultiply {
-                    scalar_type: integer_type,
-                    left,
-                    right,
-                },
-                LoweredIntegerBinaryKind::SaturatingMultiply => {
-                    ScalarTerm::SaturatingIntegerMultiply {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    }
+                    ScalarTerm::exact_integer_shift_right(integer_type, count_type, left, right)
+                        .map_err(LoweringError::InvalidCrashPredicate)?
                 }
                 // Direct Trapping arithmetic forms no predicate term: its
                 // crash is an executable site, not a proof-side value.
@@ -462,6 +350,65 @@ pub(crate) fn lowered_direct_scalar_term(
                 | LoweredIntegerBinaryKind::TrappingShiftLeft
                 | LoweredIntegerBinaryKind::TrappingShiftRight => {
                     return unsupported("Trapping arithmetic forms no crash predicate term");
+                }
+                kind => {
+                    // One construction row per remaining kind: each arm names
+                    // the ScalarTerm constructor that owns its operation
+                    // identity, and the operands apply once below.
+                    let constructor: fn(
+                        semantic_vocabulary::IntegerType,
+                        ScalarTerm,
+                        ScalarTerm,
+                    ) -> Result<
+                        ScalarTerm,
+                        semantic_vocabulary::PropositionError,
+                    > = match kind {
+                        LoweredIntegerBinaryKind::BitwiseAnd => ScalarTerm::integer_bitwise_and,
+                        LoweredIntegerBinaryKind::BitwiseOr => ScalarTerm::integer_bitwise_or,
+                        LoweredIntegerBinaryKind::BitwiseXor => ScalarTerm::integer_bitwise_xor,
+                        LoweredIntegerBinaryKind::ExactAdd => ScalarTerm::exact_integer_add,
+                        LoweredIntegerBinaryKind::ExactSubtract => {
+                            ScalarTerm::exact_integer_subtract
+                        }
+                        LoweredIntegerBinaryKind::ExactMultiply => {
+                            ScalarTerm::exact_integer_multiply
+                        }
+                        LoweredIntegerBinaryKind::ExactDivide => ScalarTerm::exact_integer_divide,
+                        LoweredIntegerBinaryKind::ExactRemainder => {
+                            ScalarTerm::exact_integer_remainder
+                        }
+                        LoweredIntegerBinaryKind::WrappingDivide => {
+                            ScalarTerm::wrapping_integer_divide
+                        }
+                        LoweredIntegerBinaryKind::WrappingRemainder => {
+                            ScalarTerm::wrapping_integer_remainder
+                        }
+                        LoweredIntegerBinaryKind::SaturatingDivide => {
+                            ScalarTerm::saturating_integer_divide
+                        }
+                        LoweredIntegerBinaryKind::SaturatingRemainder => {
+                            ScalarTerm::saturating_integer_remainder
+                        }
+                        LoweredIntegerBinaryKind::WrappingAdd => ScalarTerm::wrapping_integer_add,
+                        LoweredIntegerBinaryKind::SaturatingAdd => {
+                            ScalarTerm::saturating_integer_add
+                        }
+                        LoweredIntegerBinaryKind::WrappingSubtract => {
+                            ScalarTerm::wrapping_integer_subtract
+                        }
+                        LoweredIntegerBinaryKind::SaturatingSubtract => {
+                            ScalarTerm::saturating_integer_subtract
+                        }
+                        LoweredIntegerBinaryKind::WrappingMultiply => {
+                            ScalarTerm::wrapping_integer_multiply
+                        }
+                        LoweredIntegerBinaryKind::SaturatingMultiply => {
+                            ScalarTerm::saturating_integer_multiply
+                        }
+                        _ => unreachable!("shift and Trapping kinds stage their own terms"),
+                    };
+                    constructor(integer_type, left, right)
+                        .map_err(LoweringError::InvalidCrashPredicate)?
                 }
             }
         }
