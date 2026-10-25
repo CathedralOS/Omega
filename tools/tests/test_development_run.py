@@ -111,6 +111,7 @@ class DevelopmentRun(unittest.TestCase):
                     if line.startswith("terminal program_fingerprint=")]
         self.assertEqual(len(identity), 1, result.stdout)
         self.assertTrue(artifact.is_file())
+        self.assertFalse((self.project / "build").exists())
         self.assertFalse((self.project / "omega.lock").exists())
         (self.project / "main.omg").unlink()
         (self.project / "build.omg").unlink()
