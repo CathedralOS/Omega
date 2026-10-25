@@ -181,8 +181,11 @@ helper that passes does not close an item.
   machines for the 10-line program, because every provider of a reached
   requirement stays live for every target. Acceptance: fixture median under
   2 s and a std probe check under 3 s, with `corpus_gate --compare` over the
-  touched groups losing nothing. Frontier: prepared `vector_distance --check`
-  on macOS ARM64 at `e01a67855f4` takes 7.50 s with an opt-level-1 compiler.
+  touched groups losing nothing. Frontier: prepared `vector_distance --check
+  --timings` on macOS ARM64 at `f7fb7f71004` has a 4.125 s median over three
+  opt-level-1 checks with phase profiling enabled. Immutable declaration pages
+  and their fact-context index are shared across independent flow groups;
+  local facts, fixed-point joins and unknown-input fallback remain per-group.
   Six coarse summaries and bodyless-supply handling are insufficient:
   `CallFrameResolver` also derives returned-reference origins and binding
   stability, denotational admission checks observation freedom, and
