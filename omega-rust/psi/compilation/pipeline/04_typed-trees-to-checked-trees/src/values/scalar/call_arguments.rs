@@ -261,8 +261,8 @@ pub(crate) fn nested_call_sites<'program>(
 /// One source eligibility judgment feeds pure/computed operands and structural
 /// scheduling. A checked producer plan and its exact result shape are joined
 /// later; this early selector creates no result or ownership evidence.
-/// Borrow-free owned storage can carry nominal cleanup: its consuming
-/// continuation must select the hook, rather than exclude the producer here.
+/// Stored loans and nominal cleanup belong to the completed carrier and its
+/// consuming continuation, rather than a dynamic-only contents restriction.
 pub(crate) fn nested_structural_call_return_type(
     program: &dyn ::validation::CheckingInput,
     caller: symbols::SymbolHandle,
@@ -282,14 +282,6 @@ pub(crate) fn nested_structural_call_return_type(
         // actuals belong to the ordinary call argument planner, which checks
         // their roster and retains the exact call ordinal; they do not change
         // whether this result can be consumed as a structural operand.
-        if !validation::has_contents(
-            program,
-            slot.return_type,
-            &[],
-            validation::ContentsRequirement::BorrowFree,
-        ) {
-            return None;
-        }
         slot.return_type
     } else if let Some((owner, target)) =
         program.unique_machine_by_entry_state_symbol(call.target_symbol)
