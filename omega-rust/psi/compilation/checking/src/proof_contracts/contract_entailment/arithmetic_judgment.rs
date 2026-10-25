@@ -156,8 +156,6 @@ impl Polynomial {
     }
 
     /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
-    /// `(single-unit-atom, coefficient-sign, constant)` for bounds like
-    /// `a + c >= 0` / `-a + c >= 0`.
     /// `a + c >= 0` / `-a + c >= 0`.
     fn as_single_atom(&self) -> Option<(String, i64, BigInt)> {
         let mut atom = None;
@@ -321,33 +319,35 @@ const SUBSTITUTION_ROUNDS: usize = 8;
 
 impl<'program> Engine<'program> {
     pub(super) fn new(program: &'program dyn crate::CheckingInput, machine: &Machine) -> Self {
-        let mut parameter_atoms = Vec::new();
-        let mut unsigned_atoms = Vec::new();
+        let mut engine = Self::for_owner(program, machine.symbol, None);
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
                 let name = parameter.name.as_str().to_owned();
-                if !parameter_atoms.contains(&name) {
-                    let primitive = program
-                        .type_reference_table
-                        .primitive_type(parameter.type_reference);
-                    // `is_signed_integer` is false exactly for the unsigned
-                    // integer primitives (floats/bool/string report true), so
-                    // this marks precisely the `>= 0` carriers.
-                    if let Some(primitive) = primitive
-                        && !primitive.is_signed_integer()
-                    {
-                        unsigned_atoms.push(name.clone());
-                    }
-                    parameter_atoms.push(name);
+                if engine.parameter_atoms.contains(&name) {
+                    continue;
                 }
+                let unsigned = unsigned_parameter_carrier(program, parameter.type_reference);
+                engine.declare_atom(&name, unsigned);
             }
         }
+        engine
+    }
+
+    /// The one Engine field roster. `new` and `for_explicit_bindings` differ
+    /// only in their owner symbols, declared atoms and whether unbound names
+    /// stay outside the language, so the roster lives here once: a new engine
+    /// field is initialized in one place instead of once per constructor.
+    fn for_owner(
+        program: &'program dyn crate::CheckingInput,
+        owner: SymbolHandle,
+        strict_symbol_bindings: Option<Vec<(SymbolHandle, Polynomial)>>,
+    ) -> Self {
         Self {
             program,
-            machine_symbol: machine.symbol,
-            source_owner: machine.symbol,
-            parameter_atoms,
-            strict_symbol_bindings: None,
+            machine_symbol: owner,
+            source_owner: owner,
+            parameter_atoms: Vec::new(),
+            strict_symbol_bindings,
             formal_arguments: None,
             strict_symbol_bindings_valid: true,
             strict_result_binding: None,
@@ -355,7 +355,7 @@ impl<'program> Engine<'program> {
             saved_conditions: Vec::new(),
             captured_calls: None,
             proof_integer_formation: false,
-            unsigned_atoms,
+            unsigned_atoms: Vec::new(),
             substitutions: BTreeMap::new(),
             bounds: Vec::new(),
             nonzero_differences: Vec::new(),
@@ -363,6 +363,20 @@ impl<'program> Engine<'program> {
             opaque_terms: Vec::new(),
             matrix: BTreeMap::new(),
             requires_unsatisfiable: false,
+        }
+    }
+
+    /// Declare one atom identity: every declared atom is a parameter atom, and
+    /// an unsigned carrier's atom additionally carries the implicit `>= 0` the
+    /// matrix seeds on the next hypothesis installation. Entry parameters, the
+    /// reserved `result` binder, strict bindings and scoped rosters all declare
+    /// through this one rule.
+    fn declare_atom(&mut self, identity: &str, unsigned: bool) {
+        if !self.parameter_atoms.iter().any(|atom| atom == identity) {
+            self.parameter_atoms.push(identity.to_owned());
+        }
+        if unsigned && !self.unsigned_atoms.iter().any(|atom| atom == identity) {
+            self.unsigned_atoms.push(identity.to_owned());
         }
     }
     /// Range queries mint endpoint terms before installing their hypotheses.
@@ -599,28 +613,7 @@ impl<'program> Engine<'program> {
     /// every binder themselves; scanning all program names only to discard that
     /// roster makes each local predicate proportional to the entire program.
     pub(super) fn for_explicit_bindings(program: &'program dyn crate::CheckingInput) -> Self {
-        Self {
-            program,
-            machine_symbol: SymbolHandle::default(),
-            source_owner: SymbolHandle::default(),
-            parameter_atoms: Vec::new(),
-            strict_symbol_bindings: Some(Vec::new()),
-            formal_arguments: None,
-            strict_symbol_bindings_valid: true,
-            strict_result_binding: None,
-            strict_occurrences: Vec::new(),
-            saved_conditions: Vec::new(),
-            captured_calls: None,
-            proof_integer_formation: false,
-            unsigned_atoms: Vec::new(),
-            substitutions: BTreeMap::new(),
-            bounds: Vec::new(),
-            nonzero_differences: Vec::new(),
-            arithmetic_intervals: BTreeMap::new(),
-            opaque_terms: Vec::new(),
-            matrix: BTreeMap::new(),
-            requires_unsatisfiable: false,
-        }
+        Self::for_owner(program, SymbolHandle::default(), Some(Vec::new()))
     }
 
     /// Like [`Engine::new`], plus the reserved `result` atom for the
@@ -638,15 +631,9 @@ impl<'program> Engine<'program> {
             .iter()
             .any(|parameter| parameter.name.as_str() == RESULT_BINDER);
         if !shadowed {
-            engine.parameter_atoms.push(RESULT_BINDER.to_owned());
-            if root.return_type.is_valid()
-                && let Some(primitive) = program
-                    .type_reference_table
-                    .primitive_type(root.return_type)
-                && !primitive.is_signed_integer()
-            {
-                engine.unsigned_atoms.push(RESULT_BINDER.to_owned());
-            }
+            let unsigned = root.return_type.is_valid()
+                && unsigned_parameter_carrier(program, root.return_type);
+            engine.declare_atom(RESULT_BINDER, unsigned);
         }
         engine
     }
@@ -1707,6 +1694,19 @@ impl<'program> Engine<'program> {
         self.close_matrix();
         Some(polynomial)
     }
+}
+
+/// `is_signed_integer` is false exactly for the unsigned integer primitives
+/// (floats/bool/string report true), so this marks precisely the carriers whose
+/// atoms carry the implicit `>= 0`.
+fn unsigned_parameter_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    program
+        .type_reference_table
+        .primitive_type(reference)
+        .is_some_and(|primitive| !primitive.is_signed_integer())
 }
 
 /// The declaration symbol a member chain bottoms out on, or None when the
