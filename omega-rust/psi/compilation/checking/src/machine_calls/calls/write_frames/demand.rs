@@ -295,6 +295,31 @@ impl<'program> CallFrameResolver<'program> {
         .and_then(super::stored_calls::public_effects)
     }
 
+    /// The same formal relation under fixed scalar values proved by completed
+    /// caller operands. These invocation rows never enter the state-only memo.
+    /// Unknown values retain the ordinary full possible-slot relation.
+    pub fn state_stored_reference_effects_for_indices(
+        &self,
+        machine: &Machine,
+        state: &State,
+        indices: &[Option<usize>],
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        if self.program.state_parameters(state).len() != indices.len() {
+            return None;
+        }
+        let mut inference = FrameInference::default();
+        inference.with_invocation(self.program, state, &[], indices, |inference| {
+            super::stored_calls::state_effects(
+                self.program,
+                machine,
+                state,
+                &self.tables.symbols,
+                inference,
+            )
+            .and_then(super::stored_calls::public_effects)
+        })
+    }
+
     /// Complete normal-exit reference-slot relation, reconstructed from the
     /// selected body and instantiated in this exact caller prefix. Unknown
     /// evidence is not an empty effect set.

@@ -48,10 +48,46 @@ impl Execution<'_, '_, '_> {
         };
         let (parameters, effects) = match contract {
             validation::ReferenceSlotContract::CheckedBody { machine, state } => {
-                let Some(effects) = self.context.stored_reference_effects(machine, state) else {
+                let parameters = self.program.state_parameters(state);
+                if inputs.len() != parameters.len() {
+                    return Vec::new();
+                }
+                // A complete ordinary empty union has no descriptor slot to
+                // refine. Reuse that target memo before observing scalar cuts.
+                // Unavailable relations are not empty and continue below.
+                if self
+                    .context
+                    .stored_reference_effects(machine, state, &[])
+                    .is_some_and(|effects| effects.is_empty())
+                {
+                    return Vec::new();
+                }
+                let indices = parameters
+                    .iter()
+                    .zip(inputs)
+                    .map(|(parameter, input)| {
+                        // Read the operand's immutable completed coordinate, never
+                        // its current source spelling after another operand wrote.
+                        if validation::reference_shell(self.program, parameter.type_reference)
+                            .is_none()
+                            && self
+                                .program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some_and(|primitive| primitive.is_fixed_integer())
+                        {
+                            self.captured_coordinate(input)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let Some(effects) = self
+                    .context
+                    .stored_reference_effects(machine, state, &indices)
+                else {
                     return Vec::new();
                 };
-                (self.program.state_parameters(state), effects)
+                (parameters, effects)
             }
             validation::ReferenceSlotContract::Opaque {
                 parameters,

@@ -287,7 +287,18 @@ impl<'plans> FlowBuildContext<'plans> {
         &mut self,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
+        indices: &[Option<usize>],
     ) -> Option<Rc<Vec<validation::StoredReferenceEffect>>> {
+        if indices.iter().any(Option::is_some) {
+            // A completed scalar observation belongs to this invocation.
+            // Never read or populate the target-only memo with these rows.
+            return self
+                .call_frames
+                .and_then(|frames| {
+                    frames.state_stored_reference_effects_for_indices(machine, state, indices)
+                })
+                .map(Rc::new);
+        }
         if let Some(prepared) = self
             .call_stored_reference_effects
             .iter()
