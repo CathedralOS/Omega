@@ -26,18 +26,9 @@ fn domains(
     module: &TerminalModule,
     set: ScalarQualificationSetId,
 ) -> Result<&[ScalarDomainId], CodecError> {
-    if set.is_empty() {
-        return Ok(&[]);
-    }
-    module
-        .scalar_qualifications
-        .sets
-        .iter()
-        .find(|row| row.id == set)
-        .map(|row| row.domains.as_slice())
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "stored scalar names an absent qualification set",
-        ))
+    super::qualification_domains(module, set).ok_or(CodecError::MalformedStructuralFoundation(
+        "stored scalar names an absent qualification set",
+    ))
 }
 
 fn required(
@@ -209,11 +200,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             }
         }
         for domain in domains(module, row.value_type.qualifications)? {
-            if module
-                .scalar_qualifications
-                .domains
-                .iter()
-                .find(|entry| entry.id == *domain)
+            if super::scalar_domain(module, *domain)
                 .is_none_or(|entry| entry.carrier != row.value_type.scalar_type)
             {
                 return malformed("scalar field membership has a different domain carrier");
@@ -235,15 +222,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                         |field| {
                             required(module, field.id).is_ok_and(|domains| {
                                 domains.iter().all(|id| {
-                                    module
-                                        .scalar_qualifications
-                                        .domains
-                                        .iter()
-                                        .find(|domain| domain.id == *id)
-                                        .is_some_and(|domain| {
-                                            domain.predicate.is_none()
-                                                && domain.establishment_routes.is_empty()
-                                        })
+                                    super::scalar_domain(module, *id).is_some_and(|domain| {
+                                        domain.predicate.is_none()
+                                            && domain.establishment_routes.is_empty()
+                                    })
                                 })
                             })
                         },
