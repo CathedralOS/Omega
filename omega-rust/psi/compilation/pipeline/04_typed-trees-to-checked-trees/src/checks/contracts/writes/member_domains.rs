@@ -21,10 +21,10 @@ pub(super) fn initializer_satisfies_predicate_domain(
     statement_index: usize,
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
-    active: &mut Vec<SymbolHandle>,
+    active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    if !domain_symbol.is_valid() || active.contains(&domain_symbol) {
+    if !domain_symbol.is_valid() {
         return false;
     }
     // A domain-owned operator is the sanctioned producer for its domain: the
@@ -85,7 +85,7 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_predicates_in_context
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
     contexts: &[facts::FactContextHandle],
-    active: &mut Vec<SymbolHandle>,
+    active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
@@ -115,7 +115,7 @@ pub(in crate::checks::contracts) fn value_satisfies_domain_instance_predicates_i
     domain_symbol: SymbolHandle,
     identity: language_semantics::SemanticDomainId,
     contexts: &[facts::FactContextHandle],
-    active: &mut Vec<SymbolHandle>,
+    active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
@@ -144,12 +144,13 @@ fn value_satisfies_bound_domain_predicates_in_contexts(
     value: ExpressionHandle,
     domain: &typed_trees::domain::DomainDefinition,
     contexts: &[facts::FactContextHandle],
-    active: &mut Vec<SymbolHandle>,
+    active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let domain_symbol = domain.symbol;
-    if active.contains(&domain_symbol) {
+    let instance = (domain_symbol, domain.semantic_id);
+    if active.contains(&instance) {
         return false;
     }
     if domain.alias.is_some() {
@@ -169,7 +170,7 @@ fn value_satisfies_bound_domain_predicates_in_contexts(
             && capture.state_symbol == state.state_symbol
             && capture.statement_index == statement_index
     });
-    active.push(domain_symbol);
+    active.push(instance);
     let satisfied = program.proof_facts(domain).iter().all(|fact| match fact {
         typed_trees::domain::ProofFact::Expression(expression) => {
             predicate_expression_holds_on_value(
@@ -185,23 +186,21 @@ fn value_satisfies_bound_domain_predicates_in_contexts(
                 frames,
             )
         }
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            membership.domain_arguments.is_empty()
-                && member_subject_satisfies_domain(
-                    program,
-                    facts,
-                    state,
-                    statement_index,
-                    contexts,
-                    value,
-                    membership.value,
-                    membership.domain_symbol,
-                    domain,
-                    active,
-                    capture,
-                    frames,
-                )
-        }
+        typed_trees::domain::ProofFact::Membership(membership) => member_subject_satisfies_domain(
+            program,
+            facts,
+            state,
+            statement_index,
+            contexts,
+            value,
+            membership.value,
+            membership.domain_symbol,
+            membership.semantic_domain,
+            domain,
+            active,
+            capture,
+            frames,
+        ),
         typed_trees::domain::ProofFact::Proposition(_) => false,
     });
     active.pop();
@@ -437,8 +436,9 @@ fn member_subject_satisfies_domain(
     value: ExpressionHandle,
     member: ExpressionHandle,
     domain_symbol: SymbolHandle,
+    identity: language_semantics::SemanticDomainId,
     domain: &typed_trees::domain::DomainDefinition,
-    active: &mut Vec<SymbolHandle>,
+    active: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
@@ -474,11 +474,6 @@ fn member_subject_satisfies_domain(
         // A later sibling may establish a qualification on the former source.
         // The installed child retains only its own captured membership.
         let contexts = captured_contexts.as_deref().unwrap_or(contexts);
-        let identity = program
-            .domain_definition(domain_symbol)
-            .map_or(language_semantics::SemanticDomainId::NULL, |domain| {
-                domain.semantic_id
-            });
         // Proving the outer theory cannot establish a routed child. A child
         // carries its own exact membership, or independently proves a theory
         // that does not require authorized provenance.
@@ -494,13 +489,14 @@ fn member_subject_satisfies_domain(
         ) || (!validation::field_domains::domain_requires_provenance(
             program,
             domain_symbol,
-        ) && value_satisfies_domain_predicates_in_contexts(
+        ) && value_satisfies_domain_instance_predicates_in_contexts(
             program,
             facts,
             state,
             statement_index,
             member_value,
             domain_symbol,
+            identity,
             contexts,
             active,
             child.map(|(capture, _)| capture),
@@ -517,11 +513,28 @@ fn member_subject_satisfies_domain(
     };
     let mut subject = place.clone();
     subject.extend_segments(&segments);
-    super::super::prover::prove_domain_at_place(
-        program,
-        &facts.semantic,
-        contexts,
-        &subject,
-        domain_symbol,
-    )
+    if program
+        .domain_definition(domain_symbol)
+        .is_some_and(|declared| {
+            declared.semantic_id == identity
+                && typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
+        })
+    {
+        super::super::prover::prove_domain_at_place(
+            program,
+            &facts.semantic,
+            contexts,
+            &subject,
+            domain_symbol,
+        )
+    } else {
+        super::super::prover::prove_indexed_domain_at_place(
+            program,
+            &facts.semantic,
+            contexts,
+            &subject,
+            domain_symbol,
+            identity,
+        )
+    }
 }

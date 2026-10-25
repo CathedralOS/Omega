@@ -234,11 +234,21 @@ fn visit_domain<'program>(
     visited: &mut Vec<(SymbolHandle, language_semantics::SemanticDomainId)>,
     selected: &mut Option<&'program CleanupSelection>,
 ) -> Result<(), Diagnostic> {
-    let Some(domain) = identity
-        .and_then(|identity| program.domain_definition_for_instance(symbol, identity))
-        .or_else(|| program.domain_definition(symbol))
-    else {
-        return Ok(());
+    let domain = match identity {
+        Some(identity) => program.domain_definition_for_instance(symbol, identity),
+        None => program.domain_definition(symbol),
+    };
+    let Some(domain) = domain else {
+        // Builtin policies have no authored theory. An authored family must
+        // retain its exact application; its uninstantiated declaration cannot
+        // stand in for a missing instance while selecting owned cleanup.
+        return if program.domain_definition(symbol).is_some() {
+            Err(Diagnostic::error(
+                "owned cleanup requires the exact retained domain application",
+            ))
+        } else {
+            Ok(())
+        };
     };
     let instance = (symbol, domain.semantic_id);
     if visited.contains(&instance) {
