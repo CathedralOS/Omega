@@ -27,37 +27,52 @@ pub(super) fn compute_function(
     // Group the function's operand rows, live fragments and live edges by
     // register once; each register's range then reads only its own rows, in
     // the order a scan of the whole function would have met them.
-    let registers = selected
+    let register_count = selected.virtual_registers.len();
+    let max_reg_id = selected
         .virtual_registers
         .iter()
-        .map(|register| register.id)
-        .collect::<BTreeSet<_>>();
-    let mut fragment_rows = register_fragments(function_index, liveness, &registers)?;
-    let mut operand_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
-    for row in liveness.operand_positions.storage_slice() {
-        operand_rows
-            .entry(row.virtual_register)
-            .or_default()
-            .push(row);
+        .map(|register| register.id.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut register_index = vec![u32::MAX; max_reg_id + 1];
+    for (idx, register) in selected.virtual_registers.iter().enumerate() {
+        let slot = &mut register_index[register.id.0 as usize];
+        if *slot == u32::MAX {
+            *slot = idx as u32;
+        }
     }
-    let mut edge_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
+    let mut fragment_rows =
+        register_fragments(function_index, liveness, register_count, &register_index)?;
+    let mut operand_rows = vec![Vec::new(); register_count];
+    for row in liveness.operand_positions.storage_slice() {
+        if let Some(&idx) = register_index.get(row.virtual_register.0 as usize)
+            && idx != u32::MAX
+        {
+            operand_rows[idx as usize].push(row);
+        }
+    }
+    let mut edge_rows = vec![Vec::new(); register_count];
     for block in &liveness.blocks {
         for edge in &block.successors {
-            for register in edge.virtual_live.iter().collect::<BTreeSet<_>>() {
-                edge_rows
-                    .entry(*register)
-                    .or_default()
-                    .push(connector(block.block, edge));
+            let mut prev = None;
+            for &register in &edge.virtual_live {
+                if prev == Some(register) {
+                    continue;
+                }
+                prev = Some(register);
+                if let Some(&idx) = register_index.get(register.0 as usize)
+                    && idx != u32::MAX
+                {
+                    edge_rows[idx as usize].push(connector(block.block, edge));
+                }
             }
         }
     }
 
-    let mut virtual_rows = Vec::with_capacity(selected.virtual_registers.len());
-    for register in &selected.virtual_registers {
-        let rows = operand_rows
-            .get(&register.id)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
+    let mut virtual_rows = Vec::with_capacity(register_count);
+    for (pos, register) in selected.virtual_registers.iter().enumerate() {
+        let canonical_idx = register_index[register.id.0 as usize] as usize;
+        let rows = operand_rows[canonical_idx].as_slice();
         let occurrences = rows
             .iter()
             .map(|row| {
@@ -91,8 +106,12 @@ pub(super) fn compute_function(
                 });
             }
         }
-        let fragments = fragment_rows.remove(&register.id).unwrap_or_default();
-        let edge_connectors = edge_rows.get(&register.id).cloned().unwrap_or_default();
+        let fragments = if pos == canonical_idx {
+            std::mem::take(&mut fragment_rows[canonical_idx])
+        } else {
+            Vec::new()
+        };
+        let edge_connectors = edge_rows[canonical_idx].clone();
         virtual_rows.push(VirtualLiveRange {
             virtual_register: register.id,
             class: register.class,
@@ -115,7 +134,7 @@ pub(super) fn compute_function(
         copy_affinities,
         early_clobbers,
         architectural_units,
-        interference: interference.into_iter().collect(),
+        interference,
     })
 }
 

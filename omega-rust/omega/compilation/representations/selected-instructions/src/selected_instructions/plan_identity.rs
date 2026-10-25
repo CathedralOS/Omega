@@ -58,7 +58,9 @@ pub fn selected_instruction_plan_identity(
 /// One function's share of `selected_instruction_plan_identity`: `Sha256`
 /// over the function's complete canonical encoding.
 pub(crate) fn selected_function_digest(function: &SelectedFunction) -> [u8; 32] {
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(
+        256 + function.virtual_registers.len() * 36 + function.blocks.len() * 32,
+    );
     bytes.extend_from_slice(b"omega.terminal-selected-instruction-function.v2\0");
     crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
     optimization_core::encode_option_u64(

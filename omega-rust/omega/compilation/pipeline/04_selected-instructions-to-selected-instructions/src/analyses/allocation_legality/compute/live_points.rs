@@ -49,11 +49,14 @@ pub(super) fn compute(
         let fragment_offset = spans.len();
         let mut point = fragment.start;
         let mut architectural_index = views
-            .boundaries()
+            .boundaries_for(class.id)
             .partition_point(|boundary| *boundary <= point);
         let mut fixed_index = boundaries.partition_point(|boundary| *boundary <= point);
         while point < fragment.end {
-            let architectural = views.boundaries().get(architectural_index).copied();
+            let architectural = views
+                .boundaries_for(class.id)
+                .get(architectural_index)
+                .copied();
             let fixed = boundaries.get(fixed_index).copied();
             let end = architectural
                 .into_iter()

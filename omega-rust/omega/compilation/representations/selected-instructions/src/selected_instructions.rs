@@ -31,7 +31,7 @@ pub use ieee_float_arithmetic::{
 mod blocks;
 pub mod constraints;
 pub mod control_flow;
-pub use blocks::SelectedBlocks;
+pub use blocks::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
 mod functions;
 pub use functions::SelectedFunctions;
 pub mod effects;

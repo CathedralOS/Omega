@@ -195,6 +195,7 @@ fn is_recovery_candidate(
 /// through a fresh reload per step, each step a whole-function analysis.
 /// A split's fresh register is the only minted register that joins the pool.
 /// The step rewrote `function` alone, so only its registers can be new.
+#[allow(dead_code)]
 pub(super) fn retire_minted(
     retired: &mut std::collections::BTreeSet<(usize, VirtualRegisterId)>,
     function: usize,
@@ -256,6 +257,80 @@ pub(super) fn transformations(
     prefix.iter().chain(recorded).cloned().collect()
 }
 
+/// Precomputed per-batch live-range index for one function, avoiding repeated
+/// `SameHomeComponents` construction and full `ranges.interference` /
+/// `ranges.virtual_registers` scans across intra-batch recovery steps.
+pub(super) struct BatchFunctionIndex {
+    components: crate::assignment::same_home::SameHomeComponents,
+    register_neighbors: Vec<Vec<VirtualRegisterId>>,
+    component_neighbors: Vec<Vec<VirtualRegisterId>>,
+    live_points: Vec<u64>,
+}
+
+impl BatchFunctionIndex {
+    pub(super) fn new(ranges: &FunctionLiveRanges) -> Self {
+        let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
+        let max_reg_id = ranges
+            .virtual_registers
+            .iter()
+            .map(|r| r.virtual_register.0 as usize)
+            .chain(
+                ranges
+                    .interference
+                    .iter()
+                    .flat_map(|p| [p.lower.0 as usize, p.higher.0 as usize]),
+            )
+            .max()
+            .unwrap_or(0);
+        let mut register_neighbors = vec![Vec::new(); max_reg_id + 1];
+        let mut component_neighbors = vec![Vec::new(); max_reg_id + 1];
+        for pair in &ranges.interference {
+            register_neighbors[pair.lower.0 as usize].push(pair.higher);
+            register_neighbors[pair.higher.0 as usize].push(pair.lower);
+            let lower_component = components.leader(pair.lower);
+            let higher_component = components.leader(pair.higher);
+            let lc_idx = lower_component.0 as usize;
+            let hc_idx = higher_component.0 as usize;
+            if lc_idx >= component_neighbors.len() {
+                component_neighbors.resize(lc_idx + 1, Vec::new());
+            }
+            if hc_idx >= component_neighbors.len() {
+                component_neighbors.resize(hc_idx + 1, Vec::new());
+            }
+            component_neighbors[lc_idx].push(higher_component);
+            component_neighbors[hc_idx].push(lower_component);
+        }
+        for neighbors in &mut register_neighbors {
+            if !neighbors.is_empty() {
+                neighbors.sort_unstable();
+                neighbors.dedup();
+            }
+        }
+        for (leader_id, neighbors) in component_neighbors.iter_mut().enumerate() {
+            if !neighbors.is_empty() {
+                neighbors.push(VirtualRegisterId(leader_id as u32));
+                neighbors.sort_unstable();
+                neighbors.dedup();
+            }
+        }
+        let mut live_points = vec![0u64; max_reg_id + 1];
+        for range in &ranges.virtual_registers {
+            let points: u64 = range
+                .fragments
+                .iter()
+                .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
+                .sum();
+            live_points[range.virtual_register.0 as usize] = points;
+        }
+        Self {
+            components,
+            register_neighbors,
+            component_neighbors,
+            live_points,
+        }
+    }
+}
+
 /// The pressure domain one recovery step must relieve: the function and
 /// leader a placement failure names, with the leader's member fragments
 /// collected once. Every roster candidate is scored against this one
@@ -264,18 +339,30 @@ pub(super) fn transformations(
 pub(super) struct FailedDomain<'ranges> {
     function: usize,
     ranges: &'ranges FunctionLiveRanges,
+    index: Option<&'ranges BatchFunctionIndex>,
     members: Vec<VirtualRegisterId>,
-    components: crate::assignment::same_home::SameHomeComponents,
+    components: Option<crate::assignment::same_home::SameHomeComponents>,
     pressure: Vec<(VirtualRegisterId, usize)>,
     intrinsic: bool,
 }
 
 impl<'ranges> FailedDomain<'ranges> {
+    fn components(&self) -> &crate::assignment::same_home::SameHomeComponents {
+        if let Some(index) = self.index {
+            &index.components
+        } else {
+            self.components
+                .as_ref()
+                .expect("FailedDomain carries either BatchFunctionIndex or owned components")
+        }
+    }
+
     /// A placement-pressure component or a value-local empty common domain;
     /// unrelated failures never enter recovery.
-    pub(super) fn of(
+    pub(super) fn of_indexed(
         failure: &crate::RegisterHomeError,
         ranges: &'ranges ValidatedLiveRanges,
+        batch_indices: &'ranges std::collections::BTreeMap<usize, BatchFunctionIndex>,
     ) -> Option<Self> {
         let (function, register, intrinsic) = match failure {
             crate::RegisterHomeError::NoCompatibleHome { function, register } => {
@@ -288,7 +375,11 @@ impl<'ranges> FailedDomain<'ranges> {
             _ => return None,
         };
         let function_ranges = ranges.plan().functions.get(function)?;
-        let mut domain = Self::in_function(function, function_ranges, VirtualRegisterId(register));
+        let mut domain = if let Some(index) = batch_indices.get(&function) {
+            Self::in_function_indexed(function, function_ranges, index, VirtualRegisterId(register))
+        } else {
+            Self::in_function(function, function_ranges, VirtualRegisterId(register))
+        };
         if intrinsic {
             // Empty point-domain intersections and retained entry transitions
             // belong to this exact source value. Spilling neighbours cannot
@@ -297,6 +388,44 @@ impl<'ranges> FailedDomain<'ranges> {
             domain.intrinsic = true;
         }
         Some(domain)
+    }
+
+    pub(super) fn in_function_indexed(
+        function: usize,
+        ranges: &'ranges FunctionLiveRanges,
+        index: &'ranges BatchFunctionIndex,
+        leader: VirtualRegisterId,
+    ) -> Self {
+        let members = index.components.members(leader);
+        let mut covered = Vec::new();
+        for &member in &members {
+            if let Some(neighbors) = index.register_neighbors.get(member.0 as usize) {
+                for &other in neighbors {
+                    covered.push((index.components.leader(other), member));
+                }
+            }
+        }
+        covered.sort_unstable();
+        covered.dedup();
+        let mut pressure: Vec<(VirtualRegisterId, usize)> = Vec::new();
+        for (component, _) in covered {
+            if let Some((previous, count)) = pressure.last_mut()
+                && *previous == component
+            {
+                *count += 1;
+            } else {
+                pressure.push((component, 1));
+            }
+        }
+        Self {
+            function,
+            ranges,
+            index: Some(index),
+            members,
+            components: None,
+            pressure,
+            intrinsic: false,
+        }
     }
 
     pub(super) fn in_function(
@@ -331,8 +460,9 @@ impl<'ranges> FailedDomain<'ranges> {
         Self {
             function,
             ranges,
+            index: None,
             members,
-            components,
+            components: Some(components),
             pressure,
             intrinsic: false,
         }
@@ -353,7 +483,7 @@ impl<'ranges> FailedDomain<'ranges> {
             return 0;
         }
         self.pressure
-            .binary_search_by_key(&self.components.leader(register), |(component, _)| {
+            .binary_search_by_key(&self.components().leader(register), |(component, _)| {
                 *component
             })
             .map_or(0, |position| self.pressure[position].1)
@@ -366,11 +496,33 @@ impl<'ranges> FailedDomain<'ranges> {
         victim: VirtualRegisterId,
         pending: &mut Vec<crate::RegisterHomeError>,
     ) {
-        let component = self.components.leader(victim);
+        if pending.is_empty() {
+            return;
+        }
+        let components = self.components();
+        let component = components.leader(victim);
+        if let Some(index) = self.index {
+            let single = [component];
+            let relieved = index
+                .component_neighbors
+                .get(component.0 as usize)
+                .filter(|list| !list.is_empty())
+                .map_or(&single[..], Vec::as_slice);
+            pending.retain(|failure| match failure {
+                crate::RegisterHomeError::NoCompatibleHome { function, register } => {
+                    *function == self.function
+                        && relieved
+                            .binary_search(&components.leader(VirtualRegisterId(*register)))
+                            .is_err()
+                }
+                _ => false,
+            });
+            return;
+        }
         let mut relieved = vec![component];
         for pair in &self.ranges.interference {
-            let lower = self.components.leader(pair.lower);
-            let higher = self.components.leader(pair.higher);
+            let lower = components.leader(pair.lower);
+            let higher = components.leader(pair.higher);
             if lower == component {
                 relieved.push(higher);
             }
@@ -384,7 +536,7 @@ impl<'ranges> FailedDomain<'ranges> {
             crate::RegisterHomeError::NoCompatibleHome { function, register } => {
                 *function == self.function
                     && relieved
-                        .binary_search(&self.components.leader(VirtualRegisterId(*register)))
+                        .binary_search(&components.leader(VirtualRegisterId(*register)))
                         .is_err()
             }
             _ => false,
@@ -399,6 +551,18 @@ impl<'ranges> FailedDomain<'ranges> {
     // peers. Both are eligible, but moving the directly live value removes
     // pressure here without depending on how much of its peer's range survives.
     fn direct_relief(&self, register: VirtualRegisterId) -> usize {
+        if let Some(index) = self.index {
+            let neighbors = index.register_neighbors.get(register.0 as usize);
+            return self
+                .members
+                .iter()
+                .filter(|member| {
+                    **member == register
+                        || neighbors
+                            .is_some_and(|list| list.binary_search(member).is_ok())
+                })
+                .count();
+        }
         self.members
             .iter()
             .filter(|member| {
@@ -421,18 +585,21 @@ impl<'ranges> FailedDomain<'ranges> {
     }
 
     fn spill_priority(&self, function: usize, register: VirtualRegisterId) -> (usize, u64) {
-        let points = self
-            .ranges
-            .virtual_registers
-            .iter()
-            .find(|range| range.virtual_register == register)
-            .map_or(0, |range| {
-                range
-                    .fragments
-                    .iter()
-                    .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
-                    .sum()
-            });
+        let points = if let Some(index) = self.index {
+            index.live_points.get(register.0 as usize).copied().unwrap_or(0)
+        } else {
+            self.ranges
+                .virtual_registers
+                .iter()
+                .find(|range| range.virtual_register == register)
+                .map_or(0, |range| {
+                    range
+                        .fragments
+                        .iter()
+                        .map(|fragment| u64::from(fragment.end.0 - fragment.start.0))
+                        .sum()
+                })
+        };
         (
             if function == self.function {
                 self.direct_relief(register)
@@ -494,11 +661,29 @@ pub(super) fn admissible_split<'roster>(
     let Some(domain) = domain else {
         return Ok(None);
     };
+    let plan = selected.selected_plan();
+    let can_prefilter = plan.target == environment.target()
+        && environment
+            .constraint(environment.selected_keys().copy_i64)
+            .is_some();
+    let function_body = if can_prefilter {
+        plan.functions.get(domain.function())
+    } else {
+        None
+    };
     let mut ordered: Vec<(usize, (usize, VirtualRegisterId))> = available
         .copied()
         .filter_map(|candidate| {
             let relief = domain.relief(candidate.0, candidate.1);
-            (relief > 0).then_some((domain.direct_relief(candidate.1), candidate))
+            if relief == 0 {
+                return None;
+            }
+            if let Some(body) = function_body
+                && !body.blocks.has_fixed_definition(candidate.1)
+            {
+                return None;
+            }
+            Some((domain.direct_relief(candidate.1), candidate))
         })
         .collect();
     // A stable sort keeps roster order among equal relief.
@@ -603,10 +788,9 @@ fn recover_over(
     // others keep the homes their unchanged rows already received.
     let mut home_reuse = FunctionHomeReuse::default();
     let budget = resolved.legality_stage.budget_per_pass();
-    let rewrite = RuntimeSpillStepRewrite::FixedOccurrences(
-        materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
-            .map_err(RuntimeSpillAllocationError::FixedOccurrences)?,
-    );
+    let rewrite = materialize_selected_fixed_occurrences(&resolved.base, environment, budget)
+        .map(RuntimeSpillStepRewrite::FixedOccurrences)
+        .map_err(RuntimeSpillAllocationError::FixedOccurrences)?;
     let facts = analyze(
         environment,
         availability,
@@ -649,11 +833,13 @@ fn recover_over(
     let mut pending_pressure = home_reuse.take_pressure();
     pending_pressure.reverse();
     pending_pressure.pop();
-    let mut tried: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
-        std::collections::BTreeSet::new();
     let mut current_ranges = facts.ranges;
     let mut current_liveness = facts.liveness;
     let mut current_legality = facts.legality;
+    let mut batch_indices: std::collections::BTreeMap<usize, BatchFunctionIndex> =
+        std::collections::BTreeMap::new();
+    let mut rosters: std::collections::BTreeMap<usize, Vec<(usize, VirtualRegisterId)>> =
+        std::collections::BTreeMap::new();
     loop {
         let selected = current.selected();
         // Committed rewrites mint registers the original plan never had: a
@@ -666,7 +852,21 @@ fn recover_over(
         // minted and never join.
         // Only the failed function's registers can relieve its pressure, so
         // the roster and every score below stay within that function.
-        let domain = FailedDomain::of(&failure, &current_ranges);
+        let failure_function = match &failure {
+            crate::RegisterHomeError::NoCompatibleHome { function, .. }
+            | crate::RegisterHomeError::NoCommonCandidate { function, .. }
+            | crate::RegisterHomeError::UnresolvedEntryTransitions { function, .. } => {
+                Some(*function)
+            }
+            _ => None,
+        };
+        if let Some(func_idx) = failure_function
+            && !batch_indices.contains_key(&func_idx)
+            && let Some(func_ranges) = current_ranges.plan().functions.get(func_idx)
+        {
+            batch_indices.insert(func_idx, BatchFunctionIndex::new(func_ranges));
+        }
+        let domain = FailedDomain::of_indexed(&failure, &current_ranges, &batch_indices);
         let Some(pressured) = domain.as_ref().map(FailedDomain::function).or_else(|| {
             if let crate::RegisterHomeError::NoCommonCandidate { function, .. } = &failure {
                 Some(*function)
@@ -676,10 +876,14 @@ fn recover_over(
         }) else {
             break;
         };
-        let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan(), pressured)
-            .into_iter()
-            .filter(|entry| !tried.contains(entry))
-            .collect();
+        let old_vreg_len = selected
+            .plan()
+            .functions
+            .get(pressured)
+            .map_or(0, |body| body.virtual_registers.len());
+        let roster: &mut Vec<(usize, VirtualRegisterId)> = rosters
+            .entry(pressured)
+            .or_insert_with(|| candidates(selected.plan(), pressured));
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
         // whenever admitted. It replaces one live range by two disjoint ones
@@ -715,7 +919,6 @@ fn recover_over(
         } else {
             None
         };
-        let used_before_use = before_use.is_some();
         let mut failed_crossing = None;
         let rewritten_candidate;
         let rewrite = if let Some(split) = before_use {
@@ -729,12 +932,24 @@ fn recover_over(
             RuntimeSpillStepRewrite::Split(split)
         } else if let Some((candidate, split)) = split {
             rewritten_candidate = candidate;
-            tried.insert(candidate);
+            if let Some(pos) = roster.iter().position(|&entry| entry == candidate) {
+                roster.remove(pos);
+            }
+            if let Some(body) = split.transformed().functions.get(pressured)
+                && let Some(appended) = body.virtual_registers.get(old_vreg_len..)
+            {
+                roster.extend(
+                    appended
+                        .iter()
+                        .filter(|register| is_recovery_candidate(body, register))
+                        .map(|register| (pressured, register.id)),
+                );
+            }
             RuntimeSpillStepRewrite::Split(split)
         } else {
             let Some(position) = candidate_position(
                 &failure,
-                &roster,
+                roster,
                 |(function, register)| {
                     domain
                         .as_ref()
@@ -786,6 +1001,7 @@ fn recover_over(
                             current_ranges = facts.ranges;
                             current_liveness = facts.liveness;
                             current_legality = facts.legality;
+                            batch_indices.clear();
                             analysis_source = current.clone();
                             pending_pressure = home_reuse.take_pressure();
                             pending_pressure.reverse();
@@ -799,7 +1015,6 @@ fn recover_over(
             };
             let (function, register) = roster.remove(position);
             rewritten_candidate = (function, register);
-            tried.insert((function, register));
             // The cost decision: regenerating one pure immediate materialization
             // per use is strictly cheaper than private storage plus reload pairs,
             // so rematerialization is attempted first. Its admission failure does
@@ -813,17 +1028,6 @@ fn recover_over(
             ) {
                 Ok(rewrite) => RuntimeSpillStepRewrite::Rematerialization(rewrite),
                 Err(_) => {
-                    // The call-surviving shape first: where a clobber-set-reduced
-                    // view of the victim's class survives every unit written
-                    // inside a flexible-use span, the still-open reload reaches
-                    // across the call — or any other unit-writing instruction —
-                    // and the allocator proves whether that surviving, most often
-                    // callee-saved, home is actually free. Only an assignment
-                    // that succeeds commits the step, ending recovery one reload
-                    // pair earlier; anything else falls back to the bounded
-                    // shape, so a committed step never strands an unhomeable
-                    // interval. Each candidate's fresh analyses and final
-                    // home assignment establish whether it can commit.
                     if pending_pressure.is_empty()
                         && let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
                             &selected,
@@ -905,14 +1109,6 @@ fn recover_over(
             pending_pressure.clear();
         }
         if let Some(next_failure) = pending_pressure.pop() {
-            if used_before_use || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
-                retire_minted(
-                    &mut tried,
-                    pressured,
-                    selected.plan(),
-                    rewrite.selected().plan(),
-                );
-            }
             recorded.push(rewrite.transformation());
             current = rewrite;
             failure = next_failure;
@@ -944,14 +1140,6 @@ fn recover_over(
             );
             (facts, homes)
         };
-        if used_before_use || !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {
-            retire_minted(
-                &mut tried,
-                pressured,
-                selected.plan(),
-                rewrite.selected().plan(),
-            );
-        }
         recorded.push(rewrite.transformation());
         match homes {
             Ok(homes) => {
@@ -976,6 +1164,7 @@ fn recover_over(
                 current_ranges = facts.ranges;
                 current_legality = facts.legality;
                 current_liveness = facts.liveness;
+                batch_indices.clear();
                 current = rewrite;
                 analysis_source = current.clone();
                 pending_pressure = home_reuse.take_pressure();

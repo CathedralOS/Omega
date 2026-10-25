@@ -39,7 +39,7 @@
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterClassId, RegisterOperandAccess};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstruction,
+    LocalStorageSlotId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
 };
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
@@ -101,8 +101,12 @@ pub(super) fn instruction_block(
 ) -> Option<usize> {
     function
         .blocks
-        .iter()
-        .position(|block| block.instruction(instruction).is_some())
+        .instruction_block(instruction)
+        .or_else(|| {
+            function.blocks.iter().position(|block| {
+                super::control(&block.terminator).0.id == instruction
+            })
+        })
 }
 
 /// The slot resolution the rewrite commits to: every emitted store and every
@@ -167,21 +171,52 @@ enum Event {
     ExistingStore,
     /// An already-admitted load reads the slot.
     ExistingLoad,
-    /// The pending rewrite stores the window's definition after this
-    /// instruction.
-    NewStore,
-    /// The pending rewrite reloads the victim before this instruction — or at
-    /// the end-of-block position, which is ordered after every body access.
-    NewLoad,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum StorePosition {
+    Boundary,
+    Instruction(usize),
 }
 
 /// A candidate slot's classified access stream, computed once and reused
 /// across every window the victim proposes against it.
 struct CandidateAccesses {
-    /// Per block: instruction index → the slot access it performs.
-    accesses: Vec<std::collections::BTreeMap<usize, Event>>,
+    /// Per block: sorted `(instruction index, event)` pairs.
+    accesses: Vec<Vec<(usize, Event)>>,
     /// Per block: the terminator instruction loads the slot.
     terminal_loads: Vec<bool>,
+    /// Per block: the last `ExistingStore` instruction index, if any.
+    last_existing_store: Vec<Option<usize>>,
+    /// Per block: whether the block contains any `ExistingLoad` (body or terminator).
+    has_loads: Vec<bool>,
+}
+
+struct WindowSummary {
+    boundary_store: Vec<bool>,
+    anchored_stores: Vec<Vec<usize>>,
+    last_store: Vec<Option<StorePosition>>,
+    has_loads: Vec<bool>,
+}
+
+struct ShareableScratch {
+    exits: Vec<Option<u8>>,
+    entries: Vec<u8>,
+    queued: Vec<bool>,
+    pending: std::collections::VecDeque<usize>,
+    positions: Vec<usize>,
+}
+
+impl ShareableScratch {
+    fn new(block_count: usize) -> Self {
+        Self {
+            exits: vec![None; block_count],
+            entries: vec![0; block_count],
+            queued: vec![false; block_count],
+            pending: std::collections::VecDeque::with_capacity(block_count),
+            positions: Vec::new(),
+        }
+    }
 }
 
 /// Resolve the slot every emitted store and reload names. Proposal and
@@ -200,18 +235,71 @@ pub(super) fn assign(
 ) -> Assignment {
     let private = LocalStorageSlotId::Spill { register: victim };
     let block_count = function.blocks.len();
+    let mut candidate_slots: Vec<LocalStorageSlotId> = Vec::new();
+    if reuse_slots {
+        for slot in &function.local_storage_slots {
+            if slot.byte_size == 8
+                && slot.alignment == 8
+                && matches!(slot.id, LocalStorageSlotId::Spill { register } if register != victim)
+                && !candidate_slots.contains(&slot.id)
+            {
+                candidate_slots.push(slot.id);
+            }
+        }
+    }
+    if candidate_slots.is_empty() {
+        let mut loads: Vec<BlockLoads> = (0..block_count).map(|_| BlockLoads::default()).collect();
+        let mut any_emitted_load = false;
+        for (block_index, block) in function.blocks.iter().enumerate() {
+            let positions = &uses[block_index];
+            if positions.end_of_block {
+                loads[block_index].end_of_block = Some(private);
+                any_emitted_load = true;
+            }
+            if positions.unpinned.is_empty()
+                && positions.pinned.is_empty()
+                && positions.dedicated.is_empty()
+            {
+                continue;
+            }
+            for &index in positions
+                .unpinned
+                .iter()
+                .chain(&positions.pinned)
+                .chain(&positions.dedicated)
+            {
+                if index < block.instructions.len() {
+                    loads[block_index].instructions.insert(index, private);
+                    if !any_emitted_load
+                        && loads_before(uses, shared_reload, span_closes, block_index, index)
+                    {
+                        any_emitted_load = true;
+                    }
+                }
+            }
+        }
+        return Assignment {
+            stores: vec![private; definitions.len()],
+            loads,
+            declares_private: !definitions.is_empty() || any_emitted_load,
+            private,
+        };
+    }
     // Emitted load positions: one pair ahead of each span-start, pinned, or
     // dedicated position, plus the shared end-of-block point. The mid-span
     // unpinned positions that reuse the open pair read no slot of their own.
-    let mut emitted: Vec<std::collections::BTreeSet<usize>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeSet::new())
-        .collect();
+    let mut emitted: Vec<Vec<usize>> = vec![Vec::new(); block_count];
     for (block_index, block) in function.blocks.iter().enumerate() {
         // Use positions already name every possible reload. Unrelated
         // instructions cannot add an access to this victim's stream.
         let positions = &uses[block_index];
+        if positions.unpinned.is_empty()
+            && positions.pinned.is_empty()
+            && positions.dedicated.is_empty()
+        {
+            continue;
+        }
+        let row = &mut emitted[block_index];
         for &index in positions
             .unpinned
             .iter()
@@ -221,24 +309,17 @@ pub(super) fn assign(
             if index < block.instructions.len()
                 && loads_before(uses, shared_reload, span_closes, block_index, index)
             {
-                emitted[block_index].insert(index);
+                row.push(index);
             }
         }
+        row.sort_unstable();
+        row.dedup();
     }
     // Definitions anchored at each instruction index, in `definitions` order;
     // boundary definitions open their block ahead of every instruction.
-    let mut anchored: Vec<std::collections::BTreeMap<usize, Vec<usize>>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeMap::new())
-        .collect();
+    let mut anchored: Vec<std::collections::BTreeMap<usize, Vec<usize>>> =
+        (0..block_count).map(|_| std::collections::BTreeMap::new()).collect();
     let mut boundary: Vec<Vec<usize>> = vec![Vec::new(); block_count];
-    // Instruction positions of each block holding an anchored definition,
-    // indexed once per block rather than searched once per definition.
-    let mut instruction_positions = std::collections::BTreeMap::<
-        usize,
-        std::collections::BTreeMap<SelectedInstructionId, usize>,
-    >::new();
     for (definition, storage) in definitions.iter().enumerate() {
         match storage.position {
             StoragePosition::BlockStart => boundary[storage.block_index].push(definition),
@@ -247,18 +328,26 @@ pub(super) fn assign(
                 instruction: anchor,
                 ..
             } => {
-                let positions = instruction_positions
-                    .entry(storage.block_index)
-                    .or_insert_with(|| {
-                        function.blocks[storage.block_index]
-                            .instructions
-                            .iter()
-                            .enumerate()
-                            .rev()
-                            .map(|(index, instruction)| (instruction.id, index))
-                            .collect()
-                    });
-                if let Some(&index) = positions.get(&anchor) {
+                let found_index = {
+                    let instructions = &function.blocks[storage.block_index].instructions;
+                    // Match the original reverse-insert semantics: if duplicate IDs
+                    // exist in a corrupted test block, the earliest instruction index wins.
+                    function
+                        .blocks
+                        .instruction_index_in_block(storage.block_index, anchor)
+                        .and_then(|idx| {
+                            if idx > 0
+                                && instructions[..idx]
+                                    .iter()
+                                    .any(|inst| inst.id == anchor)
+                            {
+                                instructions.iter().position(|inst| inst.id == anchor)
+                            } else {
+                                Some(idx)
+                            }
+                        })
+                };
+                if let Some(index) = found_index {
                     anchored[storage.block_index]
                         .entry(index)
                         .or_default()
@@ -269,12 +358,16 @@ pub(super) fn assign(
     }
     // Each block's successor positions, resolved once for both fixpoints
     // below rather than by scanning the block list at every edge visit.
-    let block_positions: std::collections::BTreeMap<_, usize> = function
+    let max_block_id = function
         .blocks
         .iter()
-        .enumerate()
-        .map(|(block_index, block)| (block.id, block_index))
-        .collect();
+        .map(|block| block.id.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut block_positions = vec![u32::MAX; max_block_id + 1];
+    for (block_index, block) in function.blocks.iter().enumerate() {
+        block_positions[block.id.0 as usize] = block_index as u32;
+    }
     let successors: Vec<Vec<usize>> = function
         .blocks
         .iter()
@@ -283,7 +376,13 @@ pub(super) fn assign(
                 .1
                 .into_iter()
                 .flatten()
-                .filter_map(|successor| block_positions.get(&successor.block).copied())
+                .filter_map(|successor| {
+                    block_positions
+                        .get(successor.block.0 as usize)
+                        .copied()
+                        .filter(|&pos| pos != u32::MAX)
+                        .map(|pos| pos as usize)
+                })
                 .collect()
         })
         .collect();
@@ -333,6 +432,13 @@ pub(super) fn assign(
     let mut state = entries.scratch();
     for (block_index, block) in function.blocks.iter().enumerate() {
         let positions = &uses[block_index];
+        if positions.unpinned.is_empty()
+            && positions.pinned.is_empty()
+            && positions.dedicated.is_empty()
+            && !positions.end_of_block
+        {
+            continue;
+        }
         let sampled = positions
             .unpinned
             .iter()
@@ -397,25 +503,24 @@ pub(super) fn assign(
         private,
     };
     let mut window_slot: Vec<LocalStorageSlotId> = vec![private; windows.len()];
-    // Classify each candidate once, then fit windows in order. A window takes
-    // the first slot whose access stream it cannot interleave with; an
-    // unclassifiable or interleaving candidate is skipped.
-    let mut classified: std::collections::BTreeMap<LocalStorageSlotId, Option<CandidateAccesses>> =
-        std::collections::BTreeMap::new();
+    let mut classified_slots: Option<Vec<Option<CandidateAccesses>>> = None;
+    let mut scratch = ShareableScratch::new(block_count);
     for (window, window_definitions) in windows.iter().enumerate() {
         // This window's emitted load positions.
-        let mut load_marks: Vec<std::collections::BTreeSet<usize>> = function
-            .blocks
-            .iter()
-            .map(|_| std::collections::BTreeSet::new())
-            .collect();
+        let mut load_marks: Vec<Vec<usize>> = vec![Vec::new(); block_count];
         let mut end_marks = vec![false; block_count];
         for (&(block_index, index), &mapped) in &window_of_position {
             let member = mapped
                 .map(|root| *window_index.get(&root).unwrap_or(&windowless))
                 .unwrap_or(windowless);
-            if member == window && emitted[block_index].contains(&index) {
-                load_marks[block_index].insert(index);
+            if member == window && emitted[block_index].binary_search(&index).is_ok() {
+                load_marks[block_index].push(index);
+            }
+        }
+        for marks in &mut load_marks {
+            if marks.len() > 1 {
+                marks.sort_unstable();
+                marks.dedup();
             }
         }
         for (block_index, &mapped) in window_of_end.iter().enumerate() {
@@ -439,36 +544,32 @@ pub(super) fn assign(
             continue;
         }
         let mut chosen = None;
-        for slot in function
-            .local_storage_slots
-            .iter()
-            .filter(|slot| {
-                reuse_slots
-                    && slot.byte_size == 8
-                    && slot.alignment == 8
-                    && matches!(slot.id, LocalStorageSlotId::Spill { register } if register != victim)
-            })
-            .map(|slot| slot.id)
-        {
-            let Some(accesses) = classified
-                .entry(slot)
-                .or_insert_with(|| classify(function, slot))
-                .as_ref()
-            else {
-                continue;
-            };
-            if shareable(
-                accesses,
+        if !candidate_slots.is_empty() {
+            let classified =
+                classified_slots.get_or_insert_with(|| classify_all(function, &candidate_slots));
+            let summary = summarize_window(
                 function,
                 &boundary,
                 &anchored,
-                &successors,
                 window_definitions,
                 &load_marks,
                 &end_marks,
-            ) {
-                chosen = Some(slot);
-                break;
+            );
+            for (slot_idx, &slot) in candidate_slots.iter().enumerate() {
+                let Some(accesses) = classified[slot_idx].as_ref() else {
+                    continue;
+                };
+                if shareable(
+                    accesses,
+                    &summary,
+                    &successors,
+                    &load_marks,
+                    &end_marks,
+                    &mut scratch,
+                ) {
+                    chosen = Some(slot);
+                    break;
+                }
             }
         }
         let chosen = match chosen {
@@ -518,187 +619,243 @@ fn find(parent: &mut Vec<usize>, member: usize) -> usize {
     root
 }
 
-/// Classify one candidate slot's existing access stream, or `None` when any
-/// naming of the slot escapes the emitted idiom — the slot then stays
-/// private to its earlier victim.
-fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<CandidateAccesses> {
-    let frame_slot = FrameStorageSlotId::Local(slot);
-    // Instruction indices that are existing stores or loads of the candidate
-    // slot, plus every register a zero-offset `FrameAddress` for it defines.
-    let mut accesses: Vec<std::collections::BTreeMap<usize, Event>> = function
-        .blocks
-        .iter()
-        .map(|_| std::collections::BTreeMap::new())
-        .collect();
-    let mut slot_addresses = std::collections::BTreeSet::new();
+fn summarize_window(
+    function: &SelectedFunction,
+    boundary: &[Vec<usize>],
+    anchored: &[std::collections::BTreeMap<usize, Vec<usize>>],
+    window_definitions: &std::collections::BTreeSet<usize>,
+    load_marks: &[Vec<usize>],
+    end_marks: &[bool],
+) -> WindowSummary {
+    let block_count = function.blocks.len();
+    let mut boundary_store = vec![false; block_count];
+    let mut anchored_stores = vec![Vec::new(); block_count];
+    let mut last_store = vec![None; block_count];
+    let mut has_loads = vec![false; block_count];
     for (block_index, block) in function.blocks.iter().enumerate() {
-        for (index, instruction) in block.instructions.iter().enumerate() {
-            match instruction.kind {
-                SelectedInstructionKind::Store64 {
-                    slot: target,
-                    byte_offset,
-                } if target == frame_slot => {
-                    if byte_offset != 0 {
-                        return None;
-                    }
-                    accesses[block_index].insert(index, Event::ExistingStore);
-                }
-                SelectedInstructionKind::FrameAddress {
-                    slot: target,
-                    byte_offset,
-                } if target == frame_slot => {
-                    if byte_offset != 0 {
-                        return None;
-                    }
-                    slot_addresses.extend(
-                        instruction
-                            .operands
-                            .iter()
-                            .filter(|operand| operand.access != RegisterOperandAccess::Use)
-                            .map(|operand| operand.virtual_register),
-                    );
-                }
-                SelectedInstructionKind::HostedReadByte { slot: target }
-                | SelectedInstructionKind::HostedWriteByteI32 { slot: target }
-                    if target == slot =>
-                {
-                    return None;
-                }
-                _ => {}
-            }
+        let has_boundary = boundary[block_index]
+            .iter()
+            .any(|definition| window_definitions.contains(definition));
+        boundary_store[block_index] = has_boundary;
+        let stores: Vec<usize> = anchored[block_index]
+            .iter()
+            .filter_map(|(&index, definitions)| {
+                (index < block.instructions.len()
+                    && definitions
+                        .iter()
+                        .any(|definition| window_definitions.contains(definition)))
+                .then_some(index)
+            })
+            .collect();
+        last_store[block_index] = stores
+            .last()
+            .copied()
+            .map(StorePosition::Instruction)
+            .or_else(|| has_boundary.then_some(StorePosition::Boundary));
+        anchored_stores[block_index] = stores;
+        has_loads[block_index] = !load_marks[block_index].is_empty() || end_marks[block_index];
+    }
+    WindowSummary {
+        boundary_store,
+        anchored_stores,
+        last_store,
+        has_loads,
+    }
+}
+
+/// Classify all candidate slots' existing access streams in a single two-pass
+/// function scan, producing `None` for any slot whose naming escapes the
+/// emitted idiom.
+fn classify_all(
+    function: &SelectedFunction,
+    candidates: &[LocalStorageSlotId],
+) -> Vec<Option<CandidateAccesses>> {
+    let count = candidates.len();
+    if count == 0 {
+        return Vec::new();
+    }
+    let block_count = function.blocks.len();
+    let max_spill_reg = candidates
+        .iter()
+        .filter_map(|slot| match slot {
+            LocalStorageSlotId::Spill { register } => Some(register.0 as usize),
+            _ => None,
+        })
+        .max()
+        .unwrap_or(0);
+    let mut slot_lookup = vec![u32::MAX; max_spill_reg + 1];
+    for (idx, &slot) in candidates.iter().enumerate() {
+        if let LocalStorageSlotId::Spill { register } = slot {
+            slot_lookup[register.0 as usize] = idx as u32;
         }
-        let terminal = super::control(&block.terminator).0;
-        if names_slot(terminal, slot, frame_slot) {
-            return None;
+    }
+    let lookup_slot = |slot: LocalStorageSlotId| -> Option<usize> {
+        match slot {
+            LocalStorageSlotId::Spill { register } => slot_lookup
+                .get(register.0 as usize)
+                .copied()
+                .filter(|&idx| idx != u32::MAX)
+                .map(|idx| idx as usize),
+            _ => None,
         }
-        for successor in super::control(&block.terminator).1.into_iter().flatten() {
-            if successor
-                .structural_bindings
-                .iter()
-                .any(|binding| match binding.transport {
-                    selected_instructions::SelectedStructuralTransport::WholeValue {
-                        destination,
-                        ..
-                    } => destination == slot,
-                    selected_instructions::SelectedStructuralTransport::ScalarReference {
-                        base,
-                        destination,
-                        ..
+    };
+
+    let mut invalid = vec![false; count];
+    let mut accesses: Vec<Vec<Vec<(usize, Event)>>> = (0..count)
+        .map(|_| (0..block_count).map(|_| Vec::new()).collect())
+        .collect();
+    let mut terminal_loads = vec![vec![false; block_count]; count];
+    const NO_OWNER: u32 = u32::MAX;
+    const MULTI_OWNER: u32 = u32::MAX - 1;
+    let max_vreg = function
+        .virtual_registers
+        .iter()
+        .map(|reg| reg.id.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut address_owner = vec![NO_OWNER; max_vreg + 1];
+    let mut any_address_owner = false;
+
+    let invalidate = |slot: LocalStorageSlotId, invalid: &mut [bool]| {
+        if let Some(idx) = lookup_slot(slot) {
+            invalid[idx] = true;
+        }
+    };
+
+    for block_index in 0..block_count {
+        let Some(summary) = function.blocks.block_slot_summary(block_index) else {
+            continue;
+        };
+        for &event in &summary.events {
+            match event {
+                selected_instructions::BlockSlotEvent::Store {
+                    slot: target,
+                    index,
+                } => {
+                    if let Some(slot_idx) = lookup_slot(target)
+                        && !invalid[slot_idx]
+                    {
+                        accesses[slot_idx][block_index].push((index, Event::ExistingStore));
                     }
-                    | selected_instructions::SelectedStructuralTransport::Address {
-                        base,
-                        destination,
-                        ..
-                    } => {
-                        destination == slot
-                            || base == selected_instructions::SelectedAddressBase::Local(slot)
+                }
+                selected_instructions::BlockSlotEvent::FrameAddress {
+                    slot: target,
+                    register,
+                } => {
+                    let reg_idx = register.0 as usize;
+                    if reg_idx >= address_owner.len() {
+                        address_owner.resize(reg_idx + 1, NO_OWNER);
                     }
-                    selected_instructions::SelectedStructuralTransport::Unused => false,
-                })
-                || successor
-                    .structural_case
-                    .as_ref()
-                    .is_some_and(|case| case.source.local_slot() == Some(slot))
-            {
-                return None;
+                    let entry = &mut address_owner[reg_idx];
+                    if let Some(slot_idx) = lookup_slot(target)
+                        && !invalid[slot_idx]
+                    {
+                        if *entry == NO_OWNER {
+                            *entry = slot_idx as u32;
+                            any_address_owner = true;
+                        } else if *entry != slot_idx as u32 {
+                            if *entry < MULTI_OWNER {
+                                invalid[*entry as usize] = true;
+                            }
+                            invalid[slot_idx] = true;
+                            *entry = MULTI_OWNER;
+                        }
+                    } else {
+                        if *entry < MULTI_OWNER {
+                            invalid[*entry as usize] = true;
+                        }
+                        *entry = MULTI_OWNER;
+                    }
+                }
+                selected_instructions::BlockSlotEvent::Invalidate { slot: target } => {
+                    invalidate(target, &mut invalid);
+                }
             }
         }
     }
-    // Every use of a candidate-slot address must be the address operand of a
-    // zero-offset `Load64`; anything else reaches the slot through a shape the
-    // analysis cannot classify. A terminator load executes after every emitted
-    // reload pair, so it joins the event stream at the end-of-block position.
-    let mut terminal_loads = vec![false; function.blocks.len()];
-    for (block_index, block) in function.blocks.iter().enumerate() {
-        for (index, instruction) in block
-            .instructions
-            .iter()
-            .enumerate()
-            .chain(std::iter::once((
-                usize::MAX,
-                super::control(&block.terminator).0,
-            )))
-        {
-            for operand in &instruction.operands {
-                if !slot_addresses.contains(&operand.virtual_register) {
+
+    if any_address_owner {
+        for block_index in 0..block_count {
+            let Some(summary) = function.blocks.block_slot_summary(block_index) else {
+                continue;
+            };
+            for &reg in &summary.non_load_registers {
+                if let Some(&owner) = address_owner.get(reg.0 as usize)
+                    && owner < MULTI_OWNER
+                {
+                    invalid[owner as usize] = true;
+                }
+            }
+            for &(reg, index) in &summary.loads {
+                let Some(&owner) = address_owner.get(reg.0 as usize) else {
+                    continue;
+                };
+                if owner >= MULTI_OWNER {
                     continue;
                 }
-                let legal_load = matches!(
-                    instruction.kind,
-                    SelectedInstructionKind::Load64 { byte_offset: 0 }
-                ) && operand.access == RegisterOperandAccess::Use;
-                let own_definition = matches!(instruction.kind, SelectedInstructionKind::FrameAddress { slot: target, .. }
-                        if target == frame_slot)
-                    && operand.access != RegisterOperandAccess::Use;
-                if !legal_load && !own_definition {
-                    return None;
+                let slot_idx = owner as usize;
+                if invalid[slot_idx] {
+                    continue;
                 }
-                if legal_load {
-                    if index == usize::MAX {
-                        terminal_loads[block_index] = true;
-                    } else {
-                        accesses[block_index].insert(index, Event::ExistingLoad);
-                    }
+                if index == usize::MAX {
+                    terminal_loads[slot_idx][block_index] = true;
+                } else {
+                    accesses[slot_idx][block_index].push((index, Event::ExistingLoad));
                 }
-            }
-        }
-        // An address that crosses an edge could feed loads this scan never
-        // sees; sharing is then unverifiable.
-        for successor in super::control(&block.terminator).1.into_iter().flatten() {
-            let escapes = successor
-                .bindings
-                .iter()
-                .any(|binding| match binding.transport {
-                    selected_instructions::SelectedValueTransport::Registers {
-                        argument, ..
-                    } => slot_addresses.contains(&argument),
-                    selected_instructions::SelectedValueTransport::Unused => false,
-                })
-                || successor
-                    .structural_bindings
-                    .iter()
-                    .any(|binding| match binding.transport {
-                        selected_instructions::SelectedStructuralTransport::WholeValue {
-                            argument,
-                            ..
-                        } => slot_addresses.contains(&argument),
-                        selected_instructions::SelectedStructuralTransport::ScalarReference {
-                            base: selected_instructions::SelectedAddressBase::Register(argument),
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::Address {
-                            base: selected_instructions::SelectedAddressBase::Register(argument),
-                            ..
-                        } => slot_addresses.contains(&argument),
-                        selected_instructions::SelectedStructuralTransport::ScalarReference {
-                            base: selected_instructions::SelectedAddressBase::Local(_),
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::Address {
-                            base: selected_instructions::SelectedAddressBase::Local(_),
-                            ..
-                        }
-                        | selected_instructions::SelectedStructuralTransport::Unused => false,
-                    })
-                || successor.structural_case.as_ref().is_some_and(|case| {
-                    case.payloads.iter().any(|payload| {
-                        matches!(
-                            payload.transport,
-                            selected_instructions::SelectedCasePayloadTransport::Registers {
-                                argument,
-                                ..
-                            } if slot_addresses.contains(&argument))
-                    })
-                });
-            if escapes {
-                return None;
             }
         }
     }
-    Some(CandidateAccesses {
-        accesses,
-        terminal_loads,
-    })
+
+    accesses
+        .into_iter()
+        .zip(terminal_loads)
+        .enumerate()
+        .map(|(slot_idx, (mut slot_accesses, slot_terminal_loads))| {
+            if invalid[slot_idx] {
+                return None;
+            }
+            for block_accesses in &mut slot_accesses {
+                if block_accesses.len() > 1 {
+                    block_accesses.sort_by_key(|&(idx, _)| idx);
+                    block_accesses.dedup_by(|a, b| {
+                        if a.0 == b.0 {
+                            b.1 = a.1;
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                }
+            }
+            let last_existing_store = slot_accesses
+                .iter()
+                .map(|block_accesses| {
+                    block_accesses
+                        .iter()
+                        .rev()
+                        .find_map(|&(index, event)| {
+                            matches!(event, Event::ExistingStore).then_some(index)
+                        })
+                })
+                .collect();
+            let has_loads = slot_accesses
+                .iter()
+                .zip(&slot_terminal_loads)
+                .map(|(block_accesses, &term_load)| {
+                    term_load
+                        || block_accesses
+                            .iter()
+                            .any(|&(_, event)| matches!(event, Event::ExistingLoad))
+                })
+                .collect();
+            Some(CandidateAccesses {
+                accesses: slot_accesses,
+                terminal_loads: slot_terminal_loads,
+                last_existing_store,
+                has_loads,
+            })
+        })
+        .collect()
 }
 
 /// Whether one window's proposed accesses can share this candidate's slot:
@@ -708,134 +865,104 @@ fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<Can
 /// reload would have joined that window instead.
 fn shareable(
     candidate: &CandidateAccesses,
-    function: &SelectedFunction,
-    boundary: &[Vec<usize>],
-    anchored: &[std::collections::BTreeMap<usize, Vec<usize>>],
+    window: &WindowSummary,
     successors: &[Vec<usize>],
-    window_definitions: &std::collections::BTreeSet<usize>,
-    load_marks: &[std::collections::BTreeSet<usize>],
+    load_marks: &[Vec<usize>],
     end_marks: &[bool],
+    scratch: &mut ShareableScratch,
 ) -> bool {
-    // Proposed positions: one store after each of the window's definitions
-    // and one reload at each of its emitted load positions. The definitions
-    // come from the anchors `assign` already resolved, so building the stream
-    // reads each block once instead of every definition at every instruction.
-    fn window_stores<'stream>(
-        definitions: &'stream [usize],
-        window_definitions: &'stream std::collections::BTreeSet<usize>,
-    ) -> impl Iterator<Item = Event> + 'stream {
-        definitions
-            .iter()
-            .filter(|definition| window_definitions.contains(definition))
-            .map(|_| Event::NewStore)
+    let block_count = successors.len();
+    scratch.pending.clear();
+    for block_index in 0..block_count {
+        scratch.entries[block_index] = 0;
+        let exit = match (
+            window.last_store[block_index],
+            candidate.last_existing_store[block_index],
+        ) {
+            (Some(StorePosition::Instruction(w_idx)), Some(e_idx)) => {
+                if e_idx > w_idx {
+                    Some(EXISTING)
+                } else {
+                    Some(NEW)
+                }
+            }
+            (Some(StorePosition::Boundary), Some(_)) => Some(EXISTING),
+            (Some(_), None) => Some(NEW),
+            (None, Some(_)) => Some(EXISTING),
+            (None, None) => None,
+        };
+        scratch.exits[block_index] = exit;
+        if exit.is_some() {
+            scratch.queued[block_index] = true;
+            scratch.pending.push_back(block_index);
+        } else {
+            scratch.queued[block_index] = false;
+        }
     }
-    let mut events: Vec<Vec<Event>> = function
-        .blocks
-        .iter()
-        .enumerate()
-        .map(|(block_index, block)| {
-            let mut events = Vec::new();
-            // A boundary definition's store opens the block: it is the first
-            // writer event, ahead of every instruction-positioned access.
-            events.extend(window_stores(&boundary[block_index], window_definitions));
-            // Merge the sparse access rosters. At a shared position the
-            // original order remains reload, existing access, then new stores.
-            let mut positions: Vec<_> = load_marks[block_index]
-                .iter()
-                .chain(candidate.accesses[block_index].keys())
-                .chain(anchored[block_index].keys())
-                .copied()
-                .filter(|index| *index < block.instructions.len())
-                .collect();
-            positions.sort_unstable();
-            positions.dedup();
-            for index in positions {
-                if load_marks[block_index].contains(&index) {
-                    events.push(Event::NewLoad);
-                }
-                if let Some(access) = candidate.accesses[block_index].get(&index) {
-                    events.push(*access);
-                }
-                events.extend(window_stores(
-                    anchored[block_index].get(&index).map_or(&[], Vec::as_slice),
-                    window_definitions,
-                ));
-            }
-            if end_marks[block_index] {
-                events.push(Event::NewLoad);
-            }
-            // Emitted reload pairs sit in the block body; the terminator
-            // instruction — and so an existing terminator load — runs last.
-            if candidate.terminal_loads[block_index] {
-                events.push(Event::ExistingLoad);
-            }
-            events
-        })
-        .collect();
-    // Fixpoint on last-writer sets, then verify every load at its position.
-    // Stores overwrite the entire last-writer state. Seed their fixed exits;
-    // only store-free successors need reprocessing when an incoming bit changes.
-    let exits: Vec<_> = events
-        .iter()
-        .map(|events| {
-            events.iter().rev().find_map(|event| match event {
-                Event::ExistingStore => Some(EXISTING),
-                Event::NewStore => Some(NEW),
-                _ => None,
-            })
-        })
-        .collect();
-    let mut entries = vec![0u8; function.blocks.len()];
-    let mut pending: std::collections::VecDeque<_> = exits
-        .iter()
-        .enumerate()
-        .filter_map(|(block, value)| value.map(|_| block))
-        .collect();
-    let mut queued: Vec<_> = exits.iter().map(Option::is_some).collect();
-    while let Some(block) = pending.pop_front() {
-        queued[block] = false;
-        let exit = exits[block].unwrap_or(entries[block]);
+    while let Some(block) = scratch.pending.pop_front() {
+        scratch.queued[block] = false;
+        let exit = scratch.exits[block].unwrap_or(scratch.entries[block]);
         for &destination in &successors[block] {
-            let merged = entries[destination] | exit;
-            if merged == entries[destination] {
+            let merged = scratch.entries[destination] | exit;
+            if merged == scratch.entries[destination] {
                 continue;
             }
-            entries[destination] = merged;
-            if exits[destination].is_none() && !queued[destination] {
-                queued[destination] = true;
-                pending.push_back(destination);
+            scratch.entries[destination] = merged;
+            if scratch.exits[destination].is_none() && !scratch.queued[destination] {
+                scratch.queued[destination] = true;
+                scratch.pending.push_back(destination);
             }
         }
     }
-    events.iter_mut().enumerate().all(|(block_index, events)| {
-        let mut state = entries[block_index];
-        events.iter().all(|event| match event {
-            Event::ExistingStore => {
-                state = EXISTING;
-                true
+    for block_index in 0..block_count {
+        if !window.has_loads[block_index] && !candidate.has_loads[block_index] {
+            continue;
+        }
+        let mut state = scratch.entries[block_index];
+        if window.boundary_store[block_index] {
+            state = NEW;
+        }
+        scratch.positions.clear();
+        scratch.positions.extend(
+            load_marks[block_index]
+                .iter()
+                .copied()
+                .chain(candidate.accesses[block_index].iter().map(|&(idx, _)| idx))
+                .chain(window.anchored_stores[block_index].iter().copied()),
+        );
+        scratch.positions.sort_unstable();
+        scratch.positions.dedup();
+        for &index in &scratch.positions {
+            if load_marks[block_index].binary_search(&index).is_ok() && state != NEW {
+                return false;
             }
-            Event::NewStore => {
+            if let Ok(pos) =
+                candidate.accesses[block_index].binary_search_by_key(&index, |&(i, _)| i)
+            {
+                match candidate.accesses[block_index][pos].1 {
+                    Event::ExistingStore => state = EXISTING,
+                    Event::ExistingLoad => {
+                        if state & NEW != 0 {
+                            return false;
+                        }
+                    }
+                }
+            }
+            if window.anchored_stores[block_index]
+                .binary_search(&index)
+                .is_ok()
+            {
                 state = NEW;
-                true
             }
-            Event::ExistingLoad => state & NEW == 0,
-            Event::NewLoad => state == NEW,
-        })
-    })
-}
-
-fn names_slot(
-    instruction: &selected_instructions::SelectedInstruction,
-    slot: LocalStorageSlotId,
-    frame_slot: FrameStorageSlotId,
-) -> bool {
-    match instruction.kind {
-        SelectedInstructionKind::Store64 { slot: target, .. }
-        | SelectedInstructionKind::FrameAddress { slot: target, .. } => target == frame_slot,
-        SelectedInstructionKind::HostedReadByte { slot: target }
-        | SelectedInstructionKind::HostedWriteByteI32 { slot: target } => target == slot,
-        _ => false,
+        }
+        if end_marks[block_index] && state != NEW {
+            return false;
+        }
+        if candidate.terminal_loads[block_index] && state & NEW != 0 {
+            return false;
+        }
     }
+    true
 }
 
 fn loads_before(
