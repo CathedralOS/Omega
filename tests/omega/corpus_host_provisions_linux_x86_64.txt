@@ -8,7 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "2", "load1_end": 1.44, "load1_start": 1.15, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-pass/core/materialized_owned_entry_return checked 97016ms terminal-runtime.update:match terminal-runtime.pack:match terminal-inspections:match @8f3b0e6793a5
-pass/facts/opaque_closed_carrier_exchange_exit checked 83481ms check-target:macos_arm64 terminal-runtime.observe:match terminal-inspections:match @8f3b0e6793a5
-pass/facts/opaque_nested_carrier_exchange_exit checked 138555ms check-target:macos_arm64 terminal-runtime.observe:match terminal-runtime.observe_replacement:match terminal-runtime.relay:match terminal-inspections:match @8f3b0e6793a5
-pass/facts/opaque_wrapped_carrier_exchange_exit checked 74040ms check-target:macos_arm64 terminal-runtime.observe:match terminal-inspections:match @8f3b0e6793a5
+pass/core/materialized_owned_entry_return checked 8546ms terminal-runtime.update:match terminal-runtime.pack:match terminal-inspections:match @a92f16431042
+pass/facts/opaque_closed_carrier_exchange_exit checked 10394ms check-target:macos_arm64 terminal-runtime.observe:match terminal-inspections:match @a92f16431042
+pass/facts/opaque_nested_carrier_exchange_exit checked 20782ms check-target:macos_arm64 terminal-runtime.observe:match terminal-runtime.observe_replacement:match terminal-runtime.relay:match terminal-inspections:match @a92f16431042
+pass/facts/opaque_wrapped_carrier_exchange_exit checked 11327ms check-target:macos_arm64 terminal-runtime.observe:match terminal-inspections:match @a92f16431042
