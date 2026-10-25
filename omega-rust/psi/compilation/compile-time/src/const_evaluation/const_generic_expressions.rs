@@ -154,14 +154,10 @@ pub(crate) fn evaluate(
             if super::const_generic_calls::contains_call(&syntax, *expression) {
                 return None;
             }
-            let boolean_destination = matches!(
-                syntax.type_references.type_reference(*destination),
-                TypeReferenceNode::Named(name) if name.as_str(&syntax) == "bool"
-            );
-            (lexical_arguments.contains(argument)
-                || boolean_destination
-                || requires_typed_expression_probe(&syntax, *expression))
-            .then_some((*argument, *expression, *destination, *public))
+            // Parsing retains every authored value tree, including a literal
+            // in a declaration field. All closed arguments need the same
+            // carrier-checked semantic admission before generic synthesis.
+            Some((*argument, *expression, *destination, *public))
         })
         .collect::<Vec<_>>();
     if pending.is_empty() {
@@ -298,29 +294,6 @@ pub(crate) fn evaluate(
         );
     }
     Ok(syntax)
-}
-
-fn requires_typed_expression_probe(syntax: &SyntaxTrees, expression: ExpressionHandle) -> bool {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        match syntax.expressions.expression(expression) {
-            ExpressionNode::Match(_) | ExpressionNode::Unary(_) | ExpressionNode::Cast(_) => {
-                return true;
-            }
-            ExpressionNode::Name(_) => return true,
-            ExpressionNode::Binary(binary) => {
-                pending.push(binary.right);
-                pending.push(binary.left);
-            }
-            _ => {}
-        }
-    }
-    false
 }
 
 pub(super) fn exact_probe_destination(
