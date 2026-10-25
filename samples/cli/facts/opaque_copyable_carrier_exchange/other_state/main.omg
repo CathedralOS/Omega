@@ -4,7 +4,7 @@ use producer::main;
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
     transition { _ -> receive(AddressBridge::make(10, 66051)) }
-    state receive(original: InternetAddress) {
+    machine receive(original: InternetAddress) reaches AddressParts, AddressBridge crashes Trap {
         let sent: InternetAddress = original;
         let sibling: InternetAddress = AddressBridge::make(44048, 513);
         let original_host: u32 = AddressBridge::host(original);
@@ -12,6 +12,6 @@ machine main() reaches AddressParts, AddressBridge crashes Trap {
         let sibling_host: u32 = AddressBridge::host(sibling);
         transition original_host == 66051 && sent_host == 66051 && sibling_host == 513 { true -> done() _ -> failed() }
     }
-    state done() {}
-    state failed() { crash Trap; }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
 }

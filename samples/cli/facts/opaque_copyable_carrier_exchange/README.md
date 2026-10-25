@@ -81,6 +81,19 @@ python tools/corpus_gate.py --both --filter opaque_copyable_carrier_through
 ```
 
 The recovered pre-crash candidate passed all nine Windows native/Terminal
-executions and nine copy-sensitive rejects. Those retained observations belong
-to their original producer; current-main baseline and submitted-candidate
-evidence are recorded separately in the qualification record.
+executions and nine copy-sensitive rejects. A fresh optimized compiler with the
+same compiler/library inputs as main `fedebdd58c2c` reproduces the copy defect:
+the local positive runs natively at zero, while Terminal refuses the result as
+requiring an affine carrier. The repaired producer at `22f864f13829` passes the
+nine legacy-form positives and nine copy-sensitive rejects; the scoped corpus
+also verifies nine independent native/Terminal executions and four existing
+linear, borrowed, qualified-result and selection controls. These observations
+retain their actual source and producer identities in `build/opaque-copy/`.
+
+The authored row now uses canonical nested `machine` declarations, explicit
+arguments and explicit nested crash/reach contracts. Its current first failure
+is the parser's refusal of a nested declaration (`expected ;, found identifier`),
+also reproduced on the fresh main producer. That prerequisite belongs to
+NESTED-MACHINE-UNIFICATION. Neither the positive nor its reject currently reaches
+the copy obligation in that canonical form. The legacy-form observations do not
+close this row, and no canonical execution or other-host result is claimed.
