@@ -12,6 +12,14 @@ must reject the unconsumed `pair.second` at scope exit.
 All nine places have self-contained pass/fail corpus pins under
 `opaque_independent_linear_through_*`.
 
+The resumed local opaque lane adopts this stronger row in place of its duplicate
+`opaque_linear_carrier_exchange` row, whose source and historical observations
+remain in the preserved branch ancestry. The actual constructions, field
+replacement, sibling consumption and values above stay unchanged. Root, producer
+and fixture bodies now use explicit nested machines, with their own reach and
+crash contracts; `other_state/` retains its path and transports explicit arguments.
+Fresh execution of this source migration remains required before local acceptance.
+
 The ownership path retains the following requirements:
 
 - Establishment comes from the selected closed carrier and the actual completed

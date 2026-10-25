@@ -93,39 +93,6 @@ impl PartialEq for FragmentReplay {
 
 impl Eq for FragmentReplay {}
 
-#[cfg(any(test, feature = "test-support"))]
-impl crate::ObjectArtifact {
-    /// Test an untrusted retained target proposal against its unchanged
-    /// validated source. The clone cannot replace the object's admitted input.
-    /// Private bodies keep their own artifact-local source and claim IDs.
-    pub fn verify_test_target_operation_mutation(
-        &self,
-        mutate: &mut impl FnMut(&mut target_operations::TargetOperationPlan),
-    ) -> Result<(), diagnostics::Diagnostic> {
-        for private in &self.private_functions {
-            private.body.verify_test_target_operation_mutation(mutate)?;
-        }
-        let replay = self.fragment_replay.as_ref().ok_or_else(|| {
-            diagnostics::Diagnostic::error(
-                "target mutation control requires retained pipeline input",
-            )
-        })?;
-        let current = replay
-            .0
-            .source()
-            .source()
-            .source()
-            .source()
-            .optimized_target();
-        let mut proposed = current.target_operations().clone();
-        mutate(&mut proposed);
-        target_operations_to_selected_instructions::verify_target_operation_plan(
-            &proposed,
-            current.optimized(),
-        )
-        .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
-    }
-}
 
 pub(crate) fn entry_source(
     artifact: &crate::ObjectArtifact,
