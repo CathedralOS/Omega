@@ -1,0 +1,14 @@
+// Expected exit: 0
+data Outcome [copy] { case Zero; case Negative; case Other; }
+machine classify(status: i32) -> Outcome {
+ transition status {
+  0 -> Outcome::Zero
+  -33 -> Outcome::Negative
+  _ -> Outcome::Other
+ }
+}
+machine main() crashes Trap {
+ let selected: Outcome = classify(-33);
+ transition selected { Outcome::Negative -> done() _ -> wrong() }
+ state done() {} state wrong() { crash Trap; }
+}
