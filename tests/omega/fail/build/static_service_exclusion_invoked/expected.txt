@@ -1,1 +1,3 @@
-behavior exclusion violated: service `Sink` is reachable in machine `entry_start`
+behavior exclusion violated: service `Sink` is reachable in Terminal machine
+reached through machine `entry_start`
+path(main::Sink::emit)
