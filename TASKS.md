@@ -1513,10 +1513,12 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   - Qualify remaining borrowed descriptor carriers, original scalar-field
     backing through thin foreign export
     ([foreign_scalar_backing](samples/cli/facts/foreign_scalar_backing/README.md)),
-    materialized C scalar-record results
-    ([foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)),
-    and indirect (memory-returned) aggregate results across Windows, macOS, and
-    both Linux targets in Omega stages 02–03 and backend call-frame emission,
+    and C record-result host/ABI lanes beyond the exact bindings covered by
+    [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)
+    and the macOS ARM64 indirect floating result in
+    [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md)
+    across Windows, macOS, and both Linux targets in Omega stages 02–03 and
+    backend call-frame emission,
     keeping
     `providers/foreign_{owned_record,record_result,multiregister_result,indirect_record_*}_exit`
     and `host/runtime_descriptor_*_exit` passing.
