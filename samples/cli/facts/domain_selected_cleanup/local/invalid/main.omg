@@ -1,0 +1,21 @@
+// A nominal owner retains its exclusive output reference through a shared call, then normal cleanup writes captured code 7 to the original backing.
+// Place: local.
+// Expected exit: 0.
+data Seed [copy] { code: u64; }
+data Counter { value: u64; }
+data Keeper dropped by release_keeper { output: &mut Counter; code: u64; }
+machine release_keeper(keeper: &mut Keeper) requires keeper.code == 7 {
+    keeper.output.value = keeper.code;
+}
+machine observe(keeper: &Keeper) {}
+machine check(output: &Counter) crashes Trap {
+    transition output.value == 7 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let seed: Seed = Seed { code: 6 };
+    let mut output: Counter = Counter { value: 0 };
+    observe(&Keeper { output: &mut output, code: seed.code });
+    check(&output);
+}

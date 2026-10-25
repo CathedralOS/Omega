@@ -16,8 +16,7 @@ pub fn validate_behavior_plan(
             continue;
         };
 
-        if machine.attached_data.is_some()
-            && machine.name.as_str().ends_with("::drop")
+        if crate::nominal_cleanup_owner(program, machine.symbol).is_some()
             && (machine.suspends
                 || machine.blocks
                 || machine_summary.transitive_may_suspend

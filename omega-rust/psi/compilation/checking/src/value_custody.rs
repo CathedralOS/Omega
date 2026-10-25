@@ -7,6 +7,7 @@ pub(crate) mod atomic_fences;
 pub(crate) mod atomic_operations;
 pub(crate) mod claim_frontier;
 pub(crate) mod cleanup;
+mod cleanup_selection;
 pub(crate) mod const_expressions;
 pub(crate) mod constants;
 pub(crate) mod content_classes;

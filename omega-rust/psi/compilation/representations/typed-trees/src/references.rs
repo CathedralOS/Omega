@@ -1044,6 +1044,9 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_type_reference(program, retained, quotient.carrier);
             visit_symbol(retained, quotient.relation_symbol);
         }
+        if let Some(selection) = &data.cleanup_selection {
+            visit_static_argument(program, retained, selection);
+        }
         visit_proof_facts(program, retained, data.where_facts);
         for member in program.data_members(data) {
             match member {
@@ -1232,6 +1235,9 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_owned_implementation_arguments(program, retained, domain.symbol);
         visit_symbol(retained, domain.symbol);
         visit_type_parameters(program, retained, domain.type_parameters);
+        if let Some(selection) = &domain.cleanup_selection {
+            visit_static_argument(program, retained, selection);
+        }
         visit_type_reference(program, retained, domain.target_type);
         for argument in &domain.index_arguments {
             visit_type_reference(program, retained, *argument);

@@ -23,6 +23,9 @@ pub fn type_graph_requires_nominal_drop(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visited: &mut BTreeSet<String>,
 ) -> bool {
+    if super::cleanup_selection::selected_application(program, type_reference).ok().flatten().is_some() {
+        return true;
+    }
     loop {
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return false,
@@ -112,6 +115,9 @@ fn data_graph_requires_nominal_drop(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     visited: &mut BTreeSet<String>,
 ) -> bool {
+    if data.cleanup_selection.is_some() {
+        return true;
+    }
     if program.machines().iter().any(|machine| {
         machine.name.as_str().ends_with("::drop") && machine.attached_data_symbol == data.symbol
     }) {
@@ -151,9 +157,12 @@ pub(crate) fn validate_cleanup_machine_declarations(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for machine in program.machines().iter().filter(|machine| {
-        machine.attached_data.is_some() && machine.name.as_str().ends_with("::drop")
-    }) {
+    for (reference, _) in program.type_reference_table.type_reference_rows() {
+        if let Err(diagnostic) = super::cleanup_selection::selected_application(program, reference) {
+            diagnostics.push(diagnostic);
+        }
+    }
+    for machine in program.machines().iter().filter(|machine| is_reserved_cleanup(program, machine)) {
         validate_cleanup_machine(program, machine, diagnostics);
     }
 }
@@ -256,7 +265,8 @@ pub fn validate_reserved_cleanup_selections(
 /// source may not.
 fn is_reserved_cleanup(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
     let owner = machine.attached_data_symbol;
-    machine.attached_data.is_some()
+    super::cleanup_selection::owner_for_machine(program, machine.symbol).is_some()
+        || machine.attached_data.is_some()
         && owner.is_valid()
         && machine.name.as_str().rsplit("::").next() == Some("drop")
         && crate::declarations::data_queries::data_definition_by_symbol(program, owner).is_some()
@@ -300,10 +310,9 @@ fn nominal_cleanup_owner_walk(
         let template = program.machine_specialization(declaration.symbol)?.template;
         declaration = program.machine(template)?;
     }
-    machine
-        .attached_data_symbol
-        .is_valid()
-        .then_some(machine.attached_data_symbol)
+    super::cleanup_selection::owner_for_machine(program, declaration.symbol).or_else(|| {
+        machine.attached_data_symbol.is_valid().then_some(machine.attached_data_symbol)
+    })
 }
 
 /// Bind an owner-designated hook to the actual receiver application. Source
@@ -316,6 +325,15 @@ pub fn nominal_cleanup_machine_for_type<'program>(
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<&'program Machine> {
+    if let Ok(Some(selection)) = super::cleanup_selection::selected_application(program, reference) {
+        // The declaration supplied the identity; a same-spelled machine or
+        // another carrier's hook never participates in this selection.
+        let machine = program.machine(selection.symbol)?;
+        if selection.application.as_ref().is_none_or(|application| application.arguments.is_empty()) {
+            return Some(machine);
+        }
+        return None;
+    }
     let reference = crate::peel_declared_constraints(program, reference);
     let owner = match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
@@ -422,12 +440,10 @@ fn validate_cleanup_machine(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(_attached_name) = machine.attached_data.as_ref() else {
-        return;
-    };
     // The explicit exclusive parameter names the exact data owner. A qualified
     // machine path contributes no receiver or alternative owner identity.
-    let attached_symbol = machine.attached_data_symbol;
+    let attached_symbol = super::cleanup_selection::owner_for_machine(program, machine.symbol)
+        .unwrap_or(machine.attached_data_symbol);
     let Some(entry) = program.machine_states(machine).first() else {
         diagnostics.push(Diagnostic::error(format!(
             "cleanup machine `{}` has no entry state; reserved cleanup takes one exclusive loan of its own data and returns Unit",

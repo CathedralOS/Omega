@@ -149,6 +149,7 @@ pub(super) fn synthesize_exact_records(
             let accessor_name = accessor_name(syntax, application, field, entry.access())?;
             let is_exported = access_is_exported(entry.access());
             syntax.push_root_item(Item::Data(DataDefinition {
+            cleanup_selection: None,
                 name: generated_identifier(accessor_name.clone(), provenance),
                 // A published shell must be well-formed even when one field's
                 // operations are binding-private. The opaque carrier itself
@@ -442,6 +443,7 @@ fn push_record(
         count += 1;
     }
     syntax.push_root_item(Item::Data(DataDefinition {
+            cleanup_selection: None,
         // The shell is compiler-owned rather than a declaration published by
         // either input package. Discovery has already retained the exact
         // policy/schema identities and enforced their visibility; field

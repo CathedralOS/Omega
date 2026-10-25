@@ -226,6 +226,8 @@ pub struct DataDefinitionSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generic_instance: Option<TypeReferenceSnapshot>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleanup_selection: Option<super::StaticArgumentSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub quotient: Option<QuotientDefinitionSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub retired_identities: Vec<u64>,
@@ -281,6 +283,8 @@ pub struct DomainDefinitionSnapshot {
     pub name: String,
     pub subject_name: String,
     pub has_subject_symbol: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleanup_selection: Option<super::StaticArgumentSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub type_parameters: Vec<DomainTypeParameterSnapshot>,
     pub target_type: TypeReferenceSnapshot,
@@ -361,6 +365,7 @@ pub(crate) fn data_definition_snapshot(
     data: &DataDefinition,
 ) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
+        cleanup_selection: data.cleanup_selection.as_ref().map(|selection| super::statement_and_expression_snapshots::snapshot_static_argument(program, selection)),
         name: data.name.to_string(),
         is_public: data.is_public,
         supply: match data.supply_mode {
@@ -450,6 +455,7 @@ pub(crate) fn domain_definition_snapshot(
     domain: &DomainDefinition,
 ) -> DomainDefinitionSnapshot {
     DomainDefinitionSnapshot {
+        cleanup_selection: domain.cleanup_selection.as_ref().map(|selection| super::statement_and_expression_snapshots::snapshot_static_argument(program, selection)),
         name: domain.name.to_string(),
         subject_name: domain.subject_name.to_string(),
         has_subject_symbol: domain.subject_symbol.is_valid(),

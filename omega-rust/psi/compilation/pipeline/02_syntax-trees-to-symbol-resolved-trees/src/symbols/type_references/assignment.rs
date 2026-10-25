@@ -70,6 +70,14 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
+    // Static operands resolve callable entries. A domain cleanup clause owns
+    // the independent machine application, not an arbitrary state inside it.
+    // Normalize only actual entry-state selections; non-entry states retain
+    // their identity so ordinary cleanup validation can reject them.
+    let cleanup_entries = program.machines.iter().filter_map(|machine| {
+        let entry = program.machine_state_handles(machine.states).first()?;
+        Some((program.machine_state(*entry).symbol, machine.symbol))
+    }).collect::<Vec<_>>();
     let trait_proposition_slots = trait_parameter_slots(program, |parameter| {
         matches!(
             parameter.kind,
@@ -114,6 +122,9 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 crate::symbols::targets::assign_static_argument_symbols(
                     symbols, declaration_symbol, &type_parameters, selection, false,
                 );
+                if let Some((_, machine)) = cleanup_entries.iter().find(|(entry, _)| *entry == selection.symbol) {
+                    selection.symbol = *machine;
+                }
             }
             assign_type_parameter_constraint_symbols(
                 symbols,
@@ -263,6 +274,9 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
             crate::symbols::targets::assign_static_argument_symbols(
                 symbols, domain.symbol, &type_parameters, selection, false,
             );
+            if let Some((_, machine)) = cleanup_entries.iter().find(|(entry, _)| *entry == selection.symbol) {
+                selection.symbol = *machine;
+            }
         }
         assign_type_parameter_constraint_symbols(
             symbols,
