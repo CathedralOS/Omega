@@ -80,6 +80,28 @@ pub fn spill_selected_runtime_value_with_span_policy(
     budget: OptimizationWorkBudget,
     span_policy: RuntimeSpillSpanPolicy,
 ) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
+    spill_selected_runtime_value_with_crossing_status(
+        source,
+        function_index,
+        register,
+        environment,
+        budget,
+        span_policy,
+    )
+    .map(|(spill, _)| spill)
+}
+
+/// Like [`spill_selected_runtime_value_with_span_policy`], also reporting
+/// whether `UnitWriteCrossing` crossed at least one unit-writing instruction
+/// (when `false`, the produced rewrite is identical to `UnitWriteBounded`).
+pub fn spill_selected_runtime_value_with_crossing_status(
+    source: &impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    register: VirtualRegisterId,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+    span_policy: RuntimeSpillSpanPolicy,
+) -> Result<(ValidatedRuntimeSpill, bool), RuntimeSpillError> {
     let admitted = derive_runtime_spill(
         source,
         function_index,
@@ -88,6 +110,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
         span_policy,
         budget,
     )?;
+    let crossed_unit_write = admitted.crossed_unit_write;
     let mut transformed = source.selected_plan().clone();
     let function = &mut transformed.functions[function_index];
     // Reused slots are already declared, so their bytes stay charged exactly
@@ -118,9 +141,21 @@ pub fn spill_selected_runtime_value_with_span_policy(
         // operand, so their entries let the binding's `argument` field follow
         // the register its loads actually read.
         let mut use_reloads = std::collections::BTreeMap::new();
-        let mut instructions = Vec::new();
-        let mut boundaries = Vec::new();
-        let mut instruction_positions = Vec::new();
+        let has_settlements = function
+            .boundary_settlements
+            .iter()
+            .any(|settlement| settlement.block == block.id);
+        let mut instructions = Vec::with_capacity(block.instructions.len() + 8);
+        let mut boundaries = if has_settlements {
+            Vec::with_capacity(block.instructions.len() + 1)
+        } else {
+            Vec::new()
+        };
+        let mut instruction_positions = if has_settlements {
+            Vec::with_capacity(block.instructions.len() + 1)
+        } else {
+            Vec::new()
+        };
         // An entry parameter's store opens its block: the register is live-in,
         // so position zero is the earliest point the slot holds the value and
         // the only one every use — body, terminator, or edge — follows.
@@ -146,10 +181,12 @@ pub fn spill_selected_runtime_value_with_span_policy(
             instructions.extend(sequence);
         }
         for (instruction_index, original) in block.instructions.iter().enumerate() {
-            boundaries.push(
-                u32::try_from(instructions.len())
-                    .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-            );
+            if has_settlements {
+                boundaries.push(
+                    u32::try_from(instructions.len())
+                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+                );
+            }
             let mut rewritten = original.clone();
             // Uses and `UseDef` operands both read the victim and move to a
             // reload register; a `UseDef` additionally writes that register
@@ -190,10 +227,12 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 use_reloads.entry(rewritten.id).or_insert(reloaded);
                 operand.virtual_register = reloaded;
             }
-            instruction_positions.push(
-                u32::try_from(instructions.len())
-                    .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-            );
+            if has_settlements {
+                instruction_positions.push(
+                    u32::try_from(instructions.len())
+                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+                );
+            }
             instructions.push(rewritten);
             // A clobber or implicit definition may write any unit, including
             // the one hosting the still-open reload, and a redefinition makes
@@ -202,7 +241,8 @@ pub fn spill_selected_runtime_value_with_span_policy(
             // opens a fresh pair — unless admission proved a surviving view
             // lets the produced interval cross a unit-writing instruction to
             // its home.
-            if admitted.span_closes[block_index].contains(&instruction_index) {
+            if open_reload.is_some() && admitted.span_closes[block_index].contains(&instruction_index)
+            {
                 open_reload = None;
             }
             for (definition_index, definition) in
@@ -412,32 +452,33 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 }
             }
         }
-        boundaries.push(
-            u32::try_from(instructions.len()).map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-        );
-        instruction_positions.push(
-            u32::try_from(instructions.len()).map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-        );
-        for settlement in &mut function.boundary_settlements {
-            if settlement.block != block.id {
-                continue;
+        let final_len =
+            u32::try_from(instructions.len()).map_err(|_| RuntimeSpillError::IdentityOverflow)?;
+        if has_settlements {
+            boundaries.push(final_len);
+            instruction_positions.push(final_len);
+            for settlement in &mut function.boundary_settlements {
+                if settlement.block != block.id {
+                    continue;
+                }
+                // Eliminated completions retain their gap; hosted settlements name
+                // the surviving instruction, after any newly inserted reloads.
+                let positions = if matches!(
+                    settlement.settlement,
+                    SelectedBoundarySettlementPayload::ClaimCompletion(_)
+                ) {
+                    &boundaries
+                } else {
+                    &instruction_positions
+                };
+                settlement.instruction_index = *positions
+                    .get(settlement.instruction_index as usize)
+                    .ok_or(RuntimeSpillError::SourceMismatch)?;
             }
-            // Eliminated completions retain their gap; hosted settlements name
-            // the surviving instruction, after any newly inserted reloads.
-            let positions = if matches!(
-                settlement.settlement,
-                SelectedBoundarySettlementPayload::ClaimCompletion(_)
-            ) {
-                &boundaries
-            } else {
-                &instruction_positions
-            };
-            settlement.instruction_index = *positions
-                .get(settlement.instruction_index as usize)
-                .ok_or(RuntimeSpillError::SourceMismatch)?;
         }
         function.blocks[block_index].instructions = instructions;
         function.blocks[block_index].terminator = terminator;
     }
-    super::validation::seal_runtime_spill_with_span_policy(source, transformed)
+    let sealed = super::validation::seal_runtime_spill_with_span_policy(source, transformed)?;
+    Ok((sealed, crossed_unit_write))
 }

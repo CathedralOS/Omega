@@ -26,7 +26,7 @@ use fragments::{
     after_point, before_point, block_domain, connector, interference, operand_point,
     register_fragments,
 };
-use function::compute_function;
+pub(crate) use function::compute_function;
 
 pub(crate) fn compute_terminal_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,

@@ -204,7 +204,6 @@ struct ShareableScratch {
     entries: Vec<u8>,
     queued: Vec<bool>,
     pending: std::collections::VecDeque<usize>,
-    positions: Vec<usize>,
 }
 
 impl ShareableScratch {
@@ -214,7 +213,6 @@ impl ShareableScratch {
             entries: vec![0; block_count],
             queued: vec![false; block_count],
             pending: std::collections::VecDeque::with_capacity(block_count),
-            positions: Vec::new(),
         }
     }
 }
@@ -328,26 +326,10 @@ pub(super) fn assign(
                 instruction: anchor,
                 ..
             } => {
-                let found_index = {
-                    let instructions = &function.blocks[storage.block_index].instructions;
-                    // Match the original reverse-insert semantics: if duplicate IDs
-                    // exist in a corrupted test block, the earliest instruction index wins.
-                    function
-                        .blocks
-                        .instruction_index_in_block(storage.block_index, anchor)
-                        .and_then(|idx| {
-                            if idx > 0
-                                && instructions[..idx]
-                                    .iter()
-                                    .any(|inst| inst.id == anchor)
-                            {
-                                instructions.iter().position(|inst| inst.id == anchor)
-                            } else {
-                                Some(idx)
-                            }
-                        })
-                };
-                if let Some(index) = found_index {
+                if let Some(index) = function
+                    .blocks
+                    .instruction_index_in_block(storage.block_index, anchor)
+                {
                     anchored[storage.block_index]
                         .entry(index)
                         .or_default()
@@ -503,7 +485,7 @@ pub(super) fn assign(
         private,
     };
     let mut window_slot: Vec<LocalStorageSlotId> = vec![private; windows.len()];
-    let mut classified_slots: Option<Vec<Option<CandidateAccesses>>> = None;
+    let mut classified_slots: Option<RawCandidateSlots> = None;
     let mut scratch = ShareableScratch::new(block_count);
     for (window, window_definitions) in windows.iter().enumerate() {
         // This window's emitted load positions.
@@ -545,8 +527,8 @@ pub(super) fn assign(
         }
         let mut chosen = None;
         if !candidate_slots.is_empty() {
-            let classified =
-                classified_slots.get_or_insert_with(|| classify_all(function, &candidate_slots));
+            let classified = classified_slots
+                .get_or_insert_with(|| RawCandidateSlots::scan(function, &candidate_slots));
             let summary = summarize_window(
                 function,
                 &boundary,
@@ -556,7 +538,7 @@ pub(super) fn assign(
                 &end_marks,
             );
             for (slot_idx, &slot) in candidate_slots.iter().enumerate() {
-                let Some(accesses) = classified[slot_idx].as_ref() else {
+                let Some(accesses) = classified.get(slot_idx) else {
                     continue;
                 };
                 if shareable(
@@ -663,157 +645,182 @@ fn summarize_window(
     }
 }
 
-/// Classify all candidate slots' existing access streams in a single two-pass
-/// function scan, producing `None` for any slot whose naming escapes the
-/// emitted idiom.
-fn classify_all(
-    function: &SelectedFunction,
-    candidates: &[LocalStorageSlotId],
-) -> Vec<Option<CandidateAccesses>> {
-    let count = candidates.len();
-    if count == 0 {
-        return Vec::new();
-    }
-    let block_count = function.blocks.len();
-    let max_spill_reg = candidates
-        .iter()
-        .filter_map(|slot| match slot {
-            LocalStorageSlotId::Spill { register } => Some(register.0 as usize),
-            _ => None,
-        })
-        .max()
-        .unwrap_or(0);
-    let mut slot_lookup = vec![u32::MAX; max_spill_reg + 1];
-    for (idx, &slot) in candidates.iter().enumerate() {
-        if let LocalStorageSlotId::Spill { register } = slot {
-            slot_lookup[register.0 as usize] = idx as u32;
-        }
-    }
-    let lookup_slot = |slot: LocalStorageSlotId| -> Option<usize> {
-        match slot {
-            LocalStorageSlotId::Spill { register } => slot_lookup
-                .get(register.0 as usize)
-                .copied()
-                .filter(|&idx| idx != u32::MAX)
-                .map(|idx| idx as usize),
-            _ => None,
-        }
-    };
+struct RawCandidateSlots {
+    invalid: Vec<bool>,
+    accesses: Vec<Vec<Vec<(usize, Event)>>>,
+    terminal_loads: Vec<Vec<bool>>,
+    finalized: Vec<Option<CandidateAccesses>>,
+}
 
-    let mut invalid = vec![false; count];
-    let mut accesses: Vec<Vec<Vec<(usize, Event)>>> = (0..count)
-        .map(|_| (0..block_count).map(|_| Vec::new()).collect())
-        .collect();
-    let mut terminal_loads = vec![vec![false; block_count]; count];
-    const NO_OWNER: u32 = u32::MAX;
-    const MULTI_OWNER: u32 = u32::MAX - 1;
-    let max_vreg = function
-        .virtual_registers
-        .iter()
-        .map(|reg| reg.id.0 as usize)
-        .max()
-        .unwrap_or(0);
-    let mut address_owner = vec![NO_OWNER; max_vreg + 1];
-    let mut any_address_owner = false;
-
-    let invalidate = |slot: LocalStorageSlotId, invalid: &mut [bool]| {
-        if let Some(idx) = lookup_slot(slot) {
-            invalid[idx] = true;
+impl RawCandidateSlots {
+    /// Scan all candidate slots' existing access streams in a single two-pass
+    /// function scan, deferring per-slot sorting and summary allocation until
+    /// `get(slot_idx)` is queried.
+    fn scan(function: &SelectedFunction, candidates: &[LocalStorageSlotId]) -> Self {
+        let count = candidates.len();
+        if count == 0 {
+            return Self {
+                invalid: Vec::new(),
+                accesses: Vec::new(),
+                terminal_loads: Vec::new(),
+                finalized: Vec::new(),
+            };
         }
-    };
-
-    for block_index in 0..block_count {
-        let Some(summary) = function.blocks.block_slot_summary(block_index) else {
-            continue;
-        };
-        for &event in &summary.events {
-            match event {
-                selected_instructions::BlockSlotEvent::Store {
-                    slot: target,
-                    index,
-                } => {
-                    if let Some(slot_idx) = lookup_slot(target)
-                        && !invalid[slot_idx]
-                    {
-                        accesses[slot_idx][block_index].push((index, Event::ExistingStore));
-                    }
-                }
-                selected_instructions::BlockSlotEvent::FrameAddress {
-                    slot: target,
-                    register,
-                } => {
-                    let reg_idx = register.0 as usize;
-                    if reg_idx >= address_owner.len() {
-                        address_owner.resize(reg_idx + 1, NO_OWNER);
-                    }
-                    let entry = &mut address_owner[reg_idx];
-                    if let Some(slot_idx) = lookup_slot(target)
-                        && !invalid[slot_idx]
-                    {
-                        if *entry == NO_OWNER {
-                            *entry = slot_idx as u32;
-                            any_address_owner = true;
-                        } else if *entry != slot_idx as u32 {
-                            if *entry < MULTI_OWNER {
-                                invalid[*entry as usize] = true;
-                            }
-                            invalid[slot_idx] = true;
-                            *entry = MULTI_OWNER;
-                        }
-                    } else {
-                        if *entry < MULTI_OWNER {
-                            invalid[*entry as usize] = true;
-                        }
-                        *entry = MULTI_OWNER;
-                    }
-                }
-                selected_instructions::BlockSlotEvent::Invalidate { slot: target } => {
-                    invalidate(target, &mut invalid);
-                }
+        let block_count = function.blocks.len();
+        let max_spill_reg = candidates
+            .iter()
+            .filter_map(|slot| match slot {
+                LocalStorageSlotId::Spill { register } => Some(register.0 as usize),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0);
+        let mut slot_lookup = vec![u32::MAX; max_spill_reg + 1];
+        for (idx, &slot) in candidates.iter().enumerate() {
+            if let LocalStorageSlotId::Spill { register } = slot {
+                slot_lookup[register.0 as usize] = idx as u32;
             }
         }
-    }
+        let lookup_slot = |slot: LocalStorageSlotId| -> Option<usize> {
+            match slot {
+                LocalStorageSlotId::Spill { register } => slot_lookup
+                    .get(register.0 as usize)
+                    .copied()
+                    .filter(|&idx| idx != u32::MAX)
+                    .map(|idx| idx as usize),
+                _ => None,
+            }
+        };
 
-    if any_address_owner {
+        let mut invalid = vec![false; count];
+        let mut accesses: Vec<Vec<Vec<(usize, Event)>>> = vec![vec![Vec::new(); block_count]; count];
+        let mut terminal_loads = vec![vec![false; block_count]; count];
+        const NO_OWNER: u32 = u32::MAX;
+        const MULTI_OWNER: u32 = u32::MAX - 1;
+        let mut address_owner: Vec<u32> = Vec::new();
+        let mut owner_bits: Vec<u64> = Vec::new();
+        let mut any_address_owner = false;
+
+        let invalidate = |slot: LocalStorageSlotId, invalid: &mut [bool]| {
+            if let Some(idx) = lookup_slot(slot) {
+                invalid[idx] = true;
+            }
+        };
+
         for block_index in 0..block_count {
             let Some(summary) = function.blocks.block_slot_summary(block_index) else {
                 continue;
             };
-            for &reg in &summary.non_load_registers {
-                if let Some(&owner) = address_owner.get(reg.0 as usize)
-                    && owner < MULTI_OWNER
-                {
-                    invalid[owner as usize] = true;
-                }
-            }
-            for &(reg, index) in &summary.loads {
-                let Some(&owner) = address_owner.get(reg.0 as usize) else {
-                    continue;
-                };
-                if owner >= MULTI_OWNER {
-                    continue;
-                }
-                let slot_idx = owner as usize;
-                if invalid[slot_idx] {
-                    continue;
-                }
-                if index == usize::MAX {
-                    terminal_loads[slot_idx][block_index] = true;
-                } else {
-                    accesses[slot_idx][block_index].push((index, Event::ExistingLoad));
+            for &event in &summary.events {
+                match event {
+                    selected_instructions::BlockSlotEvent::Store {
+                        slot: target,
+                        index,
+                    } => {
+                        if let Some(slot_idx) = lookup_slot(target)
+                            && !invalid[slot_idx]
+                        {
+                            accesses[slot_idx][block_index].push((index, Event::ExistingStore));
+                        }
+                    }
+                    selected_instructions::BlockSlotEvent::FrameAddress {
+                        slot: target,
+                        register,
+                    } => {
+                        let reg_idx = register.0 as usize;
+                        if reg_idx >= address_owner.len() {
+                            address_owner.resize(reg_idx + 1, NO_OWNER);
+                        }
+                        let entry = &mut address_owner[reg_idx];
+                        if let Some(slot_idx) = lookup_slot(target)
+                            && !invalid[slot_idx]
+                        {
+                            if *entry == NO_OWNER {
+                                *entry = slot_idx as u32;
+                                let word = reg_idx >> 6;
+                                if word >= owner_bits.len() {
+                                    owner_bits.resize(word + 1, 0);
+                                }
+                                owner_bits[word] |= 1u64 << (reg_idx & 63);
+                                any_address_owner = true;
+                            } else if *entry != slot_idx as u32 {
+                                if *entry < MULTI_OWNER {
+                                    invalid[*entry as usize] = true;
+                                }
+                                invalid[slot_idx] = true;
+                                *entry = MULTI_OWNER;
+                            }
+                        } else {
+                            if *entry < MULTI_OWNER {
+                                invalid[*entry as usize] = true;
+                            }
+                            *entry = MULTI_OWNER;
+                        }
+                    }
+                    selected_instructions::BlockSlotEvent::Invalidate { slot: target } => {
+                        invalidate(target, &mut invalid);
+                    }
                 }
             }
         }
+
+        if any_address_owner {
+            for block_index in 0..block_count {
+                let Some(summary) = function.blocks.block_slot_summary(block_index) else {
+                    continue;
+                };
+                for (word_idx, (&non_load_word, &owner_word)) in summary
+                    .non_load_register_bits()
+                    .iter()
+                    .zip(&owner_bits)
+                    .enumerate()
+                {
+                    let mut hit = non_load_word & owner_word;
+                    while hit != 0 {
+                        let bit = hit.trailing_zeros() as usize;
+                        hit &= hit - 1;
+                        let reg_idx = (word_idx << 6) | bit;
+                        let owner = address_owner[reg_idx];
+                        if owner < MULTI_OWNER {
+                            invalid[owner as usize] = true;
+                        }
+                    }
+                }
+                for &(reg, index) in &summary.loads {
+                    let Some(&owner) = address_owner.get(reg.0 as usize) else {
+                        continue;
+                    };
+                    if owner >= MULTI_OWNER {
+                        continue;
+                    };
+                    let slot_idx = owner as usize;
+                    if invalid[slot_idx] {
+                        continue;
+                    }
+                    if index == usize::MAX {
+                        terminal_loads[slot_idx][block_index] = true;
+                    } else {
+                        accesses[slot_idx][block_index].push((index, Event::ExistingLoad));
+                    }
+                }
+            }
+        }
+
+        Self {
+            invalid,
+            accesses,
+            terminal_loads,
+            finalized: (0..count).map(|_| None).collect(),
+        }
     }
 
-    accesses
-        .into_iter()
-        .zip(terminal_loads)
-        .enumerate()
-        .map(|(slot_idx, (mut slot_accesses, slot_terminal_loads))| {
-            if invalid[slot_idx] {
-                return None;
-            }
+    fn get(&mut self, slot_idx: usize) -> Option<&CandidateAccesses> {
+        if self.invalid[slot_idx] {
+            return None;
+        }
+        if self.finalized[slot_idx].is_none() {
+            let mut slot_accesses = std::mem::take(&mut self.accesses[slot_idx]);
+            let slot_terminal_loads = std::mem::take(&mut self.terminal_loads[slot_idx]);
             for block_accesses in &mut slot_accesses {
                 if block_accesses.len() > 1 {
                     block_accesses.sort_by_key(|&(idx, _)| idx);
@@ -848,14 +855,15 @@ fn classify_all(
                             .any(|&(_, event)| matches!(event, Event::ExistingLoad))
                 })
                 .collect();
-            Some(CandidateAccesses {
+            self.finalized[slot_idx] = Some(CandidateAccesses {
                 accesses: slot_accesses,
                 terminal_loads: slot_terminal_loads,
                 last_existing_store,
                 has_loads,
-            })
-        })
-        .collect()
+            });
+        }
+        self.finalized[slot_idx].as_ref()
+    }
 }
 
 /// Whether one window's proposed accesses can share this candidate's slot:
@@ -922,24 +930,36 @@ fn shareable(
         if window.boundary_store[block_index] {
             state = NEW;
         }
-        scratch.positions.clear();
-        scratch.positions.extend(
-            load_marks[block_index]
-                .iter()
-                .copied()
-                .chain(candidate.accesses[block_index].iter().map(|&(idx, _)| idx))
-                .chain(window.anchored_stores[block_index].iter().copied()),
-        );
-        scratch.positions.sort_unstable();
-        scratch.positions.dedup();
-        for &index in &scratch.positions {
-            if load_marks[block_index].binary_search(&index).is_ok() && state != NEW {
-                return false;
+        let loads = &load_marks[block_index];
+        let cand = &candidate.accesses[block_index];
+        let stores = &window.anchored_stores[block_index];
+        let mut i_load = 0;
+        let mut i_cand = 0;
+        let mut i_store = 0;
+        loop {
+            let next_load = loads.get(i_load).copied().unwrap_or(usize::MAX);
+            let next_store = stores.get(i_store).copied().unwrap_or(usize::MAX);
+            let next_victim = next_load.min(next_store);
+            if state == EXISTING && i_cand < cand.len() && cand[i_cand].0 < next_victim {
+                if next_victim == usize::MAX {
+                    i_cand = cand.len();
+                } else {
+                    i_cand += cand[i_cand..].partition_point(|&(idx, _)| idx < next_victim);
+                }
             }
-            if let Ok(pos) =
-                candidate.accesses[block_index].binary_search_by_key(&index, |&(i, _)| i)
-            {
-                match candidate.accesses[block_index][pos].1 {
+            let next_cand = cand.get(i_cand).map(|&(idx, _)| idx).unwrap_or(usize::MAX);
+            let index = next_victim.min(next_cand);
+            if index == usize::MAX {
+                break;
+            }
+            if next_load == index {
+                if state != NEW {
+                    return false;
+                }
+                i_load += 1;
+            }
+            if next_cand == index {
+                match cand[i_cand].1 {
                     Event::ExistingStore => state = EXISTING,
                     Event::ExistingLoad => {
                         if state & NEW != 0 {
@@ -947,12 +967,11 @@ fn shareable(
                         }
                     }
                 }
+                i_cand += 1;
             }
-            if window.anchored_stores[block_index]
-                .binary_search(&index)
-                .is_ok()
-            {
+            if next_store == index {
                 state = NEW;
+                i_store += 1;
             }
         }
         if end_marks[block_index] && state != NEW {
@@ -995,7 +1014,10 @@ fn loads_before(
     else {
         return true;
     };
-    (previous..index).any(|point| span_closes[block_index].contains(&point))
+    span_closes[block_index]
+        .range(previous..index)
+        .next()
+        .is_some()
 }
 
 /// The declared bit-preserving pair bridging a foreign-class victim to the
