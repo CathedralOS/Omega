@@ -1,0 +1,21 @@
+[package]
+name = "terminal-runtime"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
+runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
+numerics = { path = "../../../psi/foundation/numerics" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+backend-plan = { path = "../../compilation/backend/plans/backend-plan" }
+target = { path = "../../compilation/backend/target" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
+terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
+target-operations = { path = "../../compilation/representations/target-operations" }
+calling-conventions = { path = "../../compilation/backend/calling-conventions" }
+native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }

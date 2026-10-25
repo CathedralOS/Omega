@@ -1,6 +1,6 @@
 //! Public runtime sponsor: compile the accepted sample once and capture fresh
 //! Terminal streams for each frozen input. Application numerics stay in Omega.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -115,7 +115,8 @@ fn validate() {
         );
         let input = fs::read(project.join("data").join(format!("{name}.stdin"))).unwrap();
         let started = std::time::Instant::now();
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact: &artifact,
             target: Some("linux_x86_64"),
             provisions: provisions.as_ref(),

@@ -3,7 +3,7 @@
 //! the CLI. Each fixture gets a fresh isolated runtime and finite input; captured
 //! output is checked by the separate frozen rational oracle. No source replay,
 //! synthetic receiver, expected-result callback, or package acceptance occurs.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -84,7 +84,8 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
             .and_then(|name| name.to_str())
             .ok_or("non-UTF8 fixture name")?;
         let input = std::fs::read(&fixture).map_err(|error| error.to_string())?;
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             // Match the CLI: use the native report's retained installation.
             provider_proposal: None,
             artifact,
@@ -112,7 +113,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
     // Publish only after interpretation, exactly as `omega run --both` does.
     // The public publisher retains executable custody; it supplies no acceptance.
     let (_, executable) =
-        omega::compilation::publication::publish_native_artifact(report, &native_directory)?;
+        omega_build::publication::publish_native_artifact(report, &native_directory)?;
     std::fs::write(
         output.join("native-path.txt"),
         format!("{}\n", executable.display()),

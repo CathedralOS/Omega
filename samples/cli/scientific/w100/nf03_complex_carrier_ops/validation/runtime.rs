@@ -1,6 +1,6 @@
 //! Observe both native and buffered Terminal execution of the authored projects.
 //! Preparation consumes their reviewed package graph; no decisions are rewritten.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -62,7 +62,8 @@ fn validate() -> Result<(), String> {
                     .map(|artifact| artifact.psi_artifact())
             })
             .ok_or_else(|| format!("{name}: native report retained no Terminal artifact"))?;
-        let terminal = compiler::runtime::execute(TerminalRuntimeRequest {
+        let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags(target.target_name()).expect("host flags capture"),
             artifact,
             target: Some(target.target_name()),
             provisions: report.runtime_provisions(),

@@ -12,6 +12,7 @@ test = true
 
 [dependencies]
 omega-build = { path = "../build" }
+terminal-runtime = { path = "../terminal-runtime" }
 mimalloc = { version = "0.1", default-features = false }
 bounded-process = { path = "../../foundation/bounded-process" }
 compiler = { path = "../../compilation/driver" }
@@ -26,7 +27,6 @@ target = { path = "../../compilation/backend/target" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 phase-profile = { path = "../../../psi/foundation/phase-profile" }
-terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }

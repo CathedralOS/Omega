@@ -1,6 +1,6 @@
 //! Validation sponsor over the unchanged accepted project and its exact retained
 //! Terminal artifact. No reconstructed grants, provider policy, or source oracle.
-use compiler::runtime::{
+use terminal_runtime::{
     TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeRequest,
 };
 use package_manager::operations::{
@@ -73,7 +73,8 @@ fn run() {
             .parse()
             .unwrap();
         let started = Instant::now();
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),

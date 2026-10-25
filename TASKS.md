@@ -2592,16 +2592,18 @@ then independent claimed restoration slices -> final closure.
   Terminal loading, entry establishment, supplied-slot installation and
   execution. Target-aware host adapters belong outside Psi in Omega-owned host
   integration, using independent backend ABI/locator/mechanism libraries, not
-  compiler stages. Split `omega-rust/omega/compilation/driver/src/runtime.rs`
-  along that boundary; retain exact foreign identity and ABI checks before
-  effects. CLI execution, embedding and corpus consume these owning APIs.
+  compiler stages. Hosted integration now lives in
+  `omega-rust/omega/application/terminal-runtime`; finish the source-free
+  artifact execution boundary and retain exact foreign identity and ABI checks
+  before effects. CLI execution, embedding and corpus consume these owning APIs.
   Stdin/stdout/stderr, virtual clocks, provisions and observations are not
-  compiler responsibilities. Remove `compiler::runtime` and direct
-  `terminal-interpreter` dependencies from the application. Add a production
+  compiler responsibilities. The CLI and corpus no longer use
+  `compiler::runtime`; the CLI depends on the hosted runtime, not directly on
+  `terminal-interpreter`. Add a production
   command/API that executes an owned Terminal artifact without compiling
   source, beside the source route that asks only the Psi driver.
-  Replace source-checking-dependent `program-entry-plan` inputs with source-free
-  runtime provisions; the producer owns the exact provision/schema join.
+  Runtime provisions now come directly from the source-free `native-artifact`
+  owner; preserve the producer's exact provision/schema join.
   Follow [target environments and engines](wiki/spec/build/embedding.md#target-environments-and-execution-engines):
   Psi gains no Omega dependency, ABI catalog copy or native fallback. Hosts
   explicitly supply bindings; ordinary provider bodies can execute in Psi.
@@ -2611,7 +2613,7 @@ then independent claimed restoration slices -> final closure.
   A native compilation failure or comparison decline cannot count as agreement.
   Current frontier: the corpus adapter consumes the produced Terminal artifact
   and uses the common core; it no longer calls the checked-tree interpreter.
-  The shared `driver/src/runtime.rs` consumes retained native entry/provider
+  The shared `application/terminal-runtime/src/execution.rs` consumes retained native entry/provider
   provisions, establishes fresh private hosted backing and erased root fields,
   binds typed buffered line/byte output. Preserve
   `float/{named_provider_directed_divide_exit,runtime_float_integer_conversion_boundaries_exit}`,
@@ -2821,6 +2823,8 @@ crash and native exit behavior.
   orchestration retains identities with ordered work. The application Build
   entrance owns project preparation, directory admission and product publication
   for both compilation and `run`; retained execution products use the same route.
+  Hosted Terminal execution is an application consumer, no longer a compiler
+  export; it consumes source-free retained provisions from their native owner.
   Package dependency/Build activation scheduling still needs migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.

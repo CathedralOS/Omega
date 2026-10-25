@@ -5,13 +5,13 @@
 //! transfers that payload. Rechecking source or interpreting checked trees would
 //! bypass the product contract and could repeat Build or lose generated inputs.
 
-use compiler::runtime::{
-    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
-    TerminalRuntimeRequest,
-};
 use compiler::{CompileOptions, CompileReport};
 use diagnostics::Diagnostic;
 use omega_build::{BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+use terminal_runtime::{
+    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
+    TerminalRuntimeRequest,
+};
 
 // This is an explicit sponsor budget, not a divergence verdict. Exhaustion
 // remains an unavailable comparison and may be raised for a measured workload.
@@ -90,8 +90,8 @@ pub(super) fn interpret_product(
         .ok_or(TerminalRuntimeError::InvalidProvision(
             "native report lost its produced Terminal artifact before comparison",
         ))?;
-    compiler::runtime::execute(TerminalRuntimeRequest {
-        x86_flags: compiler::runtime::capture_host_x86_flags(target)?,
+    terminal_runtime::execute(TerminalRuntimeRequest {
+        x86_flags: terminal_runtime::capture_host_x86_flags(target)?,
         provider_proposal: None,
         artifact,
         target: Some(target),
@@ -101,6 +101,6 @@ pub(super) fn interpret_product(
         // this CLI or invalidate another instance's storage/capabilities.
         domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: input.map(|file| Box::new(file) as Box<dyn std::io::Read + Send>),
-        clock: Some(compiler::runtime::TerminalClockSnapshot::capture_host_epoch()?),
+        clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
     })
 }

@@ -13,7 +13,7 @@ from validate import check_report,ORACLE_SHA256,load_oracle
 def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def build_observer(release,output,receipt):
     selected={}; search=set()
-    for name in ('compiler','package_manager','terminal_interpreter','target'):
+    for name in ('compiler', 'terminal_runtime','package_manager','terminal_interpreter','target'):
         entries=receipt['libraries'][name]
         paths=[Path(entry['path']) for entry in entries]
         for path,entry in zip(paths,entries):

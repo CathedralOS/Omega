@@ -19,14 +19,14 @@ if options.build_record:
         assert len(libraries)==1,(row,'expected one complete library')
         artifact_directories.add(libraries[0].parent)
         name=row['target']['name']
-        if name in {'compiler','package_manager','terminal_interpreter','target','omega'}:
+        if name in {'compiler', 'terminal_runtime','package_manager','terminal_interpreter','target','omega_build'}:
             previous=artifacts.setdefault(name,libraries[0])
             assert previous==libraries[0],(name,'ambiguous build record')
 command=['rustc','--edition=2024','-C','opt-level=1',str(source),'-o',str(binary)]
 directories=artifact_directories | set((target/'build').glob('*/*/out'))
 for directory in sorted(directories): command+=['-L',str(directory)]
 if (target/'deps').is_dir(): command+=['-L',str(target/'deps')]
-for package,name in [('compiler','compiler'),('package-manager','package_manager'),('terminal-interpreter','terminal_interpreter'),('target','target'),('omega','omega')]:
+for package,name in [('compiler','compiler'),('terminal-runtime','terminal_runtime'),('package-manager','package_manager'),('terminal-interpreter','terminal_interpreter'),('target','target'),('omega-build','omega_build')]:
     candidates=[artifacts[name]] if artifacts else list((target/'build'/package).glob(f'*/out/lib{name}-*.rlib'))
     if not candidates: candidates=list((target/'deps').glob(f'lib{name}-*.rlib'))
     assert len(candidates)==1,(package,'use one isolated verified build',candidates)

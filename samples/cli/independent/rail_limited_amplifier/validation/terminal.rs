@@ -1,7 +1,7 @@
 //! Private acceptance driver over the existing complete project operation and
 //! admitted Terminal runtime. It captures streams the CLI's --both exit-only
 //! comparison does not expose. It never supplies a source interpreter fallback.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -27,7 +27,8 @@ fn run() {
     fixtures.sort();
     for fixture in fixtures {
         let name = fixture.file_stem().unwrap().to_str().unwrap();
-        let result = compiler::runtime::execute(TerminalRuntimeRequest {
+        let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             provider_proposal: None,
             fuel_allowance: 10_000_000,
@@ -53,6 +54,6 @@ fn run() {
             }
         }
     }
-    let (_, executable) = omega::compilation::publication::publish_native_artifact(report, &output.join("native-build")).unwrap();
+    let (_, executable) = omega_build::publication::publish_native_artifact(report, &output.join("native-build")).unwrap();
     fs::write(output.join("executable.txt"), executable.to_string_lossy().as_bytes()).unwrap();
 }

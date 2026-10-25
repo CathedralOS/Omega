@@ -37,7 +37,7 @@ def main():
             identity = int.from_bytes(bytes.fromhex(fingerprint.read_text().strip()), 'little')
             name = metadata.stem.removeprefix('lib-')
             units.setdefault((name, identity), []).append(metadata)
-    roots = {'compilation_products', 'compiler', 'package_manager', 'serde_json', 'target', 'terminal_interpreter'}
+    roots = {'compilation_products', 'compiler', 'terminal_runtime', 'package_manager', 'serde_json', 'target', 'terminal_interpreter'}
     selected = {}
     pending = [(row[1], row[3]) for row in binary_metadata['deps'] if row[1] in roots]
     while pending:

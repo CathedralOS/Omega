@@ -45,7 +45,7 @@ pub enum TerminalDomainExitDelegation {
     IsolatedContainingDomain,
 }
 
-use compilation_products::TerminalRuntimeProvisions;
+use native_artifact::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
     TerminalInstanceError, TerminalInterpretError, TerminalProcessExitAdmission, TerminalProgram,
@@ -108,6 +108,26 @@ pub enum TerminalRuntimeError {
 }
 
 impl TerminalRuntimeError {
+    /// Unsupported execution can surface at admission, instantiation or runtime.
+    /// Keep those unavailable comparisons distinct from malformed artifacts and
+    /// missing custody, which are failures rather than unsupported execution.
+    pub fn comparison_unavailable(&self) -> bool {
+        let interpretation = match self {
+            Self::MissingProvision { .. } => return true,
+            Self::Requirements(error)
+            | Self::Artifact(TerminalArtifactInterpretError::Execution(error))
+            | Self::Execution(TerminalInstanceError::Execution(error)) => error,
+            _ => return false,
+        };
+        matches!(
+            interpretation,
+            TerminalInterpretError::UnsupportedCapability(_)
+                | TerminalInterpretError::UnsupportedSemanticVariant(_)
+                | TerminalInterpretError::ScalarEntryQualificationUnsupported
+                | TerminalInterpretError::AffineProjectionNotRepresentable
+        )
+    }
+
     pub(super) fn missing(capability: &'static str, reason: impl Into<String>) -> Self {
         Self::MissingProvision {
             capability,

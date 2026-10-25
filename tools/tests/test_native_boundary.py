@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from check_native_boundary import NATIVE_ROOT, dependency_violations
+from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, dependency_violations
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -77,6 +77,24 @@ class NativeBoundaryTests(unittest.TestCase):
         self.native["dependencies"].append({"path": str(self.root / "missing")})
         with self.assertRaisesRegex(ValueError, "not a workspace member"):
             dependency_violations(self.metadata)
+
+    def test_runtime_uses_engine_but_cannot_reach_source_products(self):
+        runtime = self.package("terminal-runtime", RUNTIME_ROOT)
+        engine = self.package(
+            "terminal-interpreter", "omega-rust/psi/interpreter/terminal-interpreter"
+        )
+        self.edge(runtime, engine)
+        self.assertEqual(dependency_violations(self.metadata, RUNTIME_ROOT, RUNTIME_OWNERS), [])
+        products = self.package("compilation-products", "omega-rust/omega/compilation/products")
+        self.edge(engine, products)
+        failures = dependency_violations(self.metadata, RUNTIME_ROOT, RUNTIME_OWNERS)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("terminal-runtime -> terminal-interpreter -> compilation-products", failures[0])
+
+    def test_runtime_cannot_call_the_native_compiler(self):
+        runtime = self.package("terminal-runtime", RUNTIME_ROOT)
+        self.edge(runtime, self.native)
+        self.assertEqual(len(dependency_violations(self.metadata, RUNTIME_ROOT, RUNTIME_OWNERS)), 1)
 
 
 if __name__ == "__main__":

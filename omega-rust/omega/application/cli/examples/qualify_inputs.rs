@@ -9,7 +9,6 @@
 //! Streams and exact semantic statuses are retained for an independent oracle
 //! validator. This is repository qualification tooling, not shipped CLI coverage.
 
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -17,6 +16,7 @@ use package_manager::operations::{
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 
 fn main() -> Result<(), String> {
     std::thread::Builder::new()
@@ -83,7 +83,7 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
             return Err("input capture must be inside the requested evidence directory".into());
         }
         let started = Instant::now();
-        let terminal = compiler::runtime::execute(TerminalRuntimeRequest {
+        let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
             x86_flags: None,
             provider_proposal: None,
             artifact,
@@ -92,7 +92,7 @@ fn qualify() -> Result<(), Box<dyn std::error::Error>> {
             fuel_allowance: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(std::fs::File::open(&input)?)),
-            clock: Some(compiler::runtime::TerminalClockSnapshot::capture_host_epoch()?),
+            clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
         })?;
         std::fs::write(directory.join("terminal.stdout"), terminal.stdout)?;
         std::fs::write(directory.join("terminal.stderr"), terminal.stderr)?;

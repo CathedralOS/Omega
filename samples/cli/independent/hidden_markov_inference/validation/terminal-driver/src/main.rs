@@ -2,7 +2,7 @@
 //! Run never changes package decisions. Explicit review/resume modes use the
 //! ordinary manager workflow for this exact executable's compiler identity.
 //! No fixture trust, compiler-identity override or source interpreter is used.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest, execute};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest, execute};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -140,6 +140,7 @@ fn validate() -> Result<(), Box<dyn Error + Send + Sync>> {
             return Err("unexpected case name".into());
         }
         let observation = execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             provider_proposal: None,
             artifact,
             target: Some("linux_x86_64"),

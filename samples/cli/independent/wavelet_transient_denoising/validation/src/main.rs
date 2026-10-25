@@ -4,7 +4,7 @@ use bounded_process::{
     BoundedCaptureBudget, BoundedCaptureLimits, BoundedProcessInput, BoundedProcessLimits,
     BoundedProcessPrepared, run_bounded_process,
 };
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
 };
@@ -52,7 +52,8 @@ fn run() {
     );
     for input_path in arguments.iter().skip(3).map(PathBuf::from) {
         let case_directory = input_path.parent().unwrap();
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
@@ -76,7 +77,7 @@ fn run() {
             observation.status
         );
     }
-    let (_, executable) = omega::compilation::publication::publish_native_artifact(
+    let (_, executable) = omega_build::publication::publish_native_artifact(
         report,
         &directory.join("product"),
     )

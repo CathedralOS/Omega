@@ -1,7 +1,7 @@
 //! Private runtime validator, not an implementation of the spectrum algorithm.
 //! Uses the same reviewed fixture inputs and retained native/Terminal products
 //! as the repository corpus runner. No production acceptance is persisted.
-use compiler::runtime::{
+use terminal_runtime::{
     TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeRequest,
 };
 use compiler::{CompileRequest, RequestedCompileProduct};
@@ -89,8 +89,7 @@ fn verify_value_equality_selection(root: &Path, evidence: &Path) {
     let checked = compiler::CompilationSession::default()
         .check(request)
         .result
-        .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"))
-        .into_program();
+        .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"));
     let program = &checked.typed;
     let machines = program
         .machines()
@@ -318,7 +317,8 @@ fn main() {
                 panic!("stdout oracle: {error}")
             }
         });
-        let result = compiler::runtime::execute(TerminalRuntimeRequest {
+        let result = terminal_runtime::execute(TerminalRuntimeRequest {
+            x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64").expect("host flags capture"),
             artifact: terminal,
             provisions: report.runtime_provisions(),
             provider_proposal: None,
