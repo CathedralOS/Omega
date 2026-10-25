@@ -1,6 +1,7 @@
 //! Claim authority is frame-local; descriptor storage identity is execution-wide.
 //! A move changes the descriptor's home, never its private byte owner or ledger.
 
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::byte_sequences::{
     ByteSequenceView,
     binding::{ByteOwnerHome, ByteSequenceBinding},
@@ -115,11 +116,10 @@ impl TerminalExecution<'_> {
                 Vec::new(),
             );
             let home = StructuralRuntimePlace::from(&owner);
-            let mut bytes = Vec::new();
-            bytes
-                .try_reserve_exact(usize::try_from(bound).map_err(|_| malformed())?)
-                .map_err(|_| malformed())?;
-            bytes.resize(usize::try_from(committed).map_err(|_| malformed())?, 0);
+            let bytes = ByteSequenceStorage::zeroed(
+                usize::try_from(committed).map_err(|_| malformed())?,
+                self.account.as_ref(),
+            )?;
             self.structural_byte_storage
                 .insert(home.clone(), ByteSequenceView::new(bytes));
             self.activation_storage

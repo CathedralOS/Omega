@@ -60,14 +60,15 @@ fn exercise(
                 receiver.opaque_identity += 1;
             }
             let mut instance = program
-                .instantiate(
-                    &[],
-                    TerminalStructuralInputs {
+                .instantiate(terminal_interpreter::TerminalInstantiation {
+                    scalar_arguments: &[],
+                    structural_inputs: TerminalStructuralInputs {
                         arguments: std::slice::from_ref(&receiver),
                         zero_initialized_arguments: &[0],
                         ..Default::default()
                     },
-                )
+                    ..Default::default()
+                })
                 .unwrap();
             let imports = instance.unbound_imports().collect::<Vec<_>>();
             assert_eq!(

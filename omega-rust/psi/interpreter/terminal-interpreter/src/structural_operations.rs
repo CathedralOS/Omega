@@ -11,6 +11,7 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
@@ -360,7 +361,9 @@ impl TerminalExecution<'_> {
                 .byte_sequence_values
                 .insert(
                     destination,
-                    ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes.clone())),
+                    ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                        ByteSequenceStorage::copy(bytes, self.account.as_ref())?,
+                    )),
                 )
                 .is_some()
             {
@@ -508,7 +511,9 @@ impl TerminalExecution<'_> {
                             namespace: StructuralFieldNamespace::for_carrier(leaf.path()),
                             field: *field,
                         },
-                        ByteSequenceBinding::Immutable(ByteSequenceView::new(Vec::new())),
+                        ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                            ByteSequenceStorage::zeroed(0, self.account.as_ref())?,
+                        )),
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
@@ -531,12 +536,17 @@ impl TerminalExecution<'_> {
                     // Storing these bytes as separate scalar cells would make
                     // writes through a borrowed byte view invisible to the owner.
                     let length = usize::try_from(*length).map_err(|_| malformed())?;
-                    self.structural_byte_storage
-                        .entry(StructuralRuntimePlace {
+                    if let std::collections::btree_map::Entry::Vacant(entry) =
+                        self.structural_byte_storage.entry(StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
                             path: storage_path(),
                         })
-                        .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
+                    {
+                        entry.insert(ByteSequenceView::new(ByteSequenceStorage::zeroed(
+                            length,
+                            self.account.as_ref(),
+                        )?));
+                    }
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => {
                     self.structural_primitive_storage.insert(

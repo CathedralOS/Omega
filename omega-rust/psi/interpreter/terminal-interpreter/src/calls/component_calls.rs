@@ -74,6 +74,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     arguments,
                     structural_arguments,
                     &prepared.values,
+                    self.account.as_ref(),
                 )
                 .map_err(&reject)?;
             // Admission above executed no child operation. All fallible source

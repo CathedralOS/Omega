@@ -67,6 +67,10 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
+    pub(crate) account: Option<evaluation_accounting::EvaluationInvocationAccount>,
+    /// A host fault is not a resumable pause. Retain its exact site and custody
+    /// so retry cannot repeat an operation that may already have had effects.
+    failure: Option<TerminalInterpretError>,
     pub(crate) provider_storage: crate::provider_storage::RuntimeProviderStorage,
     /// Entry storage may be supplied only before the first resume, including
     /// a resume which exhausts its fuel without executing an operation.
@@ -369,6 +373,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         zero_initialized_arguments: &[u32],
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
         installation: Option<&TerminalRuntimeSupplies>,
+        account: Option<evaluation_accounting::EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
         let current_machine = program.resolve_entry(installation)?;
         // A nonempty placed-view roster declares direct entry inputs whose
@@ -442,6 +447,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage.push((argument_index, parameter.place, value.clone()));
         }
         let mut execution = Self {
+            account,
+            failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
             activation_storage: Default::default(),
             program: std::sync::Arc::clone(&program),
@@ -749,8 +756,12 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
         components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        if let Some(failure) = &self.failure {
+            return Err(failure.clone());
+        }
         self.entry_storage_open = false;
-        self.resume_operations(meter, handler, components)
+        let outcome = self
+            .resume_operations(meter, handler, components)
             .map_err(|error| {
                 // Report the execution cursor that declined the operation, including
                 // failures reached in a callee. A missing operation means the block
@@ -770,7 +781,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                     operation,
                     cause: Box::new(error),
                 }
-            })
+            });
+        if let Err(error) = &outcome {
+            self.failure = Some(error.clone());
+        }
+        outcome
     }
 
     fn resume_operations(

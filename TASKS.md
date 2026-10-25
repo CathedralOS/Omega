@@ -2412,8 +2412,12 @@ then independent claimed restoration slices -> final closure.
   evaluation still uses the checked-tree engine. Terminal's ordinary fuel meter
   now pays the exact invocation and shared sponsor before each semantic site;
   complete Build witnesses enforce exact and one-unit-short aggregate budgets
-  without replaying effects. Fuel observations do not certify storage usage.
-  Join Terminal live-storage and
+  without replaying effects. Byte backing owners now reserve before allocation,
+  share leases across views, reserve copy-on-write overlap and transfer boundary
+  staging reservations at writeback. Exact/short live-payload Build controls and
+  retained-fault controls prevent retries from repeating work. This does not
+  account all runtime rows or certify complete storage usage.
+  Join the remaining Terminal live-storage and
   result accounting, remaining host operations and dependency/provider suspension
   before replacing it; readback alone is not an admitted production activation.
   Core Build now names the backing lifetime of its stored views; ordinary

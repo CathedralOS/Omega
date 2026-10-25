@@ -163,7 +163,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
         }
     );
     assert!(matches!(
-        program.instantiate(&[], TerminalStructuralInputs::default()),
+        program.instantiate(terminal_interpreter::TerminalInstantiation { scalar_arguments: &[], structural_inputs: TerminalStructuralInputs::default(), ..Default::default() }),
         Err(TerminalArtifactInterpretError::Execution(
             TerminalInterpretError::ProviderInstallationMissing(boundary)
         )) if boundary == *slot
@@ -183,7 +183,12 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     assert!(installed.missing_providers.is_empty() && installed.external_completions.is_empty());
     let instantiate = |bytes: &Arc<Mutex<Vec<u8>>>| {
         let mut instance = program
-            .instantiate_installed(&[], TerminalStructuralInputs::default(), &installation)
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs::default(),
+                installation: Some(&installation),
+                ..Default::default()
+            })
             .expect("instantiate Unit cleanup helper");
         let slots = instance.unbound_imports().collect::<Vec<_>>();
         assert_eq!(
