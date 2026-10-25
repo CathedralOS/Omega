@@ -92,6 +92,14 @@ frontiers, not completed runtime acceptance. Raw records live in the owning
 claim's `qualified-de39d6c98df7-20261025T195850Z` and
 `stronger-result-probe-v1` captures.
 
+The [raw-issuer control](raw_issuer/invalid/main.omg) keeps a well-formed source
+contract but asks the raw `inet_makeaddr` binding to establish the private
+issuer's `Issued` provenance. Source checking succeeds; native preparation must
+refuse that raw provider. The actual `de39` refusal names `AddressParts::make`
+and “cannot establish result provenance owned by another issuer”. Its corpus
+fixture pins that diagnostic, so checked forwarding cannot silently authorize
+raw minting.
+
 All authored positives and producer entries bind the four hosted targets and
 declare exit 0. Completion still needs all nine native/Terminal agreements,
 the pinned fixtures and exact independent review, general nested-machine
