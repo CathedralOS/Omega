@@ -11,9 +11,10 @@ and its directory. macOS ARM64 and both Linux targets select the POSIX portable
 provider; matching-host execution remains separate evidence.
 
 Windows selects the portable provider over its retained raw-family closure.
-Cross-production supplies a Windows image, not evidence of the exit-7 oracle:
-native Windows execution remains under **FILESYSTEM-PLATFORM-SERVICES** and
-requires a Windows runner, unavailable on the current macOS host.
+On windows_x86_64, `omega run` exits 7. macOS and Linux execution remain
+separate evidence under **FILESYSTEM-PLATFORM-SERVICES**.
+Terminal execution still declines the selected foreign bindings until trusted
+host adapters supply them.
 
 The authored `/tmp/omega_journal_dir` is rooted, not relative to the working
 directory. A Windows runner must explicitly provision a writable `\tmp` on

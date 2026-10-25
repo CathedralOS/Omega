@@ -48,7 +48,7 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> resolve(main) _ -> bad(main, 71) }
     state resolve(main: &mut Main) {
@@ -100,7 +100,7 @@ macos_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
 windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 || byte == 111 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }
