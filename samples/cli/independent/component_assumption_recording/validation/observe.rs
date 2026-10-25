@@ -56,7 +56,7 @@ fn records(root: &Path, output: &Path) {
 
 fn runtime(root: &Path, output: &Path) {
     use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+    use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
     let target = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let prepared = prepare_local_project(
         root,

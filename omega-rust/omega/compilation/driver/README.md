@@ -74,7 +74,7 @@ whole-program request. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners.
 
-Accepted package compilation supplies dependency-ordered
+Application Build requests package admission, then supplies dependency-ordered
 `PackageCompilationRequest`s together to the session's
 [`compile_packages`](src/checked/package_compilation.rs) entrance, with the
 requested product and root permission consent supplied up front. That operation
@@ -126,11 +126,13 @@ package audit. Its fixture preparation legitimately performs another two Builds
 and four checks in its own sessions, so the whole measurement asserts four
 Builds/eight checks rather than hiding setup cost. These workflow measurements
 advance `BUILD-EVALUATES-ONCE`; they do not close its remaining target-row work.
-The package operation owns one compiler-stack worker; preparing Builds and
+The application request enters one compiler-stack worker; preparing Builds and
 checking source cohorts do not spawn additional workers.
 
-Package operations receive reports or Terminal inspections, never a checked
-checkpoint to return for production. The compiler compares fresh supplied
+Ordinary package operations return admitted requests and retain custody for
+result reconciliation; they do not invoke compilation. Application Build
+receives reports or Terminal inspections, never a checked checkpoint to return
+for production. The compiler compares fresh supplied
 permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
