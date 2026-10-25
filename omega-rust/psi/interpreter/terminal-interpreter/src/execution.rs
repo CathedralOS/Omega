@@ -511,7 +511,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_scalar_collection_identity: 1024,
             structural_scalar_fields: RuntimeRows::new(account.as_ref()),
             private_entry_ram: Vec::new(),
-            provider_storage: Default::default(),
+            provider_storage: crate::provider_storage::RuntimeProviderStorage::new(
+                account.as_ref(),
+            ),
             entry_storage_open: true,
             structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_storage: RuntimeRows::new(account.as_ref()),

@@ -6,6 +6,8 @@ mod cleanup_resume;
 mod extent_view;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
+#[path = "terminal_resident_storage.rs"]
+mod resident_storage;
 #[path = "terminal_storage_budget.rs"]
 mod storage_budget;
 
@@ -27,6 +29,7 @@ pub(super) fn observe_portable(
         }
         ["external-extent-view"] => extent_view::observe(artifact, false),
         ["external-extent-view-write"] => extent_view::observe(artifact, true),
+        ["resident-storage", peak] => resident_storage::observe(artifact, peak),
         _ => Err("unknown portable Terminal fixture provision".to_owned()),
     }
 }

@@ -217,7 +217,7 @@ impl TerminalExecution<'_> {
                 backing: pending.backing,
                 result_type: pending.result_type,
             },
-        );
+        )?;
         Ok(())
     }
 }
