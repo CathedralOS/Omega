@@ -5,6 +5,7 @@
 //! Source admission alone cannot authorize substituted fields or child homes in
 //! a rewritten optimization unit; dominance and current ownership are checked
 //! separately against the same operands.
+use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
@@ -25,45 +26,17 @@ pub(crate) fn plain_record_call(
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::CallStructural {
-        result:
-            AbstractStructuralCallResult::Structural {
-                result,
-                selected_evidence,
-            },
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let Some(signature) = callee.result.structural() else {
-        return false;
-    };
-    let Some(contract) = &callee.verified_contract else {
+    let Some(call) = plain_structural_call(operation, callee) else {
         return false;
     };
     matches!(
-        signature.multiplicity,
+        call.signature.multiplicity,
         terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) && signature.qualifications.is_empty()
-        && signature.projected_qualifications.is_empty()
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && claim_transfers.is_empty()
-        && requirement_obligations.is_empty()
-        && *crash_continuations == contract.crash_routes
-        && selected_evidence.is_empty()
+    ) && call.signature.qualifications.is_empty()
+        && call.signature.projected_qualifications.is_empty()
+        && call.selected_evidence.is_empty()
         && callee.entry_claims.is_empty()
-        && callee.entry_claim_declarations.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && callee.evidence_contract_lanes.is_empty()
-        && contract.requires.is_empty()
-        && contract.ensures.is_empty()
-        && contract.outcome_specific_ensures.is_empty()
+        && call.contract.outcome_specific_ensures.is_empty()
         && callee.structural_parameters.iter().all(|parameter| {
             matches!(
                 parameter.multiplicity,
@@ -71,7 +44,7 @@ pub(crate) fn plain_record_call(
             ) && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
-        && plain_record(types, signature.structural_type)
+        && plain_record(types, call.signature.structural_type)
 }
 
 /// Zero initialization publishes the same owned result as explicit aggregate

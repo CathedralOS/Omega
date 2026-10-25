@@ -92,6 +92,60 @@ impl Elaborator<'_> {
         })
     }
 
+    /// An anonymous literal gets its format from the checked dependent Pi
+    /// spine, including substitutions of earlier actuals. This supplies no
+    /// qualification: ordinary source-domain admission still checks the
+    /// literal independently against the complete demanded source theory.
+    pub(super) fn source_application_input(
+        &mut self,
+        expression: ExpressionHandle,
+        prefix: TermHandle,
+    ) -> Result<SourceInput, Vec<Diagnostic>> {
+        let typed_trees::expression::ExpressionNode::Float(literal) =
+            self.program.expression_table.expression(expression)
+        else {
+            return self.source_expression_input(expression);
+        };
+        if literal.landing().is_some() {
+            return self.source_expression_input(expression);
+        }
+        let literal = literal.clone();
+        let context = self.instantiation_context();
+        let signature = Signature::from_declarations(self.declarations.clone());
+        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS);
+        let function_type =
+            infer_type(&mut self.arena, &context, prefix, &mut budget).map_err(|error| {
+                self.source_domain_error(
+                    expression,
+                    format!("cannot determine literal argument domain: {error:?}"),
+                )
+            })?;
+        let function_type = self.source_domain_head(&signature, function_type, &mut budget)?;
+        let Term::Pi { domain, .. } = self.arena.get(function_type) else {
+            return Err(self.source_domain_error(
+                expression,
+                "literal argument has no function parameter domain".to_owned(),
+            ));
+        };
+        let domain = self.source_domain_head(&signature, domain, &mut budget)?;
+        let carrier = if let Some(reference) = self.source_alias_reference(domain) {
+            self.scalar_carrier_of_type_reference(reference)
+        } else if let Term::Constant { declaration, .. } = self.arena.get(domain) {
+            Some(self.carrier_class_at(declaration))
+        } else {
+            None
+        };
+        let Some(carrier @ (ScalarCarrier::Float32 | ScalarCarrier::Float64)) = carrier else {
+            return self.source_expression_input(expression);
+        };
+        let term = self.float_operand_term(&literal, carrier)?;
+        Ok(SourceInput {
+            expression,
+            term,
+            domain: None,
+        })
+    }
+
     pub(super) fn source_expression_domain(
         &mut self,
         expression: ExpressionHandle,

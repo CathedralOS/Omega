@@ -105,6 +105,12 @@ impl<'a> Elaborator<'a> {
         handle: ExpressionHandle,
         binary: TableBinaryExpression,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        let carrier = self
+            .operand_carrier(binary.left)
+            .or_else(|| self.operand_carrier(binary.right));
+        if let Some(term) = self.float_comparison(handle, binary, carrier)? {
+            return Ok(term);
+        }
         let equality = self.equality_proposition(handle, binary)?;
         Ok(self.negated_proposition(equality))
     }
@@ -147,6 +153,9 @@ impl<'a> Elaborator<'a> {
         let references = [binary.left, binary.right].map(|operand| {
             validation::mathematical_applications::operand_type_reference(self.program, operand)
         });
+        if let Some(term) = self.float_comparison(handle, binary, Some(carrier))? {
+            return Ok(term);
+        }
         let identity = !matches!(carrier, ScalarCarrier::Float32 | ScalarCarrier::Float64)
             && typed_trees::operator::has_builtin_spelled_expression_meaning(
                 self.program,
@@ -192,6 +201,9 @@ impl<'a> Elaborator<'a> {
         let references = [binary.left, binary.right].map(|operand| {
             validation::mathematical_applications::operand_type_reference(self.program, operand)
         });
+        if let Some(term) = self.float_comparison(handle, binary, carrier)? {
+            return Ok(term);
+        }
         let spelling = match binary.operator {
             BinaryOperator::Less => language_core::OperatorSpelling::Less,
             BinaryOperator::LessOrEqual => language_core::OperatorSpelling::LessEqual,
@@ -228,6 +240,94 @@ impl<'a> Elaborator<'a> {
         };
         let relation = self.constant(position);
         Ok(self.arena.apply_binary(relation, left, right))
+    }
+
+    /// Retain a selected IEEE law beside its typed application. This is an
+    /// opaque relation to the kernel: NaN never acquires reflexive Id. Source
+    /// predicate consumers may use its positive ordered bounds independently.
+    fn float_comparison(
+        &mut self,
+        handle: ExpressionHandle,
+        binary: TableBinaryExpression,
+        carrier: Option<ScalarCarrier>,
+    ) -> Result<Option<TermHandle>, Vec<diagnostics::Diagnostic>> {
+        let (carrier, format) = match carrier {
+            Some(ScalarCarrier::Float32) => {
+                (ScalarCarrier::Float32, numerics::literals::FloatFormat::F32)
+            }
+            Some(ScalarCarrier::Float64) => {
+                (ScalarCarrier::Float64, numerics::literals::FloatFormat::F64)
+            }
+            _ => return Ok(None),
+        };
+        let references = [binary.left, binary.right].map(|operand| {
+            validation::mathematical_applications::operand_type_reference(self.program, operand)
+        });
+        if !validation::has_builtin_or_sealed_float_comparison_meaning(
+            self.program,
+            self.source_owner,
+            handle,
+            binary.operator,
+            &references,
+        ) {
+            return Ok(None);
+        }
+        let Some(reference) = references.into_iter().flatten().find(|reference| {
+            matches!(
+                (self.program.primitive_type_reference(*reference), format),
+                (
+                    Some(typed_trees::types::PrimitiveType::F32),
+                    numerics::literals::FloatFormat::F32
+                ) | (
+                    Some(typed_trees::types::PrimitiveType::F64),
+                    numerics::literals::FloatFormat::F64
+                )
+            )
+        }) else {
+            return Ok(None);
+        };
+        let existing = self
+            .prepared
+            .constants
+            .iter()
+            .find_map(|(_, row)| match row.meaning {
+                super::PreparedConstantMeaning::FloatRelation {
+                    operator,
+                    format: retained,
+                    reference: retained_reference,
+                } if operator == binary.operator
+                    && retained == format
+                    && retained_reference == reference =>
+                {
+                    Some(row.declaration)
+                }
+                _ => None,
+            });
+        let position = if let Some(position) = existing {
+            position
+        } else {
+            let domain = self.carrier_term(carrier);
+            let codomain = self.type_zero();
+            let inner = self.arena.insert(Term::Pi { domain, codomain });
+            let ty = self.arena.insert(Term::Pi {
+                domain,
+                codomain: inner,
+            });
+            let position = self.push_assumption(ty);
+            self.prepared.constants.append(super::PreparedConstant {
+                declaration: position,
+                meaning: super::PreparedConstantMeaning::FloatRelation {
+                    operator: binary.operator,
+                    format,
+                    reference,
+                },
+            });
+            position
+        };
+        let left = self.scalar_operand_term(binary.left, carrier)?;
+        let right = self.scalar_operand_term(binary.right, carrier)?;
+        let relation = self.constant(position);
+        Ok(Some(self.arena.apply_binary(relation, left, right)))
     }
 
     /// `a && b` denotes a right-nested `Σ` and `a || b` the tagged

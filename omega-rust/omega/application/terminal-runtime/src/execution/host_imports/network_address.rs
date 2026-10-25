@@ -4,7 +4,7 @@
 //! names nor carrier declaration spellings participate. Admission additionally
 //! checks the complete selected opaque application and recursive public C shape.
 //! Actual C return values live in this invocation's owned occurrence store.
-//! Moving an opaque guest value preserves its token; consuming an affine value
+//! Moving an opaque guest value preserves its token; consuming an owned value
 //! removes that exact stored value. Checked Copy occurrences share immutable C
 //! bits, while the interpreter gives each copy its own guest home.
 
@@ -74,11 +74,12 @@ impl AddressValues {
         }
         match multiplicity {
             // Retire before invoking C, including when the host call fails.
-            StructuralMultiplicity::Affine => Ok(slot.take().ok_or_else(invalid)?.value),
+            StructuralMultiplicity::Affine | StructuralMultiplicity::Linear => {
+                Ok(slot.take().ok_or_else(invalid)?.value)
+            }
             // Only a checked Copy occurrence can reach this admitted path.
             // C receives bits by value; no guest authority is minted here.
             StructuralMultiplicity::Unrestricted => Ok(owned.value),
-            StructuralMultiplicity::Linear => Err(invalid()),
         }
     }
 }

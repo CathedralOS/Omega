@@ -52,23 +52,11 @@ pub(in crate::encoding::recovery) fn disposition(
 ) -> Result<TerminalAuthorityDisposition, Error> {
     let mut previous = None;
     let classes = reader.sequence(1, |reader| {
-        use TerminalAuthorityClass as Class;
-        let class = super::tag!(reader => {
-            0 => Class::FilesystemContentRead,
-            1 => Class::FilesystemContentWrite,
-            2 => Class::FilesystemMetadataQuery,
-            3 => Class::DirectoryEnumeration,
-            4 => Class::FilesystemNamespaceMutation,
-            5 => Class::FilesystemMetadataMutation,
-            6 => Class::ProcessOutput,
-            7 => Class::ProcessTermination,
-            8 => Class::MachineControl,
-            9 => Class::PortIo,
-            10 => Class::InterruptControl,
-            11 => Class::InterruptEntry,
-            12 => Class::RootMemoryAccess,
-            13 => Class::ProcessInput,
-        });
+        let tag = reader.byte()?;
+        let class = TerminalAuthorityClass::ALL
+            .into_iter()
+            .find(|class| class.canonical_tag() == tag)
+            .ok_or(Error::InvalidTag)?;
         if previous.is_some_and(|prior| prior >= class) {
             return Err(Error::NonCanonicalEncoding);
         }

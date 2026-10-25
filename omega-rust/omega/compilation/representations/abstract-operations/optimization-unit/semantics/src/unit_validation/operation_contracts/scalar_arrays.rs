@@ -1,8 +1,8 @@
 //! Primitive arrays retain ordered scalar leaves and ordinary owned storage.
 //! Shape reconstruction uses the Terminal type contract, including empty inner
 //! dimensions; current value availability and ownership are checked separately.
+use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
@@ -104,42 +104,14 @@ pub(crate) fn plain_scalar_array_call(
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
-    let O::CallStructural {
-        result:
-            AbstractStructuralCallResult::Structural {
-                result,
-                selected_evidence,
-            },
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    } = operation
-    else {
+    let Some(call) = plain_structural_call(operation, callee) else {
         return false;
     };
-    let Some(signature) = callee.result.structural() else {
-        return false;
-    };
-    let Some(contract) = &callee.verified_contract else {
-        return false;
-    };
-    signature.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-        && signature.qualifications.is_empty()
-        && signature.projected_qualifications.is_empty()
-        && result.qualifications.is_empty()
-        && result.projected_qualifications.is_empty()
-        && result.claims.is_empty()
-        && claim_transfers.is_empty()
-        && requirement_obligations.is_empty()
-        && *crash_continuations == contract.crash_routes
-        && selected_evidence.is_empty()
-        && callee.entry_claim_declarations.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && callee.evidence_contract_lanes.is_empty()
-        && contract.requires.is_empty()
-        && contract.ensures.is_empty()
-        && contract.outcome_specific_ensures.is_empty()
+    call.signature.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && call.signature.qualifications.is_empty()
+        && call.signature.projected_qualifications.is_empty()
+        && call.selected_evidence.is_empty()
+        && call.contract.outcome_specific_ensures.is_empty()
         // Argument types/access are independently checked by the ordinary call
         // contract. An array result must not exclude a borrowed primitive input.
         && callee.structural_parameters.iter().all(|parameter| {
@@ -149,7 +121,7 @@ pub(crate) fn plain_scalar_array_call(
         })
         && terminal_semantics::scalar_array_leaf_shape(
             types.values().copied(),
-            signature.structural_type,
+            call.signature.structural_type,
         )
         .is_some()
 }

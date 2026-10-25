@@ -34,7 +34,12 @@ impl<'program> Callable<'program> {
         let machines = validation::find_machine_head(program, target)
             .map(|(machine, state)| Self::Machine { machine, state });
         let requirements = validation::selected_requirement_signature(program, target)
-            .map(|(_, signature)| Self::Requirement { signature });
+            .map(|(_, signature)| Self::Requirement { signature })
+            .or_else(|| {
+                program
+                    .machine_parameter_signature(target)
+                    .map(|(_, signature)| Self::Requirement { signature })
+            });
         let mut candidates = machines.into_iter().chain(requirements);
         let selected = candidates.next()?;
         let result_type = match selected {

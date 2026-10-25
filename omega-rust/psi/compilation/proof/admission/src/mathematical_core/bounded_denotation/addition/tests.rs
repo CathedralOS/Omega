@@ -1,5 +1,6 @@
 use super::super::test_utilities::{
-    direct_affine_proof, direct_fixture, elaborate_checked, mathematical, verify_then_elaborate,
+    assert_refused, direct_affine_proof, direct_fixture, elaborate_checked, mathematical,
+    verify_then_elaborate,
 };
 use crate::proof::assumption_proof;
 use crate::{Budget, IntegerAffineWitness, ProofNode, ProofRule, verify_bounded_certificate};
@@ -279,17 +280,7 @@ fn open_sum_over_closed_difference_uses_the_numeral_equation() {
         ScalarTerm::value(ValueId::new(1).unwrap(), scalar),
         literal(249),
     );
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            &assumptions,
-            &[],
-            &wrong_premise,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &goal, &assumptions, &[], &wrong_premise);
     let mut wrong_goal = proof.clone();
     wrong_goal.conclusion = Proposition::IntegerMathLessOrEqual(
         IntegerMathTerm::Add(
@@ -301,17 +292,7 @@ fn open_sum_over_closed_difference_uses_the_numeral_equation() {
         ),
         mathematical(&literal(254)),
     );
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            &assumptions,
-            &[],
-            &wrong_goal,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &goal, &assumptions, &[], &wrong_goal);
 }
 
 /// The `IntegerExactAddDefinitionBound` fixture: two operand bounds plus a
@@ -542,17 +523,7 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
     ] {
         let mut invalid = proof.clone();
         invalid.conclusion = wrong_goal.clone();
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &wrong_goal,
-                &assumptions,
-                &axioms,
-                &invalid,
-                &mut Budget::default()
-            )
-            .is_err()
-        );
+        assert_refused(&context, &wrong_goal, &assumptions, &axioms, &invalid);
     }
     for wrong_premise in [
         Proposition::LessOrEqual(literal(2), value(2)),
@@ -566,17 +537,7 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
         };
         left_bound.conclusion = wrong_premise.clone();
         let wrong_assumptions = [wrong_premise, assumptions[1].clone()];
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &goal,
-                &wrong_assumptions,
-                &axioms,
-                &invalid,
-                &mut Budget::default()
-            )
-            .is_err()
-        );
+        assert_refused(&context, &goal, &wrong_assumptions, &axioms, &invalid);
     }
     // A definition citing a different output or different addends.
     for wrong_axiom in [
@@ -587,16 +548,12 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
         ),
         Proposition::LessOrEqual(output.clone(), expression.clone()),
     ] {
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &goal,
-                &assumptions,
-                std::slice::from_ref(&wrong_axiom),
-                &proof,
-                &mut Budget::default()
-            )
-            .is_err()
+        assert_refused(
+            &context,
+            &goal,
+            &assumptions,
+            std::slice::from_ref(&wrong_axiom),
+            &proof,
         );
     }
     // An out-of-roster citation.
@@ -608,17 +565,7 @@ fn exact_add_definition_bound_rejects_mismatched_certificates() {
         unreachable!()
     };
     *definition_axiom = 7;
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &goal,
-            &assumptions,
-            &axioms,
-            &invalid,
-            &mut Budget::default()
-        )
-        .is_err()
-    );
+    assert_refused(&context, &goal, &assumptions, &axioms, &invalid);
 }
 
 /// The `IntegerAffineBound` direct-add fixture: a `Conjunction` of the
@@ -732,17 +679,7 @@ fn direct_add_bound_rejects_mismatched_certificates() {
     ] {
         let mut invalid = proof.clone();
         invalid.conclusion = wrong_goal.clone();
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &wrong_goal,
-                &assumptions,
-                &[],
-                &invalid,
-                &mut Budget::default()
-            )
-            .is_err()
-        );
+        assert_refused(&context, &wrong_goal, &assumptions, &[], &invalid);
     }
     // A non-conjunction premise or a conjunction whose bounds name the
     // wrong operands.
@@ -762,16 +699,12 @@ fn direct_add_bound_rejects_mismatched_certificates() {
             unreachable!()
         };
         root_bound.conclusion = wrong_premise.clone();
-        assert!(
-            verify_bounded_certificate(
-                &context,
-                &goal,
-                std::slice::from_ref(&wrong_premise),
-                &[],
-                &invalid,
-                &mut Budget::default()
-            )
-            .is_err()
+        assert_refused(
+            &context,
+            &goal,
+            std::slice::from_ref(&wrong_premise),
+            &[],
+            &invalid,
         );
     }
 }

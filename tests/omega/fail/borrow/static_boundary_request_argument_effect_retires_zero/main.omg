@@ -1,0 +1,14 @@
+data Request { internal: u64; transferred: u64; offset_low: u32; offset_high: u32; event: u64; }
+boundary trait Io { machine acquire(handle: i64, flags: u32, request: &mut Request) -> i32
+reaches
+requires request.internal == 0
+blocks; }
+machine entry(handle: i64, flags: u32) -> i32 blocks;
+requires handle != 0 && flags <= 3
+{
+    let mut request: Request;
+    block Io::acquire(change(&mut request), flags, &mut request)
+}
+machine main() blocks; { let status: i32 = block entry(1, 3); }
+
+machine change(request: &mut Request) -> i64 { request.internal = 1; 1 }

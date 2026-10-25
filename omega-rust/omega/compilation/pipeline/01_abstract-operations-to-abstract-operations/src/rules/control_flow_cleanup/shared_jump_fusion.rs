@@ -217,13 +217,7 @@ fn shared_terminal_fusion_accounting(
             &terminal.fuel,
         ),
     ];
-    provenance.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    provenance.sort_by_key(ProvenanceRewrite::canonical_sort_key);
     let mut affected = vec![predecessor.block, target];
     affected.sort();
     affected.dedup();

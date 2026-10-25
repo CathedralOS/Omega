@@ -942,6 +942,51 @@ pub(crate) fn map_scalar(
     Some(())
 }
 
+/// A conditional edge owes !guard || requirement. Normalize both formulas
+/// into one exact observation namespace before constructing that goal; equal
+/// operand ordinals from different frames are not equal storage observations.
+/// This creates no premise and changes no contradiction/formation judgment.
+pub(crate) fn guarded_requirement(
+    guard: &BoundPredicate,
+    required: &BoundPredicate,
+) -> Option<BoundPredicate> {
+    let (expressions, observations) = normalize(&[guard.clone(), required.clone()])?;
+    let mut expressions = expressions.into_iter();
+    let guard_expression = expressions.next()?;
+    let required_expression = expressions.next()?;
+    let bindings = observations
+        .into_iter()
+        .enumerate()
+        .map(|(position, (place, primitive_type))| {
+            let source = guard
+                .bindings
+                .iter()
+                .chain(&required.bindings)
+                .find(|binding| {
+                    binding.place == place
+                        && binding.operand.primitive_type() == Some(primitive_type)
+                })?;
+            Some(BoundObservation {
+                operand: Scalar::Parameter {
+                    position,
+                    primitive_type,
+                },
+                place,
+                type_reference: source.type_reference,
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(BoundPredicate {
+        machine: required.machine,
+        entry_state: required.entry_state,
+        expression: Boolean::Or {
+            left: Box::new(Boolean::Not(Box::new(guard_expression))),
+            right: Box::new(required_expression),
+        },
+        bindings,
+    })
+}
+
 /// Prove a whole bound formula, including an implication whose selector is
 /// still unknown. Retained formulas compare only after their observations are
 /// normalized through exact current places, not declaration positions.

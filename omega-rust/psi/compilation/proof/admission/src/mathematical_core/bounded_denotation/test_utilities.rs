@@ -81,16 +81,12 @@ pub(crate) fn open_operation_preserves_skipped_numeric_resource_refusals(
     .unwrap();
     let closed_goal = Proposition::IntegerMathEqual(large.clone(), large);
     let closed_proof = assumption_proof(closed_goal.clone(), 0);
-    assert!(
-        verify_bounded_certificate(
-            &context,
-            &closed_goal,
-            std::slice::from_ref(&closed_goal),
-            &[],
-            &closed_proof,
-            &mut Budget::default()
-        )
-        .is_err()
+    assert_refused(
+        &context,
+        &closed_goal,
+        std::slice::from_ref(&closed_goal),
+        &[],
+        &closed_proof,
     );
 }
 
@@ -188,6 +184,29 @@ pub(super) fn elaborate_checked<'a>(
     .unwrap();
     elaboration.node(proof).unwrap();
     elaboration
+}
+
+/// Assert the checker refuses a certificate the ambient premises do not
+/// license — the tampered-goal, tampered-premise and tampered-axiom
+/// controls every bounded suite restated by hand.
+pub(crate) fn assert_refused(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    proof: &ProofNode,
+) {
+    assert!(
+        verify_bounded_certificate(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            proof,
+            &mut Budget::default(),
+        )
+        .is_err()
+    );
 }
 
 /// Verify `proof`'s certificate under the ambient premises, assert the

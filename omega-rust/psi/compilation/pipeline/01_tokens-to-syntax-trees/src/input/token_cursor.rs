@@ -588,20 +588,17 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     mut append_member: impl FnMut(Identifier) -> Handle<Identifier>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
     let (first, mut rest) = input.take_identifier()?;
-    let start = append_member(first);
-    let mut count = 1u32;
+    let mut path = crate::handle_spans::HandleSpanBuilder::new();
+    path.push(append_member(first));
 
     while rest.at_punctuation(PunctuationKind::ColonColon) {
         rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (member, next) = rest.take_identifier()?;
-        append_member(member);
-        count = count
-            .checked_add(1)
-            .expect("identifier path member span count overflow");
+        path.push(append_member(member));
         rest = next;
     }
 
-    Ok((HandleSpan::from_parts(start, count), rest))
+    Ok((path.finish(), rest))
 }
 
 impl syntax_trees::SyntaxTextContext for Input<'_, '_> {

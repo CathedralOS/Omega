@@ -86,11 +86,6 @@ pub struct StagedOptimizedLivenessCustodyReceipt {
     core: StagedOptimizedCustodyCore,
     selected: SelectedInstructionPlanIdentity,
     liveness: LivenessIdentity,
-    function_count: usize,
-    block_count: usize,
-    virtual_register_count: usize,
-    instruction_count: usize,
-    successor_count: usize,
 }
 
 impl StagedOptimizedLivenessCustodyReceipt {
@@ -102,26 +97,6 @@ impl StagedOptimizedLivenessCustodyReceipt {
 
     pub const fn liveness(self) -> LivenessIdentity {
         self.liveness
-    }
-
-    pub const fn function_count(self) -> usize {
-        self.function_count
-    }
-
-    pub const fn block_count(self) -> usize {
-        self.block_count
-    }
-
-    pub const fn virtual_register_count(self) -> usize {
-        self.virtual_register_count
-    }
-
-    pub const fn instruction_count(self) -> usize {
-        self.instruction_count
-    }
-
-    pub const fn successor_count(self) -> usize {
-        self.successor_count
     }
 }
 

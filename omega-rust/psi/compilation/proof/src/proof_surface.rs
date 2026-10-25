@@ -223,7 +223,7 @@ fn collect_state_node(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
-    state: &syntax_trees::item::StateNode,
+    state: &syntax_trees::item::State,
 ) {
     collect_contracts(
         report,
@@ -294,7 +294,7 @@ fn collect_trait_definition(
 fn collect_state_signature_node(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
-    state: &syntax_trees::item::StateSignatureNode,
+    state: &syntax_trees::item::StateSignature,
     owner: &str,
 ) {
     collect_contracts(report, syntax_trees, state.contracts, owner);

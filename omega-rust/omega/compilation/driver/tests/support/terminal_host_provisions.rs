@@ -12,6 +12,9 @@ mod resident_storage;
 mod result_custody;
 #[path = "terminal_storage_budget.rs"]
 mod storage_budget;
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[path = "terminal_provision.rs"]
+mod terminal_provision;
 
 /// Portable provisions supply semantic test sinks, never native host services.
 pub(super) fn observe_portable(
@@ -313,29 +316,23 @@ mod linux {
         artifact: &CanonicalTerminalArtifact,
         words: &[&str],
     ) -> Result<(), String> {
-        // Harness assertion failures become a red fixture outcome with a diagnostic,
-        // rather than terminating the corpus before its other authored controls.
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match words {
-            ["libc-inet", numbers] => {
-                let expected = numbers
-                    .split(',')
-                    .map(str::parse::<u32>)
-                    .collect::<Result<Vec<_>, _>>()
-                    .expect("libc-inet needs comma-separated u32 observations");
-                exchange(artifact, &expected);
-            }
-            ["opaque-entry"] => opaque_entry(artifact),
-            ["materialized-entry"] => materialized_entry(artifact, false),
-            ["relocated-materialized-entry"] => materialized_entry(artifact, true),
-            _ => panic!("unknown Terminal fixture provision"),
-        }));
-        result.map_err(|failure| {
-            failure
-                .downcast_ref::<String>()
-                .cloned()
-                .or_else(|| failure.downcast_ref::<&str>().map(|s| (*s).to_owned()))
-                .unwrap_or_else(|| "Terminal provision failed".to_owned())
-        })
+        super::terminal_provision::result(
+            || match words {
+                ["libc-inet", numbers] => {
+                    let expected = numbers
+                        .split(',')
+                        .map(str::parse::<u32>)
+                        .collect::<Result<Vec<_>, _>>()
+                        .expect("libc-inet needs comma-separated u32 observations");
+                    exchange(artifact, &expected);
+                }
+                ["opaque-entry"] => opaque_entry(artifact),
+                ["materialized-entry"] => materialized_entry(artifact, false),
+                ["relocated-materialized-entry"] => materialized_entry(artifact, true),
+                _ => panic!("unknown Terminal fixture provision"),
+            },
+            "Terminal provision failed",
+        )
     }
 }
 

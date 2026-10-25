@@ -72,6 +72,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     scalar_fields::validate(module)?;
     terminal_semantics::quotients::validate_quotient_catalog(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
+    terminal_semantics::closed_reach::validate_closed_reach_applications(module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
         .map_err(|reason| CodecError::MalformedStructuralFoundation(reason))?;
     let mut placed_coordinates = BTreeSet::new();

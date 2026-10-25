@@ -45,17 +45,11 @@ pub struct MachoSharedComponentEmissionError {
     diagnostic: Diagnostic,
 }
 
-impl MachoSharedComponentEmissionError {
-    pub const fn diagnostic(&self) -> &Diagnostic {
-        &self.diagnostic
-    }
-    pub fn into_parts(self) -> (FinalImage, Vec<MachoComponentExport>, Diagnostic) {
-        (self.image, self.exports, self.diagnostic)
-    }
-}
-
-diagnostics::diagnostic_display!(MachoSharedComponentEmissionError);
-impl std::error::Error for MachoSharedComponentEmissionError {}
+image::rejection_carrier!(
+    MachoSharedComponentEmissionError;
+    image: FinalImage,
+    exports: Vec<MachoComponentExport>,
+);
 
 mod exports;
 

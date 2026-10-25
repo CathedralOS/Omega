@@ -155,7 +155,6 @@ pub(crate) fn expression_handle_to_statement_call(
         arguments: crate::bodies::copy_expression_handles_to_statement_table(
             syntax_trees,
             call.arguments,
-            "statement call argument span count overflow",
         ),
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
@@ -171,11 +170,7 @@ fn split_expression_call_handle(
     syntax_trees::identifier::Identifier,
 )> {
     let receiver = if call.receiver.is_valid() {
-        crate::bodies::copy_expression_to_statement_identifier_path(
-            syntax_trees,
-            call.receiver,
-            "statement identifier path span count overflow",
-        )?
+        crate::bodies::copy_expression_to_statement_identifier_path(syntax_trees, call.receiver)?
     } else {
         HandleSpan::empty()
     };

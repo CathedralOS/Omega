@@ -89,12 +89,40 @@ pub(super) fn normal_return_interval(
     if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         return None;
     }
-    let interval = program
+    if let Some(machine) = program.machine_by_symbol(callee.callable)
+        && machine.target_family_interface
+    {
+        // A portable caller receives only bounds shared by every checked
+        // target body. Picking the host or one representative would expose a
+        // private target's stronger guarantee as the family's public contract.
+        let mut possible: Option<FloatInterval> = None;
+        for member in crate::machine_calls::calls::target_family_members(program, machine)? {
+            let body = program.machine(member.machine)?;
+            let entry = program.machine_states(body).first()?;
+            let target = crate::machine_calls::calls::callee_entry_contract(program, entry.symbol)?;
+            if program.primitive_type_reference(target.return_type) != Some(primitive) {
+                return None;
+            }
+            let interval = declared_result_interval(program, &target, primitive);
+            possible = Some(possible.map_or(interval, |previous| previous.union(interval)));
+        }
+        let interval = possible?;
+        return (interval != FloatInterval::UNBOUNDED).then_some(interval);
+    }
+    let interval = declared_result_interval(program, &callee, primitive);
+    (interval != FloatInterval::UNBOUNDED).then_some(interval)
+}
+
+fn declared_result_interval(
+    program: &dyn crate::CheckingInput,
+    callee: &CalleeContract<'_>,
+    primitive: PrimitiveType,
+) -> FloatInterval {
+    program
         .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
         .fold(FloatInterval::UNBOUNDED, |interval, expression| {
-            interval.intersect(project(program, &callee, expression, primitive))
-        });
-    (interval != FloatInterval::UNBOUNDED).then_some(interval)
+            interval.intersect(project(program, callee, expression, primitive))
+        })
 }
 
 fn project(
@@ -104,6 +132,36 @@ fn project(
     primitive: PrimitiveType,
 ) -> FloatInterval {
     let Some(binary) = program.expression_table.binary_node(expression) else {
+        if let Some(predicates) =
+            crate::mathematical_applications::float_predicates(program, expression)
+        {
+            return predicates.into_iter().fold(
+                FloatInterval::UNBOUNDED,
+                |interval, projection| {
+                    if crate::reserved_result_owner(program, projection.subject).is_some_and(
+                        |(owner, reference)| {
+                            owner == callee.callable && reference == callee.return_type
+                        },
+                    ) && matches!(
+                        (primitive, projection.predicate.format()),
+                        (PrimitiveType::F32, numerics::literals::FloatFormat::F32)
+                            | (PrimitiveType::F64, numerics::literals::FloatFormat::F64)
+                    ) {
+                        interval.intersect(
+                            float_bound_from(
+                                projection.operator,
+                                projection.bound.to_f64(),
+                                true,
+                                primitive,
+                            )
+                            .unwrap_or(FloatInterval::UNBOUNDED),
+                        )
+                    } else {
+                        interval
+                    }
+                },
+            );
+        }
         return FloatInterval::UNBOUNDED;
     };
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
@@ -376,6 +434,11 @@ fn has_float_comparison(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
+    if crate::mathematical_applications::float_predicates(program, expression)
+        .is_some_and(|predicates| !predicates.is_empty())
+    {
+        return true;
+    }
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
@@ -400,6 +463,33 @@ fn predicate(
     source_bounds: &dyn Fn(ExpressionHandle, TypeReferenceHandle) -> Option<FloatSourceBounds>,
     result_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
 ) -> Option<bool> {
+    if let Some(predicates) =
+        crate::mathematical_applications::float_predicates(program, expression)
+    {
+        let mut unknown = false;
+        for projection in predicates {
+            let source = source_bounds(projection.subject, projection.reference)?;
+            if !matches!(
+                (source.primitive, projection.predicate.format()),
+                (PrimitiveType::F32, numerics::literals::FloatFormat::F32)
+                    | (PrimitiveType::F64, numerics::literals::FloatFormat::F64)
+            ) {
+                return None;
+            }
+            let endpoint = projection.bound.to_f64();
+            let bound = FloatSourceBounds {
+                primitive: source.primitive,
+                minimum: endpoint,
+                maximum: endpoint,
+            };
+            match compare(projection.operator, &source, &bound) {
+                Some(false) => return Some(false),
+                None => unknown = true,
+                Some(true) => {}
+            }
+        }
+        return (!unknown).then_some(true);
+    }
     let binary = program.expression_table.binary_node(expression)?;
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         let left = predicate(

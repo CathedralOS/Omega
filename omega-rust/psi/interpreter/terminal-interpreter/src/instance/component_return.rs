@@ -35,6 +35,13 @@ impl<'host, 'artifact> ComponentOwnedReturn<'host, 'artifact> {
         &self.value
     }
 
+    pub(crate) fn returned_claims(&self) -> Option<&[terminal_psi::StructuralResultClaimBinding]> {
+        self.owner
+            .execution
+            .as_ref()
+            .map(|execution| execution.returned_claims.as_slice())
+    }
+
     /// The caller authenticates the receiving slot and its result declaration
     /// before this consuming acknowledgement. The old instance can never run
     /// again, and there is no second result retained in it.
@@ -78,16 +85,27 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                         .structural_types()
                         .get(&returned.value.structural_type)
                         .ok_or("component return lost its structural declaration")?;
-                    if !returned.claims.is_empty()
-                        || !returned.value.qualifications.is_empty()
+                    if !returned.value.qualifications.is_empty()
                         || !returned.value.projected_qualifications.is_empty()
                         || !returned.value.path.is_empty()
-                        || declaration.owns_linear_claim
-                        || !declaration.no_code_affine_cleanup
+                        || (!declaration.owns_linear_claim && !declaration.no_code_affine_cleanup)
                     {
                         return Err(
                             "component return requires a checked claim, membership or cleanup transfer carrier",
                         );
+                    }
+                    let claims = &execution.returned_claims;
+                    if declaration.owns_linear_claim {
+                        if claims.len() != 1
+                            || !claims[0].path.is_empty()
+                            || returned.claims != [claims[0].claim]
+                        {
+                            return Err(
+                                "linear component return lacks its exact whole owned claim",
+                            );
+                        }
+                    } else if !claims.is_empty() || !returned.claims.is_empty() {
+                        return Err("nonlinear component return carries unexpected claims");
                     }
                     if !execution.structural_host_atoms.values().any(|payload| {
                         matches!(payload,

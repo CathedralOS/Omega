@@ -34,8 +34,8 @@ fn parse_dot_or_colon_path<'tokens, 'source>(
     ) -> arena::Handle<syntax_trees::identifier::Identifier>,
 ) -> ParseResult<'tokens, 'source, arena::HandleSpan<syntax_trees::identifier::Identifier>> {
     let (first, mut rest) = input.take_identifier()?;
-    let start = append_member(first);
-    let mut count = 1u32;
+    let mut path = crate::handle_spans::HandleSpanBuilder::new();
+    path.push(append_member(first));
 
     loop {
         if rest.at_punctuation(PunctuationKind::Dot) {
@@ -47,14 +47,11 @@ fn parse_dot_or_colon_path<'tokens, 'source>(
         }
 
         let (member, next) = rest.take_identifier()?;
-        append_member(member);
-        count = count
-            .checked_add(1)
-            .expect("module/package path member span count overflow");
+        path.push(append_member(member));
         rest = next;
     }
 
-    Ok((arena::HandleSpan::from_parts(start, count), rest))
+    Ok((path.finish(), rest))
 }
 
 pub(super) fn take_optional_semicolon<'tokens, 'source>(

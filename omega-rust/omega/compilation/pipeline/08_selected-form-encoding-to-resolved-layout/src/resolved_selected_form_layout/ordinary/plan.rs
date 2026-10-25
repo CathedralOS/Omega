@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
+    SelectedInstructionKind,
 };
 use target::Architecture;
 
@@ -12,6 +12,7 @@ use machine_code::{
 };
 
 use super::super::OptimizedResolvedSelectedFormLayoutError;
+use super::branch::conditional_branch_descriptor;
 
 pub(in super::super) struct LayoutPlan {
     pub(in super::super) block_offsets: BTreeMap<SelectedBlockId, u64>,
@@ -39,29 +40,36 @@ pub(in super::super) fn derive(
         }
         let mut grown = widened;
         for block in blocks {
-            let Some((branch, taken)) = conditional_branch(block) else {
+            let Some(descriptor) = conditional_branch_descriptor(block) else {
                 continue;
             };
-            if grown.contains(&branch.id) {
+            if grown.contains(&descriptor.terminator.id) {
                 continue;
             }
-            let row = pre_rows
-                .get(&branch.id)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::MissingInstruction(branch.id))?;
-            if !widening_candidate(branch, row) {
+            let row = pre_rows.get(&descriptor.terminator.id).ok_or(
+                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
+                    descriptor.terminator.id,
+                ),
+            )?;
+            if !widening_candidate(descriptor.terminator, row) {
                 continue;
             }
-            let taken_offset = *plan
-                .block_offsets
-                .get(&taken.block)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::MissingInstruction(branch.id))?;
+            let taken_offset = *plan.block_offsets.get(&descriptor.when_taken.block).ok_or(
+                OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
+                    descriptor.terminator.id,
+                ),
+            )?;
             let instruction_offset = *plan
                 .instruction_offsets
-                .get(&branch.id)
-                .ok_or(OptimizedResolvedSelectedFormLayoutError::MissingInstruction(branch.id))?;
+                .get(&descriptor.terminator.id)
+                .ok_or(
+                    OptimizedResolvedSelectedFormLayoutError::MissingInstruction(
+                        descriptor.terminator.id,
+                    ),
+                )?;
             let displacement = byte_displacement(taken_offset, instruction_offset)?;
             if !isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH.contains(&displacement) {
-                grown.insert(branch.id);
+                grown.insert(descriptor.terminator.id);
             }
         }
         if grown == plan.widened_branches {
@@ -102,25 +110,6 @@ fn derive_once(
         function_size: offset,
         widened_branches: widened.clone(),
     })
-}
-
-pub(crate) fn conditional_branch(
-    block: &SelectedBlock,
-) -> Option<(&SelectedInstruction, &SelectedSuccessor)> {
-    match &block.terminator {
-        SelectedTerminator::ConditionalBranch {
-            instruction,
-            when_nonzero,
-            ..
-        } => Some((instruction, when_nonzero)),
-        selected_instructions::conditional_branch_less_pair_pattern!(
-            instruction,
-            when_less,
-            ..
-        ) => Some((instruction, when_less)),
-        SelectedTerminator::Jump { .. }
-        | selected_instructions::terminator_no_successor_pattern!(..) => None,
-    }
 }
 
 pub(crate) fn widening_candidate(

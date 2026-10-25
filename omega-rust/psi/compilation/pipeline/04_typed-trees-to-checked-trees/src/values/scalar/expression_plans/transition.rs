@@ -62,23 +62,18 @@ pub(crate) fn plan(
                 return_expression,
             );
         }
-        let TransitionTargetNode::Named {
-            path, arguments, ..
-        } = planner.program.statement_table.transition_target(target)
+        let Some(transfer) = validation::completing_transition_transfer(planner.program, target)
         else {
             continue;
         };
         let Some(target_state) = validation::activation_target_state_index(
             planner.program,
             planner.machine,
-            path.symbol,
+            transfer.target,
         )
         .and_then(|target_index| planner.states.get(target_index))
         .or_else(|| {
-            // Free names retain the machine head, while qualified names can
-            // retain its entry child. Both supply the first state's formals;
-            // foreign interior states remain invalid call targets.
-            validation::find_machine_head(planner.program, path.symbol).map(|(_, entry)| entry)
+            validation::find_machine_head(planner.program, transfer.target).map(|(_, entry)| entry)
         }) else {
             continue;
         };
@@ -87,12 +82,8 @@ pub(crate) fn plan(
             .state_parameters(target_state)
             .iter()
             .enumerate();
-        for (argument, (target_position, target_parameter)) in planner
-            .program
-            .statement_table
-            .expression_handles(*arguments)
-            .iter()
-            .zip(target_parameters)
+        for (argument, (target_position, target_parameter)) in
+            transfer.arguments.iter().zip(target_parameters)
         {
             let Ok(argument_ordinal) = u32::try_from(target_position) else {
                 continue;

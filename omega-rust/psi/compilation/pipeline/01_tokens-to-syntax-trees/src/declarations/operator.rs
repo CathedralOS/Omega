@@ -3,7 +3,6 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
-use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, OperatorDefinition};
 use syntax_trees::operator_spelling::OperatorSpelling;
@@ -34,24 +33,15 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
     let (parameters, input) = parse_optional_parameters(syntax_trees, input)?;
     let (return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
 
-    let mut contract_start = Handle::invalid();
-    let mut contract_count = 0u32;
+    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
     loop {
         if is_operator_contract_start(&input) {
             let contract = parse_operator_contract(syntax_trees, &mut input)?;
-            let handle = syntax_trees.items.append_capability_contract(contract);
-            if contract_count == 0 {
-                contract_start = handle;
-            }
-            contract_count = contract_count
-                .checked_add(1)
-                .expect("operator contract span count overflow");
+            contracts.push(syntax_trees.items.append_capability_contract(contract));
             continue;
         }
         break;
     }
-
-    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
 
     input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     let token_count = body_start_tokens.saturating_sub(input.tokens.len());
@@ -65,7 +55,7 @@ pub(super) fn parse_operator_definition<'tokens, 'source>(
             type_parameters,
             parameters,
             return_type,
-            contracts,
+            contracts: contracts.finish(),
             spelling,
             token_count,
         },
