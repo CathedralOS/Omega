@@ -51,19 +51,39 @@ pub struct SourceExtensionRequest {
 /// Complete Product typing and its exact resolver/typing origin, ready for checking.
 /// A checked dependency needs this owner as well as its language judgment: bare
 /// typed trees cannot establish which authored source frontier may be extended.
+#[derive(Clone)]
 pub struct PreparedSource {
     typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
 }
 
 impl PreparedSource {
+    pub(crate) fn typed(&self) -> &typed_trees::TypedTrees {
+        self.typing.typed()
+    }
+
+    pub(crate) fn has_deferred_recipes(&self) -> bool {
+        !self.pending_pre_checks.is_empty()
+    }
+
     /// Transfer the coupled origin to checking. Deferred target recipes remain
-    /// explicit outputs; retaining the source owner grants them no execution.
-    pub fn into_check_input(self) -> (crate::SourceCheckInput, Vec<PreCheckEvaluation>) {
-        (
-            crate::SourceCheckInput::from_source(self.typing),
-            self.pending_pre_checks,
-        )
+    /// with that origin; retaining them grants no execution authority.
+    pub fn into_check_input(self) -> crate::SourceCheckInput {
+        crate::SourceCheckInput::from_source(self)
+    }
+
+    pub(crate) fn into_parts(self) -> (typed_trees::TypedTrees, Vec<PreCheckEvaluation>) {
+        (self.typing.into_typed(), self.pending_pre_checks)
+    }
+}
+
+impl std::fmt::Debug for PreparedSource {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PreparedSource")
+            .field("typing", &self.typing)
+            .field("deferred_recipe_count", &self.pending_pre_checks.len())
+            .finish()
     }
 }
 

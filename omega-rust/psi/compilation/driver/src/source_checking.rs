@@ -18,7 +18,7 @@ pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
 #[derive(Debug, Clone)]
 pub struct RetainedCheck {
     judgment: typed_trees_to_checked_trees::RetainedCheck,
-    source: Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+    source: Option<crate::PreparedSource>,
 }
 
 impl RetainedCheck {
@@ -36,7 +36,7 @@ pub struct SourceCheckInput {
 
 enum CheckInputOwner {
     Typed(typed_trees::TypedTrees),
-    Source(symbol_resolved_trees_to_typed_trees::SeededTypingBase),
+    Source(crate::PreparedSource),
 }
 
 impl From<typed_trees::TypedTrees> for SourceCheckInput {
@@ -48,9 +48,7 @@ impl From<typed_trees::TypedTrees> for SourceCheckInput {
 }
 
 impl SourceCheckInput {
-    pub(crate) fn from_source(
-        source: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    ) -> Self {
+    pub(crate) fn from_source(source: crate::PreparedSource) -> Self {
         Self {
             owner: CheckInputOwner::Source(source),
         }
@@ -63,18 +61,27 @@ impl SourceCheckInput {
         }
     }
 
+    pub fn has_deferred_recipes(&self) -> bool {
+        match &self.owner {
+            CheckInputOwner::Typed(_) => false,
+            CheckInputOwner::Source(source) => source.has_deferred_recipes(),
+        }
+    }
+
     fn into_checking_parts(
         self,
         retain: bool,
     ) -> (
         typed_trees::TypedTrees,
-        Option<symbol_resolved_trees_to_typed_trees::SeededTypingBase>,
+        Vec<build_time_evaluation::PreCheckEvaluation>,
+        Option<crate::PreparedSource>,
     ) {
         match self.owner {
-            CheckInputOwner::Typed(program) => (program, None),
+            CheckInputOwner::Typed(program) => (program, Vec::new(), None),
             CheckInputOwner::Source(source) => {
                 let origin = retain.then(|| source.clone());
-                (source.into_typed(), origin)
+                let (program, recipes) = source.into_parts();
+                (program, recipes, origin)
             }
         }
     }
@@ -106,6 +113,7 @@ pub struct CheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
+    pub deferred_recipes: Vec<build_time_evaluation::PreCheckEvaluation>,
 }
 
 /// Shared source product with the exact optional root-selection evidence.
@@ -116,12 +124,13 @@ pub struct SelectedCheckedSource {
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub retained: Option<RetainedCheck>,
     pub selection: Option<CheckedTreeProductSelection>,
+    pub deferred_recipes: Vec<build_time_evaluation::PreCheckEvaluation>,
 }
 
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         let _profile = phase_profile::guard("05");
-        let (mut program, source) = self.program.into_checking_parts(self.retain);
+        let (mut program, deferred_recipes, source) = self.program.into_checking_parts(self.retain);
         phase_profile::scope("05.a.source_completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -195,6 +204,7 @@ impl CheckRequest<'_> {
                 .retained
                 .map(|judgment| RetainedCheck { judgment, source }),
             reused: outcome.took_prior,
+            deferred_recipes,
         })
     }
 }
@@ -224,6 +234,7 @@ impl CheckedSource {
             provider_defaults: provider_defaults.into(),
             retained: self.retained,
             selection,
+            deferred_recipes: self.deferred_recipes,
         })
     }
 }
@@ -240,7 +251,9 @@ pub struct ProductSelections {
 struct SelectedProduct {
     input: Arc<checked_trees::CheckedTrees>,
     roots: Option<Vec<symbols::SymbolHandle>>,
-    output: SelectedCheckedSource,
+    program: Arc<checked_trees::CheckedTrees>,
+    provider_defaults: Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
+    selection: Option<CheckedTreeProductSelection>,
 }
 
 impl ProductSelections {
@@ -254,16 +267,22 @@ impl ProductSelections {
             .iter()
             .find(|prior| Arc::ptr_eq(&prior.input, &checked.program) && prior.roots == roots)
         {
-            let mut selected = prior.output.clone();
-            selected.retained = checked.retained;
-            return Ok(selected);
+            return Ok(SelectedCheckedSource {
+                program: prior.program.clone(),
+                provider_defaults: prior.provider_defaults.clone(),
+                selection: prior.selection.clone(),
+                retained: checked.retained,
+                deferred_recipes: checked.deferred_recipes,
+            });
         }
         let input = checked.program.clone();
         let output = checked.select_product(roots.clone())?;
         self.entries.push(SelectedProduct {
             input,
             roots,
-            output: output.clone(),
+            program: output.program.clone(),
+            provider_defaults: output.provider_defaults.clone(),
+            selection: output.selection.clone(),
         });
         Ok(output)
     }
