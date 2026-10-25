@@ -20,7 +20,7 @@ use symbols::SymbolHandle;
 
 mod relationships;
 mod requirement_applications;
-use relationships::{DataMemberIndex, StateDeclarationIndex};
+use relationships::{DataMemberIndex, StateDeclarationIndex, StateDeclarationRevision};
 use requirement_applications::RequirementApplicationIndex;
 
 #[cfg(test)]
@@ -211,7 +211,7 @@ pub struct DomainCandidateIndex {
 pub struct DeclarationIndexes {
     machines: OwnedIndex<MachinePositionIndex, (u64, HandleSpan<machine::Machine>)>,
     states: OwnedIndex<StatePositionIndex, (u64, u64, HandleSpan<machine::Machine>)>,
-    state_declarations: OwnedIndex<StateDeclarationIndex>,
+    state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
     data_members: OwnedIndex<DataMemberIndex>,
     type_parameters: OwnedIndex<TypeParameterIndex>,
     domains: OwnedIndex<DomainPositionIndex>,
@@ -243,6 +243,10 @@ impl super::TypedTrees {
     /// and seal it, so readers of the frozen program look up declarations
     /// without locking. Verdict memos that grow per query stay lazy.
     pub(super) fn seal_declaration_indexes(&mut self) {
+        // A transform may reconstruct private tables before freezing. Rebuild
+        // the containment/value roster under this owner, even if a replacement
+        // arena happened to carry the predecessor's revision numbers.
+        self.invalidate_state_declaration_index();
         let any_symbol = self.symbols.root();
         self.with_machine_position_index(|_| ());
         self.with_state_position_index(|_| ());
@@ -265,6 +269,13 @@ impl super::TypedTrees {
         indexes.attached_drops.seal();
         indexes.call_targets.seal();
         indexes.requirement_applications.seal();
+    }
+
+    /// Mutable table access can replace an arena with an unrelated arena at
+    /// the same revision. Invalidate containment before exposing that access;
+    /// ordinary in-place changes remain covered by the complete revision tuple.
+    pub(super) fn invalidate_state_declaration_index(&mut self) {
+        self.declaration_indexes.state_declarations.clear();
     }
 
     /// Return sealed indexes to their lazy slots before the program mutates.

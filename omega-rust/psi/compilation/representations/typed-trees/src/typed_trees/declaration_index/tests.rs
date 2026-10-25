@@ -163,3 +163,52 @@ fn parameter_occurrences_refresh_mutation_reuse_and_cloned_owners() {
             .is_some()
     );
 }
+
+#[test]
+fn named_value_types_refresh_equal_revision_parameter_replacement() {
+    let symbol = SymbolHandle::from_parts(7, 3);
+    let first_type = TypeReferenceHandle::from_parts(1, 1);
+    let replacement_type = TypeReferenceHandle::from_parts(2, 1);
+    let parameter = |type_reference| crate::signature::StateParameter {
+        symbol,
+        type_reference,
+        ..crate::signature::StateParameter::default()
+    };
+    // There is deliberately no machine body: this is an indexed declaration
+    // table query over the same flat formals used by bodyless signatures.
+    let mut program = TypedTrees::default();
+    let original_handle = program.state_parameters.insert(parameter(first_type));
+    assert_eq!(
+        program.first_named_value_declared_type(symbol, symbol),
+        Some(first_type)
+    );
+    let snapshot = program.clone();
+
+    let mut replacement = arena::Arena::default();
+    let replacement_handle = replacement.insert(parameter(replacement_type));
+    assert_eq!(original_handle, replacement_handle);
+    assert_eq!(program.state_parameters.revision(), replacement.revision());
+
+    // Supported mutable table access must discard the warmed grouping even
+    // though the unrelated replacement carries the same revision and handle.
+    program.state_parameters = replacement;
+    assert_eq!(
+        program.first_named_value_declared_type(symbol, symbol),
+        Some(replacement_type)
+    );
+    assert_eq!(
+        snapshot.first_named_value_declared_type(symbol, symbol),
+        Some(first_type)
+    );
+
+    let frozen_replacement = crate::FrozenTypedTrees::from(program);
+    let frozen_snapshot = crate::FrozenTypedTrees::from(snapshot);
+    assert_eq!(
+        frozen_replacement.first_named_value_declared_type(symbol, symbol),
+        Some(replacement_type)
+    );
+    assert_eq!(
+        frozen_snapshot.first_named_value_declared_type(symbol, symbol),
+        Some(first_type)
+    );
+}

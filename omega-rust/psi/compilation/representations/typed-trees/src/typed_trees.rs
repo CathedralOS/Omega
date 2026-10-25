@@ -653,6 +653,7 @@ impl Deref for TypedTrees {
 impl DerefMut for TypedTrees {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.invalidate_state_declaration_index();
         &mut self.tables
     }
 }
