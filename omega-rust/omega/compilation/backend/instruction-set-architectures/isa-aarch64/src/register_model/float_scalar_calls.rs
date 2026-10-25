@@ -6,9 +6,8 @@ use super::{
     aarch64_darwin_register_unit_call_keys,
 };
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, ValidatedPhysicalRegisterModel,
-    find_register_constraint,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, ValidatedPhysicalRegisterModel, find_register_constraint,
 };
 pub fn aarch64_float_scalar_call_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
     let count = input_keys(darwin).len()
@@ -19,18 +18,14 @@ pub fn aarch64_float_scalar_call_keys(darwin: bool) -> Vec<RegisterConstraintKey
         })
         .len();
     (0..count)
-        .map(|ordinal| RegisterConstraintKey {
-            family: RegisterConstraintFamily::Call,
-            variant: (if darwin { 1800 } else { 1600 }) + ordinal as u32,
+        .map(|ordinal| {
+            RegisterConstraintKey::call((if darwin { 1800 } else { 1600 }) + ordinal as u32)
         })
         .collect()
 }
 
 pub fn aarch64_float_scalar_return_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
-    vec![RegisterConstraintKey {
-        family: RegisterConstraintFamily::Return,
-        variant: if darwin { 1601 } else { 1600 },
-    }]
+    vec![RegisterConstraintKey::ret(if darwin { 1601 } else { 1600 })]
 }
 
 fn input_keys(darwin: bool) -> Vec<RegisterConstraintKey> {
