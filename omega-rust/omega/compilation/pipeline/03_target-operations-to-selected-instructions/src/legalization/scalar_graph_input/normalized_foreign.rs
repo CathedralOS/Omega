@@ -65,11 +65,12 @@ pub(in crate::legalization) fn result_at(
                 || result.projected_qualifications != declared.projected_qualifications
                 || !result.projected_qualifications.is_empty()
                 || !result.qualification_establishments.is_empty()
-                || !result.claims.is_empty()
-                || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             {
                 return Err(LegalizationError::custody());
             }
+            // Guest claims do not change physical result placement. Keep the
+            // complete checked result below: the target row must match its
+            // exact claim IDs and paths as well as its storage geometry.
             let storage = crate::structural_inputs::structural_reference_input::shape(
                 result.structural_type,
                 &plan.structural_types,
