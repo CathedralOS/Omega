@@ -2571,8 +2571,12 @@ then independent claimed restoration slices -> final closure.
   at statement 2; prior unpublished RootBinding preparation is not a current
   implementation or acceptance result. General binding operations must carry
   exact declaration coordinates and authenticated original Build inputs through
-  the common core. Verify ordered observations, pause/resume without replay,
-  settings readback and foreign/malformed-input refusal on the resulting route.
+  the common core. Terminal instances now expose normal-return readback of
+  original borrowed entry storage; source-produced Build identifier helpers run
+  through retained/loaded Terminal artifacts and return their changed bytes.
+  Full Build evaluation still uses the checked-tree engine. Connect settings
+  readback to that replacement together with ordered binding observations,
+  pause/resume without replay and foreign/malformed-input refusal.
   Mutable boundary receivers also need a portable stored-descriptor
   effect/lifetime contract.
   `RetainedBorrow` covers shared inputs returned as structural results, not

@@ -1,0 +1,33 @@
+// Expected exit: 0
+// Build settings need the same Unit-return mutable-receiver writeback as this
+// ordinary record. The replacement has static backing; the caller observes it.
+data Settings<'storage> { identifier: &'storage [u8]; revision: u32; signature: [u8; 3]; }
+
+machine replace_identifier<'storage>(settings: &mut Settings<'storage>) {
+    settings.identifier = "omega";
+    settings.revision = 42;
+    settings.signature[1] = 9;
+}
+
+machine configure<'storage>(settings: &mut Settings<'storage>) {
+    replace_identifier(settings);
+}
+
+machine exercise() -> bool {
+    let mut settings: Settings = Settings { identifier: "before", revision: 0, signature: [0, 0, 0] };
+    configure(&mut settings);
+    settings.identifier.len == 5 && settings.identifier[0] == 111 && settings.revision == 42 && settings.signature[1] == 9
+}
+
+machine consume(settings: Settings) {}
+
+machine fail_after_write(settings: &mut Settings) crashes Trap {
+    configure(settings);
+    crash Trap;
+}
+
+machine main() crashes Trap {
+    transition exercise() { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
