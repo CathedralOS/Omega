@@ -109,43 +109,43 @@ pub(crate) fn source_range_decided(
     range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
     bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
 ) -> Result<bool, LoweringError> {
-    if !range_decision.is_valid() {
-        return Ok(false);
-    }
-    let decision = checked.facts.proof.integer_assignments.get(range_decision);
-    if decision.atomic_resident {
-        return Ok(false);
-    }
-    let Some(integer) = bounded_integer else {
-        return Ok(false);
-    };
-    let mathematical = |value| match value {
-        semantic_vocabulary::IntegerValue::Signed(value) => {
-            numerics::bignum::BigInt::from_i128(value)
-        }
-        semantic_vocabulary::IntegerValue::Unsigned(value) => {
-            numerics::bignum::BigInt::from_u128(value)
-        }
-    };
-    let decided = terminal_scalar_type(primitive_type)?
-        == ScalarType::Integer(integer.integer_type())
-        && decision.minimum == mathematical(integer.minimum())
-        && decision.maximum == mathematical(integer.maximum());
-    Ok(decided)
+    receiving_range_decided(
+        checked,
+        primitive_type,
+        range_decision,
+        bounded_integer,
+        false,
+    )
 }
 
-/// Atomic resident establishment consumes only the atomic source judgment.
+/// Atomic resident evidence cannot stand in for an ordinary scalar store.
 pub(crate) fn atomic_source_range_decided(
     checked: &checked_trees::CheckedTrees,
     primitive_type: checked_trees::types::PrimitiveType,
     range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
     bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
 ) -> Result<bool, LoweringError> {
+    receiving_range_decided(
+        checked,
+        primitive_type,
+        range_decision,
+        bounded_integer,
+        true,
+    )
+}
+
+fn receiving_range_decided(
+    checked: &checked_trees::CheckedTrees,
+    primitive_type: checked_trees::types::PrimitiveType,
+    range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
+    bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
+    atomic_resident: bool,
+) -> Result<bool, LoweringError> {
     if !range_decision.is_valid() {
         return Ok(false);
     }
     let decision = checked.facts.proof.integer_assignments.get(range_decision);
-    if !decision.atomic_resident {
+    if decision.atomic_resident != atomic_resident {
         return Ok(false);
     }
     let Some(integer) = bounded_integer else {

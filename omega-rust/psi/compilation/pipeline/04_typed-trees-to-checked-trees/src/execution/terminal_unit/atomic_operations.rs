@@ -44,7 +44,10 @@ pub(super) fn result_placeholder(
     statement_index: usize,
     local: &typed_trees::statement::TableLocalData,
 ) -> bool {
-    validation::atomic_result_placeholder(program, state, local).is_some()
+    program
+        .state_local_declaration(state, local.symbol)
+        .is_some_and(|(ordinal, _)| ordinal == statement_index)
+        && validation::atomic_result_placeholder(program, state, local).is_some()
 }
 
 /// The writing event the carrier assignment at `statement_index` denotes.

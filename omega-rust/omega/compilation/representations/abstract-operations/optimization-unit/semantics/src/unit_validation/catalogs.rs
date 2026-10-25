@@ -1131,27 +1131,13 @@ fn validate_scalar_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let Some(requirement) = terminal_semantics::scalar_field_requirement(restriction, value) else {
-        return Ok(());
-    };
-    terminal_codec::canonical_proposition_order_key(&requirement)
-        .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-    if unit
-        .accepted_obligation_facts
-        .iter()
-        .filter(|fact| {
-            fact.machine == machine
-                && fact.owner == optimization_unit::PsiProvenance::Operation(operation)
-                && Some(fact.obligation) == obligation
-                && fact.psi == unit.psi
-                && fact.has_canonical_identity()
-        })
-        .count()
-        != 1
-    {
-        return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
-    }
-    Ok(())
+    validate_range_fact(
+        unit,
+        machine,
+        operation,
+        terminal_semantics::scalar_field_requirement(restriction, value),
+        obligation,
+    )
 }
 
 fn validate_initialization_range_authority(
@@ -1162,9 +1148,23 @@ fn validate_initialization_range_authority(
     value: ValueId,
     obligation: Option<semantic_vocabulary::ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let Some(requirement) =
-        terminal_semantics::scalar_field_initialization_requirement(restriction, value)
-    else {
+    validate_range_fact(
+        unit,
+        machine,
+        operation,
+        terminal_semantics::scalar_field_initialization_requirement(restriction, value),
+        obligation,
+    )
+}
+
+fn validate_range_fact(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    operation: OperationId,
+    requirement: Option<semantic_vocabulary::Proposition>,
+    obligation: Option<semantic_vocabulary::ObligationId>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let Some(requirement) = requirement else {
         return Ok(());
     };
     terminal_codec::canonical_proposition_order_key(&requirement)
