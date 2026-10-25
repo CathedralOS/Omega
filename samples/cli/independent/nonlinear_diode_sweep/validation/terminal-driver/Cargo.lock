@@ -9,6 +9,7 @@ dependencies = [
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
+ "terminal-codec",
  "terminal-psi",
 ]
 
@@ -87,15 +88,13 @@ dependencies = [
 [[package]]
 name = "artifacts"
 version = "0.1.0"
-dependencies = [
- "diagnostics",
-]
 
 [[package]]
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "diagnostics",
  "effects",
  "function-identity",
  "optimization-core",
@@ -146,9 +145,8 @@ name = "build-declarations"
 version = "0.1.0"
 dependencies = [
  "optimization-core",
- "source-files-to-tokens",
+ "psi-compiler",
  "syntax-trees",
- "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -171,6 +169,7 @@ dependencies = [
  "optimization-core",
  "package-compilation",
  "provider-planning",
+ "psi-compiler",
  "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
@@ -181,8 +180,6 @@ dependencies = [
  "terminal-psi",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
- "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -234,6 +231,7 @@ dependencies = [
 name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "optimization-core",
  "semantic-vocabulary",
  "target",
@@ -375,20 +373,20 @@ dependencies = [
  "diagnostics",
  "effects",
  "image-emission",
+ "language-semantics",
  "native-artifact",
  "optimization-core",
  "package-compilation",
  "platform-custody",
  "program-entry-plan",
  "provider-planning",
+ "psi-compiler",
  "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
  "task-plans",
@@ -398,7 +396,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 
@@ -406,6 +403,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "artifacts",
  "backend-plan",
  "boundary-applications",
@@ -413,40 +411,35 @@ dependencies = [
  "build-evaluation",
  "build-output",
  "build-time-evaluation",
- "calling-conventions",
- "checked-trees-to-lowered-psi",
+ "checked-trees",
  "compilation-products",
+ "component-description",
  "diagnostics",
+ "effects",
  "image-emission",
  "lowered-psi",
- "lowered-psi-to-terminal-psi",
  "native-artifact",
  "native-production",
- "numerics",
  "optimization",
  "optimization-core",
  "package-compilation",
+ "package-evidence",
  "proof-admission",
  "provider-planning",
- "runtime-abi",
+ "psi-compiler",
+ "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-fuel",
- "terminal-interpreter",
  "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
- "typed-trees-to-typed-trees",
  "validation",
 ]
 
@@ -666,6 +659,7 @@ name = "image-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "arena",
  "boundary-applications",
  "calling-conventions",
  "diagnostics",
@@ -680,9 +674,13 @@ dependencies = [
  "isa-x86_64",
  "legalized-operations",
  "machine-code",
+ "machine-emission",
  "object-file",
  "optimization-core",
+ "optimization-unit-semantics",
  "program-entry-plan",
+ "register-model",
+ "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -789,6 +787,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
+ "x86-encoding",
 ]
 
 [[package]]
@@ -948,6 +947,7 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "arena",
  "calling-conventions",
  "diagnostics",
  "function-identity",
@@ -961,6 +961,7 @@ dependencies = [
  "register-homes-to-post-allocation-machine",
  "register-model",
  "resolved-layout-to-resolved-layout",
+ "runtime-abi",
  "selected-form-encoding-to-resolved-layout",
  "selected-instructions",
  "selected-instructions-to-register-homes",
@@ -990,6 +991,7 @@ dependencies = [
  "abstract-operations",
  "boundary-applications",
  "calling-conventions",
+ "component-description",
  "diagnostics",
  "effects",
  "function-identity",
@@ -1015,6 +1017,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "task-plans",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
@@ -1031,20 +1034,30 @@ dependencies = [
  "abstract-operations-to-target-operations",
  "backend-plan",
  "boundary-applications",
+ "calling-conventions",
+ "component-description",
  "diagnostics",
+ "effects",
  "image-emission",
+ "installation-evidence",
  "machine-code",
  "machine-emission",
  "native-artifact",
  "optimization-core",
+ "post-allocation-machine-to-selected-form-encoding",
  "register-environment",
  "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
  "runtime-abi",
+ "selected-form-encoding-to-resolved-layout",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
  "target",
  "target-operations-to-selected-instructions",
+ "task-plans",
  "terminal-codec",
+ "terminal-installation",
+ "terminal-psi",
  "terminal-psi-to-abstract-operations",
 ]
 
@@ -1056,6 +1069,7 @@ dependencies = [
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -1151,6 +1165,9 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
+ "cap-fs-ext",
+ "cap-primitives",
+ "cap-std",
  "checked-interpreter",
  "checked-trees",
  "diagnostics",
@@ -1159,17 +1176,16 @@ dependencies = [
  "filesystem-authority",
  "flow-effects",
  "optimization-core",
+ "package-source",
  "platform-custody",
+ "psi-compiler",
  "semantic-vocabulary",
  "sha2",
  "source",
- "source-files-to-tokens",
  "symbols",
  "syntax-trees",
  "target",
  "terminal-psi",
- "tokens",
- "tokens-to-syntax-trees",
  "typed-trees",
 ]
 
@@ -1189,6 +1205,7 @@ dependencies = [
  "language-semantics",
  "layout",
  "numerics",
+ "optimization-core",
  "package-compilation",
  "provider-planning",
  "representation-planning",
@@ -1219,7 +1236,6 @@ dependencies = [
  "checked-interpreter",
  "compilation-products",
  "compiler",
- "component-description",
  "diagnostics",
  "effects",
  "evaluation-accounting",
@@ -1234,17 +1250,17 @@ dependencies = [
  "platform-custody",
  "proof-admission",
  "provider-planning",
+ "psi-compiler",
  "semantic-vocabulary",
  "sha2",
  "source",
- "source-files-to-tokens",
  "symbols",
  "syntax-trees",
  "target",
+ "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "tokens",
- "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -1263,6 +1279,10 @@ dependencies = [
  "sha2",
  "source",
 ]
+
+[[package]]
+name = "phase-profile"
+version = "0.1.0"
 
 [[package]]
 name = "physical-instructions"
@@ -1399,27 +1419,40 @@ dependencies = [
  "target",
  "task-plans",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
 ]
 
 [[package]]
-name = "psi-terminal-production"
+name = "psi-compiler"
 version = "0.1.0"
 dependencies = [
+ "arena",
+ "build-time-evaluation",
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "diagnostics",
+ "language-semantics",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
+ "phase-profile",
+ "rayon",
+ "representation-selections",
+ "semantic-vocabulary",
  "source",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
+ "tokens",
+ "tokens-to-syntax-trees",
+ "typed-trees",
+ "typed-trees-to-checked-trees",
+ "typed-trees-to-typed-trees",
+ "validation",
 ]
 
 [[package]]
@@ -1484,6 +1517,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -1497,6 +1531,7 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
+ "target",
 ]
 
 [[package]]
@@ -1646,6 +1681,7 @@ name = "selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "arena",
  "calling-conventions",
  "legalized-operations",
  "optimization-core",
@@ -1690,6 +1726,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-target-operations",
+ "arena",
  "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
@@ -1820,8 +1857,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
- "serde",
- "serde_json",
  "source",
  "symbols",
 ]
@@ -1875,6 +1910,16 @@ dependencies = [
  "serde",
  "serde_json",
  "source",
+ "syntax-trees-derive",
+]
+
+[[package]]
+name = "syntax-trees-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1909,6 +1954,7 @@ dependencies = [
  "abstract-operations",
  "calling-conventions",
  "function-identity",
+ "installation-evidence",
  "semantic-vocabulary",
  "target",
  "task-plans",
@@ -1922,7 +1968,9 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "access-plans",
  "calling-conventions",
+ "layout-plans",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -1950,15 +1998,16 @@ dependencies = [
  "semantic-vocabulary",
  "symbols",
  "terminal-psi",
- "typed-trees",
 ]
 
 [[package]]
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "language-semantics",
+ "layout-plans",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
@@ -1981,12 +2030,17 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
 name = "terminal-interpreter"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
+ "arena",
+ "extents",
+ "layout-plans",
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
@@ -2002,15 +2056,11 @@ name = "terminal-production"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "checked-trees",
  "diagnostics",
  "effects",
- "optimization",
- "psi-terminal-production",
- "source",
- "symbols",
+ "psi-compiler",
+ "semantic-vocabulary",
  "target",
- "terminal-codec",
  "terminal-psi",
  "trust-model",
 ]
@@ -2019,6 +2069,7 @@ dependencies = [
 name = "terminal-psi"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "language-core",
  "language-semantics",
@@ -2035,10 +2086,12 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "component-description",
  "diagnostics",
  "effects",
  "function-identity",
  "installation-evidence",
+ "layout-plans",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2057,9 +2110,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-runtime"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "calling-conventions",
+ "compilation-products",
+ "native-artifact",
+ "numerics",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
+ "extents",
+ "language-semantics",
  "numerics",
  "optimization",
  "proof-admission",
@@ -2118,10 +2195,12 @@ dependencies = [
  "access-plans",
  "arena",
  "diagnostics",
+ "flow-effects",
  "language-core",
  "language-semantics",
  "layout-plans",
  "numerics",
+ "phase-profile",
  "semantic-vocabulary",
  "serde",
  "serde_json",
@@ -2143,8 +2222,11 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof",
  "proof-admission",
+ "rayon",
+ "representation-selections",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -2163,7 +2245,9 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "phase-profile",
  "proof",
+ "representation-selections",
  "symbols",
  "typed-trees",
  "validation",
@@ -2196,7 +2280,10 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof-admission",
+ "rayon",
+ "representation-selections",
  "semantic-vocabulary",
  "source",
  "symbols",

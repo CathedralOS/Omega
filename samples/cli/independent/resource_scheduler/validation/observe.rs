@@ -2,7 +2,7 @@
 //! Scheduling remains in Omega. One compile retains the exact Terminal artifact;
 //! each finite fixture executes separately under a fresh private runtime domain.
 //! Both streams and exact statuses are exported before native publication.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -37,12 +37,12 @@ fn observe() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     fixtures.sort();
     for fixture in &fixtures {
         let name = fixture.file_stem().unwrap().to_str().unwrap();
-        let result = compiler::runtime::execute(TerminalRuntimeRequest {
+        let result = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             fuel_allowance: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(fs::File::open(fixture)?)),
-            clock: Some(compiler::runtime::TerminalClockSnapshot::capture_host_epoch()?),
+            clock: Some(terminal_runtime::TerminalClockSnapshot::capture_host_epoch()?),
         })?;
         let exit = match result.status {
             TerminalExecutionStatus::ExternalCompletion(value) => value.return_code,
@@ -54,7 +54,7 @@ fn observe() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         fs::write(output.join("terminal").join(format!("{name}.exit")), format!("{exit}\n"))?;
         println!("terminal {name} exit={exit}");
     }
-    let (_published, executable) = omega::compilation::publication::publish_native_artifact(
+    let (_published, executable) = omega_build::publication::publish_native_artifact(
         report, &output.join("product"),
     )?;
     for fixture in &fixtures {

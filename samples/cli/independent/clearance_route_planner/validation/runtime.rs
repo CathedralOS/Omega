@@ -1,6 +1,6 @@
 //! Observe original frozen requests through one normally admitted product.
 //! Native and public Terminal buffers are captured before oracle comparison.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -81,7 +81,7 @@ fn validate() -> Result<(), String> {
             .ok_or("missing expected stdout")?
             .as_bytes();
         let expected_exit = case["exit"].as_i64().ok_or("missing expected exit")?;
-        let terminal = compiler::runtime::execute(TerminalRuntimeRequest {
+        let terminal = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some(target.target_name()),
             provisions: report.runtime_provisions(),

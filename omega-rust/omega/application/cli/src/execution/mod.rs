@@ -132,7 +132,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     let (replay_input, interpretation) =
         if request.compare_interpreter && request.target_name.is_none() {
             match compilation::interpret_product(&report, None, target_name) {
-                Err(compiler::runtime::TerminalRuntimeError::MissingProvision {
+                Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
                     capability: "runtime-standard-input",
                     ..
                 }) => {
@@ -388,16 +388,16 @@ fn compare_interpretation(
     native_exit: ProcessExitObservation,
     interpretation: Option<
         Result<
-            compiler::runtime::TerminalRuntimeObservation,
-            compiler::runtime::TerminalRuntimeError,
+            terminal_runtime::TerminalRuntimeObservation,
+            terminal_runtime::TerminalRuntimeError,
         >,
     >,
 ) -> InterpreterComparison {
-    use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
+    use terminal_runtime::{TerminalExecutionResult, TerminalExecutionStatus};
 
     match interpretation {
         None => InterpreterComparison::NotRequested,
-        Some(Err(error)) if comparison_unavailable(&error) => {
+        Some(Err(error)) if error.comparison_unavailable() => {
             InterpreterComparison::Declined(error.to_string())
         }
         Some(Err(error)) => {
@@ -438,29 +438,4 @@ fn compare_interpretation(
             }
         }
     }
-}
-
-/// Unsupported interpretation can surface during requirement discovery,
-/// instantiation, or execution. Preserve that typed distinction at every
-/// boundary; malformed artifacts and missing custody are still failures.
-fn comparison_unavailable(error: &compiler::runtime::TerminalRuntimeError) -> bool {
-    use compiler::runtime::TerminalRuntimeError;
-    use terminal_interpreter::{
-        TerminalArtifactInterpretError, TerminalInstanceError, TerminalInterpretError,
-    };
-
-    let interpretation = match error {
-        TerminalRuntimeError::MissingProvision { .. } => return true,
-        TerminalRuntimeError::Requirements(error)
-        | TerminalRuntimeError::Artifact(TerminalArtifactInterpretError::Execution(error))
-        | TerminalRuntimeError::Execution(TerminalInstanceError::Execution(error)) => error,
-        _ => return false,
-    };
-    matches!(
-        interpretation,
-        TerminalInterpretError::UnsupportedCapability(_)
-            | TerminalInterpretError::UnsupportedSemanticVariant(_)
-            | TerminalInterpretError::ScalarEntryQualificationUnsupported
-            | TerminalInterpretError::AffineProjectionNotRepresentable
-    )
 }

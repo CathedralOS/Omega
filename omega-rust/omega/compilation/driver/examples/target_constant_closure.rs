@@ -167,14 +167,14 @@ fn main() {
     let artifact = windows
         .retained_native_artifact()
         .expect("Windows native emission");
-    let observation = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         x86_flags: None,
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: windows.runtime_provisions(),
         fuel_allowance: 100_000,
-        domain_exit: compiler::runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,
     })

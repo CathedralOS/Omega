@@ -90,7 +90,7 @@ def main():
         assert digest(ROOT/'data'/f'{name}.txt') == case['input_sha256'], name
     libraries = {}
     directories = set()
-    for name in ('omega','compiler','package_manager','terminal_interpreter','target','bounded_process'):
+    for name in ('omega', 'omega_build','compiler', 'terminal_runtime','package_manager','terminal_interpreter','target','bounded_process'):
         paths = list((compiler.parent/'build').glob(f'{name.replace("_","-")}/*/out/lib{name}-*.rlib'))
         assert paths, (name,'missing recorded producer library',compiler)
         selected = max(paths,key=lambda path:path.stat().st_mtime_ns)

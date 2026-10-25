@@ -1,7 +1,7 @@
 //! Validation-only consumer of the same accepted native product and retained
 //! Terminal artifact as `omega run`. Captures BOTH output streams and checks
 //! them against independently frozen oracles; never substitutes host solving.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -55,7 +55,7 @@ fn main() {
             .collect::<Vec<_>>()
             .join(" ")
             + "\n";
-        let observed = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observed = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             provider_proposal: None,
             target: Some("linux_x86_64"),
@@ -92,7 +92,7 @@ fn main() {
                                       "stdout": String::from_utf8(observed.stdout).unwrap()}));
     }
     for (name, input) in manifest["invalid"].as_object().expect("invalid inputs") {
-        let observed = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observed = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             provider_proposal: None,
             target: Some("linux_x86_64"),

@@ -133,14 +133,6 @@ fn selected_execution_does_not_copy_checked_programs() {
 }
 
 #[test]
-fn retained_runtime_borrows_terminal_storage() {
-    let source = include_str!("runtime.rs");
-    assert!(source.contains("TerminalProgram::borrow(artifact)"));
-    assert!(!source.contains("TerminalProgram::load("));
-    assert!(!source.contains("semantic_bytes()"));
-}
-
-#[test]
 fn product_consumers_do_not_assemble_source_stages() {
     for manifest in [
         include_str!("../Cargo.toml"),

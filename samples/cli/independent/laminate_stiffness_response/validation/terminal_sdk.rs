@@ -1,7 +1,7 @@
 //! Capture the accepted native product's retained Terminal artifact through the
 //! public runtime SDK. Admission and runtime provisions come from ordinary
 //! preparation; this sponsor supplies no substitute provider proposal.
-use compiler::runtime::{
+use terminal_runtime::{
     TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeRequest,
 };
 use package_manager::operations::{
@@ -58,7 +58,7 @@ fn main() {
     for ordinal in 0..case_count {
         let name = format!("{ordinal:02}");
         let input = fs::read(inputs.join(format!("{name}.stdin"))).unwrap();
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),

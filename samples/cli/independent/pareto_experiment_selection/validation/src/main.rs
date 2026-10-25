@@ -2,7 +2,7 @@
 //! package facade, then replay each finite input against the exact produced Terminal
 //! artifact and its admitted provisions. No source evaluator, invented provider,
 //! recompilation per row, compiler modification, or expected-value guest code.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -83,7 +83,7 @@ fn validate(namespace: &Path) -> Result<(), String> {
         let expected = std::fs::read(namespace.join("expected").join(format!("{label}.stdout")))
             .map_err(|error| error.to_string())?;
         let expected_exit = if label.starts_with("invalid_") { 2 } else { 0 };
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),

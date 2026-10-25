@@ -1,6 +1,6 @@
 //! Capture the existing public Terminal runtime's bytes from one prepared
 //! native product. This harness evaluates no physics and manufactures no IR.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     for (name, input) in cases {
         std::fs::write(output.join(format!("terminal-{name}.stdin")), &input)?;
-        let observed = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observed = terminal_runtime::execute(TerminalRuntimeRequest {
             provider_proposal: None,
             artifact, target: Some("linux_x86_64"), provisions: report.runtime_provisions(),
             fuel_allowance: 10_000_000,

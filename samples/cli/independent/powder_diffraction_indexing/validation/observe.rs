@@ -2,7 +2,7 @@
 //! Compiles the actual admitted application once; every fixture consumes its
 //! retained canonical Terminal artifact and exact runtime provisions. No tree
 //! interpretation, synthetic receiver, reconstructed artifact or trust bypass.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -62,7 +62,7 @@ fn run(
                 std::process::exit(124);
             }
         });
-        let observed = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observed = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
@@ -109,7 +109,7 @@ fn run(
         );
     }
     let (_, executable) =
-        omega::compilation::publication::publish_native_artifact(report, &output.join("compiled"))
+        omega_build::publication::publish_native_artifact(report, &output.join("compiled"))
             .map_err(|error| error.to_string())?;
     for name in &names {
         let prepared = bounded_process::BoundedProcessPrepared::new(

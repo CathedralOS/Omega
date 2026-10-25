@@ -28,7 +28,6 @@ pub use identity::{compiler_build_profile, compiler_identity, compiler_optimizat
 
 pub mod checked;
 mod native;
-pub mod runtime;
 mod terminal;
 
 pub use crate::checked::{

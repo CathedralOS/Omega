@@ -3,7 +3,7 @@ import json, os, pathlib, subprocess, sys
 root=pathlib.Path(sys.argv[1]).resolve()
 source=pathlib.Path(__file__).with_name('observe.rs').resolve()
 repo=source.parents[5]
-names=('symbols','compiler','package_manager','target','terminal_interpreter','build_declarations','diagnostics','package_compilation','semantic_vocabulary','source_files_to_tokens','syntax_trees','tokens_to_syntax_trees','source','effects','terminal_psi','native_artifact','terminal_psi_to_abstract_operations','component_description','terminal_codec')
+names=('symbols','compiler', 'terminal_runtime','package_manager','target','terminal_interpreter','build_declarations','diagnostics','package_compilation','semantic_vocabulary','source_files_to_tokens','syntax_trees','tokens_to_syntax_trees','source','effects','terminal_psi','native_artifact','terminal_psi_to_abstract_operations','component_description','terminal_codec')
 archives=list(root.rglob('*.rlib'))+list(root.rglob('*.so'))
 command=['rustc','--edition=2024','-O',str(source),'-o',sys.argv[2]]
 for folder in sorted({p.parent for p in archives}): command+=['-L',f'dependency={folder}']

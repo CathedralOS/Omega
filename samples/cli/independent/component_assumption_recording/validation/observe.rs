@@ -93,13 +93,13 @@ fn runtime(root: &Path, output: &Path) {
     assert_eq!(native.status.code(), Some(70));
     assert!(native.stdout.is_empty() && native.stderr.is_empty());
     std::fs::write(output.join("native.exit"), b"70\n").unwrap();
-    let result = compiler::runtime::execute(compiler::runtime::TerminalRuntimeRequest {
+    let result = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         provider_proposal: None,
         artifact: artifact.psi_artifact(),
         target: Some("linux_x86_64"),
         provisions: report.runtime_provisions(),
         fuel_allowance: 1_000_000,
-        domain_exit: compiler::runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,
     })

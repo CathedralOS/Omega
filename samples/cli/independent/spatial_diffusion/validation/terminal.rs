@@ -2,7 +2,7 @@
 //! This tool consumes the normal prepared native report's exact Terminal
 //! artifact and admitted provisions. It neither interprets checked trees nor
 //! reruns Build per input. Every input receives an isolated runtime instance.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
     compile_prepared_local_project_for_native, prepare_local_project,
@@ -100,7 +100,7 @@ fn validate() -> Result<(), String> {
             .ok_or("non-string input")?
             .as_bytes()
             .to_vec();
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some(target.target_name()),
             provisions: report.runtime_provisions(),

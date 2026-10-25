@@ -79,6 +79,7 @@ dependencies = [
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -483,6 +484,7 @@ dependencies = [
  "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
+ "terminal-runtime",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "trust-model",
@@ -694,6 +696,7 @@ dependencies = [
  "sha2",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -825,6 +828,7 @@ dependencies = [
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -846,6 +850,7 @@ dependencies = [
  "target",
  "terminal-interpreter",
  "terminal-psi",
+ "terminal-runtime",
  "tokens-to-syntax-trees",
  "typed-trees",
 ]
@@ -1240,6 +1245,7 @@ dependencies = [
  "package-manager",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -1298,8 +1304,8 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-codec",
- "terminal-interpreter",
  "terminal-psi",
+ "terminal-runtime",
  "terminal-semantics",
 ]
 
@@ -1856,6 +1862,7 @@ dependencies = [
  "serde_json",
  "target",
  "terminal-interpreter",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2091,6 +2098,7 @@ dependencies = [
  "omega",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2359,6 +2367,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-runtime"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "calling-conventions",
+ "compilation-products",
+ "native-artifact",
+ "numerics",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
@@ -2380,6 +2409,7 @@ dependencies = [
  "omega",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -2544,6 +2574,7 @@ dependencies = [
  "omega",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
 
 [[package]]

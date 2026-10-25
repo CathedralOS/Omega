@@ -5,7 +5,7 @@
 use std::{fs, path::PathBuf};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions,
     PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
-use compiler::runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation};
+use terminal_runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation};
 use terminal_interpreter::TerminalExecutionStatus;
 
 fn run(root: PathBuf, output: PathBuf, fuel: u64, timeout: u64, names: Vec<String>) -> Result<(), String> {
@@ -34,7 +34,7 @@ fn run(root: PathBuf, output: PathBuf, fuel: u64, timeout: u64, names: Vec<Strin
                 std::process::exit(124);
             }
         });
-        let observed=compiler::runtime::execute(TerminalRuntimeRequest {
+        let observed=terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,target:Some("linux_x86_64"),provisions:report.runtime_provisions(),provider_proposal:None,
             fuel_allowance:fuel,domain_exit:TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input:Some(Box::new(fs::File::open(root.join("data").join(format!("{name}.txt")))

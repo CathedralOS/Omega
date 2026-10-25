@@ -1,6 +1,6 @@
 //! Capture actual numerical native and Terminal output from the same product.
 //! This uses normal package preparation and preserves its admission checks.
-use compiler::runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{
     LocalProjectPreparationOptions, PreparedLocalProjectNativeRequest,
 };
@@ -48,7 +48,7 @@ fn run() {
         .unwrap();
     for input_path in arguments.iter().skip(3).map(PathBuf::from) {
         let case_directory = input_path.parent().unwrap();
-        let observation = compiler::runtime::execute(TerminalRuntimeRequest {
+        let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             artifact,
             target: Some("linux_x86_64"),
             provisions: report.runtime_provisions(),
@@ -72,7 +72,7 @@ fn run() {
             observation.status
         );
     }
-    let (_, executable) = omega::compilation::publication::publish_native_artifact(
+    let (_, executable) = omega_build::publication::publish_native_artifact(
         report,
         &directory.join("product"),
     )

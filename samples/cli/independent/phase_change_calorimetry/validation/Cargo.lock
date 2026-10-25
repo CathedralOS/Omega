@@ -9,6 +9,7 @@ dependencies = [
  "language-core",
  "optimization-core",
  "semantic-vocabulary",
+ "terminal-codec",
  "terminal-psi",
 ]
 
@@ -87,15 +88,13 @@ dependencies = [
 [[package]]
 name = "artifacts"
 version = "0.1.0"
-dependencies = [
- "diagnostics",
-]
 
 [[package]]
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
+ "diagnostics",
  "effects",
  "function-identity",
  "optimization-core",
@@ -232,6 +231,7 @@ dependencies = [
 name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "optimization-core",
  "semantic-vocabulary",
  "target",
@@ -383,6 +383,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "image-emission",
+ "language-semantics",
  "native-artifact",
  "optimization-core",
  "package-compilation",
@@ -420,7 +421,6 @@ dependencies = [
  "build-evaluation",
  "build-output",
  "build-time-evaluation",
- "calling-conventions",
  "checked-trees",
  "compilation-products",
  "component-description",
@@ -430,7 +430,6 @@ dependencies = [
  "lowered-psi",
  "native-artifact",
  "native-production",
- "numerics",
  "optimization",
  "optimization-core",
  "package-compilation",
@@ -439,7 +438,6 @@ dependencies = [
  "provider-planning",
  "psi-compiler",
  "representation-planning",
- "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
@@ -447,8 +445,6 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-fuel",
- "terminal-interpreter",
  "terminal-production",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
@@ -697,7 +693,9 @@ dependencies = [
  "machine-emission",
  "object-file",
  "optimization-core",
+ "optimization-unit-semantics",
  "program-entry-plan",
+ "register-model",
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
@@ -805,6 +803,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
+ "x86-encoding",
 ]
 
 [[package]]
@@ -1026,6 +1025,7 @@ dependencies = [
  "abstract-operations",
  "boundary-applications",
  "calling-conventions",
+ "component-description",
  "diagnostics",
  "effects",
  "function-identity",
@@ -1051,6 +1051,7 @@ dependencies = [
  "sha2",
  "target",
  "target-operations",
+ "task-plans",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
@@ -1068,20 +1069,28 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "component-description",
  "diagnostics",
+ "effects",
  "image-emission",
+ "installation-evidence",
  "machine-code",
  "machine-emission",
  "native-artifact",
  "optimization-core",
+ "post-allocation-machine-to-selected-form-encoding",
  "register-environment",
  "register-homes-to-post-allocation-machine",
+ "resolved-layout-to-resolved-layout",
  "runtime-abi",
+ "selected-form-encoding-to-resolved-layout",
  "selected-instructions-to-register-homes",
  "selected-instructions-to-selected-instructions",
  "target",
  "target-operations-to-selected-instructions",
+ "task-plans",
  "terminal-codec",
+ "terminal-installation",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
 ]
@@ -1127,21 +1136,37 @@ name = "omega"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "bounded-process",
  "compilation-products",
  "compiler",
  "diagnostics",
  "mimalloc",
+ "omega-build",
  "package-compilation",
  "package-manager",
  "package-source",
+ "phase-profile",
  "platform-custody",
  "resolver-execution",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
- "terminal-interpreter",
  "terminal-psi",
+ "terminal-runtime",
  "terminal-semantics",
+]
+
+[[package]]
+name = "omega-build"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "compilation-products",
+ "compiler",
+ "diagnostics",
+ "package-manager",
+ "platform-custody",
+ "target",
 ]
 
 [[package]]
@@ -1201,6 +1226,9 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
+ "cap-fs-ext",
+ "cap-primitives",
+ "cap-std",
  "checked-interpreter",
  "checked-trees",
  "diagnostics",
@@ -1209,6 +1237,7 @@ dependencies = [
  "filesystem-authority",
  "flow-effects",
  "optimization-core",
+ "package-source",
  "platform-custody",
  "psi-compiler",
  "semantic-vocabulary",
@@ -1319,9 +1348,15 @@ dependencies = [
  "bounded-process",
  "compiler",
  "omega",
+ "omega-build",
  "package-manager",
  "target",
+ "terminal-runtime",
 ]
+
+[[package]]
+name = "phase-profile"
+version = "0.1.0"
 
 [[package]]
 name = "physical-instructions"
@@ -1465,6 +1500,7 @@ dependencies = [
 name = "psi-compiler"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "build-time-evaluation",
  "checked-trees",
  "checked-trees-to-lowered-psi",
@@ -1473,6 +1509,8 @@ dependencies = [
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
+ "phase-profile",
+ "rayon",
  "representation-selections",
  "semantic-vocabulary",
  "source",
@@ -1553,6 +1591,7 @@ dependencies = [
  "task-plans",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -1566,6 +1605,7 @@ dependencies = [
  "selected-instructions",
  "selected-instructions-to-register-homes",
  "semantic-vocabulary",
+ "target",
 ]
 
 [[package]]
@@ -1715,6 +1755,7 @@ name = "selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "arena",
  "calling-conventions",
  "legalized-operations",
  "optimization-core",
@@ -1759,6 +1800,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-target-operations",
+ "arena",
  "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
@@ -1895,8 +1937,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
- "serde",
- "serde_json",
  "source",
  "symbols",
 ]
@@ -1950,6 +1990,16 @@ dependencies = [
  "serde",
  "serde_json",
  "source",
+ "syntax-trees-derive",
+]
+
+[[package]]
+name = "syntax-trees-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1984,6 +2034,7 @@ dependencies = [
  "abstract-operations",
  "calling-conventions",
  "function-identity",
+ "installation-evidence",
  "semantic-vocabulary",
  "target",
  "task-plans",
@@ -1997,7 +2048,9 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "access-plans",
  "calling-conventions",
+ "layout-plans",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -2031,8 +2084,10 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "language-semantics",
+ "layout-plans",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
@@ -2055,12 +2110,17 @@ dependencies = [
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
 name = "terminal-interpreter"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
+ "arena",
+ "extents",
+ "layout-plans",
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
@@ -2076,16 +2136,11 @@ name = "terminal-production"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "checked-trees",
  "diagnostics",
  "effects",
- "optimization",
  "psi-compiler",
  "semantic-vocabulary",
- "source",
- "symbols",
  "target",
- "terminal-codec",
  "terminal-psi",
  "trust-model",
 ]
@@ -2094,6 +2149,7 @@ dependencies = [
 name = "terminal-psi"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "arena",
  "language-core",
  "language-semantics",
@@ -2110,10 +2166,12 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
+ "component-description",
  "diagnostics",
  "effects",
  "function-identity",
  "installation-evidence",
+ "layout-plans",
  "numerics",
  "optimization-core",
  "optimization-unit",
@@ -2132,9 +2190,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-runtime"
+version = "0.1.0"
+dependencies = [
+ "backend-plan",
+ "calling-conventions",
+ "compilation-products",
+ "native-artifact",
+ "numerics",
+ "runtime-abi",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "terminal-semantics"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
+ "extents",
+ "language-semantics",
  "numerics",
  "optimization",
  "proof-admission",
@@ -2198,6 +2280,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "phase-profile",
  "semantic-vocabulary",
  "serde",
  "serde_json",
@@ -2219,8 +2302,10 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof",
  "proof-admission",
+ "rayon",
  "representation-selections",
  "semantic-vocabulary",
  "source",
@@ -2240,6 +2325,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "phase-profile",
  "proof",
  "representation-selections",
  "symbols",
@@ -2274,7 +2360,9 @@ dependencies = [
  "layout-plans",
  "numerics",
  "optimization",
+ "phase-profile",
  "proof-admission",
+ "rayon",
  "representation-selections",
  "semantic-vocabulary",
  "source",

@@ -17,7 +17,7 @@ import time
 ROOT = Path(__file__).resolve().parent
 HOST = r'''
 use std::{fs, io::Cursor, path::PathBuf};
-use compiler::runtime::{execute, TerminalDomainExitDelegation, TerminalRuntimeRequest};
+use terminal_runtime::{execute, TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions,
     compile_prepared_local_project_for_native, PreparedLocalProjectNativeRequest};
 use terminal_interpreter::TerminalExecutionStatus;
@@ -89,6 +89,7 @@ def main():
     project = ROOT/'build/terminal-host'
     (project/'src').mkdir(parents=True, exist_ok=True)
     dependencies = {'compiler': 'omega-rust/omega/compilation/driver',
+                    'terminal-runtime': 'omega-rust/omega/application/terminal-runtime',
                     'package-manager': 'omega-rust/omega/packages/package-manager',
                     'target': 'omega-rust/omega/compilation/backend/target',
                     'terminal-interpreter': 'omega-rust/psi/interpreter/terminal-interpreter'}

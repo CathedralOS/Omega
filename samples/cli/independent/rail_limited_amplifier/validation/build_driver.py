@@ -22,7 +22,7 @@ if len(omega_libraries)>1:
     omega_libraries=[p for p in omega_libraries if int.from_bytes(bytes.fromhex((p.parent/'lib-omega').read_text()),'little')==required]
 assert len(omega_libraries)==1,omega_libraries
 omega_dependencies={row[1]:row[3] for row in json.loads(omega_libraries[0].read_text())['deps']}
-for crate in ['compiler','package_manager','target','terminal_interpreter','omega']:
+for crate in ['compiler', 'terminal_runtime','package_manager','target','terminal_interpreter','omega', 'omega_build']:
     matches=list(target.rglob(f'lib{crate}-*.rlib'))
     if not matches: matches=list(target.glob(f'lib{crate}.rlib'))
     if crate=='omega':
