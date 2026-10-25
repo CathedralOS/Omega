@@ -70,10 +70,25 @@ class DevelopmentRun(unittest.TestCase):
         self.assertFalse((self.project / "omega.lock").exists())
         self.assertFalse((self.project / "build/package-manager").exists())
 
-    def independent_review(self, generated, sealed=True):
+    def independent_review(self, generated, sealed=True, second_component=False):
         fixture = REPOSITORY / "tests/omega/pass/facts/opaque_independent_closed_carrier_through_other_machine_exit"
         shutil.copytree(fixture, self.project, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns("build", "omega.lock"))
+        packages = 2
+        if second_component:
+            shutil.copytree(self.project / "producer", self.project / "other")
+            package_build = self.project / "other/build.omg"
+            package_build.write_text(package_build.read_text().replace(
+                '"opaque_address_producer"', '"other_address_producer"'))
+            build = self.project / "build.omg"
+            source = build.read_text()
+            closing = source.rfind("}")
+            build.write_text(source[:closing] + '''
+ Build::depend_as(builder, "other", Source::Path { location: "other" });
+ Build::select_representation<other::InternetAddress, other::AddressRepresentation>(builder);
+ Build::select_provider<other::AddressBridge, other::AddressBridgeProvider>(builder, CompositionMode::Independent);
+''' + source[closing:])
+            packages += 1
         if generated:
             build = self.project / "build.omg"
             source = build.read_text()
@@ -103,12 +118,25 @@ class DevelopmentRun(unittest.TestCase):
             self.assertIn("staging entry is not sealed", result.stderr)
             return
         self.assert_exit(result, 3)  # Dependency review awaits an explicit decision.
-        self.assertIn("checked 2 source packages", result.stdout)
+        self.assertIn(f"checked {packages} source packages", result.stdout)
         passes = re.findall(r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) "
                             r"carried=(\d+).*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
                             result.stderr)
-        self.assertEqual(passes, [("discovery", "2", "2", "0", "2", "4")],
+        self.assertEqual(passes, [("discovery", str(packages), str(packages), "0",
+                                  str(packages), str(2 * packages))],
                          result.stdout + result.stderr)
+        resumed = self.invoke("update", "--project", self.project, "--resume", "--offline")
+        self.assert_exit(resumed, 3)
+        resumed_passes = re.findall(
+            r"note=review_pass (\w+) occurrences=(\d+) compiled=(\d+) carried=(\d+)"
+            r".*?preliminary_checks=(\d+).*?settled_checks=(\d+)",
+            resumed.stderr)
+        self.assertTrue(resumed_passes, resumed.stdout + resumed.stderr)
+        for _, occurrences, compiled, carried, preliminary, settled in resumed_passes:
+            self.assertEqual(int(compiled) + int(carried), int(occurrences),
+                             resumed.stdout + resumed.stderr)
+            self.assertLessEqual(int(preliminary), int(compiled), resumed.stderr)
+            self.assertLessEqual(int(settled), 2 * int(compiled), resumed.stderr)
 
     def test_independent_review_completes_each_occurrence_once(self):
         self.independent_review(generated=False)
@@ -118,6 +146,9 @@ class DevelopmentRun(unittest.TestCase):
 
     def test_independent_review_rejects_unsealed_generated_source(self):
         self.independent_review(generated=True, sealed=False)
+
+    def test_component_cache_refresh_retains_completed_sibling_work(self):
+        self.independent_review(generated=True, second_component=True)
 
     def test_unlocked_compile_uses_the_same_native_route(self):
         result = self.invoke("--build-dir", self.project / "output", "--target", self.target, "main.omg")
