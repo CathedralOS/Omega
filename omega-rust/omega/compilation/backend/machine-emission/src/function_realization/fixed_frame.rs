@@ -1,4 +1,7 @@
-//! Optimizer module role: executable entrance. Ordinary realization with exact fixed-frame custody.
+//! Join produced encoding/layout artifacts with their exact fixed-frame custody.
+//!
+//! Native compilation sequences stages 07-09. This owner constructs the exit
+//! contract and seals the realization; retained readers can replay its joins.
 
 use super::assembly::{expected_fixed_frame_manifest, fixed_frame_custody};
 use super::carriers::{
@@ -8,22 +11,27 @@ use super::carriers::{
 use super::error::FunctionRelativeOptimizationRealizationError;
 use crate::exit_contract::stage_whole_function_exit_contract_for_layout;
 use crate::frame_layout::TargetFrameLayoutPolicy;
-use optimization_core::{OptimizationExecutionPhase, OptimizationWorkBudget};
+use optimization_core::OptimizationExecutionPhase;
 use post_allocation_machine_to_selected_form_encoding::{
-    stage_optimized_layout_independent_selected_form_encoding,
+    StagedOptimizedSelectedFormEncoding,
     validate_optimized_layout_independent_selected_form_encoding,
 };
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use resolved_layout_to_resolved_layout::{
-    execute_resolved_layout_optimization, validate_resolved_layout_optimization,
+    ResolvedLayoutOptimization, validate_resolved_layout_optimization,
 };
-use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 use selected_instructions_to_register_homes::RetainedAllocation;
 
-pub fn stage_fixed_frame_function_relative_realization(
+/// Bind the pipeline's produced frame, encoding and layout to one allocation.
+/// This checks their joins and exit contract without running a compiler stage.
+pub fn assemble_fixed_frame_realization(
     allocation: RetainedAllocation,
     machine: StagedOptimizedPostAllocationMachinePlan,
-    budget: OptimizationWorkBudget,
+    frame: super::FunctionRelativeFrame,
+    encoding: StagedOptimizedSelectedFormEncoding,
+    baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    layout_optimization: ResolvedLayoutOptimization,
 ) -> Result<StagedFixedFrameFunctionRelativeRealization, FunctionRelativeOptimizationRealizationError>
 {
     // The allocation and the machine plan were built from the same current
@@ -33,31 +41,6 @@ pub fn stage_fixed_frame_function_relative_realization(
     let selected = current.selected();
     let environment = current.register_environment();
     let physical = environment.physical();
-    let frame = super::frame::stage_frame(
-        &current,
-        &machine,
-        TargetFrameLayoutPolicy::CanonicalOrdinaryCallFrameV1,
-        budget,
-    )?;
-    let encoding = stage_optimized_layout_independent_selected_form_encoding(
-        selected,
-        &machine,
-        physical,
-        Some(frame.layout().plan()),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    let baseline_layout =
-        stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
-            .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let layout_optimization = execute_resolved_layout_optimization(
-        physical,
-        &baseline_layout,
-        &current
-            .selections()
-            .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
-        current.budget_per_pass(),
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)?;
     let exit_contract = stage_whole_function_exit_contract_for_layout(
         selected,
         &machine,

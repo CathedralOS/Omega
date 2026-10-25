@@ -7,12 +7,14 @@ original image request and diagnostics. No source compilation happens here.
 
 [pipeline.rs](src/pipeline.rs) sequences the body transformations for application
 entries, callbacks and component exports: abstract optimization, target lowering,
-instruction selection, selected optimization, register allocation, machine/frame
-realization and object emission. There is one implementation of that sequence.
+instruction selection, selected optimization, register allocation, post-allocation
+machine construction, frame preparation, encoding, layout, layout optimization,
+realization assembly and object emission. There is one implementation of that sequence.
 Its internal target boundary lets callers capture runtime layout companions
 before instruction selection, preserving error order without a callback hook.
-Frame encoding/layout stages remain inside machine emission; moving those stage
-calls into the pipeline owner is still part of the broader ownership migration.
+Machine emission owns frame geometry and its byte protocol, then joins the
+pipeline's encoded/layout products with the exit contract and source identities.
+It no longer drives compiler stages 07-09 behind the pipeline's entrance.
 
 [realization.rs](src/realization.rs) admits the entry and captures runtime
 provisions. [Object emission](src/realization/object_emission.rs) uses the shared

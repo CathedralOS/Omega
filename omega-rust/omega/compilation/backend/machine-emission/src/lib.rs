@@ -11,10 +11,10 @@
 //! what the same compile just produced (verification placement in
 //! `omega-rust/pipeline.md`):
 //!
-//! 1. [`stage_fixed_frame_function_relative_realization`]
-//!    ([`function_realization`]) reads the current allocation, stages the frame,
-//!    encodes and lays out the selected forms, and stages the whole-function
-//!    exit contract.
+//! 1. [`stage_function_frame`] prepares frame geometry and its byte protocol.
+//!    The native pipeline owns encoding and layout stages 07-09;
+//!    [`assemble_fixed_frame_realization`] then joins their products and
+//!    constructs the whole-function exit contract.
 //! 2. [`stage_optimized_function_fragment_emission`] ([`fragment_emission`])
 //!    projects that realization into unplaced function fragments.
 //! 3. [`stage_function_fragment_frame_application`] ([`frame_application`])
@@ -48,7 +48,10 @@ pub(crate) use optimization_core::digest_encoder;
 mod function_realization;
 pub mod native_entry_bridge;
 
-pub use function_realization::stage_fixed_frame_function_relative_realization;
+pub use function_realization::{
+    FunctionRelativeFrame, StagedFixedFrameFunctionRelativeRealization,
+    assemble_fixed_frame_realization, stage_function_frame,
+};
 
 pub use function_realization::FunctionRelativeOptimizationRealizationError;
 // Evidence the realization joins: frame geometry, frame bytes, exit contract.

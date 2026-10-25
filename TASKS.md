@@ -2788,9 +2788,11 @@ crash and native exit behavior.
   The application Build coordinator must own scheduling, while two compiler
   entrances visibly sequence representations and stages. Remove old orchestration
   and forbidden production dependencies as callers migrate; a shorter wrapper
-  or folder move does not establish this outcome. Current execution starts with
-  consolidating scattered native sequencing and making product orchestration
-  explicit. Psi facade completion, application Build ownership, the common
+  or folder move does not establish this outcome. Native body sequencing is
+  shared by roots and callables, including explicit stages 07-09; backend frame
+  construction and evidence joins remain cohesive backend operations. Product
+  orchestration retains identities with ordered work. Psi facade completion,
+  application Build ownership, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute
   once over every authored target body; one canonical Terminal Psi product is

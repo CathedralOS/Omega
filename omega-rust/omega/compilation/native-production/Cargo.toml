@@ -15,6 +15,9 @@ target-operations-to-selected-instructions = { path = "../pipeline/03_target-ope
 selected-instructions-to-selected-instructions = { path = "../pipeline/04_selected-instructions-to-selected-instructions" }
 selected-instructions-to-register-homes = { path = "../pipeline/05_selected-instructions-to-register-homes" }
 register-homes-to-post-allocation-machine = { path = "../pipeline/06_register-homes-to-post-allocation-machine" }
+post-allocation-machine-to-selected-form-encoding = { path = "../pipeline/07_post-allocation-machine-to-selected-form-encoding" }
+selected-form-encoding-to-resolved-layout = { path = "../pipeline/08_selected-form-encoding-to-resolved-layout" }
+resolved-layout-to-resolved-layout = { path = "../pipeline/09_resolved-layout-to-resolved-layout" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 backend-plan = { path = "../backend/plans/backend-plan" }
 calling-conventions = { path = "../backend/calling-conventions" }
