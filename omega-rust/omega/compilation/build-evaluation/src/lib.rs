@@ -1,9 +1,11 @@
 //! Build admission, execution, and checked result assembly.
 //!
-//! [`evaluate_build`] selects the source-owned entry before semantic admission,
-//! filesystem preparation, restricted-request consent, and execution. Its private admitted checkpoint
-//! binds the exact program and entry before effects. The returned [`EvaluatedBuild`]
-//! carries configuration, requested authority and source commitment together.
+//! [`prepare_build_evaluation`] selects the source-owned entry before semantic admission,
+//! filesystem preparation and restricted-request consent. Its private admitted checkpoint
+//! binds the exact program and entry before effects. The caller starts and steps
+//! one retained Terminal activation, then rejoins its normal return with the
+//! prepared evaluation. Only that completion produces [`EvaluatedBuild`], carrying
+//! configuration, requested authority and source commitment together.
 //! Selection and evidence operations remain with their domain owners.
 //! Every activation checks its helpers, independently of optional package inputs,
 //! then consumes that checker-transformed program without respecialization.
@@ -49,13 +51,17 @@
 //!   product declarations without executing them; target-default declarations
 //!   remain under their separate admitted target roster.
 //!
-//! Start at `build_evaluation.rs` for the complete activation protocol.
+//! Start at `build_evaluation.rs` for admission and completion;
+//! `terminal_execution.rs` owns the activation stepped by the caller.
 //! `completed_pure_build` owns invocation-local completed Pure values. Its
 //! insertion boundary is private to this evaluator: fresh admission precedes
 //! consumption, and each replaced evaluation receives a current-account logical
 //! charge without fabricating interpreter execution or live-resource peaks.
-//! `admitted_build_program.rs` fixes its private checkpoint; `execution` runs
-//! that checkpoint and assembles its checked result. `compilation_products` owns the
+//! `admitted_build_program.rs` fixes its private checkpoint; `execution` prepares
+//! its code and account, authenticates the returned invocation, and assembles its
+//! checked result. The activation retains every request through normal return;
+//! completion currently refuses dependency requests until coordinator settlement
+//! is connected. `compilation_products` owns the
 //! retained Build records; admission and execution produce them without making
 //! downstream product custody depend on this evaluator.
 //! Trust grants, component assumptions and executed exclusions are checked by
@@ -87,14 +93,15 @@ pub use admission::target_helpers::select_build_helpers;
 use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
 pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{
-    BuildEvaluationRequest, EvaluatedBuild, RestrictedBuildGrants, evaluate_build,
+    BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
+    prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use completed_pure_build::PureBuildCompilation;
 pub use effects::AuthoredBehaviorExclusion;
-use execution::execute_admitted_build_program;
+pub use execution::PreparedBuildExecution;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
@@ -116,4 +123,7 @@ pub use provider_planning::program_entry::{
     validate_selected_program_entry_calling_plan,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
+pub use terminal_execution::{
+    ReturnedBuild, TerminalBuildActivation, TerminalBuildHost, TerminalBuildStep,
+};
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

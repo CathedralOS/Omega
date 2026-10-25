@@ -2,8 +2,6 @@
 //! build occurrence into an opaque `AdmittedBuildProgram` before anything
 //! runs.
 
-use crate::ComputedBuildConfig;
-use crate::execute_admitted_build_program;
 use build_time_evaluation::{BuildEvaluationSponsor, PreparedBuildMachineProgram};
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
@@ -14,7 +12,7 @@ use symbols::SymbolHandle;
 /// Private activation-local checkpoint. Entry selection and authority bind to
 /// the prepared program; only the complete evaluation protocol can issue and
 /// consume this value.
-#[must_use = "an admitted build program must be consumed by execute"]
+#[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
     pub(crate) prepared: PreparedBuildMachineProgram,
     pub(crate) machine: SelectedBuildMachine,
@@ -66,11 +64,6 @@ impl AdmittedBuildProgram {
             crate::terminal_execution::measurement(),
             self.evaluation_sponsor.as_ref(),
         )
-    }
-
-    /// Consume the exact admitted program through one evaluation.
-    pub fn execute(self) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
-        execute_admitted_build_program(self)
     }
 }
 

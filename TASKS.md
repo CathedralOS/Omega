@@ -1126,8 +1126,12 @@ narrows realization only.
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
   Current migration frontier: authored Build prepares its own import closure
   before Product imports, retaining the captured namespace and parse prefix for
-  a distinct post-join Product context. Terminal activation stepping preserves
-  exactly-once effects. The application still needs executed-request acquisition
+  a distinct post-join Product context. Application package compilation and review
+  now begin, step and complete opaque Build invocations without holding a compiler
+  session borrow; interleaved compilation preserves the paused activation. The
+  activation retains its full request ledger and completion checks its exact code
+  owner. Ordinary one-shot compiler calls still own their execution loop. The
+  application still needs executed-request acquisition
   and final joining in place of package management's static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this
   is not yet the completed production cutover.

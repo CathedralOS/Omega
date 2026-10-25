@@ -56,14 +56,87 @@ pub struct EvaluatedBuild {
     pub retained_check: Option<psi_compiler::RetainedCheck>,
 }
 
-/// Admit and execute one Build activation. Errors return before any later step:
+enum BuildEvaluationState {
+    Complete(Arc<crate::ComputedBuildConfig>),
+    Execute(crate::PreparedBuildExecution),
+}
+
+/// Admission and host grants retained across caller-owned execution. No source
+/// borrow or compiler-session borrow prevents dependency compilation meanwhile.
+/// A normal return must rejoin this exact invocation before any value is cached.
+pub struct PreparedBuildEvaluation {
+    state: BuildEvaluationState,
+    restricted_build_requests: Vec<RestrictedBuildRequest>,
+    base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
+    retained_check: Option<psi_compiler::RetainedCheck>,
+    pure_retention: Option<(
+        crate::completed_pure_build::CompletedPureBuildInputs,
+        PureBuildCompilation,
+    )>,
+    restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+}
+
+impl PreparedBuildEvaluation {
+    /// Defaults and freshly charged Pure reuse need no new activation.
+    pub fn execution(&mut self) -> Option<&mut crate::PreparedBuildExecution> {
+        match &mut self.state {
+            BuildEvaluationState::Complete(_) => None,
+            BuildEvaluationState::Execute(execution) => Some(execution),
+        }
+    }
+
+    pub fn complete(
+        self,
+        returned: Option<crate::ReturnedBuild>,
+    ) -> Result<EvaluatedBuild, CompileFailure> {
+        let Self {
+            state,
+            restricted_build_requests,
+            base_source_consumption_commitment,
+            retained_check,
+            pure_retention,
+            restricted_build_grants,
+        } = self;
+        let configuration = match (state, returned) {
+            (BuildEvaluationState::Complete(configuration), None) => configuration,
+            (BuildEvaluationState::Execute(execution), Some(returned)) => {
+                let configuration = Arc::new(execution.complete(returned)?);
+                if let Some((inputs, owner)) = pure_retention {
+                    owner.retain_completed(inputs, configuration.clone())?;
+                }
+                configuration
+            }
+            (BuildEvaluationState::Execute(_), None) => {
+                return Err(vec![Diagnostic::error(
+                    "Build completion requires its returned activation",
+                )]
+                .into());
+            }
+            (BuildEvaluationState::Complete(_), Some(_)) => {
+                return Err(vec![Diagnostic::error(
+                    "Build completion supplied an activation for defaults or Pure reuse",
+                )]
+                .into());
+            }
+        };
+        drop(restricted_build_grants);
+        Ok(EvaluatedBuild {
+            configuration,
+            restricted_build_requests,
+            base_source_consumption_commitment,
+            retained_check,
+        })
+    }
+}
+
+/// Admit one Build activation without running it. Errors return before any later step:
 /// package rejection precedes filesystem preparation, and consent rejection
 /// precedes all authored Build effects. The activation owns its grant guard through
 /// execution and releases it before returning a source continuation.
-pub fn evaluate_build(
+pub fn prepare_build_evaluation(
     request: BuildEvaluationRequest<'_>,
     timings: &mut CompileTimings,
-) -> Result<EvaluatedBuild, CompileFailure> {
+) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
         pure_build_compilation,
         root_path,
@@ -113,8 +186,8 @@ pub fn evaluate_build(
         })
         .transpose()?;
     let Some(selected_machine) = selected_machine else {
-        return Ok(EvaluatedBuild {
-            configuration: Arc::new(crate::ComputedBuildConfig {
+        return Ok(PreparedBuildEvaluation {
+            state: BuildEvaluationState::Complete(Arc::new(crate::ComputedBuildConfig {
                 config: crate::BuildConfig::default(),
                 root_binding_requests: Vec::new(),
                 project_declaration: None,
@@ -124,10 +197,12 @@ pub fn evaluate_build(
                 observation_summary: None,
                 selected_build_machine_symbol: None,
                 generated_sources: Vec::new(),
-            }),
+            })),
             restricted_build_requests: Vec::new(),
             base_source_consumption_commitment,
             retained_check: None,
+            pure_retention: None,
+            restricted_build_grants,
         });
     };
     // Every activation checks its helpers before snapshot capture or effects.
@@ -183,8 +258,8 @@ pub fn evaluate_build(
         .map(|(inputs, owner)| owner.matching_configuration(inputs))
         .transpose()?
         .flatten();
-    let configuration = if let Some(configuration) = reusable {
-        if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
+    let state = if let Some(configuration) = reusable {
+        let configuration = if let Some(sponsor) = admitted.evaluation_sponsor.as_ref() {
             // Reusing a value avoids execution, not the current occurrence's
             // logical cost. Admission above is fresh; charge this account before
             // publishing, and keep its telemetry out of the retained producer.
@@ -204,19 +279,17 @@ pub fn evaluate_build(
             Arc::new(current)
         } else {
             configuration
-        }
+        };
+        BuildEvaluationState::Complete(configuration)
     } else {
-        let configuration = Arc::new(admitted.execute()?);
-        if let Some((inputs, owner)) = inputs.zip(pure_build_compilation) {
-            owner.retain_completed(inputs, Arc::clone(&configuration))?;
-        }
-        configuration
+        BuildEvaluationState::Execute(crate::PreparedBuildExecution::prepare(admitted)?)
     };
-    drop(restricted_build_grants);
-    Ok(EvaluatedBuild {
-        configuration,
+    Ok(PreparedBuildEvaluation {
+        state,
         restricted_build_requests,
         base_source_consumption_commitment,
         retained_check,
+        pure_retention: inputs.zip(pure_build_compilation.cloned()),
+        restricted_build_grants,
     })
 }

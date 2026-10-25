@@ -31,6 +31,9 @@ fn main() {
     }
     initial_build_source_isolation();
     deferred_product_uses_captured_imports();
+    interleaved_build_invocations();
+    foreign_build_return_refuses();
+    ignored_build_request_still_requires_join();
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
@@ -283,6 +286,168 @@ fn deferred_product_uses_captured_imports() {
     );
     std::fs::remove_dir_all(&root).expect("remove exclusive temporary fixture");
     println!("deferred_product_import_used_captured_namespace_after_live_deletion");
+}
+
+fn package_invocation_requests(fixture: &str) -> impl Fn() -> CheckedCompileRequest {
+    let repository = fixture_package_inputs::repo_root();
+    let authored = repository.join("tests/omega").join(fixture);
+    let captured = fixture_package_inputs::sealed_fixture_staging::stage_sealed_snapshot(
+        &repository,
+        &authored,
+    );
+    // This SDK owns supplied source custody. Do not route it through static
+    // Build-role extraction: the witness deliberately has an unselected helper
+    // with a duplicate role, which only execution can distinguish.
+    let identity = fixture_package_inputs::fixture_package_identity(1);
+    let binding = package_compilation::PackageSourceBinding::new(
+        identity,
+        authored.file_name().unwrap().to_str().unwrap(),
+        captured.clone(),
+    )
+    .with_canonical_source_metadata()
+    .expect("sealed fixture custody");
+    let inputs = package_compilation::PackageCompilationInputs::new(
+        identity,
+        build_declarations::BuildDeclarationKind::Application,
+        vec![binding],
+        Vec::new(),
+    )
+    .expect("supplied source owner");
+    move || CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&captured.join("main.omg"), Some("linux_x86_64"))
+    }
+}
+
+fn return_build(
+    invocation: &mut compiler::PackageBuildInvocation,
+) -> Option<build_evaluation::ReturnedBuild> {
+    invocation.execution().map(|execution| {
+        let mut host = execution.host().expect("issue Build host once");
+        let mut activation = host.start().expect("start Build once");
+        while !activation.advance(1024).expect("advance Build").returned {}
+        activation.complete().expect("normal Build return")
+    })
+}
+
+fn interleaved_build_invocations() {
+    let request = package_invocation_requests("pass/build/activation_yields_without_replay");
+    let mut session = CompilationSession::default();
+    let before = counters::build_execution_count();
+    let products_before = counters::product_source_completion_count();
+    let mut first = session
+        .begin_package_build(request())
+        .expect("first admission");
+    assert_eq!(counters::build_execution_count(), before);
+    assert_eq!(counters::product_source_completion_count(), products_before);
+    let first_returned = {
+        let mut host = first
+            .execution()
+            .expect("fresh Build")
+            .host()
+            .expect("first host");
+        let mut activation = host.start().expect("first activation");
+        let step = activation.advance(64).expect("first partial execution");
+        assert!(!step.returned);
+        assert_eq!(
+            step.requests.len(),
+            1,
+            "early role is observable before return"
+        );
+        // The first activation borrows no compiler session. Finish another
+        // package through Product checking while its continuation stays live.
+        let mut second = session
+            .begin_package_build(request())
+            .expect("second admission while paused");
+        assert_eq!(counters::build_execution_count(), before + 1);
+        let second_returned = return_build(&mut second);
+        let second = session
+            .complete_package_build(second, second_returned)
+            .expect("second completion");
+        session
+            .check_package_build(second)
+            .expect("second Product while first is paused");
+        while !activation.advance(1024).expect("resume first").returned {}
+        activation.complete().expect("first normal return")
+    };
+    assert_eq!(
+        first_returned.requests().len(),
+        1,
+        "stepping cannot erase earlier requests"
+    );
+    assert!(
+        first
+            .execution()
+            .expect("retained invocation")
+            .host()
+            .is_err(),
+        "host replacement cannot replay Build"
+    );
+    let first = session
+        .complete_package_build(first, Some(first_returned))
+        .expect("first completion");
+    session.check_package_build(first).expect("first Product");
+    assert_eq!(counters::build_execution_count(), before + 2);
+    println!("paused_build_survived_another_package_product_without_replay");
+}
+
+fn foreign_build_return_refuses() {
+    let request = package_invocation_requests("pass/build/activation_yields_without_replay");
+    let mut session = CompilationSession::default();
+    let mut first = session
+        .begin_package_build(request())
+        .expect("first admission");
+    let mut second = session
+        .begin_package_build(request())
+        .expect("second admission");
+    let first_returned = return_build(&mut first);
+    let second_returned = return_build(&mut second);
+    for (invocation, returned) in [(first, second_returned), (second, first_returned)] {
+        let failure = session
+            .complete_package_build(invocation, returned)
+            .err()
+            .expect("foreign completion refuses");
+        assert!(failure.into_diagnostics().iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("completion belongs to another invocation")
+        }));
+    }
+    println!("equal_code_builds_rejected_swapped_normal_returns");
+}
+
+fn ignored_build_request_still_requires_join() {
+    let request = package_invocation_requests("fail/build/unjoined_executed_dependency");
+    let mut session = CompilationSession::default();
+    let mut invocation = session
+        .begin_package_build(request())
+        .expect("Build admission does not need the requested Product dependency");
+    // This helper intentionally ignores each step's request view.
+    let returned = return_build(&mut invocation).expect("fresh Build return");
+    assert_eq!(
+        returned
+            .requests()
+            .iter()
+            .filter(|issued| matches!(
+                issued.request(),
+                build_declarations::BuildRequest::Dependency { .. }
+            ))
+            .count(),
+        1
+    );
+    let failure = session
+        .complete_package_build(invocation, Some(returned))
+        .err()
+        .expect("mandatory join");
+    assert!(
+        failure
+            .into_diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "dependency requests require coordinator settlement before Product compilation"
+            ))
+    );
+    println!("ignored_step_request_remained_in_mandatory_dependency_join");
 }
 
 /// The ordinary source call crosses the production scheduling quantum. Its

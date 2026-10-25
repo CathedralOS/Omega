@@ -13,9 +13,7 @@ pub use compilation_products::{
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
 use crate::execution_settlement::SelectedCompileOutcome;
-use artifacts::compile_timings::{
-    BUILD_AND_CHECKED_CONTINUATION, CompileTimings, StageMeta, counters,
-};
+use artifacts::compile_timings::{CompileTimings, StageMeta, counters};
 use compilation_products::{
     CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
     PreparedSourceFrontier, TypedCompilationFrontier,
@@ -93,12 +91,47 @@ fn prepare_typed_frontier(
     Ok((frontier, timings))
 }
 
-pub(super) fn prepare_package_build_worker(
+pub(super) struct PreparedPackageInvocation {
+    root: std::path::PathBuf,
+    target: target::TargetProfile,
+    inputs: PackageCompilationInputs,
+    rollback: optimization_core::OptimizationRollback,
+    permit_unsettled_fused_service_fields: bool,
+    source: build_continuation::BuildSourceInvocation,
+}
+
+impl PreparedPackageInvocation {
+    pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.source.execution()
+    }
+
+    pub(super) fn complete(
+        self,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<PreparedPackageBuild, CompileFailure> {
+        let prepared = self.source.complete(returned)?;
+        let base_sources = prepared.built.base_sources.clone();
+        PreparedPackageBuild::seal(
+            self.root,
+            self.target,
+            self.inputs.clone(),
+            self.rollback,
+            prepared,
+            self.permit_unsettled_fused_service_fields,
+        )
+        .map_err(|mut diagnostics| {
+            attribute_diagnostics(&mut diagnostics, &base_sources, Some(&self.inputs));
+            CompileFailure::from(diagnostics)
+        })
+    }
+}
+
+pub(super) fn begin_package_build_worker(
     request: CheckedCompileRequest,
     source: PreparedCheckedSource,
     reuse: SettledCheckReuse,
     owner: &build_evaluation::PureBuildCompilation,
-) -> Result<PreparedPackageBuild, CompileFailure> {
+) -> Result<PreparedPackageInvocation, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -127,19 +160,14 @@ pub(super) fn prepare_package_build_worker(
         permit_unsettled_fused_service_fields: false,
         settled_check_reuse: reuse,
     };
-    let prepared = prepare_build_source(&request.root_path, source, child, Some(owner))?;
-    let base_sources = prepared.built.base_sources.clone();
-    PreparedPackageBuild::seal(
-        request.root_path,
-        selected_target,
-        inputs.clone(),
-        request.optimization_rollback,
-        prepared,
-        request.permit_unsettled_fused_service_fields,
-    )
-    .map_err(|mut diagnostics| {
-        attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
-        CompileFailure::from(diagnostics)
+    let source = prepare_build_source_invocation(&request.root_path, source, child, Some(owner))?;
+    Ok(PreparedPackageInvocation {
+        root: request.root_path,
+        target: selected_target,
+        inputs,
+        rollback: request.optimization_rollback,
+        source,
+        permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
     })
 }
 
@@ -226,27 +254,48 @@ fn prepare_build_source(
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
 ) -> Result<PreparedBuild, CompileFailure> {
+    let mut invocation =
+        prepare_build_source_invocation(root_path, source, child, pure_build_compilation)?;
+    let returned = if let Some(execution) = invocation.execution() {
+        let mut host = execution.host()?;
+        let refuse = |reason| {
+            vec![Diagnostic::error(format!(
+                "Terminal Build failed: {reason}"
+            ))]
+        };
+        let mut activation = host.start().map_err(refuse)?;
+        loop {
+            if activation.advance(1024).map_err(refuse)?.returned {
+                break;
+            }
+        }
+        Some(activation.complete().map_err(refuse)?)
+    } else {
+        None
+    };
+    invocation.complete(returned)
+}
+
+fn prepare_build_source_invocation(
+    root_path: &Path,
+    source: PreparedCheckedSource,
+    child: CheckedExecutionRequest<'_>,
+    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 
-    let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+    let (frontier, timings) = prepare_typed_frontier(source, &child)?;
     let base_sources = frontier.base_sources.clone();
     let package_inputs = child.package_inputs;
-    let (built, build_sources) = timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
-        build_continuation::evaluate_build_and_continue(
-            root_path,
-            child,
-            frontier,
-            timings,
-            pure_build_compilation,
-        )
-    })
-    .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))?;
-    Ok(PreparedBuild {
-        built,
-        build_sources,
+    build_continuation::prepare_build_invocation(
+        root_path,
+        child,
+        frontier,
         timings,
-    })
+        pure_build_compilation,
+    )
+    .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))
 }
 
 /// Complete the invocation's source prefix before iterating realizations.

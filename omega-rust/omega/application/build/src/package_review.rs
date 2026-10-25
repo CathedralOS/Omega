@@ -102,9 +102,7 @@ fn complete_occurrence(
         Some(pending) => pending.build,
         None => {
             request.build_dir = Some(completion.reserve_build_directory(session)?);
-            session
-                .compiler()
-                .prepare_package_build(request)
+            crate::build_execution::execute_package_build(session.compiler(), request)
                 .map_err(|failure| completion.compilation_failure(failure))?
         }
     };

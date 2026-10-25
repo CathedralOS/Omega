@@ -15,15 +15,25 @@ use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
 
+pub(super) struct BuildSourceInvocation {
+    frontier: TypedCompilationFrontier,
+    evaluation: build_evaluation::PreparedBuildEvaluation,
+    package_inputs: Option<PackageCompilationInputs>,
+    build_execution_profile: Option<target::TargetProfile>,
+    timings: CompileTimings,
+    started: std::time::Instant,
+}
+
 /// Consume a prepared typed program. Source preparation owns any reuse;
 /// declaration authority and Build effects are admitted for this activation.
-pub(crate) fn evaluate_build_and_continue(
+pub(super) fn prepare_build_invocation(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
     frontier: TypedCompilationFrontier,
-    timings: &mut CompileTimings,
+    mut timings: CompileTimings,
     pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
-) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
+) -> Result<BuildSourceInvocation, CompileFailure> {
+    let started = std::time::Instant::now();
     let CheckedExecutionRequest {
         selected_target_profile: _,
         build_execution_profile,
@@ -41,17 +51,12 @@ pub(crate) fn evaluate_build_and_continue(
         mut source,
         product_sources,
         build_source_id,
-        mut source_file_count,
-        mut generated_source_custody,
-        mut base_sources,
+        source_file_count,
+        generated_source_custody,
+        base_sources,
     } = frontier;
     let build_input = source.build_input();
-    let build_evaluation::EvaluatedBuild {
-        configuration: mut computed_build_config,
-        restricted_build_requests,
-        base_source_consumption_commitment,
-        retained_check: retained_build_check,
-    } = build_evaluation::evaluate_build(
+    let evaluation = build_evaluation::prepare_build_evaluation(
         build_evaluation::BuildEvaluationRequest {
             pure_build_compilation,
             root_path,
@@ -77,8 +82,89 @@ pub(crate) fn evaluate_build_and_continue(
                 .collect(),
             retain_check: settled_check_reuse.retain,
         },
-        timings,
+        &mut timings,
     )?;
+    Ok(BuildSourceInvocation {
+        frontier: TypedCompilationFrontier {
+            source,
+            product_sources,
+            build_source_id,
+            source_file_count,
+            generated_source_custody,
+            base_sources,
+        },
+        evaluation,
+        package_inputs: package_inputs.cloned(),
+        build_execution_profile,
+        timings,
+        started,
+    })
+}
+
+impl BuildSourceInvocation {
+    pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.evaluation.execution()
+    }
+
+    pub(super) fn complete(
+        self,
+        returned: Option<build_evaluation::ReturnedBuild>,
+    ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+        let Self {
+            frontier,
+            evaluation,
+            package_inputs,
+            build_execution_profile,
+            mut timings,
+            started,
+        } = self;
+        let initial_sources = frontier.base_sources.clone();
+        let evaluated = evaluation.complete(returned).map_err(|failure| {
+            super::attribute_failure(failure, &initial_sources, package_inputs.as_ref())
+        })?;
+        let completed = complete_build_source(
+            frontier,
+            evaluated,
+            package_inputs.as_ref(),
+            build_execution_profile,
+            &mut timings,
+        )
+        .map_err(|failure| {
+            super::attribute_failure(failure, &initial_sources, package_inputs.as_ref())
+        })?;
+        timings.add_completed(
+            artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
+            started.elapsed().as_micros(),
+        );
+        Ok(compilation_products::PreparedBuild {
+            built: completed.0,
+            build_sources: completed.1,
+            timings,
+        })
+    }
+}
+
+fn complete_build_source(
+    frontier: TypedCompilationFrontier,
+    evaluated: build_evaluation::EvaluatedBuild,
+    package_inputs: Option<&PackageCompilationInputs>,
+    build_execution_profile: Option<target::TargetProfile>,
+    timings: &mut CompileTimings,
+) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
+    let TypedCompilationFrontier {
+        mut source,
+        product_sources,
+        build_source_id: _,
+        mut source_file_count,
+        mut generated_source_custody,
+        mut base_sources,
+    } = frontier;
+    let build_evaluation::EvaluatedBuild {
+        configuration: mut computed_build_config,
+        restricted_build_requests,
+        base_source_consumption_commitment,
+        retained_check: retained_build_check,
+    } = evaluated;
     if let Some(pending) = product_sources {
         // Successful Build return currently implies its dependency requests
         // have all joined (the executor refuses any unresolved request). Final

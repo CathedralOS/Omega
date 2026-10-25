@@ -32,6 +32,19 @@ pub struct PackageBuild {
     source: PreparedPackageBuild,
 }
 
+/// An admitted Build with opaque pending Product source. It owns its code and
+/// grants independently of the compiler session, so dependency work can proceed
+/// while the caller keeps this invocation suspended.
+pub struct PackageBuildInvocation {
+    source: super::checking::PreparedPackageInvocation,
+}
+
+impl PackageBuildInvocation {
+    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+        self.source.execution()
+    }
+}
+
 impl PackageBuild {
     pub fn package_inputs(&self) -> &package_compilation::PackageCompilationInputs {
         self.source.package_inputs()
@@ -73,14 +86,27 @@ pub struct PreparedPackageProduct {
 }
 
 impl CompilationSession {
-    /// Execute one admitted occurrence's Build, retaining opaque Product work.
-    /// The caller may join its generated output into dependent Build requests.
-    pub fn prepare_package_build(
+    /// Admit an occurrence without executing Build or loading Product imports.
+    pub fn begin_package_build(
         &mut self,
         request: CheckedCompileRequest,
+    ) -> Result<PackageBuildInvocation, CompileFailure> {
+        super::run_on_compile_thread(|| {
+            self.begin_build(request)
+                .map(|source| PackageBuildInvocation { source })
+        })
+    }
+
+    /// Rejoin the exact returned activation, then prepare its Product context.
+    /// Outstanding dependency requests still refuse until coordinator settlement
+    /// supplies their admitted custody; this does not silently accept a partial join.
+    pub fn complete_package_build(
+        &mut self,
+        invocation: PackageBuildInvocation,
+        returned: Option<build_evaluation::ReturnedBuild>,
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
-            self.prepare_build(request)
+            self.complete_build(invocation.source, returned)
                 .map(|source| PackageBuild { source })
         })
     }

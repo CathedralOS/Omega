@@ -28,30 +28,43 @@ pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdent
     }
 }
 
-/// Normal-return values only. Dependency requests remain with the coordinator,
-/// whose mandatory join precedes normalized Build publication.
-pub(crate) struct TerminalBuildCompletion {
-    pub settings: EvaluatedBuildSettings,
-    pub optimization_report: optimization_core::OptimizationReportRequest,
-    pub root_bindings: Vec<ExecutedRootBinding>,
-    pub log: crate::terminal_requests::BuildLog,
+/// Normal-return values and the complete request ledger. The coordinator's
+/// mandatory dependency join precedes normalized Build publication.
+pub struct ReturnedBuild {
+    pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
+    pub(crate) requests: Vec<IssuedBuildRequest>,
+    pub(crate) settings: EvaluatedBuildSettings,
+    pub(crate) optimization_report: optimization_core::OptimizationReportRequest,
+    pub(crate) root_bindings: Vec<ExecutedRootBinding>,
+    pub(crate) log: crate::terminal_requests::BuildLog,
+}
+
+impl ReturnedBuild {
+    /// The complete issued roster, including requests observed in earlier steps.
+    /// Observing or ignoring a step cannot remove a dependency from final joining.
+    pub fn requests(&self) -> &[IssuedBuildRequest] {
+        &self.requests
+    }
 }
 
 /// Host custody outlives the interpreter's borrowed adapters. One host starts
 /// one activation; dropping a paused activation cannot start its effects again.
-pub(crate) struct TerminalBuildHost<'code> {
+pub struct TerminalBuildHost<'code> {
     produced: &'code ProducedTerminalProgram,
     account: &'code EvaluationInvocationAccount,
     original: TerminalStructuralValue,
     requests: TerminalBuildRequestHost<'code>,
     bindings: TerminalBuildBindingHost<'code>,
     started: bool,
+    value_admission: BuildValueAdmission,
+    initial: &'code BuildTimeValue,
 }
 
 impl<'code> TerminalBuildHost<'code> {
     pub(crate) fn new(
         produced: &'code ProducedTerminalProgram,
         account: &'code EvaluationInvocationAccount,
+        machine: &'code package_compilation::build_execution::SelectedBuildMachine,
     ) -> Result<Self, String> {
         let artifact = produced.view();
         let program = TerminalProgram::borrow(artifact);
@@ -80,14 +93,17 @@ impl<'code> TerminalBuildHost<'code> {
             requests,
             bindings,
             started: false,
+            value_admission: machine.value_admission,
+            initial: &machine.initial_build,
         })
     }
 
-    pub(crate) fn start(&mut self) -> Result<TerminalBuildActivation<'_, 'code>, String> {
+    pub fn start(&mut self) -> Result<TerminalBuildActivation<'_, 'code>, String> {
         if self.started {
             return Err("Build host has already started its activation".into());
         }
         self.started = true;
+        artifacts::compile_timings::counters::record_build_execution();
         let artifact = self.produced.view();
         let program = TerminalProgram::borrow(artifact);
         let mut instance = program
@@ -141,6 +157,7 @@ impl<'code> TerminalBuildHost<'code> {
             host: self,
             fuel,
             state: ActivationState::Running,
+            requests: Vec::new(),
         })
     }
 }
@@ -153,20 +170,21 @@ enum ActivationState {
 
 /// One interpreter instance, including its suspended continuation and shared
 /// account. The caller owns scheduling between advances; no callback hides it.
-pub(crate) struct TerminalBuildActivation<'host, 'code> {
+pub struct TerminalBuildActivation<'host, 'code> {
     instance: TerminalInstance<'host, 'code>,
     host: &'host TerminalBuildHost<'code>,
     fuel: TerminalFuelMeter,
     state: ActivationState,
+    requests: Vec<IssuedBuildRequest>,
 }
 
-pub(crate) struct TerminalBuildStep {
-    pub requests: Vec<IssuedBuildRequest>,
+pub struct TerminalBuildStep<'step> {
+    pub requests: &'step [IssuedBuildRequest],
     pub returned: bool,
 }
 
 impl TerminalBuildActivation<'_, '_> {
-    pub(crate) fn advance(&mut self, additional_fuel: u64) -> Result<TerminalBuildStep, String> {
+    pub fn advance(&mut self, additional_fuel: u64) -> Result<TerminalBuildStep<'_>, String> {
         match self.state {
             ActivationState::Returned => return Err("Build activation has already returned".into()),
             ActivationState::Refused => return Err("Build activation has already failed".into()),
@@ -180,7 +198,8 @@ impl TerminalBuildActivation<'_, '_> {
             .instance
             .invoke(&mut self.fuel)
             .map_err(|error| error.to_string())?;
-        let requests = self.host.requests.drain_requests()?;
+        let first_request = self.requests.len();
+        self.requests.extend(self.host.requests.drain_requests()?);
         let returned = match status {
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => true,
             TerminalExecutionStatus::SponsorExhausted(_) => false,
@@ -191,25 +210,29 @@ impl TerminalBuildActivation<'_, '_> {
         } else {
             ActivationState::Running
         };
-        Ok(TerminalBuildStep { requests, returned })
+        Ok(TerminalBuildStep {
+            requests: &self.requests[first_request..],
+            returned,
+        })
     }
 
     /// Extract only a normal return. Consuming the activation closes its instance
-    /// before retiring the host selections and log. Requests already belong to the
-    /// caller; this operation does not assert their dependency join succeeded.
-    pub(crate) fn complete(
-        mut self,
-        admission: BuildValueAdmission,
-        initial: &BuildTimeValue,
-    ) -> Result<TerminalBuildCompletion, String> {
+    /// before retiring the host selections and log. The complete request ledger
+    /// remains attached; this operation does not assert its dependencies joined.
+    pub fn complete(mut self) -> Result<ReturnedBuild, String> {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("Build completion requires its normal interpreter return".into());
         }
-        let (settings, optimization_report) =
-            crate::terminal_settings::extract(&self.instance, admission, initial)?;
+        let (settings, optimization_report) = crate::terminal_settings::extract(
+            &self.instance,
+            self.host.value_admission,
+            self.host.initial,
+        )?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
-        Ok(TerminalBuildCompletion {
+        Ok(ReturnedBuild {
+            identity: self.host.produced.view().custody_identity(),
+            requests: self.requests,
             settings,
             optimization_report,
             root_bindings: self.host.bindings.take_executed()?,
