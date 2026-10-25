@@ -213,6 +213,7 @@ pub(crate) fn evaluate_statement_permissions(
     let mut custody = (places.to_vec(), remaining.clone());
     let mut selected = SelectedEvaluation::new();
     let mut projected_scopes = ProjectedScopes::default();
+    let completed_values = completed_statement_values(program, statement);
     let selection_site = SelectionSite {
         machine: machine_symbol,
         state: state_symbol,
@@ -666,11 +667,9 @@ pub(crate) fn evaluate_statement_permissions(
                 let (completed, pending): (Vec<_>, Vec<_>) =
                     written_targets.into_iter().partition(|(target, _)| {
                         target.root == facts::PlaceRoot::Expression(expression)
-                            && !completed_statement_values(program, statement).iter().any(
-                                |(receiving, source)| {
-                                    *receiving == expression && *source == evaluation
-                                },
-                            )
+                            && !completed_values.iter().any(|(receiving, source)| {
+                                *receiving == expression && *source == evaluation
+                            })
                     });
                 written_targets = pending;
                 let establishment_start = permission_events.len();
@@ -1013,6 +1012,9 @@ fn complete_body_custody(
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     location: crate::checks::multiplicity::CompletedClaimLocation,
 ) {
+    if facts.qualifications.content.conservation_plans.is_empty() {
+        return;
+    }
     let body_conservations = crate::checks::content::observe_body_completion(
         program,
         facts,

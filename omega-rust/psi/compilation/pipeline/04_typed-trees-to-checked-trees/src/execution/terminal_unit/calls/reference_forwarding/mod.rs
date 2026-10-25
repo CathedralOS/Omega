@@ -148,9 +148,7 @@ fn exact_mutable_referent(
             _ => None,
         });
     if borrow
-        .loans
-        .iter()
-        .filter(|(handle, _)| borrow.state_owns_loan(borrow_state, *handle))
+        .state_loans(borrow_state)
         .any(|(handle, loan)| {
             !returned_loans.contains(&handle)
                 && order.at_or_before(loan.statement_index, call.statement_index)

@@ -320,17 +320,19 @@ pub(super) fn prepare_storage_deaths(
                             // Literal and pure storage completions have no
                             // invocation effects. Retain only exact calls or
                             // boundary operators, not every evaluated leaf.
-                            if state_calls.iter().any(|call| {
-                                call.statement_index == statement_index
-                                    && call.authored_expression == expression
-                            }) || borrowed_windows::state_has_boundary_operator(
-                                program,
-                                &facts.flow.control,
-                                &facts.operators,
-                                state.symbol,
-                                Some(statement_index),
-                                Some(expression),
-                            ) {
+                            if (windows.has_open_windows() || arm_plan.has_edge_absent())
+                                && (state_calls.iter().any(|call| {
+                                    call.statement_index == statement_index
+                                        && call.authored_expression == expression
+                                }) || borrowed_windows::state_has_boundary_operator(
+                                    program,
+                                    &facts.flow.control,
+                                    &facts.operators,
+                                    state.symbol,
+                                    Some(statement_index),
+                                    Some(expression),
+                                ))
+                            {
                                 windows.record_invocation(
                                     machine.symbol,
                                     state.symbol,

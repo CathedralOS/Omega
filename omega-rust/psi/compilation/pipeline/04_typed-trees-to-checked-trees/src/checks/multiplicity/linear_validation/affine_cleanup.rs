@@ -20,7 +20,10 @@ use typed_trees::types::TypeReferenceHandle;
 /// still carries hook effects and requirements through ordinary admission.
 pub(crate) fn append_owned_cleanup_permission_events(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
+    observed_temporaries_by_statement: &[Vec<(
+        typed_trees::expression::ExpressionHandle,
+        TypeReferenceHandle,
+    )>],
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
@@ -31,7 +34,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
 ) {
     visit_owned_cleanup_events(
         program,
-        operators,
+        observed_temporaries_by_statement,
         state,
         machine_symbol,
         coordinate,
@@ -46,7 +49,10 @@ pub(crate) fn append_owned_cleanup_permission_events(
 
 fn visit_owned_cleanup_events(
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
+    observed_temporaries_by_statement: &[Vec<(
+        typed_trees::expression::ExpressionHandle,
+        TypeReferenceHandle,
+    )>],
     state: &typed_trees::state::State,
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
@@ -146,19 +152,8 @@ fn visit_owned_cleanup_events(
         // statement's receiving local and after owners in earlier statements.
         // Only established roots participate; a reserved sibling-arm result
         // cannot acquire cleanup authority on this exit.
-        if let Some(machine) = program.machine_by_symbol(machine_symbol) {
-            for (expression, reference) in
-                crate::checks::ownership_occurrences::observed_owned_temporaries(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    statement,
-                    operators,
-                )
-                .into_iter()
-                .rev()
-            {
+        if let Some(observed) = observed_temporaries_by_statement.get(statement_index) {
+            for &(expression, reference) in observed.iter().rev() {
                 let root = facts::PlaceRoot::Expression(expression);
                 if tracked_places
                     .iter()

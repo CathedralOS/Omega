@@ -42,14 +42,7 @@ impl InstructionDispositions {
         if assertion.kind != AssemblyFactKind::Ensures {
             return;
         }
-        let Some(flow) = facts
-            .flow
-            .control
-            .states
-            .iter()
-            .find(|(_, flow)| flow.state_symbol == state.symbol)
-            .map(|(_, flow)| flow)
-        else {
+        let Some(flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
             return;
         };
         let Some(row) = facts.flow.state_statement(flow, statement) else {
@@ -85,6 +78,15 @@ impl InstructionDispositions {
         places: &mut [LinearPlace],
         events: &mut Vec<FlowPermissionEventFact>,
     ) {
+        if !places
+            .iter()
+            .any(|held| held.live && held.ever_established && held.multiplicity == Multiplicity::Linear)
+        {
+            return;
+        }
+        let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
+            return;
+        };
         let evaluation = super::linear_validation::exit_evaluation(program, state, coordinate);
         let target = match evaluation {
             FlowPermissionEvaluation::TransitionTarget(target) => target,
@@ -94,8 +96,9 @@ impl InstructionDispositions {
             .flow
             .control
             .exits
+            .span_or_empty(state_flow.exits)
             .iter()
-            .filter_map(|(_, exit)| {
+            .filter_map(|exit| {
                 (exit.machine_symbol == machine.symbol
                     && exit.state_symbol == state.symbol
                     && exit.statement_index == coordinate.statement_index

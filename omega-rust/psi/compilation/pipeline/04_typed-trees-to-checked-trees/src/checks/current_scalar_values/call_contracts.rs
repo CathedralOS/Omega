@@ -380,6 +380,7 @@ impl CurrentScalarValues<'_> {
             &self.hypotheses,
             self.program,
         )?;
+        let mut pending_bounds = Vec::new();
         for binding in &mut goal.bindings {
             // A callee field needs an actual-place substitution, including on
             // recursion. Its entry atom is never the caller's current field
@@ -408,26 +409,55 @@ impl CurrentScalarValues<'_> {
                     .position(|parameter| parameter.symbol == symbol)?;
                 let captured =
                     self.capture(self.program, self.machine, self.state, arguments[position])?;
+                let needs_bounds = !matches!(captured, ScopedArithmeticValue::Integer(_));
+                binding.value = captured;
+                if needs_bounds {
+                    pending_bounds.push(arguments[position]);
+                }
+            }
+        }
+        if !pending_bounds.is_empty() {
+            let observed_bounds = validation::occurrence_integer_expressions_bounds(
+                self.program,
+                self.machine.symbol,
+                self.state.symbol,
+                self.statement_index,
+                &pending_bounds,
+            );
+            for binding in &mut goal.bindings {
+                let ScopedArithmeticBinder::Symbol(symbol) = binding.binder else {
+                    continue;
+                };
+                if machine_values.iter().any(|(formal, _)| *formal == symbol)
+                    || matches!(binding.value, ScopedArithmeticValue::Integer(_))
+                {
+                    continue;
+                }
+                let Some(position) = parameters
+                    .iter()
+                    .position(|parameter| parameter.symbol == symbol)
+                else {
+                    continue;
+                };
+                let argument = arguments[position];
                 // The argument's captured identity remains mandatory. Bounds
                 // from its exact caller observation add arrival knowledge
                 // (including acyclic predecessors), never a destination
                 // requirement or permission to revive an invalidated value.
-                binding.value = if let Some((minimum, maximum)) =
-                    validation::occurrence_integer_expression_bounds(
-                        self.program,
-                        self.machine.symbol,
-                        self.state.symbol,
-                        self.statement_index,
-                        arguments[position],
-                    ) {
-                    ScopedArithmeticValue::BoundedInteger {
+                if let Some((_, Some((minimum, maximum)))) = observed_bounds
+                    .iter()
+                    .find(|(expr, _)| *expr == argument)
+                {
+                    let captured = std::mem::replace(
+                        &mut binding.value,
+                        ScopedArithmeticValue::Integer(numerics::bignum::BigInt::from_i64(0)),
+                    );
+                    binding.value = ScopedArithmeticValue::BoundedInteger {
                         value: Box::new(captured),
-                        minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
-                        maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
-                    }
-                } else {
-                    captured
-                };
+                        minimum: Some(numerics::bignum::BigInt::from_i64(*minimum)),
+                        maximum: Some(numerics::bignum::BigInt::from_i64(*maximum)),
+                    };
+                }
             }
         }
         Some(goal)

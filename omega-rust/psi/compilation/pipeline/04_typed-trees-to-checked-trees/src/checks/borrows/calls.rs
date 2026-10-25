@@ -39,6 +39,10 @@ pub(super) fn check_compatibility<'p>(
         let Some(borrow_state) = super::matching_borrow_state(facts, state_flow) else {
             continue;
         };
+        let calls = facts.borrow.calls.span_or_empty(borrow_state.calls);
+        if calls.is_empty() {
+            continue;
+        }
         let premises = validation::find_state_in_machine(
             program,
             state_flow.machine_symbol,
@@ -60,7 +64,7 @@ pub(super) fn check_compatibility<'p>(
             )
         })
         .unwrap_or_default();
-        for call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
+        for call in calls {
             let mut available_premises = premises.clone();
             super::overlap::append_statement_premises(
                 program,

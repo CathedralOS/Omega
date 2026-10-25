@@ -61,6 +61,7 @@ pub(crate) fn prepare_permission_events(
     program: &dyn ::validation::CheckingInput,
     facts: &mut CheckFacts,
     claim_outcomes: &mut super::claim_outcomes::ClaimOutcomePreparation,
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<bool, Vec<Diagnostic>> {
     claim_outcomes.begin();
@@ -90,7 +91,6 @@ pub(crate) fn prepare_permission_events(
     let mut owned_frames = None;
     let call_frames =
         crate::flow::shared_call_frames_or(shared_call_frames, program, &mut owned_frames);
-    let mutation_summaries = crate::flow::StateMutationSummaryCache::default();
 
     let state_flows = facts
         .flow
@@ -181,7 +181,7 @@ pub(crate) fn prepare_permission_events(
                 state.symbol,
                 &calls,
                 call_frames,
-                &mutation_summaries,
+                mutation_summaries,
             ) {
                 Ok(regions) => regions,
                 Err(diagnostic) => {
@@ -233,7 +233,7 @@ pub(crate) fn prepare_permission_events(
                             state.symbol,
                             &facts.borrow,
                             &borrowed,
-                            &mutation_summaries,
+                            mutation_summaries,
                             call_frames,
                         )
                     },
@@ -543,7 +543,7 @@ pub(crate) fn prepare_permission_events(
                         );
                         append_owned_cleanup_permission_events(
                             program,
-                            &facts.operators,
+                            &observed_temporaries_by_statement,
                             state,
                             state_flow.machine_symbol,
                             coordinate,

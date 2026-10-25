@@ -180,9 +180,8 @@ pub(super) fn collect(
             // A prior stored formation has no current invocation access. Its
             // exact occurrence, rather than the current slot path or backing
             // geometry, identifies the permission carried by this capture.
-            for (loan, row) in facts.borrow.loans.iter().filter(|(handle, row)| {
-                facts.borrow.state_owns_loan(borrow_state, *handle)
-                    && capture.expression.is_valid()
+            for (loan, row) in facts.borrow.state_loans(borrow_state).filter(|(_, row)| {
+                capture.expression.is_valid()
                     && row.formation_expression == capture.expression
                     && row.statement_index == capture.statement_index
             }) {

@@ -507,3 +507,20 @@ The last change removes the flow critical path, which was 2,976 rescans for
 ms. Every native image is SHA-identical and exits 0. One rejected experiment,
 first-pass machine page reuse, is recorded with its measurements.
 [Mechanism, tables, rejected experiment and remaining profile](stage_five_2026_10_24/README.md).
+
+### Stage 05 arithmetic domain memoization, difference-graph components, and contract/exit reuse - 2026-10-25
+
+Base `448f6e11ca5` on Windows x86_64. Retained subtree-height memoization for
+`bound_subtree_meanings`, invocation memos for `mathematical_expression_nodes`,
+`expression_result_types`, `ordered_integer_meanings`, and
+`parameter_requires_intervals`, connected-component and endpoint-tightening
+pruning in `DifferenceGraph` / `refine_place_interval` / `excludes_integer_value`,
+batched `occurrence_integer_expressions_bounds`, whole-clause call contract
+caching, per-exit `CurrentScalarValues` reuse, and `BorrowFacts::state_loans`
+span slicing. On `sixteen_arg_stack_calling_plan/other_machine`, Stage 05 falls
+from 6,164.6 ms to 1,444.6 ms (4.27x; `check_flow_call_contracts` 4,028.1 ->
+41.2 ms; `ordered_relations.rows` 26,956 -> 456); on
+`thirtytwo_arg_stack_calling_plan/other_machine`, Stage 05 falls from > 95 s to
+1,900.0 ms (`ordered_relations.rows` = 616). On the three standard fact
+workloads, all native images are SHA-256 identical and exit 0.
+[Details and tables](stage_five_2026_10_24/README.md).

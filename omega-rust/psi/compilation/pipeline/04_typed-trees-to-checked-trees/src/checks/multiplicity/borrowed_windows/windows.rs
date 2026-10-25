@@ -42,6 +42,10 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         }
     }
 
+    pub(in crate::checks::multiplicity) fn has_open_windows(&self) -> bool {
+        !self.open.is_empty()
+    }
+
     /// Select the still-present old referent after RHS evaluation. A repair
     /// into an exact hole creates no second death; replacing an enclosing
     /// value retains the absent children's exclusions. This is the same
@@ -356,6 +360,9 @@ impl<'facts> BorrowedStorageWindows<'facts> {
         assignment: &typed_trees::statement::TableAssignment,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        if self.open.is_empty() {
+            return;
+        }
         let Some(target) = validation::canonical_place_from_expression_in_state(
             program,
             state.symbol,

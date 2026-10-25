@@ -809,6 +809,25 @@ fn declared_ensures_result_interval(
     machine: &Machine,
     entry: &State,
 ) -> Interval {
+    let key = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+        let (machine_pos, state_pos, _) =
+            crate::proof_contracts::bound_expression_meaning::meaning_key(
+                program,
+                machine,
+                Some(entry),
+                ExpressionHandle::default(),
+            )?;
+        Some((
+            memos,
+            (machine_pos, state_pos, SymbolHandle::invalid(), true),
+        ))
+    });
+    if let Some((memos, key)) = key
+        && let Ok(guard) = memos.parameter_requires_intervals.lock()
+        && let Some(cached) = guard.get(&key).copied()
+    {
+        return cached;
+    }
     let mut interval = Interval::UNBOUNDED;
     let ensures = program
         .machine_contracts(machine)
@@ -829,6 +848,11 @@ fn declared_ensures_result_interval(
         {
             interval = interval.intersect(bound);
         }
+    }
+    if let Some((memos, key)) = key
+        && let Ok(mut guard) = memos.parameter_requires_intervals.lock()
+    {
+        guard.insert(key, interval);
     }
     interval
 }
@@ -1109,6 +1133,30 @@ fn requires_interval(
     parameter: SymbolHandle,
     include_machine_contracts: bool,
 ) -> Interval {
+    let key = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+        let (machine_pos, state_pos, _) =
+            crate::proof_contracts::bound_expression_meaning::meaning_key(
+                program,
+                machine,
+                Some(state),
+                ExpressionHandle::default(),
+            )?;
+        Some((
+            memos,
+            (
+                machine_pos,
+                state_pos,
+                parameter,
+                include_machine_contracts,
+            ),
+        ))
+    });
+    if let Some((memos, key)) = key
+        && let Ok(guard) = memos.parameter_requires_intervals.lock()
+        && let Some(cached) = guard.get(&key).copied()
+    {
+        return cached;
+    }
     let entry = program
         .machine_states(machine)
         .first()
@@ -1135,6 +1183,11 @@ fn requires_interval(
         {
             interval = interval.intersect(bound);
         }
+    }
+    if let Some((memos, key)) = key
+        && let Ok(mut guard) = memos.parameter_requires_intervals.lock()
+    {
+        guard.insert(key, interval);
     }
     interval
 }

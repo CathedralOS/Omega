@@ -8,12 +8,15 @@
 //! Ordering alone cannot authorize this substitution. After equalities, the
 //! existing difference walk projects consequences through forgotten operands.
 
-use super::{Operand, Relation, RelationConstraint, ordered_gaps};
+use super::{Operand, Relation, RelationConstraint, ValueComparison, ordered_gaps_with_comparison};
 
 pub(in crate::proof_contracts::arithmetic_domains) fn rebind_relations(
     relations: &[Relation],
     bindings: &[(Operand, Operand)],
 ) -> Vec<Relation> {
+    if relations.is_empty() || bindings.is_empty() {
+        return Vec::new();
+    }
     let bindings = bind_equal_observations(relations, bindings);
     let mut rebound = Vec::new();
     for relation in relations
@@ -39,11 +42,12 @@ pub(in crate::proof_contracts::arithmetic_domains) fn rebind_relations(
     if delivered.iter().all(|operands| !operands.is_empty()) {
         return rebound;
     }
+    let mut comparison = ValueComparison::new(relations);
     for (operand, targets) in operands.iter().zip(&delivered) {
         if targets.is_empty() {
             continue;
         }
-        for (ceiling, floor) in ordered_gaps(relations, operand) {
+        for (ceiling, floor) in ordered_gaps_with_comparison(relations, operand, &mut comparison) {
             if ceiling == *operand {
                 continue;
             }
