@@ -1156,7 +1156,7 @@ impl Captures<'_> {
         let mut payload = None;
         for segment in segments {
             selected = crate::peel_declared_constraints(self.program, selected);
-            if let Some(shell) = crate::reference_shell(self.program, selected) {
+            while let Some(shell) = crate::reference_shell(self.program, selected) {
                 selected = shell.referee;
                 path.push(CheckedUnitStructuralPathSegment::Referent);
             }

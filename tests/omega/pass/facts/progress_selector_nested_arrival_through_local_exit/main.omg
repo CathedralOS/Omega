@@ -1,0 +1,46 @@
+// A finite selector retains every exact progress subject required by its selected operation.
+// Expected exit: 0.
+public data Token [copy] { identity: u64; }
+public domain Token::Fair satisfies ProgressProfile established by Grants::grant;
+public boundary trait Grants {
+    machine grant(value: u64) -> Token reaches ensures result in Token::Fair;
+}
+Provider satisfies Grants {
+    machine grant(value: u64) -> Token { Token { identity: value } }
+}
+machine consume(value: &Token, calls: &mut u64) -> u64
+requires value in Token::Fair
+terminates;
+{
+    calls = (calls as u64 in Wrapping + 1) as u64;
+    value.identity
+}
+data Envelope<'scope> { values: [&'scope Token; 2]; }
+machine select(left: Token, right: Token, index: u64, calls: &mut u64) -> u64
+requires left in Token::Fair, right in Token::Fair, index < 2
+terminates;
+{
+    let local_left: Token = left;
+    let local_right: Token = right;
+    let envelope: Envelope = Envelope { values: [&local_left, &local_right] };
+    let view: &Envelope = &envelope;
+    let outer: & &Envelope = &view;
+    let values: [&Token; 2] = outer.values;
+    transition { _ -> arrive(values[index], calls) }
+    state arrive(selected: &Token, calls: &mut u64) -> u64 {
+        consume(selected, calls)
+    }
+}
+machine main() reaches Grants crashes Trap {
+    let left: Token = Grants::grant(37);
+    let right: Token = Grants::grant(43);
+    let mut calls: u64 = 0;
+    let first: u64 = select(left, right, 0, &mut calls);
+    let second: u64 = select(left, right, 1, &mut calls);
+    transition first == 37 && second == 43 && calls == 2 {
+        true -> done()
+        false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}
