@@ -274,8 +274,9 @@ paid invocation or transfer.
 A [terminal machine call selected by a source transition arm](../language/state_contracts.md#terminal-calls-in-transition-arms)
 has the same call lifecycle. Its normal completion forwards the result through
 the enclosing machine's ordinary completion obligations; Unit has no invented
-result. A parked final call cannot commit that completion early. Internal state
-jumps remain CFG transfers, not suspending call operations or implicit task starts.
+result. A parked final call cannot commit that completion early. Source nested
+machines obey the same call lifecycle. Lowered block jumps remain CFG transfers,
+not implicit task starts; converting a call to a jump must preserve that lifecycle.
 Tail-call realization cannot erase live loan backing or cleanup duties.
 
 Retained loans include caller-originating and aggregate-carried loans needed by

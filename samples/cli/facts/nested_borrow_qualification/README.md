@@ -19,7 +19,7 @@ zero requirement.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `keep(&attributes)` returns the same `&'scope Attributes` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `choose` returns the reference through both arm states |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the zero written at word 3 arrives as the named constant `TERMINATOR = 0` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state `inspect` receives the reference |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `inspect` receives the reference |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `relay` forwards the reference to `consume` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies forwards the reference |
 
@@ -31,7 +31,7 @@ omega --check samples/cli/facts/nested_borrow_qualification/local/invalid/main.o
 ```
 
 The places are local, field, parameter, call result, match join, const name,
-another state, another machine, and another target body. The constant names the
+a nested machine, another machine, and another target body. The constant names the
 stored zero; the target bodies perform the same consuming call.
 
 ## Acceptance and parent scope

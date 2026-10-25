@@ -20,7 +20,7 @@ This fact row exercises three co-resident local `SlotPair` records (`slot_a`, `s
 | call_result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | The isolated slot sum is returned from a helper call with an ensures contract. |
 | match_join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both match arms produce the isolated slot sum. |
 | const_name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | Named constants preserve the isolated slot sum computation. |
-| other_state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition forwards the isolated slot sum to a successor state. |
+| other_state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition forwards the isolated slot sum to a successor machine. |
 | other_machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | A separate machine verifies and performs the exact subtraction. |
 | target_body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Each hosted target body executes the exact subtraction. |
 

@@ -54,7 +54,7 @@ refused their invariant store with that exact baseline producer.
 The governing contracts are
 [dependent values](../../../../wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains),
 [numeric values](../../../../wiki/spec/language/numeric_values.md#arithmetic-and-comparisons)
-and [state contracts](../../../../wiki/spec/language/state_contracts.md).
+and [invocation contracts](../../../../wiki/spec/language/state_contracts.md).
 
 1. Establishment: the incoming contract proves the increment fits the remaining capacity.
 2. Identity and lifetime: scalar snapshots survive; mutation retires overlapping storage relations.

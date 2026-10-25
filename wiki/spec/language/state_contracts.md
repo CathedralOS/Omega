@@ -1,4 +1,4 @@
-# State contracts and live facts
+# Invocation contracts and live facts
 
 These are source-language obligations, not a list of patterns recognized by the
 Rust compiler. [Mathematical proof contracts](../proofs/contracts.md) owns theorem
@@ -7,44 +7,43 @@ governs which premises the emitted product's obligations may use.
 
 ## Bindings and arrivals
 
-A machine enters its ordinary top-level body. If named states follow, setup
-ends in an explicit tail transition; there is no separately authored entry
-member. State targets belong to that machine. Ordinary calls invoke machines,
-not internal states. An internal state jump adds no call frame or return address
-and never resumes the departed state by returning. A transition dispatch may
-instead select a terminal value or a terminal machine call as specified below.
-
-A target state has only ordinary explicit parameters. Context records and their
-borrows are supplied on each jump like other arguments; no receiver is retained
-or rebound implicitly.
+A machine enters its own executable body; there is no separately authored entry
+member. Trailing nested declarations scope helper names, not runtime data.
+[Nested machines](machines.md#nested-machines-and-identity) defines visibility,
+declaration order and flattening. Both ordinary and terminal calls invoke the
+selected machine with ordinary explicit parameters. Context records and their
+borrows are supplied like other arguments; no receiver or enclosing activation
+is retained or rebound implicitly.
 An ordinary terminal value, explicit return, or permitted implicit Unit
 completion ends the invocation and owes its declared result/return contract.
 
-A transition explicitly supplies the target state's values. Executable uses name
-the exact current-state declarations or preceding local bindings; state arrival
-contracts use that state's parameters. Entry and sibling bindings cannot be
+A transition explicitly supplies the target machine's arguments. Executable uses
+name the exact invocation's parameters or preceding local bindings; arrival
+contracts use the target's parameters. Enclosing and sibling runtime bindings cannot be
 recovered by matching spelling. Nominal member and case selection retains the
 declared owner, including payload projections rooted at an explicit context argument.
 
-Machine `requires` applies at machine entry. Internal named-state jumps establish
-the target state's requirements without importing machine return guarantees or
-assuming machine-entry requirements again. A recursive call explicitly names
-the machine and supplies its arguments; it must re-establish machine preconditions
-and declared field domains. Actual invocations
-retain both sides of the invoked contract.
+Machine `requires` applies at every invocation, including terminal and recursive
+calls. Every arrival establishes the target's requirements and declared domains
+under actual argument substitution. Nesting does not assume the parent's entry
+requirements again, import its return guarantees, or supply facts invalidated
+by mutation. Live caller facts can discharge a nested helper's requirements;
+body inference must justify any inferred private requirements on every arrival,
+not grant them from lexical ancestry. Every invocation retains both sides of
+its own contract. A recursive contract is not its own proof; induction follows
+the well-founded obligations in [termination](termination.md).
 
 Arrival substitution is simultaneous and identity-based. Scalar arguments retain
 their evaluation snapshots; facts about referenced storage must survive writes
 from later arguments. A same-named formal cannot alias an unrelated caller value.
 Every reachable predecessor participates in a join. Unknown input cannot be
 omitted to preserve a convenient invariant. A minimum collection length is not
-an exact extent, and declaration initializers are not recurring state invariants.
+an exact extent, and declaration initializers are not recurring loop invariants.
 
 ## Terminal calls in transition arms
 
-Classify an arm by its resolved target, not its call-shaped spelling. A local
-state target is an internal jump. A machine target is an ordinary invocation
-whose normal result completes the enclosing machine, including Unit completion.
+Resolve every called target as a machine, nested or otherwise. A terminal call
+is an invocation whose normal result completes the current machine, including Unit completion.
 Argument admission, result compatibility, machine postconditions, cleanup,
 crash and no-normal-return behavior are the ordinary call-and-completion rules.
 Only the selected arm executes, with ordinary once-only operand evaluation.
@@ -68,10 +67,10 @@ Tail-call lowering may remove unnecessary control state only while preserving
 all live backing, loans, custody and completion obligations. Recursive runtime
 calls still obey the no-accumulated-frames rule.
 
-An internal state jump takes no `suspend` or `block` prefix, even if the
-destination later calls a suspending machine; the actual call carries its own
-acknowledgement. Markers neither redirect name resolution nor turn a state into
-a machine. Missing, partial or redundant call markers reject under
+Nested machine calls have no marker exemption. Their exact call envelope
+determines `suspend` and `block`, including in terminal position, even when
+lowering later implements the call with a jump. Markers do not redirect name
+resolution. Missing, partial or redundant call markers reject under
 [effects](effects.md#call-site-acknowledgements). The same
 [borrow/carry requirements](../resources/carry.md#borrows-across-suspension)
 apply in a terminal arm as at any other suspending call.
@@ -105,14 +104,16 @@ recovery grant loans, permit moves, or discharge linear claims.
 ## Returns and proof use
 
 Normal returns owe applicable postconditions for both value and Unit results.
-An implicit return occurs after the final statement; a selected returning arm
-uses that arm's facts. Named jumps are transfers, and crash edges are not normal
-returns. Synthetic `result` denotes the exact returned value; output-reference
+An implicit return occurs after the executable portion's final statement, not
+after executing trailing declarations. A selected returning arm uses that arm's
+facts. A terminal call owes both the callee's result and the caller's completion
+contract; lexical ancestry adds no further return targets. Crash edges are not
+normal returns. Synthetic `result` denotes the exact returned value; output-reference
 parameters retain their actual reference origins.
 
 Exit proof consumes live facts, not the conclusion being proved. Reference-subject
-transport across states does not transport the truth of an expired entry
-assumption. Global declaration contexts cannot receive a sibling state's facts.
+transport across calls or loop edges does not transport the truth of an expired
+entry assumption. Declaration contexts cannot receive a sibling invocation's facts.
 Outcome-specific guarantees follow the matching nominal result case and remain
 separate from unconditional guarantees, as specified in
 [proof availability](../proofs/contracts.md#identity-availability-and-erasure).

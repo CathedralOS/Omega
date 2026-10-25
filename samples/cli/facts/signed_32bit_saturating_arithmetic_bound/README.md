@@ -15,7 +15,7 @@ Every place performs the same operation: add bounded 32-bit signed operands (`lh
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | callee function computes saturating addition and returns the 32-bit signed sum before verification |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 32-bit operands and join before saturating addition and verification |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 32-bit operands before saturating addition and verification |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 32-bit signed operands before saturating addition and verification |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 32-bit signed operands before saturating addition and verification |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 32-bit signed operands to saturating addition |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies adds bounded 32-bit signed operands with saturation and verifies |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 60i32` and `rhs == 15i32`, `sum == 75i32`, `headroom == 25i32`, `margin == 25i32`, and `headroom + margin == 50i32`. The check `total - 50i32` evaluates to `0i32`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If 32-bit signed saturating addition or exact subtractions evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, with `lhs == 60i32` and `rhs == 15i32`, `sum == 75i32`, `headroom == 25i32`, `margin == 25i32`, and `headroom + margin == 50i32`. The check `total - 50i32` evaluates to `0i32`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If 32-bit signed saturating addition or exact subtractions evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `lhs` upper bound is widened to `81i32` so `sum` can reach `101i32 > 100i32`. Proof obligation checking statically detects that `sum <= 100` cannot be proved on the consuming call `verify_sum`, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:

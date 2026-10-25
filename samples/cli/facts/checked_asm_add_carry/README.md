@@ -25,7 +25,7 @@ sentence above. The root witness does too.
 | call result | [source](call_result/main.omg) | [cleared carry bit](call_result/invalid/main.omg) |
 | match join | [source](match_join/main.omg) | [one arm clears carry](match_join/invalid/main.omg) |
 | const name | [source](const_name/main.omg) | [named image is the subtraction image](const_name/invalid/main.omg) |
-| another state | [source](other_state/main.omg) | [cleared carry bit](other_state/invalid/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [cleared carry bit](other_state/invalid/main.omg) |
 | another machine | [source](other_machine/main.omg) | [cleared carry bit](other_machine/invalid/main.omg) |
 | another target body | [source](target_body/main.omg) | [subtraction image demanded](target_body/invalid/main.omg) |
 

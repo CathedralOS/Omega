@@ -18,7 +18,7 @@ Only the transport mechanism of the bounded sign-extended value changes across t
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a helper machine returns the bounded sign-extended value with guaranteed contract |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both branches of pattern matching evaluate the bounded sign extension and join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded inputs for sign extension |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded sign-extended value to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded sign-extended value to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives and verifies the sign-extended value |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies evaluate the bounded sign extension on each hosted target |
 
@@ -44,7 +44,7 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 ### The Oracle Discriminates
 
 The authored exit code `0` is discriminating:
-- In every positive place, `compute_wide(60i8)` produces `60i16` within static interval `30i16..100i16`, discharging exact subtractions `h1 = 100i16 - 60i16 == 40i16` and `h2 = 60i16 - 30i16 == 30i16` in `verify_wide`, returning `0i32`. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, `compute_wide(60i8)` produces `60i16` within static interval `30i16..100i16`, discharging exact subtractions `h1 = 100i16 - 60i16 == 40i16` and `h2 = 60i16 - 30i16 == 30i16` in `verify_wide`, returning `0i32`. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each place has an `invalid/` twin whose `narrow` upper bound is widened to `101i8` (`narrow = 101i8`), allowing the sign-extended value to reach `101i16 > 100i16`. When passed to `verify_wide` (or forwarding contracts), the required contract `wide <= 100i16` fails closed at compile time under the **Contract precondition** obligation class with `cannot prove requires contract`. None reaches native execution.
 
 Check each twin with:
@@ -60,7 +60,7 @@ omega --check samples/cli/facts/narrow_to_wide_signed_8to16_extension/<place>/in
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide from probe: wide >= 30 && wide <= 100` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call step from probe: wide >= 30 && wide <= 100` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call step from probe: wide >= 30 && wide <= 100` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call forward from probe: wide >= 30 && wide <= 100` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide from evaluate_wide: wide >= 30 && wide <= 100` |
 

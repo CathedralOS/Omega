@@ -228,8 +228,10 @@ neither supply missing instruction semantics nor become build-admissible.
 
 Catalog availability distinguishes user-checked instructions from deriver-only
 entry/exit operations. Jumps within a body target declared assembly labels;
-jumps leaving the body map to declared Omega states and checked transitions.
-Both retain arguments, invariants and live obligations. Undeclared targets,
+jumps leaving the body map to explicit checked Omega terminal transfers to
+visible machines. Source nesting does not grant a raw jump into another body
+or bypass its contract/acknowledgements. Both forms retain arguments, invariants
+and live obligations. Undeclared targets,
 hidden returns, unwinds and unmodeled exits reject. Return-from-interrupt is not
 a way to bypass an entry contract. Direct targets remain final-artifact-validated;
 indirect calls/tail calls require sealed requirement-compatible entry references,

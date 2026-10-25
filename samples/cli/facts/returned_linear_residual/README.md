@@ -35,7 +35,7 @@ projection diagnostic is an acceptable negative oracle.
 | call result | `supplied` returns Seed with its source-value guarantee |
 | match join | two Seed-producing arms; main calls both Boolean choices |
 | const name | named Seed constant |
-| another state | Seed bound at `next` under its arrival fact |
+| a nested machine | Seed bound at `next` under its arrival fact |
 | another machine | forwarding helper passes Seed into the operation's owner |
 | another target body | each hosted `across` body forms Seed and performs the operation |
 

@@ -22,7 +22,7 @@ moved reference is the place:
 | call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | [control](call_result/controls/held_source/main.omg) | a result binding returned by `hand` |
 | match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | [control](match_join/controls/held_source/main.omg) | a `match` join binding |
 | const name | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | [control](const_name/controls/held_source/main.omg) | a binding written with a named constant |
-| another state | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | [control](other_state/controls/held_source/main.omg) | a state parameter |
+| a nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | [control](other_state/controls/held_source/main.omg) | a state parameter |
 | another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | [control](other_machine/controls/held_source/main.omg) | a parameter forwarded to `write` |
 | another target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | [control](target_body/controls/held_source/main.omg) | a parameter of each target’s `write` |
 
@@ -117,7 +117,7 @@ normal receiver cleanup. They do not establish arbitrary projected or runtime-si
 selection, write-only joins, every hook-order interaction, foreign-host execution,
 or closure of either parent task. Those requirements remain on the board.
 
-## Another state passes a reference to a state
+## A nested machine passes a reference to a state
 
 `other_state/` hands a reference to a named target whose parameter is a loan.
 The two reference accesses share one route, and both must work: `&mut i64` and
@@ -156,7 +156,7 @@ no producer for its root. `tests/omega/pass/facts/`<br>
      - `call_result`: helper function `hand` returns the exclusive reference carrier to the caller's receiving binding.
      - `match_join`: a match expression unifies the loan across distinct control flow arms.
      - `const_name`: a binding written with a named constant guides the handoff.
-     - `other_state`: a successor state parameter captures the moved reference across transition edges.
+     - `other_state`: a successor machine parameter captures the moved reference across transition edges.
      - `other_machine`: an intermediate machine forwards the reference to an external writing machine.
      - `target_body`: target-scoped machine bodies execute the reference handoff across each hosted platform.
      In all nine places and cleanup-receiver variations, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the conflicting use of the source binding or backing while the receiving loan is active—never in any caller guard.

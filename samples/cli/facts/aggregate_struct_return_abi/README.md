@@ -22,7 +22,7 @@ Every place performs the same operation: construct and return a 32-byte (four-`u
 | Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Aggregate returned by value is returned directly from an indirect helper call |
 | Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms execute indirect aggregate returns and join into an aggregate |
 | Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constants define the field values returned in the four-word aggregate |
-| Another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor state receives the returned aggregate by value and projects its fields |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine receives the returned aggregate by value and projects its fields |
 | Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | An intermediate forwarding machine transports the returned aggregate by value |
 | Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies execute indirect aggregate returns on each hosted target |
 

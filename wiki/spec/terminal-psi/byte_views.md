@@ -442,5 +442,5 @@ An executed read may relate its fresh result to that observation only under its
 existing bounds and readable-access obligations. Later writes retire facts about
 overlapping storage; a captured result retains the value it read. Constructing
 a contract term grants no access, establishes no index bound and proves no
-predicate. Every named-state arrival and ordinary call still owes the complete
+predicate. Every nested-machine arrival and ordinary call still owes the complete
 authored requirement before using it as an entry hypothesis.

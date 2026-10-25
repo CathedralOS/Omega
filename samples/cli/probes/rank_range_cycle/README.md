@@ -5,7 +5,7 @@ two-machine descent cycle. No standard-library dependency.
 
 - `terminates by remaining in 0..=9` bounds the rank; the matching
   `requires remaining <= 9` roster brings the bound into the body.
-- `state hold(...) requires pending <= 9` — a subordinate state's
+- `machine hold(...) requires pending <= 9` — a subordinate state's
   requires participates in the cycle: `hold -> step(pending)` is a
   weak edge, the strict `step -> count(n - 1)` edge completes every
   cycle's descent.

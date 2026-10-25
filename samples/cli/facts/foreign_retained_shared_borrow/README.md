@@ -50,7 +50,7 @@ through all nine places; no host adapter is recognized by sample name in the CLI
 | call result | [source](call_result/main.omg) | [write](call_result/invalid/main.omg) |
 | match join | [source](match_join/main.omg) | [write](match_join/invalid/main.omg) |
 | constant name | [source](const_name/main.omg) | [write](const_name/invalid/main.omg) |
-| another state | [source](other_state/main.omg) | [write](other_state/invalid/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [write](other_state/invalid/main.omg) |
 | another machine | [source](other_machine/main.omg) | [write](other_machine/invalid/main.omg) |
 | target body | [source](target_body/main.omg) | [write](target_body/invalid/main.omg) |
 

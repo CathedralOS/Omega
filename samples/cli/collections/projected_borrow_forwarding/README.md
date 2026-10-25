@@ -2,7 +2,7 @@
 
 Expected exit: 0. A returned mutable field borrow must retain its captured
 indexed element while unrelated cursor and marker fields change. The same
-operation forwards through nested calls and a named state. A returned array of
+operation forwards through nested calls and a nested machine. A returned array of
 disjoint borrows must preserve each element's independent permission.
 
 After ordinary package review, run:

@@ -4,7 +4,7 @@ An outer helper that calls an inner helper to pick one of two mutable inputs and
 
 `choose` returns either mutable `u64`. `relay` returns that result. `overwrite` writes `9` through the nested result while evaluating an operand of `add`. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the marker stays `1`, the chosen slot becomes `9`, and the index reads `7`. Each reject twin changes only the Boolean passed to `relay` from `true` to `false`.
 
-This witnesses the nested-helper part of **R5** in `TASKS.md`: caller-visible may-write summaries under [state contracts](../../../../wiki/spec/language/state_contracts.md). It does not close named-state results, codec arguments, finite write cycles, parameter-permutation write sets, or parser convergence.
+This witnesses the nested-helper part of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close nested-machine results, codec arguments, finite write cycles, parameter-permutation write sets, or parser convergence.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -15,7 +15,7 @@ This witnesses the nested-helper part of **R5** in `TASKS.md`: caller-visible ma
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the preserved index bound |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the preserved index |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `LIMIT` names the index bound |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the index |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the index |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine receives the index |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body reloads the index |
 

@@ -16,7 +16,7 @@ Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | The initialized slot value is returned from a helper call before exact subtraction. |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | The initialized slot values are unified across reconverging match branches before exact subtraction. |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | A named constant supplies the subtrahend ceiling for the initialized destination slot. |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The initialized slot value is transported across an explicit state transition before exact subtraction. |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The initialized slot value is transported across an explicit state transition before exact subtraction. |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Another machine forwards the initialized destination slot before exact subtraction. |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies initialize and consume the write-only borrow destination across all hosted targets. |
 

@@ -48,7 +48,7 @@ differ in kind:
 | call result | `call_result/` | a producer machine returns the masked scalar under postcondition ensures result <= 255u64 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
 | match join | `match_join/` | both branches of a boolean match expression yield masked byte values before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
 | const name | `const_name/` | a named constant BYTE_MASK defines the 255u64 mask operand before subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | an internal state transition transfers the masked scalar to a successor state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the masked scalar to a successor machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
 | another machine | `other_machine/` | an associated Relay machine masks and forwards the scalar to the caller | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
 | another target body | `target_body/` | each of the four hosted target bodies receives the masked scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 

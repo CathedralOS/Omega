@@ -15,7 +15,7 @@ Every place performs the same operation: logically shift a bounded `u64` value (
 | call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | Calls with declared bounds supply both operands to the shift. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_call_result_rejected` |
 | match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both arms produce operands within bounds so the joined operands shift safely. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_match_join_rejected` |
 | const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | Named constants provide the bounded operand and shift count. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_const_name_rejected` |
-| another state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition forwards the bounded operands to a successor state. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected` |
+| a nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition forwards the bounded operands to a successor machine. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_other_state_rejected` |
 | another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | A forwarding machine transports operands to the shift machine. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_other_machine_rejected` |
 | another target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Each hosted target body executes the bounded shift and exact subtraction. | `tests/omega/pass/facts/unsigned_shift_right_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_shift_right_bound_through_target_body_rejected` |
 
@@ -40,7 +40,7 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-f1b0d33
 
 ### The oracle discriminates
 
-Perturbing the root oracle's single comparison (`transition res == 0` -> `transition res == 1`) sends both engines to `state bad() { crash Trap; }` instead of `done()`: the perturbed program exits 255 reporting `native signal 5` and `interp crash: Trap (host presentation agrees)`. The authored exit `0` therefore strictly discriminates between correct evaluation and faulty execution.
+Perturbing the root oracle's single comparison (`transition res == 0` -> `transition res == 1`) sends both engines to `machine bad() { crash Trap; }` instead of `done()`: the perturbed program exits 255 reporting `native signal 5` and `interp crash: Trap (host presentation agrees)`. The authored exit `0` therefore strictly discriminates between correct evaluation and faulty execution.
 
 ### Reject twins
 

@@ -14,7 +14,7 @@ Only the transport mechanism of the bounded saturating sum changes across the ni
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a helper machine returns the bounded saturating sum with guaranteed contract | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_call_result_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_call_result_rejected` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both branches of pattern matching evaluate the bounded saturating sum and join | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_match_join_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_match_join_rejected` |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded inputs for saturating addition | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_const_name_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_const_name_rejected` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded saturating sum to a successor state | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_state_rejected` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bounded saturating sum to a successor machine | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_state_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_state_rejected` |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate forwarding machine receives and verifies the saturating sum | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_machine_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_other_machine_rejected` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies evaluate the bounded saturating sum on each hosted target | `tests/omega/pass/facts/unsigned_16bit_saturating_arithmetic_bound_through_target_body_exit` | `tests/omega/fail/facts/unsigned_16bit_saturating_arithmetic_bound_through_target_body_rejected` |
 
@@ -39,7 +39,7 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 
 ### The Oracle Discriminates
 
-The authored exit code `0` is not an unconstrained default. If the expectation in `verify_sum()` is modified to require a non-zero exit or if an unexpected computation result occurs (`headroom != 120u16 || margin != 130u16`), execution transitions to `state bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
+The authored exit code `0` is not an unconstrained default. If the expectation in `verify_sum()` is modified to require a non-zero exit or if an unexpected computation result occurs (`headroom != 120u16 || margin != 130u16`), execution transitions to `machine bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
 
 ### Reject Twins
 
@@ -58,7 +58,7 @@ omega --check samples/cli/facts/unsigned_16bit_saturating_arithmetic_bound/<plac
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove requires contract` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove requires contract` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract` |
 

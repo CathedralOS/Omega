@@ -15,7 +15,7 @@ Every place performs the same operation: shift a bounded unsigned `u64` operand 
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted helper call returns the bounded operand before left shift and subtraction |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return the bounded operand and join before left shift and subtraction |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the bounded operand before left shift and subtraction |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the bounded operand and shift count before left shift and subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the bounded operand and shift count before left shift and subtraction |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards the bounded operands to the shift machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies shifts the bounded operand and subtracts 100u64 |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, `25u64 << 2 == 100u64`, and exact subtraction `100u64 - 100u64 == 0u64`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If left shift evaluation is corrupted (e.g. failing to shift or shifting by the wrong count) or produces a non-zero diff, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, `25u64 << 2 == 100u64`, and exact subtraction `100u64 - 100u64 == 0u64`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If left shift evaluation is corrupted (e.g. failing to shift or shifting by the wrong count) or produces a non-zero diff, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, the operand is bounded to `24u64`, so `24u64 << 2 == 96u64`. Exact subtraction `shifted - 100u64` (`96u64 - 100u64`) underflows below zero, causing compile-time proof obligation checking to fail closed with `exact arithmetic in machine ... may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:

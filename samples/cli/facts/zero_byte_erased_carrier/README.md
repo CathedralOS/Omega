@@ -20,7 +20,7 @@ Every positive place and the root witness bind `ProgramEntry` across all four ho
 | call result | `call_result/` | a producer machine returns the carrier record under guaranteed contract postcondition | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
 | match join | `match_join/` | both branches of a boolean match expression yield the carrier record before verification | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
 | const name | `const_name/` | a named constant INIT_VALUE initializes the carrier value before verification | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | an internal state transition transfers the carrier record to a successor state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the carrier record to a successor machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
 | another machine | `other_machine/` | an associated Relay machine forwards the carrier record to verify_carrier | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
 | another target body | `target_body/` | each of the four hosted target bodies receives the carrier record to verify | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 

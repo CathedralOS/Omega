@@ -15,7 +15,7 @@ Every place performs the same operation: combine a bounded 64-bit unsigned base 
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 64-bit operands before bitwise OR and interval discharge |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 64-bit operands and join before bitwise OR and interval discharge |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 64-bit operands before bitwise OR and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 64-bit operands before bitwise OR and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 64-bit operands before bitwise OR and interval discharge |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 64-bit operands to bitwise OR |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies performs 64-bit bitwise OR and discharges interval |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded `0` exit is strictly discriminative:
-- At runtime, with `base == 20u64` and mask `32u64`, `combined == 52u64`, `headroom == 63u64 - 52u64 == 11u64`, `margin == 52u64 - 40u64 == 12u64`, and `headroom + margin == 23u64`. The transition `probe() == 23 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded value (changing `transition probe() == 23` to `transition probe() == 24`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` and `interp crash: Trap (host presentation agrees)`).
+- At runtime, with `base == 20u64` and mask `32u64`, `combined == 52u64`, `headroom == 63u64 - 52u64 == 11u64`, `margin == 52u64 - 40u64 == 12u64`, and `headroom + margin == 23u64`. The transition `probe() == 23 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded value (changing `transition probe() == 23` to `transition probe() == 24`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` and `interp crash: Trap (host presentation agrees)`).
 - Each place has an `invalid/` twin (`sample.json` + `expected.txt`) that breaks only the construct's own contract, input, or domain (never a post-hoc caller guard):
   - **Obligation class (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`):** Call contract precondition (`cannot prove requires contract for call`) when the `base` upper bound is widened from `31u64` to `64u64` (or constant `BASE` is set to `64u64`). Bitwise OR analysis synthesizes `combined in [32, 127]` (or `combined == 96`), which violates the required interval `combined >= 40 && combined <= 63` on `verify_combined`. Proof obligation checking fails closed at compile time and none reaches native execution.
 
@@ -63,7 +63,7 @@ omega --check samples/cli/facts/unsigned_64bit_bitwise_or_bound/<place>/invalid/
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 

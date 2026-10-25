@@ -306,7 +306,8 @@ cannot rewrite the callee's envelope.
 A suspending call may occur only as a complete statement, simple `let`
 right-hand side, transition subject, or terminal expression, including a
 [terminal machine call in a transition arm](state_contracts.md#terminal-calls-in-transition-arms).
-Such an arm uses the exact call markers; an internal state jump takes none.
+Such an arm uses the exact call markers, including when its target is a nested
+machine. Nesting and later jump/frame-reuse lowering grant no exemption.
 A suspending call cannot nest inside an argument, operator, aggregate
 construction, or condition. A blocking-only call may nest because it creates
 no continuation boundary.

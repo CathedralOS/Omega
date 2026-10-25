@@ -15,7 +15,7 @@ Every place performs the same operation: multiply bounded 64-bit signed operands
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 64-bit operands before wrapping multiplication and interval discharge |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 64-bit operands and join before wrapping multiplication and interval discharge |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 64-bit operands before wrapping multiplication and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 64-bit operands before wrapping multiplication and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 64-bit operands before wrapping multiplication and interval discharge |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 64-bit operands to wrapping multiplication |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies multiplies bounded 64-bit operands with wrapping and discharges interval |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 15i64` and `rhs == 8i64`, `prod == 120i64`, `headroom == 80i64`, `margin == 70i64`, and `headroom + margin == 150i64`. The transition `probe() == 150 { true -> done() _ -> bad() }` routes to `state done() {}`, exiting 0. A 1-token perturbation of the demanded result (`transition probe() == 150` to `transition probe() == 151` in `main.omg`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, with `lhs == 15i64` and `rhs == 8i64`, `prod == 120i64`, `headroom == 80i64`, `margin == 70i64`, and `headroom + margin == 150i64`. The transition `probe() == 150 { true -> done() _ -> bad() }` routes to `machine done() {}`, exiting 0. A 1-token perturbation of the demanded result (`transition probe() == 150` to `transition probe() == 151` in `main.omg`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - In each invalid twin, `lhs` upper bound is widened to `21i64` so `prod` can reach `210i64 > 200i64`. Proof obligation checking statically detects that `verify_prod` contract precondition `value <= 200i64` cannot be satisfied, failing closed under the **Contract precondition** obligation class with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -62,7 +62,7 @@ omega --check samples/cli/facts/signed_64bit_wrapping_multiplication_bound/<plac
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 

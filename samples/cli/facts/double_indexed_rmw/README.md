@@ -12,7 +12,7 @@ depend on `source/library/std`.
 
 Every place copies that fact sentence and operation. Only the transport of the
 borrowed storage changes: a local, a record field, an explicit parameter, a
-call result, both match arms, the named bound, a successor state, a forwarding
+call result, both match arms, the named bound, a successor machine, a forwarding
 machine, and per-target bodies. The twin of each place stores 40 instead of 41
 at `grid[1][2]`, so the cell observation is false; indices, increment, and the
 row store stay.
@@ -32,7 +32,7 @@ binding. That wall is not this operation.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | both arrays arrive as call results |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms write and one successor observes |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named bounds supply both indices and both stores |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state writes and observes |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine writes and observes |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `Writer::run` writes through borrowed caller storage |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one `rmw` body per hosted target |
 
@@ -93,7 +93,7 @@ and the nine `built ... exit:signal signal:5` traps, and
    still fails the observation.
 3. **Composition:** the borrowed grid and the borrowed row array are the
    caller's storage through a local, a field, a parameter, a call result, both
-   match arms, the named bound, a successor state, a forwarding machine, and
+   match arms, the named bound, a successor machine, a forwarding machine, and
    four target bodies. The observation after each transport is the consuming
    operation, and both engines agree on it.
 4. **Soundness boundaries:** the false store must not complete as exit 0. All

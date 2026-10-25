@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | bitwise AND result returned across machine call boundary | `cannot prove ensures contract for exit from produce_masked` |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | bitwise AND result converged across match join arms | `cannot prove requires contract for call verify_masked from main: joined >= 40 && joined <= 63` |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | raw input provided by named compile-time constant | `cannot prove requires contract for call verify_masked from main: masked >= 40 && masked <= 63` |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise AND result forwarded across state machine transition | `cannot prove requires contract for call verify_masked from main: forwarded >= 40 && forwarded <= 63` |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise AND result forwarded across state machine transition | `cannot prove requires contract for call verify_masked from main: forwarded >= 40 && forwarded <= 63` |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | bitwise AND result forwarded through intermediate machine | `cannot prove requires contract for call runner from main: masked >= 40 && masked <= 63` |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | bitwise AND result verified across target-scoped machine bodies | `cannot prove requires contract for call exercise from main: masked >= 40 && masked <= 63` |
 
@@ -36,8 +36,8 @@ clears the higher bits (including the sign bit) and yields `masked = 52i16`, whi
 falls strictly inside the statically established interval `[40, 63]`. That interval
 discharges `verify_masked`'s precondition and the exact signed subtractions
 `63i16 - masked = 11i16` and `masked - 40i16 = 12i16`; `main` transitions to
-`state done() {}` on `check == 0` and exits 0. Any corruption of the masked value or
-of the subtraction results routes the guard to `state bad() { crash Trap; }`.
+`machine done() {}` on `check == 0` and exits 0. Any corruption of the masked value or
+of the subtraction results routes the guard to `machine bad() { crash Trap; }`.
 
 ### Invalid controls and reject twins
 
@@ -87,7 +87,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_masked()` computes bitwise AND and returns the result across call boundary with ensures contract.
   - `match_join`: bitwise AND result converges through match arms into a unified value.
   - `const_name`: input `RAW` is declared as a compile-time named constant `const RAW: i16 = 116;`.
-  - `other_state`: bitwise AND result is passed across a transition edge into successor state `step(forwarded: i16)`.
+  - `other_state`: bitwise AND result is passed across a transition edge into successor machine `step(forwarded: i16)`.
   - `other_machine`: bitwise AND result is forwarded through intermediate machine `runner()`.
   - `target_body`: bitwise AND result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the mask to `127i16` (where `masked` reaches `116i16 > 63i16`), proving that downstream contract verification `requires masked >= 40 && masked <= 63` strictly fails closed when the post-mask value exceeds 63.

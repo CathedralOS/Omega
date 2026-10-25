@@ -17,7 +17,7 @@ when the byte is 8. Only the transport of the window length changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call result returns the window length |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match yield the window length |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant is the window length |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the length |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the length |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the length |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies uses the length |
 
@@ -55,7 +55,7 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove index` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove index` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove index` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove index` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove index` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove index` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove index` |
 

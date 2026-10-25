@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | bitwise XOR result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | bitwise XOR result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | raw input provided by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise XOR result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | bitwise XOR result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | bitwise XOR result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | bitwise XOR result verified across target-scoped machine bodies |
 
@@ -48,7 +48,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `raw ^ 15u64` with input `59u64` establishes XOR value `52u64` within static interval `40u64..63u64`. Passing `xored` to `verify_xored(xored)` satisfies its contract `xored >= 40 && xored <= 63`. `verify_xored` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, sums their values (23), and subtracts 23 returning `0i32`. In `main`, `transition check == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition check == 0` to `transition check == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating `raw ^ 15u64` with input `59u64` establishes XOR value `52u64` within static interval `40u64..63u64`. Passing `xored` to `verify_xored(xored)` satisfies its contract `xored >= 40 && xored <= 63`. `verify_xored` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, sums their values (23), and subtracts 23 returning `0i32`. In `main`, `transition check == 0` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition check == 0` to `transition check == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the XOR operand to `127u64`, so `raw ^ 127u64` yields `68u64 > 63u64`. Downstream contract verification fails closed at compile time under the **Contract precondition** / **Contract postcondition** obligation class with `cannot prove requires contract` (or `cannot prove ensures contract` in `call_result`). None reaches native execution.
 
 Check all nine invalid twins with:
@@ -65,7 +65,7 @@ omega --check samples/cli/facts/unsigned_64bit_bitwise_xor_bound/<place>/invalid
 | call result | [call_result/invalid/main.omg](call_result/invalid/main.omg) | Contract postcondition | `cannot prove ensures contract` |
 | match join | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | const name | [const_name/invalid/main.omg](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| another state | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| a nested machine | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | another machine | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | another target body | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 
@@ -120,7 +120,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_xored()` computes bitwise XOR and returns the result across call boundary with ensures contract.
   - `match_join`: bitwise XOR result converges through match arms into a unified value.
   - `const_name`: input `RAW` is declared as a compile-time named constant `const RAW: u64 = 59;`.
-  - `other_state`: bitwise XOR result is passed across a transition edge into successor state `step(forwarded: u64)`.
+  - `other_state`: bitwise XOR result is passed across a transition edge into successor machine `step(forwarded: u64)`.
   - `other_machine`: bitwise XOR result is forwarded through intermediate machine `runner()`.
   - `target_body`: bitwise XOR result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the XOR operand to `127u64` (where `xored` reaches `68u64 > 63u64`), proving that downstream contract verification `requires xored >= 40 && xored <= 63` strictly fails closed when the post-XOR value exceeds 63.

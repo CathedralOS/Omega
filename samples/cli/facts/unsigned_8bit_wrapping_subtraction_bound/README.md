@@ -15,7 +15,7 @@ Every place performs the same operation: subtract bounded 8-bit unsigned operand
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | callee function computes wrapping subtraction and returns the 8-bit difference before verification |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 8-bit operands and join before wrapping subtraction and verification |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 8-bit operands before wrapping subtraction and verification |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 8-bit operands before wrapping subtraction and verification |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 8-bit operands before wrapping subtraction and verification |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 8-bit operands to wrapping subtraction |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies subtracts bounded 8-bit operands with wrapping and verifies |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 140u8` and `rhs == 30u8`, `diff == 110u8`, `headroom == 50u8`, `margin == 50u8`, and `headroom + margin == 100u8`. The transition `probe() == 100 { true -> done() _ -> bad() }` exits 0. If 8-bit unsigned wrapping subtraction or exact subtractions evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, with `lhs == 140u8` and `rhs == 30u8`, `diff == 110u8`, `headroom == 50u8`, `margin == 50u8`, and `headroom + margin == 100u8`. The transition `probe() == 100 { true -> done() _ -> bad() }` exits 0. If 8-bit unsigned wrapping subtraction or exact subtractions evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `lhs` upper bound is widened to `181u8` so `diff` can reach `161u8 > 160u8`. Proof obligation checking statically detects that `value <= 160` cannot be proved on the consuming call `verify_diff`, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -79,7 +79,7 @@ bound (`<= 180u8` -> `<= 181u8`, so `diff` can reach `161u8 > 160u8`) and pins
 `cannot prove requires contract for call` in `expected.txt`, the common prefix of
 the nine corpus-runner-emitted diagnostics (`verify_diff` for local, field,
 call result, match join, const name and another target body; `consume_param` for
-the parameter place; `step` for another state; `forward_wrap` for another
+the parameter place; `step` for a nested machine; `forward_wrap` for another
 machine).
 
 ## Requirements and Evidence

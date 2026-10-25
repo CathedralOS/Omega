@@ -28,7 +28,7 @@ borrow checker (``while local borrow `selected` is still active``).
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `select(&mut chosen, &mut other, …)` returns the exclusive loan |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the copyable flag arrives from a match join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the flag is the named constant `DECIDE` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the primitives and returns the loan |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the primitives and returns the loan |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the primitives |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the sequence |
 
@@ -84,7 +84,7 @@ of the write through the loan; everything else is identical to its positive
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``while local borrow `selected` is still active`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 
@@ -113,7 +113,7 @@ The `case_payload` probe is not pinned and never counts toward the row.
    evaluation `choose(&mut visits)` fixes the selected arm (`requires counter
    == 0` / `ensures result == true`), and the arm expression `&mut chosen`
    (a primitive place, a field, a parameter, a call result, a join, a const
-   value, or another state's parameter) forms the exclusive loan bound by the
+   value, or a nested machine's parameter) forms the exclusive loan bound by the
    match join. No caller equality guard substitutes for the loan.
 2. **Identity and lifetime:** The loan names the exact storage of the selected
    primitive for its whole live window; the source write is invalid while it
@@ -121,7 +121,7 @@ The `case_payload` probe is not pinned and never counts toward the row.
    write, the same loan reads back the written value (`observed == 41`) and
    the selected primitive reflects it (`chosen == 41`).
 3. **Composition:** The fact composes through local, field, parameter, call
-   result, match join, const name, successor state, forwarding machine, and
+   result, match join, const name, successor machine, forwarding machine, and
    target body; `<place>/main.omg` vs `<place>/invalid/main.omg` differ only in
    the position of the source write relative to the write through the loan.
 4. **Soundness boundaries:** All nine twins fail closed during compile-time

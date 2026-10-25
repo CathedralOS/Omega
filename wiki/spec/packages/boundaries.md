@@ -49,7 +49,7 @@ not a new declaration selection or trait-evidence grant.
 ## Exposure and declaration selection
 
 Public contracts, data/domain facts, and trait contracts use public-interface
-exposure. Executable bodies, internal states, local annotations/casts, owned
+exposure. Executable bodies, nested machines, local annotations/casts, owned
 storage, and ranking witnesses remain private implementation. The public
 termination promise is `terminates`, not the measure used to prove it.
 A public interface cannot expose a private declaration for consumer source

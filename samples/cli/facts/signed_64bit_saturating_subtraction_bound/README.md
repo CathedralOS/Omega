@@ -13,7 +13,7 @@
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | helper call returns saturating subtraction difference with postcondition contract `ensures result >= 40i64 && result <= 100i64` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | difference is synthesized and unified across conditional match branches |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared symbolic constants define operand intervals and bound limits |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state `check_state(d: i64)` receives difference and verifies interval subtractions |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `check_state(d: i64)` receives difference and verifies interval subtractions |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the difference to another machine for interval verification |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform saturating subtraction and interval verification |
 
@@ -48,7 +48,7 @@ The recorded 0 exit is discriminating:
 - 64-bit signed saturating subtraction evaluates to `70i64` and is verified overflow-free.
 - Consuming exact subtractions `let headroom: i64 = 100i64 - diff` (`30i64`) and `let margin: i64 = diff - 40i64` (`30i64`) are statically proved safe in interval `[0i64, 60i64]`.
 - Exact unsigned casts `let check_h: u64 = headroom as u64` and `let check_m: u64 = margin as u64` confirm non-negative bounds without underflow or overflow.
-- At runtime, `diff == 70i64 && headroom + margin == 60i64 && check_h + check_m == 60u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, `diff == 70i64 && headroom + margin == 60i64 && check_h + check_m == 60u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. In `main`, `transition res == 0` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the `lhs` bound to `lhs <= 125i64`, allowing `diff` to take value `125 - 20 = 105i64 > 100i64`. The headroom subtraction `100i64 - diff` yields `-5i64`, which fails closed at compile time under the **Exact integer cast representability** obligation class during exact conversion to `u64` with diagnostic `Exact integer cast ... from \`i64\` to \`u64\` is not provably representable`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -65,7 +65,7 @@ omega --check samples/cli/facts/signed_64bit_saturating_subtraction_bound/<place
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 

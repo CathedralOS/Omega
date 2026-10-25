@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded unsigned 64-bit input `v
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the carried 10th argument is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the carried 10th argument so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the 10th argument to the 10-argument call |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the carried 10th argument to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the carried 10th argument to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the carried 10th argument through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body executes the 10-argument call across target ABI lanes and verifies the bounds |
 
@@ -51,7 +51,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, 60)` produces `carried == 60u64` within static interval `40u64..80u64`. Passing `carried` to `verify_carried(carried)` satisfies its contract `carried >= 40 && carried <= 80`. `verify_carried` evaluates exact subtractions `head = 80 - 60 == 20u64` and `tail = 60 - 40 == 20u64`, sums them to `40u64`, and returns `40u64`. In `main`, `transition res == 40` transitions to `state done() {}`, terminating with native exit 0. If argument transmission or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `relay_ten(1, 2, 3, 4, 5, 6, 7, 8, 9, 60)` produces `carried == 60u64` within static interval `40u64..80u64`. Passing `carried` to `verify_carried(carried)` satisfies its contract `carried >= 40 && carried <= 80`. `verify_carried` evaluates exact subtractions `head = 80 - 60 == 20u64` and `tail = 60 - 40 == 20u64`, sums them to `40u64`, and returns `40u64`. In `main`, `transition res == 40` transitions to `machine done() {}`, terminating with native exit 0. If argument transmission or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the 10th argument bound (e.g. `v10 <= 81u64` or `const V10: u64 = 81;`), so `carried` reaches `81u64 > 80u64`. Calling `verify_carried(carried)` fails closed at compile time with `cannot prove requires contract for call verify_carried`. None reaches native execution.
 
 Check all nine invalid twins with:

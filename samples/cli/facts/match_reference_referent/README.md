@@ -23,7 +23,7 @@ they name, changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the two referent values arrive from `measure_chosen()`/`measure_spare()` call results whose `ensures` contracts carry 17 and 5 |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both referent values arrive through `match true` joins before they are borrowed |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the two referent values are the named constants `CHOSEN` and `SPARE` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the successor state `pick` receives the two borrowed references |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the successor machine `pick` receives the two borrowed references |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine (`forward`) supplies the candidate references to `apply` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies of `apply` performs the join |
 
@@ -64,7 +64,7 @@ construct's own input or selection, and checking fails closed during compile-tim
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the join selects `spare_ref` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the join selects `spare_ref` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the join selects `spare_ref` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `pick`'s join selects `spare` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `pick`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `pick`'s join selects `spare` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `pick`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `apply`'s join selects `spare` on the true arm | `cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body's join selects `spare` on the true arm | `cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 
@@ -93,7 +93,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
    through once, before any write to the referee, and the twin shows that the *other* candidate
    cannot satisfy the consumer's requirement.
 3. **Composition:** the join composes with local bindings, record fields, parameters, call
-   results, match joins, constants, a successor state, a forwarding machine and four target
+   results, match joins, constants, a successor machine, a forwarding machine and four target
    bodies; `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the construct's own
    selection (which candidate the true arm names).
 4. **Soundness boundaries:** every twin rejects during proof checking with
@@ -146,8 +146,8 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
       };
       transition read_through(joined) == 17 { true -> done() false -> wrong() }
 
-      state done() {}
-      state wrong() { crash Trap; }
+      machine done() {}
+      machine wrong() { crash Trap; }
   }
   ```
 

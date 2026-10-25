@@ -17,7 +17,7 @@ Host boundary: this row is measured on Apple Silicon (`macos_arm64`). Unlike the
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | the read place starts at a call result |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | the read place converges through a match join |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | the read place is indexed by a named constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | the read place arrives as a state parameter |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | the read place arrives as a state parameter |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | the read place crosses another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each hosted target's scoped body carries the same `ldr` |
 
@@ -49,7 +49,7 @@ with its authored fragment):
 | call result | [pass/facts/checked_asm_arm_load_through_call_result_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_call_result_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_call_result_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_call_result_rejected/main.omg) |
 | match join | [pass/facts/checked_asm_arm_load_through_match_join_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_match_join_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_match_join_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_match_join_rejected/main.omg) |
 | const name | [pass/facts/checked_asm_arm_load_through_const_name_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_const_name_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_const_name_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_const_name_rejected/main.omg) |
-| another state | [pass/facts/checked_asm_arm_load_through_other_state_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_other_state_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_other_state_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_other_state_rejected/main.omg) |
+| a nested machine | [pass/facts/checked_asm_arm_load_through_other_state_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_other_state_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_other_state_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_other_state_rejected/main.omg) |
 | another machine | [pass/facts/checked_asm_arm_load_through_other_machine_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_other_machine_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_other_machine_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_other_machine_rejected/main.omg) |
 | another target body | [pass/facts/checked_asm_arm_load_through_target_body_exit](../../../../tests/omega/pass/facts/checked_asm_arm_load_through_target_body_exit/main.omg) | [fail/facts/checked_asm_arm_load_through_target_body_rejected](../../../../tests/omega/fail/facts/checked_asm_arm_load_through_target_body_rejected/main.omg) |
 
@@ -154,7 +154,7 @@ place: `omega run --both <place>/main.omg` with stdin closed; per twin:
 | call result | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
 | match join | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
 | const name | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
-| another state | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
+| a nested machine | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
 | another machine | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
 | another target body | `native exit 0` / `interp exit: 0` | rejected: bracketed `[...]` memory addressing |
 

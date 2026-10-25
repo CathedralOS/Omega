@@ -13,7 +13,7 @@
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | helper call returns extended wide value with postcondition contract `ensures result >= 30i32 && result <= 100i32` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | wide value is synthesized and unified across conditional match branches |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared symbolic constants define narrow and wide bounds |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state `check_state(w: i32)` receives extended wide value and verifies interval subtractions |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `check_state(w: i32)` receives extended wide value and verifies interval subtractions |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the wide value to another machine for interval verification |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform sign extension and interval subtractions |
 
@@ -73,7 +73,7 @@ The recorded 0 exit is discriminating:
 - Sign-extending to `i32` (`let wide: i32 = narrow as i32`) statically preserves the exact value interval `[30i32, 100i32]`.
 - Consuming exact subtractions `let headroom: i32 = 100i32 - wide` (`40i32`) and `let margin: i32 = wide - 30i32` (`30i32`) evaluate to non-negative quantities bounded in `[0i32, 70i32]`.
 - Exact unsigned casts `let check_h: u32 = headroom as u32` and `let check_m: u32 = margin as u32` verify non-negative headroom/margin bounds without underflow or overflow.
-- At runtime, `wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. A 1-token perturbation of the demanded result in `main` (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, `wide == 60i32 && headroom + margin == 70i32 && check_h + check_m == 70u32` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. A 1-token perturbation of the demanded result in `main` (`transition res == 0` to `transition res == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the `narrow` bound to `narrow <= 101i8`, allowing `wide` to take value `101i32 > 100i32`. The headroom subtraction `100i32 - wide` yields `-1i32`, which fails closed at compile time under the **Exact integer cast representability** obligation class during exact conversion to `u32` with diagnostic `Exact integer cast ... from \`i32\` to \`u32\` is not provably representable`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -90,7 +90,7 @@ omega --check samples/cli/facts/narrow_to_wide_signed_8to32_extension/<place>/in
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact integer cast representability | `not provably representable` |
 

@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | multiplication result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | multiplication result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | multiplication inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | multiplication result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | multiplication result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | multiplication result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | multiplication result verified across target-scoped machine bodies |
 
@@ -93,7 +93,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_prod()` computes multiplication and returns the result across call boundary with ensures contract.
   - `match_join`: multiplication result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: i16 = 20; const RHS: i16 = 15;`.
-  - `other_state`: multiplication result is passed across a transition edge into successor state `step(forwarded: i16)`.
+  - `other_state`: multiplication result is passed across a transition edge into successor machine `step(forwarded: i16)`.
   - `other_machine`: multiplication result is forwarded through intermediate machine `runner()`.
   - `target_body`: multiplication result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening the `rhs` bound to `rhs >= 10 && rhs <= 21` and in the concrete inputs admitted under it (`lhs = 25i16`, `rhs = 21i16`, so `prod` is `525i16 > 500i16`), proving that downstream contract verification `requires prod >= 150 && prod <= 500` strictly fails closed when the post-multiplication bound exceeds 500.

@@ -18,7 +18,7 @@ Every place performs the same operation: query the byte size (`size_of<&[u64]>()
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the size and alignment are returned from contracted helper call results before subtracting |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms evaluate the size and alignment queries and join before subtracting |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants evaluate size_of and align_of before subtracting |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the size and alignment queries before subtracting |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the size and alignment queries before subtracting |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine delegates the subtraction to the geometry query machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies evaluates size_of and align_of and subtracts |
 
@@ -48,7 +48,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, `size_of<&[u64]>() == 16u64` and `align_of<&[u64]>() == 8u64`. Exact subtraction `16u64 - (8u64 * 2u64) == 0u64`. The transition `diff == 0 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded result (`transition diff == 0` to `transition diff == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, `size_of<&[u64]>() == 16u64` and `align_of<&[u64]>() == 8u64`. Exact subtraction `16u64 - (8u64 * 2u64) == 0u64`. The transition `diff == 0 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded result (`transition diff == 0` to `transition diff == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - In each invalid twin, the queried type is narrowed to a single element thin reference `&u64` (`size == 8u64`, `align == 8u64`). Exact subtraction `8u64 - (8u64 * 2u64)` (`8u64 - 16u64`) underflows below zero (`bounds [-8, -8] lie outside [0, 18446744073709551615]`), causing compile-time proof obligation checking to fail closed under the **Exact arithmetic overflow/underflow (decision 17)** obligation class with `exact arithmetic may overflow`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -65,7 +65,7 @@ omega --check samples/cli/facts/slice_view_layout_geometry/<place>/invalid/main.
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `exact arithmetic may overflow` |
 

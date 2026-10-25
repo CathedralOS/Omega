@@ -5,7 +5,7 @@ bounds the value and the `remaining >= 2` transition guard proves the operand or
 preventing underflow. No domain, no `as`.
 
 Each directory is one place, following the nine standard places: local, field, parameter,
-call result, match join, const name, another state, another machine, and another target body.
+call result, match join, const name, a nested machine, another machine, and another target body.
 
 ## Places
 
@@ -18,7 +18,7 @@ call result, match join, const name, another state, another machine, and another
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper call result supplies bounded value before subtraction |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms preserve and join bounded value before guarded subtraction |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant supplies bounded value before guarded subtraction |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state `deduct` receives bounded value across transition |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `deduct` receives bounded value across transition |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine supplies bounded value to consumer machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies verify bounded subtraction on each hosted platform |
 

@@ -12,7 +12,7 @@ substitution. An expression is not a structural type or a guessed argument.
 The witnesses are [local](local/main.omg), [field](field/main.omg),
 [parameter](parameter/main.omg), [call result](call_result/main.omg),
 [match join](match_join/main.omg), [const name](const_name/main.omg),
-[another state](other_state/main.omg), [another machine](other_machine/main.omg),
+[a nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
 and [another target body](target_body/main.omg). Each has `invalid/main.omg`
 beside it. Every twin changes only the construct's nested `Selected<Base + 4>`
 to `Selected<Base + 3>`; the required minimum, construct guarantee, and consuming

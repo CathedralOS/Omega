@@ -16,7 +16,7 @@ Claim Ticket: `b5becca237e84675af8d8e357421e5a9`
 | `call_result` | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A machine call (`source(reading)`) returns the bounded `f32` reading via an `ensures` contract |
 | `match_join` | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms (`1.75f32` and `2.25f32`) join their bounded `f32` interval into window verification |
 | `const_name` | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named `f32` constants (`LOWER`, `UPPER`) define the interval bounds proving the downstream contract |
-| `other_state` | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor state (`state deliver`) receives the bounded `f32` reading and verifies the downstream window |
+| `other_state` | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine (`state deliver`) receives the bounded `f32` reading and verifies the downstream window |
 | `other_machine` | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine (`deliver`) forwards the bounded `f32` reading to `verify_f32_window` |
 | `target_body` | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target-scoped machine bodies forwards the bounded `f32` reading to `verify_f32_window` |
 
@@ -48,7 +48,7 @@ All ten positive programs produce `native exit 0` and `interp exit: 0`.
 
 ### Measured Discrimination and Obligation Class
 
-In every positive place, `verify_f32_window(reading: f32) -> i32` requires `reading >= 1.0f32 && reading <= 3.0f32` at compile time and executes the ordered 32-bit IEEE `f32` window comparison `transition reading >= 1.25f32 && reading <= 2.75f32` at runtime, returning `0i32` when inside the window and `1i32` otherwise. In `main`, `transition probe(...) == 0` transitions to `state done() {}` (exit `0`) and otherwise branches to `state bad() { crash Trap; }`.
+In every positive place, `verify_f32_window(reading: f32) -> i32` requires `reading >= 1.0f32 && reading <= 3.0f32` at compile time and executes the ordered 32-bit IEEE `f32` window comparison `transition reading >= 1.25f32 && reading <= 2.75f32` at runtime, returning `0i32` when inside the window and `1i32` otherwise. In `main`, `transition probe(...) == 0` transitions to `machine done() {}` (exit `0`) and otherwise branches to `machine bad() { crash Trap; }`.
 
 Measured on `windows_x86_64` with `omega-latest.exe run --both` (`{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`) on `local/main.omg`:
 

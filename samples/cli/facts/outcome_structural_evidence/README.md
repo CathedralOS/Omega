@@ -18,7 +18,7 @@ transport changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `make_gate()` contracted helper call result |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both Boolean match arms construct `Gate { threshold: 5 }` and join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `NAMED_GATE` constant definition |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `inspect` successor state receives `Gate` parameter across transition |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `inspect` successor machine receives `Gate` parameter across transition |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `deliver()` forwarding machine passes `Gate` to consumer machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies on all four hosted platforms |
 
@@ -48,7 +48,7 @@ Every positive place and the root witness observe `native exit 0` and `interp ex
 `Main` transitions on `(probe()) && failure_arm()`. Each row calls `pick_failure()`, exercises the
 nonmatching arm without manufacturing a `Success` witness, and traps if that dispatch or the preserved
 threshold is wrong. If `gate.threshold` is corrupt (not 5) or outcome evidence is absent, the transition
-evaluates to false and enters `state bad() { crash Trap; }`, terminating with non-zero exit/signal.
+evaluates to false and enters `machine bad() { crash Trap; }`, terminating with non-zero exit/signal.
 
 Measured on producer `bcd7c58d3a26` for `macos_arm64`. Two probe classes were exercised, and they are
 distinguished by where they die:

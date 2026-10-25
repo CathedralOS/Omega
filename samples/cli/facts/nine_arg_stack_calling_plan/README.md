@@ -12,7 +12,7 @@ Every place performs the same operation: invoke a nine-argument scalar function 
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper call results supply the arguments |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms execute and join the multi-argument call |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply all nine register and stack operands |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives all nine arguments and invokes the call |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives all nine arguments and invokes the call |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards all nine arguments |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies execute on each hosted platform |
 
@@ -43,7 +43,7 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 
 ### The Oracle Discriminates
 
-The authored exit code `0` is not an unconstrained default. If the caller expectation in `local` is modified to `transition probe() == 1`, execution traps through `state bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
+The authored exit code `0` is not an unconstrained default. If the caller expectation in `local` is modified to `transition probe() == 1`, execution traps through `machine bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
 
 ### Reject Twins
 
@@ -62,7 +62,7 @@ omega --check samples/cli/facts/nine_arg_stack_calling_plan/<place>/invalid/main
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `may overflow `u64`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `may overflow `u64`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `may overflow `u64`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow `u64`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow `u64`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow `u64`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow `u64`` |
 

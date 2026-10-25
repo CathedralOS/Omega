@@ -29,7 +29,7 @@ their `<place>/invalid/` reject twins accompany the mechanism variations below.
 | [Call result](call_result/main.omg) / [invalid](call_result/invalid/main.omg) | A helper call returning the snapshot with `ensures (result & 64u64) == 64u64` carries that guarantee into the caller's label requirement. |
 | [Match join](match_join/main.omg) / [invalid](match_join/invalid/main.omg) | Exhaustive match arms producing distinct `pushfq` snapshots that both establish bit 64 discharge the post-join label requirement; breaking one arm rejects. |
 | [Const name](const_name/main.omg) / [invalid](const_name/invalid/main.omg) | Named `const` mask `ZF_MASK = 64u64` preserves the snapshot bit obligation; wrong mask rejects. |
-| [Other state](other_state/main.omg) / [invalid](other_state/invalid/main.omg) | State transition carries the snapshot obligation into another state's label requirement. |
+| [Nested machine](other_state/main.omg) / [invalid](other_state/invalid/main.omg) | State transition carries the snapshot obligation into a nested machine's label requirement. |
 | [Other machine](other_machine/main.omg) / [invalid](other_machine/invalid/main.omg) | Cross-machine forwarding preserves the snapshot precondition and label requirement. |
 | [Target body](target_body/main.omg) / [invalid](target_body/invalid/main.omg) | Target-qualified `target (windows_x86_64)` / `target (linux_x86_64)` helper bodies preserve the snapshot guarantee across host x86-64 targets. |
 | [Retained snapshots](retained/main.omg) | An earlier snapshot retains ZF after a later subtraction establishes a different flag version. |

@@ -7,7 +7,7 @@ not acceptance of the Windows filesystem provider.
 An acknowledged target-scoped tail-recursive countdown carries its result bound
 of at most 60 into exact subtraction `60 - result`. Each place copies this fact
 and operation unchanged: local, field, parameter, call result, match join, const
-name, another state, another machine and another target body. Four authored target
+name, a nested machine, another machine and another target body. Four authored target
 bodies share the contract; all four must check in every compilation.
 
 Each positive binds all four hosted `ProgramEntry` targets and has exit 0 as its

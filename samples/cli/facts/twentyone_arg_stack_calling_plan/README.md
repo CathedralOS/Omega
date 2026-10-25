@@ -25,7 +25,7 @@ On every hosted target, `a21` is passed via the stack. Arguments `a1..a20` recei
 | call result | [`call_result/`](call_result/) | A wrapper machine `fetch21()` returns the result of `pick21` directly as its call result. |
 | match join | [`match_join/`](match_join/) | The call result is unified across conditional branches in a match expression before subtraction. |
 | const name | [`const_name/`](const_name/) | The upper and lower bounds are named by package/local constants and verified against `pick21`. |
-| another state | [`other_state/`](other_state/) | The 21-argument call result is passed as an argument across an explicit state transition `calc(res)`. |
+| a nested machine | [`other_state/`](other_state/) | The 21-argument call result is passed as an argument across an explicit state transition `calc(res)`. |
 | another machine | [`other_machine/`](other_machine/) | A separate machine `Delegate` evaluates `pick21` and returns the bounded result to `Consumer`. |
 | another target body | [`target_body/`](target_body/) | Target-scoped machine bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) each invoke the calling plan. |
 
@@ -50,7 +50,7 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 
 ### The Oracle Discriminates
 
-The authored exit code `0` is not an unconstrained default. If the expectation in the transition guard is modified to require a non-zero exit or if an unexpected computation result occurs (`diff != 0u64 || headroom != 20u64 || margin != 20u64`), execution transitions to `state bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
+The authored exit code `0` is not an unconstrained default. If the expectation in the transition guard is modified to require a non-zero exit or if an unexpected computation result occurs (`diff != 0u64 || headroom != 20u64 || margin != 20u64`), execution transitions to `machine bad() { crash Trap; }` with `native signal 5` and `interp crash: Trap`, yielding exit code 255. The oracle therefore strictly discriminates between correct evaluation and faulty execution.
 
 ### Reject Twins
 
@@ -69,7 +69,7 @@ omega --check samples/cli/facts/twentyone_arg_stack_calling_plan/<place>/invalid
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `may overflow \`u64\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `may overflow \`u64\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow \`u64\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `may overflow \`u64\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `may overflow \`u64\`` |
 

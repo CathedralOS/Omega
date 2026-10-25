@@ -17,7 +17,7 @@ store can satisfy the exit-0 oracle. No caller guard establishes the label fact.
 | call result | [source](call_result/main.omg) | [false zero-edge fact](call_result/invalid/main.omg) |
 | match join | [source](match_join/main.omg) | [false zero-edge fact](match_join/invalid/main.omg) |
 | const name | [source](const_name/main.omg) | [false zero-edge fact](const_name/invalid/main.omg) |
-| another state | [source](other_state/main.omg) | [false zero-edge fact](other_state/invalid/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [false zero-edge fact](other_state/invalid/main.omg) |
 | another machine | [source](other_machine/main.omg) | [false zero-edge fact](other_machine/invalid/main.omg) |
 | another target body | [source](target_body/main.omg) | [false zero-edge fact](target_body/invalid/main.omg) |
 

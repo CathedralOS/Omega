@@ -28,7 +28,7 @@ discriminates a correct death point from a premature one.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `select(&mut chosen, ...)` returns the exclusive range loan |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the copyable flag arrives from a match join (`visits == 1` still holds) |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the flag is the named constant `DECIDE` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the source and performs the death/replace sequence |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the source and performs the death/replace sequence |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the source to the computing machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the sequence |
 
@@ -77,7 +77,7 @@ ahead of the loan's last use; everything else is identical to its positive
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``while local borrow `selected` is still active`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``while local borrow `selected` is still active`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``while local borrow `selected` is still active`` |
 
@@ -117,7 +117,7 @@ are byte-identical copies of their twins, so sample and fixture cannot drift.
    the new payload (`value[0] == 7`), never a stale one. The unselected
    `other` payload is never written.
 3. **Composition:** The fact composes through local, field, parameter, call
-   result, match join, const name, successor state, forwarding machine, and
+   result, match join, const name, successor machine, forwarding machine, and
    target body; `<place>/main.omg` vs `<place>/invalid/main.omg` differ only in
    the position of the source write relative to the loan's last use.
 4. **Soundness boundaries:** All nine twins fail closed during compile-time

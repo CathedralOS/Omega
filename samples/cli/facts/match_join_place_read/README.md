@@ -30,7 +30,7 @@ unsupported field claim.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the joined places are `make_pair(...)` call results |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the `Pair` values themselves arrive from match joins |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the distinguishing values are named constants `KEPT`/`UNSELECTED` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state `pick` receives the referents and performs the join/read |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `pick` receives the referents and performs the join/read |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine `forward` supplies the referents to `apply` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped `apply` bodies performs the join/read |
 
@@ -80,7 +80,7 @@ requirement fragment named in the twin's `expected.txt`:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove requires contract for call read_field` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract for call read_field` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove requires contract for call read_field` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call read_field` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call read_field` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call read_field` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call read_field` |
 
@@ -155,7 +155,7 @@ supersedes them.
    boundary, and the read observes exactly the value that place holds
    (`observed == 17`).
 3. **Composition:** The fact composes through local, field, parameter, call
-   result, match join, const name, successor state, forwarding machine, and
+   result, match join, const name, successor machine, forwarding machine, and
    target body; `<place>/main.omg` vs `<place>/invalid/main.omg` differ only
    in the consumer's own requirement/projection field (`place.kept` to
    `place.other`).

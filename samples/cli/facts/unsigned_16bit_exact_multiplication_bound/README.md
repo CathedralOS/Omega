@@ -15,7 +15,7 @@ Every place performs the same operation: multiply bounded 16-bit unsigned operan
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 16-bit operands before multiplication and subtractions |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 16-bit operands and join before multiplication and subtractions |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 16-bit operands before multiplication and subtractions |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 16-bit operands before multiplication and subtractions |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 16-bit operands before multiplication and subtractions |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards bounded 16-bit operands to the multiplication machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies multiplies bounded 16-bit operands and subtracts |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 25u16` and `rhs == 20u16`, `prod == 500u16`, `headroom == 250u16`, `margin == 200u16`, and `headroom + margin == 450u16`. The transition `probe() == 450 { true -> done() _ -> bad() }` exits 0. If 16-bit multiplication or exact subtractions evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, with `lhs == 25u16` and `rhs == 20u16`, `prod == 500u16`, `headroom == 250u16`, `margin == 200u16`, and `headroom + margin == 450u16`. The transition `probe() == 450 { true -> done() _ -> bad() }` exits 0. If 16-bit multiplication or exact subtractions evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `rhs` upper bound is widened to `26u16` so `prod` can reach `780u16 > 750u16`. Proof obligation checking statically detects that `750u16 - prod` can underflow below zero, failing closed with `may overflow \`u16\``. None reaches native execution.
 
 Check all nine invalid twins with:

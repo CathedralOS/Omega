@@ -32,7 +32,7 @@ Both engines exit 0 on all six positive programs with the integrated optimized p
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Cross-machine call `Inspector::check` receives and verifies `AtomicCompareExchangeOnceOutcome<u32>`. |
 | target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | The same operation in separately selected hosted-target bodies, with outcome transport. |
 | operand_effect | [`operand_effect/main.omg`](operand_effect/main.omg) | [`operand_effect/invalid/main.omg`](operand_effect/invalid/main.omg) | Replacement helper writes 20 before the attempt, which must report mismatch 20; earlier scalar snapshot remains 10. |
-| composition | [`composition/main.omg`](composition/main.omg) | [`composition/invalid/main.omg`](composition/invalid/main.omg) | Whole outcome crosses a call return, record field, parameter/return, match join and another state; named constant supplies replacement. |
+| composition | [`composition/main.omg`](composition/main.omg) | [`composition/invalid/main.omg`](composition/invalid/main.omg) | Whole outcome crosses a call return, record field, parameter/return, match join and a nested machine; named constant supplies replacement. |
 | high_bit | [`high_bit/main.omg`](high_bit/main.omg) | [`high_bit/invalid/main.omg`](high_bit/invalid/main.omg) | Unsigned 32-bit resident with bit 31 set and replacement u32 maximum, testing observed-value zero extension. |
 | wide | [`wide/main.omg`](wide/main.omg) | [`wide/invalid/main.omg`](wide/invalid/main.omg) | 64-bit resident values above 32 bits and whole 16-byte outcome return. |
 

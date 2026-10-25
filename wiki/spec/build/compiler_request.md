@@ -410,7 +410,7 @@ names one of codes 13–89 at the first byte of the retained diagnostic span
 under canonical-source coordinates (source extent for a refusal at end of
 input). The row order groups grammar regions — path; data declaration; type
 syntax; machine declaration; expression and call; assignment and static call;
-struct literal; state and transition; clause and binding; termination;
+struct literal; nested machine and transition; clause and binding; termination;
 indexed expression; local data; cast and membership — it is not an enum-order
 re-encoding.
 
@@ -418,8 +418,10 @@ Codes 90–97 are the remaining checking `Reject` codes: `unresolved_call_target
 and `call_arity_mismatch` cover machine-call target resolution and argument
 count on both statement calls and terminal calls; `unresolved_state_target`
 and `transition_arity_mismatch` cover the same on transition rows;
-`missing_state_terminal` names a state body that cannot reach the machine's
-declared result; `uncovered_transition_subject` names a subjectful transition
+`missing_state_terminal` is a migration-era diagnostic name for a body that
+cannot reach its declared result. These state-specific diagnostic identifiers
+must migrate with the unified machine checking path; they do not retain a source
+`state` construct. `uncovered_transition_subject` names a subjectful transition
 block whose folded subject matches no arm; `arithmetic_result_out_of_range`
 names a folded operator result unrepresentable in the declared carrier;
 `arithmetic_operand_out_of_domain` names an operand outside the operator's

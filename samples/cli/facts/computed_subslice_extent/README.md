@@ -30,7 +30,7 @@ execution observes Windows x86-64 and Linux x86-64 on matching hosts.
 | call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | a helper call returns the computed subslice view with `result.len == 2` |
 | match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | both match arms produce the computed subslice view |
 | const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | named constants `ZERO` and `SPAN` supply the subslice endpoint offsets |
-| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor state receives the computed subslice view |
+| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor machine receives the computed subslice view |
 | other machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | another machine receives and inspects the computed subslice view |
 | target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | all four target-scoped machine bodies construct and read the subslice view |
 
@@ -112,7 +112,7 @@ tree `a93651a39273` (`--build-profile` reports `opt_level: 1`, digest
 nine `built ... exit:0 interpreter:agrees` rows in
 `tests/omega/corpus_both_macos_arm64.txt`.
 
-Authority comes from [state contracts](../../../../wiki/spec/language/state_contracts.md),
+Authority comes from [invocation contracts](../../../../wiki/spec/language/state_contracts.md),
 [checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants),
 [exact subslice descriptors](../../../../wiki/spec/terminal-psi/byte_views.md), and
 [live fact identity](../../../../wiki/spec/terminal-psi/fact_validity.md).

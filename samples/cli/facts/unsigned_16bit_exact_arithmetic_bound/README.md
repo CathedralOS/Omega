@@ -15,7 +15,7 @@ Every place performs the same operation: bound two 16-bit unsigned operands (`lh
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper machine calls return bounded 16-bit operands before addition and interval discharge |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 16-bit operands and join before addition and interval discharge |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 16-bit operands before addition and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 16-bit operands before addition and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 16-bit operands before addition and interval discharge |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards bounded 16-bit operands to the computation machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies adds bounded 16-bit operands and discharges the interval |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 150u16` and `rhs == 200u16`, `sum == 350u16`, `headroom == 150u16`, `margin == 100u16`, and `headroom + margin == 250u16`. The transition `probe() == 250 { true -> done() _ -> bad() }` exits 0. If 16-bit arithmetic or interval bounds evaluation is incorrect, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, with `lhs == 150u16` and `rhs == 200u16`, `sum == 350u16`, `headroom == 150u16`, `margin == 100u16`, and `headroom + margin == 250u16`. The transition `probe() == 250 { true -> done() _ -> bad() }` exits 0. If 16-bit arithmetic or interval bounds evaluation is incorrect, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `rhs` upper bound is widened to `301u16` so `sum` reaches `501u16`, exceeding `500u16`. Proof obligation checking statically detects that `let headroom: u16 = 500u16 - sum;` can underflow below zero, failing closed with `may overflow \`u16\``. None reaches native execution.
 
 Check all nine invalid twins with:

@@ -1,7 +1,7 @@
 # empty_record_routes
 
 First sample covering zero-storage custody: `Empty {}` values
-forward to a named state, die unused, and replace a field of
+forward to a nested machine, die unused, and replace a field of
 a mutable-borrowed record beside a scalar sibling — none owes
 bytes, a move window, or cleanup code.
 

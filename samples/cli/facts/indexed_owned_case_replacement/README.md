@@ -10,7 +10,7 @@ contracts of an otherwise valid fixed array. It does not establish Windows API
 behavior or close the parent capability.
 
 Each place carries the same `0 < payload < 8` qualification into the same
-runtime-indexed `Frame::Ready` store, forwards the inventory to another state,
+runtime-indexed `Frame::Ready` store, forwards the inventory to a nested machine,
 and subtracts one from the selected payload. The authored result is 2; an empty
 or wrong replacement fails the runtime oracle. The array extent, domain and
 operation do not change between places. Only the payload's transport changes.
@@ -23,7 +23,7 @@ operation do not change between places. Only the payload's transport changes.
 | call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | const name | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| another state | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| a nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | another target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

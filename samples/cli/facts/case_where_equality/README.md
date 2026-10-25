@@ -23,7 +23,7 @@ execution are verified (`omega run --both`).
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | identity machine call result |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | two distinct interval fields joined by a match |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named `Point { lo: 4, hi: 4 }` constant through static `const INTERVAL: Interval` binder |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | interval forwarded to another state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | interval forwarded to a nested machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | interval forwarded to another machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four hosted target bodies |
 
@@ -61,7 +61,7 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic ... may overflow \`u64\`` |
 

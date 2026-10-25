@@ -163,7 +163,7 @@ or automatic entry contexts is complete. `STATIC-MACHINE-MIGRATION` and
 ## Parameters And Returns
 
 Machine parameters are entry data. A machine return type is the value shape its
-body or internal state graph produces if it reaches a returned terminal
+body or control-flow graph produces if it reaches a returned terminal
 outcome. The type alone is not a termination guarantee.
 
 ```omega
@@ -298,8 +298,9 @@ closed alternatives.
 
 ## Calls
 
-Ordinary call syntax invokes a machine contract in the current activation. Its
-realization may need a call frame; a jump to a local state adds none.
+Ordinary call syntax invokes a machine contract and resumes its continuation on
+normal return. A machine may be nested for lexical visibility; neither its name
+nor nesting prescribes a physical call frame.
 
 ```omega
 let command: Command = resolve_command(&parser, &line);
@@ -307,8 +308,8 @@ let guard: Guard = block Mutex::lock(&mut mutex);
 let event: Event = suspend Inbox::take(&mut inbox);
 ```
 
-Calls and state jumps are different. A transition arm may jump to a local state,
-return a value, or invoke a machine and forward its eventual result. Chapter 4
+An ordinary call has a continuation. A transition arm instead returns a value
+or invokes a machine and forwards its eventual result. Chapter 4
 introduces these arm forms. `suspend` and `block` acknowledge possible waiting at a
 direct call; they do not create another machine species or change the result
 type. Chapter 5 defines their call-position rules, and chapter 18 explains the
@@ -443,15 +444,15 @@ relation specific to this invocation or outcome.
 
 ## Machine Graph Compatibility
 
-Internal states participate in the machine's graph, but they are not public
-machine entries. Values needed by a destination state are passed through its
-ordinary state parameters; a state has no implicit receiver. Use local `let`
+Nested machines have their own identities and contracts, but their names are
+lexically scoped rather than separately exported. Values needed by a callee
+are explicit parameters; no receiver or enclosing runtime data is captured. Use local `let`
 bindings for scratch work and explicit transition arguments for loop-carried
 work. None of this introduces another temporary-storage scope or lifetime rule.
 
 Working rules:
 
-- State-transition arguments must match the target state's parameters.
+- Transition-call arguments must match the target machine's parameters.
 - Terminal values must satisfy the active machine's return type.
 - Every reachable terminal path in a typed machine graph must produce the
   declared return type.

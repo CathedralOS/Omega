@@ -25,7 +25,7 @@ fact itself — with Terminal Psi and native execution agreeing (`omega run
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_call_result_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_call_result_rejected` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_match_join_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_match_join_rejected` |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_const_name_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_const_name_rejected` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_other_state_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_other_state_rejected` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_other_state_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_other_state_rejected` |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_other_machine_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_other_machine_rejected` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/pass/facts/signed_16bit_saturating_multiplication_bound_through_target_body_exit` | `tests/omega/fail/facts/signed_16bit_saturating_multiplication_bound_through_target_body_rejected` |
 
@@ -59,7 +59,7 @@ The recorded 0 exit is discriminating:
   `verify_prod` proves `headroom: i16 = 200i16 - prod` and
   `margin: i16 = prod - 50i16` directly from the carried fact. If the bound or
   the operation returned anything else, the program branches to
-  `state bad() { crash Trap; }` instead of exit 0.
+  `machine bad() { crash Trap; }` instead of exit 0.
 - Each invalid twin widens the `lhs` upper bound from `20i16` to `21i16`
   (const/target places widen the literal operands to `21i16`/`10i16`), allowing
   `prod = 210i16 > 200i16`. The twin then rejects at compile time with the

@@ -34,7 +34,7 @@ claim/qualification evidence, not a rewritten historical result.
 | call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| another state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| a nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

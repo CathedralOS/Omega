@@ -1,6 +1,6 @@
 # Chapter 5: Expressions And Evaluation
 
-Expressions compute values; statements perform work in a machine or state.
+Expressions compute values; statements perform work in a machine.
 The [expression specification](../spec/language/expressions.md) defines their
 schedule and operation selection. This chapter shows how those rules affect
 ordinary code. Examples describe the language contract, not complete compiler
@@ -107,7 +107,7 @@ implementation guessed by the caller.
 
 A suspending call must be a complete statement, simple `let` right-hand side,
 transition subject, or terminal expression. The last category includes a
-[final machine call in a transition arm](chapter_4_states_transitions.md#final-calls-including-suspension),
+[final machine call in a transition arm](chapter_4_nested_machines_transitions.md#final-calls-including-suspension),
 with ordinary call markers, result forwarding and cleanup. Bind its result
 before combining it:
 
@@ -316,7 +316,7 @@ requires view.len >= 4
 Without `&mut`, the range is a shared view. Writing
 `let middle: &mut [u8] = view[2..4];` rejects: the annotation does not request
 a mutable borrow implicitly. The same rule applies when passing a range
-directly, returning it, transferring it to a state or storing it in a field.
+directly, returning it, passing it to a machine or storing it in a field.
 Neither form can exceed the backing's authority or bypass overlapping-loan
 checks. Local type annotations remain explicit; this borrowing decision does
 not introduce annotation-free `let` declarations.
@@ -662,7 +662,7 @@ A block groups straight-line work and introduces local scope and cleanup edges:
 }
 ```
 
-It does not create a state or machine. `room` belongs to this block's work;
+It does not create a machine. `room` belongs to this block's work;
 it need not become a field of the lookup, view, or surrounding context.
 
 ## Terminal Expressions
@@ -675,7 +675,6 @@ machine shutdown() -> i32 {
 }
 ```
 
-A call-shaped arm resolving to a local state instead transfers within the
-machine. One resolving to a machine is an ordinary final call whose eventual
+A call-shaped transition arm invokes a machine, nested or otherwise. Its eventual
 result completes the invocation; its suspension markers and loan/cleanup checks
 remain in force.

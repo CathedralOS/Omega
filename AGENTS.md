@@ -96,8 +96,10 @@ continuation; it does not turn unfinished work into completion.
 Capability outcomes determine priority; samples provide executable evidence.
 Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
 The nine places are local, field, parameter, call result, match join, const
-name, another state, another machine, and another target body. Those places
+name, a nested machine, another machine, and another target body. Those places
 are one row. Do not expand them into a combinatorial matrix.
+The nested-machine place retains the existing `other_state/` path during the
+source migration; it is distinct from the non-nested `other_machine/` place.
 `samples/cli/facts/length/` is a reference row. Inspect each folder's current
 coverage and applicable evidence to distinguish filled rows from missing places.
 The next advance fills a missing place of the selected fact, or takes the next
@@ -283,7 +285,7 @@ task's full acceptance. Prove out and list these obligations in the sample fact:
   fact; an unproved goal does not establish itself, and a post-hoc caller
   equality guard (`transition x == 100`) after the construct completes does not
   substitute for the construct establishing or preserving the static fact
-  ([state contracts](wiki/spec/language/state_contracts.md),
+  ([invocation contracts](wiki/spec/language/state_contracts.md),
   [proof contracts](wiki/spec/proofs/contracts.md),
   [domains](wiki/spec/language/domains.md),
   [dependent values](wiki/spec/language/dependent_values.md)).
@@ -491,7 +493,7 @@ The rules that touch every edit:
 - Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
 - Data and code are independent: named implementations satisfy traits; data
   does not. Trait data types are ordinary explicit parameters. There is no
-  conformance subject, `Self` type binding, or machine/state `self` receiver.
+  conformance subject, `Self` type binding, or machine `self` receiver.
   Predicate-only `self` names the subject in data default-domain `where` and
   domain `requires`; it is not a receiver or runtime parameter. `dyn`
   selects an implementation at runtime; data arguments stay separate. Authored
@@ -499,6 +501,14 @@ The rules that touch every edit:
   not a `Trait::member = Existing::machine;` reference row. Follow
   [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
   and remove legacy support rather than preserving it for old tests.
+- Source `state` declarations are retired in favor of arbitrarily nested
+  machines. Nesting scopes names, never runtime data or implicit authority.
+  All runtime arguments are explicit; ordinary calls resume, terminal calls
+  forward completion. Resolve lexical scope before flat downstream identities.
+  Do not preserve state-only contract/lowering paths or turn constant-stack
+  cycles into growing recursion. Follow
+  [nested machines](wiki/spec/language/machines.md#nested-machines-and-identity);
+  `NESTED-MACHINE-UNIFICATION` tracks implementation and source migration.
 - Real words in code (`character`, `expression`, `arguments` — not `ch`,
   `expr`, `args`). Names must read outside compiler insiders: `pipeline`
   over `driver`.
@@ -757,7 +767,7 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
   distinctions. Optional optimization specialization requires a correct general
   path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
-  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, another state, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
+  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another target body, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay

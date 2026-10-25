@@ -22,7 +22,7 @@ Subtracting `23i32` returns `0i32`, terminating with exit 0.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | 32-bit XOR result is returned from a dedicated helper machine |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the bounded 32-bit XOR value |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant supplies the XOR mask operand |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the bounded 32-bit XOR value into a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the bounded 32-bit XOR value into a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the bounded 32-bit XOR value |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing bitwise XOR and verification |
 
@@ -55,7 +55,7 @@ The bitwise XOR interval arithmetic proves `xored <= 63u32` from `raw in [59, 59
 Subsequent exact subtractions in `verify_xored` (`headroom = 63u32 - res = 11u32` and `margin = res - 40u32 = 12u32`) evaluate to `11u32 + 12u32 = 23u32`.
 Subtracting `23i32` evaluates `23 - 23 = 0i32`.
 The transition guard `res == 0i32` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-A 1-token perturbation of the demanded result (`transition res == 0i32` to `transition res == 1i32`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+A 1-token perturbation of the demanded result (`transition res == 0i32` to `transition res == 1i32`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 
 ### Invalid controls and reject twins
 

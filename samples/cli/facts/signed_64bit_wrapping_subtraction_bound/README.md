@@ -46,7 +46,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | wrapping subtraction result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | wrapping subtraction result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | wrapping inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping subtraction result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping subtraction result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | wrapping subtraction result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | wrapping subtraction result verified across target-scoped machine bodies |
 
@@ -55,7 +55,7 @@ Run each place with `omega run --both <place>/main.omg`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating 64-bit signed wrapping subtraction `lhs - rhs` with `lhs = 100` and `rhs = 30` produces `diff = 70i64` within static interval `[40i64, 100i64]`. Passing `diff` to `verify_diff(diff)` satisfies its precondition `requires diff >= 40 && diff <= 100`, evaluates exact signed subtractions `headroom = 100 - 70 == 30i64` and `margin = 70 - 40 == 30i64`, and returns `(headroom + margin - 60) as i32 == 0i32`. In `main`, `transition check == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition check == 0` to `transition check == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating 64-bit signed wrapping subtraction `lhs - rhs` with `lhs = 100` and `rhs = 30` produces `diff = 70i64` within static interval `[40i64, 100i64]`. Passing `diff` to `verify_diff(diff)` satisfies its precondition `requires diff >= 40 && diff <= 100`, evaluates exact signed subtractions `headroom = 100 - 70 == 30i64` and `margin = 70 - 40 == 30i64`, and returns `(headroom + margin - 60) as i32 == 0i32`. In `main`, `transition check == 0` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition check == 0` to `transition check == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the `lhs` and `rhs` inputs to `lhs = 125` and `rhs = 20`, so the wrapping difference `diff` reaches `105i64 > 100i64`. Calling `verify_diff(diff)` (or satisfying the parameter/call/state contract) fails closed at compile time under the **Contract precondition** obligation class with `cannot prove requires contract`. None reaches native execution.
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
@@ -66,7 +66,7 @@ The recorded 0 exit is discriminating:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract postcondition | `cannot prove ensures contract` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 
@@ -86,7 +86,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_diff()` computes wrapping subtraction and returns the result across call boundary with ensures contract.
   - `match_join`: wrapping subtraction result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: i64 in Wrapping = 100; const RHS: i64 in Wrapping = 30;`.
-  - `other_state`: wrapping subtraction result is passed across a transition edge into successor state `step(forwarded: i64)`.
+  - `other_state`: wrapping subtraction result is passed across a transition edge into successor machine `step(forwarded: i64)`.
   - `other_machine`: wrapping subtraction result is forwarded through intermediate machine `runner()`.
   - `target_body`: wrapping subtraction result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening inputs to `lhs = 125, rhs = 20` (where `diff` reaches `105i64 > 100i64`), proving that downstream contract verification `requires diff >= 40 && diff <= 100` strictly fails closed when the post-wrapping difference exceeds 100.

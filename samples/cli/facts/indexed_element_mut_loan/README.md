@@ -21,7 +21,7 @@ all four hosted targets. Native execution evidence must name its matching host.
 | call result | `call_result/` | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | `select_index` returns the selector with an equality postcondition |
 | match join | `match_join/` | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | a join chooses between equal runtime selectors; both arms run |
 | const name | `const_name/` | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `ROOM_COUNT = 2` supplies the bound on the runtime selector |
-| another state | `other_state/` | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor state receives array and selector and performs the loan |
+| a nested machine | `other_state/` | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor machine receives array and selector and performs the loan |
 | another machine | `other_machine/` | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | a forwarding machine transports array and selector to the loaning machine |
 | another target body | `target_body/` | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | each of four target bodies performs the same indexed loan |
 
@@ -61,7 +61,7 @@ The corresponding regression fixtures are
 
 On the initial fixed compiler, three places ran and all nine twins rejected;
 local, field, call result, match join and const name reached a missing
-result-operand storage presentation, and another state reached a missing loan
+result-operand storage presentation, and a nested machine reached a missing loan
 transfer. The compiler repair retains the call's already evaluated selector
 in the result-backed argument path and carries checked loans of affine local
 backing across state edges. The repaired row runs all nine applications with

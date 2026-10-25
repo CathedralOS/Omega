@@ -19,7 +19,7 @@ Only the transport of the operands changes.
 | call_result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | calls with declared types and bounds supply both operands |
 | match_join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | both arms keep the operands inside Wrapping and bounds, so the joined operands shift safely |
 | const_name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `const SHIFT: u32 = 1` provides the named shift count |
-| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor state receives the operands and shifts there |
+| other_state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | a successor machine receives the operands and shifts there |
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | a forwarding machine transports operands to the shift machine |
 | target_body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | each of four target bodies shifts the Wrapping u32 value and shift count |
 

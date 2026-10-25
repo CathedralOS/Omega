@@ -14,7 +14,7 @@ beside code; completed work belongs in Git, not current reference material.
 
 ## Current specification subjects
 
-- Source semantics: [state contracts and live facts](spec/language/state_contracts.md),
+- Source semantics: [invocation contracts and live facts](spec/language/state_contracts.md),
   [data and literals](spec/language/data_and_literals.md),
   [patterns and dispatch](spec/language/patterns.md),
   [modules and visibility](spec/language/modules.md),

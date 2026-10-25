@@ -18,7 +18,7 @@ establishes the fact after the comparison.
 | call result | [call_result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | match join | [match_join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | const name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| another state | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| a nested machine | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | another machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | another target body | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

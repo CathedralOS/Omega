@@ -5,7 +5,7 @@ Copying a four-u16 array carries its checked zero tail, so exact addition to
 
 This is a prerequisite of `FILESYSTEM-PLATFORM-SERVICES`: the Windows raw
 metadata provider terminates a wide-character buffer before passing its
-qualified copy to another state. It is not a Windows-specific language rule.
+qualified copy to a nested machine. It is not a Windows-specific language rule.
 The exact requirement this row establishes: a completed initialization call
 followed by a tail store establishes `values[3] == 0`, a copy of the carrier
 retains that checked membership (`[u16; 4]::ZeroTail`), and the consuming exact
@@ -29,7 +29,7 @@ exit 0 from both native and Terminal execution.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `produce()` returns `[u16; 4] in ZeroTail` and `consume` takes that call result |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the same qualified copy and the join retains `ZeroTail` |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the tail store stores the named constant `TAIL`, and the copy keeps its membership |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state `accept(captured: [u16; 4] in ZeroTail)` receives the qualified copy |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `accept(captured: [u16; 4] in ZeroTail)` receives the qualified copy |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `qualify(values) requires values[3] == 0` returns the qualified copy to `consume` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies captures the qualified copy and performs the exact addition |
 
@@ -83,7 +83,7 @@ verification:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``cannot prove default-domain field requirement for return from produce`` / ``values requires [u16; N]::ZeroTail`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``cannot prove initializer of `captured` in choose is in domain `[u16; N]::ZeroTail` `` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``cannot prove initializer of `captured` in main is in domain `[u16; N]::ZeroTail` `` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call accept from main: values in [u16; N]::ZeroTail` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call accept from main: values in [u16; N]::ZeroTail` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call qualify from main: values[3] == 0` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call evaluate from main: values[3] == 0` |
 

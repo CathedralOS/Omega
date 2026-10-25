@@ -16,7 +16,7 @@ exiting 0 in agreement.
 `f99397375a26b565fb9b493d8cc6f523901e6591` (`psi: record selected descriptors on
 match joins`) is the starting behavior below this row: a match that loans the
 selected case payload's descriptor exited 0 for a local, a call result, and
-another state, but returning the indexed write from a parameter, another
+a nested machine, but returning the indexed write from a parameter, another
 machine, or a target body left that descriptor on the Terminal Psi affine
 frontier. Exclusive element views now transfer the selected descriptor owned
 onto the join, and the successor reads that carrier, so the exclusive loan
@@ -37,7 +37,7 @@ each language construct:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | checked result guarantee |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | common completed owned-member fact |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named payload constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | forwarded machine parameters |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | four hosted source bodies |
 
@@ -160,10 +160,10 @@ the record is
 target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: Some(OperationId(12)), site: omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/reference_custody.rs:1283 }
 ```
 
-The refusal is at the transition call into the successor state whose body
+The refusal is at the transition call into the successor machine whose body
 selects an element view of a borrowed parameter's case payload; the same
 call with a plain write, and the same match-view inside a called machine
-(`other_machine`, which returns), both accept. The successor state's owned
+(`other_machine`, which returns), both accept. The successor machine's owned
 descriptor leaf therefore still reads as a suspended child of the caller's
 carrier argument at target legalization. The fixture and rows stay pinned so
 the repair flips them visibly.
@@ -173,7 +173,7 @@ the repair flips them visibly.
 Nearest: the checked-compile route's refusal for the `other_state` successor
 state (above) — the one fixture this row cannot yet record as a native
 success; the sample loop's next required repair for this row is the
-custody-identity disagreement between a successor state's owned descriptor
+custody-identity disagreement between a successor machine's owned descriptor
 leaf and the caller's carrier argument at the transition call.
 
 Under MATCH-SELECTIVE-LOWERING, open after this row: write-only joins

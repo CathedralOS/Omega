@@ -57,7 +57,7 @@ expression is needed in a surrounding contract.
 Guards and case partitions refine live facts. Across calls, the caller proves
 `requires` and receives the callee's established `ensures`; writes invalidate
 facts about changed storage. Private analysis may derive evidence, but cannot
-invent caller-facing preconditions. See [state contracts](../spec/language/state_contracts.md).
+invent caller-facing preconditions. See [invocation contracts](../spec/language/state_contracts.md).
 
 ## Propagation Is An Explicit Edge — There Is No `?`
 
@@ -70,13 +70,13 @@ machine App::run2(app: &mut App, input: &[u8]) -> ParseResult {
         ParseResult::BadDigit { at } -> bubble_bad(at)
         ParseResult::Empty -> bubble_empty()
     }
-    state done(value: i32) -> ParseResult {
+    machine done(value: i32) -> ParseResult {
         ParseResult::Parsed { value }
     }
-    state bubble_bad(at: u32) -> ParseResult {
+    machine bubble_bad(at: u32) -> ParseResult {
         ParseResult::BadDigit { at }
     }
-    state bubble_empty() -> ParseResult {
+    machine bubble_empty() -> ParseResult {
         ParseResult::Empty
     }
 }

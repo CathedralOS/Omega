@@ -15,7 +15,7 @@ Every place performs the same operation: zero-extend narrow unsigned integer `10
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | return result of callee `produce()` supplies the zero-extended scalar |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms yield the zero-extended scalar into the joined local binding |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant `SUBTRAHEND: u64 = 100` subtracts from the zero-extended scalar |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state `compute(extended: u64)` receives the value and subtracts |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `compute(extended: u64)` receives the value and subtracts |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the value through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies computes and subtracts the zero-extended scalar |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- The initial unsigned value is `100u8`, zero-extended through `u16` and `u32` to `u64`, producing `100u64`. Exact subtraction `extended - 100u64` yields `0`. If the extended value is corrupted at runtime or inverting the transition guard, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- The initial unsigned value is `100u8`, zero-extended through `u16` and `u32` to `u64`, producing `100u64`. Exact subtraction `extended - 100u64` yields `0`. If the extended value is corrupted at runtime or inverting the transition guard, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - Each invalid twin replaces `100u8` with `99u8`, resulting in `99u64`. Exact subtraction `extended - 100u64` (`99u64 - 100u64`) underflows below zero, causing compile-time proof obligation checking to fail closed with `exact arithmetic in machine \`evaluate\` ... may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:

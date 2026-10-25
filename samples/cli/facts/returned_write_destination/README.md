@@ -16,7 +16,7 @@ The nine places are:
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | returned descriptor forwarded by another call |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | either arm returns the same caller destination |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant selects the caller array element |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | returned descriptor becomes a successor parameter |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | returned descriptor becomes a successor parameter |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine calls the replacement machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body returns the caller destination |
 
@@ -53,7 +53,7 @@ Each place has an `invalid/` reject twin (and corresponding `controls/read_desti
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `write-only` / `never observation` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `write-only` / `never observation` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `write-only` / `never observation` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `write-only` / `never observation` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `write-only` / `never observation` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `write-only` / `never observation` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `write-only` / `never observation` |
 

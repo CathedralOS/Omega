@@ -162,7 +162,7 @@ syntax reuse.
 
 A quoted literal contains bytes, has ordinary shared byte-view type `&[u8]`,
 and establishes no encoding domain. Its runtime shared view refers to immutable
-image storage, not a state-local owner. Source UTF-8 framing does not make the
+image storage, not a invocation-local owner. Source UTF-8 framing does not make the
 value text or normalize/transcode its contents.
 
 The lexer copies literal-body source bytes except these byte escapes:
