@@ -1138,7 +1138,11 @@ narrows realization only.
   source deletion, with an unselected missing dependency never requested.
   The join still refuses new dependency custody
   without executed-request settlement; package management still projects the graph
-  statically. Ordinary one-shot compiler calls still own their execution loop. The
+  statically. Its shared graph reconciliation now retains an owned outstanding
+  source request until the selected source's declaration is available; synchronous
+  acquisition drives that same traversal, preserving scope/alias/cycle/limit checks.
+  Application execution must still supply those declarations and consume the joined
+  graph. Ordinary one-shot compiler calls still own their execution loop. The
   application still needs executed-request acquisition
   and final joining in place of package management's static Build projection,
   provider readiness/resumption, and demanded Product-description queries; this
