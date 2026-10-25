@@ -62,7 +62,9 @@ mod shape_validation;
 mod value_classification;
 
 // Shared vocabulary: result types, delivered types and reference type matching.
+mod call_carriers;
 mod delivered_types;
+pub(crate) use call_carriers::argument_matches_call_carrier;
 mod reference_values;
 mod result_type;
 mod scalar_observations;

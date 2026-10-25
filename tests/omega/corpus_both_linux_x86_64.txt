@@ -4747,6 +4747,15 @@ pass/facts/runtime_count_index_through_other_machine_exit built 2043ms exit:0 in
 pass/facts/runtime_count_index_through_other_state_exit built 2028ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/runtime_count_index_through_parameter_exit built 2085ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/runtime_count_index_through_target_body_exit built 2355ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/runtime_index_application_forwarded_through_call_result_exit built 2058ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_const_name_exit built 2074ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_field_exit built 2041ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_local_exit built 2123ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_match_join_exit built 2117ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_other_machine_exit built 1864ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_other_state_exit built 2024ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_parameter_exit built 2118ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/facts/runtime_index_application_forwarded_through_target_body_exit built 2207ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/facts/runtime_index_application_through_call_result_exit built 2380ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/runtime_index_application_through_const_name_exit built 1823ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/runtime_index_application_through_field_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -7016,6 +7025,7 @@ pass/generics/runtime_generic_qualified_constructor_shadow_exit built 1962ms exi
 pass/generics/runtime_generic_selected_extent_fields_exit built 1914ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/runtime_grouped_decimal_const_argument_exit built 5852ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 6230ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/generics/runtime_index_carrier_after_earlier_descriptor_write_exit built 2034ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/generics/runtime_index_carrier_array_valid checked 1928ms @a92f16431042
 pass/generics/runtime_index_carrier_call_result checked 2833ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_index checked 2648ms @a92f16431042
@@ -7037,6 +7047,9 @@ pass/generics/runtime_index_carrier_runtime checked 1481ms @a92f16431042
 pass/generics/runtime_index_carrier_static checked 1472ms @a92f16431042
 pass/generics/runtime_index_carrier_static_bool checked 1477ms @a92f16431042
 pass/generics/runtime_index_predicate_second_descriptor_exit built 1873ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/generics/runtime_inferred_index_generic_caller_exit built 2624ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/generics/runtime_inferred_index_repeated_binder_exit built 2430ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
+pass/generics/runtime_inferred_index_statement_call_exit built 2023ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/generics/runtime_inherited_composite_requirement_exit built 3860ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/runtime_linear_constructor_instances_exit rejected 2118ms interpreter:unchecked @a92f16431042
 	linear state-call result scalar in main::entry at statement 2 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping
@@ -7059,8 +7072,9 @@ pass/generics/runtime_value_generic_subject_exit built 6402ms exit:17 interprete
 pass/generics/selected_member_distinct_binder_names_exit built 1879ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/selected_member_shared_runtime_subject_exit built 1756ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/selected_open_capture_carriers_exit built 2445ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/generics/selected_value_bool_public_contract_exit built 1928ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/generics/seq_map_filter checked 2688ms @a92f16431042
-pass/generics/static_callable_local_type_argument_exit built 2595ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/generics/static_callable_local_type_argument_exit built 1806ms exit:0 interpreter-exit:0 interpreter:agrees @036605466510+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 1772ms @a92f16431042
 pass/generics/swapped_type_parameter_result checked 2388ms @a92f16431042
 pass/generics/type_index_forwarding_exit rejected 2505ms interpreter:unchecked @a92f16431042

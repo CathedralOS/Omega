@@ -1937,6 +1937,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   pass `omega run --both` across hosts with invalid construction/bounds/retag
   twins rejecting.
 
+  Linux x86-64 now has native/Terminal agreement for both existing nine-place
+  rows, the named acceptance fixtures, and the forwarded descriptor production
+  under `runtime_index_application/forwarded` (including same-index mutable
+  loans and reference forwarding). Construction/bounds/retag and static-kind
+  controls reject. Keep this outcome open: the other three hosted execution
+  environments have not been observed; explicit-target image production is not
+  native/Terminal execution on those hosts.
+
 - **STRUCTURAL-GENERIC-MATCHING.** Complete
   [static type equality](wiki/spec/language/generics.md#static-type-equality),
   [structural equations](wiki/spec/language/generics.md#structural-type-equations-and-inference),
