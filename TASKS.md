@@ -2033,21 +2033,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   classifications, while failed acquisition, handle escape, or unproved close
   retains conservative authority.
 
-- **R5.** Carry complete caller-visible may-write summaries through source
-  checking (`omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/`
-  and `omega-rust/psi/compilation/checking/src/borrow_contracts.rs`) under
-  [invocation contracts](wiki/spec/language/state_contracts.md) and
-  [subject preservation](wiki/spec/language/termination.md#subject-preservation):
-  - Complete ordinary parser-gate package admission through the normal project
-    authority review without bypassing the standard library's `FloatMeaning`
-    proof contracts: `omega update --project tests/psi/parser --target
-    linux_x86_64` must publish accepted inputs before the parser check.
-    Retain the may-write nine-place fact rows and their overlapping rejects.
-
-  Acceptance: all R5 nine-place fact rows and finite write-cycle / parameter-permutation
-  witnesses pass `omega run --both` with overlapping twins rejecting, and
-  `omega --check tests/psi/parser/main.omg` converges.
-
 - **TR3-TR8.** (Also covers **`BLOCKEXEC`**.) Execute ordinary named machines
   through a selected task runtime and deliver the `source/library/blocking-executor/`
   package end to end (`Psi 04–07` and `Omega 00–09`) under
