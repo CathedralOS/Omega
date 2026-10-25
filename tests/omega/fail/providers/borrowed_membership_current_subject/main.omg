@@ -1,8 +1,8 @@
 data Item { value: u32; }
 domain Item::Selected(item) requires item.value == 7;
 boundary trait Reader {
-    machine read(item: &Item) requires item in Item::Selected;
-    machine read_after(item: &Item, observed: u32) requires item in Item::Selected;
+    machine read(item: &Item) reaches requires item in Item::Selected;
+    machine read_after(item: &Item, observed: u32) reaches requires item in Item::Selected;
 }
 data Pair { left: Item; right: Item; }
 machine overwrite(item: &mut Item, value: u32) -> u32 { item.value = value; value }

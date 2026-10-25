@@ -8,6 +8,6 @@ data Outcome<'next, T> {
     case Empty;
 }
 boundary trait Issuer {
-    machine issue<'next>(next: &'next Loop<'next, u8>) -> Outcome<'next, Token in Issued>;
+    machine issue<'next>(next: &'next Loop<'next, u8>) -> Outcome<'next, Token in Issued> reaches;
 }
 machine main() {}

@@ -244,7 +244,7 @@ fn assignment_is_overwritten_before_consumption(
             StatementNode::Assembly(_) => {}
             // A proof assertion is a semantic consumption point: an open
             // invariant window may not flow through it.
-            StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => return false,
+            StatementNode::AssemblyFact(_) => return false,
             StatementNode::Assignment(assignment) => {
                 if crate::typed_expressions::expression_contains_call_node(
                     proof_plan.program,

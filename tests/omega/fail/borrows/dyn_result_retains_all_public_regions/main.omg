@@ -1,0 +1,49 @@
+// The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
+// Expected exit: 0
+
+data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+trait Preserving {
+    machine retain<'storage>(selected: View<'storage>) -> View<'storage>
+    requires selected.bytes.len == selected.sibling.len
+    ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len;
+}
+Direct satisfies Preserving {
+    machine retain<'storage>(selected: View<'storage>) -> View<'storage>
+    requires selected.bytes.len == selected.sibling.len
+    ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+    { selected }
+}
+Copied satisfies Preserving {
+    machine retain<'storage>(selected: View<'storage>) -> View<'storage>
+    requires selected.bytes.len == selected.sibling.len
+    ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+    { View { bytes: selected.sibling, sibling: selected.bytes } }
+}
+machine choose(first: bool) -> dyn Preserving {
+    transition first { true -> (Direct as dyn Preserving) false -> (Copied as dyn Preserving) }
+}
+machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 {
+    slot.bytes = replacement;
+    0
+}
+machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+requires selected.bytes.len == 7
+ensures result == 7
+{ selected.bytes.len }
+machine mutate(bytes: &mut [u8]) -> u64 requires bytes.len >= 1 { bytes[0] = 0; 0 }
+machine replace<'storage>(slot: &mut View<'storage>) -> u64 {
+    slot.bytes = "123456789";
+    slot.sibling = "tail";
+    0
+}
+machine after(first: u64, second: u64) -> u64 { 0 }
+machine main() crashes Trap {
+    let mut storage: [u8; 7] = [11, 2, 3, 4, 5, 6, 7];
+    let mut sibling: [u8; 7] = [29, 2, 3, 4, 5, 6, 7];
+    let mut original: View = View { bytes: &storage[..], sibling: &sibling[..] };
+    let observed: u64 = receive(Preserving::retain(choose(false), original), after(replace(&mut original), mutate(&mut sibling[..])));
+    let difference: u64 = observed - 7;
+    transition difference == 0 { true -> done() false -> wrong() }
+    state done() {}
+    state wrong() { crash Trap; }
+}

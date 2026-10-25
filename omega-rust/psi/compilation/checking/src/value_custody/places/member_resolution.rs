@@ -568,8 +568,7 @@ pub(super) fn expression_type_position(
             }
         }
         ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
+            .saved_value_source(saved)
             .and_then(|subject| expression_type_position(program, subject)),
         ExpressionNode::Match(dispatch) => match_result_position(program, dispatch),
         // The remaining leaves produce scalar values — literals, unary and
@@ -842,7 +841,7 @@ fn saved_subject_member_symbol(
     position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<SymbolHandle> {
-    program.expression_table.saved_subject_source(saved)?;
+    program.saved_value_source(saved)?;
     let MemberPosition::Reference(reference) = position? else {
         return None;
     };
@@ -850,10 +849,8 @@ fn saved_subject_member_symbol(
         .type_reference_table
         .peeled_type_reference(reference);
     let data = super::data_definition_for_type(program, reference)?;
-    let head = program
-        .expression_table
-        .name_path_node(saved.pattern_head)?;
-    let selected = if head.symbol.is_valid()
+    let selected = if let Some(head) = program.expression_table.name_path_node(saved.pattern_head)
+        && head.symbol.is_valid()
         && program.symbols.get(head.symbol).kind == symbols::SymbolKind::Variant
     {
         if program.closed_data_definition(reference).is_some() {

@@ -2,7 +2,7 @@
 data Status [copy] { code: u64; }
 data Device { pending: u64; }
 boundary trait Poll {
-    machine poll(device: &mut Device) -> Status;
+    machine poll(device: &mut Device) -> Status reaches;
 }
 ReadOnce satisfies Poll {
     machine poll(device: &mut Device) -> Status {

@@ -7,6 +7,7 @@
 //! a loop invariant nor permission to replay mutable storage observations.
 
 mod array_elements;
+mod collection_extents;
 mod operand_types;
 mod owned_arguments;
 
@@ -291,6 +292,7 @@ impl<'program> StructuralJudge<'program> {
             scope,
             0,
             &mut observation,
+            None,
         )?;
         let NormalObservation::Entry { paths, .. } = observation else {
             return None;
@@ -325,6 +327,7 @@ impl<'program> StructuralJudge<'program> {
             scope,
             0,
             &mut observation,
+            None,
         )?;
         let NormalObservation::Completion { paths, .. } = observation else {
             return None;
@@ -356,6 +359,7 @@ impl<'program> StructuralJudge<'program> {
                     scope,
                     0,
                     &mut NormalObservation::None,
+                    None,
                 )?
                 .into_iter()
                 .map(|(judge, _)| judge)
@@ -463,6 +467,7 @@ impl<'program> StructuralJudge<'program> {
         parameters: &[typed_trees::signature::StateParameter],
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
+        invocation: Option<crate::CallSite<'_>>,
     ) -> Option<Vec<NormalOperationEntry<'program>>> {
         if arguments.len() != parameters.len() {
             return None;
@@ -484,6 +489,7 @@ impl<'program> StructuralJudge<'program> {
                     scope,
                     0,
                     &mut NormalObservation::None,
+                    invocation,
                 )?
                 .into_iter()
                 .map(|(judge, values)| NormalOperationEntry {
@@ -495,14 +501,53 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn evaluate_normal_operands(
-        self,
+        mut self,
         operands: &[NormalOperand<'_>],
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         depth: usize,
         observation: &mut NormalObservation<'program>,
+        invocation: Option<crate::CallSite<'_>>,
     ) -> Option<Vec<(Self, Vec<(ExpressionHandle, StructuralTerm)>)>> {
-        let mut contexts = vec![(self, Vec::new())];
+        let mut aliases = Vec::new();
+        if let Some(site) = invocation {
+            let mut visited = Vec::new();
+            for operand in operands {
+                crate::expression_traversal::collect_expression_tree(
+                    self.program,
+                    operand.expression,
+                    &mut visited,
+                );
+            }
+            for expression in visited {
+                if let ExpressionNode::SavedSubject(saved) =
+                    self.program.expression_table.expression(expression)
+                    && let Some(position) =
+                        owned_arguments::capture_position_at_site(self.program, saved, site)
+                {
+                    aliases.push((
+                        expression,
+                        position,
+                        self.program.saved_value_source(saved)?,
+                    ));
+                }
+            }
+            if !aliases.is_empty() {
+                let authored = crate::call_site_argument_expressions(self.program, &site);
+                if !authored
+                    .iter()
+                    .copied()
+                    .eq(operands.iter().map(|operand| operand.expression))
+                {
+                    return None;
+                }
+                // A loop iteration cannot borrow a previous invocation's alias.
+                std::sync::Arc::make_mut(&mut self.normal_results).retain(|(expression, _)| {
+                    !aliases.iter().any(|(alias, _, _)| alias == expression)
+                });
+            }
+        }
+        let mut contexts = vec![(self, Vec::<(ExpressionHandle, StructuralTerm)>::new())];
         for &NormalOperand {
             expression: child,
             reference,
@@ -510,7 +555,17 @@ impl<'program> StructuralJudge<'program> {
         } in operands
         {
             let mut next = Vec::new();
-            for (context, inputs) in contexts {
+            for (mut context, inputs) in contexts {
+                for &(alias, position, source) in &aliases {
+                    if let Some((completed_source, value)) = inputs.get(position) {
+                        if *completed_source != source {
+                            return None;
+                        }
+                        let results = std::sync::Arc::make_mut(&mut context.normal_results);
+                        results.retain(|(expression, _)| *expression != alias);
+                        results.push((alias, value.clone()));
+                    }
+                }
                 for path in context.evaluate_normal_paths(
                     child,
                     environment,
@@ -574,6 +629,20 @@ impl<'program> StructuralJudge<'program> {
         }
         let program = self.program;
         let node = program.expression_table.expression(expression);
+        if program.saved_argument_source(expression).is_some() {
+            // The argument scheduler has completed this exact predecessor.
+            // Missing completion is absence of evidence, never source replay.
+            let value = self
+                .normal_results
+                .iter()
+                .rev()
+                .find(|(candidate, _)| *candidate == expression)?
+                .1
+                .clone();
+            return Some(vec![
+                NormalReturnPath { value, judge: self }.at_expression(expression),
+            ]);
+        }
         let demand = match demand {
             NormalValueDemand::Location => {
                 let is_location = match node {
@@ -939,8 +1008,18 @@ impl<'program> StructuralJudge<'program> {
             })
             .collect::<Vec<_>>();
         let receiver_write_sequence = self.storage_write_sequence;
-        let contexts =
-            self.evaluate_normal_operands(&operands, environment, scope, depth, observation)?;
+        let contexts = self.evaluate_normal_operands(
+            &operands,
+            environment,
+            scope,
+            depth,
+            observation,
+            if let ExpressionNode::Call(call) = node {
+                Some(crate::CallSite::Expression { expression, call })
+            } else {
+                None
+            },
+        )?;
         contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
@@ -1195,75 +1274,7 @@ impl<'program> StructuralJudge<'program> {
                         judge.intake_admitted_value_predicates(reference, value.clone());
                     }
                 }
-                if let ExpressionNode::Indexed(indexed) = node
-                    && let Some(range) = program.expression_table.range_node(indexed.index)
-                {
-                    // A completed runtime view keeps its captured descriptor;
-                    // there is no element observation to form. Its extent is
-                    // exactly the authored window: the formation's own bounds
-                    // check already admitted start <= end <= len(collection).
-                    let input_value = |source: ExpressionHandle| {
-                        inputs
-                            .iter()
-                            .find(|(input, _)| *input == source)
-                            .map(|(_, value)| value.clone())
-                    };
-                    let Some(collection) = input_value(indexed.collection) else {
-                        return None;
-                    };
-                    let start = range
-                        .start
-                        .is_valid()
-                        .then(|| input_value(range.start))
-                        .flatten();
-                    let end = range
-                        .end
-                        .is_valid()
-                        .then(|| input_value(range.end))
-                        .flatten();
-                    let collection_measure =
-                        |collection: &StructuralTerm, collection_source| {
-                            let receiver = judge.completed_collection_type(collection_source, scope)?;
-                            super::super::structural_terms::observed_collection_measure(
-                                program,
-                                receiver,
-                                language_semantics::declaration_selection::CollectionMeasure::Length,
-                                || Some(collection.clone()),
-                            )
-                        };
-                    let difference = |left: StructuralTerm, right: StructuralTerm| {
-                        StructuralTerm::MathematicalBinary {
-                            operator: BinaryOperator::Subtract,
-                            left: Box::new(left),
-                            right: Box::new(right),
-                        }
-                    };
-                    let extent = match (start, end) {
-                        (Some(start), Some(end)) => Some(match start {
-                            StructuralTerm::Integer(ref literal) if literal.is_zero() => end,
-                            _ => difference(end, start),
-                        }),
-                        (None, Some(end)) => Some(end),
-                        (start, None) => collection_measure(&collection, indexed.collection).map(
-                            |full| match start {
-                                Some(start) => difference(full, start),
-                                None => full,
-                            },
-                        ),
-                    };
-                    if let Some(extent) = extent
-                        && let Some(view) = judge.normal_value_type_reference(expression, scope)
-                        && let Some(measure) =
-                            super::super::structural_terms::observed_collection_measure(
-                                program,
-                                view,
-                                language_semantics::declaration_selection::CollectionMeasure::Length,
-                                || Some(value.clone()),
-                            )
-                    {
-                        judge.assume_normal_equation(measure, extent);
-                    }
-                }
+                judge.observe_completed_window(expression, &inputs, scope, &value)?;
                 if let ExpressionNode::Borrow(borrow) = node {
                     // A checked borrow selects its referent; it does not create
                     // a new case-bearing value. The referent's completed term
@@ -1661,10 +1672,12 @@ impl<'program> StructuralJudge<'program> {
         if !call.evidence_arguments.is_empty() || call.quotient_operation.is_some() {
             return None;
         }
+        let site = crate::CallSite::Expression { expression, call };
         let static_bindings = super::super::specification_calls::call_scalar_substitution(
             program,
             &owner,
-            &call.machine_arguments,
+            site,
+            |subject| self.completed_scalar_subject(subject, site, actuals?, scope.0, scope.1),
         )?;
         let parameter_scope = super::super::specification_calls::call_parameter_scope(
             program,
@@ -1941,6 +1954,7 @@ impl<'program> StructuralJudge<'program> {
             );
         }
         self.intake_admitted_value_predicates(result_type, captured.clone());
+        self.intake_result_indices(result_type, &captured, callable, parameters, &bindings);
         if let SelectedCallContract::Concrete(callee, selected_state) = &owner {
             equations.extend(self.returned_field_equations(
                 callee,

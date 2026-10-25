@@ -165,3 +165,9 @@ machine Application::main(application: &mut Application) reaches Console crashes
     state invalid(application: &mut Application) { Console::write_line("ERROR malformed input, measurements, kernel or lambda"); Console::exit_process(2); }
     state failed(application: &mut Application) { Console::write_line("ERROR numerical convergence"); Console::exit_process(3); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Application;
+    block Application::main(&mut entry_storage);
+}

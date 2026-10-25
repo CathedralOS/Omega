@@ -4,7 +4,7 @@
 // parameters and local backing, then write again after every call completes.
 use omega_language_std::console;
 
-public boundary trait Observe { machine read(bytes: &[u8]) -> u8; }
+public boundary trait Observe { machine read(bytes: &[u8]) -> u8 reaches; }
 data Observer { }
 machine Observer::read(bytes: &[u8]) -> u8 satisfies Observe::read {
     transition bytes.len > 0 { true -> first(bytes) false -> (0) }
@@ -45,4 +45,10 @@ machine Main::main(main: &mut Main) reaches Console {
 
 ObserverObserveImplementation satisfies Observe {
     Observe::read = Observer::read;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

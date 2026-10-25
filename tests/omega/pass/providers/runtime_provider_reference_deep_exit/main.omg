@@ -2,7 +2,7 @@
 use omega::language::core::external_binding;
 data LocaleByte { value: u8; }
 data Locale { decimal_point: &LocaleByte; }
-boundary trait LocaleAccess { machine locate() -> &Locale; }
+boundary trait LocaleAccess { machine locate() -> &Locale reaches; }
 linux_x86_64 machine binding() -> ForeignBinding<9, 10, 11> {
  ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "localeconv", version: "GLIBC_2.2.5" } }
 }

@@ -8,7 +8,7 @@ use super::*;
 use crate::descriptor_lifetimes::descriptor_location;
 use terminal_psi::{BoundaryLifetimeDependency, BoundaryReferenceDestination};
 
-/// Every writable stored reference needs an explicit completion promise.
+/// Every writable stored reference or view needs an explicit completion promise.
 /// Absence is unknown, not preservation of the incoming pointer. This is used
 /// at external decoding and by the independent native audit, not between
 /// producer stages of an ordinary compilation.
@@ -21,14 +21,18 @@ pub fn provider_outputs_cover_writable_slots(
         .iter()
         .enumerate()
         .all(|(position, parameter)| {
-            let Some(slots) = writable_reference_slots(
-                types,
-                parameter.place,
-                parameter.structural_type,
-                parameter.access,
-            ) else {
-                return false;
-            };
+            let mut slots = Vec::new();
+            for kind in [DescriptorSlotKind::References, DescriptorSlotKind::Views] {
+                let Some(writable) = kind.writable_slots(
+                    types,
+                    parameter.place,
+                    parameter.structural_type,
+                    parameter.access,
+                ) else {
+                    return false;
+                };
+                slots.extend(writable);
+            }
             let outputs = declaration
                 .reference_outputs
                 .iter()

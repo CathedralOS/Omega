@@ -4,9 +4,9 @@
 use omega::language::core::external_binding;
 
 public boundary trait Magnitude {
-    machine absolute(value: i32) -> i32 requires value > -2147483648;
-    machine ordinary(value: i32) -> i32 requires value > -2147483648;
-    machine exported(value: i32) -> i32 requires value > -2147483648;
+    machine absolute(value: i32) -> i32 reaches requires value > -2147483648;
+    machine ordinary(value: i32) -> i32 reaches requires value > -2147483648;
+    machine exported(value: i32) -> i32 reaches requires value > -2147483648;
 }
 public macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
@@ -40,4 +40,10 @@ machine Main::main(main: &mut Main) crashes Trap {
     }
     state done() {}
     state wrong() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

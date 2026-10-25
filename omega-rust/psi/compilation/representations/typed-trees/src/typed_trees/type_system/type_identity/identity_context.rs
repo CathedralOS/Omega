@@ -37,7 +37,8 @@ pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) index_substitutions:
         &'binders [(SymbolHandle, super::IndexIdentityArgument<'binders>)],
     pub(crate) invalid_index_argument: Option<&'binders Cell<bool>>,
-    pub(crate) match_subjects: &'binders [arena::Handle<crate::expression::MatchSubjectCapture>],
+    pub(crate) match_subjects:
+        &'binders [arena::Handle<crate::expression::CompletedValueCapture>],
     pub(crate) exact_toolchain_sources: &'binders [(source::SourceId, [u8; 32])],
     pub(crate) missing_exact_nominal_owner: Option<&'binders Cell<bool>>,
     pub(crate) qualification: TypeIdentityQualification,

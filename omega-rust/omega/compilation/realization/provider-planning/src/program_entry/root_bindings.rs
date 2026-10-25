@@ -2,6 +2,7 @@
 
 use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::{ExecutedRootBinding, RootBindingSelection};
 
 use super::RootBinding;
 
@@ -22,125 +23,118 @@ use super::RootBinding;
 /// looked up, never executed.
 pub fn collect_root_bindings(
     typed: &TypedTrees,
-    executed: &[checked_interpreter::ExecutedRootBinding],
+    executed: &[ExecutedRootBinding],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
-    let execution = typed;
     let typed = typed.product_declarations();
     let mut bindings: Vec<RootBinding> = Vec::with_capacity(executed.len());
     let mut diagnostics = Vec::new();
-    for request in executed {
-        let Some(binding) = execution
-            .statement_table
-            .statement(request.statement)
-            .as_root_binding()
-        else {
-            return Err(vec![Diagnostic::error(
-                "executed root-binding coordinate is not a declaration in the admitted program",
-            )]);
-        };
-        let slot = product_path(&binding.slot);
-        let (implementation, implementation_symbol) = if let Some(described) = &request.described {
-            if slot != described.slot {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "root binding slot `{slot}` does not match the product description's slot `{}`",
-                        described.slot
-                    ))
-                    .with_source_span(binding.source_span),
-                );
-                continue;
-            }
-            if !typed.machine(described.machine_symbol).is_some() {
-                return Err(vec![
-                    Diagnostic::error(
-                        "product description names a machine outside the admitted program",
-                    )
-                    .with_source_span(binding.source_span),
-                ]);
-            }
-            (described.machine_name.clone(), described.machine_symbol)
-        } else {
-            let implementation = product_path(&binding.implementation);
-            // Static root operands share the product query's lexical scope,
-            // not the build helper's import scope. An authorized alias selects
-            // the dependency's product checked instance even when the same
-            // source also has an independently checked build instance.
-            let qualified = implementation.split_once("::");
-            let dependency = qualified.and_then(|(alias, _)| {
-                typed
-                    .symbols
-                    .product_dependency_target(binding.source_span, alias)
-            });
-            let declaration_path = match (qualified, dependency) {
-                (Some((_, path)), Some(_)) => path,
-                _ => implementation.as_str(),
-            };
-            let mut candidates = typed
-                .machines()
-                .iter()
-                .filter(|machine| {
-                    ((dependency.is_none() && machine.name.as_str() == declaration_path)
-                        || typed.symbols.display_path(machine.symbol, "::") == declaration_path)
-                        && match dependency {
-                            Some(package) => {
-                                machine.is_public
-                                    && typed
-                                        .symbols
-                                        .symbol_product_package_identity(machine.symbol)
-                                        == Some(package)
-                            }
-                            None => typed
-                                .symbols
-                                .symbol_source_span(machine.symbol)
-                                .is_some_and(|span| {
-                                    typed
-                                        .symbols
-                                        .same_product_package_instance(binding.source_span, span)
-                                }),
-                        }
-                })
-                .collect::<Vec<_>>();
-            // Prefer complete declaration paths over the existing same-package
-            // relative spelling. Otherwise another module's attached machine
-            // `Entry::launch` can make an exact `Entry::launch` path ambiguous.
-            // Keep the local fallback for roots in a named product module;
-            // dependency operands never inherit these relative spellings.
-            if candidates
-                .iter()
-                .any(|machine| typed.symbols.display_path(machine.symbol, "::") == declaration_path)
-            {
-                candidates.retain(|machine| {
-                    typed.symbols.display_path(machine.symbol, "::") == declaration_path
-                });
-            }
-            match candidates.as_slice() {
-                [machine] => (implementation, machine.symbol),
-                [] => {
-                    let probe = qualified.map_or(implementation.as_str(), |(_, path)| path);
-                    let message = if typed.machines().iter().any(|machine| {
-                        machine.name.as_str() == probe
-                            || typed.symbols.display_path(machine.symbol, "::") == probe
-                    }) {
-                        format!(
-                            "root binding names `{implementation}`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace"
-                        )
-                    } else {
-                        format!(
-                            "root binding names unknown entry machine `{implementation}` in this build source's package"
-                        )
-                    };
-                    diagnostics
-                        .push(Diagnostic::error(message).with_source_span(binding.source_span));
-                    continue;
-                }
-                _ => {
+    for binding in executed {
+        let slot = binding.slot.clone();
+        let (implementation, implementation_symbol) = match &binding.implementation {
+            RootBindingSelection::Described(described) => {
+                if slot != described.slot {
                     diagnostics.push(
                         Diagnostic::error(format!(
-                            "root binding `{implementation}` is ambiguous within its package"
+                            "root binding slot `{slot}` does not match the product description's slot `{}`",
+                            described.slot
                         ))
                         .with_source_span(binding.source_span),
                     );
                     continue;
+                }
+                if typed.machine(described.machine_symbol).is_none() {
+                    return Err(vec![
+                        Diagnostic::error(
+                            "product description names a machine outside the admitted program",
+                        )
+                        .with_source_span(binding.source_span),
+                    ]);
+                }
+                (described.machine_name.clone(), described.machine_symbol)
+            }
+            RootBindingSelection::AuthoredPath(implementation) => {
+                let implementation = implementation.clone();
+                // Static root operands share the product query's lexical scope,
+                // not the build helper's import scope. An authorized alias selects
+                // the dependency's product checked instance even when the same
+                // source also has an independently checked build instance.
+                let qualified = implementation.split_once("::");
+                let dependency = qualified.and_then(|(alias, _)| {
+                    typed
+                        .symbols
+                        .product_dependency_target(binding.source_span, alias)
+                });
+                let declaration_path = match (qualified, dependency) {
+                    (Some((_, path)), Some(_)) => path,
+                    _ => implementation.as_str(),
+                };
+                let mut candidates = typed
+                    .machines()
+                    .iter()
+                    .filter(|machine| {
+                        ((dependency.is_none() && machine.name.as_str() == declaration_path)
+                            || typed.symbols.display_path(machine.symbol, "::") == declaration_path)
+                            && match dependency {
+                                Some(package) => {
+                                    machine.is_public
+                                        && typed
+                                            .symbols
+                                            .symbol_product_package_identity(machine.symbol)
+                                            == Some(package)
+                                }
+                                None => typed
+                                    .symbols
+                                    .symbol_source_span(machine.symbol)
+                                    .is_some_and(|span| {
+                                        typed.symbols.same_product_package_instance(
+                                            binding.source_span,
+                                            span,
+                                        )
+                                    }),
+                            }
+                    })
+                    .collect::<Vec<_>>();
+                // Prefer complete declaration paths over the existing same-package
+                // relative spelling. Otherwise another module's attached machine
+                // `Entry::launch` can make an exact `Entry::launch` path ambiguous.
+                // Keep the local fallback for roots in a named product module;
+                // dependency operands never inherit these relative spellings.
+                if candidates.iter().any(|machine| {
+                    typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                }) {
+                    candidates.retain(|machine| {
+                        typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                    });
+                }
+                match candidates.as_slice() {
+                    [machine] => (implementation, machine.symbol),
+                    [] => {
+                        let probe = qualified.map_or(implementation.as_str(), |(_, path)| path);
+                        let message = if typed.machines().iter().any(|machine| {
+                            machine.name.as_str() == probe
+                                || typed.symbols.display_path(machine.symbol, "::") == probe
+                        }) {
+                            format!(
+                                "root binding names `{implementation}`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace"
+                            )
+                        } else {
+                            format!(
+                                "root binding names unknown entry machine `{implementation}` in this build source's package"
+                            )
+                        };
+                        diagnostics
+                            .push(Diagnostic::error(message).with_source_span(binding.source_span));
+                        continue;
+                    }
+                    _ => {
+                        diagnostics.push(
+                            Diagnostic::error(format!(
+                                "root binding `{implementation}` is ambiguous within its package"
+                            ))
+                            .with_source_span(binding.source_span),
+                        );
+                        continue;
+                    }
                 }
             }
         };
@@ -161,15 +155,4 @@ pub fn collect_root_bindings(
     } else {
         Err(diagnostics)
     }
-}
-
-fn product_path(members: &[checked_trees::typed_trees::name::Identifier]) -> String {
-    let mut path = String::new();
-    for member in members {
-        if !path.is_empty() {
-            path.push_str("::");
-        }
-        path.push_str(member.as_str());
-    }
-    path
 }

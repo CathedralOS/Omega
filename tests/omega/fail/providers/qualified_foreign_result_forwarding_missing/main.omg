@@ -2,6 +2,7 @@ data Status [copy] { code: u64; }
 data Table { read: addr; }
 boundary trait Reports {
     machine read(table: &Table, value: u64) -> Status
+    reaches
     requires value == 42
     ensures result.code == 0;
 }

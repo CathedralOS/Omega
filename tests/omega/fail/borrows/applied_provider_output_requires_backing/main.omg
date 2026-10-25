@@ -3,8 +3,8 @@
 data Slot<'data> { target: &'data u64; }
 data Writer<'owner, 'data> { destination: &'owner mut Slot<'data>; }
 data Mixed<'owner, 'data, Value> { value: Value; writer: Writer<'owner, 'data>; }
-boundary trait Replace<Value> { machine call(value: Value) -> u64; }
-boundary trait Store<Value> { machine call(value: Value); }
+boundary trait Replace<Value> { machine call(value: Value) -> u64 reaches; }
+boundary trait Store<Value> { machine call(value: Value) reaches; }
 
 machine expression<'owner, 'data>(writer: Writer<'owner, 'data>) -> u64 {
     Replace<Writer<'owner, 'data>>::call(writer)

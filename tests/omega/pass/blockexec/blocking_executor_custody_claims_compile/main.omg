@@ -49,6 +49,7 @@ public boundary trait WorkerProvider {
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     ensures true
+    reaches
     suspends; blocks;
 }
 

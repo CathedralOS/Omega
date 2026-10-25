@@ -318,6 +318,11 @@ pub(super) fn interpret(
             ));
         }
     };
+    observation.facts.extend(super::entry_inputs::observe(
+        fixture_dir,
+        "interpreter-",
+        &result.private_entry_ram,
+    ));
     observation.facts.extend(super::output_oracles::observe(
         fixture_dir,
         "interpreter-",

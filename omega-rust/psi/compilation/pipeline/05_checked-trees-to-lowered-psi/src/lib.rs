@@ -68,6 +68,7 @@ mod retention;
 
 // Beside the route: shared producer vocabulary and diagnostic source attribution.
 mod activation_storage;
+mod call_operands;
 mod call_sites;
 mod content_classes;
 mod declarations;

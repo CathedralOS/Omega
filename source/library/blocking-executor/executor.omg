@@ -28,6 +28,7 @@ public boundary trait WorkerProvider {
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     ensures true
+    reaches
     suspends; blocks;
 }
 
@@ -129,7 +130,7 @@ public boundary trait BlockingExecutor {
     machine submit<T, Arguments, const N: u64>(
         submission: Submission<T, Arguments>,
         executor: &mut Executor<T, Arguments, N>
-    ) -> SubmitOutcome<T, Arguments>;
+    ) -> SubmitOutcome<T, Arguments> reaches;
 
     // Take the next queued submission as a worker. Suspends on the wait word
     // while the queue is empty and open — blocking creates no semantic safe
@@ -138,6 +139,7 @@ public boundary trait BlockingExecutor {
     machine take_one<T, Arguments, const N: u64>(
         executor: &mut Executor<T, Arguments, N>
     ) -> Submission<T, Arguments>
+    reaches
     requires
         executor.open
     suspends;
@@ -151,7 +153,7 @@ public boundary trait BlockingExecutor {
     // consume the claim. A worker that ignores the request and never reports
     // an outcome is the hung case; recovery from it is the
     // `IsolatedWorkerProvider` contract above.
-    machine request_cancel<T>(ticket: &Ticket<T>);
+    machine request_cancel<T>(ticket: &Ticket<T>) reaches;
 
     // Terminally consume this claim against the executor that vended it;
     // blocks until the worker reports a lifecycle outcome. Same shape as
@@ -163,6 +165,7 @@ public boundary trait BlockingExecutor {
         ticket: Ticket<T>,
         executor: &mut Executor<T, Arguments, N>
     ) -> ExecutorOutcome<T>
+    reaches
     suspends;
     blocks;
 
@@ -174,6 +177,7 @@ public boundary trait BlockingExecutor {
     machine close<T, Arguments, const N: u64>(
         executor: Executor<T, Arguments, N>
     )
+    reaches
     requires
         executor.queue.length == 0,
         executor.outstanding == 0;

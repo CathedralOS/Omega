@@ -563,6 +563,7 @@ fn walk_state(
                 machine,
                 state,
                 statement,
+                statement_ordinal,
                 &tracked,
                 entry_established,
                 &call_established,

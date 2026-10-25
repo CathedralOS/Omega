@@ -364,7 +364,16 @@ fn realize_capture(
                     constants,
                     machines,
                     evidence,
-                    runtime_values: values,
+                    runtime_values: values
+                        .into_iter()
+                        .map(|(candidate, binder, argument)| {
+                            (
+                                candidate,
+                                binder,
+                                super::RuntimeValueBinding::Authored(argument),
+                            )
+                        })
+                        .collect(),
                 },
             );
             if bindings.conflicted

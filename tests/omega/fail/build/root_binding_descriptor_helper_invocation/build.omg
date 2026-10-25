@@ -1,0 +1,11 @@
+boundary trait Probe { machine observe() reaches; }
+
+public machine choose(builder: &mut Build) -> ProductEntryRef {
+    Probe::observe();
+    BuildProduct::entry(&builder.product, "main", "macos_arm64::ProgramEntry")
+}
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "root_binding_descriptor_helper_invocation");
+    Build::bind(builder, macos_arm64::ProgramEntry, choose(builder));
+}

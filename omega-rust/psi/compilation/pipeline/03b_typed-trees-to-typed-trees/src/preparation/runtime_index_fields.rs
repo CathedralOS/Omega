@@ -323,94 +323,52 @@ fn fill(
                 .expression_table
                 .struct_fields(literal.fields)
                 .to_vec();
-            let application_reference = match program.type_reference_table.type_reference(reference)
-            {
-                TypeReferenceNode::Named { symbol, .. } => program
-                    .unique_data_definition_by_symbol(*symbol)
-                    .and_then(|definition| definition.generic_instance)
-                    .unwrap_or(reference),
-                _ => reference,
-            };
-            if let TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } = program
-                .type_reference_table
-                .type_reference(application_reference)
-            {
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(*arguments);
-                if let Some(definition) = program.unique_data_definition_by_symbol(*base_symbol) {
-                    let parameters = program.data_type_parameters(definition);
-                    let descriptors: Vec<_> = program
-                        .data_value_parameter_fields(definition)
-                        .enumerate()
-                        .filter_map(|(descriptor_ordinal, (parameter, field))| {
-                            let ordinal = parameters
+            let descriptors: Vec<_> = program
+                .data_application_value_fields(reference)
+                .into_iter()
+                .map(|(_, field, argument)| (field.clone(), argument))
+                .collect();
+            let mut implicit_fields = Vec::new();
+            for (field, argument) in descriptors {
+                if let Some(ordinal) = fields
+                    .iter()
+                    .position(|authored| authored.field_symbol == field.symbol)
+                {
+                    let unavailable_argument =
+                        match program.type_reference_table.type_reference(argument) {
+                            TypeReferenceNode::Named { symbol, .. } => substitutions
                                 .iter()
-                                .position(|candidate| candidate.symbol == parameter.symbol)?;
-                            let field = if application_reference != reference {
-                                // A syntax-specialized instance has its own field
-                                // symbols but preserves the leading descriptor order.
-                                let concrete = program
-                                    .unique_data_definition_by_symbol(literal.type_symbol)?;
-                                program
-                                    .data_members(concrete)
-                                    .get(descriptor_ordinal)?
-                                    .as_field()?
-                            } else {
-                                field
-                            };
-                            Some((field.clone(), *arguments.get(ordinal)?))
-                        })
-                        .collect();
-                    let mut implicit_fields = Vec::new();
-                    for (field, argument) in descriptors {
-                        if let Some(ordinal) = fields
-                            .iter()
-                            .position(|authored| authored.field_symbol == field.symbol)
-                        {
-                            let unavailable_argument =
-                                match program.type_reference_table.type_reference(argument) {
-                                    TypeReferenceNode::Named { symbol, .. } => {
-                                        substitutions.iter().any(|(parameter, value)| {
-                                            parameter == symbol && !value.is_valid()
-                                        })
-                                    }
-                                    _ => false,
-                                };
-                            // An explicit descriptor is evaluated at its authored
-                            // position. Earlier effects cannot be justified from
-                            // statement-entry scalar facts. A literal is stable;
-                            // otherwise require an inert prefix through this field.
-                            let value = fields[ordinal].value;
-                            let stable_literal = matches!(
-                                program.expression_table.expression(value),
-                                ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
-                            );
-                            let stable_position = stable_literal
-                                || !earlier_effects
-                                    && fields[..=ordinal]
-                                        .iter()
-                                        .all(|field| effects.inert(program, field.value));
-                            if unavailable_argument || !stable_position {
-                                diagnostics.push(Diagnostic::error(format!("cannot validate runtime index descriptor `{}` across argument or field effects without an evaluated scalar snapshot", field.name.as_str())));
-                            }
-                            continue;
-                        }
-                        match index_expression(program, argument, field.type_reference, substitutions, earlier_effects) {
+                                .any(|(parameter, value)| parameter == symbol && !value.is_valid()),
+                            _ => false,
+                        };
+                    // An explicit descriptor is evaluated at its authored
+                    // position. Earlier effects cannot be justified from
+                    // statement-entry scalar facts. A literal is stable;
+                    // otherwise require an inert prefix through this field.
+                    let value = fields[ordinal].value;
+                    let stable_literal = matches!(
+                        program.expression_table.expression(value),
+                        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+                    );
+                    let stable_position = stable_literal
+                        || !earlier_effects
+                            && fields[..=ordinal]
+                                .iter()
+                                .all(|field| effects.inert(program, field.value));
+                    if unavailable_argument || !stable_position {
+                        diagnostics.push(Diagnostic::error(format!("cannot validate runtime index descriptor `{}` across argument or field effects without an evaluated scalar snapshot", field.name.as_str())));
+                    }
+                    continue;
+                }
+                match index_expression(program, argument, field.type_reference, substitutions, effects, earlier_effects) {
                             Some(value) => implicit_fields.push(TableStructLiteralField { name: field.name, field_symbol: field.symbol, value }),
                             None => diagnostics.push(Diagnostic::error(format!("cannot retain runtime index descriptor `{}` from its application argument without an evaluated scalar subject", field.name.as_str()))),
                         }
-                    }
-                    // The application captures its indices before evaluating
-                    // authored payloads. Keep authored field order unchanged.
-                    implicit_fields.extend(fields);
-                    fields = implicit_fields;
-                }
             }
+            // The application captures its indices before evaluating
+            // authored payloads. Keep authored field order unchanged.
+            implicit_fields.extend(fields);
+            fields = implicit_fields;
             let definition = program.data_application_definition(reference).or_else(|| {
                 program
                     .type_reference_table
@@ -476,8 +434,14 @@ fn index_expression(
     argument: TypeReferenceHandle,
     carrier: TypeReferenceHandle,
     substitutions: &Substitutions,
+    effects: &CallerEffects,
     earlier_effects: bool,
 ) -> Option<ExpressionHandle> {
+    if let TypeReferenceNode::ConstExpression(expression) =
+        *program.type_reference_table.type_reference(argument)
+    {
+        return capture_recipe(program, expression, substitutions, effects, earlier_effects);
+    }
     let TypeReferenceNode::Named { symbol, name } = program
         .type_reference_table
         .type_reference(argument)
@@ -524,4 +488,57 @@ fn index_expression(
     }
     let value = crate::monomorphization::materialize_static_value(program, argument, carrier)?;
     Some(program.expression_table.insert(value))
+}
+
+/// Materialize the application recipe under its exact supplying telescope.
+/// Only inert reads can be replayed at construction. A missing operand capture
+/// remains missing; a same-spelled caller name cannot replace it.
+fn capture_recipe(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &Substitutions,
+    effects: &CallerEffects,
+    earlier_effects: bool,
+) -> Option<ExpressionHandle> {
+    let stable_literal = matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
+    );
+    if !stable_literal && (earlier_effects || !effects.inert(program, expression)) {
+        return None;
+    }
+    if substitutions.is_empty() {
+        return Some(expression);
+    }
+    let mut tree = Vec::new();
+    validation::expression_traversal::collect_expression_tree(program, expression, &mut tree);
+    for member in &tree {
+        if let ExpressionNode::Name(path) = program.expression_table.expression(*member)
+            && let Some((_, actual)) = substitutions
+                .iter()
+                .find(|(symbol, _)| *symbol == path.symbol)
+            && (!actual.is_valid() || !effects.inert(program, *actual))
+        {
+            return None;
+        }
+    }
+    let mut staging = typed_trees::expression::ExpressionTable::default();
+    let staged = staging.copy_from(&program.expression_table, expression);
+    let copied = program.expression_table.copy_from(&staging, staged);
+    tree.clear();
+    validation::expression_traversal::collect_expression_tree(program, copied, &mut tree);
+    for member in tree {
+        let replacement = match program.expression_table.expression(member) {
+            ExpressionNode::Name(path) => substitutions
+                .iter()
+                .find(|(symbol, _)| *symbol == path.symbol)
+                .map(|(_, actual)| *actual),
+            _ => None,
+        };
+        if let Some(actual) = replacement {
+            let value = program.expression_table.expression(actual).clone();
+            *program.expression_table.expression_mut(member) = value;
+        }
+    }
+    Some(copied)
 }

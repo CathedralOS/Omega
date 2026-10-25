@@ -99,12 +99,7 @@ fn check_stored_output_relations(
             if borrowing.loans.is_empty() {
                 continue;
             }
-            for (_, loan) in facts
-                .borrow
-                .loans
-                .iter()
-                .filter(|(handle, _)| facts.borrow.state_owns_loan(borrowing, *handle))
-            {
+            for (_, loan) in facts.borrow.state_loans(borrowing) {
                 if facts.borrow.loan_owner_path(loan).is_empty()
                     || !program
                         .state_parameters(state)
@@ -1075,12 +1070,11 @@ pub(super) fn is_state_independent_borrow_source(
     resolving: &mut Vec<SymbolHandle>,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        typed_trees::expression::ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
-            .is_some_and(|source| {
+        typed_trees::expression::ExpressionNode::SavedSubject(saved) => {
+            program.saved_value_source(saved).is_some_and(|source| {
                 is_state_independent_borrow_source(program, state, source, resolving)
-            }),
+            })
+        }
         typed_trees::expression::ExpressionNode::String(_) => true,
         typed_trees::expression::ExpressionNode::Cast(cast) => {
             is_state_independent_borrow_source(program, state, cast.value, resolving)

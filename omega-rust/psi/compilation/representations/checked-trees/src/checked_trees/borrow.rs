@@ -714,6 +714,16 @@ impl BorrowFacts {
         self.loans_contain(state.loans, loan)
     }
 
+    pub fn state_loans(
+        &self,
+        state: &StateBorrowFact,
+    ) -> impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)> {
+        state
+            .loans
+            .handles()
+            .filter_map(|handle| self.loans.is_valid(handle).then(|| (handle, self.loans.get(handle))))
+    }
+
     /// Membership retains the loan arena's generation, not just its index.
     pub fn loans_contain(
         &self,

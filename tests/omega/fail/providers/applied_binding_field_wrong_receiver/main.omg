@@ -4,9 +4,9 @@
 // `Session` are exact field types rather than one generic context applied to
 // `u64`: provider selection still has to answer the `Session<u8>` field.
 
-public boundary trait Reading<Value> { machine read() -> i32; }
-public boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32; }
-public boundary trait BooleanReading: Reading<bool> { machine choose_boolean() -> i32; }
+public boundary trait Reading<Value> { machine read() -> i32 reaches; }
+public boundary trait UnsignedReading: Reading<u64> { machine choose_unsigned() -> i32 reaches; }
+public boundary trait BooleanReading: Reading<bool> { machine choose_boolean() -> i32 reaches; }
 UnsignedMap satisfies UnsignedReading {
     Reading::read = unsigned_read;
     UnsignedReading::choose_unsigned = choose_unsigned;
@@ -50,4 +50,11 @@ reaches Reading + UnsignedReading + BooleanReading crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Reading + UnsignedReading + BooleanReading crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

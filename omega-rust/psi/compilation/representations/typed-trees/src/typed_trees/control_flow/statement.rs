@@ -49,19 +49,6 @@ pub fn reachable_state_statements(statements: &[StatementNode]) -> &[StatementNo
     &statements[..start + tail.len()]
 }
 
-/// A Build declaration with product-context operands, never a runtime call.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RootBinding {
-    pub receiver: crate::expression::ExpressionHandle,
-    pub slot: Box<[Identifier]>,
-    pub implementation: Box<[Identifier]>,
-    /// Present only when the implementation operand is a delegated
-    /// product-description place: the bare name resolved to a local,
-    /// parameter, or field. Static product declaration paths keep this
-    /// invalid and are rejoined lexically from `implementation`.
-    pub implementation_operand: crate::expression::ExpressionHandle,
-    pub source_span: SourceSpan,
-}
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -253,6 +240,10 @@ impl StatementTable {
         }
     }
 
+    pub fn statement_is_valid(&self, handle: StatementHandle) -> bool {
+        self.statements.is_valid(handle)
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }
@@ -386,8 +377,6 @@ impl Default for StatementTable {
 /// ([`StatementTable::expression_roots`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatementRootRole {
-    BindingReceiver,
-    BindingImplementation,
     AssemblyFact,
     AssignmentTarget,
     AssignmentValue,
@@ -402,7 +391,6 @@ pub enum StatementRootRole {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StatementNode {
     Assembly(AssemblyControlPoint),
-    RootBinding(RootBinding),
     AssemblyFact(TableAssemblyFact),
     Assignment(TableAssignment),
     Call(TableCall),
@@ -412,14 +400,6 @@ pub enum StatementNode {
 }
 
 impl StatementNode {
-    /// The `RootBinding` record, if this statement is one.
-    pub fn as_root_binding(&self) -> Option<&RootBinding> {
-        let StatementNode::RootBinding(binding) = self else {
-            return None;
-        };
-        Some(binding)
-    }
-
     /// The `AssemblyFact` record, if this statement is one.
     pub fn as_assembly_fact(&self) -> Option<&TableAssemblyFact> {
         let StatementNode::AssemblyFact(fact) = self else {

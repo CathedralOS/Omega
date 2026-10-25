@@ -22,3 +22,9 @@ machine Main::main(main: &mut Main) reaches Console {
     let result: i32 in Wrapping = from_light + from_number;
     Console::exit_process(result as i32);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

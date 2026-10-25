@@ -427,9 +427,8 @@ pub(crate) fn statement_expression_roots(
         .tables
         .expression_roots(statement)
         .into_iter()
-        .filter(|(role, root)| match role {
+        .filter(|(role, _)| match role {
             Role::AssignmentTarget => include_assignment_targets,
-            Role::BindingReceiver | Role::BindingImplementation => root.is_valid(),
             _ => true,
         })
         .map(|(_, root)| root)

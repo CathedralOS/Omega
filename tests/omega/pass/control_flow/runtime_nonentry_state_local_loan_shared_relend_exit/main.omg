@@ -74,3 +74,9 @@ machine measure(seed: u64) -> u64 {
     state report(output: &Output) -> u64 { output.count }
     state zero() -> u64 { 0 }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

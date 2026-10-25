@@ -1187,12 +1187,6 @@ impl<'program> Collector<'program> {
                 let mut expressions = Vec::new();
                 match statement {
                     StatementNode::Assembly(_) => {}
-                    StatementNode::RootBinding(binding) => {
-                        expressions.push(binding.receiver);
-                        if binding.implementation_operand.is_valid() {
-                            expressions.push(binding.implementation_operand);
-                        }
-                    }
                     StatementNode::AssemblyFact(fact) => {
                         expressions.extend(program.tables.proof_fact_expression_roots(fact.fact))
                     }

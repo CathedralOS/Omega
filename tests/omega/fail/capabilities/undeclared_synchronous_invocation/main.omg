@@ -4,7 +4,7 @@
 // invocation edge is refused.
 
 public boundary trait Handler {
-    machine handle();
+    machine handle() reaches;
 }
 
 public boundary trait EventSource<Source> {

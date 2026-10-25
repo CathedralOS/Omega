@@ -20,6 +20,7 @@ mod cast;
 mod dispatch;
 mod folded_values;
 mod place;
+mod scope;
 mod trap_coverage;
 mod unary;
 mod unsigned_constants;
@@ -173,7 +174,9 @@ pub(super) fn analyze(
     let mut decisions = ArithmeticDecisions::default();
     let value = ExpressionWalk {
         program,
-        machine,
+        machine: Some(machine),
+        lexical_owner: machine.symbol,
+        parameters: &[],
         state,
         environment,
         target_primitive,
@@ -182,6 +185,39 @@ pub(super) fn analyze(
         infer_call_bodies,
         checks_trap_coverage: true,
         checks_occurrence_fit: true,
+    }
+    .analyze(expression, diagnostics, &mut decisions);
+    CheckedAnalysis { value, decisions }
+}
+
+/// A retained declaration recipe has exact operands but no executable frame.
+/// It shares operator formation with runtime expressions; statement-prefix and
+/// body-inference evidence are deliberately unavailable in this scope.
+pub(super) fn analyze_declaration(
+    program: &dyn crate::CheckingInput,
+    lexical_owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> CheckedAnalysis {
+    let mut decisions = ArithmeticDecisions::default();
+    let value = ExpressionWalk {
+        program,
+        machine: None,
+        lexical_owner,
+        parameters,
+        state: None,
+        environment,
+        target_primitive,
+        target_domain,
+        owner,
+        infer_call_bodies: false,
+        checks_trap_coverage: true,
+        checks_occurrence_fit: false,
     }
     .analyze(expression, diagnostics, &mut decisions);
     CheckedAnalysis { value, decisions }
@@ -211,7 +247,9 @@ pub(super) fn analyze_arrival(
     let mut decisions = ArithmeticDecisions::default();
     let value = ExpressionWalk {
         program,
-        machine,
+        machine: Some(machine),
+        lexical_owner: machine.symbol,
+        parameters: &[],
         state,
         environment,
         target_primitive,
@@ -244,7 +282,9 @@ pub(super) fn analyze_meaning(
     let mut decisions = ArithmeticDecisions::default();
     let value = ExpressionWalk {
         program,
-        machine,
+        machine: Some(machine),
+        lexical_owner: machine.symbol,
+        parameters: &[],
         state,
         environment: &ValueEnvironment::new(),
         target_primitive: None,
@@ -266,7 +306,9 @@ struct ExpressionWalk<'a> {
     /// proof owner. Only the validating walk publishes formation decisions.
     checks_occurrence_fit: bool,
     program: &'a dyn crate::CheckingInput,
-    machine: &'a Machine,
+    machine: Option<&'a Machine>,
+    lexical_owner: symbols::SymbolHandle,
+    parameters: &'a [typed_trees::signature::StateParameter],
     state: Option<&'a State>,
     environment: &'a ValueEnvironment,
     target_primitive: Option<PrimitiveType>,
@@ -348,20 +390,7 @@ impl ExpressionWalk<'_> {
             }
         }
         if let ExpressionNode::Indexed(indexed) = node
-            && crate::value_custody::places::indexed_operation_has_builtin_meaning(
-                self.program,
-                self.machine,
-                self.state,
-                expression,
-                crate::value_custody::expression_types::declaration_expression_result_type_reference(
-                    self.program,
-                    self.machine.symbol,
-                    &|operand| crate::declared_place_type_raw(
-                        self.program, self.machine, self.state, operand,
-                    ),
-                    indexed.collection,
-                ),
-            )
+            && self.indexed_builtin(expression, indexed.collection)
         {
             // Builtin coordinates are integer destinations, independently of
             // the selected element's type. Checking their arithmetic children

@@ -23,7 +23,7 @@
 //   * `utf16"..."` is the CHAR16 text UEFI expects.
 
 public boundary trait TextOutput {
-    machine output_string(this: addr, text: &[u16; 19]);
+    machine output_string(this: addr, text: &[u16; 19]) reaches;
 }
 data EfiTextOutputProtocol {
     reset: addr;

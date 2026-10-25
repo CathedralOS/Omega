@@ -169,10 +169,10 @@ public boundary trait Prepare: Calling<PrepareCalling> {
     machine prepare(
         interface: &mut ForeignInterface, abi: u32, count: u32,
         result_type: &PairType, argument_types: &ArgumentTypes
-    ) -> u32;
+    ) -> u32 reaches;
 }
 public boundary trait Transform: Calling<TransformCalling> {
-    machine transform(pair: FloatPair32) -> FloatPair32;
+    machine transform(pair: FloatPair32) -> FloatPair32 reaches;
 }
 public boundary trait Invoke: Calling<InvokeCalling> {
     machine invoke<machine Handler>(
@@ -180,6 +180,7 @@ public boundary trait Invoke: Calling<InvokeCalling> {
         result: &mut FloatPair32, arguments: &ArgumentValues
     )
     where machine Handler satisfies Transform::transform;
+    reaches
     invokes Transform;
 }
 
@@ -412,3 +413,13 @@ via linux_invoke_binding();
 // libffi target ABI discriminants from the platform ffi headers.
 macos_arm64 machine ffi_abi() -> u32 { 1 }
 linux_x86_64 machine ffi_abi() -> u32 { 2 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Prepare + Invoke + Transform + Console
+invokes Prepare;
+invokes Invoke;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

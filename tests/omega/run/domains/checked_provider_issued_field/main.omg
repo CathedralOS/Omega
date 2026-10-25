@@ -3,7 +3,7 @@ public data Resource { identity: u64; }
 public domain Resource::Open(resource) requires resource.identity != 0 established by acquire;
 public data Package { resource: Resource in Open; }
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
-public boundary trait Source { machine open() -> Package; }
+public boundary trait Source { machine open() -> Package reaches; }
 data CheckedSource {}
 machine CheckedSource::open() -> Package satisfies Source::open {
     Package { resource: acquire() }
@@ -23,4 +23,10 @@ machine Main::main(context: &mut Main) reaches Source crashes Trap {
 
 CheckedSourceSourceImplementation satisfies Source {
     Source::open = CheckedSource::open;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Source crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

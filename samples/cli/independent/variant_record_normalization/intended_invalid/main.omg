@@ -18,3 +18,9 @@ machine Invalid::main(entry: &mut Invalid) reaches Console {
     }
     state done(entry: &mut Invalid) { Console::exit_process(0); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Invalid;
+    block Invalid::main(&mut entry_storage);
+}

@@ -729,7 +729,7 @@ fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
 #[test]
 fn parses_target_scoped_bodyless_boundary_machine() {
     let source = r#"
-        boundary trait Console { machine exit_process(code: i32); }
+        boundary trait Console { machine exit_process(code: i32) reaches; }
         data ConsoleNativeProvider {}
         linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(code: i32)
             satisfies Console::exit_process;
@@ -1402,4 +1402,56 @@ fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
         assert_eq!(trees.roots, roots);
         assert_eq!(trees.expressions.iter_expressions().count(), 1);
     }
+}
+
+#[test]
+fn boundary_requirement_publishes_explicit_empty_reach_without_repeating_it_on_realizers() {
+    let source = r#"
+        public boundary trait Mark { machine read() -> u64 reaches; }
+        MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
+        machine main() { let value: u64 = Mark::read(); }
+    "#;
+    let parsed = super::parse_source(
+        source,
+        "an empty boundary ceiling and inferred realizer parse",
+    );
+    let requirement = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Trait(definition) => Some(definition),
+            _ => None,
+        })
+        .expect("boundary trait");
+    let signature = parsed.items.state_signatures(requirement.machines)[0];
+    let signature = parsed.items.state_signature(signature);
+    assert!(signature.service_reaches.is_empty());
+    assert_eq!(signature.service_reach_keyword_source_spans.len(), 1);
+
+    let missing = source.replace("read() -> u64 reaches;", "read() -> u64;");
+    let tokens = Lexer::new(&missing).tokenize().expect("valid tokens");
+    let error =
+        parse_syntax_trees(&tokens).expect_err("a boundary requirement cannot infer its ceiling");
+    super::expect_error(
+        &error,
+        "Mark::read` must declare an explicit `reaches` ceiling",
+    );
+
+    // A static binder's contract cannot supply the enclosing requirement's
+    // missing ceiling. Its clause belongs to a distinct callable signature.
+    let nested = r#"
+        boundary trait Mark {
+            machine relay<machine Step>() -> u64
+            where machine Step() -> u64 reaches Mark;
+            ensures true;
+        }
+    "#;
+    let tokens = Lexer::new(nested)
+        .tokenize()
+        .expect("valid nested contract tokens");
+    let error = parse_syntax_trees(&tokens)
+        .expect_err("a nested binder ceiling does not annotate the requirement");
+    super::expect_error(
+        &error,
+        "Mark::relay` must declare an explicit `reaches` ceiling",
+    );
 }

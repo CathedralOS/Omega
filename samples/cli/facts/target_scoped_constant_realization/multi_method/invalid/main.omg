@@ -1,5 +1,5 @@
 // Expected exit: 0.
-boundary trait Answer { machine other() -> u64 crashes Trap; machine get() -> u64 terminates; }
+boundary trait Answer { machine other() -> u64 reaches crashes Trap; machine get() -> u64 reaches terminates; }
 Small satisfies Answer { machine get() -> u64 { 4 }  }
 Large satisfies Answer { machine other() -> u64 crashes Trap { crash Trap; } machine get() -> u64 { 8 } }
 Same satisfies Answer { machine other() -> u64 crashes Trap { crash Trap; } machine get() -> u64 { 4 } }

@@ -100,10 +100,10 @@ public boundary trait WindowsFilesystemHost {
     // Same-object synchronous whole-file range locking, including future
     // growth. Try conflicts return -33; repeated locks/unmatched unlocks keep
     // native semantics. No cursor movement, access upgrade or reopening.
-    machine lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32 blocks;
+    machine lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32 reaches blocks;
     invokes WindowsFilesystemIo;
     invokes WindowsFilesystemLockIo;
-    machine unlock_file(handle: u64) -> i32 blocks;
+    machine unlock_file(handle: u64) -> i32 reaches blocks;
     invokes WindowsFilesystemIo;
     invokes WindowsFilesystemLockIo;
     machine directory_nth(path: &[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
@@ -180,11 +180,11 @@ public boundary trait WindowsFilesystemHost {
     blocks;
     invokes WindowsFilesystemIo;
     invokes WindowsFilesystemTransferIo;
-    machine flush_file_buffers(handle: u64) -> i32 blocks;
+    machine flush_file_buffers(handle: u64) -> i32 reaches blocks;
     invokes WindowsFilesystemIo;
-    machine set_file_pointer(handle: u64, distance: i64, method: u32) -> i64 blocks;
+    machine set_file_pointer(handle: u64, distance: i64, method: u32) -> i64 reaches blocks;
     invokes WindowsFilesystemIo;
-    machine duplicate_handle(handle: u64) -> u64 invokes WindowsFilesystemIo;
+    machine duplicate_handle(handle: u64) -> u64 reaches invokes WindowsFilesystemIo;
     machine set_file_attributes(path: &[u8] in Path, attributes: u32) -> i32 reaches FilesystemMetadataMutation
     blocks;
     invokes WindowsFilesystemIo;
@@ -221,7 +221,7 @@ public boundary trait WindowsFilesystemHost {
     machine get_file_time(handle: u64) -> WindowsFileTimeResult reaches FilesystemMetadataQuery
     blocks;
     invokes WindowsFilesystemIo;
-    machine close_handle(handle: u64) -> i32 blocks;
+    machine close_handle(handle: u64) -> i32 reaches blocks;
     invokes WindowsFilesystemIo;
-    machine last_error() -> u32 invokes WindowsFilesystemIo;
+    machine last_error() -> u32 reaches invokes WindowsFilesystemIo;
 }

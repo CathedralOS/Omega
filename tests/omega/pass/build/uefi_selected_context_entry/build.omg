@@ -5,7 +5,7 @@ machine build(builder: &mut Build) {
     Build::select_provider<ExtentRootProvider, TestRoots>(builder);
     Build::select_provider<ProgramStorageEntry, ProgramStorageEntryNativeProvider>(builder);
     Build::select_provider<entry_support::UefiPhysicalEntry, FirmwareBootstrap>(builder);
-    Build::bind(builder, uefi_x86_64::ProgramEntry, selected_continuation);
+    Build::bind(builder, uefi_x86_64::ProgramEntry, entry_start);
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

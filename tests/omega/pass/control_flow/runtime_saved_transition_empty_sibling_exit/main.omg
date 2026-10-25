@@ -5,7 +5,7 @@ machine Token::drop(token: &mut Token) {}
 data Extracted<Value> { case Moved(storage: Token, value: Value, padding: [u8; 0]); }
 data Returned<Value> { storage: Token; value: Value; }
 boundary trait Extract<Value> {
-    machine take(storage: Token, value: Value) -> Extracted<Value>;
+    machine take(storage: Token, value: Value) -> Extracted<Value> reaches;
 }
 Provider satisfies Extract<Token> {
     machine take(storage: Token, value: Token) -> Extracted<Token> {

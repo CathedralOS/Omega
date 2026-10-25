@@ -11,6 +11,6 @@
 // operand before a row is demanded; the surviving enforcement is here, on the
 // realization that would settle the row.
 
-public boundary trait Indexed<const Count: u64> { machine read() -> i32; }
+public boundary trait Indexed<const Count: u64> { machine read() -> i32 reaches; }
 data BadProvider {}
 machine BadProvider::read<Count: u64>() -> i32 satisfies Indexed<Count>::read { 0 }

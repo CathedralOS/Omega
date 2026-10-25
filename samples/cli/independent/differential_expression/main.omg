@@ -209,3 +209,9 @@ machine adjustment(study: &Study, gene: i32 in Wrapping) -> f64 {
  false -> scan(study, position, size, other + 1, best) }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

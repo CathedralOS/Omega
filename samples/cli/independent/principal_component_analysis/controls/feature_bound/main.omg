@@ -6,3 +6,9 @@ machine Invalid::main(main: &mut Invalid) reaches Console {
  Console::write_line("UNREACHABLE feature bound");
  Console::exit_process(0);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Invalid;
+    Invalid::main(&mut entry_storage);
+}

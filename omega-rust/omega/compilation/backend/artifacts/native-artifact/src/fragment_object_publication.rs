@@ -100,7 +100,11 @@ pub fn publish_fragment_object(
                         || !loan.referent.qualifications.is_empty()
                 })
             || !entry.private_entry_ram().is_empty()
-                && object.target() != target::NativeTarget::linux_x64()
+                && ![
+                    target::NativeTarget::linux_x64(),
+                    target::NativeTarget::macos_arm64(),
+                ]
+                .contains(&object.target())
         {
             return Err(crate::native_artifact_error(
                 "ProgramEntry placed-view custody",
@@ -157,32 +161,12 @@ pub fn publish_fragment_object(
                 image_emission::derive_stack_demand(&object, object.entry()).map_err(|error| {
                     crate::native_artifact_error("ProgramEntry receiver stack demand", error)
                 })?;
-            // The checked eligibility decides whether the receiver's nominal
-            // cleanup must occupy its hosted extent through completion. The
-            // binding records that occupancy so the extent is tracked through
-            // the installation ledger rather than silently dropping it.
-            let cleanup_occupancy =
-                entry
-                    .checked_entry()
-                    .receiver_eligibility()
-                    .is_some_and(|eligibility| {
-                        eligibility.cleanup()
-                        == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
-                    });
-            let determined_evidence = entry
-                .checked_entry()
-                .receiver_eligibility()
-                .map(|eligibility| eligibility.determined_evidence_fields())
-                .unwrap_or_default();
             image_emission::bind_hosted_receiver(
                 &mut object,
                 entry.source(),
                 entry.checked_entry(),
                 contract,
-                entry.fused_service_establishments(),
-                determined_evidence,
                 &demand,
-                cleanup_occupancy,
                 entry.private_entry_ram(),
             )
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -288,19 +272,6 @@ fn validate_emitted_receiver_binding(
         return Err(crate::native_artifact_error(
             "ProgramEntry receiver provisioning",
             "emitted hosted receiver binding does not carry the admitted source signature and physical contract",
-        ));
-    }
-    let admitted_occupancy = settlement
-        .checked_entry()
-        .receiver_eligibility()
-        .is_some_and(|eligibility| {
-            eligibility.cleanup()
-                == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
-        });
-    if binding.cleanup_occupancy() != admitted_occupancy {
-        return Err(crate::native_artifact_error(
-            "ProgramEntry receiver provisioning",
-            "emitted hosted receiver binding does not track the admitted cleanup occupancy",
         ));
     }
     Ok(())

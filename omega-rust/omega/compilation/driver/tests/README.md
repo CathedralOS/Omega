@@ -297,3 +297,36 @@ or resident custody. This uses the public SDK, not compiler-internal mutation.
 Run with `OMEGA_CORPUS_HOST_PROVISIONS=1` and filter
 `pass/layouts/extent_view_external_content`; without opt-in it records
 `unrequested`. Cathedral's QEMU boot supplies the separate native observation.
+
+`runtime portable mutable-boundary` supplies an observation-only host adapter
+to `build/receiver_view_writeback_exit`'s source-produced Build helper. It loads
+the external artifact, checks the three stored-view lifetime promises, and
+requires effects 1 and 2 exactly once across fuel pauses, original-receiver
+identity, and final identifier readback `after`. A different receiver must
+reject without a normal-return observation. Run with
+`OMEGA_CORPUS_HOST_PROVISIONS=1`; without opt-in it records `unrequested`.
+This is Terminal embedding evidence, not a claim that production Build execution
+has left the checked-tree engine.
+
+Fixtures may explicitly supply fresh installed entry RAM with `entry_ram.txt`:
+one `source-position=hex-bytes` row per declared occurrence. These are requests,
+not host addresses or assumed authority; normal native admission checks the exact
+entry, placement, complete initialized type and loan custody. An optional
+`expected_entry_ram.txt` uses the same format for independent original-backing
+oracles after normal return. Native execution captures its dedicated runtime
+lane under the existing child deadline; Terminal execution observes its own
+original allocations. Missing, extra or differing observations cannot be recorded
+as successful runtime oracles. An empty input file explicitly tests absent supply.
+
+`runtime portable build-bindings <slots> <entry> <identifier-or->` supplies the
+Build binding imports with source-issued designated operands. Slots are an
+ordered comma-separated list. Both borrowed and loaded artifacts must retain
+the original receiver, produce those inert selections exactly once through fuel
+pauses, and preserve the requested identifier readback. Replayed tickets,
+unissued operation identities and a foreign receiver refuse. The conditional
+Build fixture checks that an unexecuted binding has no effect; the receiver
+fixture also exercises explicit reborrowing. Run with
+`OMEGA_CORPUS_HOST_PROVISIONS=1`; without opt-in it records `unrequested`.
+The companion is not reconstructed from external artifact bytes or debug names.
+Description-query execution and production Build scheduling still use the tree
+engine and are not established by this provision.

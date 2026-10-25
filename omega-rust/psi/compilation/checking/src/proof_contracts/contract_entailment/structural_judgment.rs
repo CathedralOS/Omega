@@ -12,7 +12,7 @@ mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
 mod returned_fields;
-mod selected_contracts;
+pub(super) mod selected_contracts;
 mod storage_effects;
 mod value_correspondence;
 mod value_predicates;
@@ -470,6 +470,7 @@ impl<'program> StructuralJudge<'program> {
     ) -> Self {
         let mut judge = Self::from_runtime_requires(program, machine, &[]);
         judge.declaration_state = state.symbol;
+        judge.retain_entry_owned_values(state);
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
             judge.intake(program, *fact);

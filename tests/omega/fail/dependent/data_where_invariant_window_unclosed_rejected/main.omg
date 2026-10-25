@@ -1,6 +1,6 @@
 // FAIL CANARY. A call is a consumption point, and start=10/end=0 cannot
 // re-establish the attached data's standing start <= end fact there.
-public boundary trait Console { machine exit_process(return_code: i32); }
+public boundary trait Console { machine exit_process(return_code: i32) reaches; }
 data Main
 where
     start <= end,

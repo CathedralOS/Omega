@@ -47,37 +47,45 @@ ensures
 // The named slice views. One runtime realization supplies every view, so the
 // rows share one boundary trait; the slice is an ordinary explicit argument.
 boundary trait SliceAccess {
-    machine Length<T>(items: &[T]) -> u64;
+    machine Length<T>(items: &[T]) -> u64 reaches;
 
     machine index_mut<T>(items: &mut [T], index: u64) -> &mut T
+    reaches
     requires
         index < items.len;
 
     machine tail<T>(items: &[T]) -> &[T]
+    reaches
     requires
         items.len > 0;
 
     machine tail_mut<T>(items: &mut [T]) -> &mut [T]
+    reaches
     requires
         items.len > 0;
 
     machine from<T>(items: &[T], start: u64) -> &[T]
+    reaches
     requires
         start <= items.len;
 
     machine from_mut<T>(items: &mut [T], start: u64) -> &mut [T]
+    reaches
     requires
         start <= items.len;
 
     machine to<T>(items: &[T], end: u64) -> &[T]
+    reaches
     requires
         end <= items.len;
 
     machine to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
+    reaches
     requires
         end <= items.len;
 
     machine range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
+    reaches
     requires
         start <= end && end <= items.len;
 }

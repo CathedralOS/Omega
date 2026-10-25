@@ -10,7 +10,7 @@ public data Pair {
 }
 
 public boundary trait HfaImport {
-    machine call(pair: Pair) -> i64;
+    machine call(pair: Pair) -> i64 reaches;
 }
 
 macos_arm64 machine hfa_binding() -> ForeignBinding<17, 15, 0> {

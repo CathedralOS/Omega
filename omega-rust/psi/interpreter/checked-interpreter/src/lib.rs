@@ -33,10 +33,8 @@
 //! [`interpret_entry`] runs the exact machine selected by its caller. The
 //! interpreter neither chooses a conventional entry spelling nor searches alternate
 //! names. A machine instance is a [`Value::Struct`] with default-initialized
-//! fields. The entry's arrival follows its entry shape: the one context
-//! parameter the caller names ([`InterpretOptions::provisioned_context_parameter`])
-//! borrows a fresh zero-initialized record of its declared referent type, and
-//! any other entry parameter declines rather than binding `Unit`. A state has
+//! fields. Entries receive no invented values: a parameter requires an explicit
+//! installed argument source, and this evaluator declines it. A state has
 //! parameters + a sequence of statements + guarded transitions; the first
 //! transition whose guard holds determines the next state (or the returned value /
 //! terminal). Host-boundary calls (`exit_process`, `write`, `write_line`) on a
@@ -134,11 +132,10 @@ pub use evaluation::{
     BuildIncludedSource, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
     BuildOutputObligation, BuildOutputObligationState, BuildOutputReceipt,
     BuildTimeOperationEvaluation, CURRENT_EVALUATION_SEMANTICS, CURRENT_EVALUATION_STEP_SCHEDULE,
-    CURRENT_EVALUATION_USAGE_SCHEMA, DescribedProductEntry, DescribedProductProvider,
-    DescribedProductSchema, EvaluationObservations, EvaluationSemanticsIdentity,
+    CURRENT_EVALUATION_USAGE_SCHEMA, EvaluationObservations, EvaluationSemanticsIdentity,
     EvaluationStepScheduleIdentity, EvaluationUsage, EvaluationUsageSchemaIdentity,
     ExecutedBehaviorExclusion, ExecutedBehaviorExclusionKind, ExecutedBehaviorExclusionSite,
-    ExecutedBuildSelection, ExecutedRootBinding, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
+    ExecutedBuildSelection, InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS,
     MAX_INCLUDED_BUILD_SOURCES, MeasuredBuildMachineEvaluation, MeasuredEvaluation,
     PrivateLayoutPlacementReceipt,
 };
@@ -154,7 +151,6 @@ pub use filesystem_operation_attempts::{
 };
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram, InterpretOptions,
-    ProductEntryCompatibility, ProductEntryDeclaration, ProductEntrySignature,
     SelectedBuildTimeMachineBody, evaluate_build_machine_arguments, evaluate_build_time_machine,
     evaluate_const_machine, evaluate_const_machine_measured,
     evaluate_granted_build_machine_arguments, evaluate_prepared_build_time_machine,

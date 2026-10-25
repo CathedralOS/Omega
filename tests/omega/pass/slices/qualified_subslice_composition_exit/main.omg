@@ -31,3 +31,9 @@ machine Main::inspect(main: &Main, empty: &[u8] in Ascii, prefix: &[u8] in Ascii
     state good(main: &Main) { Console::exit_process(70); }
     state bad(main: &Main) { Console::exit_process(71); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -65,24 +65,48 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
-        if let Some(binding) = statement_node.as_root_binding() {
+        // The host preparation is observational, but the authored designated
+        // operand still requires exclusive Build authority. Preserve that
+        // obligation without inventing a write to every field of Build.
+        if let Some(expression) = statement_node.as_expression()
+            && let typed_trees::expression::ExpressionNode::Call(commit) =
+                program.expression_table.expression(*expression)
+            && commit.root_binding.is_valid()
+            && let Some(preparation) = program
+                .expression_table
+                .expression_handles(commit.arguments)
+                .first()
+            && let typed_trees::expression::ExpressionNode::Call(preparation) =
+                program.expression_table.expression(*preparation)
+            && let Some(receiver) = program
+                .expression_table
+                .expression_handles(preparation.arguments)
+                .first()
+        {
+            let description = program
+                .expression_table
+                .expression_handles(commit.arguments)
+                .get(1)
+                .copied()
+                .unwrap_or_default();
             super::calls::check_exclusive_place_use(
                 program,
                 facts,
                 state_flow,
                 statement,
-                binding.receiver,
-                binding.implementation_operand,
+                *receiver,
+                description,
                 stated_premises,
                 diagnostics,
                 bound_lookup,
             );
         }
 
-        for (loan_handle, loan) in facts.borrow.loans.iter().filter(|(handle, loan)| {
-            facts.borrow.state_owns_loan(borrow_state, *handle)
-                && loan.statement_index == statement.statement_index
-        }) {
+        for (loan_handle, loan) in facts
+            .borrow
+            .state_loans(borrow_state)
+            .filter(|(_, loan)| loan.statement_index == statement.statement_index)
+        {
             let supplying_accesses = super::access_sources::resolve_all(
                 program,
                 facts,
@@ -224,9 +248,8 @@ pub(super) fn check_statement_borrows<'p>(
                     );
                 }
                 StatementStep::Complete(expression) => {
-                    for (handle, _) in facts.borrow.loans.iter().filter(|(handle, loan)| {
-                        facts.borrow.state_owns_loan(borrow_state, *handle)
-                            && loan.statement_index == statement.statement_index
+                    for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
+                        loan.statement_index == statement.statement_index
                             && loan.formation_expression == *expression
                     }) {
                         if !formed.iter().any(|(previous, route)| {

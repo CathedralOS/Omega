@@ -63,3 +63,10 @@ machine cleanup_names() -> i32 reaches FilesystemNamespaceMutation {
     let child: i32 = block WindowsFilesystemHost::remove_directory("omega_raw_directory/child");
     block WindowsFilesystemHost::remove_directory("omega_raw_directory")
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

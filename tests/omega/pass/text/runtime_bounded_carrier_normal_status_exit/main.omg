@@ -166,3 +166,9 @@ machine Buffer32::join(left: &[u8], right: &[u8]) -> Buffer32 crashes Trap {
     }
     state bad() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

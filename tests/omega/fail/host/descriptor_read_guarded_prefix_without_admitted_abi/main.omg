@@ -9,7 +9,7 @@ use omega::language::core::external_binding;
 public data Cell { value: u64; }
 public data Packet { header: u64; reference: &Cell; tail: u64; }
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, packet: &mut Packet, count: u32) -> i64 blocks;
+    machine read(descriptor: i32, packet: &mut Packet, count: u32) -> i64 reaches blocks;
 }
 public data DescriptorImports {}
 data Main { cell: Cell; }
@@ -32,4 +32,10 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks; crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches DescriptorIo blocks; crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
 }

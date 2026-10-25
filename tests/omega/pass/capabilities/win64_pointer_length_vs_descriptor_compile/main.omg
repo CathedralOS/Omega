@@ -13,8 +13,8 @@ public data ByteDescriptor {
 }
 
 public boundary trait NativeByteShapes {
-    machine take_separate(pointer: addr, length: u64) -> i32;
-    machine take_descriptor(value: ByteDescriptor) -> i32;
+    machine take_separate(pointer: addr, length: u64) -> i32 reaches;
+    machine take_descriptor(value: ByteDescriptor) -> i32 reaches;
 }
 
 windows_x86_64 machine windows_x86_64_take_separate_binding() -> ForeignBinding<19, 25, 0> {
@@ -90,4 +90,10 @@ machine Main::main(main: &mut Main) reaches NativeByteShapes {
     main.status = NativeByteShapes::take_separate(main.pointer, main.length);
     let d: ByteDescriptor = ByteDescriptor { pointer: main.pointer, length: main.length };
     main.status = NativeByteShapes::take_descriptor(d);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches NativeByteShapes {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

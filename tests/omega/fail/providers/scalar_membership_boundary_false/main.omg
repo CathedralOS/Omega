@@ -1,5 +1,5 @@
 public domain u32::Flags(value) requires value < 10; (value & 2) == 0;
-public boundary trait Gate { machine accept(value: u32 in Flags) -> u32; }
+public boundary trait Gate { machine accept(value: u32 in Flags) -> u32 reaches; }
 data Context { }
 machine bad(context: &Context) -> u32 reaches Gate {
     Gate::accept(2)

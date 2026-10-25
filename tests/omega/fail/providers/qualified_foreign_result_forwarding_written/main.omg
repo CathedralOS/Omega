@@ -4,6 +4,7 @@ data Guid [copy] { value: u64; }
 domain Guid::Selected(value) requires value.value == 42;
 boundary trait Reports {
     machine read(table: &Table, protocol: &Guid, token: u64) -> Status
+    reaches
     requires protocol in Guid::Selected
     ensures result.code == 0;
 }

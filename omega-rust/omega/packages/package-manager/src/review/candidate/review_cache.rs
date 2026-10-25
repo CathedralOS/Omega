@@ -1,6 +1,6 @@
 //! Persistent, content-verified cache of compiled package reviews.
 //!
-//! `compile_dependency_closure` retains each dependency occurrence's compile
+//! A review pass retains each dependency occurrence's compile
 //! for the passes of one `update` invocation, but nothing survives the
 //! process: the next `update` recompiles the whole dependency closure even
 //! when resolution, sources, targets, bindings and build snapshots are all
@@ -104,6 +104,27 @@ pub(crate) struct CachedCompiledReview {
     policy_bytes: Vec<u8>,
     facts: CachedOccurrenceFacts,
     policy_canonical_bytes: u64,
+}
+
+/// An optional cache write admitted after review policy has accepted the
+/// occurrence. Build supplies a demanded component; cache failures remain misses.
+pub struct PackageReviewCacheWrite {
+    pub(crate) cache: CompiledReviewCache,
+    pub(crate) key: [u8; 32],
+    pub(crate) record: CachedCompiledReview,
+    pub(crate) component_source: Option<compiler::PackageReviewSource>,
+}
+
+impl PackageReviewCacheWrite {
+    pub fn component_source(&self) -> Option<&compiler::PackageReviewSource> {
+        self.component_source.as_ref()
+    }
+
+    pub fn store(mut self, component: Option<IndependentComponentDescription>) {
+        self.record.facts.component_description = component;
+        self.cache
+            .store(&self.key, &self.record, self.component_source.is_some());
+    }
 }
 
 impl CachedCompiledReview {

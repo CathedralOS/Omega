@@ -64,6 +64,7 @@ struct TemplateFrontier<'a> {
 #[derive(Clone, Copy, Default)]
 struct TypeScope<'scope> {
     declaration: SymbolHandle,
+    lifetimes: &'scope [(String, RegionIdentity)],
     bindings: &'scope [(SymbolHandle, TypeReferenceHandle)],
     starts: &'scope [usize],
     outer: Option<&'scope TypeScope<'scope>>,
@@ -388,6 +389,7 @@ pub(super) fn scoped_carried_lifetimes(
         lifetimes,
         TypeScope {
             declaration,
+            lifetimes,
             bindings: substitutions,
             starts: scope_starts,
             argument_lifetimes,
@@ -452,26 +454,27 @@ fn collect_type(
         SymbolHandle::invalid()
     };
     let operand_lifetimes = super::callable_refinement::captured_lifetimes(program, operand_owner);
-    let lifetimes = if operand_owner.is_valid() {
-        &operand_lifetimes[..]
-    } else {
-        lifetimes
-    };
-    let types = if operand_owner.is_valid() {
+    let (lifetimes, types) = if operand_owner.is_valid() {
+        // A declaration-owned field uses the region application of its active
+        // traversal frame, just as it uses that frame's Type substitutions.
+        // A supplied operand outside those frames re-enters its captured scope.
+        // The owner stamp alone does not distinguish a schema from an operand.
         let mut scope = Some(types);
-        let mut supplying_scope = TypeScope::default();
+        let mut supplying_scope = None;
         while let Some(frame) = scope {
             if program.lifetime_declaration_owner(frame.declaration)
                 == program.lifetime_declaration_owner(operand_owner)
             {
-                supplying_scope = frame;
+                supplying_scope = Some(frame);
                 break;
             }
             scope = frame.outer.copied();
         }
-        supplying_scope
+        supplying_scope.map_or((&operand_lifetimes[..], TypeScope::default()), |frame| {
+            (frame.lifetimes, frame)
+        })
     } else {
-        types
+        (lifetimes, types)
     };
     // Zero remains the ordinary absence/Unit convention. A stale nonzero
     // generational handle resolving to the same dummy node is not a type.
@@ -811,6 +814,7 @@ fn collect_type(
                 &nested_lifetimes,
                 TypeScope {
                     declaration: definition.symbol,
+                    lifetimes: &nested_lifetimes,
                     bindings: &nested_types,
                     starts: &[0],
                     outer: Some(&types),

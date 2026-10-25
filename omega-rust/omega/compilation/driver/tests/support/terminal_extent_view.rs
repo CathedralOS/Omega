@@ -180,15 +180,16 @@ fn exercise(artifact: &terminal_codec::CanonicalTerminalArtifact, writes: bool) 
             })
             .collect::<Vec<_>>();
         let mut instance = program
-            .instantiate_installed(
-                &[],
-                TerminalStructuralInputs {
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs {
                     arguments: &values,
                     scalar_fields: &scalars,
                     ..Default::default()
                 },
-                &supplies,
-            )
+                installation: Some(&supplies),
+                ..Default::default()
+            })
             .unwrap();
         if bind_backing {
             let bytes = [17_u64.to_le_bytes(), second_word.to_le_bytes()].concat();

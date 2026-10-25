@@ -95,7 +95,7 @@ pub fn has_builtin_binary_expression_meaning(
 
 /// The memo key for a machine and state that live in `program`'s own
 /// tables: their positions there, with `u32::MAX` for a stateless query.
-fn meaning_key(
+pub(crate) fn meaning_key(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
@@ -172,6 +172,13 @@ fn binary_expression_meaning(
     }
 }
 
+#[derive(Clone, Copy)]
+enum SubtreeMeaning {
+    Valid(u8),
+    Invalid,
+    DepthLimit,
+}
+
 fn bound_subtree_meaning(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -179,52 +186,105 @@ fn bound_subtree_meaning(
     expression: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if !expression.is_valid() || depth >= 128 {
-        return false;
+    matches!(
+        bound_subtree_height(program, machine, state, expression, depth),
+        SubtreeMeaning::Valid(_)
+    )
+}
+
+fn bound_subtree_height(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    depth: usize,
+) -> SubtreeMeaning {
+    if !expression.is_valid() {
+        return SubtreeMeaning::Invalid;
+    }
+    if depth >= 128 {
+        return SubtreeMeaning::DepthLimit;
     }
     // Selected meanings belong to the frozen program, machine and state.
-    // Reuse the whole subtree verdict, not merely each binary's local
-    // verdict: generated guards can share a subtree through many parents.
-    // Bare/mutable inputs and copied owners retain the one-shot walk.
-    let memo = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
-        meaning_key(program, machine, state, expression)
-            .map(|(machine, state, expression)| (memos, (machine, state, expression, depth as u8)))
-    });
+    // Reuse the whole subtree height, not merely each binary's local
+    // verdict: generated guards and chained arithmetic share subtrees
+    // across many ancestor depths while still honoring the 128-depth limit.
+    let memo = crate::frozen_program::frozen_program_memos(program)
+        .and_then(|memos| meaning_key(program, machine, state, expression).map(|key| (memos, key)));
     if let Some((memos, key)) = memo
         && let Ok(meanings) = memos.bound_subtree_meanings.lock()
-        && let Some(&meaning) = meanings.get(&key)
+        && let Some(&cached) = meanings.get(&key)
     {
-        return meaning;
+        return match cached {
+            Some(height) if depth + usize::from(height) <= 128 => SubtreeMeaning::Valid(height),
+            Some(_) => SubtreeMeaning::DepthLimit,
+            None => SubtreeMeaning::Invalid,
+        };
     }
-    let meaning = match program.expression_table.expression(expression) {
+    let outcome = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            let meaning =
-                has_builtin_binary_expression_meaning(program, machine, state, expression);
-            meaning
-                && bound_subtree_meaning(program, machine, state, binary.left, depth + 1)
-                && bound_subtree_meaning(program, machine, state, binary.right, depth + 1)
+            if !has_builtin_binary_expression_meaning(program, machine, state, expression) {
+                SubtreeMeaning::Invalid
+            } else {
+                match bound_subtree_height(program, machine, state, binary.left, depth + 1) {
+                    SubtreeMeaning::Invalid => SubtreeMeaning::Invalid,
+                    SubtreeMeaning::DepthLimit => SubtreeMeaning::DepthLimit,
+                    SubtreeMeaning::Valid(left_height) => {
+                        match bound_subtree_height(program, machine, state, binary.right, depth + 1)
+                        {
+                            SubtreeMeaning::Invalid => SubtreeMeaning::Invalid,
+                            SubtreeMeaning::DepthLimit => SubtreeMeaning::DepthLimit,
+                            SubtreeMeaning::Valid(right_height) => SubtreeMeaning::Valid(
+                                left_height.max(right_height).saturating_add(1),
+                            ),
+                        }
+                    }
+                }
+            }
         }
         ExpressionNode::Borrow(borrow) => {
-            bound_subtree_meaning(program, machine, state, borrow.target, depth + 1)
+            match bound_subtree_height(program, machine, state, borrow.target, depth + 1) {
+                SubtreeMeaning::Valid(height) => SubtreeMeaning::Valid(height.saturating_add(1)),
+                other => other,
+            }
         }
         ExpressionNode::Atomic(atomic) => {
-            bound_subtree_meaning(program, machine, state, atomic.value, depth + 1)
+            match bound_subtree_height(program, machine, state, atomic.value, depth + 1) {
+                SubtreeMeaning::Valid(height) => SubtreeMeaning::Valid(height.saturating_add(1)),
+                other => other,
+            }
         }
         ExpressionNode::Unary(unary) => {
-            bound_subtree_meaning(program, machine, state, unary.operand, depth + 1)
+            match bound_subtree_height(program, machine, state, unary.operand, depth + 1) {
+                SubtreeMeaning::Valid(height) => SubtreeMeaning::Valid(height.saturating_add(1)),
+                other => other,
+            }
         }
         ExpressionNode::Cast(cast) => {
-            bound_subtree_meaning(program, machine, state, cast.value, depth + 1)
+            match bound_subtree_height(program, machine, state, cast.value, depth + 1) {
+                SubtreeMeaning::Valid(height) => SubtreeMeaning::Valid(height.saturating_add(1)),
+                other => other,
+            }
         }
         // Places and calls are symbolic leaves, not interpreted arithmetic.
-        _ => true,
+        _ => SubtreeMeaning::Valid(1),
     };
-    if let Some((memos, key)) = memo
-        && let Ok(mut meanings) = memos.bound_subtree_meanings.lock()
-    {
-        meanings.insert(key, meaning);
+    if let Some((memos, key)) = memo {
+        match outcome {
+            SubtreeMeaning::Valid(height) => {
+                if let Ok(mut meanings) = memos.bound_subtree_meanings.lock() {
+                    meanings.insert(key, Some(height));
+                }
+            }
+            SubtreeMeaning::Invalid => {
+                if let Ok(mut meanings) = memos.bound_subtree_meanings.lock() {
+                    meanings.insert(key, None);
+                }
+            }
+            SubtreeMeaning::DepthLimit => {}
+        }
     }
-    meaning
+    outcome
 }
 
 pub(super) fn builtin_ordering(
@@ -859,7 +919,7 @@ fn operand_type_at_depth(
             // A bound capture keeps its producer's carrier. This query reads
             // type identity only; value facts, storage epochs and access still
             // come from the actual completed capture and ordinary loan checks.
-            let source = program.expression_table.saved_subject_source(saved)?;
+            let source = program.saved_value_source(saved)?;
             operand_type_at_depth(program, machine, state, source, depth + 1)
         }
         ExpressionNode::Boolean(_) => {

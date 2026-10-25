@@ -5,7 +5,6 @@ use terminal_interpreter::{
     TerminalEstablishedErasedField, TerminalProgram, TerminalStructuralInputs,
     TerminalStructuralValue,
 };
-use terminal_psi::CheckedProgramEntryReceiverProjection;
 
 use super::TerminalRuntimeError;
 
@@ -62,158 +61,9 @@ pub(super) fn establish(
         private_entry_ram: recipes.to_vec(),
         establishments: Vec::new(),
     };
-    let receiver = provisions.and_then(TerminalRuntimeProvisions::receiver);
-    let context_position = receiver
-        .and_then(|receiver| match receiver.projection() {
-            CheckedProgramEntryReceiverProjection::Retained { terminal_self, .. } => entry
-                .structural_parameters
-                .iter()
-                .position(|parameter| parameter.place == terminal_self),
-            _ => None,
-        })
-        .unwrap_or(0) as u32;
-    if let Some(receiver) = receiver {
-        let identities = &program.module().identities;
-        let Some(provisions) = provisions else {
-            return Err(TerminalRuntimeError::InvalidProvision(
-                "receiver lost its root provisions",
-            ));
-        };
-        let plan_identities = provisions.plan_identities();
-        for field in receiver.fused_service_fields() {
-            let mut rows = provisions.fused_service_slots().filter(|(row, _)| {
-                row.field_path().len() == field.field_path().len()
-                    && row.field_path().iter().zip(field.field_path()).all(
-                        |(row_segment, field_segment)| {
-                            identities.text(*field_segment) == plan_identities.text(*row_segment)
-                        },
-                    )
-                    && plan_identities.text(row.carrier_type_identity())
-                        == identities.text(field.carrier_type_identity())
-            });
-            let Some((row, _)) = rows.next() else {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "root Binding field lost its admitted establishment",
-                ));
-            };
-            if rows.next().is_some()
-                || row.source_signature_identity().bytes() != provisions.source_signature_identity()
-                || row.target_slot() != provisions.target_slot()
-            {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "root Binding occurrence differs from its actual entry",
-                ));
-            }
-            // Establish the exact erased service occurrence. Its zero payload
-            // is not a grant of containing-process-domain authority; the host
-            // delegates that separately for the actual runtime instance.
-            if matches!(
-                receiver.projection(),
-                CheckedProgramEntryReceiverProjection::Retained { .. }
-            ) {
-                arrival.erased_fields.push(TerminalEstablishedErasedField {
-                    argument_index: context_position,
-                    field_path: field
-                        .field_path()
-                        .iter()
-                        .map(|segment| identities.text(*segment).unwrap_or_default().to_string())
-                        .collect(),
-                    carrier_type_identity: identities
-                        .text(field.carrier_type_identity())
-                        .unwrap_or_default()
-                        .to_string(),
-                });
-            }
-        }
-        if provisions.fused_services().len() != receiver.fused_service_fields().len() {
-            return Err(TerminalRuntimeError::InvalidProvision(
-                "runtime root has extraneous Binding establishments",
-            ));
-        }
-        if matches!(
-            receiver.projection(),
-            CheckedProgramEntryReceiverProjection::Retained { .. }
-        ) {
-            for field in receiver.determined_evidence_fields() {
-                arrival.erased_fields.push(TerminalEstablishedErasedField {
-                    argument_index: context_position,
-                    field_path: field
-                        .field_path()
-                        .iter()
-                        .map(|segment| identities.text(*segment).unwrap_or_default().to_string())
-                        .collect(),
-                    carrier_type_identity: identities
-                        .text(field.carrier_type_identity())
-                        .unwrap_or_default()
-                        .to_string(),
-                });
-            }
-        }
-    }
-    match receiver.map(|receiver| receiver.projection()) {
-        None | Some(CheckedProgramEntryReceiverProjection::Erased { .. }) => {
-            if !entry.structural_parameters.is_empty() {
-                return Err(TerminalRuntimeError::missing(
-                    "program-entry-arrival-values",
-                    "retained structural parameters have no admitted hosted receiver establishment",
-                ));
-            }
-        }
-        Some(CheckedProgramEntryReceiverProjection::Retained { terminal_self, .. }) => {
-            let Some(parameter) = entry
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == terminal_self)
-            else {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "hosted receiver projection does not name the whole entry arrival",
-                ));
-            };
-            let Some(receiver) = receiver else {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "retained receiver custody disappeared",
-                ));
-            };
-            if parameter.place != terminal_self
-                || parameter.structural_type != receiver.terminal_receiver_type()
-            {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "hosted receiver differs from its admitted Terminal projection",
-                ));
-            }
-            if !parameter.qualifications.is_empty()
-                || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
-                    program.module().structural_types.iter(),
-                    program.module().structural_domains.iter(),
-                    parameter.structural_type,
-                    &parameter.projected_qualifications,
-                )
-            {
-                return Err(TerminalRuntimeError::missing(
-                    "program-entry-arrival-qualifications",
-                    "the root has no actual runtime facts for required receiver qualifications",
-                ));
-            }
-            // This creates owned interpreter storage. The nonzero identity is
-            // local to this fresh instance, never an address or a host loan.
-            arrival.arguments.push(TerminalStructuralValue {
-                opaque_identity: 1,
-                structural_type: receiver.terminal_receiver_type(),
-                qualifications: Vec::new(),
-                projected_qualifications: parameter.projected_qualifications.clone(),
-                path: Vec::new(),
-            });
-            arrival.zero_initialized.push(context_position);
-        }
-    }
-    let context = arrival.arguments.pop();
+    // Every retained argument has an explicit installed private-RAM recipe.
+    // No ordinary reference receives zeroed backing from its signature.
     for (ordinal, parameter) in entry.structural_parameters.iter().enumerate() {
-        if ordinal == context_position as usize {
-            if let Some(context) = context.as_ref() {
-                arrival.arguments.push(context.clone());
-                continue;
-            }
-        }
         let index = recipes
             .iter()
             .position(|recipe| recipe.input().runtime_position as usize == ordinal)

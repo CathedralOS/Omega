@@ -192,11 +192,11 @@ impl Builder<'_, '_> {
                     )
                     .is_some()
                         && validation::reference_formation_source(self.program, expression)
-                            .is_some_and(|formation| formation.view_type.is_valid()) =>
+                            .is_some() =>
                 {
                     let machine = self.program.machine_by_symbol(self.machine)?;
                     let state = self.program.state_by_symbol(self.state)?;
-                    let actual = crate::values::reference_sources::formed_view_type(
+                    let actual = crate::values::reference_sources::formed_reference_type(
                         self.program,
                         machine,
                         state,

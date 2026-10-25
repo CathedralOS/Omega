@@ -15,8 +15,8 @@ use super::{LivenessError, block_instructions, control};
 
 #[derive(Default)]
 pub(super) struct BlockFlow {
-    pub(super) virtual_entry: BTreeSet<VirtualRegisterId>,
-    pub(super) virtual_exit: BTreeSet<VirtualRegisterId>,
+    pub(super) virtual_entry: Vec<VirtualRegisterId>,
+    pub(super) virtual_exit: Vec<VirtualRegisterId>,
     pub(super) unit_entry: BTreeSet<RegisterUnitId>,
     pub(super) unit_exit: BTreeSet<RegisterUnitId>,
 }
@@ -34,10 +34,35 @@ pub(super) struct FunctionFlow {
 
 #[derive(Default)]
 struct BlockTransfer {
-    virtual_uses: BTreeSet<VirtualRegisterId>,
-    virtual_kills: BTreeSet<VirtualRegisterId>,
+    virtual_uses_bits: Vec<u64>,
+    virtual_kills_bits: Vec<u64>,
     unit_uses: BTreeSet<RegisterUnitId>,
     unit_kills: BTreeSet<RegisterUnitId>,
+}
+
+fn bit_test(words: &[u64], id: u32) -> bool {
+    let idx = id as usize;
+    words
+        .get(idx / 64)
+        .is_some_and(|&word| (word & (1u64 << (idx % 64))) != 0)
+}
+
+fn bit_set(words: &mut [u64], id: u32) {
+    let idx = id as usize;
+    words[idx / 64] |= 1u64 << (idx % 64);
+}
+
+pub(super) fn bits_to_vregs(words: &[u64]) -> Vec<VirtualRegisterId> {
+    let mut out = Vec::new();
+    for (word_idx, &words) in words.iter().enumerate() {
+        let mut bits = words;
+        while bits != 0 {
+            let bit = bits.trailing_zeros() as usize;
+            bits &= bits - 1;
+            out.push(VirtualRegisterId((word_idx * 64 + bit) as u32));
+        }
+    }
+    out
 }
 
 impl FunctionFlow {
@@ -47,20 +72,22 @@ impl FunctionFlow {
         function_index: usize,
         function: &SelectedFunction,
     ) -> Result<Self, LivenessError> {
-        Self::compute_domains(function_index, function, true)
+        Self::compute_domains(function_index, function, true, None)
     }
 
-    pub(super) fn compute_units(
+    pub(super) fn compute_units_filtered(
         function_index: usize,
         function: &SelectedFunction,
+        unit_filter: &[RegisterUnitId],
     ) -> Result<Self, LivenessError> {
-        Self::compute_domains(function_index, function, false)
+        Self::compute_domains(function_index, function, false, Some(unit_filter))
     }
 
     fn compute_domains(
         function_index: usize,
         function: &SelectedFunction,
         include_virtual: bool,
+        unit_filter: Option<&[RegisterUnitId]>,
     ) -> Result<Self, LivenessError> {
         let mismatch = || LivenessError::FunctionMismatch {
             function: function_index,
@@ -71,6 +98,51 @@ impl FunctionFlow {
                 return Err(mismatch());
             }
         }
+        let max_reg_id = if include_virtual {
+            let mut max_id = function
+                .virtual_registers
+                .iter()
+                .map(|reg| reg.id.0 as usize)
+                .max()
+                .unwrap_or(0);
+            for block in &function.blocks {
+                for instruction in block_instructions(block) {
+                    for operand in &instruction.operands {
+                        max_id = max_id.max(operand.virtual_register.0 as usize);
+                    }
+                }
+                for successor in control::successors(&block.terminator) {
+                    for binding in &successor.bindings {
+                        if let SelectedValueTransport::Registers {
+                            argument,
+                            parameter,
+                        } = binding.transport
+                        {
+                            max_id = max_id.max(argument.0 as usize).max(parameter.0 as usize);
+                        }
+                    }
+                    if let Some(case) = &successor.structural_case {
+                        for payload in &case.payloads {
+                            if let selected_instructions::SelectedCasePayloadTransport::Registers {
+                                argument,
+                                parameter,
+                            } = payload.transport
+                            {
+                                max_id = max_id.max(argument.0 as usize).max(parameter.0 as usize);
+                            }
+                        }
+                    }
+                }
+            }
+            max_id
+        } else {
+            0
+        };
+        let word_count = if include_virtual {
+            (max_reg_id + 1).div_ceil(64)
+        } else {
+            0
+        };
         // Ordinals index actual block storage, never a possibly sparse raw ID.
         let mut predecessors = vec![Vec::new(); function.blocks.len()];
         let mut edges = Vec::with_capacity(function.blocks.len());
@@ -80,69 +152,80 @@ impl FunctionFlow {
             for successor in control::successors(&block.terminator) {
                 let target = *ordinals.get(&successor.block).ok_or_else(mismatch)?;
                 predecessors[target].push(block_index);
-                let mut substitutions = successor
-                    .bindings
-                    .iter()
-                    .filter(|_| include_virtual)
-                    .filter_map(|binding| match binding.transport {
-                        SelectedValueTransport::Registers {
-                            argument,
-                            parameter,
-                        } => Some((parameter, argument)),
-                        SelectedValueTransport::Unused => None,
-                    })
-                    .collect::<Vec<_>>();
-                if let Some(case) = &successor.structural_case
-                    && include_virtual
-                {
-                    substitutions.extend(case.payloads.iter().filter_map(|payload| {
-                        match payload.transport {
-                            selected_instructions::SelectedCasePayloadTransport::Registers { argument, parameter } => Some((parameter, argument)),
-                            selected_instructions::SelectedCasePayloadTransport::Unused
-                            | selected_instructions::SelectedCasePayloadTransport::Unmaterialized { .. } => None,
-                        }
-                    }));
-                }
-                substitutions.sort_unstable_by_key(|(parameter, _)| *parameter);
+                let mut substitutions = if include_virtual {
+                    let mut subs = successor
+                        .bindings
+                        .iter()
+                        .filter_map(|binding| match binding.transport {
+                            SelectedValueTransport::Registers {
+                                argument,
+                                parameter,
+                            } => Some((parameter, argument)),
+                            SelectedValueTransport::Unused => None,
+                        })
+                        .collect::<Vec<_>>();
+                    if let Some(case) = &successor.structural_case {
+                        subs.extend(case.payloads.iter().filter_map(|payload| {
+                            match payload.transport {
+                                selected_instructions::SelectedCasePayloadTransport::Registers { argument, parameter } => Some((parameter, argument)),
+                                selected_instructions::SelectedCasePayloadTransport::Unused
+                                | selected_instructions::SelectedCasePayloadTransport::Unmaterialized { .. } => None,
+                            }
+                        }));
+                    }
+                    subs.sort_unstable_by_key(|(parameter, _)| *parameter);
+                    subs
+                } else {
+                    Vec::new()
+                };
+                let _ = &mut substitutions;
                 block_edges.push(EdgeFlow {
                     target,
                     substitutions,
                 });
             }
             edges.push(block_edges);
-            let mut transfer = BlockTransfer::default();
-            for instruction in block_instructions(block) {
-                // Uses precede simultaneous definitions, as in reverse transfer.
-                for operand in instruction.operands.iter().filter(|_| include_virtual) {
-                    if operand.access == RegisterOperandAccess::Use
-                        && !transfer.virtual_kills.contains(&operand.virtual_register)
-                    {
-                        transfer.virtual_uses.insert(operand.virtual_register);
+            let mut transfer = BlockTransfer {
+                virtual_uses_bits: vec![0; word_count],
+                virtual_kills_bits: vec![0; word_count],
+                unit_uses: BTreeSet::new(),
+                unit_kills: BTreeSet::new(),
+            };
+            if let Some((upward_unit_uses, unit_kills)) =
+                function.blocks.block_unit_transfer(block_index)
+            {
+                if let Some(filter) = unit_filter {
+                    for &unit in upward_unit_uses {
+                        if filter.contains(&unit) {
+                            transfer.unit_uses.insert(unit);
+                        }
+                    }
+                    for &unit in unit_kills {
+                        if filter.contains(&unit) {
+                            transfer.unit_kills.insert(unit);
+                        }
+                    }
+                } else {
+                    transfer.unit_uses.extend(upward_unit_uses.iter().copied());
+                    transfer.unit_kills.extend(unit_kills.iter().copied());
+                }
+            }
+            if include_virtual {
+                for instruction in block_instructions(block) {
+                    // Uses precede simultaneous definitions, as in reverse transfer.
+                    for operand in &instruction.operands {
+                        if operand.access == RegisterOperandAccess::Use
+                            && !bit_test(&transfer.virtual_kills_bits, operand.virtual_register.0)
+                        {
+                            bit_set(&mut transfer.virtual_uses_bits, operand.virtual_register.0);
+                        }
+                    }
+                    for operand in &instruction.operands {
+                        if operand.access == RegisterOperandAccess::Def {
+                            bit_set(&mut transfer.virtual_kills_bits, operand.virtual_register.0);
+                        }
                     }
                 }
-                transfer.virtual_kills.extend(
-                    instruction
-                        .operands
-                        .iter()
-                        .filter(|operand| {
-                            include_virtual && operand.access == RegisterOperandAccess::Def
-                        })
-                        .map(|operand| operand.virtual_register),
-                );
-                transfer.unit_uses.extend(
-                    instruction
-                        .implicit_uses
-                        .iter()
-                        .filter(|unit| !transfer.unit_kills.contains(*unit))
-                        .copied(),
-                );
-                transfer.unit_kills.extend(
-                    instruction
-                        .implicit_defs
-                        .iter()
-                        .chain(&instruction.clobbers)
-                        .copied(),
-                );
             }
             transfers.push(transfer);
         }
@@ -164,48 +247,98 @@ impl FunctionFlow {
             edges,
             registers,
         };
+        if !include_virtual && transfers.iter().all(|t| t.unit_uses.is_empty()) {
+            return Ok(flow);
+        }
+        let mut virtual_entry_bits = vec![vec![0u64; word_count]; function.blocks.len()];
+        let mut virtual_exit_bits = vec![vec![0u64; word_count]; function.blocks.len()];
+        let mut next_exit_bits = vec![0u64; word_count];
+        let mut next_entry_bits = vec![0u64; word_count];
         let mut pending = vec![true; function.blocks.len()];
         let mut work = (0..function.blocks.len()).rev().collect::<VecDeque<_>>();
         while let Some(block_index) = work.pop_front() {
             pending[block_index] = false;
-            let mut virtual_exit = BTreeSet::new();
             let mut unit_exit = BTreeSet::new();
-            for edge in &flow.edges[block_index] {
-                let target = &flow.blocks[edge.target];
-                for register in &target.virtual_entry {
-                    virtual_exit.insert(flow.incoming_argument(function_index, edge, *register)?);
+            if include_virtual {
+                next_exit_bits.fill(0);
+                for edge in &flow.edges[block_index] {
+                    let target = &flow.blocks[edge.target];
+                    for &register in &target.virtual_entry {
+                        let arg = flow.incoming_argument(function_index, edge, register)?;
+                        bit_set(&mut next_exit_bits, arg.0);
+                    }
+                    unit_exit.extend(target.unit_entry.iter().copied());
                 }
-                unit_exit.extend(target.unit_entry.iter().copied());
-            }
-            let transfer = &transfers[block_index];
-            let virtual_entry = virtual_exit
-                .difference(&transfer.virtual_kills)
-                .copied()
-                .chain(transfer.virtual_uses.iter().copied())
-                .collect();
-            let unit_entry = unit_exit
-                .difference(&transfer.unit_kills)
-                .copied()
-                .chain(transfer.unit_uses.iter().copied())
-                .collect();
-            let state = &mut flow.blocks[block_index];
-            let entry_changed =
-                state.virtual_entry != virtual_entry || state.unit_entry != unit_entry;
-            // Exits can change even when a local definition kills every new
-            // incoming value. Keep them for instruction/successor evidence.
-            *state = BlockFlow {
-                virtual_entry,
-                virtual_exit,
-                unit_entry,
-                unit_exit,
-            };
-            if entry_changed {
-                for predecessor in &predecessors[block_index] {
-                    if !pending[*predecessor] {
-                        pending[*predecessor] = true;
-                        work.push_back(*predecessor);
+                let transfer = &transfers[block_index];
+                let mut virtual_changed = false;
+                for w in 0..word_count {
+                    let entry_w =
+                        (next_exit_bits[w] & !transfer.virtual_kills_bits[w]) | transfer.virtual_uses_bits[w];
+                    next_entry_bits[w] = entry_w;
+                    if entry_w != virtual_entry_bits[block_index][w] {
+                        virtual_changed = true;
                     }
                 }
+                virtual_exit_bits[block_index].copy_from_slice(&next_exit_bits);
+                let unit_entry: BTreeSet<RegisterUnitId> = unit_exit
+                    .difference(&transfer.unit_kills)
+                    .copied()
+                    .chain(transfer.unit_uses.iter().copied())
+                    .collect();
+                let state = &mut flow.blocks[block_index];
+                let entry_changed = virtual_changed || state.unit_entry != unit_entry;
+                if virtual_changed {
+                    virtual_entry_bits[block_index].copy_from_slice(&next_entry_bits);
+                    state.virtual_entry.clear();
+                    for (word_idx, &words) in next_entry_bits.iter().enumerate() {
+                        let mut bits = words;
+                        while bits != 0 {
+                            let bit = bits.trailing_zeros() as usize;
+                            bits &= bits - 1;
+                            state
+                                .virtual_entry
+                                .push(VirtualRegisterId((word_idx * 64 + bit) as u32));
+                        }
+                    }
+                }
+                state.unit_entry = unit_entry;
+                state.unit_exit = unit_exit;
+                if entry_changed {
+                    for predecessor in &predecessors[block_index] {
+                        if !pending[*predecessor] {
+                            pending[*predecessor] = true;
+                            work.push_back(*predecessor);
+                        }
+                    }
+                }
+            } else {
+                for edge in &flow.edges[block_index] {
+                    let target = &flow.blocks[edge.target];
+                    unit_exit.extend(target.unit_entry.iter().copied());
+                }
+                let transfer = &transfers[block_index];
+                let unit_entry = unit_exit
+                    .difference(&transfer.unit_kills)
+                    .copied()
+                    .chain(transfer.unit_uses.iter().copied())
+                    .collect();
+                let state = &mut flow.blocks[block_index];
+                let entry_changed = state.unit_entry != unit_entry;
+                state.unit_entry = unit_entry;
+                state.unit_exit = unit_exit;
+                if entry_changed {
+                    for predecessor in &predecessors[block_index] {
+                        if !pending[*predecessor] {
+                            pending[*predecessor] = true;
+                            work.push_back(*predecessor);
+                        }
+                    }
+                }
+            }
+        }
+        if include_virtual {
+            for (block_index, state) in flow.blocks.iter_mut().enumerate() {
+                state.virtual_exit = bits_to_vregs(&virtual_exit_bits[block_index]);
             }
         }
         Ok(flow)

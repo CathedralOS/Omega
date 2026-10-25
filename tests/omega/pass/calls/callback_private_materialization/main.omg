@@ -104,7 +104,7 @@ public data CallbackState [copy] {
     last_y: i32;
 }
 public boundary trait PointProcedure: Calling<PointCalling> {
-    machine visit(x: i32, y: i32, context: &mut CallbackState);
+    machine visit(x: i32, y: i32, context: &mut CallbackState) reaches;
 }
 public boundary trait LineRaster: Calling<LineCalling> {
     machine draw<machine Handler>(
@@ -112,6 +112,7 @@ public boundary trait LineRaster: Calling<LineCalling> {
         native callback point from Handler, context: &mut CallbackState
     ) -> i32
     where machine Handler satisfies PointProcedure::visit;
+    reaches
     invokes PointProcedure;
 }
 
@@ -154,4 +155,13 @@ invokes Console;
     }
     state done() { Console::exit_process(0); }
     state failed() { Console::exit_process(71); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches LineRaster + PointProcedure + Console
+invokes LineRaster;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

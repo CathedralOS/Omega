@@ -8,8 +8,10 @@ domain [u16; 4]::TerminatedWords(words) requires words[3] == 0;
 
 boundary trait CompareArrays {
     machine bytes(left: &[u8; 4] in TerminatedBytes, right: &[u8; 4] in TerminatedBytes, count: u64) -> i32
+    reaches
     requires count == 4;
     machine words(left: &[u16; 4] in TerminatedWords, right: &[u16; 4] in TerminatedWords, count: u64) -> i32
+    reaches
     requires count == 8;
 }
 macos_arm64 machine macos_compare_binding() -> ForeignBinding<26, 7, 0> {

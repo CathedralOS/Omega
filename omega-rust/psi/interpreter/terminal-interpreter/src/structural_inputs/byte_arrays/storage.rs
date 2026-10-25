@@ -4,6 +4,7 @@
 //! remains stable for the lifetime of the loan, including nested forwarding.
 
 use crate::byte_sequences::ByteSequenceView;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
@@ -36,6 +37,33 @@ impl From<StructuralRuntimePlace> for ArrayStorage {
 }
 
 impl TerminalExecution<'_> {
+    pub(crate) fn stored_byte_array_read_view(
+        &self,
+        storage: &ArrayStorage,
+        start: usize,
+        end: usize,
+    ) -> Result<crate::byte_sequences::read::TerminalByteRead<'_>, TerminalInterpretError> {
+        use crate::byte_sequences::read::TerminalByteRead;
+        match storage.home {
+            ArrayStorageHome::Runtime => {
+                let bytes = self
+                    .structural_byte_storage
+                    .get(&storage.referent)
+                    .ok_or_else(malformed)?;
+                let window = bytes.bytes().get(start..end).ok_or_else(malformed)?;
+                Ok(TerminalByteRead::contiguous(window))
+            }
+            ArrayStorageHome::Frame { depth, place, .. } => {
+                let (_, length) = self.frame_byte_array_window(storage)?;
+                if start > end || end > length {
+                    return Err(malformed());
+                }
+                let values = self.frame_array(depth, place).ok_or_else(malformed)?;
+                TerminalByteRead::scalars(&values.elements[start..end])
+            }
+        }
+    }
+
     pub(crate) fn frame_array(
         &self,
         depth: usize,
@@ -134,8 +162,8 @@ impl TerminalExecution<'_> {
             ArrayStorageHome::Runtime => self
                 .structural_byte_storage
                 .get_mut(&storage.referent)
-                .and_then(|bytes| bytes.replace_byte(index, byte))
-                .ok_or_else(malformed),
+                .ok_or_else(malformed)?
+                .replace_byte(index, byte),
             ArrayStorageHome::Frame { depth, place, .. } => {
                 let (start, end) = self.frame_byte_array_window(storage)?;
                 let absolute = start
@@ -185,13 +213,17 @@ impl TerminalExecution<'_> {
         let ArrayStorageHome::Frame { depth, place, .. } = storage.home else {
             return Err(malformed());
         };
-        self.frame_array(depth, place)
+        let values = self
+            .frame_array(depth, place)
             .and_then(|array| array.elements.get(start..end))
             .ok_or_else(malformed)?
             .iter()
-            .map(scalar_byte)
-            .collect::<Result<Vec<_>, _>>()
-            .map(ByteSequenceView::new)
+            .map(scalar_byte);
+        Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
+            end - start,
+            values,
+            self.account.as_ref(),
+        )?))
     }
 }
 

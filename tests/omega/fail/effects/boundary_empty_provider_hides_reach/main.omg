@@ -1,6 +1,6 @@
 public boundary trait Read {}
 public boundary trait Host { machine read() -> u64 reaches Read; }
-public boundary trait Pure { machine evaluate() -> u64 invokes Host; }
+public boundary trait Pure { machine evaluate() -> u64 reaches invokes Host; }
 
 data Provider {}
 machine Provider::evaluate() -> u64 satisfies Pure::evaluate reaches Read

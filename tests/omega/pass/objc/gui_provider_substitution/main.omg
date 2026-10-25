@@ -11,10 +11,10 @@
 
 use omega_language_std::console;
 public boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
-    machine get_dc(window: u64) -> u64;
-    machine is_window(window: u64) -> u32;
-    machine window_destroy(window: u64) -> u32;
+    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 reaches;
+    machine get_dc(window: u64) -> u64 reaches;
+    machine is_window(window: u64) -> u32 reaches;
+    machine window_destroy(window: u64) -> u32 reaches;
 }
 
 data Main {

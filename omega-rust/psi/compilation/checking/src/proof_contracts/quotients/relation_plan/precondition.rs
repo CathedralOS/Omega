@@ -370,8 +370,7 @@ fn expression_depends_on_any(
     let depends = |expression| expression_depends_on_any(program, expression, parameters);
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
+            .saved_value_source(saved)
             .ok_or(RelationPlanError::PreconditionDependencyUnresolved)
             .and_then(depends),
         ExpressionNode::Match(dispatch) => crate::expression_traversal::match_children(

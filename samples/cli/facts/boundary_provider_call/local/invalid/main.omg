@@ -1,7 +1,7 @@
 // A provider-settled boundary call whose contract establishes result >= 100u64 && result <= 100u64 discharges exact subtraction result - 100u64.
 // Expected rejection: exact arithmetic in machine main state entry local diff may overflow `u64`.
 boundary trait Provider {
-    machine get() -> u64 ensures result >= 99u64 && result <= 99u64;
+    machine get() -> u64 reaches ensures result >= 99u64 && result <= 99u64;
 }
 
 Actual satisfies Provider {

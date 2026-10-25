@@ -23,7 +23,7 @@ data Message {
 }
 
 public boundary trait Scheduler {
-    machine park() suspends;
+    machine park() reaches suspends;
 }
 
 data InlineScheduler {}
@@ -51,4 +51,10 @@ machine Main::main(main: &mut Main) suspends; reaches Scheduler {
         suspend Scheduler::park();
     }
     state fail(main: &mut Main) { main.hits = -1; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() suspends; reaches Scheduler {
+    let mut entry_storage: Main;
+    suspend Main::main(&mut entry_storage);
 }

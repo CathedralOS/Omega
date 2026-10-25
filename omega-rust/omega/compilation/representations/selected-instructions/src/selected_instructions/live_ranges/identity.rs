@@ -43,7 +43,9 @@ pub fn live_range_identity_from_digests(
 
 /// One function's share of `live_range_identity`.
 pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 32] {
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(
+        256 + function.virtual_registers.len() * 48 + function.interference.len() * 8,
+    );
     bytes.extend_from_slice(b"omega.terminal-live-range-function.v1\0");
     crate::codec_bytes::push_encoded(&mut bytes, function.machine.get().to_le_bytes());
     crate::codec_bytes::encode_len(&mut bytes, function.block_domains.len());

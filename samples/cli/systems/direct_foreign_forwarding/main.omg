@@ -1,13 +1,13 @@
 // Expected exit: 0
 use omega::language::core::external_binding;
 
-boundary trait ProcessProbe { machine identity() -> u32; }
+boundary trait ProcessProbe { machine identity() -> u32 reaches; }
 data NativeProcess {}
 data NativeUnused {}
 // Checked source may retain a table declaration beyond this target's native
 // record-layout envelope when no executed call demands its realization.
 data UnusedWideTable { padding: [u8; 65536]; invoke: addr; }
-boundary trait UnusedWideCall { machine invoke(table: &UnusedWideTable) -> u32; }
+boundary trait UnusedWideCall { machine invoke(table: &UnusedWideTable) -> u32 reaches; }
 windows_x86_64 machine UnusedWideTable::invoke(table: &UnusedWideTable) -> u32
 satisfies UnusedWideCall::invoke via ForeignBinding::TableFunction(invoke);
 UnusedWideProvider satisfies UnusedWideCall {

@@ -9,5 +9,6 @@ name = "terminal_fuel"
 path = "src/lib.rs"
 
 [dependencies]
+evaluation-accounting = { path = "../../../../foundation/evaluation-accounting" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-vocabulary" }
 terminal-psi = { path = ".." }

@@ -9,7 +9,7 @@
 //! their original identity or reject; host bytes cannot manufacture permissions.
 
 mod borrowed_completion;
-mod contents;
+pub(crate) mod contents;
 
 use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
 use crate::errors::{TerminalInterpretError, malformed};

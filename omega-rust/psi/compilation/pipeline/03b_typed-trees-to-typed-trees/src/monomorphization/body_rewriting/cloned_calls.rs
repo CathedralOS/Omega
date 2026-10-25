@@ -130,8 +130,16 @@ pub(crate) fn rewrite_cloned_calls(
                 .iter()
                 .any(|(_, concrete)| *concrete == snapshot.target_symbol)
             {
-                let subjects =
-                    runtime_value_operands(program, state.symbol, &snapshot.machine_arguments);
+                let subjects = runtime_value_operands(
+                    program,
+                    state.symbol,
+                    &snapshot
+                        .machine_arguments
+                        .iter()
+                        .cloned()
+                        .map(crate::monomorphization::RuntimeValueBinding::Authored)
+                        .collect::<Vec<_>>(),
+                );
                 (!subjects.is_empty()).then(|| {
                     super::insert_arguments_with_subjects(program, snapshot.arguments, &subjects)
                 })

@@ -4,3 +4,10 @@ data EntryState { phase: u64; }
 machine main(context: &mut EntryState)
 requires addr::Bound == 18446744073709551616 && context.phase == 17
 {}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+{
+    let mut entry_storage: EntryState;
+    main(&mut entry_storage);
+}

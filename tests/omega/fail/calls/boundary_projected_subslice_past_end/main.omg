@@ -1,4 +1,4 @@
-public boundary trait Fill { machine fill(bytes: &mut [u8]); }
+public boundary trait Fill { machine fill(bytes: &mut [u8]) reaches; }
 data Main where start <= 7 { bytes: [u8; 8]; start: u64; }
 machine Main::main(main: &mut Main) reaches Fill {
     Fill::fill(&mut main.bytes[main.start..9]);

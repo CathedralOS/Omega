@@ -1,7 +1,7 @@
 
 public boundary trait Scheduler {
-    machine park() suspends;
-    machine park_with(argument: &i32 in Carry::AcrossSuspend) suspends;
+    machine park() reaches suspends;
+    machine park_with(argument: &i32 in Carry::AcrossSuspend) reaches suspends;
 }
 
 data Envelope<T> { payload: T; }

@@ -23,7 +23,7 @@ public data Extraction<Storage, Value> {
 }
 public data Returned<Storage, Value> { storage: Storage; value: Value; moved: bool; }
 public boundary trait ExtractionProvider<Storage, Value> {
-    machine extract(storage: Storage, value: Value) -> Extraction<Storage, Value>;
+    machine extract(storage: Storage, value: Value) -> Extraction<Storage, Value> reaches;
 }
 Extract satisfies ExtractionProvider<u64, u32> {
     machine extract(storage: u64, value: u32) -> Extraction<u64, u32> {

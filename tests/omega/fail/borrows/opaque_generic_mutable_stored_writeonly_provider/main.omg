@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 public data Cell { value: i32; }
 public data Slot<'s> { target: &'s write Cell; }
-public boundary trait Sink<T> { machine consume(value: &mut T); }
+public boundary trait Sink<T> { machine consume(value: &mut T) reaches; }
 macos_arm64 machine binding() -> ForeignBinding<17, 5, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "libSystem.B.dylib", symbol: "_exit",

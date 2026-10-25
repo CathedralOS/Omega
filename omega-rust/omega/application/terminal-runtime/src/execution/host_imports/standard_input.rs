@@ -10,7 +10,7 @@ use std::io::Read;
 use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalScalarCaseValue,
+    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalScalarAggregateValue,
     TerminalScalarValue,
 };
 use terminal_psi::{
@@ -149,10 +149,12 @@ impl TerminalEffectHandler for ReadByteImport<'_> {
             // Trap outcome; the core independently checks its published route.
             _ => return Ok(TerminalEffectResult::Crash(CrashCause::Trap)),
         };
-        Ok(TerminalEffectResult::ScalarCase(TerminalScalarCaseValue {
-            structural_type: self.structural_type,
-            result_case,
-            fields,
-        }))
+        Ok(TerminalEffectResult::ScalarAggregate(
+            TerminalScalarAggregateValue {
+                structural_type: self.structural_type,
+                result_case: Some(result_case),
+                fields,
+            },
+        ))
     }
 }

@@ -1,7 +1,5 @@
 //! Tied-component construction and common physical-view domains.
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use register_model::RegisterViewId;
 use selected_instructions::VirtualRegisterId;
 
@@ -14,7 +12,7 @@ use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 pub(super) struct AllocationDomain<'a> {
     pub(super) members: Vec<&'a VirtualRegisterAllocationLegality>,
     pub(super) first_point: LiveRangePoint,
-    pub(super) candidates: BTreeSet<RegisterViewId>,
+    pub(super) candidates: Vec<RegisterViewId>,
 }
 
 impl AllocationDomain<'_> {
@@ -28,26 +26,37 @@ pub(super) fn build_domains<'a>(
     legality: &'a FunctionAllocationLegality,
     ranges: &FunctionLiveRanges,
 ) -> Result<Vec<AllocationDomain<'a>>, RegisterHomeError> {
+    let mut referenced_cache = None;
     for (register, range) in legality
         .virtual_registers
         .iter()
         .zip(&ranges.virtual_registers)
     {
-        super::super::physical_requirement::validate(function, register, range, ranges)?;
+        super::super::physical_requirement::validate(
+            function,
+            register,
+            range,
+            ranges,
+            &mut referenced_cache,
+        )?;
     }
     tied_components(function, legality, ranges)?
         .into_iter()
         .filter(|members| members.iter().any(|member| !member.spans.is_empty()))
-        .map(|members| {
-            // A failed component reports the edge transfer naming one of its
-            // members. The search runs only on that error path: searching
-            // every transfer for every component made domain building
-            // quadratic in a large function.
-            let component = members.clone();
-            build_domain(function, members).map_err(|error| {
+        .map(|mut members| match build_domain(function, &mut members) {
+            Ok((first_point, candidates)) => Ok(AllocationDomain {
+                members,
+                first_point,
+                candidates,
+            }),
+            Err(error) => {
+                // A failed component reports the edge transfer naming one of its
+                // members. The search runs only on that error path: searching
+                // every transfer for every component made domain building
+                // quadratic in a large function.
                 let edge = || {
                     ranges.edge_transfers.iter().find(|edge| {
-                        component
+                        members
                             .iter()
                             .any(|member| member.virtual_register == edge.parameter)
                     })
@@ -55,14 +64,14 @@ pub(super) fn build_domains<'a>(
                 if matches!(error, RegisterHomeError::NoCommonTiedComponent { .. })
                     && let Some(edge) = edge()
                 {
-                    RegisterHomeError::UnsupportedEdgeTransfer {
+                    Err(RegisterHomeError::UnsupportedEdgeTransfer {
                         function,
                         edge: edge.psi_edge.get(),
-                    }
+                    })
                 } else {
-                    error
+                    Err(error)
                 }
-            })
+            }
         })
         .collect()
 }
@@ -72,16 +81,35 @@ fn tied_components<'a>(
     legality: &'a FunctionAllocationLegality,
     ranges: &FunctionLiveRanges,
 ) -> Result<Vec<Vec<&'a VirtualRegisterAllocationLegality>>, RegisterHomeError> {
-    let positions = legality
+    if ranges.tied_pairs.is_empty() && ranges.edge_transfers.is_empty() {
+        return Ok(legality
+            .virtual_registers
+            .iter()
+            .filter(|register| !register.spans.is_empty())
+            .map(|register| vec![register])
+            .collect());
+    }
+    let max_reg_id = legality
         .virtual_registers
         .iter()
-        .enumerate()
-        .map(|(position, register)| (register.virtual_register, position))
-        .collect::<BTreeMap<_, _>>();
+        .map(|register| register.virtual_register.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut positions = vec![u32::MAX; max_reg_id + 1];
+    for (position, register) in legality.virtual_registers.iter().enumerate() {
+        positions[register.virtual_register.0 as usize] = position as u32;
+    }
+    let get_pos = |id: VirtualRegisterId| -> Option<usize> {
+        positions
+            .get(id.0 as usize)
+            .copied()
+            .filter(|&pos| pos != u32::MAX)
+            .map(|pos| pos as usize)
+    };
     for tie in &ranges.tied_pairs {
-        let (Some(&used), Some(&defined)) = (
-            positions.get(&tie.use_virtual_register),
-            positions.get(&tie.def_virtual_register),
+        let (Some(used), Some(defined)) = (
+            get_pos(tie.use_virtual_register),
+            get_pos(tie.def_virtual_register),
         ) else {
             return Err(unsupported_tie(function, tie.instruction.0));
         };
@@ -97,9 +125,9 @@ fn tied_components<'a>(
             function,
             edge: transfer.psi_edge.get(),
         };
-        let (Some(&argument), Some(&parameter)) = (
-            positions.get(&transfer.argument),
-            positions.get(&transfer.parameter),
+        let (Some(argument), Some(parameter)) = (
+            get_pos(transfer.argument),
+            get_pos(transfer.parameter),
         ) else {
             return Err(error());
         };
@@ -110,72 +138,99 @@ fn tied_components<'a>(
         }
     }
     let components = crate::assignment::same_home::SameHomeComponents::from_ranges(ranges);
-    let mut grouped = BTreeMap::<usize, Vec<_>>::new();
-    for register in &legality.virtual_registers {
-        grouped
-            .entry(positions[&components.leader(register.virtual_register)])
-            .or_default()
-            .push(register);
+    let mut grouped = vec![Vec::new(); legality.virtual_registers.len()];
+    for (pos, register) in legality.virtual_registers.iter().enumerate() {
+        let leader = components.leader(register.virtual_register);
+        let leader_pos = if leader == register.virtual_register {
+            pos
+        } else {
+            get_pos(leader).expect("component leader is a declared virtual register")
+        };
+        grouped[leader_pos].push(register);
     }
-    for members in grouped.values() {
-        if ranges.early_clobbers.iter().any(|early| {
-            members
-                .iter()
-                .any(|member| member.virtual_register == early.def_virtual_register)
-                && early.uses.iter().any(|used| {
+    grouped.retain(|members| !members.is_empty());
+    let mut clobbered_leaders = Vec::new();
+    for early in &ranges.early_clobbers {
+        let def_leader = components.leader(early.def_virtual_register);
+        if early
+            .uses
+            .iter()
+            .any(|used| components.leader(used.virtual_register) == def_leader)
+        {
+            clobbered_leaders.push(def_leader);
+        }
+    }
+    if !clobbered_leaders.is_empty() {
+        clobbered_leaders.sort_unstable();
+        clobbered_leaders.dedup();
+    }
+    for members in &grouped {
+        if members.len() > 1 {
+            let member_leader = components.leader(members[0].virtual_register);
+            if clobbered_leaders.binary_search(&member_leader).is_ok()
+                && ranges.early_clobbers.iter().any(|early| {
                     members
                         .iter()
-                        .any(|member| member.virtual_register == used.virtual_register)
+                        .any(|member| member.virtual_register == early.def_virtual_register)
+                        && early.uses.iter().any(|used| {
+                            members
+                                .iter()
+                                .any(|member| member.virtual_register == used.virtual_register)
+                        })
                 })
-        }) && let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
-            members
-                .iter()
-                .any(|member| member.virtual_register == edge.parameter)
-        }) {
-            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
-                function,
-                edge: edge.psi_edge.get(),
-            });
-        }
-        for (index, left) in members.iter().enumerate() {
-            for right in members.iter().skip(index + 1) {
-                if registers_interfere(
-                    left.virtual_register,
-                    right.virtual_register,
-                    &ranges.interference,
-                ) {
-                    let (lower, higher) =
-                        ordered_pair(left.virtual_register, right.virtual_register);
-                    if let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
-                        members
-                            .iter()
-                            .any(|member| member.virtual_register == edge.parameter)
-                    }) {
-                        return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                && let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
+                    members
+                        .iter()
+                        .any(|member| member.virtual_register == edge.parameter)
+                })
+            {
+                return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                    function,
+                    edge: edge.psi_edge.get(),
+                });
+            }
+            for (index, left) in members.iter().enumerate() {
+                for right in members.iter().skip(index + 1) {
+                    if registers_interfere(
+                        left.virtual_register,
+                        right.virtual_register,
+                        &ranges.interference,
+                    ) {
+                        let (lower, higher) =
+                            ordered_pair(left.virtual_register, right.virtual_register);
+                        if let Some(edge) = ranges.edge_transfers.iter().find(|edge| {
+                            members
+                                .iter()
+                                .any(|member| member.virtual_register == edge.parameter)
+                        }) {
+                            return Err(RegisterHomeError::UnsupportedEdgeTransfer {
+                                function,
+                                edge: edge.psi_edge.get(),
+                            });
+                        }
+                        return Err(RegisterHomeError::TiedRegistersInterfere {
                             function,
-                            edge: edge.psi_edge.get(),
+                            lower: lower.0,
+                            higher: higher.0,
                         });
                     }
-                    return Err(RegisterHomeError::TiedRegistersInterfere {
-                        function,
-                        lower: lower.0,
-                        higher: higher.0,
-                    });
                 }
             }
         }
     }
-    Ok(grouped.into_values().collect())
+    Ok(grouped)
 }
 
 fn build_domain<'a>(
     function: usize,
-    mut members: Vec<&'a VirtualRegisterAllocationLegality>,
-) -> Result<AllocationDomain<'a>, RegisterHomeError> {
-    members.sort_by_key(|member| member.virtual_register);
+    members: &mut Vec<&'a VirtualRegisterAllocationLegality>,
+) -> Result<(LiveRangePoint, Vec<RegisterViewId>), RegisterHomeError> {
+    if members.len() > 1 {
+        members.sort_by_key(|member| member.virtual_register);
+    }
     let mut first_point = None;
-    let mut candidates = None::<BTreeSet<RegisterViewId>>;
-    for member in &members {
+    let mut candidates = None::<Vec<RegisterViewId>>;
+    for member in members.iter() {
         if !member.entry_transitions.is_empty() {
             return Err(RegisterHomeError::UnresolvedEntryTransitions {
                 function,
@@ -187,7 +242,7 @@ fn build_domain<'a>(
         first_point = Some(first_point.map_or(first, |point: LiveRangePoint| point.min(first)));
         let member_candidates = common_candidates(function, member)?;
         if let Some(shared) = &mut candidates {
-            shared.retain(|candidate| member_candidates.contains(candidate));
+            shared.retain(|candidate| member_candidates.binary_search(candidate).is_ok());
         } else {
             candidates = Some(member_candidates);
         }
@@ -206,11 +261,10 @@ fn build_domain<'a>(
             register: members[0].virtual_register.0,
         });
     }
-    Ok(AllocationDomain {
-        members,
-        first_point: first_point.expect("allocation domain is nonempty"),
+    Ok((
+        first_point.expect("allocation domain is nonempty"),
         candidates,
-    })
+    ))
 }
 
 fn interval_bounds(
@@ -231,7 +285,7 @@ fn interval_bounds(
 fn common_candidates(
     function: usize,
     register: &VirtualRegisterAllocationLegality,
-) -> Result<BTreeSet<RegisterViewId>, RegisterHomeError> {
+) -> Result<Vec<RegisterViewId>, RegisterHomeError> {
     let first = register
         .spans
         .first()
@@ -288,20 +342,24 @@ fn common_candidates(
 fn intersect_candidates<'a>(
     first: &[RegisterViewId],
     rest: impl Iterator<Item = &'a [RegisterViewId]>,
-) -> BTreeSet<RegisterViewId> {
-    let mut common = first
-        .iter()
-        .copied()
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
+) -> Vec<RegisterViewId> {
+    let mut common = first.to_vec();
+    if common
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        common.sort_unstable();
+        common.dedup();
+    }
     for candidates in rest {
         if common.is_empty() {
             break;
         }
-        common.retain(|candidate| candidates.binary_search(candidate).is_ok());
+        if candidates != common.as_slice() {
+            common.retain(|candidate| candidates.binary_search(candidate).is_ok());
+        }
     }
-    common.into_iter().collect()
+    common
 }
 
 fn ordered_pair(
@@ -353,7 +411,9 @@ mod tests {
             for list in &lists[1..] {
                 expected.retain(|candidate| list.binary_search(candidate).is_ok());
             }
-            let actual = intersect_candidates(&lists[0], lists[1..].iter().map(Vec::as_slice));
+            let actual = intersect_candidates(&lists[0], lists[1..].iter().map(Vec::as_slice))
+                .into_iter()
+                .collect::<BTreeSet<_>>();
             assert_eq!(actual, expected);
         }
     }

@@ -74,3 +74,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state observation(main: &mut Main) { Console::write_line("ERROR invalid_observation"); Console::exit_process(67); }
     state invariant(main: &mut Main) { Console::write_line("ERROR arithmetic_invariant"); Console::exit_process(70); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

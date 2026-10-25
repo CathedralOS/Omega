@@ -13,7 +13,7 @@ machine supply() -> u64 ensures result == 7 {
 machine relay() -> u64 ensures result == 7 {
     supply()
 }
-machine start(unprovided: u64) crashes Trap {
+machine start(unprovided: &mut Unprovided) crashes Trap {
     let code: u64 = relay();
     let mut tally: Tally = Tally { total: 0 };
     settle(&Mark { slot: &mut tally, code: code });
@@ -21,3 +21,6 @@ machine start(unprovided: u64) crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

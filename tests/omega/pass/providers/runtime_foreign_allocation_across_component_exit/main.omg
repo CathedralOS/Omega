@@ -3,7 +3,7 @@ use omega::language::core::external_binding;
 use producer::main;
 
 public boundary trait NativeRelease {
-    machine release(pointer: addr);
+    machine release(pointer: addr) reaches;
 }
 public data LibSystemRelease {}
 public macos_arm64 machine release_binding() -> ForeignBinding<17, 5, 0> {

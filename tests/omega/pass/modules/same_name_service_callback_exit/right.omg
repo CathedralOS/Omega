@@ -1,6 +1,6 @@
 module right;
 
-public boundary trait Sink { machine observe(); }
+public boundary trait Sink { machine observe() reaches; }
 
 machine apply<machine Selected, machine Unused>(value: u64) -> u64
 where machine Selected(value: u64) -> u64 reaches Sink;

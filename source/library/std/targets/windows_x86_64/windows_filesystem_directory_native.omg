@@ -41,6 +41,7 @@ boundary trait WindowsFilesystemDirectoryIo {
     machine next_entry(handle: i64 in WindowsPrivateNonalertFileOrAbsent, event: u64, callback: u64, context: u64,
         status: &mut WindowsFilesystemIoStatus, output: &mut WindowsNativeDirectoryEntryInfo, capacity: u32,
         information_class: u32, single_entry: u8, name_filter: u64, restart: u8) -> i32
+    reaches
     requires handle != 0 && event == 0 && callback == 0 && context == 0 && capacity == 8256
         && information_class == 1 && single_entry == 1 && name_filter == 0 && restart <= 1
     reaches DirectoryEnumeration + FilesystemMetadataQuery blocks;

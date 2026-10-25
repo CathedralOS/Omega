@@ -70,3 +70,11 @@ reaches PortIo
         transition { _ -> retain(image, storage) }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+uefi_x86_64 machine entry_start(image: Extent in Granted, storage: Extent in Granted)
+reaches PortIo
+{
+    let mut entry_storage: KernelState;
+    selected_continuation(image, &mut entry_storage, storage);
+}

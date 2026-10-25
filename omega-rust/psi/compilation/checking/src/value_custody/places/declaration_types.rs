@@ -93,26 +93,12 @@ pub fn declaration_type_reference(
             }
         }
     }
-    for definition in program
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == owner.parent)
-    {
-        for signature in program
-            .trait_machine_signatures(definition)
+    if let Some(parameters) = crate::call_target_parameters(program, parent)
+        && let Some(parameter) = parameters
             .iter()
-            .filter(|signature| signature.symbol == parent)
-        {
-            if let Some(type_reference) = program
-                .state_signature_parameters(signature)
-                .iter()
-                .find_map(|parameter| {
-                    (parameter.symbol == symbol).then_some(parameter.type_reference)
-                })
-            {
-                return Some(type_reference);
-            }
-        }
+            .find(|parameter| parameter.symbol == symbol)
+    {
+        return Some(parameter.type_reference);
     }
     for proposition in program
         .propositions()

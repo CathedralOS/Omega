@@ -40,6 +40,7 @@ public boundary trait TranslationHardware {
         slot: u64,
         entry: TableEntry
     ) -> Table
+    reaches
     requires slot <= 511
     reaches MachineControl;
 

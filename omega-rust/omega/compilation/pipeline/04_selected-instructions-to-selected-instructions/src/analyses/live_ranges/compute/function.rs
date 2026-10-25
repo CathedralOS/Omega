@@ -1,14 +1,14 @@
 //! Ordinary and structural function live-range construction.
 use super::{
-    BTreeSet, FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualLiveRange, VirtualOccurrence,
+    FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint, VirtualFixedConstraintSite,
+    VirtualLiveRange, VirtualOccurrence,
 };
 use super::{
     LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
     derive_tied_pairs, operand_point, register_fragments,
 };
 
-pub(super) fn compute_function(
+pub(crate) fn compute_function(
     function_index: usize,
     selected: &selected_instructions::SelectedFunction,
     liveness: &selected_instructions::FunctionLiveness,
@@ -27,49 +27,71 @@ pub(super) fn compute_function(
     // Group the function's operand rows, live fragments and live edges by
     // register once; each register's range then reads only its own rows, in
     // the order a scan of the whole function would have met them.
-    let registers = selected
+    let register_count = selected.virtual_registers.len();
+    let max_reg_id = selected
         .virtual_registers
         .iter()
-        .map(|register| register.id)
-        .collect::<BTreeSet<_>>();
-    let mut fragment_rows = register_fragments(function_index, liveness, &registers)?;
-    let mut operand_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
-    for row in liveness.operand_positions.storage_slice() {
-        operand_rows
-            .entry(row.virtual_register)
-            .or_default()
-            .push(row);
+        .map(|register| register.id.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut register_index = vec![u32::MAX; max_reg_id + 1];
+    for (idx, register) in selected.virtual_registers.iter().enumerate() {
+        let slot = &mut register_index[register.id.0 as usize];
+        if *slot == u32::MAX {
+            *slot = idx as u32;
+        }
     }
-    let mut edge_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
+    let mut fragment_rows =
+        register_fragments(function_index, liveness, register_count, &register_index)?;
+    let operand_slice = liveness.operand_positions.storage_slice();
+    let mut operand_counts = vec![0u32; register_count];
+    for row in operand_slice {
+        if let Some(&idx) = register_index.get(row.virtual_register.0 as usize)
+            && idx != u32::MAX
+        {
+            operand_counts[idx as usize] += 1;
+        }
+    }
+    let mut operand_offsets = vec![0u32; register_count + 1];
+    for i in 0..register_count {
+        operand_offsets[i + 1] = operand_offsets[i] + operand_counts[i];
+    }
+    let mut operand_cursors = operand_offsets.clone();
+    let mut operand_indices = vec![0u32; operand_offsets[register_count] as usize];
+    for (row_idx, row) in operand_slice.iter().enumerate() {
+        if let Some(&idx) = register_index.get(row.virtual_register.0 as usize)
+            && idx != u32::MAX
+        {
+            let cursor = &mut operand_cursors[idx as usize];
+            operand_indices[*cursor as usize] = row_idx as u32;
+            *cursor += 1;
+        }
+    }
+    let mut edge_rows = vec![Vec::new(); register_count];
     for block in &liveness.blocks {
         for edge in &block.successors {
-            for register in edge.virtual_live.iter().collect::<BTreeSet<_>>() {
-                edge_rows
-                    .entry(*register)
-                    .or_default()
-                    .push(connector(block.block, edge));
+            let mut prev = None;
+            for &register in &edge.virtual_live {
+                if prev == Some(register) {
+                    continue;
+                }
+                prev = Some(register);
+                if let Some(&idx) = register_index.get(register.0 as usize)
+                    && idx != u32::MAX
+                {
+                    edge_rows[idx as usize].push(connector(block.block, edge));
+                }
             }
         }
     }
 
-    let mut virtual_rows = Vec::with_capacity(selected.virtual_registers.len());
-    for register in &selected.virtual_registers {
-        let rows = operand_rows
-            .get(&register.id)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let occurrences = rows
-            .iter()
-            .map(|row| {
-                Ok(VirtualOccurrence {
-                    position: row.position,
-                    point: operand_point(function_index, row.position, row.access)?,
-                    instruction: row.instruction,
-                    operand: row.operand,
-                    access: row.access,
-                })
-            })
-            .collect::<Result<Vec<_>, LiveRangeError>>()?;
+    let mut virtual_rows = Vec::with_capacity(register_count);
+    for (pos, register) in selected.virtual_registers.iter().enumerate() {
+        let canonical_idx = register_index[register.id.0 as usize] as usize;
+        let row_start = operand_offsets[canonical_idx] as usize;
+        let row_end = operand_offsets[canonical_idx + 1] as usize;
+        let row_indices = &operand_indices[row_start..row_end];
+        let mut occurrences = Vec::with_capacity(row_indices.len());
         let mut fixed_constraints = Vec::new();
         if let Some(view) = register.entry_fixed_view {
             fixed_constraints.push(VirtualFixedConstraint {
@@ -77,12 +99,21 @@ pub(super) fn compute_function(
                 view,
             });
         }
-        for row in rows {
+        for &row_idx in row_indices {
+            let row = &operand_slice[row_idx as usize];
+            let point = operand_point(function_index, row.position, row.access)?;
+            occurrences.push(VirtualOccurrence {
+                position: row.position,
+                point,
+                instruction: row.instruction,
+                operand: row.operand,
+                access: row.access,
+            });
             if let Some(view) = row.fixed_view {
                 fixed_constraints.push(VirtualFixedConstraint {
                     site: VirtualFixedConstraintSite::Operand {
                         position: row.position,
-                        point: operand_point(function_index, row.position, row.access)?,
+                        point,
                         instruction: row.instruction,
                         operand: row.operand,
                         access: row.access,
@@ -91,8 +122,12 @@ pub(super) fn compute_function(
                 });
             }
         }
-        let fragments = fragment_rows.remove(&register.id).unwrap_or_default();
-        let edge_connectors = edge_rows.get(&register.id).cloned().unwrap_or_default();
+        let fragments = if pos == canonical_idx {
+            std::mem::take(&mut fragment_rows[canonical_idx])
+        } else {
+            Vec::new()
+        };
+        let edge_connectors = edge_rows[canonical_idx].clone();
         virtual_rows.push(VirtualLiveRange {
             virtual_register: register.id,
             class: register.class,
@@ -115,7 +150,7 @@ pub(super) fn compute_function(
         copy_affinities,
         early_clobbers,
         architectural_units,
-        interference: interference.into_iter().collect(),
+        interference,
     })
 }
 

@@ -1,5 +1,31 @@
-// Seed.code == 7 survives each place into a shared loan of an anonymous Pair child, whose whole owner cleans after the Unit call.
+// Seed.code == 7 survives each place into borrowed anonymous storage and its exact normal cleanup, including scalar copies through returned descriptors.
+data CapturedReceipt { code: u64; counter: &mut [u64; 1]; }
+machine CapturedReceipt::drop(receipt: &mut CapturedReceipt) requires receipt.code == 7 {
+    receipt.counter[0] = ((receipt.counter[0] as u64 in Wrapping) + 1) as u64;
+}
+data CapturedView<'borrow> { receipt: &'borrow CapturedReceipt; }
+machine capture<'borrow>(receipt: &'borrow CapturedReceipt) -> CapturedView<'borrow> {
+    CapturedView { receipt: receipt }
+}
+machine read_captured(receipt: &CapturedReceipt) -> u64 {
+    transition receipt.counter[0] == 0 { true -> (receipt.code) false -> (0) }
+}
+machine verify_captured(code: u64, counter: &[u64; 1]) crashes Trap {
+    transition code == 7 && counter[0] == 1 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}
 data Seed [copy] { code: u64; }
+data CapturedToken [linear] { code: u64; }
+machine CapturedToken::drop(token: &mut CapturedToken) requires token.code == 7 {}
+data CapturedPair { first: CapturedToken; second: CapturedToken; counter: &mut [u64; 1]; }
+machine CapturedPair::drop(pair: &mut CapturedPair) {
+    pair.counter[0] = ((pair.counter[0] as u64 in Wrapping) + 1) as u64;
+}
+data CapturedPairView<'borrow> { pair: &'borrow CapturedPair; }
+machine capture_pair<'borrow>(pair: &'borrow CapturedPair) -> CapturedPairView<'borrow> {
+    CapturedPairView { pair: pair }
+}
 data Receipt [linear] { code: u64; }
 machine Receipt::drop(receipt: &mut Receipt) requires receipt.code == 7 {}
 data Pair { first: Receipt; second: Receipt; }
@@ -9,7 +35,16 @@ machine observe(receipt: &Receipt) crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
-machine through(seed: Seed) requires seed.code == 6 crashes Trap { observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second); }
+machine through(seed: Seed) requires seed.code == 6 crashes Trap { observe(&Pair { first: Receipt { code: 7 }, second: Receipt { code: seed.code } }.second);
+    let mut direct_drops: [u64; 1] = [0];
+    let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;
+    verify_captured(direct_code, &direct_drops);
+    let mut call_drops: [u64; 1] = [0];
+    let call_code: u64 = read_captured([capture(&CapturedReceipt { code: seed.code, counter: &mut call_drops }).receipt][0]) + 0;
+    verify_captured(call_code, &call_drops);
+    let mut pair_drops: [u64; 1] = [0];
+    let pair_code: u64 = capture_pair(&CapturedPair { first: CapturedToken { code: 7 }, second: CapturedToken { code: seed.code }, counter: &mut pair_drops }).pair.second.code;
+    verify_captured(pair_code, &pair_drops); }
 machine main() crashes Trap {
     through(Seed { code: 6 });
 }

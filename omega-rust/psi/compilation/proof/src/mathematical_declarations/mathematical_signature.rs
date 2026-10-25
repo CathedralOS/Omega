@@ -226,7 +226,8 @@ pub(crate) fn check_mathematical_signature(
     program: &dyn ::validation::CheckingInput,
 ) -> Result<CheckedMathematicalSignature, Vec<diagnostics::Diagnostic>> {
     let mut arena = TermArena::new();
-    let declarations = if source_families::needs_scheme(program) {
+    let needs_scheme = source_families::needs_scheme(program);
+    let declarations = if needs_scheme {
         proof_admission::indexed_scheme(&mut arena)
     } else {
         Vec::new()
@@ -278,7 +279,7 @@ pub(crate) fn check_mathematical_signature(
         integer_multiply: None,
         prepared: PreparedMathematicalApplications::default(),
     };
-    if source_families::needs_scheme(program) {
+    if needs_scheme {
         let theory = proof_admission::SourceIntegerTheory::new(
             &mut elaborator.arena,
             &mut elaborator.declarations,

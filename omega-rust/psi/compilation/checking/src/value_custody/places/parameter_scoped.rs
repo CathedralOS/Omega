@@ -27,9 +27,7 @@ fn expression_type(
         .expression_at_depth(expression, depth)?;
     let child_type = |expression| expression_type(program, parameters, expression, depth + 1);
     let reference = match node {
-        ExpressionNode::SavedSubject(saved) => {
-            child_type(program.expression_table.saved_subject_source(saved)?)?
-        }
+        ExpressionNode::SavedSubject(saved) => child_type(program.saved_value_source(saved)?)?,
         ExpressionNode::Name(path) => {
             // One member: a bare binding occurrence, never a chain. The
             // telescope membership test below is the resolved symbol's, so

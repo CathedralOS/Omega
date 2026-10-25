@@ -6,11 +6,9 @@
 //! unresolved rel32 field is not executable authority until section placement
 //! binds it to one exact private continuation offset.
 //!
-//! Context size is data, not an instruction-template restriction. A signed
-//! imm32 frame and a counted zero-fill loop support large contexts without
-//! generating one store instruction per word. This encodes a frame requirement;
-//! it does not establish that the physical invocation owns that much stack.
-//! The caller must supply the complete, backed stack extent before entry.
+//! The wrapper forwards only the two explicit installed roots. Application
+//! state is authored ordinary storage, and its complete activation demand is
+//! checked independently before the physical bridge lends stack backing.
 
 use calling_conventions::{MachineRegister, RegisterSet};
 use target::NativeTarget;
@@ -41,20 +39,6 @@ pub struct X86_64SemanticUnitWrapperArgumentBinding {
     pub outgoing_stack_byte_offset: u32,
 }
 
-/// One compiler-provisioned receiver residence inside the outgoing frame.
-/// `slot_byte_count` is the zeroed region — the checked referent extent
-/// widened to a 16-byte multiple — and `register` the Microsoft-x64 argument
-/// register bound to its address. The incoming boundary plan never carries a
-/// receiver, so the wrapper is the sole owner of this storage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X86_64SemanticUnitWrapperReceiverSlot {
-    pub byte_count: u32,
-    pub alignment: u32,
-    pub slot_byte_count: u32,
-    pub outgoing_stack_byte_offset: u32,
-    pub register: MachineRegister,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct X86_64SemanticUnitWrapperEncodingRequest {
     pub target: NativeTarget,
@@ -64,11 +48,8 @@ pub struct X86_64SemanticUnitWrapperEncodingRequest {
     pub outgoing_release_byte_count: u32,
     pub pre_call_stack_alignment: u16,
     pub copies: [X86_64SemanticUnitWrapperCopy; 4],
-    /// The checked continuation's visible Extent roots; a provisioned receiver
-    /// precedes them under Microsoft-x64 argument order but is bound from the
-    /// wrapper's own residence, not from a boundary input.
+    /// The two exact installed Extent roots, in declared argument order.
     pub argument_bindings: [X86_64SemanticUnitWrapperArgumentBinding; 2],
-    pub receiver: Option<X86_64SemanticUnitWrapperReceiverSlot>,
     pub relocation_field_byte_width: u8,
     pub relocation_addend: i64,
 }
@@ -94,9 +75,6 @@ pub enum X86_64SemanticUnitWrapperCleanupEffect {
 pub struct X86_64SemanticUnitWrapperFootprint {
     pub root_reads: [X86_64SemanticUnitWrapperCopy; 4],
     pub caller_copy_writes: [X86_64SemanticUnitWrapperCopy; 4],
-    /// Bytes the wrapper zero-fills inside its own frame to provision the
-    /// receiver's checked referent layout.
-    pub provisioned_receiver_write_byte_count: u32,
     pub scratch_register_writes: RegisterSet,
     pub argument_pointer_writes: Vec<X86_64SemanticUnitWrapperArgumentBinding>,
     pub call_clobbers: RegisterSet,
@@ -203,80 +181,15 @@ pub enum X86_64SemanticUnitWrapperResolutionError {
     TargetEquationMismatch,
 }
 
-/// The receiver residence always follows both extent copies so their frame
-/// coordinates never move between source shapes.
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET: u32 = 64;
-/// The tail pad after the last slot keeps `sub rsp, N` at `N ≡ 8 (mod 16)` for
-/// the call site, exactly like the receiver-free frame.
-pub(crate) const X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_FRAME_TAIL_PAD: u32 = 8;
-
 pub const fn canonical_x86_64_semantic_unit_wrapper_encoding_request(
     target: NativeTarget,
 ) -> X86_64SemanticUnitWrapperEncodingRequest {
-    canonical_x86_64_semantic_unit_wrapper_encoding_request_shaped(target, None)
-}
-
-/// The canonical request for one declared receiver residence. `receiver` is
-/// the checked referent layout the caller derived from the emitted child;
-/// the slot geometry is derived from it, never repeated.
-pub const fn canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver(
-    target: NativeTarget,
-    byte_count: u32,
-    alignment: u32,
-) -> X86_64SemanticUnitWrapperEncodingRequest {
-    canonical_x86_64_semantic_unit_wrapper_encoding_request_shaped(
-        target,
-        Some(X86_64SemanticUnitWrapperReceiverSlot {
-            byte_count,
-            alignment,
-            // Preserve a rejectable request even for overflowing input. The
-            // validator checks exact rounding and the signed frame limit.
-            slot_byte_count: byte_count.saturating_add(15) & !15,
-            outgoing_stack_byte_offset: X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET,
-            register: MachineRegister::X86Rcx,
-        }),
-    )
-}
-
-const fn canonical_x86_64_semantic_unit_wrapper_encoding_request_shaped(
-    target: NativeTarget,
-    receiver: Option<X86_64SemanticUnitWrapperReceiverSlot>,
-) -> X86_64SemanticUnitWrapperEncodingRequest {
-    let frame = match receiver {
-        Some(receiver) => receiver
-            .outgoing_stack_byte_offset
-            .saturating_add(receiver.slot_byte_count)
-            .saturating_add(X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_FRAME_TAIL_PAD),
-        None => 72,
-    };
-    let argument_bindings = match receiver {
-        Some(_) => [
-            X86_64SemanticUnitWrapperArgumentBinding {
-                register: MachineRegister::X86Rdx,
-                outgoing_stack_byte_offset: 32,
-            },
-            X86_64SemanticUnitWrapperArgumentBinding {
-                register: MachineRegister::X86R8,
-                outgoing_stack_byte_offset: 48,
-            },
-        ],
-        None => [
-            X86_64SemanticUnitWrapperArgumentBinding {
-                register: MachineRegister::X86Rcx,
-                outgoing_stack_byte_offset: 32,
-            },
-            X86_64SemanticUnitWrapperArgumentBinding {
-                register: MachineRegister::X86Rdx,
-                outgoing_stack_byte_offset: 48,
-            },
-        ],
-    };
     X86_64SemanticUnitWrapperEncodingRequest {
         target,
         policy: X86_64SemanticUnitWrapperEncodingPolicy::MicrosoftX64CallerSavedOnlyNoControlStateMutationV1,
         shadow_byte_count: 32,
-        outgoing_frame_byte_count: frame,
-        outgoing_release_byte_count: frame,
+        outgoing_frame_byte_count: 72,
+        outgoing_release_byte_count: 72,
         pre_call_stack_alignment: 16,
         copies: [
             X86_64SemanticUnitWrapperCopy {
@@ -300,8 +213,10 @@ const fn canonical_x86_64_semantic_unit_wrapper_encoding_request_shaped(
                 outgoing_stack_byte_offset: 56,
             },
         ],
-        argument_bindings,
-        receiver,
+        argument_bindings: [
+            X86_64SemanticUnitWrapperArgumentBinding { register: MachineRegister::X86Rcx, outgoing_stack_byte_offset: 32 },
+            X86_64SemanticUnitWrapperArgumentBinding { register: MachineRegister::X86Rdx, outgoing_stack_byte_offset: 48 },
+        ],
         relocation_field_byte_width: X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH,
         relocation_addend: 0,
     }
@@ -320,19 +235,7 @@ pub fn encode_x86_64_semantic_unit_wrapper_template(
         bytes.extend([0x48, 0x89, 0x84, 0x24]);
         bytes.extend(copy.outgoing_stack_byte_offset.to_le_bytes());
     }
-    if let Some(receiver) = request.receiver {
-        // RAX counts words downward. SUB establishes the branch flags and MOV
-        // preserves them: the final write is word zero, never word -1. The
-        // copied roots end at byte 64, immediately before the zeroed slot.
-        bytes.push(0xb8); // mov eax, word_count (zero-extends RAX)
-        bytes.extend((receiver.slot_byte_count / 8).to_le_bytes());
-        bytes.extend([0x48, 0x83, 0xe8, 1]); // sub rax, 1
-        bytes.extend([0x48, 0xc7, 0x44, 0xc4, 64, 0, 0, 0, 0]); // mov [rsp+rax*8+64], 0
-        bytes.extend([0x75, 0xf1]); // jne -15, back to SUB
-        // The provisioned residence is the continuation's first argument.
-        bytes.extend(address_prefix(receiver.register)?);
-        bytes.extend(receiver.outgoing_stack_byte_offset.to_le_bytes());
-    }
+
     for binding in request.argument_bindings {
         bytes.extend(address_prefix(binding.register)?);
         bytes.extend(binding.outgoing_stack_byte_offset.to_le_bytes());
@@ -370,23 +273,7 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
         });
     }
     let mut bindings = Vec::with_capacity(3);
-    if let Some(receiver) = request.receiver {
-        expect(&mut cursor, &[0xb8])?;
-        if cursor.u32()? != receiver.slot_byte_count / 8 {
-            return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
-        }
-        expect(&mut cursor, &[0x48, 0x83, 0xe8, 1])?;
-        expect(&mut cursor, &[0x48, 0xc7, 0x44, 0xc4, 64])?;
-        if cursor.u32()? != 0 {
-            return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
-        }
-        expect(&mut cursor, &[0x75, 0xf1])?;
-        expect(&mut cursor, &address_prefix(receiver.register)?)?;
-        bindings.push(X86_64SemanticUnitWrapperArgumentBinding {
-            register: receiver.register,
-            outgoing_stack_byte_offset: cursor.u32()?,
-        });
-    }
+
     let expected_registers = request
         .argument_bindings
         .iter()
@@ -419,16 +306,7 @@ pub fn validate_x86_64_semantic_unit_wrapper_template(
         .try_into()
         .map_err(|_| X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
     let mut decoded_bindings = bindings;
-    if let Some(receiver) = request.receiver {
-        let receiver_binding = X86_64SemanticUnitWrapperArgumentBinding {
-            register: receiver.register,
-            outgoing_stack_byte_offset: receiver.outgoing_stack_byte_offset,
-        };
-        if decoded_bindings.first() != Some(&receiver_binding) {
-            return Err(X86_64SemanticUnitWrapperEncodingError::MalformedTemplate);
-        }
-        decoded_bindings.remove(0);
-    }
+
     let decoded_extent_bindings: [X86_64SemanticUnitWrapperArgumentBinding; 2] = decoded_bindings
         .try_into()
         .map_err(|_| X86_64SemanticUnitWrapperEncodingError::MalformedTemplate)?;
@@ -541,27 +419,9 @@ fn validate_request(
     if request.target != NativeTarget::uefi_x64() {
         return Err(X86_64SemanticUnitWrapperEncodingError::UnsupportedTarget);
     }
-    if let Some(receiver) = request.receiver
-        && (receiver.byte_count == 0
-            || !receiver.alignment.is_power_of_two()
-            || receiver.alignment > 16
-            || receiver.byte_count > receiver.slot_byte_count
-            || receiver.slot_byte_count & 15 != 0
-            || receiver.slot_byte_count < 16
-            || receiver.byte_count.checked_add(15).map(|count| count & !15)
-                != Some(receiver.slot_byte_count)
-            || receiver.outgoing_stack_byte_offset
-                != X86_64_SEMANTIC_UNIT_WRAPPER_RECEIVER_SLOT_BYTE_OFFSET
-            || receiver.register != MachineRegister::X86Rcx)
-    {
-        return Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest);
-    }
+
     if request.outgoing_frame_byte_count > i32::MAX as u32
-        || request
-            != canonical_x86_64_semantic_unit_wrapper_encoding_request_shaped(
-                request.target,
-                request.receiver,
-            )
+        || request != canonical_x86_64_semantic_unit_wrapper_encoding_request(request.target)
     {
         return Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest);
     }
@@ -570,7 +430,7 @@ fn validate_request(
 
 /// A 20-byte counted loop plus one 8-byte LEA, independent of context size.
 fn expected_function_byte_count(request: X86_64SemanticUnitWrapperEncodingRequest) -> usize {
-    X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT + request.receiver.map_or(0, |_| 28)
+    X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT
 }
 
 fn expected_footprint(
@@ -579,19 +439,8 @@ fn expected_footprint(
     X86_64SemanticUnitWrapperFootprint {
         root_reads: request.copies,
         caller_copy_writes: request.copies,
-        provisioned_receiver_write_byte_count: request
-            .receiver
-            .map_or(0, |receiver| receiver.slot_byte_count),
         scratch_register_writes: RegisterSet::new([MachineRegister::X86Rax]),
-        argument_pointer_writes: request
-            .receiver
-            .map(|receiver| X86_64SemanticUnitWrapperArgumentBinding {
-                register: receiver.register,
-                outgoing_stack_byte_offset: receiver.outgoing_stack_byte_offset,
-            })
-            .into_iter()
-            .chain(request.argument_bindings)
-            .collect(),
+        argument_pointer_writes: request.argument_bindings.into_iter().collect(),
         call_clobbers: RegisterSet::new([
             MachineRegister::X86Rax,
             MachineRegister::X86Rcx,
@@ -625,9 +474,8 @@ fn expected_footprint(
 fn expected_relocation(
     request: X86_64SemanticUnitWrapperEncodingRequest,
 ) -> X86_64SemanticUnitWrapperRelocation {
-    // sub(7) + copies(4×15) + optional zero loop(20) + receiver lea(8) +
-    // extent binds(2×8) reach the call opcode.
-    let opcode = 67 + request.receiver.map_or(0, |_| 28) + 16;
+    // sub(7) + copies(4×15) + extent binds(2×8) reach the call opcode.
+    let opcode = 83;
     X86_64SemanticUnitWrapperRelocation {
         kind: X86_64SemanticUnitWrapperRelocationKind::Relative32PrivateContinuationFromNextInstructionV1,
         state: X86_64ScalarCallFixupState::UnresolvedZeroFieldV1,
@@ -715,24 +563,6 @@ mod tests {
     }
 
     #[test]
-    fn large_receiver_has_a_bounded_template() {
-        for byte_count in [49, 64, 65_536, 65_584] {
-            let request =
-                super::canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver(
-                    NativeTarget::uefi_x64(),
-                    byte_count,
-                    8,
-                );
-            let template = encode_x86_64_semantic_unit_wrapper_template(request).unwrap();
-            assert_eq!(template.bytes().len(), 124);
-            assert_eq!(
-                template.footprint().provisioned_receiver_write_byte_count,
-                (byte_count + 15) & !15
-            );
-        }
-    }
-
-    #[test]
     fn compact_wrapper_template_is_independently_decoded() {
         let template = encode_x86_64_semantic_unit_wrapper_template(request()).unwrap();
         assert_eq!(template.bytes().len(), 96);
@@ -780,111 +610,6 @@ mod tests {
         assert_eq!(
             encode_x86_64_semantic_unit_wrapper_template(unsupported),
             Err(X86_64SemanticUnitWrapperEncodingError::UnsupportedTarget)
-        );
-    }
-
-    #[test]
-    fn receiver_template_provisions_the_slot_before_the_call() {
-        use super::{
-            MachineRegister, canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver,
-        };
-        let request = canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver(
-            NativeTarget::uefi_x64(),
-            8,
-            8,
-        );
-        let template = encode_x86_64_semantic_unit_wrapper_template(request).unwrap();
-        // sub rsp,88; 4 copies; counted zero loop; lea rcx,[rsp+64];
-        // lea rdx,[rsp+32]; lea r8,[rsp+48]; call; add rsp,88; ret
-        assert_eq!(template.bytes().len(), 124);
-        assert_eq!(&template.bytes()[..7], &[0x48, 0x81, 0xec, 88, 0, 0, 0]);
-        assert_eq!(
-            &template.bytes()[67..76],
-            &[0xb8, 2, 0, 0, 0, 0x48, 0x83, 0xe8, 1]
-        );
-        assert_eq!(
-            &template.bytes()[76..87],
-            &[0x48, 0xc7, 0x44, 0xc4, 64, 0, 0, 0, 0, 0x75, 0xf1]
-        );
-        assert_eq!(
-            &template.bytes()[87..95],
-            &[0x48, 0x8d, 0x8c, 0x24, 64, 0, 0, 0]
-        );
-        assert_eq!(
-            &template.bytes()[95..103],
-            &[0x48, 0x8d, 0x94, 0x24, 32, 0, 0, 0]
-        );
-        assert_eq!(
-            &template.bytes()[103..111],
-            &[0x4c, 0x8d, 0x84, 0x24, 48, 0, 0, 0]
-        );
-        assert_eq!(template.bytes()[111], 0xe8);
-        assert_eq!(&template.bytes()[112..116], &[0, 0, 0, 0]);
-        assert_eq!(
-            &template.bytes()[116..123],
-            &[0x48, 0x81, 0xc4, 88, 0, 0, 0]
-        );
-        assert_eq!(template.bytes()[123], 0xc3);
-        assert_eq!(template.relocation().opcode_function_byte_offset, 111);
-        assert_eq!(template.relocation().field_function_byte_offset, 112);
-        assert_eq!(
-            template.relocation().next_instruction_function_byte_offset,
-            116
-        );
-        assert_eq!(
-            template.footprint().provisioned_receiver_write_byte_count,
-            16
-        );
-        assert_eq!(template.footprint().argument_pointer_writes.len(), 3);
-        assert_eq!(
-            template.footprint().argument_pointer_writes[0].register,
-            MachineRegister::X86Rcx
-        );
-        assert_eq!(
-            validate_x86_64_semantic_unit_wrapper_template(request, template.bytes()),
-            Ok(template)
-        );
-
-        // Every byte of the provisioning region is independently replayed.
-        let template = encode_x86_64_semantic_unit_wrapper_template(request).unwrap();
-        for index in 0..template.bytes().len() {
-            let mut bytes = template.bytes().to_vec();
-            bytes[index] ^= 0x5a;
-            assert!(
-                validate_x86_64_semantic_unit_wrapper_template(request, &bytes).is_err(),
-                "byte {index} escaped replay"
-            );
-        }
-
-        // A frame outside signed imm32 still rejects, without narrowing it.
-        let oversized = canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver(
-            NativeTarget::uefi_x64(),
-            i32::MAX as u32,
-            8,
-        );
-        assert_eq!(
-            encode_x86_64_semantic_unit_wrapper_template(oversized),
-            Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest)
-        );
-        // Rounding and frame overflow are rejected, not panics or wraps.
-        for byte_count in [u32::MAX - 15, u32::MAX] {
-            let invalid = canonical_x86_64_semantic_unit_wrapper_encoding_request_for_receiver(
-                NativeTarget::uefi_x64(),
-                byte_count,
-                8,
-            );
-            assert_eq!(
-                encode_x86_64_semantic_unit_wrapper_template(invalid),
-                Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest)
-            );
-        }
-        let mut overrounded = request;
-        overrounded.receiver.as_mut().unwrap().slot_byte_count += 16;
-        overrounded.outgoing_frame_byte_count += 16;
-        overrounded.outgoing_release_byte_count += 16;
-        assert_eq!(
-            encode_x86_64_semantic_unit_wrapper_template(overrounded),
-            Err(X86_64SemanticUnitWrapperEncodingError::NonCanonicalRequest)
         );
     }
 

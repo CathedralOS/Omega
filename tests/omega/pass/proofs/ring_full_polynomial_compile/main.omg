@@ -14,3 +14,9 @@ ensures
         == (add(add(mul(a, c), mul(a, d)), add(mul(b, c), mul(b, d))))
 {
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

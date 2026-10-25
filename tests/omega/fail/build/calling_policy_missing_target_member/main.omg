@@ -14,7 +14,7 @@ macos_arm64 machine TargetPolicy::plan(signature: BoundarySignature) -> Boundary
 }
 
 boundary trait LocalEntry: Calling<TargetPolicyCalling> {
-    machine enter(value: u64) -> u64;
+    machine enter(value: u64) -> u64 reaches;
 }
 
 machine main() {}

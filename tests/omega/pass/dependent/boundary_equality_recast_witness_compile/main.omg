@@ -6,6 +6,7 @@
 // write to one of them retiring it.
 public boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
+    reaches
     ensures size == cap && cap <= 8;
 }
 

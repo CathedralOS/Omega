@@ -1,7 +1,7 @@
 // The build root owns the final slot choice and may replace a target package's
 // ordinary default without reconstructing any provider rows.
 boundary trait Pick {
-    machine choose() -> i32;
+    machine choose() -> i32 reaches;
 }
 
 data FirstProvider { }

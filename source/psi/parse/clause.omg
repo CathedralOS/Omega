@@ -514,10 +514,16 @@ crashes Trap
         transition { _ -> store(parser, input, owner, clause) }
     }
 
-    // A refinement may narrow reach to no service at all (`reaches;`).
+    // An authored empty row is a ceiling in every callable context. Its
+    // delimiter belongs to the declaration or following clause, so retaining
+    // a zero-member Reaches row distinguishes it from omission without eating
+    // that next token. Refinements still require their own semicolon below.
     state reached(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        let empty: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
-        transition empty && owner == ClauseOwner::Refinement {
+        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
+        let body: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
+        let result: bool = Parser::at_punctuation(parser, input, PunctuationKind::Arrow);
+        let clause: bool = Parser::at_clause_word(parser, input);
+        transition semicolon || body || result || clause {
             true -> reaches_end(parser, input, owner)
             _ -> service(parser, input, owner)
         }

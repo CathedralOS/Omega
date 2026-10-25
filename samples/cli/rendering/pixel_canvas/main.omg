@@ -140,3 +140,9 @@ machine Main::main(main: &mut Main) reaches Console {
         Console::exit_process(71);
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

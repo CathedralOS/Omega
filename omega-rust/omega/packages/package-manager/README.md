@@ -1,8 +1,10 @@
 # Omega Package Manager
 
 Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
-transaction, dispatch install/update/resume/discard, resolve the candidate,
-review it, then publish. Compiler preparation and read-only inspection have
+transaction, admit install/update/resume requests, resolve the candidate,
+and reconcile findings for publication. Application Build's
+[`package_commands.rs`](../../application/build/src/package_commands.rs) runs
+the target-review loop. Compiler preparation and read-only inspection have
 separate entrances in [`operations`](src/operations/mod.rs).
 
 [Source selection](../../../../wiki/spec/packages/sources.md) owns the
@@ -25,16 +27,24 @@ package-manager/
 ├── README.md
 ├── src/
 │   ├── lib.rs             Rust module wiring and exports
-│   ├── package_manager.rs command lifecycle and dispatch
+│   ├── package_manager.rs command admission, decision join and publication
 │   ├── package_manager/   edit planning, review files, proposal recovery
 │   ├── operations/        compiler preparation, inspection, publication
 │   ├── declarations/      checked package declarations from build.omg
 │   ├── resolution/        exact source selection and dependency closure
 │   ├── lock/              persistent source-scoped project policy
-│   └── review/            compile, compare, audit, and decide
+│   └── review/            admit review passes, join evidence, compare and decide
 ```
 
-`package_manager.rs` owns command orchestration and composes `operations`.
+`PackageCommandTransaction` keeps the project lock and retained review-file root
+alive while application Build executes its admitted target requests. Completion
+requires the whole target roster from that exact admission before writing decision documents or
+publishing accepted files. The original proposal handle remains borrowed across
+that work, so completion checks the file that admission read, not a replacement.
+Binding discovery, exact occurrence reuse, policy comparison and cache admission
+remain here. Application Build executes the admitted dependency work through
+one whole-pass executor, shared by commands and audit. Package policy does not
+prepare Builds, publish components or finish compiler reviews.
 Supporting packages are siblings under [packages/](../README.md).
 The independent [declaration](../build-declarations/README.md),
 [output](../build-output/README.md) and [compilation-input](../compilation-inputs/README.md)
@@ -43,8 +53,8 @@ does not make the compiler depend on install/update orchestration. Source
 acquisition constructs input custody; compiler consumption records the exact
 source units it used; review joins those results to package policy.
 
-[`operations::inspect_packages`](src/operations/inspect_packages/README.md)
-drives `omega audit packages`: current project source, pinned dependencies,
+[`PackageInspectionTransaction`](src/operations/inspect_packages/README.md)
+admits `omega audit packages`: current project source, pinned dependencies,
 fresh compiler findings, and comparison with accepted policy without publishing
 changes. Default summaries and `--details` separate readable inspection from
 the complete normalized policy.
@@ -193,21 +203,22 @@ exemption. Broader host scopes still project restricted requests, whose retained
 lock meaning is distinct from actual invocation grants.
 
 The top-level invocation owns one `PackageBuildSession` across its review
-targets and rounds. [`inspect_packages.rs`](src/operations/inspect_packages.rs)
-creates and disposes the audit's owner. The CLI's
+targets and rounds. Application Build's
+[`package_inspection.rs`](../../application/build/src/package_inspection.rs)
+creates and disposes the audit's owner and executes its ordered target roster.
+The CLI's
 [`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
-to `execute_package_command`. A later user-issued command creates its own
+to `omega_build::execute_package_command`. A later user-issued command creates its own
 session. Discard requires only project-state recovery, without a Build owner.
 Package commands close staging before publishing accepted project files;
 operation and decision-file failures return to the owner for disposal.
 
-Start explicit full-package candidate review at
-[`compilation.rs`](src/review/candidate/compilation.rs): product selection,
-binding discovery, final checking, then immutable result handoff. Both public
-candidate entrances borrow the caller's session; neither creates sponsors nor
-disposes them. Standalone callers create an owner and dispose it after their
-complete operation. Every fresh occurrence in a target/round pass receives a new
+Start candidate review at
+[`passes.rs`](src/review/candidate/passes.rs): select discovery, derive consumer
+bindings, then select a bound pass only if needed. Each pass borrows the caller's
+session; it neither creates sponsors nor disposes them. Every fresh occurrence
+in a target/round pass receives a new
 sponsored directory from the invocation's monotonic sequence. Component demands
 join the completed Build's opaque continuation before Product checking; they do
 not trigger a second compilation or replay Build effects. Closing an owner
@@ -217,19 +228,21 @@ that dependency while retaining completed sibling reviews and the consumer's
 Build continuation. Reuse still compares complete inputs, entry and snapshot;
 changed generated inputs require fresh work. Interrupted review sets are private
 progress, not an accepted root-wide review.
-Its `package_pass.rs` owns dependency-order compilation and projection for each
-required build/product occurrence, using the same roster as lock comparison and
-reconstruction. Acquisition and parsed source are shared; checked targets,
+Its [`occurrences.rs`](src/review/candidate/passes/occurrences.rs) admits each
+build/product occurrence and joins compiler evidence, using the same roster as
+lock comparison and reconstruction. Application Build's
+[`package_review.rs`](../../application/build/src/package_review.rs) owns the
+dependency loop, compiler calls and cache-miss recovery. Acquisition and parsed
+source are shared; checked targets,
 generated bundles, bindings, component descriptions and reviews are not.
 Build session and staging ownership are shared through `build_session`; review
 policy and ledger budgeting remain with the review owner.
 [`review_set.rs`](src/review/candidate/review_set.rs) describes the issued output.
 
-`compile_resolved_package_reviews` with `SemanticBindingReview::Discover` is
-the install/update candidate entrance. `Explicit(inputs)` checks exactly the
-supplied bindings in one pass, without discovery; `Explicit(&[])` is the
-unbound review used to inspect candidates. Binding mode is an input to the same
-workflow, not a separate implementation or an acceptance decision.
+`review_resolved_packages` is the candidate entrance for install/update and
+audit. Both discover bindings before the final bound pass; observational review
+projects restricted requests but never grants them. Accepted production builds
+admit grants separately through `accepted_compilation`.
 Each package uses its authored `main.omg` when present, otherwise
 its authored `build.omg` through the compiler's existing build-file entrance.
 This creates no source exports: missing imported modules still reject. Explicit

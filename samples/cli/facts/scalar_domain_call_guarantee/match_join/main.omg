@@ -2,7 +2,7 @@
 // Expected exit: 0.
 const FLOOR: i64 = 0;
 domain i64::Nonnegative(value) requires value >= 0 established by issue;
-boundary trait Query { machine read(input: i64) -> i64 ensures result >= FLOOR; }
+boundary trait Query { machine read(input: i64) -> i64 reaches ensures result >= FLOOR; }
 Actual satisfies Query {
     machine read(input: i64) -> i64 ensures result >= FLOOR {
         transition input >= FLOOR { true -> (input) _ -> (FLOOR) }

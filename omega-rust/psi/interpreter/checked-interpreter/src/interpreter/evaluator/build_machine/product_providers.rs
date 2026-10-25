@@ -19,6 +19,7 @@
 use crate::interpreter::evaluator::{
     BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
 };
+use language_semantics::declaration_selection::DescribedProductProvider;
 
 /// The marker type name carried by issued `ProductProviderRef` values. An
 /// authored `ProductProviderRef {}` has the declared type name instead and is
@@ -144,7 +145,7 @@ impl<'program> Evaluator<'program> {
                 Halt::Resource("product-provider description allocation was refused".to_owned())
             })?;
         self.product_provider_descriptions
-            .push(crate::DescribedProductProvider {
+            .push(DescribedProductProvider {
                 provider_symbol: definition.symbol,
                 canonical_path,
             });

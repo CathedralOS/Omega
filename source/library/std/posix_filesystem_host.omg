@@ -52,11 +52,11 @@ public boundary trait PosixFilesystemHost {
     // cursor.
     machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
     // Release a descriptor.
-    machine close(fd: i32) -> i32;
+    machine close(fd: i32) -> i32 reaches;
     // Remove a file (`unlink`).
     machine remove(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation;
     // `lseek`: reposition the cursor; the result is the new absolute offset.
-    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64 reaches;
     // `mkdir`.
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // Remove an empty directory (`rmdir`).
@@ -113,13 +113,13 @@ public boundary trait PosixFilesystemHost {
     // returns EINVAL before the OS call. The byte view itself need not be aligned.
     machine set_file_times(fd: i32, times: &[u8]) -> i32 reaches FilesystemMetadataMutation;
     // `fsync`.
-    machine sync(fd: i32) -> i32;
+    machine sync(fd: i32) -> i32 reaches;
     // `fdatasync`: flush a file's data.
-    machine sync_data(fd: i32) -> i32;
+    machine sync_data(fd: i32) -> i32 reaches;
     // `dup`: a fresh descriptor sharing the open file.
-    machine duplicate(fd: i32) -> i32;
+    machine duplicate(fd: i32) -> i32 reaches;
     // `flock`: `LOCK_SH`=1, `LOCK_EX`=2, `LOCK_NB`=4, `LOCK_UN`=8.
-    machine lock_file(fd: i32, operation: i32) -> i32;
+    machine lock_file(fd: i32, operation: i32) -> i32 reaches;
     // `chown`; -1 leaves a component unchanged.
     machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32 reaches FilesystemMetadataMutation;
     // `lchown`: does not follow a final symlink.

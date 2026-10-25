@@ -31,7 +31,7 @@ impl Builder<'_, '_> {
                 else {
                     return None;
                 };
-                let source = self.program.expression_table.saved_subject_source(saved)?;
+                let source = self.program.saved_value_source(saved)?;
                 let reference = validation::expression_result_type_reference(
                     self.program, machine, state, source,
                 )?;
@@ -95,7 +95,7 @@ impl Builder<'_, '_> {
             else {
                 return None;
             };
-            self.program.expression_table.saved_subject_source(saved)?;
+            self.program.saved_value_source(saved)?;
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                 expression,
             }

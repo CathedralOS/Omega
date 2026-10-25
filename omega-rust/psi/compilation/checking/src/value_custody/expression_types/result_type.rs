@@ -71,6 +71,11 @@ pub fn parameter_expression_result_type_reference(
                     let symbol = crate::expression_traversal::single_segment_name_symbol(
                         program, expression,
                     )?;
+                    if let Some(reference) =
+                        crate::value_custody::places::declaration_type_reference(program, symbol)
+                    {
+                        return Some(reference);
+                    }
                     let parameter = program.data_type_parameter_by_symbol(symbol)?;
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Const { type_reference }
@@ -157,6 +162,26 @@ fn result_type(
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return None;
     }
+    let memo = match owner {
+        ExpressionOwner::State { machine, state } => {
+            crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+                crate::proof_contracts::bound_expression_meaning::meaning_key(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .map(|key| (memos, key))
+            })
+        }
+        _ => None,
+    };
+    if let Some((memos, key)) = memo
+        && let Ok(types) = memos.expression_result_types.lock()
+        && let Some(&cached) = types.get(&key)
+    {
+        return cached;
+    }
     // Const substitution erases value storage, not the declaration's checked
     // type. Rejoin this exact authored selection before inferring a bare
     // constructor or numeric carrier from its materialized payload.
@@ -174,8 +199,7 @@ fn result_type(
     active.push(expression);
     let result = match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => program
-            .expression_table
-            .saved_subject_source(saved)
+            .saved_value_source(saved)
             .and_then(|subject| result_type(program, owner, subject, active)),
         ExpressionNode::Atomic(atomic) => {
             let operand = result_type(program, owner, atomic.value, active);
@@ -604,11 +628,18 @@ fn result_type(
         },
     };
     active.pop();
-    result.filter(|reference| {
+    let result = result.filter(|reference| {
         program
             .type_reference_table
             .contains_type_reference(*reference)
-    })
+    });
+    if let Some((memos, key)) = memo
+        && (result.is_some() || active.is_empty())
+        && let Ok(mut types) = memos.expression_result_types.lock()
+    {
+        types.insert(key, result);
+    }
+    result
 }
 
 /// Join declaration-backed result types without exporting one arm's predicates

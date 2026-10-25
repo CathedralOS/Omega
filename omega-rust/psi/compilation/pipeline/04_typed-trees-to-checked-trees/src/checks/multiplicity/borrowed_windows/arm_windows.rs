@@ -157,12 +157,6 @@ impl<'facts> ArmWindowPlan<'facts> {
             StatementNode::Call(call) => {
                 roots.extend_from_slice(program.statement_table.expression_handles(call.arguments))
             }
-            StatementNode::RootBinding(binding) => {
-                roots.push(binding.receiver);
-                if binding.implementation_operand.is_valid() {
-                    roots.push(binding.implementation_operand);
-                }
-            }
             _ => {}
         }
         for root in roots {
@@ -180,6 +174,10 @@ impl<'facts> ArmWindowPlan<'facts> {
     /// Whether the statement contains any `match` worth planning over.
     pub(in crate::checks::multiplicity) fn has_frames(&self) -> bool {
         !self.frames.is_empty()
+    }
+
+    pub(in crate::checks::multiplicity) fn has_edge_absent(&self) -> bool {
+        !self.edge_absent.is_empty()
     }
 
     /// Record one eligible arm-scoped borrowed move: a non-empty borrowed

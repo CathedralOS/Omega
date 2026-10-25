@@ -9,3 +9,12 @@ crashes Trap
 {
     Assert::check(1 == 1);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Assert
+crashes Trap
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

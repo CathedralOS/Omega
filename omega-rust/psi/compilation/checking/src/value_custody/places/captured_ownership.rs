@@ -31,7 +31,7 @@ pub fn ownership_place_from_expression_in_state(
             return None;
         }
         active.push(saved.capture);
-        let source = program.expression_table.saved_subject_source(saved)?;
+        let source = program.saved_value_source(saved)?;
         let (machine, state) = crate::find_state(program, state_symbol)?;
         let reference = crate::expression_result_type_reference(program, machine, state, source)?;
         // Source use multiplicity, not carrier disposal multiplicity: a

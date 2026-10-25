@@ -35,3 +35,9 @@ machine Main::main(main: &mut Main) {
     state pass(main: &mut Main) { main.hits = 1; }
     state fail(main: &mut Main) { main.hits = -1; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

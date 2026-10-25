@@ -1,6 +1,8 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "cannot prove automatic cleanup requires"
+    "cannot prove automatic cleanup requires",
+    "CapturedReceipt::drop clause",
+    "CapturedToken::drop clause"
   ]
 }

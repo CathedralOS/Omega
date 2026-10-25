@@ -2,6 +2,7 @@
 // Package review also retains the authored generic crash contract.
 public boundary trait Service {
     machine echo<const Selected: bool>(value: i32) -> i32
+    reaches
     where Selected == true || Selected == false
     crashes Trap value < 0;
 }
@@ -32,4 +33,15 @@ linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
     transition selected == 18 && other == 27 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+macos_arm64 machine entry_start() reaches Service crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
+
+linux_x86_64 machine entry_start() reaches Service crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

@@ -2,7 +2,7 @@ data Token { value: u64; }
 data Holder { token: Token; }
 domain Token::Issued(value) requires value.value == 7 established by Issuer::issue;
 boundary trait Issuer {
-    machine issue() -> Token ensures result in Token::Issued;
+    machine issue() -> Token reaches ensures result in Token::Issued;
 }
 Direct satisfies Issuer {
     machine issue() -> Token { Token { value: 8 } }

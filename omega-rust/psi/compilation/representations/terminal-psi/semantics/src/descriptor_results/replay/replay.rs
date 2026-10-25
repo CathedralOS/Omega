@@ -150,6 +150,27 @@ impl<'a> Replay<'a> {
         }
     }
 
+    /// An inline scalar endpoint has no standalone structural declaration.
+    /// Rejoin its actual storage projection to the receiving reference's
+    /// complete representation instead of requiring a nominal leaf type.
+    /// The retained origin supplies the address; this relation supplies no
+    /// access, lifetime or foreign pointer footprint authority.
+    fn reference_backing_matches(
+        &self,
+        machine: &DescriptorMachine,
+        backing: &DescriptorLocation,
+        reference: StructuralTypeId,
+    ) -> Option<bool> {
+        let root = *machine.place_types.get(&backing.root)?;
+        let path = descriptor_path(self.types, root, &backing.path)?;
+        Some(crate::reference_source_projection_compatible(
+            self.types.iter(),
+            root,
+            &path,
+            reference,
+        ))
+    }
+
     fn resolve_storage(
         &self,
         machine: &DescriptorMachine,
@@ -174,7 +195,32 @@ impl<'a> Replay<'a> {
             if current.path.is_empty() {
                 return Some(StorageResolution::Unique(current));
             }
-            if let Some(Some(origins)) = state.slots.get(&DescriptorLocation::whole(current.root))
+            // Value transport copies an ordinary carrier into its receiving
+            // home. Only a pointer-bearing root's stored origins name backing
+            // outside that home; a record join does not alias its predecessors.
+            let root_type = *machine.place_types.get(&current.root)?;
+            let mut definitions = machine
+                .places
+                .iter()
+                .filter(|row| row.place == current.root);
+            let definition = &definitions.next()?.definition;
+            if definitions.next().is_some() {
+                return None;
+            }
+            let borrowed = match definition {
+                DescriptorDefinition::Parameter { access, .. }
+                | DescriptorDefinition::Arrival { access } => *access != StructuralAccess::Owned,
+                DescriptorDefinition::Local | DescriptorDefinition::Literal => false,
+            };
+            let aliases_backing = borrowed
+                || matches!(
+                    find_structural_type(self.types, root_type)?.shape,
+                    StructuralTypeShape::Reference { .. }
+                )
+                || is_descriptor(self.types.iter(), root_type);
+            if aliases_backing
+                && let Some(Some(origins)) =
+                    state.slots.get(&DescriptorLocation::whole(current.root))
                 && !origins.is_empty()
                 && origins
                     .iter()
@@ -219,23 +265,19 @@ impl<'a> Replay<'a> {
                     *machine.place_types.get(&prefix.root)?,
                     &prefix.path,
                 )?;
-                let StructuralTypeShape::Reference { referent, .. } =
-                    find_structural_type(self.types, reference)?.shape
-                else {
+                if !matches!(
+                    find_structural_type(self.types, reference)?.shape,
+                    StructuralTypeShape::Reference { .. }
+                ) {
                     return None;
-                };
+                }
                 let mut alternatives = false;
                 for origin in origins {
                     let Origin::Storage(backing) = origin else {
                         return None;
                     };
                     let backing_type = *machine.place_types.get(&backing.root)?;
-                    if crate::descriptor_lifetimes::descriptor_location_type(
-                        self.types,
-                        backing_type,
-                        &backing.path,
-                    ) != Some(referent)
-                    {
+                    if !self.reference_backing_matches(machine, backing, reference)? {
                         return None;
                     }
                     let mut target = backing.clone();
@@ -299,17 +341,10 @@ impl<'a> Replay<'a> {
             let mut suffix = location.path.as_slice();
             let root_type = *machine.place_types.get(&location.root)?;
             let backing_type = *machine.place_types.get(&backing.root)?;
-            let backing_tip = crate::descriptor_lifetimes::descriptor_location_type(
-                self.types,
-                backing_type,
-                &backing.path,
-            );
-            if let Some(StructuralTypeShape::Reference { referent, .. }) = self
-                .types
-                .iter()
-                .find(|ty| ty.id == root_type)
-                .map(|ty| &ty.shape)
-                && backing_tip == Some(*referent)
+            if matches!(
+                find_structural_type(self.types, root_type)?.shape,
+                StructuralTypeShape::Reference { .. }
+            ) && self.reference_backing_matches(machine, backing, root_type)?
             {
                 let (first, rest) = suffix.split_first()?;
                 if *first != DescriptorPathSegment::Referent {
@@ -1117,7 +1152,8 @@ impl<'a> Replay<'a> {
                 continue;
             };
             let slots = if self.slot_kind == DescriptorSlotKind::References {
-                writable_reference_slots(self.types, row.place, structural_type, access)?
+                self.slot_kind
+                    .writable_slots(self.types, row.place, structural_type, access)?
             } else {
                 if !matches!(access, terminal_psi::exclusive_borrow_pair_pattern!())
                     && !matches!(

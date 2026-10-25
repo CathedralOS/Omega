@@ -777,7 +777,7 @@ pub(in crate::flow) fn append_match_pattern_context(
             let alias = if dispatch.capture.is_valid() {
                 program
                     .expression_table
-                    .match_subject(dispatch.capture)
+                    .value_capture(dispatch.capture)
                     .value_anchor
             } else {
                 ExpressionHandle::invalid()

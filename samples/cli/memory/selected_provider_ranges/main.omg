@@ -2,8 +2,8 @@
 // Target-scoped implementations retain a requirement signature at selection.
 // Range operands still evaluate into the same access-preserving view values.
 boundary trait ByteObserver {
-    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64;
-    machine observe(bytes: &[u8], destination: &mut Observation);
+    machine count(prefix: u64, bytes: &[u8], suffix: u64) -> u64 reaches;
+    machine observe(bytes: &[u8], destination: &mut Observation) reaches;
 }
 data Observation [copy] { count: u64; }
 data ByteProvider {}

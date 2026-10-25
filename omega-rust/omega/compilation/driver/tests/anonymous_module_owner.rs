@@ -49,6 +49,7 @@ fn artifact(root: &Path) -> CanonicalTerminalArtifact {
             CompilationProduct::Inspection("library::read".to_owned()),
         )
         .and_then(CompilationOutput::into_inspection)
+        .map(|produced| produced.into_artifact())
         .unwrap_or_else(|error| {
             panic!(
                 "anonymous Terminal publication: {:?}",

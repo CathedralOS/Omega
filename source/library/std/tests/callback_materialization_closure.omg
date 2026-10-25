@@ -2,11 +2,11 @@ use omega::language::core::layout;
 use calling;
 
 public boundary trait WindowProcedure {
-    machine call(message: u64) -> u64;
+    machine call(message: u64) -> u64 reaches;
 }
 
 public boundary trait UnusedProcedure {
-    machine call(message: u64) -> u64;
+    machine call(message: u64) -> u64 reaches;
 }
 
 data Spread {}
@@ -139,6 +139,7 @@ public boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     )
     where machine Selected satisfies WindowProcedure::call;
     where machine SecondarySelected satisfies WindowProcedure::call;
+    reaches;
 }
 
 data Main { }

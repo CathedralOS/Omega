@@ -3,5 +3,5 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "runtime_fs_mtime_system_time_interop_exit");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

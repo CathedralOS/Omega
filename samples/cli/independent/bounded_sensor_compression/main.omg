@@ -83,3 +83,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state bad_stream(main: &mut Main) { Console::write_line("error: malformed sensor stream"); Console::exit_process(12); }
     state bad_certificate(main: &mut Main) { Console::write_line("error: reconstruction certificate"); Console::exit_process(13); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

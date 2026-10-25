@@ -2,7 +2,7 @@
 // Place: const_name. The boundary call result subtracted against a named constant.
 // Expected rejection: exact arithmetic in a machine or state may overflow `u64`.
 boundary trait Provider {
-    machine get() -> u64 ensures result >= 99u64 && result <= 99u64;
+    machine get() -> u64 reaches ensures result >= 99u64 && result <= 99u64;
 }
 
 Actual satisfies Provider {

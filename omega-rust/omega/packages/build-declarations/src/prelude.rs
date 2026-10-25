@@ -86,6 +86,16 @@ public data BuildProduct {
 // the exact selected identity.
 public data ProductEntryRef [copy] {
 }
+// Execution protocol for the designated Build::bind syntax. Typing supplies
+// the exact product-selection occurrence beside the ordinary boundary call.
+// Calling this requirement directly supplies no selection or host authority.
+// These are compiler host operations, not a user-selected service binding.
+// Their activation-local ticket is interpreted only at admitted call sites.
+public boundary trait BuildBindingOperations {
+    machine prepare(builder: &Build) -> u64 reaches;
+    machine bind(activation: u64) reaches;
+    machine bind_description(activation: u64, description: ProductEntryRef) reaches;
+}
 // A restricted, non-callable product-provider description (the
 // `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored
 // code can retain, copy, and hand it to helpers, and `provider.path()`
@@ -137,11 +147,13 @@ public data PrivilegedServices {
 // its runtime environment to load, one row per canonical target name. Empty
 // keeps the selected target environment's declared default. A selection never
 // requests dynamic linking; static output emits no `PT_INTERP`.
-public data ElfInterpreterSelection {
-    linux_arm64: &[u8];
-    linux_x86_64: &[u8];
+public data ElfInterpreterSelection<'storage> {
+    linux_arm64: &'storage [u8];
+    linux_x86_64: &'storage [u8];
 }
-public data Build {
+// Stored views share an explicit backing lifetime. Opaque mutable boundaries
+// must promise output safety; an unnamed relation cannot imply preservation.
+public data Build<'storage> {
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;
     freestanding: bool;
@@ -150,8 +162,8 @@ public data Build {
     // Empty means no authored identifier; console output falls back to the
     // validated executable leaf. It is validated separately from the
     // application name and is never inferred from the PE subsystem word.
-    identifier: &[u8];
-    elf_interpreter: ElfInterpreterSelection;
+    identifier: &'storage [u8];
+    elf_interpreter: ElfInterpreterSelection<'storage>;
     optimizations: Optimizations;
     privileged_services: PrivilegedServices;
     source: BuildSource;

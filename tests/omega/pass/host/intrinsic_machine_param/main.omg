@@ -7,7 +7,7 @@ public boundary trait WorkerProvider {
         arguments: Arguments
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
-    ensures true;
+    ensures true reaches;
 }
 
 data IntrinsicWorkerProvider { }

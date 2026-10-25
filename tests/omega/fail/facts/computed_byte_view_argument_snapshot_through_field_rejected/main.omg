@@ -2,6 +2,53 @@
 // The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
 // Place: field.
 data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+const WINDOW_LENGTH: u64 = 9;
+machine initial_snapshot<'storage>(source: View<'storage>) -> View<'storage>
+requires source.bytes.len == 11 && source.sibling.len == 4
+ensures result.bytes.len == WINDOW_LENGTH, result.sibling.len == 4
+{ View { bytes: &source.bytes[2..2 + WINDOW_LENGTH], sibling: source.sibling } }
+machine callback_keep<'storage>(selected: View<'storage>) -> View<'storage>
+ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+{ selected }
+machine retain_callback<'storage, machine Callback>(selected: View<'storage>) -> View<'storage>
+where machine Callback<'invocation>(operand: View<'invocation>) -> View<'invocation>
+ensures result.bytes.len == operand.bytes.len, result.sibling.len == operand.sibling.len;
+ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+{ Callback(selected) }
+trait Composing {
+    machine compose<'storage>(bytes: &'storage [u8], sibling: &'storage [u8]) -> View<'storage>
+    ensures result.bytes.len == bytes.len, result.sibling.len == sibling.len;
+}
+Joined satisfies Composing {
+    machine compose<'storage>(bytes: &'storage [u8], sibling: &'storage [u8]) -> View<'storage>
+    ensures result.bytes.len == bytes.len, result.sibling.len == sibling.len
+    { View { bytes: bytes, sibling: sibling } }
+}
+JoinedCopy satisfies Composing {
+    machine compose<'storage>(bytes: &'storage [u8], sibling: &'storage [u8]) -> View<'storage>
+    ensures result.bytes.len == bytes.len, result.sibling.len == sibling.len
+    { let held: View = View { bytes: bytes, sibling: sibling }; held }
+}
+machine select_composer(first: bool) -> dyn Composing {
+    transition first { true -> (Joined as dyn Composing) false -> (JoinedCopy as dyn Composing) }
+}
+trait Preserving {
+    machine retain<'storage>(selected: View<'storage>) -> View<'storage>
+    ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len;
+}
+Direct satisfies Preserving {
+    machine retain<'storage>(selected: View<'storage>) -> View<'storage>
+    ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+    { selected }
+}
+Copied satisfies Preserving {
+    machine retain<'storage>(selected: View<'storage>) -> View<'storage>
+    ensures result.bytes.len == selected.bytes.len, result.sibling.len == selected.sibling.len
+    { let held: View = selected; held }
+}
+machine select_preserver(first: bool) -> dyn Preserving {
+    transition first { true -> (Direct as dyn Preserving) false -> (Copied as dyn Preserving) }
+}
 machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 {
     slot.bytes = replacement;
     0
@@ -59,9 +106,14 @@ machine main() crashes Trap {
     let mut original: View = View { bytes: first, sibling: "tail" };
     let mut other: [View; 2] = [View { bytes: "abcdefgh", sibling: "tail" }, View { bytes: "second", sibling: "tail" }];
     let computed: &[u8] = replacement("123456789", &mut other, &mut counter);
-    let observed: u64 = receive(retain_view(original, 2), overwrite(&mut original, computed));
+    let observed: u64 = receive(retain_callback<callback_keep>(Composing::compose(select_composer(true), Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling)), overwrite(&mut original, computed));
+    let snapshot_storage: [u8; 11] = [88, 88, 49, 50, 51, 52, 53, 54, 55, 56, 57];
+    let mut ranged_original: View = initial_snapshot(View { bytes: &snapshot_storage[..], sibling: "tail" });
+    let ranged_marker: u8 = ranged_original.bytes[0];
+    let ranged_observed: u64 = receive(ranged_original, overwrite(&mut ranged_original, "123456789"));
+    let ranged_difference: u64 = ranged_observed - 7;
     let mut pure_original: View = View { bytes: "1234567", sibling: "tail" };
-    let pure_observed: u64 = receive(pure_original, overwrite(&mut pure_original, pure_replacement()));
+    let pure_observed: u64 = receive(retain_callback<callback_keep>(Composing::compose(select_composer(false), Preserving::retain(select_preserver(false), pure_original).bytes, pure_original.sibling)), overwrite(&mut pure_original, pure_replacement()));
     let mut staged_original: View = View { bytes: "1234567", sibling: "tail" };
     let mut staged_source: View = View { bytes: "123456789", sibling: "tail" };
     let staged_observed: u64 = receive(staged_original,
@@ -87,7 +139,7 @@ machine main() crashes Trap {
     let returned_difference: u64 = returned_observed - 7;
     let pure_difference: u64 = pure_observed - 7;
     let difference: u64 = observed - 7;
-    transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 && other[0].bytes.len == 9 && other[0].sibling.len == 4 && other[1].bytes.len == 6 && other[1].sibling.len == 4 && counter.called
+    transition ranged_difference == 0 && ranged_marker == 49u8 && ranged_original.bytes.len == 9 && ranged_original.sibling.len == 4 && difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 && other[0].bytes.len == 9 && other[0].sibling.len == 4 && other[1].bytes.len == 6 && other[1].sibling.len == 4 && counter.called
         && pure_difference == 0 && pure_original.bytes.len == 9 && pure_original.sibling.len == 4
         && staged_difference == 0 && staged_original.bytes.len == 9 && staged_original.sibling.len == 4 && staged_source.bytes.len == 8 && staged_source.sibling.len == 4
         && direct_difference == 0 && direct_original.bytes.len == 9 && direct_original.sibling.len == 4 && direct_source.bytes.len == 8

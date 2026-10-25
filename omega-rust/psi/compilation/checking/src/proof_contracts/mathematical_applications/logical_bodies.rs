@@ -151,8 +151,7 @@ fn logical_body(
                 .iter()
                 .all(|statement| { let admitted = match statement {
                     StatementNode::Assignment(_)
-                    | StatementNode::Assembly(_)
-                    | StatementNode::RootBinding(_) => false,
+                    | StatementNode::Assembly(_) => false,
                     StatementNode::AssemblyFact(_) => true,
                     StatementNode::Call(call) => {
                         call.receiver.is_empty()

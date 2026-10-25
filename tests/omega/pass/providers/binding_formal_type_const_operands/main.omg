@@ -1,7 +1,7 @@
 // Formal contract checking retains the declaration's exact static telescope.
 // This does not choose a provider or admit an executable closed application.
 
-public boundary trait Indexed<Value, const Count: u64> { machine read() -> i32; }
+public boundary trait Indexed<Value, const Count: u64> { machine read() -> i32 reaches; }
 data Session<Value, const Count: u64> { }
 machine declared<Value, const Count: u64>()
 reaches Indexed {}

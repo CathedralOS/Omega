@@ -95,7 +95,7 @@ pub(super) fn project(
 
 fn exposes(callable: &PackagePolicyCallable, service: &PackageReviewNominalIdentity) -> bool {
     callable
-        .declared_service_reach()
+        .published_service_reach()
         .is_some_and(|row| row.contains(service))
         || callable
             .checked_service_reach()

@@ -18,7 +18,7 @@ pub(super) fn collect_dependency_paths_from_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
-            if let Some(source) = program.expression_table.saved_subject_source(saved) {
+            if let Some(source) = program.saved_value_source(saved) {
                 collect_dependency_paths_from_expression(program, source, domain, dependencies);
             }
         }

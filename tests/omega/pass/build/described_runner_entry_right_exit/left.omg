@@ -2,7 +2,7 @@ module left;
 
 use omega_language_std::console;
 
-public boundary trait Reader { machine read() -> i32; }
+public boundary trait Reader { machine read() -> i32 reaches; }
 public data LeftProvider {}
 machine LeftProvider::read() -> i32 satisfies Reader::read { 11 }
 

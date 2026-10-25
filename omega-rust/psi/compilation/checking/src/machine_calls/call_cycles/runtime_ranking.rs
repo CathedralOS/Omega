@@ -347,16 +347,6 @@ pub(super) fn project_component(
                     }
                     match statement {
                         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => continue,
-                        StatementNode::RootBinding(binding)
-                            if [binding.receiver, binding.implementation_operand]
-                                .into_iter()
-                                .all(|expression| {
-                                    !expression.is_valid()
-                                        || expression_is_inert(program, machine, state, expression)
-                                }) =>
-                        {
-                            continue;
-                        }
                         StatementNode::LocalData(local)
                             if expression_is_inert(
                                 program,

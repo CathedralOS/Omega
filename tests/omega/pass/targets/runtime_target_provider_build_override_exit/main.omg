@@ -1,8 +1,8 @@
 // An explicit Build choice replaces every target's ordinary default as one
 // complete map, including a method neither entry body invokes.
 boundary trait Pick {
-    machine choose() -> i32;
-    machine spare() -> i32;
+    machine choose() -> i32 reaches;
+    machine spare() -> i32 reaches;
 }
 FirstMap satisfies Pick {
     Pick::choose = first;

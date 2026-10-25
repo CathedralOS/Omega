@@ -24,10 +24,16 @@ pub(crate) fn compute_function(
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
     let domains = build_domains(function, legality, ranges)?;
-    let mut domain_of = BTreeMap::<VirtualRegisterId, usize>::new();
+    let max_reg_id = legality
+        .virtual_registers
+        .iter()
+        .map(|register| register.virtual_register.0 as usize)
+        .max()
+        .unwrap_or(0);
+    let mut domain_of = vec![u32::MAX; max_reg_id + 1];
     for (domain_index, domain) in domains.iter().enumerate() {
         for member in &domain.members {
-            domain_of.insert(member.virtual_register, domain_index);
+            domain_of[member.virtual_register.0 as usize] = domain_index as u32;
         }
     }
     let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
@@ -35,19 +41,21 @@ pub(crate) fn compute_function(
     // Give neighbor and affinity queries direct membership instead of
     // searching every unrelated domain again.
     let mut active = vec![true; domains.len()];
-    let mut homes = BTreeMap::<VirtualRegisterId, RegisterViewId>::new();
+    let mut homes = vec![None::<RegisterViewId>; max_reg_id + 1];
     // Preparation admits candidates in domain/view order. Immutable constraints
     // only remove candidates from these already-admitted domains.
     let mut viable = domains
         .iter()
-        .map(|domain| domain.candidates.iter().copied().collect::<Vec<_>>())
+        .map(|domain| domain.candidates.clone())
         .collect::<Vec<_>>();
     let mut degrees = (0..domains.len())
         .map(|domain_index| conflicts.get_constrained_neighbors(domain_index).count())
         .collect::<Vec<_>>();
-    let mut unassigned = (0..domains.len())
-        .map(|domain_index| selection_key(domain_index, &viable, &degrees, &domains))
-        .collect::<BTreeSet<_>>();
+    let mut unassigned = SelectionTree::new(
+        (0..domains.len())
+            .map(|domain_index| Some(selection_key(domain_index, &viable, &degrees, &domains)))
+            .collect(),
+    );
     while let Some(SelectionKey { domain_index, .. }) = unassigned.pop_first() {
         active[domain_index] = false;
         // Affinity and neighbor feasibility only reorder among already-legal
@@ -74,33 +82,38 @@ pub(crate) fn compute_function(
             // their candidates; continuing discovers other pressure regions.
             for remaining in conflicts.get_constrained_neighbors(domain_index) {
                 if active[remaining] {
-                    unassigned.remove(&selection_key(remaining, &viable, &degrees, &domains));
                     degrees[remaining] -= 1;
-                    unassigned.insert(selection_key(remaining, &viable, &degrees, &domains));
+                    unassigned.update(
+                        remaining,
+                        selection_key(remaining, &viable, &degrees, &domains),
+                    );
                 }
             }
             continue;
         };
         for member in &domains[domain_index].members {
-            homes.insert(member.virtual_register, view);
+            homes[member.virtual_register.0 as usize] = Some(view);
         }
-        for remaining in conflicts.get_constrained_neighbors(domain_index) {
+        for (remaining, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
             if !active[remaining] {
                 continue;
             }
-            unassigned.remove(&selection_key(remaining, &viable, &degrees, &domains));
             degrees[remaining] -= 1;
+            let rev_pair = pair.reversed();
             let candidates = &mut viable[remaining];
             let mut retained = 0;
             for position in 0..candidates.len() {
                 let candidate = candidates[position];
-                if !conflicts.conflicts_between(remaining, candidate, domain_index, view) {
+                if !conflicts.conflicts_with_pair(rev_pair, candidate, view) {
                     candidates[retained] = candidate;
                     retained += 1;
                 }
             }
             candidates.truncate(retained);
-            unassigned.insert(selection_key(remaining, &viable, &degrees, &domains));
+            unassigned.update(
+                remaining,
+                selection_key(remaining, &viable, &degrees, &domains),
+            );
         }
     }
     if let Some(first) = pressure.and_then(|pressure| pressure.first()).cloned() {
@@ -115,7 +128,8 @@ pub(crate) fn compute_function(
             .map(|register| VirtualRegisterHome {
                 virtual_register: register.virtual_register,
                 class: register.class,
-                view: homes[&register.virtual_register],
+                view: homes[register.virtual_register.0 as usize]
+                    .expect("active register has assigned home"),
             })
             .collect(),
     })
@@ -147,11 +161,14 @@ fn preferred_view(
     domain_index: usize,
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
-    homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    homes: &[Option<RegisterViewId>],
     affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts,
 ) -> Option<RegisterViewId> {
     let candidates = viable[domain_index].as_slice();
+    if candidates.is_empty() {
+        return None;
+    }
     let mut keeping = Vec::with_capacity(candidates.len());
     for &view in candidates {
         if !strands_neighbor(domain_index, view, viable, active, conflicts) {
@@ -163,13 +180,38 @@ fn preferred_view(
     } else {
         &keeping
     };
-    let outlooks = partner_outlooks(domain_index, viable, active, homes, affinities, conflicts);
+    let domain_affinities = affinities.get_domain_affinities(domain_index);
+    let outlooks = if domain_affinities.is_empty() {
+        BTreeMap::new()
+    } else {
+        partner_outlooks(domain_index, viable, active, homes, affinities, conflicts)
+    };
+    let mut stolen_by_pool = vec![0usize; pool.len()];
+    for (neighbor, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
+        if !active[neighbor] {
+            continue;
+        }
+        let neighbor_affinities = affinities.get_domain_affinities(neighbor);
+        if neighbor_affinities.is_empty() {
+            continue;
+        }
+        let rev_pair = pair.reversed();
+        for affinity in neighbor_affinities {
+            if let Some(view) = homes.get(affinity.partner.0 as usize).copied().flatten()
+                && let Ok(pool_idx) = pool.binary_search(&view)
+                && viable[neighbor].binary_search(&view).is_ok()
+                && conflicts.conflicts_with_pair(rev_pair, view, view)
+            {
+                stolen_by_pool[pool_idx] += 1;
+            }
+        }
+    }
     let mut leading = None::<(usize, usize, Reverse<usize>, RegisterViewId)>;
-    for &view in pool {
+    for (pool_idx, &view) in pool.iter().enumerate() {
         let mut guaranteed = 0usize;
         let mut votes = 0usize;
-        for affinity in affinities.get_domain_affinities(domain_index) {
-            if homes.get(&affinity.partner) == Some(&view) {
+        for affinity in domain_affinities {
+            if homes.get(affinity.partner.0 as usize).copied().flatten() == Some(view) {
                 guaranteed += 1;
             } else if let Some(partner_domain) = affinity.partner_domain
                 && let Some(outlook) = outlooks.get(&partner_domain)
@@ -180,7 +222,7 @@ fn preferred_view(
                 // takes `view` exactly when that passes every other
                 // still-viable view's satisfied count, breaking ties
                 // toward the lowest such view.
-                let drawn = outlook.assigned.get(&view).copied().unwrap_or(0) + outlook.pending;
+                let drawn = outlook.assigned_count(view) + outlook.pending;
                 if drawn > outlook.peak
                     || (drawn == outlook.peak && outlook.peak_view.is_some_and(|peak| view < peak))
                 {
@@ -188,15 +230,7 @@ fn preferred_view(
                 }
             }
         }
-        let stolen = stolen_coalesces(
-            domain_index,
-            view,
-            viable,
-            active,
-            homes,
-            affinities,
-            conflicts,
-        );
+        let stolen = stolen_by_pool[pool_idx];
         let rank = (guaranteed, votes, Reverse(stolen));
         if leading.is_none_or(|(best_guaranteed, best_votes, best_stolen, _)| {
             rank > (best_guaranteed, best_votes, best_stolen)
@@ -209,32 +243,6 @@ fn preferred_view(
         .or_else(|| pool.first().copied())
 }
 
-fn stolen_coalesces(
-    domain_index: usize,
-    view: RegisterViewId,
-    viable: &[Vec<RegisterViewId>],
-    active: &[bool],
-    homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    affinities: &PreparedAffinities,
-    conflicts: &PreparedConflicts,
-) -> usize {
-    let mut stolen = 0;
-    for neighbor in conflicts.get_constrained_neighbors(domain_index) {
-        if !active[neighbor]
-            || viable[neighbor].binary_search(&view).is_err()
-            || !conflicts.conflicts_between(neighbor, view, domain_index, view)
-        {
-            continue;
-        }
-        for affinity in affinities.get_domain_affinities(neighbor) {
-            if homes.get(&affinity.partner) == Some(&view) {
-                stolen += 1;
-            }
-        }
-    }
-    stolen
-}
-
 /// One still-unassigned partner domain's coalescing outlook. `pending` counts
 /// the copy edges this domain would satisfy for the partner at a shared view;
 /// `assigned` counts the partner's own copy edges landing on each
@@ -245,9 +253,26 @@ fn stolen_coalesces(
 #[derive(Default)]
 struct PartnerOutlook {
     pending: usize,
-    assigned: BTreeMap<RegisterViewId, usize>,
+    assigned: Vec<(RegisterViewId, usize)>,
     peak: usize,
     peak_view: Option<RegisterViewId>,
+}
+
+impl PartnerOutlook {
+    fn assigned_count(&self, view: RegisterViewId) -> usize {
+        self.assigned
+            .iter()
+            .find_map(|&(v, count)| (v == view).then_some(count))
+            .unwrap_or(0)
+    }
+
+    fn increment_assigned(&mut self, view: RegisterViewId) {
+        if let Some((_, count)) = self.assigned.iter_mut().find(|(v, _)| *v == view) {
+            *count += 1;
+        } else {
+            self.assigned.push((view, 1));
+        }
+    }
 }
 
 /// Collect the coalescing outlook of every still-unassigned partner domain
@@ -258,7 +283,7 @@ fn partner_outlooks(
     domain_index: usize,
     viable: &[Vec<RegisterViewId>],
     active: &[bool],
-    homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
+    homes: &[Option<RegisterViewId>],
     affinities: &PreparedAffinities,
     conflicts: &PreparedConflicts,
 ) -> BTreeMap<usize, PartnerOutlook> {
@@ -276,14 +301,14 @@ fn partner_outlooks(
     }
     for (&partner_domain, outlook) in &mut outlooks {
         for affinity in affinities.get_domain_affinities(partner_domain) {
-            if let Some(&home) = homes.get(&affinity.partner) {
-                *outlook.assigned.entry(home).or_default() += 1;
+            if let Some(home) = homes.get(affinity.partner.0 as usize).copied().flatten() {
+                outlook.increment_assigned(home);
             }
         }
     }
     for (partner_domain, outlook) in &mut outlooks {
         for &view in &viable[*partner_domain] {
-            let count = outlook.assigned.get(&view).copied().unwrap_or(0);
+            let count = outlook.assigned_count(view);
             if outlook.peak_view.is_none() || count > outlook.peak {
                 outlook.peak = count;
                 outlook.peak_view = Some(view);
@@ -306,13 +331,22 @@ fn strands_neighbor(
     active: &[bool],
     conflicts: &PreparedConflicts,
 ) -> bool {
-    for neighbor in conflicts.get_constrained_neighbors(domain_index) {
-        if !active[neighbor] || viable[neighbor].is_empty() {
+    let max_conflicts = conflicts.max_physical_conflicts(view);
+    if max_conflicts == 0 {
+        return false;
+    }
+    for (neighbor, pair) in conflicts.get_constrained_neighbors_with_pair(domain_index) {
+        let neighbor_viable = &viable[neighbor];
+        if !active[neighbor]
+            || neighbor_viable.is_empty()
+            || neighbor_viable.len() > max_conflicts
+        {
             continue;
         }
+        let rev_pair = pair.reversed();
         let mut retains = false;
-        for &candidate in &viable[neighbor] {
-            if !conflicts.conflicts_between(neighbor, candidate, domain_index, view) {
+        for &candidate in neighbor_viable {
+            if !conflicts.conflicts_with_pair(rev_pair, candidate, view) {
                 retains = true;
                 break;
             }
@@ -322,6 +356,77 @@ fn strands_neighbor(
         }
     }
     false
+}
+
+struct SelectionTree {
+    base: usize,
+    keys: Vec<Option<SelectionKey>>,
+    tree: Vec<usize>,
+}
+
+impl SelectionTree {
+    fn new(keys: Vec<Option<SelectionKey>>) -> Self {
+        let n = keys.len();
+        let base = n.next_power_of_two().max(1);
+        let mut tree = vec![usize::MAX; 2 * base];
+        for i in 0..n {
+            if keys[i].is_some() {
+                tree[base + i] = i;
+            }
+        }
+        for idx in (1..base).rev() {
+            tree[idx] = Self::winner(&keys, tree[2 * idx], tree[2 * idx + 1]);
+        }
+        Self { base, keys, tree }
+    }
+
+    #[inline]
+    fn winner(keys: &[Option<SelectionKey>], left: usize, right: usize) -> usize {
+        match (left != usize::MAX, right != usize::MAX) {
+            (false, false) => usize::MAX,
+            (true, false) => left,
+            (false, true) => right,
+            (true, true) => {
+                if keys[left] <= keys[right] {
+                    left
+                } else {
+                    right
+                }
+            }
+        }
+    }
+
+    #[inline]
+    fn update_leaf(&mut self, domain_index: usize) {
+        let mut idx = self.base + domain_index;
+        self.tree[idx] = if self.keys[domain_index].is_some() {
+            domain_index
+        } else {
+            usize::MAX
+        };
+        idx >>= 1;
+        while idx > 0 {
+            self.tree[idx] = Self::winner(&self.keys, self.tree[2 * idx], self.tree[2 * idx + 1]);
+            idx >>= 1;
+        }
+    }
+
+    #[inline]
+    fn pop_first(&mut self) -> Option<SelectionKey> {
+        let best = self.tree[1];
+        if best == usize::MAX {
+            return None;
+        }
+        let key = self.keys[best].take()?;
+        self.update_leaf(best);
+        Some(key)
+    }
+
+    #[inline]
+    fn update(&mut self, domain_index: usize, key: SelectionKey) {
+        self.keys[domain_index] = Some(key);
+        self.update_leaf(domain_index);
+    }
 }
 
 /// The most-constrained-first order: fewest viable views, then most

@@ -98,3 +98,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state invalid(main: &mut Main) { Console::write_line("INVALID INPUT"); Console::exit_process(64); }
     state broken(main: &mut Main) { Console::write_line("BALANCE FAILURE"); Console::exit_process(70); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

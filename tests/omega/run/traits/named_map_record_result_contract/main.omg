@@ -3,8 +3,8 @@
 public data Status [copy] { code: u64; }
 public data Packet [copy] { status: Status; }
 public boundary trait Reports {
-    machine status() -> Status ensures result.code == 7;
-    machine packet() -> Packet ensures result.status.code == 11;
+    machine status() -> Status reaches ensures result.code == 7;
+    machine packet() -> Packet reaches ensures result.status.code == 11;
 }
 public CheckedReports satisfies Reports {
     machine status() -> Status ensures result.code == 7; {

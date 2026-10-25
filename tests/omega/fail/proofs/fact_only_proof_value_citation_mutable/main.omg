@@ -4,3 +4,9 @@ data Context {}
 machine main(context: &mut Context) {
     reflexive(&mut Ordinal::Zero);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
+}

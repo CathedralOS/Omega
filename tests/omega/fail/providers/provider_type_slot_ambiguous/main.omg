@@ -2,7 +2,7 @@
 // candidates for one selected slot require an explicit build override; the
 // compiler must never merge or choose them by source order.
 boundary trait Pick {
-    machine choose() -> i32;
+    machine choose() -> i32 reaches;
 }
 
 data FirstProvider { }

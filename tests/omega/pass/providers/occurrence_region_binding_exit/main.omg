@@ -2,7 +2,7 @@
 // caller's region. The Applied requirement occurrence supplies the complete region scope.
 
 public boundary trait Reading<Value> {
-    machine read(value: Value) -> i32;
+    machine read(value: Value) -> i32 reaches;
 }
 BorrowedReading<'provider> satisfies Reading<&'provider i32> {
     Reading::read = read;
@@ -34,4 +34,10 @@ machine Main::main<'entry>(main: &'entry mut Main) reaches Reading crashes Trap 
     transition result == 37 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The root owns ordinary local storage and supplies its borrow explicitly.
+machine entry_start<'entry>() reaches Reading crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

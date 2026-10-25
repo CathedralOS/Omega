@@ -2,7 +2,7 @@
 domain<const Limit: u64> u64::Below<Limit>(value) requires value < Limit;
 const INDEX: u64 in Below<4> = 5;
 
-public boundary trait Access { machine touch(); }
+public boundary trait Access { machine touch() reaches; }
 trait Reader { machine read() -> u64 reaches Access; }
 trait BoundedReader = Reader { machine * reaches _; }
 

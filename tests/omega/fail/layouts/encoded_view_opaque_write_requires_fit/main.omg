@@ -52,7 +52,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 
 public data PortableByte [copy] { value: i64; }
 public data RawView { value: SignedByte<PortableByte>; }
-public boundary trait EncodedWriter { machine write(value: &mut RawView); }
+public boundary trait EncodedWriter { machine write(value: &mut RawView) reaches; }
 machine write_first(bytes: &mut [RawView]) reaches EncodedWriter {
     transition bytes.len > 0 { true -> change(bytes) _ -> done() }
     state change(bytes: &mut [RawView]) { EncodedWriter::write(&mut bytes[0]); }

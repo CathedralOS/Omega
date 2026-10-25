@@ -1,3 +1,3 @@
-boundary trait Issue { machine issue(value: i64) -> i64 in Issued; }
+boundary trait Issue { machine issue(value: i64) -> i64 in Issued reaches; }
 domain i64::Issued established by Issue::issue;
 let bad(): i64 in Issued = 0;

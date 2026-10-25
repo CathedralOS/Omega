@@ -52,7 +52,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 use omega::language::core::external_binding;
-public boundary trait Compare { machine compare(left: &i64, right: &i64, count: u64) -> i32; }
+public boundary trait Compare { machine compare(left: &i64, right: &i64, count: u64) -> i32 reaches; }
 linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
     ForeignBinding::DllImport { import: DllImport::ElfVersioned {
         object: "libc.so.6", symbol: "memcmp", version: "GLIBC_2.2.5",
@@ -64,4 +64,10 @@ data Main { bytes: [u8; 2]; }
 machine Main::main(main: &mut Main) reaches Compare {
     let view: &RawView = &main.bytes[0] as &RawView;
     let result: i32 = Compare::compare(&view.value.value, &view.value.value, 8);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Compare {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }
