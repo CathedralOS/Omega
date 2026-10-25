@@ -707,7 +707,16 @@ fn validate_qualified_place_read(
     let established = established
         || call_established
             .iter()
-            .any(|place| place_spelling_covers(place, &spelling));
+            .any(|place| place_spelling_covers(place, &spelling))
+        || composed_carrier_established(
+            program,
+            reference,
+            &spelling,
+            tracked,
+            entry_established,
+            call_established,
+            &mut Vec::new(),
+        );
     let open = tracked.iter().any(|place| {
         place.any_window_open()
             && (place_spelling_covers(&place.spelling, &spelling)
@@ -921,6 +930,22 @@ fn composed_value_established(
             if direct_place_established(&child, tracked, entry_established, call_established) {
                 return true;
             }
+            if matches!(
+                program
+                    .type_reference_table
+                    .type_reference(field.type_reference),
+                typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            ) {
+                return composed_carrier_established(
+                    program,
+                    field.type_reference,
+                    &child,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    active,
+                );
+            }
             if let Some(definition) =
                 super::place_queries::data_definition_for_type(program, field.type_reference)
             {
@@ -965,6 +990,58 @@ fn composed_value_established(
         });
     active.pop();
     established
+}
+
+/// Exact child stores can complete a fixed array just as field stores can
+/// complete a record. Unknown-index stores never supply an element identity;
+/// an authored constrained shell still needs its separate whole-value proof.
+fn composed_carrier_established(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    spelling: &str,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    active: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if direct_place_established(spelling, tracked, entry_established, call_established)
+        || !crate::value_custody::data::type_requires_establishment(program, reference)
+    {
+        return true;
+    }
+    match program.type_reference_table.type_reference(reference) {
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(extent),
+        } => (0..*extent).all(|index| {
+            composed_carrier_established(
+                program,
+                *element_type,
+                &format!("{spelling}[{index}]"),
+                tracked,
+                entry_established,
+                call_established,
+                active,
+            )
+        }),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+        | typed_trees::types::TypeReferenceNode::Generic { .. } => {
+            super::place_queries::data_definition_for_type(program, reference).is_some_and(
+                |definition| {
+                    composed_value_established(
+                        program,
+                        definition,
+                        spelling,
+                        tracked,
+                        entry_established,
+                        call_established,
+                        active,
+                    )
+                },
+            )
+        }
+        _ => false,
+    }
 }
 
 fn direct_place_established(

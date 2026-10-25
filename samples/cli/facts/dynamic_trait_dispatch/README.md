@@ -163,3 +163,10 @@ Terminal agreement in the companion `runtime_dyn_*_establishment_exit` fixtures.
 The source check is target-neutral; native execution on the other three hosts
 has not been measured here. This row does not alone close the parent task's
 installed-backing, partition, cleanup or other hosted-entry obligations.
+
+Whole fixed arrays also compose from exact established elements before a borrow
+of the array. A completed two-element selector array executes on both engines;
+omitting one store or writing the same element twice rejects at the ordinary
+invariant window. These preserve ordinary construction under the selector
+validity repair, rather than treating the array's zero representation as a
+selection or counting stores without their element identities.
