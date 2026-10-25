@@ -5185,6 +5185,27 @@ fail/facts/inferred_record_equation_call/root rejected 375ms expected @1b08c4c75
 	generic machine `read` where type equation has conflicting constructor constants
 fail/facts/inferred_record_equation_call/target_body rejected 306ms expected @1b08c4c75647
 	generic machine `read` where type equation has conflicting constructor constants
+fail/facts/inline_byte_view_argument_snapshot_through_call_result_rejected rejected 1820ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_const_name_rejected rejected 1622ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_field_rejected rejected 1260ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_local_rejected rejected 1157ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_match_join_rejected rejected 1534ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_other_machine_rejected rejected 1160ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_other_state_rejected rejected 1071ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_parameter_rejected rejected 971ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inline_byte_view_argument_snapshot_through_target_body_rejected rejected 1246ms expected @d9ef15c45883+wt
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive from main: original.bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/integer_multiple_remainder_through_call_result_rejected rejected 982ms expected @595562a958b4+wt
 	data `EvenLength` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/integer_multiple_remainder_through_const_name_rejected rejected 780ms expected @595562a958b4+wt
@@ -18230,6 +18251,15 @@ pass/facts/inferred_record_equation_call/other_state checked 2793ms check-target
 pass/facts/inferred_record_equation_call/parameter checked 2790ms check-target:macos_arm64 @1b08c4c75647
 pass/facts/inferred_record_equation_call/root checked 3187ms check-target:macos_arm64 @1b08c4c75647
 pass/facts/inferred_record_equation_call/target_body checked 3201ms check-target:macos_arm64 @1b08c4c75647
+pass/facts/inline_byte_view_argument_snapshot_through_call_result_exit checked 2279ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_const_name_exit checked 1973ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_field_exit checked 1600ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_local_exit checked 1586ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_match_join_exit checked 2252ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_other_machine_exit checked 2158ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_other_state_exit checked 2246ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_parameter_exit checked 1523ms check-target:macos_arm64 @d9ef15c45883+wt
+pass/facts/inline_byte_view_argument_snapshot_through_target_body_exit checked 1514ms check-target:macos_arm64 @d9ef15c45883+wt
 pass/facts/integer_multiple_remainder_through_call_result_exit checked 3385ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/integer_multiple_remainder_through_const_name_exit checked 2806ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/integer_multiple_remainder_through_field_exit checked 2838ms check-target:macos_arm64 @595562a958b4+wt

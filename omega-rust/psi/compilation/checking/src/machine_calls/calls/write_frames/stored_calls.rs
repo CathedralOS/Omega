@@ -1055,8 +1055,34 @@ fn instantiate(
                     parameters,
                     supplied.carrier.root,
                 )?;
-                let actual = FrameSourcePlace::from_expression(program, *arguments.get(index)?);
-                if !actual.root.is_valid() || !actual.builtin_coordinates {
+                let actual = *arguments.get(index)?;
+                let (state, _, boundary_index) = super::caller_aliases::caller_statement_owner(
+                    program,
+                    machine,
+                    super::caller_aliases::CallerWriteSite::Expression(actual),
+                )?;
+                // A source descriptor is an evaluated reference value. Its
+                // producer relation names its carrier, including image storage
+                // with no declaration home. Keep this separate from resolving
+                // its backing below: an exclusive descriptor's supplying home
+                // is part of the transferred permission, not its referent.
+                let relation = super::result_origins::reference_result_relation(
+                    program,
+                    machine,
+                    state,
+                    boundary_index,
+                    actual,
+                    parameters[index].type_reference,
+                    symbols,
+                    inference,
+                )?;
+                let origins = relation
+                    .references
+                    .into_iter()
+                    .map(|leaf| leaf.origin)
+                    .collect::<Option<Vec<_>>>()?;
+                let actual = super::place_paths::single_place_origin(origins)?.source;
+                if (!actual.root.is_valid() && !actual.is_static()) || !actual.builtin_coordinates {
                     return None;
                 }
                 actual.append_relative(program, &supplied.carrier)
