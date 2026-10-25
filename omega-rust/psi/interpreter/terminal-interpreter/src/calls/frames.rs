@@ -24,6 +24,9 @@ use terminal_psi::{
     TerminalMachineResult,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Whether the borrowed parameter directly rebinds the argument's resolved
 /// value — same type, matching borrow access, and
 /// every requested element membership supplied by the resolved source.
@@ -89,6 +92,48 @@ fn retire_transferred_call_sources(
 }
 
 impl TerminalExecution<'_> {
+    /// Capture the caller for every call kind, including cleanup hooks. The
+    /// new saved header is funded before moving any caller custody or growing
+    /// the stack. Its lease retires when restoration consumes the saved frame.
+    /// Refusal retains incoming completion custody in the failed activation.
+    pub(crate) fn suspend_with(
+        &mut self,
+        result: SuspendedCallResult,
+        loan_completions: Vec<terminal_psi::LoanCompletion>,
+    ) -> Result<&mut SuspendedCall, TerminalInterpretError> {
+        let frame_storage = match self
+            .account
+            .as_ref()
+            .map(|account| account.reserve_storage(1, 0))
+            .transpose()
+        {
+            Ok(storage) => storage,
+            Err(error) => {
+                self.failed_call_result = Some(result);
+                return Err(TerminalInterpretError::Storage(error));
+            }
+        };
+        self.call_stack.push(SuspendedCall {
+            placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
+            loan_completions,
+            values: self.values.take(),
+            structural_values: self.structural_values.take(),
+            aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
+            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
+            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
+            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
+            live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
+            live_claims: std::mem::take(&mut self.live_claims),
+            current_machine: self.current_machine,
+            current: self.current,
+            next_operation: self.next_operation,
+            result,
+            _frame_storage: frame_storage,
+        });
+        self.call_stack.last_mut().ok_or_else(malformed)
+    }
+
     pub(crate) fn consume_affine_call_argument(
         &self,
         frontier: &mut BTreeSet<terminal_psi::StructuralAffineDiscard>,
@@ -359,47 +404,34 @@ impl TerminalExecution<'_> {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
             }
         }
-        let loan_completions = if matches!(result, SuspendedCallResult::ExternalCompletion { .. }) {
-            // There is no normal completion of this invocation, hence no
-            // operation continuation or returned-loan retirement.
-            Vec::new()
-        } else {
-            let caller = self.program.verified_machine(self.current_machine)?;
-            let operation = caller
-                .block(&self.current)
-                .and_then(|block| block.operations.get(self.next_operation))
-                .ok_or_else(malformed)?
-                .id;
-            let completions = self
-                .loan_completions_for_operation(operation)
-                .map_err(|error| error.in_argument_preparation("retain call loan completions"))?;
-            self.next_operation += 1;
-            completions
-        };
-        self.live_claims = remaining_claims;
-        let mut caller_structural_values = self.structural_values.take();
+        let (loan_completions, resume_operation) =
+            if matches!(result, SuspendedCallResult::ExternalCompletion { .. }) {
+                // There is no normal completion of this invocation, hence no
+                // operation continuation or returned-loan retirement.
+                (Vec::new(), self.next_operation)
+            } else {
+                let caller = self.program.verified_machine(self.current_machine)?;
+                let operation = caller
+                    .block(&self.current)
+                    .and_then(|block| block.operations.get(self.next_operation))
+                    .ok_or_else(malformed)?
+                    .id;
+                let completions =
+                    self.loan_completions_for_operation(operation)
+                        .map_err(|error| {
+                            error.in_argument_preparation("retain call loan completions")
+                        })?;
+                (completions, self.next_operation + 1)
+            };
+        let caller = self.suspend_with(result, loan_completions)?;
+        caller.next_operation = resume_operation;
         retire_transferred_call_sources(
             structural_arguments,
             &callee.structural_parameters,
-            &mut caller_structural_values,
+            &mut caller.structural_values,
         )?;
-        self.call_stack.push(SuspendedCall {
-            placed_view_occurrences: std::mem::take(&mut self.placed_view_occurrences),
-            loan_completions,
-            values: self.values.take(),
-            structural_values: caller_structural_values,
-            aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
-            live_affine_frontier: caller_affine_frontier,
-            live_claims: std::mem::take(&mut self.live_claims),
-            current_machine: self.current_machine,
-            current: self.current,
-            next_operation: self.next_operation,
-            result,
-        });
+        caller.live_affine_frontier = caller_affine_frontier;
+        caller.live_claims = remaining_claims;
         self.placed_view_occurrences = placed_view_occurrences;
         self.values = values;
         self.structural_values = structural_values;

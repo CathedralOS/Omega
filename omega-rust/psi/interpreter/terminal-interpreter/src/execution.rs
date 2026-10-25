@@ -32,7 +32,7 @@ use crate::values::{
 use crate::values::{
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
-use evaluation_accounting::EvaluationInvocationAccount;
+use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
     ValueId,
@@ -185,6 +185,13 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) established_erased_fields:
         Vec<crate::structural_inputs::TerminalEstablishedErasedField>,
     pub(crate) effects: Vec<TerminalEffect>,
+    /// A refused frame capture may already own an outgoing value or successor
+    /// bindings. Keep that custody in the failed activation, not a new unpaid
+    /// frame; the sticky execution fault prevents another capture attempt.
+    pub(crate) failed_call_result: Option<SuspendedCallResult>,
+    // The retained root activation remains allocated through normal-return
+    // readback. Release its header after the execution state is retired.
+    _frame_storage: Option<EvaluationStorageLease>,
 }
 
 pub(crate) struct SuspendedCall {
@@ -203,6 +210,9 @@ pub(crate) struct SuspendedCall {
     pub(crate) current: BlockId,
     pub(crate) next_operation: usize,
     pub(crate) result: SuspendedCallResult,
+    // Each saved continuation adds one header; restoration moves its contents
+    // into the root activation and retires this reservation after the move.
+    pub(crate) _frame_storage: Option<EvaluationStorageLease>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -378,6 +388,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         account: Option<EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
         let current_machine = program.resolve_entry(installation)?;
+        let frame_storage = account
+            .as_ref()
+            .map(|account| account.reserve_storage(1, 0))
+            .transpose()
+            .map_err(TerminalInterpretError::Storage)?;
         // A nonempty placed-view roster declares direct entry inputs whose
         // referent custody must be established beside the ordinary inputs: one
         // exact establishment per entry row lends the qualified backing for
@@ -505,6 +520,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             process_domain: None,
             established_erased_fields: established_erased_fields.to_vec(),
             effects: Vec::new(),
+            failed_call_result: None,
+            _frame_storage: frame_storage,
         };
         for argument_index in zero_initialized_arguments {
             let parameter = machine

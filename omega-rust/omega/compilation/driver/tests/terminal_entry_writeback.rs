@@ -744,6 +744,103 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
 }
 
 #[test]
+fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, _, _) = produce("frame_sequence");
+    let artifact = produced.artifact();
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    for (loaded, limit) in [(false, 3), (true, 3), (true, 2)] {
+        let program = if loaded {
+            TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
+        } else {
+            TerminalProgram::borrow(artifact.view())
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, limit, 100, 100, 100).unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            sponsor.live_storage_cells(),
+            1,
+            "the empty root frame owns one cell"
+        );
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
+                    assert!((1..=limit).contains(&sponsor.live_storage_cells()));
+                    meter.replenish(1).unwrap();
+                }
+                result => break result,
+            }
+        };
+        if limit == 3 {
+            assert_eq!(
+                result.unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                account.snapshot().unwrap().record().peak_live_storage_cells,
+                3
+            );
+            assert_eq!(
+                sponsor.live_storage_cells(),
+                1,
+                "only the returned root activation remains"
+            );
+            instance.close().unwrap();
+        } else {
+            let refusal = result.unwrap_err();
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert_eq!(sponsor.live_storage_cells(), 2);
+            let usage = *account.snapshot().unwrap().record();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(*account.snapshot().unwrap().record(), usage);
+            assert!(instance.result().is_none());
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+        }
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+
+        let competing = account.reserve_storage(limit, 0).unwrap();
+        let refusal = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .err()
+            .expect("entry reservation must refuse before creating the root frame");
+        assert!(
+            format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+            "{refusal:?}"
+        );
+        assert_eq!(sponsor.live_storage_cells(), limit);
+        drop(competing);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+    }
+}
+
+#[test]
 fn a_fault_after_a_host_effect_cannot_reenter_the_same_call() {
     use std::sync::atomic::{AtomicUsize, Ordering};
     struct RejectAfterEffect<'host> {

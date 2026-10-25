@@ -21,6 +21,12 @@ machine exercise() -> bool {
 
 machine consume(settings: Settings) {}
 
+// The embedding test selects this entry to measure frame lifetimes independently
+// of value rows: two sequential call trees have a maximum of three live frames.
+machine frame_leaf() {}
+machine frame_nested() { frame_leaf(); }
+machine frame_sequence() { frame_nested(); frame_nested(); }
+
 machine fail_after_write(settings: &mut Settings) crashes Trap {
     configure(settings);
     crash Trap;
