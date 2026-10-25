@@ -1,0 +1,27 @@
+// Expected diagnostic: consumed
+// Fact: A checked copy of a closed Inert opaque preserves libc host numbers 66051, 513 and replacement 1027 across an independent consuming call while the original remains usable.
+use producer::main;
+public data AddressBox { value: InternetAddress; }
+public data AddressPair { first: InternetAddress; second: InternetAddress; }
+
+machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches AddressParts, AddressBridge {
+    let mut pair: AddressPair = AddressPair { first: first, second: second };
+    let old_host: u32 = AddressBridge::host(pair.first);
+    pair.first = AddressBridge::make(10, 1027);
+    let sibling_host: u32 = AddressBridge::host(pair.second);
+    let replacement_host: u32 = AddressBridge::host(pair.first);
+    old_host == 66051 && sibling_host == 513 && replacement_host == 1027
+}
+machine observe() -> bool reaches AddressParts, AddressBridge {
+ let stored: AddressBox = AddressBox { value: AddressBridge::make(10, 66051) };
+ let copied: InternetAddress = stored.value;
+ let consumed_copy: bool = consume(copied, AddressBridge::make(44048, 513));
+ let retained_host: u32 = AddressBridge::host(stored.value);
+ consumed_copy && retained_host == 66051
+}
+
+machine main() reaches AddressParts, AddressBridge crashes Trap {
+ transition observe() { true -> done() _ -> failed() }
+ state done() {}
+ state failed() { crash Trap; }
+}
