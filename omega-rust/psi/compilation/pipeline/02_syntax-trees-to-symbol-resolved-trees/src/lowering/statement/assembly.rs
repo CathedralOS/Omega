@@ -98,6 +98,7 @@ pub(super) fn lower(
         }
     }
     Ok(declarations.assembly_graphs.insert(AssemblyControlFlow {
+        target_requirement: graph.target_requirement,
         blocks,
         scratch,
         primitives,

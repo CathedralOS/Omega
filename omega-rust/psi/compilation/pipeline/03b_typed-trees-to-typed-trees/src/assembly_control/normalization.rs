@@ -179,13 +179,13 @@ fn check_register_flow(
             }
         }
     }
-    let mut incoming = vec![u32::MAX; blocks.len()];
+    let mut incoming = vec![u64::MAX; blocks.len()];
     let mut outgoing = incoming.clone();
     let mut reachable = vec![false; blocks.len()];
     reachable[0] = true;
     loop {
         let mut changed = false;
-        let mut next = vec![u32::MAX; blocks.len()];
+        let mut next = vec![u64::MAX; blocks.len()];
         next[0] = 0;
         let mut next_reachable = vec![false; blocks.len()];
         next_reachable[0] = true;
@@ -491,6 +491,37 @@ fn has_scratch(program: &TypedTrees, state: &State) -> bool {
 
 pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     super::validate_primitive_meanings(program)?;
+    // Local control and register operations may lower to ordinary statements.
+    // Consume their recorded catalog demands before either normalization route
+    // erases the graph; an authored target never supplies missing semantics.
+    for machine_index in 0..program.machines().len() {
+        let machine = &program.machines()[machine_index];
+        let mut requirement = machine.assembly_target_requirement;
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) = statement {
+                    requirement = requirement
+                        .intersect(program.statement_table.assembly(*handle).target_requirement)
+                        .ok_or_else(|| {
+                            vec![Diagnostic::error(
+                                "assembly catalog target requirements conflict in one machine",
+                            )]
+                        })?;
+                }
+            }
+        }
+        if machine
+            .authored_target
+            .as_ref()
+            .is_some_and(|target| !requirement.accepts_target_name(target.as_str()))
+        {
+            return Err(vec![Diagnostic::error(
+                "assembly catalog target requirement conflicts with the authored target body",
+            )]);
+        }
+        program.machines_mut()[machine_index].assembly_target_requirement = requirement;
+    }
+
     if !program.machines().iter().any(|machine| {
         program
             .machine_states(machine)
@@ -506,17 +537,6 @@ pub(crate) fn normalize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>>
             if !has_scratch(&source, state) {
                 continue;
             }
-            let requirement = language_core::inline_assembly::AsmTargetApplicability::X86_64;
-            if machine
-                .authored_target
-                .as_ref()
-                .is_some_and(|target| !requirement.accepts_target_name(target.as_str()))
-            {
-                return Err(vec![Diagnostic::error(
-                    "assembly catalog target requirement conflicts with the authored target body",
-                )]);
-            }
-            program.machines_mut()[machine_index].assembly_target_requirement = requirement;
             let statements = source.statement_table.statements(state.statement_nodes);
             let mut rewritten = Vec::new();
             let mut cursor = 0;
@@ -809,7 +829,7 @@ fn normalize_graph(
             .symbols
             .insert_generated_root_from(owner.symbol, SymbolKind::Machine, &helper_name);
     let mut helper = Machine {
-        assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::X86_64,
+        assembly_target_requirement: graph.target_requirement,
         symbol: helper_symbol,
         name: Identifier::generated(&helper_name),
         // Extraction preserves the original direct-service declaration. The

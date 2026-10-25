@@ -1,0 +1,22 @@
+// Expected exit: 0.
+// Comparing a register with itself establishes ZF without changing its value; both label edges preserve the original register.
+machine main() crashes Trap {
+    let mut output: u32 = 0;
+    asm where clobbers x28, nzcv {
+    entry:
+        mov w28, 37;
+        cmp w28, w28;
+        b.eq equal;
+    different requires w28 == 37:
+        mov output, 1;
+        b done;
+    equal requires w28 == 37:
+        mov output, w28;
+    done requires output == 37:
+        nop
+    }
+    transition output == 37 { true -> done() false -> bad() }
+}
+
+machine done() {}
+machine bad() crashes Trap { crash Trap; }

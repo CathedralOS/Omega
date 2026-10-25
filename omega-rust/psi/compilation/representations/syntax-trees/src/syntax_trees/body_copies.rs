@@ -234,6 +234,7 @@ impl SyntaxCopy<'_> {
                 let blocks = self.statements.insert_assembly_blocks(blocks);
                 StatementNode::Assembly(self.statements.insert_assembly(
                     crate::statement::AssemblyControlFlow {
+                        target_requirement: graph.target_requirement,
                         blocks,
                         scratch,
                         primitives,

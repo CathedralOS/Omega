@@ -1,0 +1,81 @@
+// Expected exit: 0.
+// Comparing a register with itself establishes the zero flag without changing its value; both label edges preserve the original register.
+linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
+    let mut output: u32 = 0;
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, seed;
+        cmp eax, eax;
+        jz equal;
+    different requires eax == 37:
+        mov output, 1;
+        jmp done;
+    equal requires eax == 37:
+        mov output, eax;
+    done requires output == 37:
+        nop
+    }
+    output
+}
+
+windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
+    let mut output: u32 = 0;
+    asm where clobbers rax, rflags {
+    entry:
+        mov eax, seed;
+        cmp eax, eax;
+        jz equal;
+    different requires eax == 37:
+        mov output, 1;
+        jmp done;
+    equal requires eax == 37:
+        mov output, eax;
+    done requires output == 37:
+        nop
+    }
+    output
+}
+
+linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
+    let mut output: u32 = 0;
+    asm where clobbers x0, nzcv {
+    entry:
+        mov w0, seed;
+        cmp w0, w0;
+        b.eq equal;
+    different requires w0 == 37:
+        mov output, 1;
+        b done;
+    equal requires w0 == 37:
+        mov output, w0;
+    done requires output == 37:
+        nop
+    }
+    output
+}
+
+macos_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
+    let mut output: u32 = 0;
+    asm where clobbers x0, nzcv {
+    entry:
+        mov w0, seed;
+        cmp w0, w0;
+        b.eq equal;
+    different requires w0 == 37:
+        mov output, 1;
+        b done;
+    equal requires w0 == 37:
+        mov output, w0;
+    done requires output == 37:
+        nop
+    }
+    output
+}
+
+machine forward(seed: u32) -> u32 requires seed == 37 ensures result == 37 { compare(seed) }
+machine finished() {}
+machine failed() crashes Trap { crash Trap; }
+machine main() crashes Trap {
+    let value: u32 = forward(37);
+    transition value == 37 { true -> finished() false -> failed() }
+}

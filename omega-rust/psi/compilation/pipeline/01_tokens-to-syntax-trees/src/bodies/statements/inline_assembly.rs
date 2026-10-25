@@ -78,15 +78,11 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let input = input.take_contextual("asm")?;
     let (contract, input) = parse_asm_where_contract(syntax_trees, input)?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let mut target_requirement = language_core::inline_assembly::AsmTargetApplicability::Any;
     let mut blocks = Vec::new();
     let mut primitives = Vec::new();
     let body_requires = contract.requires.clone();
-    let mut arithmetic_updates: Vec<(
-        StatementHandle,
-        ExpressionHandle,
-        ExpressionHandle,
-        scratch::ArithmeticFlagProducer,
-    )> = Vec::new();
+    let mut arithmetic_updates = Vec::new();
     let mut block = ParsedAssemblyBlock {
         label: Identifier::generated("asm#entry"),
         requires: contract.requires,
@@ -132,7 +128,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         }
         // A bare destination is local to this assembly CFG. The existing
         // parenthesized `jmp state(...)` remains an ordinary machine edge.
-        if let Ok((mnemonic, after_jump)) = input.take_identifier()
+        if let Ok((mnemonic, after_jump)) = parse_asm_mnemonic(syntax_trees, input)
             && let Some(AsmCatalogEntry::Contract(contract)) =
                 asm_catalog_entry(mnemonic.as_str(syntax_trees))
             && matches!(
@@ -143,6 +139,12 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             && (rest.at_punctuation(PunctuationKind::Semicolon)
                 || rest.at_punctuation(PunctuationKind::RightBrace))
         {
+            target_requirement =
+                target_requirement
+                    .intersect(contract.target)
+                    .ok_or_else(|| {
+                        input.error_here("assembly body mixes incompatible catalog targets")
+                    })?;
             block.exit = if let AsmInstructionShape::JumpZeroFlag { when_set } = contract.shape {
                 // Both polarities consume the same explicit modeled ZF version.
                 scratch::name(syntax_trees, "zf");
@@ -158,6 +160,18 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             continue;
         }
         let (instruction, rest) = parse_asm_instruction_statement_handle(syntax_trees, input)?;
+        // Arithmetic and physical register moves erase into ordinary scalar
+        // operations. Retain their ISA demand here. Executable catalog calls
+        // retain their existing target contract on the call itself.
+        if instruction.arithmetic.is_some()
+            || instruction.contract.shape == AsmInstructionShape::RegisterMove
+        {
+            target_requirement = target_requirement
+                .intersect(instruction.contract.target)
+                .ok_or_else(|| {
+                    input.error_here("assembly body mixes incompatible catalog targets")
+                })?;
+        }
         realized_clobbers.extend(instruction.contract.clobbers.iter().copied());
         observes_hardware_flags |= matches!(
             instruction.contract.shape,
@@ -168,39 +182,17 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             && let ExpressionNode::Name(path) =
                 syntax_trees.expressions.expression(assignment.target)
             && let [name] = syntax_trees.expressions.identifier_path_members(*path)
-            && let Some(register_index) = scratch::NAMES
-                [..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
-                .iter()
-                .position(|register| *register == name.as_str(syntax_trees))
+            && let Some((_, _, clobber)) =
+                language_core::inline_assembly::scratch_register(name.as_str(syntax_trees))
         {
-            realized_clobbers.insert(scratch::CLOBBERS[register_index]);
+            realized_clobbers.insert(clobber);
         }
         restores_hardware_flags |= instruction.contract.shape == AsmInstructionShape::FlagsRestore;
         if instruction.contract.shape == AsmInstructionShape::FlagsSnapshot {
             flag_snapshots.push(instruction.statement);
         }
-        if let Some(producer) = arithmetic_flag_producer(instruction.contract.shape) {
-            let StatementNode::Assignment(assignment) =
-                syntax_trees.statements.statement(instruction.statement)
-            else {
-                unreachable!()
-            };
-            let destination = assignment.target;
-            let ExpressionNode::Cast(result) =
-                syntax_trees.expressions.expression(assignment.value)
-            else {
-                unreachable!()
-            };
-            let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(result.value)
-            else {
-                unreachable!()
-            };
-            let ExpressionNode::Cast(source) = syntax_trees.expressions.expression(binary.right)
-            else {
-                unreachable!()
-            };
-            let source = source.value;
-            arithmetic_updates.push((instruction.statement, destination, source, producer));
+        if let Some(arithmetic) = instruction.arithmetic {
+            arithmetic_updates.push((instruction.statement, arithmetic));
         }
         block.has_no_local_post_state |= matches!(
             instruction.contract.shape,
@@ -222,20 +214,9 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         {
             block.instructions.push(instruction.statement);
         }
-        if arithmetic_flag_producer(instruction.contract.shape).is_some() {
-            let StatementNode::Assignment(assignment) =
-                syntax_trees.statements.statement(instruction.statement)
-            else {
-                unreachable!()
-            };
-            let destination = assignment.target;
-            let ExpressionNode::Cast(result) =
-                syntax_trees.expressions.expression(assignment.value)
-            else {
-                unreachable!("catalog arithmetic produces a same-carrier policy erasure")
-            };
-            primitives.push(result.value);
-            let flag = scratch::zero_flag(syntax_trees, destination);
+        if let Some(arithmetic) = instruction.arithmetic {
+            primitives.push(arithmetic.primitive);
+            let flag = scratch::zero_flag(syntax_trees, arithmetic.result);
             let StatementNode::Assignment(flag_write) = syntax_trees.statements.statement(flag)
             else {
                 unreachable!()
@@ -295,6 +276,11 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
             continue;
         };
+        if language_core::inline_assembly::is_unmodeled_aarch64_scratch_view(
+            name.as_str(syntax_trees),
+        ) {
+            return Err(input.error_here(format!("unsupported AArch64 scratch register view `{}`: register aliases require shared-bit state modeling", name.as_str(syntax_trees))));
+        }
         if language_core::inline_assembly::is_unmodeled_x86_scratch_view(name.as_str(syntax_trees))
         {
             let name = name.as_str(syntax_trees);
@@ -304,6 +290,12 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let uses_scratch = syntax_trees.expressions.iter_expressions().skip(expression_start).any(|(_, node)| {
         matches!(node, ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str(syntax_trees))))
     });
+    if target_requirement == language_core::inline_assembly::AsmTargetApplicability::Aarch64
+        && observes_hardware_flags
+    {
+        return Err(input
+            .error_here("x86 flags snapshots/restoration cannot observe AArch64 scratch state"));
+    }
     if uses_scratch && restores_hardware_flags {
         return Err(input.error_here(
             "scratch-register CFG flags cannot yet be combined with hardware popfq restoration",
@@ -331,10 +323,12 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     if observes_hardware_flags && !restores_hardware_flags {
         // Build full arithmetic state only when this body observes it. The
         // ordinary SUB/ADD/ZF cohort retains its original statements and storage.
-        for (statement, destination, source, producer) in arithmetic_updates {
+        for (statement, arithmetic) in arithmetic_updates {
             let generated_start = syntax_trees.expressions.expression_count();
-            let saved = scratch::preserve_sub_operands(syntax_trees, destination, source);
-            let flags = scratch::arithmetic_flags(syntax_trees, destination, producer);
+            let saved =
+                scratch::preserve_sub_operands(syntax_trees, arithmetic.left, arithmetic.right);
+            let flags =
+                scratch::arithmetic_flags(syntax_trees, arithmetic.result, arithmetic.producer);
             let mask = scratch::replace_arithmetic_flags(syntax_trees);
             collect_generated_primitives(syntax_trees, generated_start, &mut primitives);
             for block in &mut blocks {
@@ -421,6 +415,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         syntax_trees
             .statements
             .insert_assembly(syntax_trees::statement::AssemblyControlFlow {
+                target_requirement,
                 blocks,
                 scratch,
                 primitives,
@@ -588,9 +583,22 @@ fn format_asm_registers(registers: &[&str]) -> String {
         .join(", ")
 }
 
+/// The producing instruction records its inputs and result once. Consumers
+/// must not recover operands from an assignment destination: CMP has no
+/// architectural destination, and its private result is not its left input.
+#[derive(Clone, Copy)]
+struct ParsedArithmetic {
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    result: ExpressionHandle,
+    primitive: ExpressionHandle,
+    producer: scratch::ArithmeticFlagProducer,
+}
+
 struct ParsedAsmInstruction {
     statement: StatementHandle,
     contract: language_core::inline_assembly::AsmInstructionContract,
+    arithmetic: Option<ParsedArithmetic>,
 }
 
 impl ParsedAsmInstruction {
@@ -605,6 +613,7 @@ impl ParsedAsmInstruction {
             Self {
                 statement,
                 contract,
+                arithmetic: None,
             },
             input,
         ))
@@ -697,9 +706,29 @@ fn asm_intrinsic_result_assignment(
         }))
 }
 
+/// Dotted AArch64 branch mnemonics are one catalog identity, not an Omega
+/// member expression. Every other spelling follows the ordinary token route.
+fn parse_asm_mnemonic<'tokens, 'source>(
+    trees: &SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Identifier> {
+    let (mnemonic, rest) = input.take_identifier()?;
+    if mnemonic.as_str(trees) == "b" && rest.at_punctuation(PunctuationKind::Dot) {
+        let rest = rest.take_punctuation(PunctuationKind::Dot, ".")?;
+        let (condition, rest) = rest.take_identifier()?;
+        return Ok((
+            Identifier::generated(&format!("b.{}", condition.as_str(trees))),
+            rest,
+        ));
+    }
+    Ok((mnemonic, rest))
+}
+
 fn arithmetic_flag_producer(shape: AsmInstructionShape) -> Option<scratch::ArithmeticFlagProducer> {
     match shape {
-        AsmInstructionShape::Subtract => Some(scratch::ArithmeticFlagProducer::Subtract),
+        AsmInstructionShape::Subtract | AsmInstructionShape::Compare => {
+            Some(scratch::ArithmeticFlagProducer::Subtract)
+        }
         AsmInstructionShape::Add => Some(scratch::ArithmeticFlagProducer::Add),
         _ => None,
     }
@@ -710,7 +739,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ParsedAsmInstruction> {
     let mnemonic_site = input;
-    let (mnemonic, input) = input.take_identifier()?;
+    let (mnemonic, input) = parse_asm_mnemonic(syntax_trees, input)?;
 
     let Some(entry) = asm_catalog_entry(mnemonic.as_str(syntax_trees)) else {
         return Err(mnemonic_site.error_here(format!(
@@ -723,7 +752,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             mnemonic.as_str(syntax_trees)
         )));
     };
-    let contract = match entry {
+    let mut contract = match entry {
         AsmCatalogEntry::Contract(contract) => contract,
         AsmCatalogEntry::Refused(AsmInstructionRefusal::HiddenControlExit) => {
             return Err(mnemonic_site.error_here(format!(
@@ -756,6 +785,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
         ))),
         AsmInstructionShape::Subtract
         | AsmInstructionShape::Add
+        | AsmInstructionShape::Compare
         | AsmInstructionShape::RegisterMove => {
             let (destination, input) = parse_expression_handle(syntax_trees, input)?;
             let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -774,9 +804,19 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             )?;
             if matches!(syntax_trees.expressions.expression(destination), ExpressionNode::Name(path) if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == "zf"))
             {
-                return Err(mnemonic_site.error_here("mov/sub/add cannot directly write ZF; its version is established by the catalog arithmetic result"));
+                return Err(mnemonic_site.error_here("mov/sub/add/cmp cannot directly write ZF; its version is established by the catalog arithmetic result"));
             }
-            let value = if let Some(producer) = arithmetic_flag_producer(contract.shape) {
+            for operand in [destination, source] {
+                if let ExpressionNode::Name(path) = syntax_trees.expressions.expression(operand)
+                    && let [name] = syntax_trees.expressions.identifier_path_members(*path)
+                    && let Some((_, target, _)) =
+                        language_core::inline_assembly::scratch_register(name.as_str(syntax_trees))
+                {
+                    contract.target = contract.target.intersect(target).ok_or_else(|| mnemonic_site.error_here("assembly instruction and register operands require incompatible targets"))?;
+                }
+            }
+            let producer = arithmetic_flag_producer(contract.shape);
+            let value = if let Some(producer) = producer {
                 let spelling = mnemonic.as_str(syntax_trees);
                 let ExpressionNode::Name(path) = syntax_trees.expressions.expression(destination)
                 else {
@@ -789,19 +829,36 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         "{spelling} requires a modeled 32-bit register destination"
                     )));
                 };
-                if !scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT]
-                    .contains(&name.as_str(syntax_trees))
-                {
+                let Some((_, register_target, _)) =
+                    language_core::inline_assembly::scratch_register(name.as_str(syntax_trees))
+                else {
                     return Err(mnemonic_site.error_here(format!(
                         "{spelling} requires a modeled 32-bit register destination"
                     )));
+                };
+                contract.target = contract.target.intersect(register_target).ok_or_else(|| {
+                    mnemonic_site.error_here(
+                        "assembly instruction and register operands require incompatible targets",
+                    )
+                })?;
+                if contract.shape == AsmInstructionShape::Compare {
+                    contract.clobbers = match register_target {
+                        language_core::inline_assembly::AsmTargetApplicability::Aarch64 => {
+                            &["nzcv"]
+                        }
+                        _ => &["rflags"],
+                    };
                 }
                 let admitted_source = match syntax_trees.expressions.expression(source) {
-                    ExpressionNode::Integer(literal) => literal
-                        .value_u64()
-                        .is_some_and(|value| value <= u32::MAX as u64),
+                    ExpressionNode::Integer(literal) => literal.value_u64().is_some_and(|value| {
+                        value <= u32::MAX as u64
+                            && (register_target
+                                != language_core::inline_assembly::AsmTargetApplicability::Aarch64
+                                || value <= 4095
+                                || (value & 4095 == 0 && value >> 12 <= 4095))
+                    }),
                     ExpressionNode::Name(path) => {
-                        matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if scratch::NAMES[..language_core::inline_assembly::ASM_ZERO_FLAG_SLOT].contains(&name.as_str(syntax_trees)))
+                        matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if language_core::inline_assembly::scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
                     }
                     _ => false,
                 };
@@ -821,16 +878,40 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             } else {
                 source
             };
-            ParsedAsmInstruction::ok(
+            let result = if contract.shape == AsmInstructionShape::Compare {
+                scratch::name(syntax_trees, "asm#comparison_result")
+            } else {
+                destination
+            };
+            let statement =
                 syntax_trees
                     .statements
                     .insert(StatementNode::Assignment(TableAssignment {
-                        target: destination,
+                        target: result,
                         value,
-                    })),
-                contract,
+                    }));
+            let arithmetic = producer.map(|producer| {
+                // All modeled arithmetic constructs this same explicit policy
+                // erasure; retaining its primitive also pins builtin meaning.
+                let ExpressionNode::Cast(cast) = syntax_trees.expressions.expression(value) else {
+                    unreachable!("arithmetic construction returns a policy erasure")
+                };
+                ParsedArithmetic {
+                    left: destination,
+                    right: source,
+                    result,
+                    primitive: cast.value,
+                    producer,
+                }
+            });
+            Ok((
+                ParsedAsmInstruction {
+                    statement,
+                    contract,
+                    arithmetic,
+                },
                 input,
-            )
+            ))
         }
         AsmInstructionShape::MemoryTransfer(kind) => {
             let (first, input) = parse_expression_handle(syntax_trees, input)?;
