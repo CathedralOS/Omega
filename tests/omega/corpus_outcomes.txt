@@ -793,6 +793,12 @@ fail/borrows/aliased_descriptor_slot_suspended_read rejected 1595ms expected @5f
 	statement 4 reads `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/aliased_descriptor_slot_suspended_reborrow rejected 1845ms expected @5f668826adf3
 	statement 4 borrows `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/aliased_forwarded_placed_views rejected 2571ms expected @e51ea3b52251+wt
+	state `view_mut` receives `value` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
+	state `write_pair` receives `view` as mutable more than once
+	state `write_pair` receives `view` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
+	state `write_pair` receives `companion_view` while local borrow `view` is still active (borrowed at statement 3; its last use is at statement 4)
+	statement 3 creates local borrow `view` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/applied_provider_output_requires_backing rejected 1840ms expected @632377c34d0a+wt
 	machine `expression` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 	machine `statement` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
@@ -876,6 +882,14 @@ fail/borrows/clock_out_parameter_mutable_from_shared rejected 1566ms expected @5
 	argument `instant` for state `read` is declared `&mut` (`&mut Instant`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/completed_reference_read_cannot_invent_contents rejected 1885ms expected @4f0af8695cfb+wt
 	cannot prove requires contract for call finish from inspect: addr::Bound == 18446744073709551616 && retry <= 1 && selected.value == 42 (needs fact `addr::Bound == 18446744073709551616 && retry <= 1 && value == 42` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrows/completed_reference_result_rejects_aliased_inputs rejected 1062ms expected @e51ea3b52251+wt
+	state `consume` receives `first` as mutable more than once
+	state `select` receives `first` as mutable more than once
+fail/borrows/completed_reference_result_retains_selected_input rejected 1157ms expected @e51ea3b52251+wt
+	state `consume` receives `first` as mutable more than once
+	state `consume` receives `select(&mut first, &mut second)` as mutable more than once
+fail/borrows/completed_reference_result_retains_unselected_input rejected 1315ms expected @e51ea3b52251+wt
+	state `consume` receives `second` as mutable more than once
 fail/borrows/completed_selector_boolean_result_wrong_value rejected 1546ms expected @5f668826adf3
 	cannot prove ensures contract for exit from changed_pattern at statement 1: result == false && value == 3
 fail/borrows/completed_selector_join_out_of_range_destination rejected 505ms expected @5f668826adf3
@@ -10116,23 +10130,23 @@ fail/facts/owned_qualified_reference_result_reuse rejected 1305ms expected @ab16
 	cannot use `raw.reference` in machine `main` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
 fail/facts/owned_qualified_reference_selection_reuse rejected 5597ms expected @46ed51c132c2
 	cannot use `raw.reference` in machine `exercise` state `entry` (statement 3) after `raw` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `raw` first
-fail/facts/placed_stable_write_through_call_result_rejected rejected 2359ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_call_result_rejected rejected 2000ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_const_name_rejected rejected 1676ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_const_name_rejected rejected 1544ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_field_rejected rejected 1443ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_field_rejected rejected 1514ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_local_rejected rejected 1033ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_local_rejected rejected 1479ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_match_join_rejected rejected 1421ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_match_join_rejected rejected 1596ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_other_machine_rejected rejected 1370ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_other_machine_rejected rejected 1596ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_other_state_rejected rejected 2032ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_other_state_rejected rejected 1762ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_parameter_rejected rejected 1675ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_parameter_rejected rejected 1455ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
-fail/facts/placed_stable_write_through_target_body_rejected rejected 4048ms expected @c9ff081e1359
+fail/facts/placed_stable_write_through_target_body_rejected rejected 1698ms expected @e51ea3b52251+wt
 	placed write application: the placement plan does not permit this operation
 fail/facts/predicate_array_copy_through_call_result_rejected rejected 3439ms expected @94247f983231+wt
 	cannot prove default-domain field requirement for return from produce, state entry, at statement 3: values requires [u16; N]::ZeroTail
@@ -19640,6 +19654,7 @@ pass/borrows/case_payload_shared_transition_exit checked 11172ms check-target:ma
 pass/borrows/case_payload_state_loan_exit checked 10970ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/borrows/collection_element_loans_exit checked 5787ms check-target:macos_arm64 @d840c6ae9019+wt
 pass/borrows/completed_reference_read_preserves_prefix checked 12493ms check-target:macos_arm64 @4f0af8695cfb+wt
+pass/borrows/completed_reference_result_preserves_input_holds_exit checked 1312ms check-target:macos_arm64 @e51ea3b52251+wt
 pass/borrows/completed_selector_join_pattern_effect_exit checked 13025ms check-target:macos_arm64 @89bb9e0009e9
 pass/borrows/completed_selector_value_composition_exit checked 13787ms check-target:macos_arm64 @89bb9e0009e9
 pass/borrows/conditional_copied_slot_restores_parent_exit checked 3687ms check-target:macos_arm64 @3ea0aec65b44+wt
@@ -23919,15 +23934,15 @@ pass/facts/owned_qualified_reference_carrier_exit checked 3812ms check-target:ma
 pass/facts/owned_qualified_reference_field_exit checked 3796ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_result_exit checked 3797ms check-target:macos_arm64 @ab16f19fe1b1+wt
 pass/facts/owned_qualified_reference_selection_exit checked 3821ms check-target:macos_arm64 @ab16f19fe1b1+wt
-pass/facts/placed_stable_write_through_call_result_exit checked 8037ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_const_name_exit checked 5274ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_field_exit checked 4582ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_local_exit checked 3949ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_match_join_exit checked 4586ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_other_machine_exit checked 5276ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_other_state_exit checked 6303ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_parameter_exit checked 5286ms check-target:macos_arm64 @c9ff081e1359
-pass/facts/placed_stable_write_through_target_body_exit checked 7173ms check-target:macos_arm64 @c9ff081e1359
+pass/facts/placed_stable_write_through_call_result_exit checked 4140ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_const_name_exit checked 3384ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_field_exit checked 3439ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_local_exit checked 3066ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_match_join_exit checked 3651ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_other_machine_exit checked 3781ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_other_state_exit checked 4181ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_parameter_exit checked 3778ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/facts/placed_stable_write_through_target_body_exit checked 5102ms check-target:macos_arm64 @e51ea3b52251+wt
 pass/facts/predicate_array_copy_through_call_result_exit checked 689ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_const_name_exit checked 640ms check-target:macos_arm64 @e34cad686b12
 pass/facts/predicate_array_copy_through_field_exit checked 636ms check-target:macos_arm64 @e34cad686b12
@@ -26671,14 +26686,12 @@ pass/layouts/runtime_foreign_encoded_reference_exit rejected 2037ms check-target
 pass/layouts/runtime_indexed_restricted_field_read checked 11850ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_large_schema_field_exit checked 802ms check-target:macos_arm64 @f85524ac2a1b+wt
 pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 28474ms check-target:macos_arm64 @c48489ea6ad6
-pass/layouts/runtime_multi_origin_encoded_reference_exit rejected 2452ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_multi_origin_encoded_reference_exit checked 1482ms check-target:macos_arm64 @e51ea3b52251+wt
 pass/layouts/runtime_nested_restricted_field_read checked 11370ms check-target:macos_arm64 @a9ae30e1c334+wt
 pass/layouts/runtime_offset_encoded_reference_exit rejected 2040ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_placed_accessor_writeback_exit checked 23897ms check-target:macos_arm64 @287adceca130+wt
+pass/layouts/runtime_placed_accessor_writeback_exit checked 4442ms check-target:macos_arm64 @e51ea3b52251+wt
 pass/layouts/runtime_placed_external_array_snapshot_exit checked 4200ms check-target:macos_arm64 @5f668826adf3
 pass/layouts/runtime_placed_external_nested_array_exit checked 5740ms check-target:macos_arm64 @5f668826adf3
 pass/layouts/runtime_placed_outcome_array_read_exit checked 1415ms check-target:macos_arm64 @a94178e1c015
@@ -26707,12 +26720,8 @@ pass/layouts/runtime_recursive_encoded_reference_exit rejected 2224ms check-targ
 pass/layouts/runtime_returned_encoded_reference_exit rejected 1609ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_selected_reference_parent_restoration_exit rejected 1904ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_selected_scalar_reference_codec_exit rejected 2185ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_selected_reference_parent_restoration_exit checked 1207ms check-target:macos_arm64 @e51ea3b52251+wt
+pass/layouts/runtime_selected_scalar_reference_codec_exit checked 1392ms check-target:macos_arm64 @e51ea3b52251+wt
 pass/layouts/runtime_size_of_align_of_exit rejected 5978ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
 	plan-laid value type `CompactBits<PackedFlags>`: error: policy `CompactBits::plan` produced an invalid plan: field `mode` source fragments end at bit 3, expected 8
 pass/layouts/runtime_sparse_fragmented_bits_exit rejected 3739ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
@@ -26725,9 +26734,7 @@ pass/layouts/runtime_target_layout_forwarded_integer_exit rejected 1568ms check-
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 pass/layouts/runtime_target_layout_queries_exit checked 3727ms check-target:macos_arm64 @b016b7e0a226
-pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1619ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_transition_scalar_reference_codec_exit checked 1584ms check-target:macos_arm64 @e51ea3b52251+wt
 pass/layouts/schema_field_at_declared_size checked 3484ms @ec089e4c2b1b
 pass/layouts/schema_identity_payload_within_predicate checked 1780ms @ec089e4c2b1b
 pass/layouts/single_bool_array_layout_compile checked 1597ms @a9ae30e1c334+wt

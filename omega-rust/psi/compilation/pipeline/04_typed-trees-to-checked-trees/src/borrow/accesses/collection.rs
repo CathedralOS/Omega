@@ -163,6 +163,21 @@ impl<'a> BorrowAccessCollection<'a> {
         }
     }
 
+    /// The completed result and its producing inputs are one staged actual.
+    /// Keep input holds live: an unselected input may still be owed by the
+    /// result's declared lifetime. Only comparing the result with its own
+    /// evaluation would count the same access twice; sibling actuals must
+    /// still respect every retained input.
+    pub(super) fn bind_completed_argument(&mut self, first_access: usize) {
+        if let Some(result) = self
+            .argument_accesses
+            .span_mut_or_empty(*self.accesses)
+            .last_mut()
+        {
+            result.evaluation_start = Some(first_access);
+        }
+    }
+
     pub(super) fn is_owned_copy(&self, expression: ExpressionHandle) -> bool {
         validation::expression_type_reference_in_state(
             self.program,

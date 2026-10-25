@@ -255,6 +255,15 @@ pub(super) fn check_call_access_conflicts<'p>(
 
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
+            // A completed actual does not compete with the inputs that
+            // produced it. Keep those inputs in the roster: a later sibling
+            // must respect even an unselected declared lifetime dependency.
+            if other_access
+                .evaluation_start
+                .is_some_and(|start| start <= index)
+            {
+                continue;
+            }
             // A local jump forwards the activation's exact data parent. It
             // does not establish a second independent whole-record loan while
             // staging the other operands. The successor footprint judges each

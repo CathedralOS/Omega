@@ -43,6 +43,7 @@ mod result_facts;
 mod returned_descriptors;
 mod stored_call_values;
 mod transitions;
+mod view_footprints;
 mod view_referents;
 mod view_retention;
 
@@ -1466,6 +1467,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     retention,
                     source_snapshot,
                 );
+                self.capture_formation_enclosure(expression, call, &captured, retention);
             }
             ExpressionNode::ArrayLiteral(values) => {
                 for (index, value) in self
@@ -1704,7 +1706,14 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 } else {
                     self.evaluated_operand(cast.value, contexts, constraints)
                 };
-                *retention = Some(evaluated.capture.retention);
+                *retention = Some(if cast.form.is_recast() {
+                    self.reinterpreted_view_retention(
+                        &evaluated.capture,
+                        evaluated.capture.retention,
+                    )
+                } else {
+                    evaluated.capture.retention
+                });
             }
             ExpressionNode::Borrow(borrow) => {
                 let evaluated = self.evaluated_place(borrow.target, contexts, constraints);

@@ -205,6 +205,11 @@ pub struct BorrowArgumentAccessFact {
     /// The evaluated operand that produced this access in its owning call's
     /// ordered roster. Equal places do not identify equal evaluations.
     pub expression: ExpressionHandle,
+    /// First input access that evaluated this completed argument result.
+    /// Those preceding rows remain held against sibling actuals, but are not
+    /// independent accesses competing with their own produced result. Nested
+    /// calls validate their input pairs in their own ordered call roster.
+    pub evaluation_start: Option<usize>,
     pub root: facts::PlaceRoot,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
