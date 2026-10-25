@@ -63,6 +63,7 @@ pub mod pre_resolution {
     pub use crate::constant::initializer_dependencies::{
         ConstInitializerDependencies, ResolvedMachineBodyDemand,
     };
+    pub use crate::constant::initializer_normalization::InitializerCustodyPurpose;
     pub use crate::constant::requires_const_initializer_evaluation;
     pub use crate::preparation::declaration_selection::select_data_declarations;
     pub use crate::preparation::generic_data::{

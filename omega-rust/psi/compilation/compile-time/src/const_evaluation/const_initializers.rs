@@ -60,6 +60,9 @@ use syntax_trees::item::{
     ConstDefinition, ConstInitializerCustody, ConstInitializerNormalization, Item, ItemHandle,
 };
 use syntax_trees::types::ConstArgumentOrigin;
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+    ConstInitializerSelection, InitializerCustodyPurpose,
+};
 
 mod invocations;
 mod materialize;
@@ -70,24 +73,153 @@ pub(crate) use invocations::CheckedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
 pub(crate) use target_observations::settle as settle_target_observations;
 
-struct PendingLeaf {
+/// Dependency identity is independent of pending syntax work. A predecessor
+/// supplies its immutable declaration/value graph; only current declarations
+/// acquire work ordinals or get rewritten by this evaluation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Dependency<'input> {
+    Current(usize),
+    Retained {
+        declaration: &'input symbol_resolved_trees::constant::ConstDeclaration,
+        source: SourceSpan,
+    },
+}
+
+impl Dependency<'_> {
+    fn current(self) -> Option<usize> {
+        match self {
+            Self::Current(ordinal) => Some(ordinal),
+            Self::Retained { .. } => None,
+        }
+    }
+
+    fn is_ready(self, declarations: &[Declaration<'_>]) -> bool {
+        match self {
+            Self::Current(ordinal) => {
+                declarations[ordinal].leaves.is_empty()
+                    && declarations[ordinal].evaluated_value.is_some()
+            }
+            Self::Retained { declaration, .. } => declaration.evaluated_value.is_some(),
+        }
+    }
+
+    fn origin(
+        self,
+        reference: SourceSpan,
+        syntax: &SyntaxTrees,
+        declarations: &[Declaration<'_>],
+    ) -> Result<ConstArgumentOrigin, Vec<Diagnostic>> {
+        let (declaration, initializer, value) = match self {
+            Self::Current(ordinal) => {
+                let input = &declarations[ordinal];
+                (
+                    input.definition.name.source_span(),
+                    syntax.expressions.source_span(input.definition.value),
+                    &input.evaluated_value,
+                )
+            }
+            Self::Retained {
+                declaration,
+                source,
+            } => (
+                source,
+                declaration.initializer_source_span,
+                &declaration.evaluated_value,
+            ),
+        };
+        Ok(ConstArgumentOrigin {
+            reference,
+            declaration,
+            initializer,
+            evaluated_value: value
+                .clone()
+                .ok_or_else(|| failure(reference, "custody dependency has no completed value"))?,
+        })
+    }
+
+    fn custody(
+        self,
+        declarations: &[Declaration<'_>],
+        preparation: &ConstInitializerSelection,
+        purpose: InitializerCustodyPurpose,
+    ) -> Result<ConstInitializerCustody, Vec<Diagnostic>> {
+        match self {
+            Self::Retained { declaration, .. } => {
+                preparation.retained_constant_custody(declaration.symbol, purpose)
+            }
+            Self::Current(ordinal) => Ok(match &declarations[ordinal].definition.normalization {
+                None => ConstInitializerCustody::default(),
+                Some(receipt) => match purpose {
+                    InitializerCustodyPurpose::Authored => receipt.authored_custody.clone(),
+                    InitializerCustodyPurpose::Declaration => receipt.declaration_custody.clone(),
+                    InitializerCustodyPurpose::Value => ConstInitializerCustody {
+                        selections: receipt.selections.clone(),
+                        builtin_operators: receipt.builtin_operators.clone(),
+                        call_selections: receipt.call_selections.clone(),
+                    },
+                },
+            }),
+        }
+    }
+}
+
+fn dependency<'input>(
+    declarations: &[Declaration<'input>],
+    preparation: &'input ConstInitializerSelection,
+    source: SourceSpan,
+    reference: SourceSpan,
+) -> Result<Dependency<'input>, Vec<Diagnostic>> {
+    if let Some(ordinal) = declarations
+        .iter()
+        .position(|candidate| candidate.definition.name.source_span() == source)
+    {
+        return Ok(Dependency::Current(ordinal));
+    }
+    let selected = preparation
+        .trees()
+        .const_declaration_at_source_span(source)
+        .ok_or_else(|| {
+            failure(
+                reference,
+                "selected constant dependency lost its declaration",
+            )
+        })?;
+    let declaration = preparation.retained_constant(selected.symbol)?;
+    if !declaration.is_public
+        && !preparation
+            .trees()
+            .symbols
+            .same_source_package(reference, source)
+    {
+        return Err(failure(
+            reference,
+            "dependency selects a private foreign declaration",
+        ));
+    }
+    Ok(Dependency::Retained {
+        declaration,
+        source,
+    })
+}
+
+struct PendingLeaf<'input> {
     expression: ExpressionHandle,
     destination: syntax_trees::types::TypeReferenceHandle,
     /// Structured leaves are aggregate-producing expressions evaluated through
     /// the checked interpreter; scalar leaves keep the exact probe evaluator.
     structured: bool,
-    dependencies: Vec<(SourceSpan, usize)>,
+    dependencies: Vec<(SourceSpan, Dependency<'input>)>,
     calls: Vec<(SourceSpan, SourceSpan)>,
 }
 
-struct Declaration {
+struct Declaration<'input> {
     item: ItemHandle,
     definition: ConstDefinition,
     evaluated_value: Option<EvaluatedConstant>,
-    leaves: Vec<PendingLeaf>,
-    dependencies: Vec<(SourceSpan, usize)>,
+    leaves: Vec<PendingLeaf<'input>>,
+    dependencies: Vec<(SourceSpan, Dependency<'input>)>,
     calls: Vec<(SourceSpan, SourceSpan)>,
-    authored_dependencies: Vec<(SourceSpan, usize)>,
+    authored_dependencies: Vec<(SourceSpan, Dependency<'input>)>,
     authored_calls: Vec<(SourceSpan, SourceSpan)>,
     authored_operators: Vec<SourceSpan>,
     readiness_operators: Vec<SourceSpan>,
@@ -187,12 +319,7 @@ pub(crate) fn evaluate(
         declarations[ordinal].authored_calls = authored.calls;
         declarations[ordinal].authored_operators = authored.initializer_operators;
         for (reference, source) in authored.constants {
-            let dependency = declarations
-                .iter()
-                .position(|candidate| candidate.definition.name.source_span() == source)
-                .ok_or_else(|| {
-                    failure(reference, "authored dependency lost its exact declaration")
-                })?;
+            let dependency = dependency(&declarations, &preparation, source, reference)?;
             declarations[ordinal]
                 .authored_dependencies
                 .push((reference, dependency));
@@ -201,12 +328,7 @@ pub(crate) fn evaluate(
         declarations[ordinal].calls = selected.calls;
         declarations[ordinal].normalization_owners = selected.normalization_owners;
         for (reference, declaration) in selected.constants {
-            let dependency = declarations
-                .iter()
-                .position(|candidate| candidate.definition.name.source_span() == declaration)
-                .ok_or_else(|| {
-                    failure(reference, "selected declaration dependency lost its owner")
-                })?;
+            let dependency = dependency(&declarations, &preparation, declaration, reference)?;
             let selected = (reference, dependency);
             if !declarations[ordinal].dependencies.contains(&selected) {
                 declarations[ordinal].dependencies.push(selected);
@@ -225,15 +347,7 @@ pub(crate) fn evaluate(
             )?;
             let mut dependencies = Vec::new();
             for (reference, declaration) in selected.constants {
-                let dependency = declarations
-                    .iter()
-                    .position(|candidate| candidate.definition.name.source_span() == declaration)
-                    .ok_or_else(|| {
-                        failure(
-                            reference,
-                            "selected initializer dependency lost its declaration",
-                        )
-                    })?;
+                let dependency = dependency(&declarations, &preparation, declaration, reference)?;
                 dependencies.push((reference, dependency));
             }
             declarations[ordinal].leaves[leaf_ordinal].dependencies = dependencies;
@@ -247,10 +361,11 @@ pub(crate) fn evaluate(
         let mut changed = false;
         for (ordinal, declaration) in declarations.iter().enumerate() {
             if !target_observations[ordinal]
-                && declaration
-                    .dependencies
-                    .iter()
-                    .any(|(_, dependency)| target_observations[*dependency])
+                && declaration.dependencies.iter().any(|(_, dependency)| {
+                    dependency
+                        .current()
+                        .is_some_and(|ordinal| target_observations[ordinal])
+                })
             {
                 target_observations[ordinal] = true;
                 changed = true;
@@ -286,9 +401,11 @@ pub(crate) fn evaluate(
         .collect::<Vec<_>>();
     while let Some(ordinal) = pending.pop() {
         for (_, dependency) in &declarations[ordinal].dependencies {
-            if !demanded[*dependency] {
-                demanded[*dependency] = true;
-                pending.push(*dependency);
+            if let Some(dependency) = dependency.current()
+                && !demanded[dependency]
+            {
+                demanded[dependency] = true;
+                pending.push(dependency);
             }
         }
     }
@@ -306,10 +423,10 @@ pub(crate) fn evaluate(
             .filter_map(|(ordinal, declaration)| {
                 (demanded[ordinal]
                     && (!declaration.leaves.is_empty() || declaration.evaluated_value.is_none())
-                    && declaration.dependencies.iter().all(|(_, dependency)| {
-                        declarations[*dependency].leaves.is_empty()
-                            && declarations[*dependency].evaluated_value.is_some()
-                    }))
+                    && declaration
+                        .dependencies
+                        .iter()
+                        .all(|(_, dependency)| dependency.is_ready(&declarations)))
                 .then_some(ordinal)
             })
             .collect::<Vec<_>>();
@@ -400,8 +517,13 @@ pub(crate) fn evaluate(
         let mut authored_probes = Vec::new();
         for ordinal in &ready {
             for leaf in &declarations[*ordinal].leaves {
-                let expected =
-                    dependency_origins(&syntax, &declarations, &leaf.dependencies, true)?;
+                let expected = dependency_origins(
+                    &syntax,
+                    &declarations,
+                    &preparation,
+                    &leaf.dependencies,
+                    InitializerCustodyPurpose::Authored,
+                )?;
                 let reference = syntax.expressions.source_span(leaf.expression);
                 let custody = crate::const_evaluation::const_generic_expressions::validate_authored_probe_custody(
                     &typed, reference, &expected, &leaf.calls, &syntax,
@@ -461,31 +583,13 @@ pub(crate) fn evaluate(
                         failure(reference, "initializer lost its checked source custody")
                     })?
                     .1;
-                let mut expected = Vec::new();
-                for (reference, dependency) in &leaf.dependencies {
-                    let dependency = &declarations[*dependency];
-                    let origin = ConstArgumentOrigin {
-                        reference: *reference,
-                        declaration: dependency.definition.name.source_span(),
-                        initializer: syntax.expressions.source_span(dependency.definition.value),
-                        evaluated_value: dependency.evaluated_value.clone().ok_or_else(|| {
-                            failure(
-                                *reference,
-                                "initializer selected a dependency without an evaluated value",
-                            )
-                        })?,
-                    };
-                    if !expected.contains(&origin) {
-                        expected.push(origin);
-                    }
-                    if let Some(normalization) = &dependency.definition.normalization {
-                        for origin in &normalization.selections {
-                            if !expected.contains(origin) {
-                                expected.push(origin.clone());
-                            }
-                        }
-                    }
-                }
+                let expected = dependency_origins(
+                    &syntax,
+                    &declarations,
+                    &preparation,
+                    &leaf.dependencies,
+                    InitializerCustodyPurpose::Value,
+                )?;
                 if leaf.structured {
                     let checked = checked
                         .as_ref()
@@ -659,36 +763,28 @@ pub(crate) fn evaluate(
             // leaf evaluator's value-use expectations. Only already evaluated
             // dependency receipts can contribute transitive operator meaning.
             for (reference, dependency) in &declarations[ordinal].authored_dependencies {
-                let dependency = &declarations[*dependency];
-                let origin = ConstArgumentOrigin {
-                    reference: *reference,
-                    declaration: dependency.definition.name.source_span(),
-                    initializer: syntax.expressions.source_span(dependency.definition.value),
-                    evaluated_value: dependency.evaluated_value.clone().ok_or_else(|| {
-                        failure(
-                            *reference,
-                            "declaration geometry selected an unfinished dependency",
-                        )
-                    })?,
-                };
+                let origin = dependency.origin(*reference, &syntax, &declarations)?;
                 if !selections.contains(&origin) {
                     selections.push(origin);
                 }
-                if let Some(normalization) = &dependency.definition.normalization {
-                    for origin in &normalization.selections {
-                        if !selections.contains(origin) {
-                            selections.push(origin.clone());
-                        }
+                let custody = dependency.custody(
+                    &declarations,
+                    &preparation,
+                    InitializerCustodyPurpose::Value,
+                )?;
+                for origin in custody.selections {
+                    if !selections.contains(&origin) {
+                        selections.push(origin);
                     }
-                    for operator in &normalization.builtin_operators {
-                        if !builtin_operators.contains(operator) {
-                            builtin_operators.push(*operator);
-                        }
+                }
+                for operator in custody.builtin_operators {
+                    if !builtin_operators.contains(&operator) {
+                        builtin_operators.push(operator);
                     }
-                    for call in &normalization.call_selections {
-                        if !call_selections.contains(call) {
-                            call_selections.push(*call);
-                        }
+                }
+                for call in custody.call_selections {
+                    if !call_selections.contains(&call) {
+                        call_selections.push(call);
                     }
                 }
             }
@@ -696,8 +792,9 @@ pub(crate) fn evaluate(
                 selections: dependency_origins(
                     &syntax,
                     &declarations,
+                    &preparation,
                     &declarations[ordinal].authored_dependencies,
-                    true,
+                    InitializerCustodyPurpose::Authored,
                 )?,
                 builtin_operators: declarations[ordinal].authored_operators.clone(),
                 call_selections: declarations[ordinal].authored_calls.clone(),
@@ -706,8 +803,9 @@ pub(crate) fn evaluate(
                 selections: dependency_origins(
                     &syntax,
                     &declarations,
+                    &preparation,
                     &declarations[ordinal].dependencies,
-                    false,
+                    InitializerCustodyPurpose::Declaration,
                 )?,
                 builtin_operators: declarations[ordinal].readiness_operators.clone(),
                 call_selections: declarations[ordinal].calls.clone(),
@@ -750,35 +848,21 @@ pub(crate) fn evaluate(
 
 fn dependency_origins(
     syntax: &SyntaxTrees,
-    declarations: &[Declaration],
-    dependencies: &[(SourceSpan, usize)],
-    authored: bool,
+    declarations: &[Declaration<'_>],
+    preparation: &ConstInitializerSelection,
+    dependencies: &[(SourceSpan, Dependency<'_>)],
+    purpose: InitializerCustodyPurpose,
 ) -> Result<Vec<ConstArgumentOrigin>, Vec<Diagnostic>> {
     let mut origins = Vec::new();
-    for (reference, ordinal) in dependencies {
-        let dependency = &declarations[*ordinal];
-        let origin = ConstArgumentOrigin {
-            reference: *reference,
-            declaration: dependency.definition.name.source_span(),
-            initializer: syntax.expressions.source_span(dependency.definition.value),
-            evaluated_value: dependency
-                .evaluated_value
-                .clone()
-                .ok_or_else(|| failure(*reference, "custody dependency has no completed value"))?,
-        };
+    for (reference, dependency) in dependencies {
+        let origin = dependency.origin(*reference, syntax, declarations)?;
         if !origins.contains(&origin) {
             origins.push(origin);
         }
-        if let Some(receipt) = &dependency.definition.normalization {
-            let custody = if authored {
-                &receipt.authored_custody
-            } else {
-                &receipt.declaration_custody
-            };
-            for origin in &custody.selections {
-                if !origins.contains(origin) {
-                    origins.push(origin.clone());
-                }
+        let custody = dependency.custody(declarations, preparation, purpose)?;
+        for origin in custody.selections {
+            if !origins.contains(&origin) {
+                origins.push(origin);
             }
         }
     }
