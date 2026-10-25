@@ -435,6 +435,29 @@ fn materialize_static_argument_types(program: &mut TypedTrees) {
 
     let mut literals = Vec::new();
     let mut types = Vec::new();
+    for (_, expression) in program.expression_table.iter_expressions() {
+        if let ExpressionNode::Call(call) = expression {
+            collect(program, &call.machine_arguments, &mut literals, &mut types);
+            if let Some(query) = &call.native_code_layout {
+                collect(
+                    program,
+                    std::slice::from_ref(&query.operand),
+                    &mut literals,
+                    &mut types,
+                );
+            }
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let Some(call) = statement.as_call() {
+                    collect(program, &call.machine_arguments, &mut literals, &mut types);
+                }
+            }
+        }
+    }
+    // Declaration-owned cleanup applications have no ordinary source-call node.
     for (handle, _) in program.expression_table.static_machine_applications() {
         collect(
             program,

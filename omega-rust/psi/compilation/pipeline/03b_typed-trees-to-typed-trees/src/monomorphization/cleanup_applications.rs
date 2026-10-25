@@ -84,9 +84,10 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
             || candidate.machine_bindings.iter().any(Option::is_none)
             || candidate.evidence_bindings.iter().any(Option::is_none)
         {
-            return Err(vec![Diagnostic::error(
-                "cleanup application must supply a complete consistent static tuple",
-            )]);
+            return Err(vec![Diagnostic::error(format!(
+                "cleanup application `{}` must supply a complete consistent static tuple",
+                machine.name.as_str(),
+            ))]);
         }
         if candidate.runtime_value_bindings.iter().any(Option::is_some) {
             return Err(vec![Diagnostic::error(

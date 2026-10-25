@@ -399,6 +399,12 @@ fn nominal_cleanup_candidates(
                 Vec<symbols::SymbolHandle>,
             > = Default::default();
             for machine in program.machines() {
+                // Independent hooks are authorized by an exact owned
+                // qualification. They are never ambient candidates for every
+                // occurrence of the same carrier.
+                if !machine.attached_data_symbol.is_valid() {
+                    continue;
+                }
                 let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol) else {
                     continue;
                 };
@@ -602,5 +608,42 @@ fn owner_type_matches(
                     })
         }
         _ => false,
+    }
+}
+
+/// A consuming delivery must expose the same cleanup interface as its owned
+/// operand. An explicit predicate cast changes displayed membership, but is
+/// not authority to discard a selected disposition. Until an erased interface
+/// retains that disposition separately, reject the debt-losing edge.
+pub(crate) fn validate_cleanup_delivery(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    mut value: typed_trees::expression::ExpressionHandle,
+    target: TypeReferenceHandle,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Casts do not execute cleanup. Follow their exact operand rather than
+    // using the erased result as evidence that no obligation existed.
+    while let typed_trees::expression::ExpressionNode::Cast(cast) =
+        program.expression_table.expression(value)
+    {
+        value = cast.value;
+    }
+    let Some(source) =
+        super::expression_types::expression_result_type_reference(program, machine, state, value)
+    else {
+        return;
+    };
+    let Ok(Some(source)) = super::cleanup_selection::selected_application(program, source) else {
+        return;
+    };
+    match super::cleanup_selection::selected_application(program, target) {
+        Ok(Some(target)) if super::cleanup_selection::same_application(program, source, target) => {},
+        Err(diagnostic) => diagnostics.push(diagnostic),
+        _ => diagnostics.push(Diagnostic::error(format!(
+            "owned delivery in {owner} cannot erase or replace its retained dropped by cleanup application",
+        ))),
     }
 }
