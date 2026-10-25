@@ -3,7 +3,7 @@
 
 use super::{ArgumentInputs, StateValues, fields};
 use arena::HandleSpan;
-use checked_trees::{BorrowCallFact, FlowConstraintRef, FlowOperandFact};
+use checked_trees::{BorrowCallFact, FlowOperandFact, FlowSemanticContextRef};
 use facts::{FactPlan, ScalarValue};
 
 #[allow(clippy::too_many_arguments)]
@@ -15,7 +15,7 @@ pub(in crate::flow) fn record<'plans>(
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
     captured: &[FlowOperandFact],
-    invocation: HandleSpan<FlowConstraintRef>,
+    invocation: HandleSpan<FlowSemanticContextRef>,
 ) {
     let Some((owner_index, state_index)) = build.state_location(program, call.target_symbol) else {
         return;

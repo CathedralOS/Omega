@@ -68,7 +68,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         state,
         borrow_call,
         captured_operands,
-        entry.constraints,
+        entry.contexts,
     );
     let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
     let argument_sources = super::call_phases::ArgumentSources::new(
