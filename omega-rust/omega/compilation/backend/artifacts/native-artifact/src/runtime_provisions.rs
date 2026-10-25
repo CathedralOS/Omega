@@ -9,6 +9,8 @@
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
+mod native_adapters;
+
 /// An exact host operation admitted for the native product. Reference execution
 /// may implement its semantic contract, but cannot substitute another slot or
 /// manufacture authority merely because a realization was selected.
@@ -103,22 +105,7 @@ impl TerminalRuntimeHostProvisions {
                     "foreign runtime adapter has no retained complete calling application"
                         .to_owned()
                 })?;
-                let bridge = machine_emission::native_foreign_bridge::emit_native_foreign_bridge(
-                    machine_emission::native_foreign_bridge::NativeForeignBridgeRequest {
-                        target: application.target,
-                        foreign: application.plan.clone(),
-                    },
-                )
-                .map_err(|reason| {
-                    format!("foreign runtime adapter physical transport: {reason:?}")
-                })?;
-                image_emission::emit_native_foreign_adapter(
-                    bridge,
-                    locator.clone(),
-                    application.commitment,
-                )
-                .map(std::sync::Arc::new)
-                .map_err(|error| error.diagnostic.to_string())
+                native_adapters::emit(boundary, application, locator)
             });
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,

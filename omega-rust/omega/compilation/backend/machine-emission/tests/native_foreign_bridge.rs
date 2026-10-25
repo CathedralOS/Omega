@@ -10,6 +10,7 @@ use calling_conventions::{
 use machine_emission::native_foreign_bridge::{
     NativeForeignBridgeRequest, emit_native_foreign_bridge,
 };
+use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 fn append_bridge(
@@ -18,9 +19,11 @@ fn append_bridge(
     symbol: &str,
     parameters: Vec<ValueShape>,
     result: Option<ValueShape>,
+    scalar_parameters: Vec<Option<ScalarType>>,
 ) {
     let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
         target,
+        scalar_parameters,
         foreign: evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature { parameters, result },
@@ -71,29 +74,70 @@ fn actual_c_retention_stack_float_and_record_calls() {
     let word = ValueShape::integer(8, 8);
     let pointer = ValueShape::borrowed_reference(8, 8);
     let mut assembly = String::from(".text\n");
-    for (symbol, parameters, result) in [
-        ("retention_acquire", vec![], Some(word)),
-        ("retention_register", vec![word, pointer], Some(word)),
-        ("retention_complete", vec![word, pointer], Some(word)),
-        ("retention_release", vec![word], None),
-        ("stack_words", vec![word; 12], Some(word)),
+    let unsigned = |bits| {
+        Some(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+        ))
+    };
+    let signed = |bits| {
+        Some(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Signed, bits).unwrap(),
+        ))
+    };
+    for (symbol, parameters, result, scalars) in [
+        ("retention_acquire", vec![], Some(word), vec![]),
+        (
+            "retention_register",
+            vec![word, pointer],
+            Some(word),
+            vec![None, None],
+        ),
+        (
+            "retention_complete",
+            vec![word, pointer],
+            Some(word),
+            vec![None, None],
+        ),
+        ("retention_release", vec![word], None, vec![None]),
+        (
+            "stack_words",
+            vec![word; 12],
+            Some(word),
+            vec![unsigned(64); 12],
+        ),
         (
             "stack_floats",
             vec![ValueShape::float(8); 10],
             Some(ValueShape::float(8)),
+            vec![Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)); 10],
         ),
         (
             "small_record",
             vec![ValueShape::integer(16, 8), word],
             Some(ValueShape::integer(16, 8)),
+            vec![None, unsigned(64)],
         ),
         (
             "large_record",
             vec![ValueShape::integer(24, 8), word],
             Some(ValueShape::integer(24, 8)),
+            vec![None, unsigned(64)],
+        ),
+        (
+            "narrow_scalars_and_records",
+            vec![
+                ValueShape::integer(1, 1),
+                ValueShape::integer(2, 2),
+                ValueShape::integer(1, 1),
+                ValueShape::integer(2, 2),
+                ValueShape::integer(1, 1),
+                ValueShape::integer(2, 2),
+            ],
+            Some(word),
+            vec![signed(8), signed(16), None, None, unsigned(8), unsigned(16)],
         ),
     ] {
-        append_bridge(&mut assembly, target, symbol, parameters, result);
+        append_bridge(&mut assembly, target, symbol, parameters, result, scalars);
     }
     if target.object_format == ObjectFormat::Elf {
         assembly.push_str(".section .note.GNU-stack,\"\",@progbits\n");
@@ -176,7 +220,8 @@ fn another_host_calling_policy_is_rejected() {
         assert!(
             emit_native_foreign_bridge(NativeForeignBridgeRequest {
                 target,
-                foreign: plan
+                foreign: plan,
+                scalar_parameters: vec![None],
             })
             .is_err()
         );

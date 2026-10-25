@@ -129,6 +129,7 @@ fn emitted_adapters_load_and_share_the_real_provider_registration() {
         };
         let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
             target,
+            scalar_parameters: vec![None; parameters.len()],
             foreign: evaluate_ordinary_boundary_entry_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature { parameters, result },

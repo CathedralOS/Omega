@@ -1,6 +1,11 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/resource.h>
+#endif
 
 struct frame { const void *const *arguments; void *result; };
 struct small { uint64_t first, second; };
@@ -13,6 +18,13 @@ extern void bridge_stack_words(struct frame *);
 extern void bridge_stack_floats(struct frame *);
 extern void bridge_small_record(struct frame *);
 extern void bridge_large_record(struct frame *);
+extern void bridge_narrow_scalars_and_records(struct frame *);
+struct byte_record { int8_t value; };
+struct short_record { int16_t value; };
+int64_t narrow_scalars_and_records(int8_t a, int16_t b, struct byte_record c,
+                                  struct short_record d, uint8_t e, uint16_t f) {
+    return (int64_t)a + b + c.value + d.value + e + f;
+}
 
 uint64_t stack_words(uint64_t a, uint64_t b, uint64_t c, uint64_t d,
                      uint64_t e, uint64_t f, uint64_t g, uint64_t h,
@@ -30,6 +42,12 @@ struct large large_record(struct large input, uint64_t increment) {
     return (struct large){input.third + increment, input.first + 2*increment, input.second + 3*increment};
 }
 int main(void) {
+#ifdef _WIN32
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+#else
+    const struct rlimit core_limit = {0, 0};
+    assert(setrlimit(RLIMIT_CORE, &core_limit) == 0);
+#endif
     uint64_t capacity = 0, pending = 0, returned = 0, root = 37, observed = 0;
     struct frame frame = {NULL, &capacity};
     bridge_retention_acquire(&frame);
@@ -74,5 +92,14 @@ int main(void) {
     bridge_large_record(&frame);
     assert(large_output.first == 24 && large_output.second == 21 && large_output.third == 28);
     assert(large_input.first == 11 && large_input.second == 13 && large_input.third == 19);
+    int8_t a = -7; int16_t b = -300;
+    struct byte_record c = {-11}; struct short_record d = {-2000};
+    uint8_t e = 249; uint16_t f = 65530;
+    int64_t narrow_result = 0;
+    arguments[0] = &a; arguments[1] = &b; arguments[2] = &c;
+    arguments[3] = &d; arguments[4] = &e; arguments[5] = &f;
+    frame = (struct frame){arguments, &narrow_result};
+    bridge_narrow_scalars_and_records(&frame);
+    assert(narrow_result == 63461);
     return 0;
 }

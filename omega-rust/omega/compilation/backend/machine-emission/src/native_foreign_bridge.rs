@@ -16,6 +16,7 @@ use calling_conventions::{
     ValueLocation, ValueShape, evaluate_call_plan,
 };
 use register_model::validate_physical_register_model;
+use semantic_vocabulary::{IntegerSign, ScalarType};
 use target::{Architecture, NativeTarget};
 
 use crate::native_bridge_encoding::{
@@ -27,6 +28,10 @@ use crate::native_bridge_encoding::{
 pub struct NativeForeignBridgeRequest {
     pub target: NativeTarget,
     pub foreign: ValidatedBoundaryEntryPlan,
+    /// Exact native telescope: scalar formals retain their logical carrier;
+    /// records, references and private ABI parameters are None. Byte extent
+    /// alone cannot distinguish signed i8 from u8 or a one-byte record.
+    pub scalar_parameters: Vec<Option<ScalarType>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +60,7 @@ impl NativeForeignBridge {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeForeignBridgeError {
     IncompatiblePlan,
+    ScalarParameterMismatch,
     UnsupportedValueTransport,
     FrameOverflow,
     Encoding,
@@ -93,6 +99,17 @@ pub fn emit_native_foreign_bridge(
 ) -> Result<NativeForeignBridge, Error> {
     let policy = CallingPolicy::native_for_target(request.target);
     let foreign = &request.foreign.plan().call;
+    if request.scalar_parameters.len() != foreign.parameters.len()
+        || request
+            .scalar_parameters
+            .iter()
+            .zip(&foreign.parameters)
+            .any(|(scalar, parameter)| {
+                scalar.is_some_and(|scalar| ValueShape::for_scalar(scalar) != Some(parameter.shape))
+            })
+    {
+        return Err(Error::ScalarParameterMismatch);
+    }
     // Consume the producer's admitted plan rather than reevaluating its policy.
     // This physical adapter supports the host's ordinary C call regime only.
     if foreign.policy != policy
@@ -296,13 +313,28 @@ pub fn emit_native_foreign_bridge(
             true,
         )?;
     }
-    for argument in &arguments {
+    for (argument, scalar) in arguments.iter().zip(&request.scalar_parameters) {
         encoding.distribute_argument(
             &mut bytes,
             &argument.placement,
             argument.snapshot,
             argument.extent,
         )?;
+        if let Some(ScalarType::Integer(integer)) = scalar
+            && integer.sign() == IntegerSign::Signed
+            && matches!(integer.bits(), 8 | 16)
+        {
+            // Darwin requires the caller to extend narrow integer scalar
+            // register arguments. Aggregate pieces keep raw bytes, and stack
+            // slots keep their exact ABI widths. These are value semantics,
+            // so they follow the original scalar formal through its native
+            // ordinal rather than being guessed from a register's byte width.
+            for piece in argument.placement.pieces() {
+                if let WordLocation::Register(register) = piece.location {
+                    extend_signed_scalar(&encoding, &mut bytes, register, integer.bits())?;
+                }
+            }
+        }
     }
     if let (Some(ValueStorage::Indirect { pointer, .. }), Some(output)) = (&result, output_pointer)
     {
@@ -343,6 +375,46 @@ pub fn emit_native_foreign_bridge(
         frame_bytes,
         call_field_offset,
     })
+}
+
+fn extend_signed_scalar(
+    encoding: &Encoding,
+    bytes: &mut Vec<u8>,
+    register: MachineRegister,
+    bits: u16,
+) -> Result<(), Error> {
+    use selected_instructions::{
+        MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
+    };
+    let (kind, family) = match bits {
+        8 => (
+            SelectedInstructionKind::SignExtendI8,
+            MachineAlternativeFamily::SignExtendI8,
+        ),
+        16 => (
+            SelectedInstructionKind::SignExtendI16,
+            MachineAlternativeFamily::SignExtendI16,
+        ),
+        _ => return Err(Error::ScalarParameterMismatch),
+    };
+    let view = encoding.view(register)?;
+    let operands = [view, view];
+    let key = MachineAlternativeKey { family, variant: 0 };
+    match encoding.architecture {
+        Architecture::Aarch64 => {
+            let encoded =
+                isa_aarch64::encode_aarch64_selected_form(&encoding.model, kind, key, &operands)
+                    .map_err(|_| Error::Encoding)?;
+            bytes.extend_from_slice(encoded.bytes());
+        }
+        Architecture::X86_64 => {
+            let encoded =
+                isa_x86_64::encode_x86_64_selected_form(&encoding.model, kind, key, &operands)
+                    .map_err(|_| Error::Encoding)?;
+            bytes.extend_from_slice(encoded.bytes());
+        }
+    }
+    Ok(())
 }
 
 pub fn validate_native_foreign_bridge(bridge: &NativeForeignBridge) -> Result<(), Error> {

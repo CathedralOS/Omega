@@ -68,6 +68,9 @@ pub fn emit_native_foreign_adapter(
         );
         identity.raw(&application);
         identity.raw(&locator.identity_digest().as_bytes());
+        // Scalar normalization can change code without changing a same-sized
+        // physical shape. Its exact emitted body also owns the loader name.
+        identity.bytes(bridge.bytes());
         let commitment = identity.finish();
         use std::fmt::Write;
         let mut export = String::from("__omega_foreign_frame_");
