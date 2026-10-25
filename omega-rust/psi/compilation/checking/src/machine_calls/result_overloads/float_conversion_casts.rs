@@ -110,6 +110,7 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
+                    root_binding: Default::default(),
                     arguments,
                     evidence_arguments: Box::default(),
                     // The authored cast selects this conversion; its span carries

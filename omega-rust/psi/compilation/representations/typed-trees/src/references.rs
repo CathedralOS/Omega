@@ -1809,7 +1809,7 @@ fn visit_statement(
             retained,
             arena::HandleSpan::from_parts(fact.fact, 1),
         ),
-        StatementNode::RootBinding(_) | StatementNode::Expression(_) => {}
+        StatementNode::Expression(_) => {}
     }
 }
 
@@ -2101,6 +2101,7 @@ mod conformance_occurrence_tests {
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
+                    root_binding: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::new([]),
                     operational_acknowledgement: Default::default(),

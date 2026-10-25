@@ -280,8 +280,7 @@ fn has_observation_free_closure(
                 // in the statement table, independently of expression calls.
                 // Its root query also owns optional continuation traversal.
                 let allowed = match statement {
-                    StatementNode::RootBinding(_)
-                    | StatementNode::Assembly(_)
+                    StatementNode::Assembly(_)
                     | StatementNode::AssemblyFact(_)
                     | StatementNode::Assignment(_) => false,
                     StatementNode::LocalData(local) => !local.is_mutable,

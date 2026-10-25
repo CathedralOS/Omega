@@ -157,12 +157,6 @@ impl<'facts> ArmWindowPlan<'facts> {
             StatementNode::Call(call) => {
                 roots.extend_from_slice(program.statement_table.expression_handles(call.arguments))
             }
-            StatementNode::RootBinding(binding) => {
-                roots.push(binding.receiver);
-                if binding.implementation_operand.is_valid() {
-                    roots.push(binding.implementation_operand);
-                }
-            }
             _ => {}
         }
         for root in roots {

@@ -278,16 +278,14 @@ pub(super) fn callee_leaves_demanded_path_unwritten(
         .statements(callee_state.statement_nodes);
     for (index, statement) in statements.iter().enumerate() {
         let writes = match statement {
-            StatementNode::Assignment(_) | StatementNode::RootBinding(_) => {
-                flow::statement_storage_writes(
-                    program,
-                    callee.symbol,
-                    callee_state.symbol,
-                    index,
-                    statement,
-                    Some(frames),
-                )?
-            }
+            StatementNode::Assignment(_) => flow::statement_storage_writes(
+                program,
+                callee.symbol,
+                callee_state.symbol,
+                index,
+                statement,
+                Some(frames),
+            )?,
             StatementNode::Call(call) => flow::frame_storage_writes(
                 program,
                 callee.symbol,

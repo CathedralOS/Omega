@@ -7,6 +7,22 @@
 //! the product join resolves them under that source's authority.
 //! These are in-process source selections, not serialized Terminal identities.
 
+/// Inert designated operands retained under their authored lexical scope.
+/// They are not executable arguments or authority to publish a product.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RootBindingRequest {
+    pub source_span: source::SourceSpan,
+    pub slot: String,
+    pub implementation: RootBindingOperand,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum RootBindingOperand {
+    AuthoredPath(String),
+    #[default]
+    Description,
+}
+
 /// One product-entry description issued by the compiler-owned
 /// `Build.product.entry` query during build evaluation. The evaluator keeps
 /// this semantic payload in a private side table; the `ProductEntryRef` value

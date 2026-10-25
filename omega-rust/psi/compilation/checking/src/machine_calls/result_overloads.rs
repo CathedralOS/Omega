@@ -290,6 +290,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
+                    root_binding: Default::default(),
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -942,8 +943,7 @@ pub fn collect_expected_expression_calls(
                     {
                         push_expected_call(program, *value, state.return_type, &mut expected);
                     }
-                    StatementNode::RootBinding(_)
-                    | StatementNode::Assembly(_)
+                    StatementNode::Assembly(_)
                     | StatementNode::AssemblyFact(_)
                     | StatementNode::Expression(_)
                     | StatementNode::LocalData(_) => {}

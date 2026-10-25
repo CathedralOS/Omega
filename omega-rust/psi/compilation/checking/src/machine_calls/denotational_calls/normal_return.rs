@@ -144,7 +144,6 @@ fn primitive_value_closure(
                     // value-only rung, even if a broader effect proof exists.
                     StatementNode::Call(_)
                     | StatementNode::Assignment(_)
-                    | StatementNode::RootBinding(_)
                     | StatementNode::Assembly(_)
                     | StatementNode::AssemblyFact(_) => false,
                 };

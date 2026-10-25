@@ -86,6 +86,16 @@ public data BuildProduct {
 // the exact selected identity.
 public data ProductEntryRef [copy] {
 }
+// Execution protocol for the designated Build::bind syntax. Typing supplies
+// the exact product-selection occurrence beside the ordinary boundary call.
+// Calling this requirement directly supplies no selection or host authority.
+// These are compiler host operations, not a user-selected service binding.
+// Their activation-local ticket is interpreted only at admitted call sites.
+public boundary trait BuildBindingOperations {
+    machine prepare(builder: &Build) -> u64;
+    machine bind(activation: u64);
+    machine bind_description(activation: u64, description: ProductEntryRef);
+}
 // A restricted, non-callable product-provider description (the
 // `ProductProviderRef` of wiki/spec/build/scoped_execution.md). Authored
 // code can retain, copy, and hand it to helpers, and `provider.path()`

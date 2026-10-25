@@ -444,9 +444,8 @@ impl CurrentScalarValues<'_> {
                 // from its exact caller observation add arrival knowledge
                 // (including acyclic predecessors), never a destination
                 // requirement or permission to revive an invalidated value.
-                if let Some((_, Some((minimum, maximum)))) = observed_bounds
-                    .iter()
-                    .find(|(expr, _)| *expr == argument)
+                if let Some((_, Some((minimum, maximum)))) =
+                    observed_bounds.iter().find(|(expr, _)| *expr == argument)
                 {
                     let captured = std::mem::replace(
                         &mut binding.value,

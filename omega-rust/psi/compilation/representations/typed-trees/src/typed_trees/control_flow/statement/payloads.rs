@@ -59,20 +59,6 @@ impl TypedTreeTables {
                         .expect("assembly window copying includes its owning header");
                     StatementNode::Assembly(AssemblyControlPoint::Label(target))
                 }
-                StatementNode::RootBinding(binding) => StatementNode::RootBinding(RootBinding {
-                    receiver: self
-                        .expression_table
-                        .copy_from(&source_tables.expression_table, binding.receiver),
-                    implementation_operand: if binding.implementation_operand.is_valid() {
-                        self.expression_table.copy_from(
-                            &source_tables.expression_table,
-                            binding.implementation_operand,
-                        )
-                    } else {
-                        crate::expression::ExpressionHandle::invalid()
-                    },
-                    ..binding.clone()
-                }),
                 StatementNode::AssemblyFact(fact) => {
                     StatementNode::AssemblyFact(TableAssemblyFact {
                         kind: fact.kind,
@@ -232,14 +218,6 @@ impl TypedTreeTables {
                     }
                 }
                 StatementNode::Assembly(AssemblyControlPoint::Label(_)) => {}
-                StatementNode::RootBinding(binding) => {
-                    self.expression_table
-                        .remap_symbols_in(binding.receiver, symbols);
-                    if binding.implementation_operand.is_valid() {
-                        self.expression_table
-                            .remap_symbols_in(binding.implementation_operand, symbols);
-                    }
-                }
                 StatementNode::AssemblyFact(fact) => {
                     self.remap_proof_fact_symbols(fact.fact, symbols);
                 }
@@ -327,10 +305,6 @@ impl TypedTreeTables {
         let mut roots = Vec::new();
         match statement {
             StatementNode::Assembly(_) => {} // Owned instructions follow in the lexical window.
-            StatementNode::RootBinding(binding) => {
-                roots.push((Role::BindingReceiver, binding.receiver));
-                roots.push((Role::BindingImplementation, binding.implementation_operand));
-            }
             StatementNode::AssemblyFact(fact) => roots.extend(
                 self.proof_fact_expression_roots(fact.fact)
                     .into_iter()

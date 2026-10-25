@@ -288,12 +288,6 @@ pub(super) fn append_statement_calls<'plans>(
                 constraints,
             );
         }
-        StatementNode::RootBinding(binding) => {
-            execution.expression(binding.receiver, contexts, constraints);
-            if binding.implementation_operand.is_valid() {
-                execution.expression(binding.implementation_operand, contexts, constraints);
-            }
-        }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
     StatementEvaluation {

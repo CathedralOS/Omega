@@ -12,24 +12,6 @@ impl ValueOccurrenceVisitor<'_, '_> {
         statement: &StatementNode,
     ) {
         match statement {
-            StatementNode::RootBinding(binding) => {
-                self.collect_statement_expression(
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                    binding.receiver,
-                    CheckedValueStatementRole::Expression,
-                );
-                if binding.implementation_operand.is_valid() {
-                    self.collect_statement_expression(
-                        machine_symbol,
-                        state_symbol,
-                        statement_index,
-                        binding.implementation_operand,
-                        CheckedValueStatementRole::Expression,
-                    );
-                }
-            }
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 self.collect_statement_expression(

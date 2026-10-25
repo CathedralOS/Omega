@@ -1,3 +1,5 @@
+#[path = "terminal_build_bindings.rs"]
+mod build_bindings;
 #[path = "terminal_cleanup_resume.rs"]
 mod cleanup_resume;
 #[path = "terminal_extent_view.rs"]
@@ -8,11 +10,15 @@ mod mutable_boundary;
 /// Portable provisions supply semantic test sinks, never native host services.
 pub(super) fn observe_portable(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
+    bindings: &psi_compiler::TerminalBuildBindings,
     words: &[&str],
 ) -> Result<(), String> {
     match words {
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
         ["mutable-boundary"] => mutable_boundary::observe(artifact),
+        ["build-bindings", slots, entry, identifier] => {
+            build_bindings::observe(artifact, bindings, slots, entry, identifier)
+        }
         ["external-extent-view"] => extent_view::observe(artifact, false),
         ["external-extent-view-write"] => extent_view::observe(artifact, true),
         _ => Err("unknown portable Terminal fixture provision".to_owned()),

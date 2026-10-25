@@ -2797,9 +2797,15 @@ crash and native exit behavior.
   description payloads now belong to the source model, not its checked-tree
   executor. Executed root bindings carry their lexical selection directly;
   final admission no longer reopens an execution statement, and provider planning
-  no longer directly depends on the checked interpreter. These in-process records
-  do not yet supply serialized Terminal operation authority. Terminal Build/helper activation
-  scheduling still needs migration. Psi
+  no longer directly depends on the checked interpreter. Designated bindings now
+  lower to ordinary boundary calls, removing the typed `RootBinding` statement
+  and its special traversal paths. Source-issued companion context binds the
+  designated operands to an artifact fingerprint and exact operation/boundary
+  identities; external bytes alone grant no Build authority. Terminal embedding
+  tests execute direct, conditional and explicitly reborrowed bindings in both
+  borrowed and loaded artifacts, preserving receiver identity and exactly-once
+  effects across fuel pauses. Production description queries and Terminal
+  Build/helper activation scheduling still need migration. Psi
   facade completion, the common
   Terminal view and **TERMINAL-BUILD-SEED** remain required.
   Psi 00-07 and Build execute

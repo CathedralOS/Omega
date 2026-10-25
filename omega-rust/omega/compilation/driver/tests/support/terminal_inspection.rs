@@ -121,7 +121,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             let _artifact = indexed_family_controls::produce(request, machine)?;
             continue;
         }
-        let artifact = compiler::CompilationSession::default()
+        let produced = compiler::CompilationSession::default()
             .produce(
                 request,
                 compiler::CompilationProduct::Inspection(machine.to_owned()),
@@ -129,6 +129,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             .and_then(compiler::CompilationOutput::into_inspection)
             .map_err(compiler::CompilationProductError::into_diagnostics)
             .map_err(|errors| format!("inspection {machine} production: {errors:?}"))?;
+        let artifact = produced.artifact();
         let mut transported = artifact.to_bytes();
         let decoded = CanonicalTerminalArtifact::from_bytes(&transported)
             .map_err(|error| format!("inspection {machine} transport: {error:?}"))?;
@@ -159,8 +160,12 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             } else {
                 match host {
                     RuntimeHost::Portable => {
-                        host_provisions::observe_portable(&decoded, words)
-                            .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
+                        host_provisions::observe_portable(
+                            &decoded,
+                            produced.build_bindings(),
+                            words,
+                        )
+                        .map_err(|error| format!("inspection {machine} runtime: {error}"))?;
                         observations.push(format!("terminal-runtime.{machine}:match"));
                     }
                     RuntimeHost::LinuxX86_64
