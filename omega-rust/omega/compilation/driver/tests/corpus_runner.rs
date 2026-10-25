@@ -1507,9 +1507,17 @@ fn check_fail_fixture(
                 u64::MAX,
             )
             .expect("positive authored fuel and resource ceilings");
-            request.evaluation_sponsor = Some(build_time_evaluation::BuildEvaluationSponsor::new(
-                evaluation_limits,
-            ));
+            request.evaluation_sponsor = Some(
+                build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
+                    evaluation_limits,
+                    evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+                        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        storage_schedule:
+                            evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+                    },
+                )
+                .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?,
+            );
             fs::create_dir_all(build_dir.parent().expect("fixture staging has a parent"))
                 .map_err(|error| vec![diagnostics::Diagnostic::error(error.to_string())])?;
             let sponsor = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(

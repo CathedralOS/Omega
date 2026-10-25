@@ -13,6 +13,17 @@ fn limits(fuel: u64) -> BuildEvaluationSponsorLimits {
     .expect("positive limits")
 }
 
+fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
+    BuildEvaluationSponsor::new_with_measurement(
+        limits,
+        evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+        },
+    )
+    .expect("current Terminal measurement")
+}
+
 fn main() {
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
         println!("{}", compiler::compiler_build_profile());
@@ -36,7 +47,7 @@ fn main() {
         request.evaluation_sponsor = Some(sponsor.clone());
         session.check(request)
     };
-    let measured = BuildEvaluationSponsor::new(limits(1_000_000));
+    let measured = sponsor(limits(1_000_000));
     check(
         &mut CompilationSession::default(),
         &measured,
@@ -50,28 +61,28 @@ fn main() {
     println!("one_build_fuel={fuel} result_cells={cells}");
 
     let mut session = CompilationSession::default();
-    let sponsor = BuildEvaluationSponsor::new(limits(2 * fuel));
+    let shared_sponsor = sponsor(limits(2 * fuel));
     let before = counters::build_execution_count();
-    check(&mut session, &sponsor, "windows_x86_64")
+    check(&mut session, &shared_sponsor, "windows_x86_64")
         .result
         .expect("first row");
-    check(&mut session, &sponsor, "linux_x86_64")
+    check(&mut session, &shared_sponsor, "linux_x86_64")
         .result
         .expect("second row");
     let executions = counters::build_execution_count() - before;
     println!(
         "two_rows_executions={executions} charged_fuel={} charged_cells={}",
-        sponsor.consumed_fuel_units(),
-        sponsor.consumed_result_storage_cells()
+        shared_sponsor.consumed_fuel_units(),
+        shared_sponsor.consumed_result_storage_cells()
     );
     assert_eq!(executions, 1);
     assert_eq!(
-        sponsor.consumed_fuel_units(),
+        shared_sponsor.consumed_fuel_units(),
         2 * fuel,
         "warm occurrence owes its logical fuel"
     );
-    assert_eq!(sponsor.consumed_result_storage_cells(), 2 * cells);
-    let fresh = BuildEvaluationSponsor::new(limits(2 * fuel));
+    assert_eq!(shared_sponsor.consumed_result_storage_cells(), 2 * cells);
+    let fresh = sponsor(limits(2 * fuel));
     check(&mut session, &fresh, "linux_x86_64")
         .result
         .expect("fresh account");
@@ -81,7 +92,7 @@ fn main() {
     println!("fresh_account_charged_without_execution");
 
     let mut limited_session = CompilationSession::default();
-    let limited = BuildEvaluationSponsor::new(limits(2 * fuel - 1));
+    let limited = sponsor(limits(2 * fuel - 1));
     check(&mut limited_session, &limited, "windows_x86_64")
         .result
         .expect("one affordable row");
@@ -107,7 +118,7 @@ fn main() {
 
     // Force a cold second occurrence with the same remaining allowance. Both
     // policies reject; only the cold path performs another actual execution.
-    let cold = BuildEvaluationSponsor::new(limits(2 * fuel - 1));
+    let cold = sponsor(limits(2 * fuel - 1));
     check(&mut CompilationSession::default(), &cold, "windows_x86_64")
         .result
         .expect("affordable cold row");
@@ -135,7 +146,7 @@ fn main() {
         1_000_000,
     )
     .expect("positive result ceiling");
-    let result_limited = BuildEvaluationSponsor::new(result_limits);
+    let result_limited = sponsor(result_limits);
     let mut result_session = CompilationSession::default();
     check(&mut result_session, &result_limited, "windows_x86_64")
         .result

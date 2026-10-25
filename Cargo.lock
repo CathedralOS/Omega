@@ -1494,6 +1494,7 @@ dependencies = [
  "syntax-trees",
  "target",
  "terminal-codec",
+ "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "tokens",

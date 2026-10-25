@@ -9,6 +9,7 @@ version.workspace = true
 [dependencies]
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 artifacts = { path = "../../foundation/artifacts" }
 build-declarations = { path = "../build-declarations" }
 build-evaluation = { path = "../../compilation/build-evaluation" }

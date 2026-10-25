@@ -65,7 +65,16 @@ fn main() {
     limited.build_snapshot = compiler::BuildSnapshotRequest::automatic_package_inventory(
         limited.package_inputs.as_ref(),
     );
-    limited.evaluation_sponsor = Some(build_time_evaluation::BuildEvaluationSponsor::new(limits));
+    limited.evaluation_sponsor = Some(
+        build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
+            limits,
+            evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+                fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+            },
+        )
+        .expect("current Terminal measurement"),
+    );
     let result = session.check(limited);
     let diagnostics = match result.result {
         Err(failure) => failure.into_diagnostics(),

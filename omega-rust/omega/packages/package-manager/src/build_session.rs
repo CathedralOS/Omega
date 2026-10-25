@@ -12,7 +12,10 @@ pub(crate) use inputs::{OccurrenceBuildInputs, reconcile_build_inputs};
 pub(crate) use order::{dependency_first_package_order, package_build_root};
 
 use crate::review::CompileResolvedPackageReviewsError;
-use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use evaluation_accounting::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+    TerminalStorageScheduleIdentity,
+};
 use filesystem_authority::FilesystemSponsor;
 use std::fs;
 use std::io;
@@ -21,7 +24,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static PACKAGE_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// Deterministic evaluator work granted to one complete package
+/// Deterministic Terminal work granted to one complete package
 /// invocation. The sibling limits below bound retained compiler resources; none
 /// claims to bound CPU time or process memory.
 const PACKAGE_BUILD_FUEL_CEILING: u64 = 100_000_000;
@@ -123,10 +126,25 @@ impl PackageBuildSession {
                         PACKAGE_RESULT_TEXT_BYTE_CEILING,
                     )
                     .expect("package build ceilings are nonzero");
+                    // A fresh invocation chooses Terminal units explicitly. Old
+                    // tree-measured records remain distinct and cannot pay for it.
+                    let evaluation_sponsor = BuildEvaluationSponsor::new_with_measurement(
+                        evaluation_limits,
+                        EvaluationMeasurementIdentity::TerminalPsi {
+                            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+                        },
+                    )
+                    .map_err(|error| {
+                        CompileResolvedPackageReviewsError::BuildStagingCreate {
+                            path: root.clone(),
+                            error: io::Error::other(error),
+                        }
+                    })?;
                     return Ok(Self {
                         root: canonical_root,
                         filesystem_sponsor,
-                        evaluation_sponsor: BuildEvaluationSponsor::new(evaluation_limits),
+                        evaluation_sponsor,
                         compiler: compiler::CompilationSession::default(),
                         next_occurrence: 0,
                         active: true,
