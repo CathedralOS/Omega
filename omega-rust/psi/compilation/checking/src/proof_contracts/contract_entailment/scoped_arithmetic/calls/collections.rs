@@ -40,7 +40,7 @@ impl<'program> ScopedCalls<'program> {
         else {
             return None;
         };
-        let owner = selected_call_contract(self.program, call)?;
+        let owner = selected_call_contract(self.program, source.owner, call)?;
         if matches!(owner, SelectedCallContract::DynamicSlot { .. })
             || !crate::value_custody::type_shapes::has_slice_base(
                 self.program,

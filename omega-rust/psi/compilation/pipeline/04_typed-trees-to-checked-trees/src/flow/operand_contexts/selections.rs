@@ -1,8 +1,9 @@
-//! Reuse an operand's evidence selection across one invocation's obligations.
+//! Reuse each exact operand namespace and epoch across field obligations.
 //!
-//! The immutable borrows fix every producer input and the invocation epoch.
-//! The sparse key retains both generations of the operand/type pair: one
-//! operand can be checked under distinct bound destination types. Context
+//! Immutable borrows fix the producer inputs. The sparse key retains both
+//! generations of the operand/type pair and the exact invocation constraints
+//! and source frontier: one operand can have distinct producer and observation
+//! epochs, or be checked under different destination types. Context
 //! selection and authenticated tag/membership observations are reusable here;
 //! proof verdicts and projected query subjects are not. Each observation roster
 //! is prepared lazily, only when its consumer needs that kind of evidence.
@@ -19,14 +20,21 @@ pub(crate) struct OperandContextSelections<'checking> {
     program: &'checking dyn validation::CheckingInput,
     flow: &'checking FlowFacts,
     semantic: &'checking FactPlan,
-    invocation: HandleSpan<FlowConstraintRef>,
     machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
     // A dense operand-by-type table would reserve the Cartesian product for
     // each call. Keep only queried pairs, without growing linear identity scans.
-    selected: BTreeMap<(u32, u32, u32, u32), OperandContextSelection<'checking>>,
+    selected: BTreeMap<OperandSelectionKey, OperandContextSelection<'checking>>,
     scratch: Option<OperandContextSelection<'checking>>,
+}
+
+/// Every semantic input that varies between producer and observation reads.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct OperandSelectionKey {
+    operand: (u32, u32),
+    carrier: (u32, u32),
+    invocation: (u32, u32, u32),
+    state: (u32, u32),
+    statement_index: usize,
 }
 
 /// The selected namespace and its authenticated observations share one
@@ -101,19 +109,13 @@ impl<'checking> OperandContextSelections<'checking> {
         program: &'checking dyn validation::CheckingInput,
         flow: &'checking FlowFacts,
         semantic: &'checking FactPlan,
-        invocation: HandleSpan<FlowConstraintRef>,
         machine_symbol: SymbolHandle,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
     ) -> Self {
         Self {
             program,
             flow,
             semantic,
-            invocation,
             machine_symbol,
-            state_symbol,
-            statement_index,
             selected: BTreeMap::new(),
             scratch: None,
         }
@@ -123,6 +125,9 @@ impl<'checking> OperandContextSelections<'checking> {
         &mut self,
         operand: &FlowOperandFact,
         type_reference: TypeReferenceHandle,
+        invocation: HandleSpan<FlowConstraintRef>,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
     ) -> &OperandContextSelection<'checking> {
         let select = || {
             let contexts = super::operand_contexts(
@@ -132,15 +137,15 @@ impl<'checking> OperandContextSelections<'checking> {
                 self.semantic,
                 operand,
                 type_reference,
-                self.invocation,
+                invocation,
             );
             OperandContextSelection {
                 contexts,
                 program: self.program,
                 semantic: self.semantic,
                 machine_symbol: self.machine_symbol,
-                state_symbol: self.state_symbol,
-                statement_index: self.statement_index,
+                state_symbol,
+                statement_index,
                 cases: OnceCell::new(),
                 memberships: OnceCell::new(),
             }
@@ -150,12 +155,17 @@ impl<'checking> OperandContextSelections<'checking> {
         let Some(handle) = self.flow.control.operands.handle_of(operand) else {
             return self.scratch.insert(select());
         };
-        let key = (
-            handle.arena_index(),
-            handle.generation(),
-            type_reference.arena_index(),
-            type_reference.generation(),
-        );
+        let key = OperandSelectionKey {
+            operand: (handle.arena_index(), handle.generation()),
+            carrier: (type_reference.arena_index(), type_reference.generation()),
+            invocation: (
+                invocation.start().arena_index(),
+                invocation.start().generation(),
+                invocation.count(),
+            ),
+            state: (state_symbol.arena_index(), state_symbol.generation()),
+            statement_index,
+        };
         self.selected.entry(key).or_insert_with(select)
     }
 }

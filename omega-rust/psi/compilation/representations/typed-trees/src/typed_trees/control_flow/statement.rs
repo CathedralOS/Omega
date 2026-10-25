@@ -6,11 +6,13 @@ use symbols::SymbolHandle;
 mod assembly;
 mod control_graph;
 mod payloads;
+mod returns;
 pub use assembly::{AssemblyBlock, AssemblyControlFlow, AssemblyControlPoint, AssemblyExit};
 pub use control_graph::{
     StatementControlBlock, StatementControlExit, StatementControlGraph, StatementExecutionIter,
     StatementExecutionOrder,
 };
+pub use returns::direct_state_return_values;
 
 pub type StatementHandle = Handle<StatementNode>;
 

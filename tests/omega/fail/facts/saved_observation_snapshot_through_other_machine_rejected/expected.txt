@@ -1,1 +1,2 @@
-cannot prove requires contract
+cannot prove ensures contract for exit from read_kept
+result == items[0] && result == 7

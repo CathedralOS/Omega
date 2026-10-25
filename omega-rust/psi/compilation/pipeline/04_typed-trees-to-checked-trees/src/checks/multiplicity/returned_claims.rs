@@ -24,6 +24,15 @@ pub(crate) struct ReturnedClaim {
     pub source: ReturnedClaimSource,
 }
 
+/// Operand completion precedes its enclosing store. The receiving cut instead
+/// follows establishment of that store's owned frontier; only that cut may
+/// observe the completed value at its exact destination.
+#[derive(Clone, Copy)]
+pub(crate) enum CompletedClaimLocation {
+    Expression,
+    ReceivingStorage,
+}
+
 /// Every declared live result path must have one exact consuming occurrence.
 /// Missing captures and ambiguous events cannot silently remove an exit or a
 /// child. Named transfers have no local result capture; their caller consumes
@@ -47,6 +56,7 @@ pub(crate) fn current_returned_claims(
         facts,
         operand,
         Default::default(),
+        None,
         &|operand, place, _| returned_place_claims(facts, outgoing, operand, place),
     )
 }
@@ -57,15 +67,25 @@ pub(crate) fn current_returned_claims(
 pub(crate) fn completed_owned_claims(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
-    operand: &FlowOperandFact,
+    value: arena::Handle<FlowOperandFact>,
+    location: CompletedClaimLocation,
     places: &[LinearPlace],
     evaluation_events: &[checked_trees::FlowPermissionEventFact],
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
+    if !facts.flow.control.operands.is_valid(value) {
+        return Err("completed owner has no exact value capture");
+    }
+    let operand = facts.flow.control.operands.get(value);
+    let destination = match location {
+        CompletedClaimLocation::Expression => None,
+        CompletedClaimLocation::ReceivingStorage => receiving_destination(program, facts, value),
+    };
     captured_claims(
         program,
         facts,
         operand,
         Default::default(),
+        destination,
         &|capture, source, parent| {
             // An assembled child has already moved into this value. Its exact
             // transfer retains the original claim even if a later sibling restored
@@ -114,6 +134,36 @@ pub(crate) fn completed_owned_claims(
                 })
                 .collect()
         },
+    )
+}
+
+/// The completed store associates an occurrence with its current receiving
+/// place. Use its retained handle and stable destination, never a declaration's
+/// initializer or an earlier resident value. Permission production calls this
+/// only after establishing the receiving frontier; its ordinary live-claim and
+/// complete-frontier checks below still supply every identity.
+fn receiving_destination(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    value: arena::Handle<FlowOperandFact>,
+) -> Option<validation::CanonicalPlace> {
+    let capture = facts.flow.control.operands.get(value);
+    let state = facts
+        .flow
+        .control
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.state_symbol == capture.state_symbol).then_some(state))?;
+    let statement = facts.flow.state_statement(state, capture.statement_index)?;
+    if statement.stored_value != value
+        || !facts.semantic.places.is_valid(statement.stored_destination)
+    {
+        return None;
+    }
+    crate::flow::canonical_place_from_semantic_place(
+        program,
+        &facts.semantic,
+        facts.semantic.places.get(statement.stored_destination),
     )
 }
 
@@ -192,6 +242,7 @@ fn captured_claims(
     facts: &CheckFacts,
     operand: &FlowOperandFact,
     parent: typed_trees::expression::ExpressionHandle,
+    receiving: Option<validation::CanonicalPlace>,
     observe: &impl Fn(
         &FlowOperandFact,
         &validation::CanonicalPlace,
@@ -205,16 +256,19 @@ fn captured_claims(
     if frontier.is_empty() {
         return Ok(Vec::new());
     }
-    let mut claims = match validation::ownership_place_from_expression_in_state(
-        program,
-        operand.state_symbol,
-        operand.statement_index,
-        operand.expression,
-    ) {
+    let received = receiving.is_some();
+    let mut claims = match receiving.or_else(|| {
+        validation::ownership_place_from_expression_in_state(
+            program,
+            operand.state_symbol,
+            operand.statement_index,
+            operand.expression,
+        )
+    }) {
         Some(place) => observe(operand, &place, parent)?,
         None => Vec::new(),
     };
-    if claims.is_empty() {
+    if claims.is_empty() && !received {
         // Child paths are resolved destination identities retained by operand
         // evaluation. Constructors, nested aggregates and detached values use
         // that same capture tree; no source-form return recognizer is needed.
@@ -231,9 +285,14 @@ fn captured_claims(
             {
                 return Err("child capture belongs to another evaluation occurrence");
             }
-            for mut claim in
-                captured_claims(program, facts, child_operand, operand.expression, observe)?
-            {
+            for mut claim in captured_claims(
+                program,
+                facts,
+                child_operand,
+                operand.expression,
+                None,
+                observe,
+            )? {
                 let mut path = facts
                     .flow
                     .control

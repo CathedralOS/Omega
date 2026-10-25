@@ -493,6 +493,11 @@ impl StructuralJudge<'_> {
                     ProofFact::Proposition(_) => StructuralJudgment::Unknown,
                 };
                 if !matches!(judgment, StructuralJudgment::Proven) {
+                    if super::super::struct_trace() {
+                        eprintln!(
+                            "STRUCT normal-guarantee requires owner={callable:?} fact={fact:?} judgment={judgment:?} entry_bindings={entry_bindings:?}"
+                        );
+                    }
                     return self.unconditional_boolean_result(owner, result, depth);
                 }
             }
@@ -568,7 +573,7 @@ impl StructuralJudge<'_> {
         // projection exit that is the state's own requires fact.
         let mut pending_states = vec![owner_symbol(owner)];
         let mut visited_states = Vec::new();
-        let mut pending_values: Vec<RecordedBooleanExit> = Vec::new();
+        let mut pending_values: Vec<(SymbolHandle, RecordedBooleanExit)> = Vec::new();
         let mut common: Option<bool> = None;
         while !pending_states.is_empty() || !pending_values.is_empty() {
             while let Some(symbol) = pending_states.pop() {
@@ -643,13 +648,16 @@ impl StructuralJudge<'_> {
                     for target in transition.targets() {
                         match program.statement_table.transition_target(target) {
                             typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                                pending_values.push(recorded_boolean_exit(
-                                    program,
-                                    machine,
-                                    state,
-                                    *expression,
-                                    &captured_values,
-                                )?);
+                                pending_values.push((
+                                    machine.symbol,
+                                    recorded_boolean_exit(
+                                        program,
+                                        machine,
+                                        state,
+                                        *expression,
+                                        &captured_values,
+                                    )?,
+                                ));
                             }
                             typed_trees::statement::TransitionTargetNode::Named {
                                 path, ..
@@ -664,17 +672,23 @@ impl StructuralJudge<'_> {
                 // expression statements may precede a completely different exit.
                 match &statements[*order.last()?] {
                     typed_trees::statement::StatementNode::Expression(expression) => {
-                        pending_values.push(recorded_boolean_exit(
-                            program,
-                            machine,
-                            state,
-                            *expression,
-                            &captured_values,
-                        )?);
+                        pending_values.push((
+                            machine.symbol,
+                            recorded_boolean_exit(
+                                program,
+                                machine,
+                                state,
+                                *expression,
+                                &captured_values,
+                            )?,
+                        ));
                     }
                     typed_trees::statement::StatementNode::Call(call) if !call.discards_result => {
-                        let selected =
-                            selected_call_site_contract(program, crate::CallSite::Statement(call))?;
+                        let selected = selected_call_site_contract(
+                            program,
+                            machine.symbol,
+                            crate::CallSite::Statement(call),
+                        )?;
                         if matches!(selected, SelectedCallContract::DynamicSlot { .. }) {
                             return None;
                         }
@@ -687,7 +701,7 @@ impl StructuralJudge<'_> {
                     _ => return None,
                 }
             }
-            while let Some(exit) = pending_values.pop() {
+            while let Some((caller, exit)) = pending_values.pop() {
                 match exit {
                     RecordedBooleanExit::ProjectionPremise => {
                         if common.is_some_and(|existing| !existing) {
@@ -709,7 +723,7 @@ impl StructuralJudge<'_> {
                                 {
                                     pending_states.push(realization);
                                 } else {
-                                    let callee = selected_call_contract(program, call)?;
+                                    let callee = selected_call_contract(program, caller, call)?;
                                     if matches!(callee, SelectedCallContract::DynamicSlot { .. }) {
                                         return None;
                                     }
@@ -974,7 +988,13 @@ pub(super) fn selected_requirement_judgment(
     ) else {
         return StructuralJudgment::Unknown;
     };
-    judge.judge_observed_predicate(required, depth)
+    let judgment = judge.judge_observed_predicate(required.clone(), depth);
+    if super::super::struct_trace() && !matches!(judgment, StructuralJudgment::Proven) {
+        eprintln!(
+            "STRUCT selected-requirement owner={callable:?} expression={expression:?} predicate={required:?} judgment={judgment:?}"
+        );
+    }
+    judgment
 }
 
 fn collect_applications<'term>(
@@ -1327,26 +1347,17 @@ pub(super) fn bound_term(
             // A sealed primitive float comparison is an IEEE Boolean, not
             // identity and not a reason to drop the substituted operands.
             // Other non-builtin operators stay unbound here.
-            let sealed_float =
-                crate::proof_contracts::parameter_expression_meaning::spelled_binary_operator(
-                    binary.operator,
-                )
-                .and_then(|spelling| {
-                    let types = [binary.left, binary.right].map(|operand| {
-                        crate::parameter_expression_result_type_reference(
-                            program, scope, parameters, operand,
-                        )
-                    });
-                    super::super::structural_terms::sealed_primitive_float_operator(
-                        program, expression, spelling, &types,
-                    )
-                })
-                .is_some();
             if !crate::has_builtin_parameter_bound_expression_meaning(
                 program, scope, parameters, expression,
-            ) && !sealed_float
-            {
-                return None;
+            ) {
+                let types = [binary.left, binary.right].map(|operand| {
+                    crate::parameter_expression_result_type_reference(
+                        program, scope, parameters, operand,
+                    )
+                });
+                super::super::structural_terms::sealed_primitive_float_operator(
+                    program, scope, expression, &types,
+                )?;
             }
             let left = bound_term(
                 program,

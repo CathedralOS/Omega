@@ -634,26 +634,8 @@ pub fn declared_carriers_match(
     left: TypeReferenceHandle,
     right: TypeReferenceHandle,
 ) -> bool {
-    declared_carriers_match_with_substitutions(program, left, right, &[])
-}
-
-/// Compare a declaration's carrier in its exact supplying telescope. An
-/// operand belongs to the caller, so replacing a binder consumes that frame;
-/// the replacement is never substituted again through sibling binders.
-pub(crate) fn declared_carriers_match_with_substitutions(
-    program: &dyn crate::CheckingInput,
-    left: TypeReferenceHandle,
-    right: TypeReferenceHandle,
-    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-) -> bool {
     let left = peel_declared_constraints(program, left);
     let right = peel_declared_constraints(program, right);
-    if let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(left)
-        && let Some((_, replacement)) = substitutions.iter().find(|(binder, _)| binder == symbol)
-    {
-        return declared_carriers_match(program, *replacement, right);
-    }
     match (
         program.type_reference_table.type_reference(left),
         program.type_reference_table.type_reference(right),
@@ -671,12 +653,7 @@ pub(crate) fn declared_carriers_match_with_substitutions(
             },
         ) => {
             left_access == right_access
-                && declared_carriers_match_with_substitutions(
-                    program,
-                    *left_referee,
-                    *right_referee,
-                    substitutions,
-                )
+                && declared_carriers_match(program, *left_referee, *right_referee)
         }
         (
             TypeReferenceNode::Slice {
@@ -685,12 +662,7 @@ pub(crate) fn declared_carriers_match_with_substitutions(
             TypeReferenceNode::Slice {
                 element_type: right_element,
             },
-        ) => declared_carriers_match_with_substitutions(
-            program,
-            *left_element,
-            *right_element,
-            substitutions,
-        ),
+        ) => declared_carriers_match(program, *left_element, *right_element),
         (
             TypeReferenceNode::FixedArray {
                 element_type: left_element,
@@ -702,16 +674,11 @@ pub(crate) fn declared_carriers_match_with_substitutions(
             },
         ) => {
             program
-                .fixed_array_length_identity(left_length, &[], substitutions)
+                .fixed_array_length_identity(left_length, &[], &[])
                 .is_some_and(|left| {
                     Some(left) == program.fixed_array_length_identity(right_length, &[], &[])
                 })
-                && declared_carriers_match_with_substitutions(
-                    program,
-                    *left_element,
-                    *right_element,
-                    substitutions,
-                )
+                && declared_carriers_match(program, *left_element, *right_element)
         }
         (
             TypeReferenceNode::Generic {
@@ -735,21 +702,13 @@ pub(crate) fn declared_carriers_match_with_substitutions(
                 && left_handles.len() == right_handles.len()
                 && left_handles.iter().zip(right_handles.iter()).all(
                     |(left_argument, right_argument)| {
-                        declared_carriers_match_with_substitutions(
-                            program,
-                            *left_argument,
-                            *right_argument,
-                            substitutions,
-                        )
+                        declared_carriers_match(program, *left_argument, *right_argument)
                     },
                 )
         }
         _ => {
             program.type_identity_with_simultaneous_substitutions(
-                typed_trees::type_identity::TypeIdentityRequest {
-                    substitutions,
-                    ..typed_trees::type_identity::TypeIdentityRequest::ordinary(left)
-                },
+                typed_trees::type_identity::TypeIdentityRequest::ordinary(left),
             ) == program.normalized_type_identity(right)
         }
     }

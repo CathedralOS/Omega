@@ -1,4 +1,4 @@
-//! Operation meaning required before call operands supply fixed storage coordinates.
+//! Operation meaning required before call operands supply captured coordinates.
 
 use validation::CallSite;
 use validation::call_site_argument_expressions;
@@ -62,7 +62,15 @@ fn place_operands_are_builtin(
             place_operands_are_builtin(program, machine, state, indexed.collection, depth + 1)
         }
         ExpressionNode::Indexed(_) => {
-            validation::place_has_builtin_coordinates(program, machine, Some(state), expression)
+            // An owned operand may project a completed call or constructor.
+            // The storage-only spine judgment deliberately excludes those
+            // producers; applying it here discards all surviving facts even
+            // when the callee's ordinary frame establishes no caller writes.
+            // Authenticate the produced value's selected index meaning, then
+            // let the existing capture/frame and signature-ceiling analysis
+            // determine its real effects. Coordinates confer no purity,
+            // bounds, loan or ownership evidence.
+            validation::value_has_builtin_coordinates(program, machine, state, expression)
         }
         // Nested non-place evaluation contributes its own call effects; its
         // syntax supplies no independently guessed storage geometry here.

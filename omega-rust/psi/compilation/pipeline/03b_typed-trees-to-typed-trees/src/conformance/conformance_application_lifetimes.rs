@@ -92,6 +92,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                         frames,
                     },
                     caller_machine.symbol,
+                    RequiredLifetimeScope::Operand,
                     &mut |required, actual| {
                         if let Some(actual) = actual {
                             bind_lifetime(
@@ -601,25 +602,61 @@ fn resolved_lifetime<'a>(bindings: &'a [(String, String)], name: &str) -> Option
         .find_map(|(parameter, argument)| (parameter == name).then_some(argument.as_str()))
 }
 
-pub(crate) fn collect_lifetime_bindings(
-    program: &dyn ::validation::CheckingInput,
-    required: TypeReferenceHandle,
+/// An unapplied field schema still declares its own region parameters after
+/// retaining its lexical owner. A supplied Type operand instead carries fixed
+/// caller regions, even when it came from this same declaration recursively.
+#[derive(Clone, Copy)]
+enum RequiredLifetimeScope {
+    Operand,
+    DeclaredField(SymbolHandle),
+}
+
+/// Infer only from the exact declaration field selected by the constructor.
+/// Keep the complete actual value type while resolving any enclosing source
+/// applications; a newly formed borrow's outer shell is part of that value.
+pub(crate) fn collect_declared_field_lifetime_bindings(
+    program: &TypedTrees,
+    declaration: &typed_trees::data::DataDefinition,
+    field: &typed_trees::data::DataField,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    source: ExpressionHandle,
     actual: TypeReferenceHandle,
-    parameters: &[Identifier],
     bindings: &mut Vec<(String, String)>,
     conflict: &mut bool,
-) {
-    visit_lifetime_bindings(
-        program,
-        required,
-        actual,
-        parameters,
-        &mut |required, actual| {
-            if let Some(actual) = actual {
-                bind_lifetime(bindings, required.as_str(), actual.as_str(), conflict);
-            }
-        },
-    );
+) -> Option<()> {
+    let (owner, selected) = program.any_field_owner(field.symbol)?;
+    if owner.symbol != declaration.symbol || selected.type_reference != field.type_reference {
+        return None;
+    }
+    let required_scope = if declaration.generic_instance.is_none() {
+        RequiredLifetimeScope::DeclaredField(declaration.symbol)
+    } else {
+        // An applied field is already an operand, not fresh schema vocabulary.
+        RequiredLifetimeScope::Operand
+    };
+    let applications = argument_scopes::source_application(program, state, source)
+        .map(|(_, applications)| applications)
+        .unwrap_or_default();
+    program.with_enclosing_data_identity_scopes(&applications, |frames| {
+        visit_lifetime_bindings_in_scope(
+            program,
+            field.type_reference,
+            actual,
+            &declaration.lifetime_parameters,
+            argument_scopes::Scope {
+                owner: machine.symbol,
+                frames,
+            },
+            machine.symbol,
+            required_scope,
+            &mut |required, actual| {
+                if let Some(actual) = actual {
+                    bind_lifetime(bindings, required.as_str(), actual.as_str(), conflict);
+                }
+            },
+        );
+    })
 }
 
 /// Read simultaneous parameter-position region operands, including reference
@@ -641,6 +678,7 @@ pub(crate) fn visit_lifetime_bindings(
             frames: &[],
         },
         SymbolHandle::invalid(),
+        RequiredLifetimeScope::Operand,
         visit,
     );
 }
@@ -652,15 +690,25 @@ fn visit_lifetime_bindings_in_scope(
     parameters: &[Identifier],
     actual_scope: argument_scopes::Scope<'_>,
     caller: SymbolHandle,
+    required_scope: RequiredLifetimeScope,
     visit: &mut impl FnMut(&Identifier, Option<&Identifier>),
 ) {
     // A supplied Type operand is already in its caller's lexical region
     // scope. Its coincident spellings are not occurrences of this callee's
     // fresh lifetime parameters, even in recursive or same-owner selections.
-    if program
+    let owner = program
         .type_reference_table
-        .operand_lifetime_owner(required)
-        .is_valid()
+        .operand_lifetime_owner(required);
+    if owner.is_valid()
+        && !matches!(required_scope, RequiredLifetimeScope::DeclaredField(declaration) if owner == declaration)
+    {
+        return;
+    }
+    if matches!(required_scope, RequiredLifetimeScope::DeclaredField(_))
+        && !matches!(
+            program.type_reference_table.operand_origin(required),
+            typed_trees::types::TypeOperandOrigin::Lexical
+        )
     {
         return;
     }
@@ -721,6 +769,7 @@ fn visit_lifetime_bindings_in_scope(
                 parameters,
                 actual_scope,
                 caller,
+                required_scope,
                 visit,
             );
         }
@@ -759,6 +808,7 @@ fn visit_lifetime_bindings_in_scope(
                 parameters,
                 actual_scope,
                 caller,
+                required_scope,
                 visit,
             );
         }
@@ -770,6 +820,7 @@ fn visit_lifetime_bindings_in_scope(
                 parameters,
                 actual_scope,
                 caller,
+                required_scope,
                 visit,
             )
         }
@@ -780,6 +831,7 @@ fn visit_lifetime_bindings_in_scope(
             parameters,
             actual_scope,
             caller,
+            required_scope,
             visit,
         ),
         (
@@ -806,6 +858,7 @@ fn visit_lifetime_bindings_in_scope(
             parameters,
             actual_scope,
             caller,
+            required_scope,
             visit,
         ),
         _ => {}

@@ -1,7 +1,7 @@
 //! Semantic observations over one exact place. The caller supplies the
 //! observation's value epoch; these queries never select or merge epochs.
 
-use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
+use checked_trees::CheckFacts;
 use typed_trees::expression::ExpressionHandle;
 
 pub(in crate::checks::contracts) enum PlacePredicate {
@@ -27,8 +27,7 @@ impl PlacePredicate {
         &self,
         program: &dyn ::validation::CheckingInput,
         facts: &CheckFacts,
-        state: &FlowStateFact,
-        call: &FlowCallFact,
+        point: facts::ProgramPoint,
         contexts: &[facts::FactContextHandle],
         subject: &validation::CanonicalPlace,
     ) -> bool {
@@ -40,17 +39,27 @@ impl PlacePredicate {
                 subject,
                 *predicate,
             ),
-            Self::Case(case) => crate::flow::place_case_has_value(
-                program,
-                &facts.semantic,
-                contexts,
-                state.machine_symbol,
-                state.state_symbol,
-                call.statement_index,
-                subject,
-                *case,
-                true,
-            ),
+            Self::Case(case) => {
+                let facts::ProgramPoint::Statement {
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                } = point
+                else {
+                    return false;
+                };
+                crate::flow::place_case_has_value(
+                    program,
+                    &facts.semantic,
+                    contexts,
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    subject,
+                    *case,
+                    true,
+                )
+            }
         }
     }
 }

@@ -39,7 +39,7 @@ struct ContractFrontier {
 /// A requirement's invocation binders are fresh with respect to its captured
 /// Type operands. Their unknown leaves cannot supply a fresh returned region,
 /// but they are not view-free: concrete captured leaves and every non-fresh
-/// result still require the ordinary complete source relation. Requirement-local
+/// result still require a complete scoped source relation. Requirement-local
 /// Type parameters are deliberately absent from this captured roster.
 pub(super) fn resolve_invocation_view_return_source(
     program: &dyn crate::CheckingInput,
@@ -72,13 +72,13 @@ pub(super) fn resolve_invocation_view_return_source(
     {
         frontier.sources
     } else {
-        super::resolve_substituted_view_return_source(
-            program,
-            contract.parameters,
-            contract.return_type,
-            contract.substitutions,
-            scope_starts,
-        )
+        // Captured outputs can borrow captured inputs, including leaves that
+        // the symbolic frontier omitted. Require every input to close before
+        // publishing their relation, while retaining declaration identities:
+        // a captured region and a fresh binder may have the same spelling.
+        contract_frontier(program, &contract, &[], scope_starts)
+            .map(|frontier| frontier.sources)
+            .unwrap_or_else(|_| incomplete())
     }
 }
 

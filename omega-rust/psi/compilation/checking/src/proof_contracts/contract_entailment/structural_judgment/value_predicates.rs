@@ -150,8 +150,8 @@ impl StructuralJudge<'_> {
         }
         let sealed_float = super::super::structural_terms::sealed_primitive_float_operator(
             program,
+            self.machine_symbol,
             expression,
-            spelling,
             &references,
         )
         .is_some();
@@ -201,7 +201,8 @@ impl StructuralJudge<'_> {
         {
             return None;
         }
-        let term = self.resolve(self.declaration_term(expression)?);
+        let predicate = self.declaration_term(expression)?;
+        let term = self.resolve(predicate.clone());
         match term.semantic_value() {
             StructuralTerm::Constructor { data, case, fields }
                 if data == "bool" && fields.is_empty() =>
@@ -210,6 +211,21 @@ impl StructuralJudge<'_> {
                     Some(true) => Some(StructuralJudgment::Proven),
                     Some(false) => Some(StructuralJudgment::Refuted),
                     None => None,
+                }
+            }
+            _ if matches!(
+                predicate.semantic_value(),
+                StructuralTerm::MathematicalBinary { .. } | StructuralTerm::ScalarBinary { .. }
+            ) =>
+            {
+                // Completed call guarantees may relate mathematical embeddings
+                // of fields with distinct source type handles. The observed
+                // predicate owner composes those equations in one value frame.
+                // Keep the original operations for its formation checks; a
+                // selected callable stays an application, never a builtin law.
+                match self.judge_observed_predicate(predicate, 0) {
+                    StructuralJudgment::Unknown => None,
+                    judgment => Some(judgment),
                 }
             }
             _ => None,

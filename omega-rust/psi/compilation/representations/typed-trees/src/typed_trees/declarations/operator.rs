@@ -26,8 +26,7 @@ pub use applications::{
     symbolic_operator_type_application_for_operands,
 };
 pub use indexing::{
-    builtin_index_read_is_spelled, declined_copy_index_is_builtin_place,
-    indexed_operator_governs_occurrence, resolve_indexed_spelling_for_operands,
+    builtin_index_read_is_spelled, resolve_indexed_spelling_for_operands,
     unconstrained_type_reference,
 };
 pub use named_calls::{

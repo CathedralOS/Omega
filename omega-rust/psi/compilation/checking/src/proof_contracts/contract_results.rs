@@ -19,7 +19,7 @@ pub struct ReservedResultPlace {
     pub segments: Vec<facts::PlaceSegment>,
 }
 
-/// Resolve ordinary field projections rooted at the reserved contract result.
+/// Resolve declaration-owned field and literal fixed-index result projections.
 /// The result name and the complete projection share one owning ensures when
 /// the occurrence index lists both. An intermediate field node that the index
 /// does not list separately still belongs to that result; a different owner
@@ -29,15 +29,19 @@ pub fn reserved_result_place(
     expression: ExpressionHandle,
 ) -> Option<ReservedResultPlace> {
     let mut root = expression;
-    let mut members = Vec::new();
+    let mut projections = Vec::new();
     loop {
-        if !program.expression_table.expression_is_valid(root) || members.len() >= 128 {
+        if !program.expression_table.expression_is_valid(root) || projections.len() >= 128 {
             return None;
         }
         match program.expression_table.expression(root) {
             ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                members.push(member);
+                projections.push(root);
                 root = member.receiver;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                projections.push(root);
+                root = indexed.collection;
             }
             ExpressionNode::Name(_) => break,
             _ => return None,
@@ -50,8 +54,86 @@ pub fn reserved_result_place(
     {
         return None;
     }
-    let mut segments = Vec::with_capacity(members.len());
-    for member in members.into_iter().rev() {
+    let mut segments = Vec::with_capacity(projections.len());
+    for projection in projections.into_iter().rev() {
+        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(projection) {
+            // Storage spelling does not select [] meaning. Authenticate the
+            // exact declaration telescope and retained operator occurrence;
+            // an authored operator may return an entirely different value.
+            // Only an immutable literal selector enters this path. Computed
+            // selectors need their own completed-capture evidence, even when
+            // a later storage observation could give them the same number.
+            let literal = program.expression_table.integer_node(indexed.index)?;
+            if literal.landing().is_some_and(|landing| {
+                landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    || landing.landed_type == numerics::literals::LandedIntegerType::Addr
+            }) {
+                return None;
+            }
+            use language_semantics::declaration_selection::{
+                AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+                AuthoredDeclarationSelectionKind as Kind,
+                AuthoredDeclarationSelectionLateBinding as LateBinding,
+                AuthoredDeclarationSelectionTarget as Target,
+            };
+            let mut occurrences = program
+                .expression_table
+                .authored_selection_occurrences(projection);
+            let occurrence = occurrences.next()?;
+            let selection = program.authored_declaration_selections().get(occurrence)?;
+            // Stage 04 settles ordinary operator occurrences after proving
+            // contracts. The late binding is source custody, not a builtin
+            // premise: the exact owner/operand query below must independently
+            // reconstruct builtin meaning before the coordinate is usable.
+            if occurrences.next().is_some()
+                || selection.kind() != Kind::Operator
+                || !matches!(
+                    selection.target(),
+                    Target::Intrinsic(Intrinsic::BuiltinOperator)
+                        | Target::LateBound(LateBinding::CheckedOperator)
+                )
+            {
+                return None;
+            }
+            let index = usize::try_from(literal.value_u64()?).ok()?;
+            let parameters = source_contract_parameters(program, machine_symbol, root)?;
+            let index_type = crate::parameter_expression_result_type_reference(
+                program,
+                machine_symbol,
+                parameters,
+                indexed.index,
+            );
+            if !typed_trees::operator::builtin_index_read_is_spelled(
+                program,
+                machine_symbol,
+                projection,
+                &[Some(type_reference), index_type],
+            ) {
+                return None;
+            }
+            let receiver =
+                crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
+            let typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(extent),
+            } = program.type_reference_table.type_reference(receiver)
+            else {
+                return None;
+            };
+            if index >= *extent
+                || !program
+                    .type_reference_table
+                    .contains_type_reference(*element_type)
+            {
+                return None;
+            }
+            segments.push(facts::PlaceSegment::FixedIndex { index });
+            type_reference = *element_type;
+            continue;
+        }
+        let ExpressionNode::Member(member) = program.expression_table.expression(projection) else {
+            return None;
+        };
         let receiver =
             crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
         // Resolve the complete closed application, not just a named node or
@@ -112,6 +194,138 @@ pub fn reserved_result_owner(
     }
 
     contract_occurrence_owner(program, expression, expression)
+}
+
+/// Result dependence belongs to the authored contract, even when a selected
+/// operation has no first-order structural term. This classifies functional
+/// guarantees; it grants no proof of them and preserves formal shadowing.
+pub(crate) fn expression_uses_reserved_result(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::<_, symbols::BuildSymbolHasher>::default();
+    crate::expression_traversal::collect_expression_nodes(
+        program, expression, &mut nodes, &mut seen,
+    );
+    nodes
+        .into_iter()
+        .any(|node| reserved_result_owner(program, node).is_some())
+}
+
+/// Proof correspondence may use an indexed expression as an element
+/// coordinate only under its authored declaration's operator meaning. A
+/// provider's equal carrier and same syntax cannot supply that premise.
+/// Range operations retain their separate existing interpretation.
+pub(crate) fn expression_has_source_builtin_index_meaning(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::<_, symbols::BuildSymbolHasher>::default();
+    crate::expression_traversal::collect_expression_nodes(
+        program, expression, &mut nodes, &mut seen,
+    );
+    nodes.into_iter().all(|node| {
+        let Some(indexed) = program.expression_table.indexed_node(node) else {
+            return true;
+        };
+        if program.expression_table.indexed_on_range(indexed) {
+            return true;
+        }
+        let Ok(owner) = source_contract_declaration_owner(program, node) else {
+            return false;
+        };
+        let Some(parameters) = source_contract_parameters(program, owner, node) else {
+            return false;
+        };
+        let operands = [indexed.collection, indexed.index].map(|operand| {
+            crate::parameter_expression_result_type_reference(program, owner, parameters, operand)
+        });
+        // Raw contract literals need not have a runtime integer carrier.
+        // Keep the known collection and pass an unresolved selector through
+        // the shared query's conservative overload matching; do not guess
+        // its type or let its absence eliminate an authored candidate.
+        operands[0].is_some()
+            && typed_trees::operator::builtin_index_read_is_spelled(program, owner, node, &operands)
+    })
+}
+
+pub(crate) fn fact_has_source_builtin_index_meaning(
+    program: &dyn crate::CheckingInput,
+    fact: &ProofFact,
+) -> bool {
+    match fact {
+        ProofFact::Expression(expression) => {
+            expression_has_source_builtin_index_meaning(program, *expression)
+        }
+        ProofFact::Membership(membership) => {
+            let mut expressions = Vec::new();
+            let mut visited = Vec::new();
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(membership.domain_arguments)
+            {
+                crate::expression_traversal::collect_type_expressions(
+                    program,
+                    *argument,
+                    &mut visited,
+                    &mut expressions,
+                );
+            }
+            expression_has_source_builtin_index_meaning(program, membership.value)
+                && expressions.into_iter().all(|expression| {
+                    expression_has_source_builtin_index_meaning(program, expression)
+                })
+        }
+        ProofFact::Proposition(application) => {
+            proposition_has_source_builtin_index_meaning(program, application, &mut Vec::new())
+        }
+    }
+}
+
+/// Inspect transparent formulas before any direct-edge proof deferral, not
+/// only when correspondence happens to expand them. Alias bodies retain their
+/// authored source scope; actual arguments cannot turn an unsupported body
+/// operation into the provider's builtin operation.
+fn proposition_has_source_builtin_index_meaning(
+    program: &dyn crate::CheckingInput,
+    application: &typed_trees::proposition::PropositionApplication,
+    expanding: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    use typed_trees::proposition::{PropositionBody, PropositionFormula};
+
+    if !program
+        .expression_table
+        .expression_handles(application.arguments)
+        .iter()
+        .all(|argument| expression_has_source_builtin_index_meaning(program, *argument))
+    {
+        return false;
+    }
+    let Some(declaration) = program.proposition_definition_by_symbol(application.proposition)
+    else {
+        // Opaque proposition binders retain their existing declaration-based
+        // correspondence. This query supplies no interpretation of them.
+        return true;
+    };
+    let PropositionBody::Transparent { proposition } = &declaration.body else {
+        return true;
+    };
+    if expanding.len() >= 128 || expanding.contains(&declaration.symbol) {
+        return false;
+    }
+    expanding.push(declaration.symbol);
+    let supported = match proposition {
+        PropositionFormula::Application(nested) => {
+            proposition_has_source_builtin_index_meaning(program, nested, expanding)
+        }
+        PropositionFormula::BooleanExpression(expression) => {
+            expression_has_source_builtin_index_meaning(program, *expression)
+        }
+    };
+    expanding.pop();
+    supported
 }
 
 /// Exact declaration owning a raw authored contract expression. This query

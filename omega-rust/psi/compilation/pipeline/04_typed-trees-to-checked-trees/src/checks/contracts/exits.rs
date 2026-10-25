@@ -275,6 +275,7 @@ pub(super) fn check_exit_ensures(
                             program,
                             facts,
                             state_flow,
+                            exit_flow,
                             fact,
                             content_plans,
                         )

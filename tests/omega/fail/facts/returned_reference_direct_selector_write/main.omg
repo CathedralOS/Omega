@@ -1,0 +1,38 @@
+// A changed selector cannot preserve the entry-bound reference choice.
+// Writing through the returned view may replace the later array index.
+
+machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, mut pick_chosen: bool) -> &'storage mut u64 {
+    pick_chosen = !pick_chosen;
+    transition pick_chosen {
+        true -> chosen
+        _ -> other
+    }
+}
+
+
+machine relay<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+    choose(chosen, other, pick_chosen)
+}
+
+machine overwrite(slot: &mut u64) -> u64 in Wrapping {
+    slot = 9;
+    (1 as u64 in Wrapping)
+}
+
+machine add(first: u64 in Wrapping, second: u64 in Wrapping) -> u64 in Wrapping {
+    first + second
+}
+
+machine main() crashes Trap {
+    let mut chosen: u64 = 0;
+    let mut other: u64 = 1;
+    let items: [u8; 4] = [4, 7, 8, 9];
+    let zero: u64 in Wrapping = 0;
+    let marker: u64 in Wrapping = add(overwrite(relay(&mut chosen, &mut other, true)), zero);
+    transition (marker as u64) == 1 && chosen == 9 && items[other] == 7 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

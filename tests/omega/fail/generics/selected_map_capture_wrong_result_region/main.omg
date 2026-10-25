@@ -1,0 +1,23 @@
+// A fresh member invocation cannot return its scratch region as the captured map region.
+trait Borrowing<View> {
+    machine borrow<'scope>(value: View, scratch: &'scope i32) -> View;
+}
+Selected<'scope, Role> satisfies Borrowing<&'scope i32> {
+    machine borrow<'item>(value: &'scope i32, scratch: &'item i32) -> &'scope i32 {
+        scratch
+    }
+}
+machine invoke<'scope, Implementation satisfies Borrowing<&'scope i32>>(
+    value: &'scope i32, scratch: &i32
+) -> &'scope i32 { Implementation::borrow(value, scratch) }
+machine observed<'environment, 'temporary, Role>(
+    value: &'environment i32, scratch: &'temporary i32
+) -> &'environment i32 { invoke<Selected<'environment, Role>>(value, scratch) }
+machine main() crashes Trap {
+    let value: i32 = 37;
+    let scratch: i32 = 19;
+    let first: &i32 = observed<u8>(&value, &scratch);
+    let second: &i32 = observed<i32>(&value, &scratch);
+    transition first as i32 == 37 && second as i32 == 37 { true -> done() _ -> bad() }
+    state done() {} state bad() { crash Trap; }
+}

@@ -17,6 +17,12 @@ moves before the loan's last use — and is rejected by the borrow checker
 (``while local borrow `selected` is still active``), so the row's oracle
 discriminates a correct death point from a premature one.
 
+Ordinary helper boundaries declare the two active `Slot::Present` cases and
+`visits == 0` before they select a loan or call `choose`. Each caller proves
+those entry requirements from its own construction; caller facts do not become
+undeclared premises of a machine body. The matching reject twins carry the
+same requirements and still replace a source while its selected loan is live.
+
 ## Places
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |

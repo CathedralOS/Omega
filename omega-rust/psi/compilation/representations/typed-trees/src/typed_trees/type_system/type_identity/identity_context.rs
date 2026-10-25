@@ -22,6 +22,8 @@ mod match_dispatch;
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
     pub(crate) storage_value_indices: bool,
+    /// Declared-carrier correspondence erases refinement shells at every depth.
+    pub(crate) declared_carrier: bool,
     pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
     pub(crate) application_owner: SymbolHandle,
     pub(crate) application_argument_owner: SymbolHandle,
@@ -297,14 +299,31 @@ fn generic_type_identity(
     arguments: impl Iterator<Item = String>,
     context: &TypeIdentityContext<'_>,
 ) -> String {
+    let mut arguments = arguments.peekable();
+    if context.declared_carrier && arguments.peek().is_none() {
+        // A lifetime-only static operand and its materialized Named carrier
+        // denote the same nominal storage after region erasure.
+        return compound(
+            "named",
+            [normalize_const_or_nominal_name(
+                program, symbol, name, "name", context,
+            )],
+        );
+    }
     compound(
         "generic",
         std::iter::once(atom("name", &context.name(program, symbol, name)))
-            .chain(context.invalid_application.into_iter().flat_map(|_| {
-                lifetimes
-                    .iter()
-                    .map(|lifetime| context.lifetime(program, lifetime.as_str()))
-            }))
+            .chain(
+                context
+                    .invalid_application
+                    .filter(|_| !context.declared_carrier)
+                    .into_iter()
+                    .flat_map(|_| {
+                        lifetimes
+                            .iter()
+                            .map(|lifetime| context.lifetime(program, lifetime.as_str()))
+                    }),
+            )
             .chain(arguments),
     )
 }
@@ -349,7 +368,11 @@ fn generic_reference_identity<'program>(
         arguments = *origin_arguments;
     }
     // Regions matter to loan identity, not to the erased runtime carrier.
-    if arguments.is_empty() && (lifetimes.is_empty() || context.invalid_application.is_none()) {
+    if arguments.is_empty()
+        && (lifetimes.is_empty()
+            || context.invalid_application.is_none()
+            || context.declared_carrier)
+    {
         return compound(
             "named",
             [normalize_const_or_nominal_name(
@@ -532,7 +555,13 @@ pub(crate) fn normalize_type_reference(
         .type_reference_table
         .operand_lifetime_owner(type_reference);
     let scoped_context;
-    let context = if context.invalid_application.is_some() && operand_owner.is_valid() {
+    // That fence protects lexical region names. Carrier substitution uses
+    // complete binder symbols and simultaneous prefixes, so a member's genuine
+    // map Type/Const frame remains usable even without a body specialization.
+    let context = if context.invalid_application.is_some()
+        && operand_owner.is_valid()
+        && !context.declared_carrier
+    {
         scoped_context = TypeIdentityContext {
             application_owner: operand_owner,
             application_scopes: context
@@ -616,27 +645,34 @@ pub(crate) fn normalize_type_reference(
                 language_core::ReferenceAccess::WriteOnly => "ref-write",
             },
             std::iter::once(normalize_type_reference(program, *referee, context)).chain(
-                context.invalid_application.map(|_| {
-                    lifetime.as_ref().map_or_else(
-                        || {
-                            if context.qualification == TypeIdentityQualification::PackageQualified
-                                && let Some(invalid) = context.invalid_application
-                            {
-                                // Portable applications need the resolved
-                                // region, not an inference placeholder.
-                                invalid.set(true);
-                            }
-                            "elided-region".to_owned()
-                        },
-                        |lifetime| context.lifetime(program, lifetime.as_str()),
-                    )
-                }),
+                context
+                    .invalid_application
+                    .filter(|_| !context.declared_carrier)
+                    .map(|_| {
+                        lifetime.as_ref().map_or_else(
+                            || {
+                                if context.qualification
+                                    == TypeIdentityQualification::PackageQualified
+                                    && let Some(invalid) = context.invalid_application
+                                {
+                                    // Portable applications need the resolved
+                                    // region, not an inference placeholder.
+                                    invalid.set(true);
+                                }
+                                "elided-region".to_owned()
+                            },
+                            |lifetime| context.lifetime(program, lifetime.as_str()),
+                        )
+                    }),
             ),
         ),
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
+            if context.declared_carrier {
+                return normalize_type_reference(program, *base_type, context);
+            }
             let (base, mut all_constraints) =
                 normalize_constrained_base(program, *base_type, context);
             all_constraints.extend(normalized_constraints(program, *constraints, context));

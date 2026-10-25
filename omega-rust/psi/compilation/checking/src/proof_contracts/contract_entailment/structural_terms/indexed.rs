@@ -28,6 +28,19 @@ pub(in crate::proof_contracts::contract_entailment) fn indexed_term_in_scope(
             super::binary::expression_scope(program, expression, 0)
                 .and_then(|symbol| super::binary::scoped_machine_state(program, symbol))
         });
+    // A bodyless requirement has a result telescope without an executable
+    // machine/state. Rejoin that exact authored occurrence so its typed index
+    // retains the result binder; an opaque rendering cannot classify or prove
+    // its law. Explicit caller-supplied frames remain authoritative.
+    let frame = frame.or_else(|| {
+        let result = crate::reserved_result_place(program, expression)?;
+        let parameters = crate::proof_contracts::contract_results::source_contract_parameters(
+            program,
+            result.machine_symbol,
+            result.root,
+        )?;
+        Some((result.machine_symbol, parameters))
+    });
     let owner = frame
         .map(|(owner, _)| owner)
         .or_else(|| state_scope.map(|(machine, _)| machine.symbol))?;
@@ -42,22 +55,13 @@ pub(in crate::proof_contracts::contract_entailment) fn indexed_term_in_scope(
         }
     };
     let references = [indexed.collection, indexed.index].map(expression_type);
-    let spelling = language_core::OperatorSpelling::Index;
     if references[0].is_none()
-        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+        || !typed_trees::operator::builtin_index_read_is_spelled(
             program,
             owner,
             expression,
-            spelling,
             &references,
         )
-        || !typed_trees::operator::resolve_indexed_spelling_for_operands(
-            program,
-            spelling,
-            &references,
-            program.expression_table.source_span(expression),
-        )
-        .is_empty()
     {
         return None;
     }

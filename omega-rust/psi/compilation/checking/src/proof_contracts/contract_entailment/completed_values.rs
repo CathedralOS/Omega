@@ -175,7 +175,7 @@ fn field_projections(
         .collect()
 }
 
-fn term_field_paths(
+pub(super) fn term_field_paths(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     value: &StructuralTerm,
@@ -221,7 +221,7 @@ fn append_projection(
 /// Observed constructors supply their finite actual child roster. A collection
 /// descriptor or opaque aggregate remains a whole-value obligation; declaration
 /// extent does not manufacture observations of its children.
-fn observed_projections(
+pub(super) fn observed_projections(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     value: &StructuralTerm,

@@ -133,6 +133,10 @@ pub(crate) struct Lowerer {
     pub(crate) pending_const_declarations: Vec<PendingConstDeclaration>,
     pub(crate) pending_const_argument_selections: Vec<PendingConstArgumentSelection>,
     pub(crate) pending_const_argument_slots: Vec<PendingConstArgumentSlot>,
+    /// Resolved declaration-construction owners from deferred lexical probes.
+    /// Their Generic parents must outlive the pending const argument slots;
+    /// they are never installed as executable statements in the resolved tree.
+    pub(crate) resolved_lexical_inputs: Vec<crate::lowering::state::StateLexicalInputs>,
     pub(crate) derived_const_argument_origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) derived_const_argument_expressions: Vec<syntax_trees::expression::ExpressionHandle>,
     pub(crate) pending_const_argument_expressions: Vec<ExpressionHandle>,
@@ -277,6 +281,7 @@ impl Lowerer {
             current_authored_expression_exposure: None,
             pending_const_argument_selections: Vec::new(),
             pending_const_argument_slots: Vec::new(),
+            resolved_lexical_inputs: Vec::new(),
             derived_const_argument_origins: Vec::new(),
             derived_const_argument_expressions: Vec::new(),
             pending_const_argument_expressions: Vec::new(),

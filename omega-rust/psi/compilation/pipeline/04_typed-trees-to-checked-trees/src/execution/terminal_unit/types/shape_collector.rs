@@ -1332,6 +1332,21 @@ impl<'program> ShapeCollector<'program> {
         if !field.relevance.is_erased()
             && matches!(
                 field_type,
+                CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::RefinedScalar { .. }
+            )
+        {
+            // The inline field restriction includes this owner's stated bounds.
+            // Qualification lowering also needs the declared scalar restriction
+            // under its exact type identity after the mathematical view expires.
+            // Register that declaration separately and keep its dependency with
+            // the field; do not import field-only bounds into the scalar type.
+            let carrier = self.add_type(field_type_reference, binders, substitutions)?;
+            qualification_carriers.push(carrier);
+        }
+        if !field.relevance.is_erased()
+            && matches!(
+                field_type,
                 CheckedUnitStructuralFieldType::Structural { .. }
                     | CheckedUnitStructuralFieldType::ByteSequence(_)
                     | CheckedUnitStructuralFieldType::PredicateByteSequence { .. }

@@ -13,6 +13,7 @@ use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 use validation::CanonicalPlace;
 
 mod arguments;
+pub(super) mod lexical_regions;
 mod parameter_bounds;
 mod predicates;
 use parameter_bounds::ParameterBounds;
@@ -36,23 +37,17 @@ pub(super) struct StateValues {
     qualifications: Vec<qualifications::QualifiedInput>,
     predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
     entry_paths: crate::facts::boolean_predicates::EntryPaths,
-    /// One predecessor's selected-case and, for an entry call, scalar
-    /// deliveries. Transitions leave `values` empty because `StateValues::values`
-    /// already joined those scalars.
+    /// Selected cases of internal state arrivals. Scalars join through `values`.
     argument_edges: ArgumentInputs,
     /// Cases every recorded edge agrees on, keyed by the destination parameter.
     cases: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
-/// One incoming call or transition edge's argument observations.
+/// One internal state-arrival edge's selected-case observations.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ArgumentEdge {
     source: fields::BoundsSource,
     cases: Vec<(SymbolHandle, SymbolHandle)>,
-    values: Vec<(SymbolHandle, ScalarValue)>,
-    /// Entry calls carry scalar actuals. Transition edges leave this false so
-    /// their scalar join stays on `StateValues::values`.
-    carries_values: bool,
 }
 
 /// Unreached inputs collect edges; a conservative fallback already represents
@@ -376,7 +371,7 @@ pub(super) fn record_transition(
             cases: Vec::new(),
         },
     );
-    let observations = capture_argument_observations(
+    let cases = capture_argument_cases(
         program,
         semantic,
         build,
@@ -391,9 +386,7 @@ pub(super) fn record_transition(
         build,
         destination,
         fields::BoundsSource::transition(state.symbol, target),
-        observations.cases,
-        Vec::new(),
-        false,
+        cases,
     );
 }
 
@@ -458,153 +451,23 @@ pub(super) fn record_invocation<'plans>(
             cases: Vec::new(),
         },
     );
-}
-
-/// Selected cases on the call's actuals, and scalar values when the callee
-/// state is its machine entry. Entry calls are not scalar-narrowed by the
-/// invocation join above; this edge records the actuals the callee body reads.
-pub(super) fn record_call_argument_facts<'plans>(
-    program: &'plans dyn ::validation::CheckingInput,
-    semantic: &FactPlan,
-    build: &mut FlowBuildContext<'plans>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    call: &BorrowCallFact,
-    captured_operands: &[FlowOperandFact],
-) {
-    let Some(site) = super::calls::memoized_find_call_site(
+    // An ordinary invocation of an internal state contributes an unknown case
+    // edge; another predecessor's selected tag cannot survive that arrival.
+    deliver_argument_edge(
         program,
         build,
-        machine.symbol,
-        state.symbol,
-        call.statement_index,
-        call.call_ordinal,
-    ) else {
-        return;
-    };
-    let destinations = call_destinations(program, build, call.target_symbol);
-    if destinations.is_empty() {
-        return;
-    }
-    let arguments = validation::call_site_argument_expressions(program, &site);
-    let receiver = match &site {
-        CallSite::Expression { call, .. } if call.receiver.is_valid() => Some(call.receiver),
-        _ => None,
-    };
-    let captured_arguments = if captured_operands
-        .iter()
-        .map(|operand| operand.expression)
-        .eq(receiver.into_iter().chain(arguments.iter().copied()))
-    {
-        &captured_operands[usize::from(receiver.is_some())..]
-    } else {
-        // An unavailable capture is an unknown incoming edge, not an omitted
-        // predecessor that would leave another caller's fact unchallenged.
-        &[]
-    };
-    let source =
-        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal);
-    for (owner_index, state_index) in destinations {
-        let owner = &program.machines()[owner_index];
-        let destination = &program.machine_states(owner)[state_index];
-        if program.state_parameters(destination).iter().count() != arguments.len() {
-            continue;
-        }
-        let entry =
-            entry_state(program, owner).is_some_and(|entry| entry.symbol == destination.symbol);
-        let observations = capture_argument_observations(
-            program,
-            semantic,
-            build,
-            machine,
-            state,
-            destination,
-            arguments,
-            captured_arguments,
-        );
-        let values = if entry {
-            observations.values
-        } else {
-            Vec::new()
-        };
-        deliver_argument_edge(
-            program,
-            build,
-            destination,
-            source,
-            observations.cases,
-            values,
-            entry,
-        );
-    }
-}
-
-/// The callee state, or every target-family member entry when the call names
-/// one member. Psi checks each authored body, so each body receives the actuals.
-fn call_destinations(
-    program: &dyn ::validation::CheckingInput,
-    build: &mut FlowBuildContext,
-    target_symbol: SymbolHandle,
-) -> Vec<(usize, usize)> {
-    let mut seed = build.state_location(program, target_symbol);
-    if seed.is_none()
-        && let Some(machine) = program.machine_by_symbol(target_symbol)
-        && let Some(entry) = program.machine_states(machine).first()
-    {
-        seed = build.state_location(program, entry.symbol);
-    }
-    let Some((machine_index, state_index)) = seed else {
-        return Vec::new();
-    };
-    let machine_symbol = program.machines()[machine_index].symbol;
-    let Some(family) = program.target_machine_families.iter().find(|family| {
-        family.canonical == machine_symbol
-            || family
-                .members
-                .iter()
-                .any(|member| member.machine == machine_symbol)
-    }) else {
-        return vec![(machine_index, state_index)];
-    };
-    let mut symbols = vec![family.canonical];
-    for member in &family.members {
-        if !symbols.contains(&member.machine) {
-            symbols.push(member.machine);
-        }
-    }
-    let mut locations = Vec::new();
-    for machine_symbol in symbols {
-        let Some(machine) = program.machine_by_symbol(machine_symbol) else {
-            continue;
-        };
-        let Some(entry) = program.machine_states(machine).first() else {
-            continue;
-        };
-        let Some(location) = build.state_location(program, entry.symbol) else {
-            continue;
-        };
-        if !locations.contains(&location) {
-            locations.push(location);
-        }
-    }
-    if locations.is_empty() {
-        vec![(machine_index, state_index)]
-    } else {
-        locations
-    }
-}
-
-struct ArgumentObservations {
-    cases: Vec<(SymbolHandle, SymbolHandle)>,
-    values: Vec<(SymbolHandle, ScalarValue)>,
+        destination,
+        fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal),
+        Vec::new(),
+    );
 }
 
 /// Deliver what each operand completed, not what its source holds after the
-/// other operands ran. Ordinary calls and named jumps use the same capture law
+/// other operands ran. Named jumps use the same capture law
 /// as contract checking: detached values keep completion facts; views consult
 /// their exact live referents at invocation. Missing captures remain unknown
 /// incoming edges and never disappear from a destination's join.
-fn capture_argument_observations(
+fn capture_argument_cases(
     program: &dyn ::validation::CheckingInput,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
@@ -613,15 +476,9 @@ fn capture_argument_observations(
     destination: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
     captured: &[FlowOperandFact],
-) -> ArgumentObservations {
+) -> Vec<(SymbolHandle, SymbolHandle)> {
     let parameters = program.state_parameters(destination);
-    let mut observations = ArgumentObservations {
-        cases: Vec::new(),
-        values: parameters
-            .iter()
-            .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
-            .collect(),
-    };
+    let mut cases = Vec::new();
     if parameters.len() != arguments.len()
         || !captured
             .iter()
@@ -631,14 +488,14 @@ fn capture_argument_observations(
             .iter()
             .any(|capture| capture.state_symbol != state.symbol)
     {
-        return observations;
+        return cases;
     }
     let invocation = captured
         .last()
         .map_or(HandleSpan::<FlowConstraintRef>::empty(), |capture| {
             capture.constraints
         });
-    for (position, (parameter, capture)) in parameters.iter().zip(captured).enumerate() {
+    for (parameter, capture) in parameters.iter().zip(captured) {
         let contexts = super::operand_contexts(
             program,
             &build.contexts,
@@ -648,80 +505,24 @@ fn capture_argument_observations(
             parameter.type_reference,
             invocation,
         );
-        let view = super::operand_binds_live_view(program, parameter.type_reference);
-        let expression_place = (!view).then_some(CanonicalPlace {
-            root: facts::PlaceRoot::Expression(capture.expression),
-            segments: Vec::new(),
-        });
-        let storage_place = if view {
-            match build
-                .control
-                .operand_referents
-                .span_or_empty(capture.referents)
-            {
-                [referent] => build
-                    .control
-                    .operand_referent_segments
-                    .span(referent.segments)
-                    .map(|segments| CanonicalPlace {
-                        root: referent.root,
-                        segments: segments.to_vec(),
-                    }),
-                _ => None,
-            }
-        } else if validation::value_has_builtin_coordinates(
+        let Some(places) = argument_places(
             program,
+            build,
             machine,
             state,
-            capture.expression,
-        ) {
-            build.canonical_place_at(
-                program,
-                capture.state_symbol,
-                capture.statement_index,
-                capture.expression,
-            )
-        } else {
-            None
+            capture,
+            parameter.type_reference,
+        ) else {
+            continue;
         };
-        let places = expression_place.iter().chain(storage_place.iter());
-        // By-value scalars stay with the declared contract: an entry call
-        // discharges the requires premise at its boundary, so specializing
-        // the parameter to this call's actual would let one caller's literal
-        // discharge obligations the contract never carried. Reference
-        // parameters are different -- the actual names caller-owned storage,
-        // and its live scalar is the referent's content, which only the
-        // caller's edge can supply.
-        let reference = validation::peel_declared_constraints(program, parameter.type_reference);
-        let carries_scalar = matches!(
-            program.type_reference_table.type_reference(reference),
-            typed_trees::types::TypeReferenceNode::Reference { .. }
-        );
-        if carries_scalar {
-            let value = places
-                .clone()
-                .find_map(|place| {
-                    crate::values::scalar_value_at_place(
-                        program,
-                        semantic,
-                        contexts
-                            .iter()
-                            .map(|context| semantic.contexts.get(*context)),
-                        place,
-                    )
-                })
-                .or_else(|| literal(program, capture.expression))
-                .unwrap_or_default();
-            observations.values[position].1 = value;
-        }
         if let Some(variant) = places
-            .into_iter()
+            .iter()
             .find_map(|place| assigned_case_at(program, semantic, &contexts, place))
         {
-            observations.cases.push((parameter.symbol, variant));
+            cases.push((parameter.symbol, variant));
         };
     }
-    observations.cases.sort_by_key(|(parameter, variant)| {
+    cases.sort_by_key(|(parameter, variant)| {
         (
             parameter.arena_index(),
             parameter.generation(),
@@ -729,7 +530,56 @@ fn capture_argument_observations(
             variant.generation(),
         )
     });
-    observations
+    cases
+}
+
+/// Exact completed-value or live-referent namespaces shared by arrival
+/// consumers. The caller selects the matching operand contexts independently.
+fn argument_places(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    capture: &FlowOperandFact,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<Vec<CanonicalPlace>> {
+    let view = super::operand_binds_live_view(program, reference);
+    let mut places = Vec::new();
+    if !view {
+        places.push(CanonicalPlace {
+            root: facts::PlaceRoot::Expression(capture.expression),
+            segments: Vec::new(),
+        });
+    }
+    let storage_place = if view {
+        match build
+            .control
+            .operand_referents
+            .span_or_empty(capture.referents)
+        {
+            [referent] => build
+                .control
+                .operand_referent_segments
+                .span(referent.segments)
+                .map(|segments| CanonicalPlace {
+                    root: referent.root,
+                    segments: segments.to_vec(),
+                }),
+            _ => None,
+        }
+    } else if validation::value_has_builtin_coordinates(program, machine, state, capture.expression)
+    {
+        build.canonical_place_at(
+            program,
+            capture.state_symbol,
+            capture.statement_index,
+            capture.expression,
+        )
+    } else {
+        None
+    };
+    places.extend(storage_place);
+    (!places.is_empty()).then_some(places)
 }
 
 fn assigned_case_at(
@@ -778,8 +628,6 @@ fn deliver_argument_edge(
     destination: &typed_trees::state::State,
     source: fields::BoundsSource,
     cases: Vec<(SymbolHandle, SymbolHandle)>,
-    values: Vec<(SymbolHandle, ScalarValue)>,
-    carries_values: bool,
 ) {
     let index = ensure_input_row(program, build, destination);
     let row = &mut build.state_value_inputs[index];
@@ -788,35 +636,21 @@ fn deliver_argument_edge(
     };
     let mut added = false;
     if let Some(edge) = edges.iter_mut().find(|edge| edge.source == source) {
-        if edge.cases == cases && edge.values == values && edge.carries_values == carries_values {
+        if edge.cases == cases {
             return;
         }
         edge.cases = cases;
-        edge.values = values;
-        edge.carries_values = carries_values;
     } else {
-        edges.push(ArgumentEdge {
-            source,
-            cases,
-            values,
-            carries_values,
-        });
+        edges.push(ArgumentEdge { source, cases });
         added = true;
     }
     let cases = joined_cases(edges);
-    let values = carries_values.then(|| joined_scalars(edges)).flatten();
     if added {
         build.new_state_field_input_height = build.new_state_field_input_height.saturating_add(1);
     }
     let row = &mut build.state_value_inputs[index];
-    let mut changed = cases != row.cases;
+    let changed = cases != row.cases;
     row.cases = cases;
-    if let Some(values) = values {
-        if values != row.values {
-            changed = true;
-            row.values = values;
-        }
-    }
     let state = destination.symbol;
     if changed && !build.dirty_state_value_inputs.contains(&state) {
         build.dirty_state_value_inputs.push(state);
@@ -865,26 +699,6 @@ fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
         .collect()
 }
 
-fn joined_scalars(edges: &[ArgumentEdge]) -> Option<Vec<(SymbolHandle, ScalarValue)>> {
-    let mut carriers = edges.iter().filter(|edge| edge.carries_values);
-    let first = carriers.next()?;
-    let mut values = first.values.clone();
-    for edge in carriers {
-        for (parameter, value) in &mut values {
-            let next = edge
-                .values
-                .iter()
-                .find(|row| row.0 == *parameter)
-                .map(|row| row.1.clone())
-                .unwrap_or_default();
-            if *value != next {
-                *value = ScalarValue::Unknown;
-            }
-        }
-    }
-    Some(values)
-}
-
 pub(super) fn append_entry_context(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
@@ -892,6 +706,15 @@ pub(super) fn append_entry_context(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
+    // A generic machine body is checked under its declared premises. Actual
+    // call operands belong to caller substitution, never ambient entry proof.
+    // Extracted lexical regions instead receive their authenticated activation
+    // captures, just as the original source region did before extraction.
+    if machine.lexical_region_origin.is_none()
+        && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol)
+    {
+        return;
+    }
     let Some(input) = build
         .state_value_inputs
         .iter()

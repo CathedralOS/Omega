@@ -708,7 +708,11 @@ impl<'plans> FlowBuildContext<'plans> {
             .flatten()
             .map(|row| &plans.expressions[*row])
             .filter(|expression| expression.role == binding.role);
-        let expression = expressions.next()?;
+        // The selected binding remains authoritative: a missing expression
+        // must not reopen the callers' source or declared-formal fallback.
+        let Some(expression) = expressions.next() else {
+            return Some(None);
+        };
         if expressions.next().is_some() {
             return Some(None);
         }
@@ -864,4 +868,78 @@ pub(super) fn source_transfer_cases_selected(
         statement_index,
         &validation::CanonicalPlace { root, segments },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FlowBuildContext;
+    use checked_trees::{
+        CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
+        CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
+    };
+
+    #[test]
+    fn selected_scalar_keeps_missing_or_ambiguous_rows_authoritative() {
+        let program = typed_trees::TypedTrees::default();
+        let borrow = checked_trees::BorrowFacts::default();
+        let proof = checked_trees::ProofFacts::default();
+        let semantic = facts::FactPlan::default();
+        let operators = checked_trees::CheckedOperatorFacts::default();
+        let mutation = crate::flow::StateMutationSummaryCache::default();
+        let state = symbols::SymbolHandle::invalid();
+        let role = CheckedScalarExpressionRole::UnitCallArgument {
+            call_ordinal: 0,
+            argument_ordinal: 0,
+        };
+        for (binding_count, expression_count, expected) in [
+            (0, 0, None),
+            (1, 0, Some(false)),
+            (1, 1, Some(true)),
+            (1, 2, Some(false)),
+            (2, 1, Some(false)),
+        ] {
+            let mut plans = CheckedScalarExpressionPlans::default();
+            for _ in 0..binding_count {
+                plans
+                    .source_bindings
+                    .append(CheckedScalarExpressionBindings {
+                        state,
+                        role,
+                        ..Default::default()
+                    });
+            }
+            // A different role at the same site cannot fill a missing row.
+            for expression_role in std::iter::once(CheckedScalarExpressionRole::Return)
+                .chain(std::iter::repeat_n(role, expression_count))
+            {
+                plans.expressions.push(CheckedLocatedScalarExpression {
+                    state,
+                    statement_ordinal: 0,
+                    role: expression_role,
+                    expression: CheckedScalarExpression::Parameter {
+                        position: 0,
+                        primitive_type: typed_trees::types::PrimitiveType::U64,
+                    },
+                });
+            }
+            let context = FlowBuildContext::new(
+                &program,
+                &borrow,
+                &proof,
+                &semantic,
+                &plans,
+                &operators,
+                &[],
+                None,
+                &mutation,
+            );
+            let actual = context
+                .selected_scalar_at(state, 0, |binding| binding.role == role)
+                .map(|selected| selected.is_some());
+            assert_eq!(
+                actual, expected,
+                "bindings={binding_count}, expressions={expression_count}"
+            );
+        }
+    }
 }

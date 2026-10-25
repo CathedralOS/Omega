@@ -4,6 +4,7 @@
 //! Call adapters supply exact typed formal/result bindings from the current
 //! checked signature, never implementation-private facts or receiving domains.
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
+use std::borrow::Borrow;
 use std::collections::BTreeMap;
 
 pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition> {
@@ -21,8 +22,8 @@ pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition>
 
 /// Rebind facts simultaneously. A retired incoming value may only survive as
 /// the new formal receiving it; numeric SSA reuse never equates two iterations.
-pub(super) fn arrival_requirements(
-    requirements: &[Proposition],
+pub(super) fn arrival_requirements<Requirement: Borrow<Proposition>>(
+    requirements: &[Requirement],
     bindings: &[(ValueId, ScalarTerm)],
     parameters: &[ValueId],
 ) -> Vec<Proposition> {
@@ -37,6 +38,7 @@ pub(super) fn arrival_requirements(
     let surviving = |value| !parameters.contains(&value) || substitutions.contains_key(&value);
     let mut result = requirements
         .iter()
+        .map(Borrow::<Proposition>::borrow)
         .filter(|premise| !premise.any_value_id(|value| !surviving(value)))
         .map(|premise| crate::substitution::substitute_proposition_values(premise, &substitutions))
         .collect::<Vec<_>>();

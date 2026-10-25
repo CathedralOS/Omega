@@ -194,7 +194,7 @@ impl<'program> ScopedCalls<'program> {
             if crate::integer_embedding_argument(self.program, expression).is_some() {
                 continue;
             }
-            let Some(owner) = selected_call_contract(self.program, call) else {
+            let Some(owner) = selected_call_contract(self.program, source.owner, call) else {
                 continue;
             };
             // A selected dynamic slot is a runtime occurrence. Its public
@@ -328,7 +328,7 @@ impl<'program> ScopedCalls<'program> {
             }
             crate::CallSite::TransitionNamed { .. } => return None,
         };
-        let owner = selected_call_site_contract(self.program, site)?;
+        let owner = selected_call_site_contract(self.program, machine.symbol, site)?;
         let arguments = crate::call_site_argument_expressions(self.program, &site);
         if matches!(owner, SelectedCallContract::DynamicSlot { .. })
             || !self.independent(owner, &mut Vec::new(), &mut Vec::new())?
@@ -627,7 +627,7 @@ impl<'program> ScopedCalls<'program> {
             visited.push(expression);
             let node = self.program.expression_table.expression(expression);
             if let ExpressionNode::Call(call) = node
-                && let Some(nested) = selected_call_contract(self.program, call)
+                && let Some(nested) = selected_call_contract(self.program, symbol, call)
                 && !self.independent(nested, active, complete)?
             {
                 return Some(false);

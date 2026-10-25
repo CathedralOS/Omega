@@ -1,0 +1,34 @@
+// Regression: inherited content follows the exact retained formal, not an equal-typed neighbor.
+// Expected exit: 0
+use omega::language::core::content;
+use omega::language::core::drop;
+data Units {}
+data Payload {}
+data Region [linear] { amount: u64; }
+machine Region::drop(region: &mut Region) {}
+domain Region::Owned;
+machine Owned::content(region: &Region) -> CountedQuantity<Units>
+satisfies Content<Region, CountedQuantity<Units>>::project {
+    CountedQuantity { magnitude: embed(region.amount) as Nat }
+}
+trait Transfer<T> {
+    machine transfer(discarded: Region in Owned, retained: Region in Owned) -> Region in Owned
+    ensures Owned::content(old(&retained)) == Owned::content(&result);
+}
+machine retain(left: Region in Owned, right: Region in Owned) -> Region in Owned
+satisfies Transfer<Payload>::transfer
+{ drop(right); left }
+machine observe(region: Region in Owned) -> u64 {
+    let amount: u64 = region.amount;
+    drop(region);
+    amount
+}
+machine main() crashes Trap {
+    let first: Region in Owned = Region { amount: 11 };
+    let second: Region in Owned = Region { amount: 29 };
+    let returned: Region in Owned = retain(first, second);
+    let amount: u64 = observe(returned);
+    transition amount == 29 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

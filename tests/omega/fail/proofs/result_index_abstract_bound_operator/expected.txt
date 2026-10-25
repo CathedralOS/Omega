@@ -1,0 +1,4 @@
+Provider::issue
+Outer::issue
+does not guarantee its `ensures result.items[0].code == 7`
+result.items[0].code == 7

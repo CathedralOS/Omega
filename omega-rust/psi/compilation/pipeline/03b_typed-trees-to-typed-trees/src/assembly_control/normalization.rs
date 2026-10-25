@@ -1028,7 +1028,6 @@ fn normalize_graph(
         program.push_machine_state(&mut helper, label);
     }
     carry_ranking_witness(program, owner.symbol, &mut helper, &entry_mapping);
-    program.push_machine(helper);
     let prefix = HandleSpan::from_parts(
         state
             .statement_nodes
@@ -1082,6 +1081,12 @@ fn normalize_graph(
         })
         .collect();
     let arguments = program.statement_table.insert_expression_handles(arguments);
+    helper.lexical_region_origin = Some(typed_trees::machine::LexicalRegionOrigin {
+        machine: owner.symbol,
+        state: state.symbol,
+        arguments,
+    });
+    program.push_machine(helper);
     result.push(StatementNode::Call(TableCall {
         // Ordinary typed calls name the executable entry, not its machine
         // declaration. Effect inference, flow, and execution join that exact

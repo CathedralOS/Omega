@@ -1141,8 +1141,14 @@ defines the complete product bar.
     temporary for the selected field.
     Keep `samples/cli/facts/returned_linear_residual/` and its pinned
     pass/reject pairs for selected by-value linear-child consumption and
-    original-owner residual cleanup. Preserve the owner-telescope review
-    control `runtime_generic_cleanup_owner_telescope_exit` alongside it.
+    original-owner residual cleanup. Keep
+    `samples/cli/facts/returned_indexed_linear_residual/` and its pinned
+    pass/reject pairs for literal fixed-array selection under the returned
+    owner's exact element claims. Authored or lexical indexing cannot acquire
+    builtin result laws; inherited functional guarantees still owe ordinary
+    exit proof under the exact applied parameter mapping. Preserve the
+    owner-telescope review control `runtime_generic_cleanup_owner_telescope_exit`
+    alongside these rows.
     Keep `pass/drops/runtime_claim_bearing_temporary_cleanup_exit` and
     `pass/drops/runtime_nested_claim_bearing_temporary_cleanup_exit` as native
     and Terminal controls for conditional establishment, descendant identity

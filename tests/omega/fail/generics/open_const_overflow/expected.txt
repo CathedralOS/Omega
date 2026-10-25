@@ -1,1 +1,1 @@
-does not fit exact carrier `u64`
+exact arithmetic in machine `construct` const argument `Minimum` may overflow `u64`

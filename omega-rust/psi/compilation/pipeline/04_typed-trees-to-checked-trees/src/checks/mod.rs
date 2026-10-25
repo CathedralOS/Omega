@@ -69,7 +69,9 @@ pub(crate) mod termination;
 
 use diagnostics::Diagnostic;
 use language_core::OperatorSpelling;
-pub(crate) use operators::{named_operator_route_is_false, operator_route_is_false};
+pub(crate) use operators::{
+    InvocationContexts, named_operator_route_is_false, operator_route_is_false,
+};
 use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;

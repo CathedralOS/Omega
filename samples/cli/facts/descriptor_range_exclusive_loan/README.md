@@ -21,6 +21,12 @@ forbids touching the source while it is live; every twin pins exactly that. (A r
 *unselected* payload is deliberately not part of the oracle: without an `ensures` on `choose` the
 compiler cannot know which arm was taken, so the loan's candidate set legitimately covers both
 payloads and such a read is refused conservatively rather than proved.)
+Ordinary helper boundaries declare the two active `Slot::Present` cases and
+`visits == 0` before they select a loan or call `choose`. Each caller proves
+those entry requirements from its own construction; caller facts do not become
+undeclared premises of a machine body. The matching reject twins carry the
+same requirements and still replace a source while its selected loan is live.
+
 ## Places
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |

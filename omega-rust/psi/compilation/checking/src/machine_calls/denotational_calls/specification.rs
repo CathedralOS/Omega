@@ -30,34 +30,53 @@ pub(crate) fn validate_specification_calls(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<SpecificationCallRequest> {
     let mut pending = Vec::new();
-    for (_, fact) in typed_trees::references::program_proof_facts(program) {
+    for (owner, _, fact) in typed_trees::references::program_scoped_proof_facts(program) {
         match fact {
-            ProofFact::Expression(expression) => pending.push(*expression),
-            ProofFact::Membership(membership) => pending.push(membership.value),
-            ProofFact::Proposition(application) => pending.extend_from_slice(
+            ProofFact::Expression(expression) => pending.push((owner, *expression)),
+            ProofFact::Membership(membership) => pending.push((owner, membership.value)),
+            ProofFact::Proposition(application) => pending.extend(
                 program
                     .expression_table
-                    .expression_handles(application.arguments),
+                    .expression_handles(application.arguments)
+                    .iter()
+                    .map(|expression| (owner, *expression)),
             ),
         }
     }
-    pending.extend(crate::mathematical_applications::expression_nodes(program));
+    pending.extend(crate::mathematical_applications::scoped_expression_nodes(
+        program,
+    ));
     for proposition in program.propositions() {
-        if let PropositionBody::Transparent { proposition } = &proposition.body {
-            match proposition {
-                PropositionFormula::BooleanExpression(expression) => pending.push(*expression),
-                PropositionFormula::Application(application) => pending.extend_from_slice(
+        if let PropositionBody::Transparent {
+            proposition: formula,
+        } = &proposition.body
+        {
+            match formula {
+                PropositionFormula::BooleanExpression(expression) => {
+                    pending.push((proposition.symbol, *expression))
+                }
+                PropositionFormula::Application(application) => pending.extend(
                     program
                         .expression_table
-                        .expression_handles(application.arguments),
+                        .expression_handles(application.arguments)
+                        .iter()
+                        .map(|expression| (proposition.symbol, *expression)),
                 ),
             }
         }
     }
     let mut requests = Vec::new();
-    crate::expression_traversal::visit_pre_order(program, pending, |expression, node| {
+    let mut visited = std::collections::HashSet::new();
+    while let Some((caller, expression)) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression)
+            || !visited.insert((caller, expression))
+        {
+            continue;
+        }
+        let node = program.expression_table.expression(expression);
+        crate::expression_traversal::children(program, node, |child| pending.push((caller, child)));
         let ExpressionNode::Call(call) = node else {
-            return false;
+            continue;
         };
         if crate::mathematical_applications::selected_definition(program, call).is_some() {
             // Checked mathematical signature formation owns the dependent
@@ -65,20 +84,20 @@ pub(crate) fn validate_specification_calls(
             // The producer has already checked this source application at
             // its instantiated generic telescope. Repeating an uninstantiated
             // carrier check here would lose that exact declaration custody.
-            return false;
+            continue;
         }
-        let (machine, state) = match selected_call_contract(program, call) {
+        let (machine, state) = match selected_call_contract(program, caller, call) {
             Some(SelectedCallContract::Concrete(machine, state)) => (machine, state),
             Some(SelectedCallContract::Operator(operator)) => {
                 if super::selected_operator_has_closed_value_denotation(program, operator) {
-                    return false;
+                    continue;
                 }
                 let Some(body) = super::selected_operator_authored_body(program, operator) else {
                     diagnostics.push(Diagnostic::error(format!(
                             "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
                             program.symbols.name(operator.symbol),
                         )));
-                    return false;
+                    continue;
                 };
                 body
             }
@@ -102,9 +121,9 @@ pub(crate) fn validate_specification_calls(
                             signature.name,
                         )));
                 }
-                return false;
+                continue;
             }
-            None => return false,
+            None => continue,
         };
         if let Err(reason) = super::checked_value_call_candidate(
             program,
@@ -117,21 +136,21 @@ pub(crate) fn validate_specification_calls(
                     "specification call `{}` has no observation-free, reach-free, crash-free value denotation: {reason}",
                     machine.name,
                 )));
-            return false;
+            continue;
         }
         requests.push(SpecificationCallRequest {
             call_expression: expression,
             target_machine: machine.symbol,
             target_state: state.symbol,
         });
-        false
-    });
+    }
     requests.sort_by_key(|request| {
         (
             request.call_expression.arena_index(),
             request.call_expression.generation(),
         )
     });
+    requests.dedup();
     requests
 }
 

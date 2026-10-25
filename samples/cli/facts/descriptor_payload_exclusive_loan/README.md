@@ -22,6 +22,12 @@ frontier. Exclusive element views now transfer the selected descriptor owned
 onto the join, and the successor reads that carrier, so the exclusive loan
 survives all nine transport places on both engines.
 
+Ordinary helper boundaries declare the two active `Slot::Present` cases and
+`visits == 0` before they select a loan or call `choose`. Each caller proves
+those entry requirements from its own construction; caller facts do not become
+undeclared premises of a machine body. The matching reject twins carry the
+same requirements and still replace a source while its selected loan is live.
+
 ## Places
 
 The nine places carry the same match, the same one-evaluation subject

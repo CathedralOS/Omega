@@ -1,1 +1,1 @@
-conformance `Selected` parameter `Value` requires a const argument, but `<structural type>` has another static category
+const argument `Minimum` has no static value with its exact declared carrier

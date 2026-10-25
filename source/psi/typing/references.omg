@@ -47,21 +47,11 @@ crashes Trap
     // A trait application (a trait's parent, a conformance's satisfied
     // trait, an evidence binder's trait) and a static argument naming a
     // machine are not types: the row takes none, and an application's
-    // arguments' rows intern as ever. When the trait's telescope contains
-    // an evidence binder, each argument must occupy the slot of its kind:
-    // a type, a const, or an implementation, in the order the trait wrote
-    // them. A type-only telescope keeps today's argument check.
+    // arguments' rows intern as ever. Every argument must occupy the slot
+    // of its declared kind, in the order the trait wrote its telescope.
     state trait_application(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
         Typing::set_reference_type(&mut typer.output, index, 0);
-        let mixed: bool = Typer::telescope_has_evidence(syntax, item);
-        transition mixed && typer.output.accepted {
-            true -> check_telescope(typer, sources, syntax, resolution, index, item)
-            _ -> next(typer, sources, syntax, resolution, index + 1)
-        }
-    }
-
-    state check_telescope(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping) {
-        Typer::check_implementation_telescope(typer, syntax, resolution, index, item);
+        Typer::check_trait_telescope(typer, syntax, resolution, index, item);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
@@ -513,38 +503,6 @@ crashes Trap
     }
 }
 
-// Whether trait `item`'s telescope publishes an evidence binder. Only those
-// telescopes are matched here; a type-only trait keeps its existing checks.
-public machine Typer::telescope_has_evidence(syntax: &SyntaxTrees, item: u64 in Trapping) -> bool
-crashes Trap
-{
-    let declared: TraitItem = SyntaxTrees::trait_item(syntax, item);
-    transition { _ -> next(syntax, declared, 0) }
-
-    state next(syntax: &SyntaxTrees, declared: TraitItem, offset: u64 in Trapping) -> bool {
-        transition offset < declared.generic_parameter_count {
-            true -> kind(syntax, declared, offset)
-            _ -> no()
-        }
-    }
-
-    state kind(syntax: &SyntaxTrees, declared: TraitItem, offset: u64 in Trapping) -> bool {
-        let parameter: GenericParameter = SyntaxTrees::generic_parameter(syntax, declared.first_generic_parameter + offset);
-        transition parameter.kind {
-            GenericParameterKind::Evidence -> yes()
-            _ -> next(syntax, declared, offset + 1)
-        }
-    }
-
-    state yes() -> bool {
-        true
-    }
-
-    state no() -> bool {
-        false
-    }
-}
-
 // Non-lifetime binders of one telescope. Lifetimes are a separate argument run.
 machine Typer::runtime_binder_count(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
 crashes Trap
@@ -574,7 +532,8 @@ crashes Trap
 // Whether static argument `binding` may occupy a binder of `kind`.
 // An evidence slot takes a named implementation or a forwarded evidence
 // binder. A type slot takes a type. A const slot takes a static integer or
-// a const binder. Order is the caller's: this predicate does not search.
+// a const binder. A value slot also permits a runtime-capable value binder.
+// Order is the caller's: this predicate does not search.
 public machine Typer::slot_accepts(syntax: &SyntaxTrees, kind: GenericParameterKind, binding: TypeBinding) -> bool
 crashes Trap
 {
@@ -582,6 +541,7 @@ crashes Trap
         GenericParameterKind::Evidence -> evidence(syntax, binding)
         GenericParameterKind::Type -> type_slot(syntax, binding)
         GenericParameterKind::Const -> const_slot(syntax, binding)
+        GenericParameterKind::Value -> value_slot(syntax, binding)
         GenericParameterKind::Machine -> machine_slot(syntax, binding)
         _ -> no()
     }
@@ -622,6 +582,19 @@ crashes Trap
         }
     }
 
+    state value_slot(syntax: &SyntaxTrees, binding: TypeBinding) -> bool {
+        transition binding {
+            TypeBinding::Literal -> yes()
+            TypeBinding::GenericParameter { parameter } -> value_parameter(syntax, parameter)
+            _ -> no()
+        }
+    }
+
+    state value_parameter(syntax: &SyntaxTrees, parameter: u64 in Trapping) -> bool {
+        let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
+        declared.kind == GenericParameterKind::Value || declared.kind == GenericParameterKind::Const
+    }
+
     state generic_kind(syntax: &SyntaxTrees, parameter: u64 in Trapping, expected: GenericParameterKind) -> bool {
         let declared: GenericParameter = SyntaxTrees::generic_parameter(syntax, parameter);
         declared.kind == expected
@@ -640,7 +613,7 @@ crashes Trap
 // Lifetimes are not in this argument run. A short or long run rejects as a
 // count; a run of the right length with a binder in the wrong category
 // rejects at that argument.
-public machine Typer::check_implementation_telescope(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping)
+public machine Typer::check_trait_telescope(typer: &mut Typer, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, item: u64 in Trapping)
 crashes Trap
 {
     let reference: TypeReference = SyntaxTrees::type_reference(syntax, index);
