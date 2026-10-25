@@ -48,8 +48,9 @@ pub use machine_calls::calls::{
     closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
-    selected_requirement_signature, unit_result_initializer_call_is_admitted,
-    unit_return_call_is_admitted, unit_statement_call_is_admitted,
+    selected_requirement_signature, target_family_members,
+    unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
+    unit_statement_call_is_admitted,
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
@@ -391,8 +392,9 @@ pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{
-    standing_integer_bounds, stored_integer_bounds, stored_integer_source_may_require_fit,
+    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
     stored_integer_source_projection, stored_integer_source_projections,
+    stored_integer_source_reach,
 };
 pub use proof_contracts::contract_entailment::CollectionBoundsObservations;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;

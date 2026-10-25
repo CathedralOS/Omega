@@ -15,7 +15,7 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 mod recast_history;
 mod source_geometry;
-pub use source_geometry::stored_integer_source_may_require_fit;
+pub use source_geometry::{StoredIntegerReach, stored_integer_source_reach};
 
 /// Discharge against the pre-store environment. The returned width belongs to
 /// this exact destination/value occurrence; it is not a changed semantic type.

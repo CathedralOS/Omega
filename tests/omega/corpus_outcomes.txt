@@ -6742,6 +6742,24 @@ fail/facts/narrow_to_wide_zero_extension_through_target_body_rejected rejected 6
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/narrowed_integer_write_through_call_result_rejected rejected 1905ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed write cannot transport its actual value relation
+fail/facts/narrowed_integer_write_through_const_name_rejected rejected 1170ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/facts/narrowed_integer_write_through_field_rejected rejected 1543ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/facts/narrowed_integer_write_through_local_rejected rejected 1637ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/facts/narrowed_integer_write_through_match_join_rejected rejected 1607ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed write cannot transport its actual value relation
+fail/facts/narrowed_integer_write_through_other_machine_rejected rejected 1596ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/facts/narrowed_integer_write_through_other_state_rejected rejected 1490ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed write cannot transport its actual value relation
+fail/facts/narrowed_integer_write_through_parameter_rejected rejected 1623ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/facts/narrowed_integer_write_through_target_body_rejected rejected 1727ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/negated_mathematical_order_through_call_result_rejected rejected 3224ms expected @80e7797d0e1e
 	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/facts/negated_mathematical_order_through_const_name_rejected rejected 3749ms expected @80e7797d0e1e
@@ -13464,6 +13482,8 @@ fail/layouts/callee_integer_at_write_requires_fit rejected 1655ms expected @a9ae
 fail/layouts/captured_encoded_reference_replacement_requires_fit rejected 1706ms expected @a9ae30e1c334+wt
 fail/layouts/closed_callback_contract_unproved_ram rejected 4960ms expected @fc1821419662
 	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(10), operation OperationId(168), boundary BoundaryMachineId(197), arguments [StructuralArgument { place: PlaceId(70), path: [Referent], access: SharedBorrow }])
+fail/layouts/completed_integer_at_result_rejects_later_source_donation rejected 1541ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed write cannot transport its actual value relation
 fail/layouts/data_layout_query_machine_operand rejected 69ms expected @a9ae30e1c334+wt
 fail/layouts/data_layout_query_value_argument rejected 37ms expected @a9ae30e1c334+wt
 fail/layouts/demanded_partial_target_layout rejected 5231ms expected @85e359099dcc+wt
@@ -13592,10 +13612,14 @@ fail/layouts/runtime_value_is_not_layout_constant rejected 533ms expected @e63c4
 fail/layouts/schema_field_exceeds_declared_size rejected 106ms expected @171dad7fbf01+wt
 fail/layouts/schema_identity_payload_predicate rejected 69ms expected @171dad7fbf01+wt
 fail/layouts/size_of_uninstantiated_plan_laid rejected 151ms expected @a9ae30e1c334+wt
+fail/layouts/target_family_integer_at_requires_every_body_fit rejected 713ms expected @6bbc0c024e25+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/target_layout_call_checks_all_widths rejected 5323ms expected @a9ae30e1c334+wt
 fail/layouts/target_layout_invalid_unselected_member rejected 2627ms expected @a9ae30e1c334+wt
 fail/layouts/target_layout_recast_checks_all_extents rejected 9198ms expected @c48489ea6ad6
 fail/layouts/unselected_target_layout_contract rejected 3615ms expected @e63c4b1e202d+wt
+fail/layouts/unused_generic_concrete_integer_at_requires_fit rejected 592ms expected @6bbc0c024e25+wt
+	IntegerAt call in unused requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/machines/retired_projected_data_call_expression rejected 851ms expected @a9ae30e1c334+wt
 fail/machines/retired_projected_data_call_statement rejected 816ms expected @a9ae30e1c334+wt
 fail/machines/retired_self_expression rejected 0ms expected @a9ae30e1c334+wt
@@ -18930,6 +18954,15 @@ pass/facts/narrow_to_wide_zero_extension_through_other_machine_exit checked 3344
 pass/facts/narrow_to_wide_zero_extension_through_other_state_exit checked 3505ms check-target:macos_arm64 @317bacd12b0a+wt
 pass/facts/narrow_to_wide_zero_extension_through_parameter_exit checked 3662ms check-target:macos_arm64 @317bacd12b0a+wt
 pass/facts/narrow_to_wide_zero_extension_through_target_body_exit checked 3818ms check-target:macos_arm64 @317bacd12b0a+wt
+pass/facts/narrowed_integer_write_through_call_result_exit checked 1750ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_const_name_exit checked 1608ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_field_exit checked 1617ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_local_exit checked 1800ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_match_join_exit checked 1749ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_other_machine_exit checked 1746ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_other_state_exit checked 1749ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_parameter_exit checked 1807ms check-target:macos_arm64 @6bbc0c024e25+wt
+pass/facts/narrowed_integer_write_through_target_body_exit checked 1750ms check-target:macos_arm64 @6bbc0c024e25+wt
 pass/facts/negated_mathematical_order_through_call_result_exit checked 3261ms check-target:macos_arm64 @80e7797d0e1e
 pass/facts/negated_mathematical_order_through_const_name_exit checked 3843ms check-target:macos_arm64 @80e7797d0e1e
 pass/facts/negated_mathematical_order_through_field_exit checked 5184ms check-target:macos_arm64 @80e7797d0e1e
@@ -21949,6 +21982,7 @@ pass/layouts/byte_array_then_wide_layout_compile checked 1597ms @a9ae30e1c334+wt
 pass/layouts/byte_then_double_layout_compile checked 1725ms @a9ae30e1c334+wt
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 1700ms @a9ae30e1c334+wt
 pass/layouts/byte_wide_byte_byte_layout_compile checked 1669ms @a9ae30e1c334+wt
+pass/layouts/completed_integer_at_result_snapshot_exit checked 1722ms check-target:macos_arm64 @6bbc0c024e25+wt
 pass/layouts/const_layout_query_compile checked 1842ms @a9ae30e1c334+wt
 pass/layouts/empty_cases_sum_layout_compile checked 1697ms @a9ae30e1c334+wt
 pass/layouts/empty_record_layout_queries_compile checked 1632ms @a9ae30e1c334+wt
