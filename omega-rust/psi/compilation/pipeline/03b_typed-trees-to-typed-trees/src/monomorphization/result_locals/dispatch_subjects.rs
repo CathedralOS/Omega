@@ -408,6 +408,7 @@ fn replace_place_alias(
 
 pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let mut errors = Vec::new();
+    let mut traced_unresolved = 0usize;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
@@ -415,6 +416,63 @@ pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnosti
                     continue;
                 };
                 if local.role == LocalBindingRole::DispatchSubject {
+                    if traced_unresolved < 4
+                        && std::env::var_os("OMEGA_LOCAL_PRODUCTION_TRACE").is_some()
+                    {
+                        traced_unresolved += 1;
+                        let mut expressions = Vec::new();
+                        validation::expression_traversal::collect_expression_tree(
+                            program,
+                            local.initial_value,
+                            &mut expressions,
+                        );
+                        eprintln!(
+                            "DISPATCH_SUBJECT_TYPE_REFUSAL machine={:?} state={:?} local={local:?} expression_count={} expression_prefix={:?} parameter_prefix={:?} local_prefix={:?}",
+                            machine.symbol,
+                            state.symbol,
+                            expressions.len(),
+                            expressions
+                                .iter()
+                                .take(24)
+                                .map(|expression| (
+                                    *expression,
+                                    program.expression_table.expression(*expression),
+                                    program
+                                        .expression_table
+                                        .constructed_value_type_reference(*expression),
+                                    program
+                                        .expression_table
+                                        .authored_selection_occurrences(*expression)
+                                        .take(8)
+                                        .collect::<Vec<_>>(),
+                                ))
+                                .collect::<Vec<_>>(),
+                            program
+                                .state_parameters(state)
+                                .iter()
+                                .take(16)
+                                .map(|parameter| (
+                                    parameter,
+                                    program
+                                        .type_reference_table
+                                        .type_reference(parameter.type_reference)
+                                ))
+                                .collect::<Vec<_>>(),
+                            program
+                                .statement_table
+                                .statements(state.statement_nodes)
+                                .iter()
+                                .filter_map(StatementNode::as_local_data)
+                                .take(16)
+                                .map(|declaration| (
+                                    declaration,
+                                    program
+                                        .type_reference_table
+                                        .type_reference(declaration.type_reference),
+                                ))
+                                .collect::<Vec<_>>(),
+                        );
+                    }
                     errors.push(
                         diagnostics::Diagnostic::error(format!(
                             "cannot determine the dispatch subject storage type in `{}::{}`",
