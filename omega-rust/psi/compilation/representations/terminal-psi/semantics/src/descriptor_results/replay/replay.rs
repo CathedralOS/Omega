@@ -1044,6 +1044,16 @@ impl<'a> Replay<'a> {
     ) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summary(*machine, depth),
+            DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
+                let summaries = realizations
+                    .iter()
+                    .map(|machine| self.summary(*machine, depth))
+                    .collect::<Option<Vec<_>>>()?;
+                Some(super::dispatch::join(
+                    direct_target_summary(&call.target)?,
+                    &summaries,
+                ))
+            }
             target => direct_target_summary(target),
         }
     }
@@ -1051,6 +1061,16 @@ impl<'a> Replay<'a> {
     pub(super) fn cached_invocation_summary(&self, call: &DescriptorInvocation) -> Option<Summary> {
         match &call.target {
             DescriptorInvocationTarget::Machine(machine) => self.summaries.get(machine)?.clone(),
+            DescriptorInvocationTarget::Public { realizations, .. } if !realizations.is_empty() => {
+                let summaries = realizations
+                    .iter()
+                    .map(|machine| self.summaries.get(machine)?.clone())
+                    .collect::<Option<Vec<_>>>()?;
+                Some(super::dispatch::join(
+                    direct_target_summary(&call.target)?,
+                    &summaries,
+                ))
+            }
             target => direct_target_summary(target),
         }
     }

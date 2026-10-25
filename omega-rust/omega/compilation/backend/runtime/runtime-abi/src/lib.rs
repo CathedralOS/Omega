@@ -5,6 +5,7 @@
 //! Start at `runtime_abi.rs`: `fat_descriptor_layout` answers the target's
 //! two-word descriptor geometry, the only descriptor fact `layout` reads.
 
+mod affine_transform;
 mod borrowed_storage;
 mod descriptor_io;
 mod integer_division;
@@ -15,6 +16,7 @@ mod runtime_abi;
 mod scalar_reference;
 mod windows_provider;
 
+pub use affine_transform::{HostAffineTransform, host_affine_transform};
 pub use borrowed_storage::{
     NativeBorrowedStorageDiscriminator, NativeBorrowedStorageField, NativeBorrowedStorageLayout,
     NativeStorageCaseTag, NativeStorageRepetition,

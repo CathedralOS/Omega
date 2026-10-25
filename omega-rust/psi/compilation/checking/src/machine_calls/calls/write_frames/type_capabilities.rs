@@ -39,9 +39,10 @@ pub(super) fn parameter_may_carry_write(
 }
 
 /// A caller-isolated storage shape with no opaque boundary data anywhere in
-/// its reachable structure. Isolation fails closed on references, dynamic
-/// traits, unbound generic parameters and recursive runtime shapes. Opaque
-/// boundary data has no declared members to inspect, so the second walk
+/// its reachable structure. Isolation fails closed on references, unbound
+/// generic parameters and recursive runtime shapes.
+/// Implementation selectors contain no data instance or reference authority.
+/// Opaque boundary data has no declared members to inspect, so the second walk
 /// excludes it rather than trusting an empty field roster. Slice carriers
 /// keep their conservative classification below.
 pub(super) fn type_is_reference_free_value(
@@ -85,11 +86,11 @@ fn type_reaches_opaque_data(
             element_type: base_type,
             ..
         } => type_reaches_opaque_data(program, *base_type, visiting, bindings),
-        TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
+        TypeReferenceNode::Unit
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::DynamicTrait { .. } => false,
         // Isolation has already rejected these shapes; treat them as opaque.
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => true,
         TypeReferenceNode::Named { symbol, name } => {
             // The unbounded integer atoms are values with no members to
             // reach, exactly like the primitive atoms above.
@@ -215,12 +216,11 @@ fn type_may_carry_write_walk(
         // initializer effects and exact origins are checked by the callers.
         TypeReferenceNode::Named { .. }
         | TypeReferenceNode::Generic { .. }
-        | TypeReferenceNode::FixedArray { .. } => {
+        | TypeReferenceNode::FixedArray { .. }
+        | TypeReferenceNode::DynamicTrait { .. } => {
             !type_is_reference_free_value(program, handle, bindings)
         }
-        TypeReferenceNode::Reference { .. }
-        | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => true,
     }
 }
 

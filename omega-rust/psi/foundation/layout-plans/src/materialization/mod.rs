@@ -215,6 +215,30 @@ pub fn materialize_aggregate_layout_into(
             destination.len()
         )));
     }
+    let mut staged = vec![0_u8; byte_len];
+    stage_aggregate_layout(layout, fields, values, byte_order, &mut staged)?;
+    destination[..byte_len].copy_from_slice(&staged);
+    Ok(())
+}
+
+/// Encode into caller-owned scratch, without allocating another byte image.
+/// This performs the same geometry and completeness checks as the atomic
+/// materializer. Scratch contents are unspecified on refusal; callers publish
+/// them only after success. Any tail beyond the layout extent is untouched.
+pub fn stage_aggregate_layout<Bytes: AsRef<[u8]>>(
+    layout: &LayoutPlanReport,
+    fields: &[AggregateFieldSchema],
+    values: &[AggregateFieldValue<Bytes>],
+    byte_order: ByteOrder,
+    destination: &mut [u8],
+) -> Result<(), MaterializationDiagnostic> {
+    let byte_len = fixed_layout_byte_len(layout, "aggregate materialization")?;
+    if destination.len() < byte_len {
+        return Err(MaterializationDiagnostic(format!(
+            "aggregate materialization needs {byte_len} bytes, destination has {}",
+            destination.len()
+        )));
+    }
     validate_materialization_field_identities(layout)?;
 
     let mut schemas = std::collections::BTreeMap::new();
@@ -293,7 +317,8 @@ pub fn materialize_aggregate_layout_into(
         )));
     }
 
-    let mut staged = vec![0_u8; byte_len];
+    let staged = &mut destination[..byte_len];
+    staged.fill(0);
     let mut occupied = vec![false; byte_len];
     // `Bits` fragments read-modify-write shared containers, so their
     // destination bits are checked only after every whole-byte placement has
@@ -342,11 +367,11 @@ pub fn materialize_aggregate_layout_into(
                     field_name
                 ))
             })?;
-            if value.bytes.len() != expected_size {
+            if value.bytes.as_ref().len() != expected_size {
                 return Err(MaterializationDiagnostic(format!(
                     "aggregate field `{}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
                     field_name,
-                    value.bytes.len()
+                    value.bytes.as_ref().len()
                 )));
             }
             let scalar = ScalarFieldValue {
@@ -354,7 +379,7 @@ pub fn materialize_aggregate_layout_into(
                 member_identity: schema.member_identity,
                 width_bits: u16::try_from(expected_size * 8)
                     .expect("the eight-byte carrier bound keeps the extent inside u16"),
-                value: read_container(&value.bytes, byte_order),
+                value: read_container(value.bytes.as_ref(), byte_order),
             };
             for entry in entries.iter() {
                 match entry.placement {
@@ -383,7 +408,7 @@ pub fn materialize_aggregate_layout_into(
                                 "aggregate field `{field_name}` stored-integer placement overlaps an earlier placement"
                             )));
                         }
-                        apply_scalar_entry(&mut staged, byte_order, entry, &scalar)?;
+                        apply_scalar_entry(staged, byte_order, entry, &scalar)?;
                         occupied[start..end].fill(true);
                     }
                     LayoutPlacementReport::Bits { .. } => {
@@ -405,11 +430,11 @@ pub fn materialize_aggregate_layout_into(
                 field_name
             ))
         })?;
-        if value.bytes.len() != expected_size {
+        if value.bytes.as_ref().len() != expected_size {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{}` supplies {} bytes, but its compiler-derived extent is {expected_size}",
                 field_name,
-                value.bytes.len()
+                value.bytes.as_ref().len()
             )));
         }
 
@@ -467,7 +492,7 @@ pub fn materialize_aggregate_layout_into(
             (element_byte_size, Some(element_align))
         };
 
-        let chunks = value.bytes.chunks_exact(source_chunk_size);
+        let chunks = value.bytes.as_ref().chunks_exact(source_chunk_size);
         if !chunks.remainder().is_empty() || chunks.len() != entries.len() {
             return Err(MaterializationDiagnostic(format!(
                 "aggregate field `{field_name}` bytes do not tile its compiler-derived source elements exactly"
@@ -556,9 +581,8 @@ pub fn materialize_aggregate_layout_into(
             }
             *applied |= mask;
         }
-        apply_scalar_entry(&mut staged, byte_order, entry, &scalar)?;
+        apply_scalar_entry(staged, byte_order, entry, &scalar)?;
     }
-    destination[..byte_len].copy_from_slice(&staged);
     Ok(())
 }
 

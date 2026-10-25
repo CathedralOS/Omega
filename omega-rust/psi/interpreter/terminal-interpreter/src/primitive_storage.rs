@@ -228,7 +228,7 @@ impl PrimitiveStorageWrites {
                 let stored = arrays
                     .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements.get(*index))
+                    .and_then(|array| array.elements().get(*index))
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         destination,
                     ))?;
@@ -1260,7 +1260,7 @@ impl TerminalExecution<'_> {
             }
             let index = usize::try_from(leaf_offset).map_err(|_| malformed())?;
             if array
-                .elements
+                .elements()
                 .get(index)
                 .is_none_or(|value| value.scalar_type() != scalar_type)
             {
@@ -1683,7 +1683,7 @@ impl TerminalExecution<'_> {
         };
         self.structural_values.insert(result.place, view.clone())?;
         self.structural_primitive_storage
-            .insert(StructuralRuntimePlace::from(&view), scalar);
+            .insert(StructuralRuntimePlace::from(&view), scalar)?;
         Ok(())
     }
 
@@ -1980,7 +1980,7 @@ impl TerminalExecution<'_> {
                 arrays
                     .backing(&home.place)
                     .filter(|array| array.structural_type == home.structural_type)
-                    .and_then(|array| array.elements.get(index))
+                    .and_then(|array| array.elements().get(index))
                     .copied()
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         source,
@@ -2223,12 +2223,12 @@ impl TerminalExecution<'_> {
                         .ok_or(malformed())?
                         .scalar_array_values
                 };
-                let stored = arrays
-                    .backing_mut(&home.place)
-                    .and_then(|array| array.elements.get_mut(index))
-                    .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
-                        destination,
-                    ))?;
+                let array = arrays.backing_mut(&home.place).ok_or(
+                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
+                )?;
+                let stored = array.elements_mut()?.get_mut(index).ok_or(
+                    TerminalInterpretError::StructuralPrimitiveStorageMissing(destination),
+                )?;
                 *stored = scalar;
             }
             PrimitiveStorageEndpoint::Scalar(storage) => {
@@ -2238,8 +2238,9 @@ impl TerminalExecution<'_> {
                 // operation must not require the previous scalar to exist.
                 // Reads still require an initialized cell; this creates no
                 // owner, loan, predicate membership, or implicit zero value.
+                self.structural_primitive_storage
+                    .insert(storage.clone(), scalar)?;
                 self.invalidate_stored_provenance(&storage);
-                self.structural_primitive_storage.insert(storage, scalar);
             }
             PrimitiveStorageEndpoint::ScalarField(field) => {
                 self.invalidate_stored_provenance(&field.parent);

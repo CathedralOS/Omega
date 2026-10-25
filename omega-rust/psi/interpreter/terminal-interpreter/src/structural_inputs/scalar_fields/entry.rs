@@ -7,7 +7,6 @@ use crate::structural_inputs::scalar_fields::{
     TerminalInterpretError, TerminalMachine, TerminalScalarValue, TerminalStructuralValue,
 };
 use crate::values::StructuralRuntimePlace;
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape};
@@ -16,7 +15,7 @@ pub(crate) fn validate(
     machine: &TerminalMachine,
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     roots: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-    values: &BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    values: &RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],
 ) -> Result<(), TerminalInterpretError> {
     for (position, parameter) in machine.structural_parameters.iter().enumerate() {
@@ -43,7 +42,7 @@ fn validate_type(
     types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     current: StructuralTypeId,
     parent: &mut StructuralRuntimePlace,
-    values: &BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    values: &RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
     argument_index: u32,
     active: &mut Vec<StructuralTypeId>,
 ) -> Result<(), TerminalInterpretError> {

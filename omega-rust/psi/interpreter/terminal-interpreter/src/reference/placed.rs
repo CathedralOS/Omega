@@ -216,7 +216,7 @@ impl TerminalExecution<'_> {
                             field.field,
                         ),
                         value,
-                    )
+                    )?
                     .is_some()
                 {
                     return Err(malformed());
@@ -685,7 +685,7 @@ impl TerminalExecution<'_> {
                 aggregate_view: None,
                 placed: Some(captured),
             },
-        );
+        )?;
         self.structural_values.insert(result.place, carrier)?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,

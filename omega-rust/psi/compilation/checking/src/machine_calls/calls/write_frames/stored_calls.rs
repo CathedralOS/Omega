@@ -39,8 +39,11 @@ pub(super) use expression_effects::call_contexts;
 pub(super) use expression_effects::{
     StatementSlotTransfers, effects_at_expression, statement_effects,
 };
+mod declared_outputs;
+mod dynamic_outputs;
 mod invocation_contract;
 mod opaque_outputs;
+pub(super) use dynamic_outputs::relative_effects as dynamic_effects;
 pub use invocation_contract::ReferenceSlotContract;
 pub(super) use invocation_contract::invocation_contract;
 pub(super) mod retention;
@@ -198,10 +201,37 @@ fn invocation_reference_effects(
         // scalar/content writes and normal-call permission have other owners.
         return Some(SlotRelationTransfer::complete(Vec::new()));
     }
-    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
-        if let Some((definition, _)) = crate::selected_requirement_signature(program, target)
-            && definition.is_boundary
+    // Closed dynamic suppliers use the same completed argument captures and
+    // output-occurrence rebasing as concrete bodies. Missing closed coverage
+    // retains declared lifetime debts without inventing a supplied pointer.
+    if let Some(slot) = program.dynamic_slot_by_symbol(target) {
+        if let Some(mut relative) =
+            dynamic_outputs::relative_effects(program, slot, symbols, inference)
         {
+            rebase_output_occurrences(
+                program,
+                machine,
+                caller_state,
+                call_site,
+                target,
+                call_expression,
+                parameters,
+                &mut relative,
+            )?;
+            return instantiate(
+                program, machine, parameters, captures, &relative, context, symbols,
+            )
+            .map(|instantiated| SlotRelationTransfer::complete(instantiated.effects));
+        }
+        return declared_outputs::effects(program, machine, parameters, captures, context, symbols);
+    }
+    let Some((callee, state)) = super::machine_state_by_symbol(program, target) else {
+        if let Some((definition, _)) = crate::selected_requirement_signature(program, target) {
+            if !definition.is_boundary {
+                return declared_outputs::effects(
+                    program, machine, parameters, captures, context, symbols,
+                );
+            }
             return opaque_outputs::effects(
                 program,
                 machine,

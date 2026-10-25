@@ -86,9 +86,12 @@ pub(crate) fn commit_cleanup_action(
     >,
     machines: &crate::program::ProgramDeclarations<'_, TerminalMachine>,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
-    scalar_arrays: &mut crate::scalar_array::ScalarArrayStorage,
-    reference_referents: &mut BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
+    scalar_arrays: &mut crate::scalar_array::ScalarArrayBindings,
+    reference_referents: &mut RuntimeRows<
+        StructuralRuntimePlace,
+        crate::reference::ReferenceReferent,
+    >,
+    element_views: &mut RuntimeRows<StructuralRuntimePlace, crate::element_views::ElementView>,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
     action: &TerminalAffineCleanupAction,
@@ -162,7 +165,7 @@ pub(crate) fn commit_cleanup_action(
             // owned descriptor inside it is instead a descendant: the parent
             // hook borrows the intact carrier before the ordered child actions
             // dispose those descriptors, never their external referents.
-            if has_live_loan(reference_referents, &value) {
+            if has_live_loan(reference_referents.as_map(), &value) {
                 return Err(TerminalInterpretError::NominalCleanupHasLiveLoans {
                     cleanup: cleanup.clone(),
                     backing_identity: value.opaque_identity,
@@ -711,12 +714,13 @@ pub(crate) fn bind_structural_primitive_values(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralPrimitiveValue],
-    mut storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
+    mut storage: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],
+    account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
 ) -> Result<
     (
-        BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
-        BTreeMap<u32, StructuralRuntimePlace>,
+        RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+        RuntimeRows<u32, StructuralRuntimePlace>,
     ),
     TerminalInterpretError,
 > {
@@ -745,7 +749,7 @@ pub(crate) fn bind_structural_primitive_values(
         });
     }
 
-    let mut entry_places = BTreeMap::new();
+    let mut entry_places = RuntimeRows::new(account);
     for (position, parameter) in &primitive_parameters {
         if zero_initialized_arguments.contains(position) {
             let root = structural_values
@@ -755,7 +759,7 @@ pub(crate) fn bind_structural_primitive_values(
             if !storage.contains_key(&place) {
                 return Err(malformed());
             }
-            entry_places.insert(*position, place);
+            entry_places.insert(*position, place)?;
         }
     }
     for argument in arguments {
@@ -785,9 +789,9 @@ pub(crate) fn bind_structural_primitive_values(
         let view = crate::custody::verified_structural_place(structural_values, parameter.place)?;
         let place = StructuralRuntimePlace::from(view);
         if entry_places
-            .insert(argument.argument_index, place.clone())
+            .insert(argument.argument_index, place.clone())?
             .is_some()
-            || storage.insert(place, argument.value).is_some()
+            || storage.insert(place, argument.value)?.is_some()
         {
             return Err(TerminalInterpretError::StructuralPrimitiveValueInvalid {
                 argument_index: argument.argument_index,

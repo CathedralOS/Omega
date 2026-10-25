@@ -15,7 +15,6 @@ use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use evaluation_accounting::EvaluationInvocationAccount;
-use std::collections::BTreeMap;
 use terminal_psi::ByteSequenceCarrier;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
@@ -106,24 +105,26 @@ impl BoundaryArguments {
         let values =
             bind_active_structural_arguments(parameters, &self.values, types, cases, account)
                 .map_err(|error| error.in_argument_preparation("bind source memberships"))?;
-        let aggregate_backings = parameters
-            .iter()
-            .zip(self.aggregate_backings)
-            .filter_map(|(parameter, backing)| backing.map(|backing| (parameter.place, backing)))
-            .collect();
-        let mut byte_sequences = BTreeMap::new();
-        let mut primitive_loans = BTreeMap::new();
+        let aggregate_backings =
+            RuntimeRows::from_rows(
+                account,
+                parameters.iter().zip(self.aggregate_backings).filter_map(
+                    |(parameter, backing)| backing.map(|backing| (parameter.place, backing)),
+                ),
+            )?;
+        let mut byte_sequences = RuntimeRows::new(account);
+        let mut primitive_loans = RuntimeRows::new(account);
         for (parameter, loan) in parameters.iter().zip(self.primitive_loans) {
             if let Some(loan) = loan {
                 if values.get(&parameter.place) != Some(&loan.referent)
                     || loan.access != parameter.access
-                    || primitive_loans.insert(parameter.place, loan).is_some()
+                    || primitive_loans.insert(parameter.place, loan)?.is_some()
                 {
                     return Err(malformed());
                 }
             }
         }
-        let mut element_views = BTreeMap::new();
+        let mut element_views = RuntimeRows::new(account);
         for (parameter, view) in parameters.iter().zip(self.element_views) {
             let Some(view) = view else {
                 continue;
@@ -158,7 +159,7 @@ impl BoundaryArguments {
                         values.get(&parameter.place).ok_or_else(malformed)?,
                     )
             };
-            if !admitted || element_views.insert(parameter.place, view).is_some() {
+            if !admitted || element_views.insert(parameter.place, view)?.is_some() {
                 return Err(malformed().in_argument_preparation("admit element-view companion"));
             }
         }
@@ -208,7 +209,7 @@ impl BoundaryArguments {
                         referent.qualifications != parameter.qualifications
                     }
                 }
-                || byte_sequences.insert(parameter.place, binding).is_some()
+                || byte_sequences.insert(parameter.place, binding)?.is_some()
             {
                 return Err(malformed());
             }
@@ -220,7 +221,7 @@ impl BoundaryArguments {
             values,
             byte_sequences,
             primitive_loans,
-            scalar_arrays: BTreeMap::new(),
+            scalar_arrays: crate::scalar_array::ScalarArrayBindings::new(account),
             element_views,
         })
     }

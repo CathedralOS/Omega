@@ -7,7 +7,6 @@
 //! remains checked when read, allowing stores to establish those contents.
 
 use crate::runtime_rows::RuntimeRows;
-use std::collections::BTreeMap;
 
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeDeclaration};
@@ -51,9 +50,10 @@ pub(crate) fn bind(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     structural_values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
     arguments: &[TerminalStructuralScalarFieldValue],
-    mut values: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+    mut values: RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
     zero_initialized_arguments: &[u32],
-) -> Result<BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>, TerminalInterpretError> {
+) -> Result<RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>, TerminalInterpretError>
+{
     for argument in arguments {
         let invalid = || TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
             argument_index: argument.argument_index,
@@ -80,7 +80,7 @@ pub(crate) fn bind(
             .insert(
                 StructuralScalarRuntimeField::member(parent, argument.field),
                 argument.value,
-            )
+            )?
             .is_some()
         {
             return Err(invalid());

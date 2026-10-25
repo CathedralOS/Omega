@@ -80,7 +80,7 @@ pub(super) fn stage(
     let changed_case = visible.iter().any(|leaf| matches!(leaf.kind, StorageLeafKind::Case { case, .. }
         if binding.original.binary_search_by(|value| value.path.cmp(&leaf.path)).ok()
             .is_none_or(|position| binding.original[position].contents != TerminalStorageContents::Case(case))));
-    let mut staged = ConstructorStorage::default();
+    let mut staged = ConstructorStorage::new(execution.account.as_ref());
     for (leaf, value) in visible.into_iter().zip(&buffer.values) {
         if leaf.path != value.path {
             return Err(malformed());
@@ -142,7 +142,7 @@ pub(super) fn stage(
                 TerminalStorageContents::Case(actual),
             ) if actual == *case => {
                 if changed_case {
-                    staged.stage_case(destination.clone(), *structural_type, *case);
+                    staged.stage_case(destination.clone(), *structural_type, *case)?;
                 }
             }
             _ => return Err(malformed()),
@@ -226,7 +226,7 @@ pub(super) fn stage(
                         values,
                         execution.account.as_ref(),
                     )?;
-                    staged.stage_byte_array(destination.clone(), bytes);
+                    staged.stage_byte_array(destination.clone(), bytes)?;
                 }
                 _ => {}
             }

@@ -21,7 +21,6 @@ use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::TerminalStructuralValue;
-use std::collections::BTreeMap;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
@@ -43,6 +42,9 @@ impl TerminalExecution<'_> {
         result: &terminal_psi::StructuralOperationResult,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
+        if self.structural_values.contains_key(&result.place) {
+            return Err(malformed());
+        }
         // Whole-result memberships are Psi's checked construction judgments.
         // The constructor establishes storage, not those judgments; retaining
         // them must not weaken the actual-child qualification/custody joins.
@@ -69,8 +71,7 @@ impl TerminalExecution<'_> {
             result.structural_type,
             result.qualifications.clone(),
         );
-        let mut staged = BTreeMap::new();
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
 
         let mut consumed = Vec::new();
         let mut claim_operands = Vec::new();
@@ -87,13 +88,15 @@ impl TerminalExecution<'_> {
                     {
                         return Err(malformed());
                     }
-                    staged.insert(
-                        StructuralScalarRuntimeField::member(
-                            StructuralRuntimePlace::from(&value),
-                            binding.field,
+                    storage.stage_scalar_endpoint(
+                        &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
+                            StructuralScalarRuntimeField::member(
+                                StructuralRuntimePlace::from(&value),
+                                binding.field,
+                            ),
                         ),
                         scalar,
-                    );
+                    )?;
                 }
                 terminal_psi::RecordFieldValue::Structural(argument) => {
                     claim_operands.push((
@@ -124,7 +127,7 @@ impl TerminalExecution<'_> {
                                 field: binding.field,
                             },
                             bytes,
-                        );
+                        )?;
                         continue;
                     }
                     if argument.access != StructuralAccess::Owned
@@ -160,10 +163,10 @@ impl TerminalExecution<'_> {
             &mut frontier,
             &|current| storage.case_at_projection(self, &value, &current.path),
         )?;
-        self.commit_constructor_operands(frontier, &consumed, claims)?;
-        self.structural_scalar_fields.extend(staged);
+        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
         self.structural_values.insert(result.place, value)?;
+        retirement.commit(self);
         Ok(())
     }
     /// Give each independent owned copy its own storage identity. Composite
@@ -180,7 +183,7 @@ impl TerminalExecution<'_> {
         values: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
         cursor: &mut Option<u64>,
     ) -> Result<ConstructorStorage, TerminalInterpretError> {
-        let mut payload = ConstructorStorage::default();
+        let mut payload = ConstructorStorage::new(self.account.as_ref());
         for parameter in parameters {
             if parameter.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted

@@ -316,7 +316,7 @@ pub(super) fn stage(
     for (index, destination, reference) in staged {
         bindings[index]
             .reference_replacement
-            .get_or_insert_with(ConstructorStorage::default)
+            .get_or_insert_with(|| ConstructorStorage::new(execution.account.as_ref()))
             .stage_reference(destination, reference)?;
     }
     Ok(())

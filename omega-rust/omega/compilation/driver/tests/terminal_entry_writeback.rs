@@ -64,6 +64,172 @@ fn produce(
     (artifact, admission, initial)
 }
 
+#[test]
+fn empty_array_descriptor_requires_a_live_cell() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, _, _) = produce("empty_array_result");
+    let program = TerminalProgram::borrow(produced.artifact().view());
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    for cells in [2, 1] {
+        // Two cells fit the root header and live empty-array descriptor;
+        // one fits only the root. The payload itself needs zero cells.
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, cells, 1000, 1000, 1000).unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
+                result => break result,
+            }
+        };
+        if cells == 2 {
+            let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarArray(returned)) =
+                result.unwrap()
+            else {
+                panic!("empty array result expected");
+            };
+            assert!(returned.value.elements().is_empty());
+            assert_eq!(sponsor.peak_live_cells(), 2);
+            instance.close().unwrap();
+            assert_eq!(sponsor.live_storage_cells(), 0);
+        } else {
+            let refusal = result.expect_err("an empty payload still needs its descriptor row");
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+            let usage = *account.snapshot().unwrap().record();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(*account.snapshot().unwrap().record(), usage);
+        }
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+    }
+}
+
+#[test]
+fn array_result_storage_outlives_the_completed_instance() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, _, _) = produce("array_result");
+    let artifact = produced.artifact();
+    let execute = |loaded, cell_limit, should_refuse| {
+        let program = if loaded {
+            TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
+        } else {
+            TerminalProgram::borrow(artifact.view())
+        };
+        let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, cell_limit, 1000, 1000, 1000)
+                .unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
+                result => break result,
+            }
+        };
+        if should_refuse {
+            let refusal = result.unwrap_err();
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+            let usage = account.snapshot().unwrap();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(
+                account.snapshot().unwrap().record(),
+                usage.record(),
+                "fault retries cannot repeat charges"
+            );
+        } else {
+            let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarArray(returned)) =
+                result.unwrap()
+            else {
+                panic!("array return expected")
+            };
+            let observed = returned
+                .value
+                .elements()
+                .iter()
+                .map(|value| match value {
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(value),
+                        ..
+                    } => *value,
+                    _ => panic!("u32 element expected"),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                observed,
+                [11, 44, 22],
+                "guest copies retain independent values"
+            );
+            let retained = returned.clone();
+            instance.close().unwrap();
+            assert_eq!(
+                sponsor.live_storage_cells(),
+                3,
+                "inspection retains the payload after close"
+            );
+            drop(returned);
+            assert_eq!(sponsor.live_storage_cells(), 3);
+            drop(retained);
+            assert_eq!(sponsor.live_storage_cells(), 0);
+        }
+        let peak = sponsor.peak_live_cells();
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+        peak
+    };
+    let peak = execute(true, 1000, false);
+    assert!(peak > 3);
+    assert_eq!(execute(false, peak, false), peak);
+    execute(true, peak - 1, true);
+}
+
 fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
     let program = TerminalProgram::borrow(artifact.view());
     let entry = program.entry().unwrap();
@@ -741,6 +907,103 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
     assert!(execute(100_000, bytes, 0, 1).peak_live_payload_bytes <= bytes);
     assert_eq!(execute(cells, 100_000, 0, 0).peak_live_storage_cells, cells);
     assert!(execute(cells, 100_000, 1, 0).peak_live_storage_cells <= cells);
+}
+
+#[test]
+fn empty_frames_are_sponsored_before_entry_and_retire_after_nested_calls() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, _, _) = produce("frame_sequence");
+    let artifact = produced.artifact();
+    let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+    };
+    for (loaded, limit) in [(false, 3), (true, 3), (true, 2)] {
+        let program = if loaded {
+            TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
+        } else {
+            TerminalProgram::borrow(artifact.view())
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, limit, 100, 100, 100).unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            sponsor.live_storage_cells(),
+            1,
+            "the empty root frame owns one cell"
+        );
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => {
+                    assert!((1..=limit).contains(&sponsor.live_storage_cells()));
+                    meter.replenish(1).unwrap();
+                }
+                result => break result,
+            }
+        };
+        if limit == 3 {
+            assert_eq!(
+                result.unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                account.snapshot().unwrap().record().peak_live_storage_cells,
+                3
+            );
+            assert_eq!(
+                sponsor.live_storage_cells(),
+                1,
+                "only the returned root activation remains"
+            );
+            instance.close().unwrap();
+        } else {
+            let refusal = result.unwrap_err();
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert_eq!(sponsor.live_storage_cells(), 2);
+            let usage = *account.snapshot().unwrap().record();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(*account.snapshot().unwrap().record(), usage);
+            assert!(instance.result().is_none());
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+        }
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+
+        let competing = account.reserve_storage(limit, 0).unwrap();
+        let refusal = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .err()
+            .expect("entry reservation must refuse before creating the root frame");
+        assert!(
+            format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+            "{refusal:?}"
+        );
+        assert_eq!(sponsor.live_storage_cells(), limit);
+        drop(competing);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+    }
 }
 
 #[test]

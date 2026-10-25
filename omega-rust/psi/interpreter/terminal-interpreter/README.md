@@ -78,8 +78,43 @@ and overlapping copies reserve first; replacements retain their cell, frame move
 carry the lease, and table joins transfer reservations without charging again.
 Removal and teardown release only retired rows. The complete source-produced
 Build control checks exact and one-cell-short budgets across fuel pauses, retaining
-faults without replaying effects. Descriptor maps, frame headers, array payload
-elements, other storage families and result publication are not yet completely accounted;
+faults without replaying effects. Root activations and suspended call headers
+each reserve one cell before creation. The shared frame capture in
+[frames.rs](src/calls/frames.rs) handles scalar, structural and cleanup calls;
+return restores the caller and releases its saved header. The root activation
+remains reserved through result readback until close. A refused capture retains
+its outgoing cleanup continuation in that failed activation, including byte
+backing and returned claims; it allocates no unpaid saved frame and does not
+advance the caller's instruction position. Packed scalar arrays retain one cell
+per element with their backing: guest snapshots reserve independent copies,
+inspection clones share read-only backing, and writes reserve any overlapping
+replacement. Plain projection copies use that same snapshot operation. Returned
+payloads remain charged after instance close until the last inspection drops.
+Frame-local array, byte, element-view, primitive-loan and aggregate-backing
+descriptor tables use the same paid row owner through argument staging, saved
+frames, joins and return installation. Even an empty array needs its descriptor
+cell. A refused return retains its output, caller continuation and loan roster
+beside any partially installed rows until the failed activation is discarded.
+Shared scalar fields, primitive backing cells and primitive entry lookup rows
+also use the paid row owner. Constructor and subtree snapshots reserve before
+copying and transfer those reservations at publication; pruning retires the
+selected rows. Updating an existing primitive retains its cell, and first
+initialization reserves before invalidating stored provenance. Source controls
+check local and borrowed-entry mutation with exact and one-cell-short budgets,
+including readback through the original entry reference after a successful run.
+Shared reference, byte-field, byte/view descriptor, backing, case and host-atom
+rows use this same owner in execution and constructor/transplant staging.
+Publication checks every paid table before retiring source storage; transferring
+the prepared rows does not request another budget. Activation split/merge funds
+its result case and binding before consuming source claims. The source-produced
+case, byte-field and activation controls check exact/short budgets through fuel
+pauses for borrowed and loaded artifacts, sticky refusal and teardown release.
+Activation frame ledgers, live claims, grants, backing owners, split associations
+and claim descriptors are also charged. Constructor transport carries descriptor
+reservations; split/merge stages every possible result descriptor before retiring
+source claims, then drops the unused case's rows. Ledger growth is funded before
+the foundation's authority operation and release/merge retires the removed cells.
+Provider ledgers/descriptors and cumulative result custody remain unaccounted;
 these partial snapshots must not become production Build usage receipts.
 
 A failed execution retains its exact host fault and unfinished custody. Calling
@@ -116,17 +151,17 @@ neither instruction semantics nor environment correspondence. End-to-end
 instruction coverage remains **INTERPRETED-ASSEMBLY** on the execution board;
 this contract is not a claim that all catalog entries already run here.
 
-The source-free [embedding lifetime probes](tests/unit/embedding_lifetimes.rs)
-cover owned artifact lifetime, separate host contexts, once-only scalar effects
-across fuel stops, rejection after an effect, response shape, and a host result
-returned through the guest. They also demonstrate that the raw hook can switch
-host handlers between resumes: that is a missing public-binding constraint, not
-permission to rebind an invocation. They do not demonstrate source-generated
-adapters, borrowed host-resource safety, pending host completion, or component
-replacement. Run the focused mechanics with:
+The source-produced [embedding tests](../../../omega/compilation/driver/tests/terminal_entry_writeback.rs)
+cover retained/loaded artifacts, borrowed-entry readback, once-only Build effects,
+resource refusal and frame retirement across fuel pauses. Two sequential empty
+call trees complete with exactly three live header cells; a two-cell allowance
+refuses the nested call, and an occupied allowance refuses root instantiation.
+Normal return retains one root header until close; fault retries cannot resume.
+These controls do not establish pending host completion or component replacement.
+Run them with:
 
 ```text
-cargo nextest run -p terminal-interpreter --test unit -E 'test(embedding_lifetimes::)' --no-tests fail --no-fail-fast
+mbx nextest run -p compiler --test terminal_entry_writeback --test-threads 1
 ```
 
 ## Cyclic execution
@@ -461,7 +496,7 @@ and claim map survive suspension; no partially moved ancestor becomes whole agai
 Structural storage copies and constructor staging use identity-bounded
 [`structural_storage`](src/structural_storage.rs) ranges. Keys order by carrier
 identity before path and field; subtree selection still checks the complete path.
-Each transaction stages all seven storage families before pruning either region,
+Each transaction stages its shared storage families before pruning either region,
 so overlapping copies/moves preserve the original snapshot behavior. This avoids
 scanning unrelated historical carriers; it grants no access to borrowed cells.
 At settled block boundaries scalar-only roots without executable handles may be

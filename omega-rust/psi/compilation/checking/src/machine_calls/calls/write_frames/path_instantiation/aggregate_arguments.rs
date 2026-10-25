@@ -648,13 +648,14 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
             _ if program.primitive_type_reference(reference).is_some()
                 || matches!(
                     program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Unit
+                    TypeReferenceNode::Unit | TypeReferenceNode::DynamicTrait { .. }
                 ) =>
             {
                 if !suffix.is_empty() {
                     return None;
                 }
-                // This value lives in the callee's by-value aggregate copy.
+                // Scalar storage and implementation selectors live in the
+                // callee's copy. A selector carries no hidden data reference.
             }
             _ => return None,
         }

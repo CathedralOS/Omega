@@ -116,80 +116,67 @@ struct StatementPlanner<'p, 's> {
 }
 
 impl<'p> StatementPlanner<'p, '_> {
-    /// Lend this statement's rosters to a pass that runs before the
-    /// statement's own plan.
-    fn reborrow(&mut self) -> StatementPlanner<'p, '_> {
-        StatementPlanner {
-            program: self.program,
-            operators: self.operators,
-            exact_integer_casts: self.exact_integer_casts,
-            proof_only: self.proof_only,
-            machine: self.machine,
-            state: self.state,
-            states: self.states,
-            parameters: self.parameters,
-            scalar_parameters: self.scalar_parameters,
-            parameter_types: self.parameter_types,
-            result_type: self.result_type,
-            statement_index: self.statement_index,
-            statement_ordinal: self.statement_ordinal,
-            locals: self.locals,
-            expressions: self.expressions,
-            proof_terms: self.proof_terms,
-            source_bindings: self.source_bindings,
-            binding_symbols: self.binding_symbols,
-        }
+    /// Lower one value-call expression's scalar arguments and retain them. The
+    /// call-producing statements each guard the same lowering with their own
+    /// source test (`value_call_expression` for assignment and local data, the
+    /// statement's own expression for an expression statement).
+    pub(super) fn retain_expression_call_arguments(&mut self, expression: ExpressionHandle) {
+        let Some(call) = self.program.expression_table.call_node(expression) else {
+            return;
+        };
+        let Some(arguments) = lower_call_arguments(
+            self.program,
+            self.operators,
+            self.state,
+            self.statement_ordinal,
+            0,
+            &validation::CallSite::Expression { expression, call },
+            self.scalar_parameters,
+            self.parameters,
+            self.parameter_types,
+            self.locals,
+            self.exact_integer_casts,
+        ) else {
+            return;
+        };
+        retain_call_arguments(
+            arguments,
+            self.scalar_parameters,
+            self.locals,
+            self.expressions,
+            self.proof_terms,
+            self.source_bindings,
+            self.binding_symbols,
+        );
     }
-}
 
-/// Lower one value-call expression's scalar arguments and retain them. The
-/// call-producing statements each guard the same lowering with their own
-/// source test (`value_call_expression` for assignment and local data, the
-/// statement's own expression for an expression statement).
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn retain_expression_call_arguments(
-    program: &dyn ::validation::CheckingInput,
-    operators: &CheckedOperatorFacts,
-    state: &typed_trees::state::State,
-    statement_ordinal: u32,
-    expression: ExpressionHandle,
-    scalar_parameters: &[typed_trees::signature::StateParameter],
-    parameters: &[typed_trees::signature::StateParameter],
-    parameter_types: &[PrimitiveType],
-    locals: &[ScalarLocal],
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-    expressions: &mut Vec<CheckedLocatedScalarExpression>,
-    proof_terms: &mut Vec<checked_trees::CheckedLocatedProofTerm>,
-    source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
-    binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
-) {
-    let Some(call) = program.expression_table.call_node(expression) else {
-        return;
-    };
-    let Some(arguments) = lower_call_arguments(
-        program,
-        operators,
-        state,
-        statement_ordinal,
-        0,
-        &validation::CallSite::Expression { expression, call },
-        scalar_parameters,
-        parameters,
-        parameter_types,
-        locals,
-        exact_integer_casts,
-    ) else {
-        return;
-    };
-    retain_call_arguments(
-        arguments,
-        scalar_parameters,
-        locals,
-        expressions,
-        proof_terms,
-        source_bindings,
-        binding_symbols,
-    );
+    /// Records the source-binding and located-expression rows one bound scalar
+    /// value contributes to its plan.
+    fn record_scalar_value_pair(
+        &mut self,
+        role: CheckedScalarExpressionRole,
+        destination: symbols::SymbolHandle,
+        bound_expression: ExpressionHandle,
+        located_expression: CheckedScalarExpression,
+    ) {
+        self.source_bindings
+            .append(CheckedScalarExpressionBindings {
+                destination,
+                state: self.state.symbol,
+                statement_ordinal: self.statement_ordinal,
+                role,
+                expression: bound_expression,
+                symbols: self
+                    .binding_symbols
+                    .insert_many(located_binding_symbols(self.scalar_parameters, self.locals)),
+            });
+        self.expressions.push(CheckedLocatedScalarExpression {
+            state: self.state.symbol,
+            statement_ordinal: self.statement_ordinal,
+            role,
+            expression: located_expression,
+        });
+    }
 }
 
 pub(crate) fn build_checked_scalar_expression_plans(
@@ -238,16 +225,20 @@ pub(crate) fn build_checked_scalar_expression_plans(
                     source_bindings: &mut source_bindings,
                     binding_symbols: &mut binding_symbols,
                 };
-                array_elements::plan(planner.reborrow(), statement);
-                range_operands::plan(planner.reborrow(), statement);
+                array_elements::plan(&mut planner, statement);
+                range_operands::plan(&mut planner, statement);
                 match statement {
-                    StatementNode::LocalData(local) => local_data::plan(planner, local),
+                    StatementNode::LocalData(local) => local_data::plan(&mut planner, local),
                     StatementNode::Expression(expression) => {
-                        expression_statement::plan(planner, *expression)
+                        expression_statement::plan(&mut planner, *expression)
                     }
-                    StatementNode::Assignment(assignment) => assignment::plan(planner, assignment),
-                    StatementNode::Call(call) => call_statement::plan(planner, call),
-                    StatementNode::Transition(transition) => transition::plan(planner, transition),
+                    StatementNode::Assignment(assignment) => {
+                        assignment::plan(&mut planner, assignment)
+                    }
+                    StatementNode::Call(call) => call_statement::plan(&mut planner, call),
+                    StatementNode::Transition(transition) => {
+                        transition::plan(&mut planner, transition)
+                    }
                     _ => {}
                 }
             }
@@ -362,36 +353,4 @@ pub(crate) fn assignment_target_primitive_type(
             _ => return program.primitive_type_reference(type_reference),
         }
     }
-}
-
-/// Records the source-binding and located-expression rows one bound scalar
-/// value contributes to its plan.
-#[allow(clippy::too_many_arguments)]
-fn record_scalar_value_pair(
-    source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
-    expressions: &mut Vec<CheckedLocatedScalarExpression>,
-    binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
-    scalar_parameters: &[typed_trees::signature::StateParameter],
-    locals: &[ScalarLocal],
-    state: symbols::SymbolHandle,
-    statement_ordinal: u32,
-    role: CheckedScalarExpressionRole,
-    destination: symbols::SymbolHandle,
-    bound_expression: ExpressionHandle,
-    located_expression: CheckedScalarExpression,
-) {
-    source_bindings.append(CheckedScalarExpressionBindings {
-        destination,
-        state,
-        statement_ordinal,
-        role,
-        expression: bound_expression,
-        symbols: binding_symbols.insert_many(located_binding_symbols(scalar_parameters, locals)),
-    });
-    expressions.push(CheckedLocatedScalarExpression {
-        state,
-        statement_ordinal,
-        role,
-        expression: located_expression,
-    });
 }

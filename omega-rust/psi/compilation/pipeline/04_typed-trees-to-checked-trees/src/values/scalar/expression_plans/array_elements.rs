@@ -6,42 +6,33 @@ use super::{
     CheckedScalarExpressionRole, StatementNode, StatementPlanner, lower_return_expression,
 };
 
-pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
-    let StatementPlanner {
-        program,
-        operators,
-        exact_integer_casts,
-        machine,
-        state,
-        parameters,
-        scalar_parameters,
-        parameter_types,
-        statement_ordinal,
-        locals,
-        expressions,
-        source_bindings,
-        binding_symbols,
-        ..
-    } = planner;
+pub(crate) fn plan(planner: &mut StatementPlanner<'_, '_>, statement: &StatementNode) {
     let array_destination = match statement {
         StatementNode::LocalData(local) if !local.is_mutable => {
             Some((local.initial_value, local.type_reference, local.symbol))
         }
         StatementNode::Expression(expression) => Some((
             *expression,
-            state.return_type,
+            planner.state.return_type,
             symbols::SymbolHandle::invalid(),
         )),
-        StatementNode::Assignment(assignment) => {
-            validation::assignment_stored_value_type(program, machine, state, assignment)
-                .and_then(|declared| validation::closed_array_store_type(program, declared))
-                .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid()))
-        }
+        StatementNode::Assignment(assignment) => validation::assignment_stored_value_type(
+            planner.program,
+            planner.machine,
+            planner.state,
+            assignment,
+        )
+        .and_then(|declared| validation::closed_array_store_type(planner.program, declared))
+        .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid())),
         _ => None,
     };
     if let Some((expression, expected, destination)) = array_destination
-        && let Some(elements) =
-            validation::scalar_array_elements(program, machine.symbol, expression, expected)
+        && let Some(elements) = validation::scalar_array_elements(
+            planner.program,
+            planner.machine.symbol,
+            expression,
+            expected,
+        )
     {
         for (element_index, (element, primitive_type)) in elements.elements.into_iter().enumerate()
         {
@@ -49,15 +40,15 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                 break;
             };
             let Some(value) = lower_return_expression(
-                program,
-                operators,
+                planner.program,
+                planner.operators,
                 element,
-                scalar_parameters,
-                parameters,
-                parameter_types,
-                locals,
+                planner.scalar_parameters,
+                planner.parameters,
+                planner.parameter_types,
+                planner.locals,
                 primitive_type,
-                exact_integer_casts,
+                planner.exact_integer_casts,
             ) else {
                 continue;
             };
@@ -65,19 +56,7 @@ pub(crate) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                 source: checked_trees::CheckedArrayConstructionSource::Statement,
                 element_ordinal,
             };
-            super::record_scalar_value_pair(
-                source_bindings,
-                expressions,
-                binding_symbols,
-                scalar_parameters,
-                locals,
-                state.symbol,
-                statement_ordinal,
-                role,
-                destination,
-                element,
-                value,
-            );
+            planner.record_scalar_value_pair(role, destination, element, value);
         }
     }
 }

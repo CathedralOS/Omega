@@ -10,19 +10,20 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::runtime_rows::RuntimeRows;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
+use evaluation_accounting::EvaluationInvocationAccount;
 use extents::{
-    ActivationClaimBranch, ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest,
-    ActivationClaimSiteId,
+    ActivationClaimBranch, ActivationClaimId, ActivationClaimRequest, ActivationClaimSiteId,
 };
 use semantic_vocabulary::{MachineId, OperationId};
-use std::collections::BTreeMap;
 use terminal_psi::{Operation, OperationKind, StructuralPathSegment};
 
+mod ledger;
+use ledger::RuntimeActivationLedger;
+
 type Frame = (usize, MachineId);
-#[derive(Default)]
 pub(crate) struct RuntimeActivationStorage {
-    ledgers: BTreeMap<Frame, ActivationClaimLedger>,
-    grants: BTreeMap<
+    ledgers: RuntimeRows<Frame, RuntimeActivationLedger>,
+    grants: RuntimeRows<
         StructuralRuntimePlace,
         (
             Frame,
@@ -31,14 +32,38 @@ pub(crate) struct RuntimeActivationStorage {
             semantic_vocabulary::StructuralTypeId,
         ),
     >,
-    pub(crate) owners: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue>,
+    pub(crate) owners: RuntimeRows<StructuralRuntimePlace, TerminalStructuralValue>,
     /// Owned claim descriptor cells, separate from borrowed byte-view holders.
     /// Moving a descriptor never moves its private activation backing.
     /// Metadata supplies no availability or ownership authority; consumers
     /// must also rejoin the ordinary live-claim and projection judgments.
-    pub(crate) claim_descriptors: BTreeMap<StructuralRuntimePlace, ByteSequenceBinding>,
+    pub(crate) claim_descriptors: RuntimeRows<StructuralRuntimePlace, ByteSequenceBinding>,
     /// Ledger ids of the two children that currently partition one backing home.
-    split_children: BTreeMap<StructuralRuntimePlace, (ActivationClaimId, ActivationClaimId)>,
+    split_children: RuntimeRows<StructuralRuntimePlace, (ActivationClaimId, ActivationClaimId)>,
+}
+
+impl RuntimeActivationStorage {
+    pub(crate) fn new(account: Option<&EvaluationInvocationAccount>) -> Self {
+        Self {
+            ledgers: RuntimeRows::new(account),
+            grants: RuntimeRows::new(account),
+            owners: RuntimeRows::new(account),
+            claim_descriptors: RuntimeRows::new(account),
+            split_children: RuntimeRows::new(account),
+        }
+    }
+}
+
+/// Fund both possible division outcomes before consuming a source claim.
+/// Selection drops unused descriptors and replaces the staged case in place;
+/// publication only transfers paid rows.
+struct PreparedActivationDivision {
+    cases: RuntimeRows<
+        StructuralRuntimePlace,
+        crate::structural_inputs::case_membership::StructuralCaseContents,
+    >,
+    values: RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+    descriptors: RuntimeRows<StructuralRuntimePlace, ByteSequenceBinding>,
 }
 
 impl TerminalExecution<'_> {
@@ -94,23 +119,27 @@ impl TerminalExecution<'_> {
                     rejected_case
                 },
             },
-        );
+        )?;
         if established {
             let site = ActivationClaimSiteId::from_normalized_identity(operation.id.get())
                 .map_err(|_| malformed())?;
+            if !self.activation_storage.ledgers.contains_key(&frame) {
+                self.activation_storage
+                    .ledgers
+                    .insert(frame, RuntimeActivationLedger::new(self.account.as_ref()))?;
+            }
             let identity = self
                 .activation_storage
                 .ledgers
-                .entry(frame)
-                .or_default()
+                .get_mut(&frame)
+                .ok_or_else(malformed)?
                 .establish(ActivationClaimRequest {
                     site,
                     branch: ActivationClaimBranch::trunk(),
                     bound,
                     committed,
                     alignment: 1,
-                })
-                .map_err(|_| malformed())?;
+                })?;
             let owner = TerminalStructuralValue::minted(
                 self.local_structural_identities.allocate()?,
                 backing_type,
@@ -122,14 +151,14 @@ impl TerminalExecution<'_> {
                 self.account.as_ref(),
             )?;
             self.structural_byte_storage
-                .insert(home.clone(), ByteSequenceView::new(bytes));
+                .insert(home.clone(), ByteSequenceView::new(bytes))?;
             self.activation_storage
                 .owners
-                .insert(home.clone(), owner.clone());
+                .insert(home.clone(), owner.clone())?;
             self.activation_storage.grants.insert(
                 home.clone(),
                 (frame, identity, operation.id, shape.claim_type),
-            );
+            )?;
             let [binding] = result.claims.as_slice() else {
                 return Err(malformed());
             };
@@ -151,7 +180,7 @@ impl TerminalExecution<'_> {
                     referent: owner,
                     descriptor_home: Some(descriptor),
                 },
-            );
+            )?;
             crate::custody::bind_result_claim(
                 &mut self.live_claims,
                 binding,
@@ -226,7 +255,7 @@ impl TerminalExecution<'_> {
             .get(home)
             .ok_or_else(malformed)?;
         if frame != (self.call_stack.len(), self.current_machine)
-            || crate::custody::has_live_loan(&self.reference_referents, &selected)
+            || crate::custody::has_live_loan(self.reference_referents.as_map(), &selected)
         {
             return Err(malformed()
                 .in_argument_preparation("activation release frame or live reference loan"));
@@ -250,7 +279,7 @@ impl TerminalExecution<'_> {
             .chain(self.live_claims.values().filter_map(|claim| claim.place))
             .collect::<std::collections::BTreeSet<_>>();
         let frame_has_loan =
-            |bindings: &BTreeMap<semantic_vocabulary::PlaceId, ByteSequenceBinding>,
+            |bindings: &RuntimeRows<semantic_vocabulary::PlaceId, ByteSequenceBinding>,
              values: &RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
              honor_retired: bool|
              -> Result<bool, TerminalInterpretError> {
@@ -338,8 +367,7 @@ impl TerminalExecution<'_> {
             .ledgers
             .get_mut(&frame)
             .ok_or_else(malformed)?
-            .release(identity)
-            .map_err(|_| malformed())?;
+            .release(identity)?;
         self.commit_constructor_operands(frontier, std::slice::from_ref(source), claims)?;
         self.activation_storage
             .claim_descriptors
@@ -357,7 +385,7 @@ impl TerminalExecution<'_> {
     pub(crate) fn complete_activation_storage(&mut self) -> Result<(), TerminalInterpretError> {
         let frame = (self.call_stack.len(), self.current_machine);
         if let Some(ledger) = self.activation_storage.ledgers.get(&frame)
-            && ledger.live_claims().next().is_some()
+            && !ledger.is_empty()
         {
             return Err(malformed());
         }
@@ -418,17 +446,32 @@ impl TerminalExecution<'_> {
         if !self.structural_byte_storage.contains_key(&home) {
             return Err(malformed());
         }
+        let publication = self.prepare_activation_division(
+            operation,
+            rejected_case,
+            &home,
+            capacity,
+            &referent,
+            claim_type,
+        )?;
+        // Reserve the split association before the ledger retires its parent.
+        // Provisional ids never enter execution storage; success replaces them.
+        let mut children = RuntimeRows::new(self.account.as_ref());
+        children.insert(home.clone(), (identity, identity))?;
+        self.activation_storage
+            .split_children
+            .validate_append(&children)?;
         let covered = self
             .activation_storage
             .ledgers
             .get_mut(&frame)
             .ok_or_else(malformed)?
-            .split_claim(identity, committed_at, bound_at)
-            .ok();
+            .split(identity, committed_at, bound_at)?;
         if let Some((lower_id, upper_id)) = covered {
+            *children.get_mut(&home).ok_or_else(malformed)? = (lower_id, upper_id);
             self.activation_storage
                 .split_children
-                .insert(home.clone(), (lower_id, upper_id));
+                .append(&mut children)?;
             let mut frontier = self.live_affine_frontier.clone();
             self.consume_affine_call_argument(&mut frontier, source)?;
             self.live_affine_frontier = frontier;
@@ -442,10 +485,7 @@ impl TerminalExecution<'_> {
             } else {
                 rejected_case
             },
-            &home,
-            capacity,
-            &referent,
-            claim_type,
+            publication,
         )
     }
 
@@ -495,24 +535,24 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
+        let claim_type = self
+            .activation_storage
+            .grants
+            .get(lower_home)
+            .map(|grant| grant.3)
+            .ok_or_else(malformed)?;
+        let publication = self.prepare_activation_division(
+            operation,
+            rejected_case,
+            lower_home,
+            capacity,
+            referent,
+            claim_type,
+        )?;
         if lower_home != upper_home {
-            let claim_type = self
-                .activation_storage
-                .grants
-                .get(lower_home)
-                .map(|grant| grant.3)
-                .ok_or_else(malformed)?;
-            return self.publish_activation_division(
-                operation,
-                rejected_case,
-                lower_home,
-                capacity,
-                referent,
-                claim_type,
-            );
+            return self.publish_activation_division(operation, rejected_case, publication);
         }
         let home = lower_home.clone();
-        let referent = referent.clone();
         let frame = (self.call_stack.len(), self.current_machine);
         let merged = self
             .activation_storage
@@ -523,7 +563,7 @@ impl TerminalExecution<'_> {
                 self.activation_storage
                     .ledgers
                     .get_mut(&frame)
-                    .and_then(|ledger| ledger.merge_claims(lower_id, upper_id).ok())
+                    .and_then(|ledger| ledger.merge(lower_id, upper_id))
             });
         if let Some(merged) = merged {
             self.activation_storage.split_children.remove(&home);
@@ -537,71 +577,40 @@ impl TerminalExecution<'_> {
             self.live_claims.retain(|_, claim| {
                 claim.place != Some(lower.place) && claim.place != Some(upper.place)
             });
-            let claim_type = self
-                .activation_storage
-                .grants
-                .get(&home)
-                .map(|grant| grant.3)
-                .ok_or_else(malformed)?;
-            self.publish_activation_division(
-                operation,
-                covered_case,
-                &home,
-                capacity,
-                &referent,
-                claim_type,
-            )
+            self.publish_activation_division(operation, covered_case, publication)
         } else {
-            let claim_type = self
-                .activation_storage
-                .grants
-                .get(&home)
-                .map(|grant| grant.3)
-                .ok_or_else(malformed)?;
-            self.publish_activation_division(
-                operation,
-                rejected_case,
-                &home,
-                capacity,
-                &referent,
-                claim_type,
-            )
+            self.publish_activation_division(operation, rejected_case, publication)
         }
     }
 
-    fn publish_activation_division(
+    fn prepare_activation_division(
         &mut self,
         operation: &Operation,
-        case: semantic_vocabulary::StructuralCaseId,
+        fallback_case: semantic_vocabulary::StructuralCaseId,
         home: &StructuralRuntimePlace,
         capacity: u64,
         referent: &TerminalStructuralValue,
         claim_type: semantic_vocabulary::StructuralTypeId,
-    ) -> Result<OperationFlow, TerminalInterpretError> {
+    ) -> Result<PreparedActivationDivision, TerminalInterpretError> {
         let result = operation.result.structural().ok_or_else(malformed)?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
             Vec::new(),
         );
-        let root = StructuralRuntimePlace::from(&value);
-        self.structural_cases.insert(
-            root,
+        let mut cases = RuntimeRows::new(self.account.as_ref());
+        cases.insert(
+            StructuralRuntimePlace::from(&value),
             crate::structural_inputs::case_membership::StructuralCaseContents {
                 structural_type: result.structural_type,
-                case,
+                case: fallback_case,
             },
-        );
+        )?;
+        let mut descriptors = RuntimeRows::new(self.account.as_ref());
         for binding in &result.claims {
             let Some(StructuralPathSegment::Field(field)) = binding.path.last() else {
                 continue;
             };
-            let on_case = binding.path.iter().any(|segment| {
-                matches!(segment, StructuralPathSegment::Case(selected) if *selected == case)
-            });
-            if !on_case {
-                continue;
-            }
             // Case selects the payload namespace and is not part of the
             // physical descriptor path the arrival projection compares.
             let descriptor = TerminalStructuralValue {
@@ -611,7 +620,7 @@ impl TerminalExecution<'_> {
                 projected_qualifications: Vec::new(),
                 path: vec![StructuralPathSegment::Field(*field)],
             };
-            self.activation_storage.claim_descriptors.insert(
+            descriptors.insert(
                 StructuralRuntimePlace::from(&descriptor),
                 ByteSequenceBinding::MutableOwner {
                     home: ByteOwnerHome::Storage(home.clone()),
@@ -619,7 +628,52 @@ impl TerminalExecution<'_> {
                     referent: referent.clone(),
                     descriptor_home: Some(descriptor),
                 },
-            );
+            )?;
+        }
+        let mut values = RuntimeRows::new(self.account.as_ref());
+        values.insert(result.place, value)?;
+        self.structural_cases.validate_append(&cases)?;
+        self.structural_values.validate_append(&values)?;
+        self.activation_storage
+            .claim_descriptors
+            .validate_append(&descriptors)?;
+        Ok(PreparedActivationDivision {
+            cases,
+            values,
+            descriptors,
+        })
+    }
+
+    fn publish_activation_division(
+        &mut self,
+        operation: &Operation,
+        case: semantic_vocabulary::StructuralCaseId,
+        mut publication: PreparedActivationDivision,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let result = operation.result.structural().ok_or_else(malformed)?;
+        let value = publication
+            .values
+            .get(&result.place)
+            .ok_or_else(malformed)?;
+        let root = StructuralRuntimePlace::from(value);
+        publication.cases.get_mut(&root).ok_or_else(malformed)?.case = case;
+        let on_case = |binding: &terminal_psi::StructuralResultClaimBinding| {
+            binding.path.iter().any(|segment| {
+                matches!(segment, StructuralPathSegment::Case(selected) if *selected == case)
+            })
+        };
+        publication.descriptors.retain(|descriptor, _| {
+            result
+                .claims
+                .iter()
+                .any(|binding| on_case(binding) && binding.path.last() == descriptor.path.last())
+        });
+        for binding in &result.claims {
+            if !matches!(binding.path.last(), Some(StructuralPathSegment::Field(_)))
+                || !on_case(binding)
+            {
+                continue;
+            }
             crate::custody::bind_result_claim(
                 &mut self.live_claims,
                 binding,
@@ -632,7 +686,11 @@ impl TerminalExecution<'_> {
             (current.place == result.place && current.path.is_empty()).then_some(case)
         })?;
         self.live_affine_frontier = frontier;
-        self.structural_values.insert(result.place, value)?;
+        self.activation_storage
+            .claim_descriptors
+            .append(&mut publication.descriptors)?;
+        self.structural_cases.append(&mut publication.cases)?;
+        self.structural_values.append(&mut publication.values)?;
         Ok(OperationFlow::Advance)
     }
 }

@@ -12,9 +12,7 @@ pub(super) fn destination_inventory(
     (!inventory.template_dependent).then_some(inventory.slots)
 }
 
-/// Form the output namespace from an authenticated invocation occurrence.
-/// This carries no spatial relation or permission by itself.
-/// Opaque calls with possible reference outputs require a complete call-site
+/// Public or opaque calls with reference outputs require a complete call-site
 /// relation even when failed attribution produced no loans. This is an
 /// obligation query, not provider admission and not an empty-summary fallback.
 pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_required(
@@ -23,10 +21,17 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     target: symbols::SymbolHandle,
     call_expression: ExpressionHandle,
 ) -> bool {
-    let parameters = if let Some((definition, signature)) =
-        crate::selected_requirement_signature(program, target)
-        && definition.is_boundary
-    {
+    let parameters = if let Some(slot) = program.dynamic_slot_by_symbol(target) {
+        &slot.parameters
+    } else if let Some((_, signature)) = crate::selected_requirement_signature(program, target) {
+        // A complete empty output frontier needs no call-site relation. In an
+        // open generic body the applied callable may not exist yet; that cannot
+        // invent a borrowed output for a reference-free public signature.
+        if parameter_destination_inventory(program, program.state_signature_parameters(signature))
+            .is_some_and(|inventory| inventory.slots.is_empty() && !inventory.template_dependent)
+        {
+            return false;
+        }
         let signature = if call_expression.is_valid() {
             let Some(call) = program.expression_table.call_node(call_expression) else {
                 return true;

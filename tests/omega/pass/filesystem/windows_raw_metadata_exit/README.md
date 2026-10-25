@@ -14,7 +14,7 @@ closing its private handle. A metadata-only path open asks for read attributes,
 not content or namespace mutation. Several queries are not an atomic snapshot
 against concurrent writers. No POSIX identity or permission is fabricated.
 
-On macOS this fixture can establish source checking and PE publication only.
-The owner explicitly deferred native execution to a later Windows agent; exit
-70, native filesystem behavior and cleanup remain unverified until that run.
-The full portable provider, journal exit 7 and vault exit 14 remain unfinished.
+Windows x86-64 execution now observes native exit 70, and the retained Terminal
+inspection oracle matches. Terminal execution still declines because no trusted
+host implementation matches the exact foreign bindings. The portable provider's
+full dual-engine acceptance remains open under **FILESYSTEM-PLATFORM-SERVICES**.

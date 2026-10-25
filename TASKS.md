@@ -407,9 +407,7 @@ defines the complete product bar.
   - **Computed calls and state transfers:** finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results, cyclic/opaque/provider/dependent result
-    composition (runtime-indexed returned carriers preserving post-write
-    descriptor observations when an earlier operand mutates a source, copied
-    returns through ranked identities and public local-dyn slots, and returned
+    composition (copied returns through ranked identities and public local-dyn slots, and returned
     window extents as mathematical endpoint differences), and runtime-dispatched
     value construction on the common `EstablishStructuralValue` route through
     ordinary argument evaluation. Preserve once-only field/operand order,
@@ -417,7 +415,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view,public_post_write_indexed_byte_view}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
@@ -1004,9 +1002,43 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     with shared view leases and copy-on-write/staging transfers. Scalar and
     structural runtime tables reserve new rows and overlapping copies, carry
     leases with frames/joins, and retire removed cells; source-produced Build
-    exercises exact and short cell budgets across fuel pauses. Descriptor maps,
-    frame headers, array payload elements and result custody remain. Connect those
-    admitted operations, remaining live-storage and result accounting, remaining
+    exercises exact and short cell budgets across fuel pauses. Root and saved
+    call headers now reserve before creation; one frame-capture owner preserves
+    scalar/structural/cleanup custody and retires saved headers on return.
+    Packed scalar-array backing now retains element reservations through guest
+    snapshots and result inspection, including after instance close; plain
+    projection copies share that snapshot operation. Frame-local descriptors now
+    retain row reservations through call staging, suspension, joins and returns;
+    refused return installation retains outgoing backing and continuation custody.
+    Shared scalar record-field rows now retain reservations through constructor,
+    case and subtree staging, owned call copies, entry binding and retirement;
+    exact/short-budget source controls preserve independent copied contents and
+    sticky refusal. Shared primitive backing and entry lookup rows now retain
+    reservations through construction, mutation, subtree staging and retirement;
+    exact/short-budget controls preserve original borrowed entry writeback.
+    Shared reference, byte-field, byte/view descriptor, backing, case and host-atom
+    rows now use the same owner through execution and constructor/transplant
+    staging. Publication funds and validates receiving rows before retiring
+    sources, including activation split/merge result cases. Exact/short-budget
+    source controls exercise cases, byte fields and claim division through fuel
+    pauses, sticky refusal and teardown. Activation ledgers, live claims and
+    descriptor/owner rows now retain reservations through construction, transport,
+    division and retirement; division stages both outcomes before source custody
+    changes. Provider allocation/resident records and descriptor/profile rows
+    now reserve through entry binding, constructor transport and lifecycle
+    completion before byte writes or source retirement. Source-produced resident
+    initialization/extraction preserves original backing through borrowed/loaded
+    execution, exact/short budgets, fuel pauses and handback. Compiler-owned
+    initialization/extraction image payloads now reserve before allocation through encoding,
+    nested/array staging and decoding; caller-owned codec scratch removes the
+    hidden duplicate image. Exact/short payload controls separately refuse
+    initialization and extraction without publishing custody. Provider field-access
+    transfer windows use the same payload owner through the single external
+    write; caller-private scalar staging removes the duplicate codec image and
+    scalar decoding uses bounded inline storage. External read/write source
+    controls cover exact/short budgets, borrowed/loaded artifacts, fuel pauses
+    and sticky refusal. Cumulative result custody remains.
+    Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation.
@@ -1523,20 +1555,25 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   - Qualify remaining borrowed descriptor carriers, original scalar-field
     backing through thin foreign export
     ([foreign_scalar_backing](samples/cli/facts/foreign_scalar_backing/README.md)),
-    materialized C scalar-record results
-    ([foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)),
-    and indirect (memory-returned) aggregate results across Windows, macOS, and
-    both Linux targets in Omega stages 02–03 and backend call-frame emission,
+    and C record-result host/ABI lanes beyond the exact bindings covered by
+    [foreign_scalar_record_result](samples/cli/facts/foreign_scalar_record_result/README.md)
+    and the macOS ARM64 indirect floating result in
+    [foreign_indirect_float_record_result](samples/cli/facts/foreign_indirect_float_record_result/README.md)
+    across Windows, macOS, and both Linux targets in Omega stages 02–03 and
+    backend call-frame emission,
     keeping
     `providers/foreign_{owned_record,record_result,multiregister_result,indirect_record_*}_exit`
     and `host/runtime_descriptor_*_exit` passing.
   - Connect `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
-    to provider call-frame transport and backend emission across all nine places
-    of `samples/cli/facts/opaque_closed_carrier_exchange` on Linux ARM64
-    (Linux x86-64, macOS ARM64, and Windows x86-64 now pass across all nine
-    places), and extend independent component exchange to copy, linear,
-    qualified, and view-backed opaque inputs with exact composition-edge drift
-    rejection.
+    to provider call-frame transport and backend emission for the remaining
+    linear, qualified, and view-backed opaque inputs with exact composition-edge
+    drift rejection. The direct and independent closed Affine rows in
+    `samples/cli/facts/opaque_closed_carrier_exchange` now pass all nine places
+    on all four hosted targets, including Linux ARM64. The
+    [checked Copy continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_copy/README.md)
+    also has nine-place native/Terminal agreement and copy-only rejects on all
+    four targets. Its README retains the original Windows timeout and the
+    independently reviewed finite diagnostic; that original run remains red.
   - Connect stage 05 `retention/retained_borrow_custody.rs` and native
     marshaling to installed-provider custody and default Terminal adapters for
     moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine

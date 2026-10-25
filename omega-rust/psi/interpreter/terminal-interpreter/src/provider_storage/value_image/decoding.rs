@@ -5,7 +5,7 @@
 //! extents and retained nested layouts as initialization. It cannot mint an
 //! owner, recover a loan from an address, or substitute for authored custody.
 
-use super::{field_schema, record_layout, require_runtime_fields};
+use super::{field_schema, record_layout, require_runtime_fields, zeroed};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::primitive_storage::PrimitiveStorageEndpoint;
@@ -37,7 +37,7 @@ pub(crate) fn restore(
     }
     let mut decoder = ValueImageDecoder {
         execution,
-        storage: ConstructorStorage::default(),
+        storage: ConstructorStorage::new(execution.account.as_ref()),
         home: destination.clone(),
         active: Vec::new(),
     };
@@ -59,14 +59,16 @@ pub(crate) fn restore(
             entry.field(),
             layout_entry.member_identity,
         )?;
-        let bytes = layout_plans::decode_aggregate_field(
+        let mut bytes = zeroed(schema.byte_size, execution.account.as_ref())?;
+        layout_plans::decode_aggregate_field_into(
             plan.placement.layout(),
             &schema,
             ByteOrder::LittleEndian,
             image,
+            bytes.bytes_mut(),
         )
         .map_err(TerminalInterpretError::ValueImage)?;
-        decoder.field(field, &bytes)?;
+        decoder.field(field, bytes.bytes())?;
     }
     Ok(decoder.storage)
 }
@@ -180,14 +182,16 @@ impl ValueImageDecoder<'_, '_> {
                 for field in fields {
                     let name = format!("field:{:?}", field.id);
                     let schema = field_schema(self.execution, field, &name, None)?;
-                    let contents = layout_plans::decode_aggregate_field(
+                    let mut contents = zeroed(schema.byte_size, self.execution.account.as_ref())?;
+                    layout_plans::decode_aggregate_field_into(
                         &layout,
                         &schema,
                         ByteOrder::LittleEndian,
                         bytes,
+                        contents.bytes_mut(),
                     )
                     .map_err(TerminalInterpretError::ValueImage)?;
-                    self.field(field, &contents)?;
+                    self.field(field, contents.bytes())?;
                 }
             }
             _ => {

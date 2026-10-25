@@ -4,10 +4,13 @@
 //! names nor carrier declaration spellings participate. Admission additionally
 //! checks the complete selected opaque application and recursive public C shape.
 //! Actual C return values live in this invocation's owned occurrence store.
-//! Moving an opaque guest value preserves its token; consuming it removes that
-//! exact stored value. Physical record copies never create a semantic copy.
+//! Moving an opaque guest value preserves its token; consuming an affine value
+//! removes that exact stored value. Checked Copy occurrences share immutable C
+//! bits, while the interpreter gives each copy its own guest home.
 
 mod admission;
+#[cfg(test)]
+mod tests;
 
 use std::sync::{Arc, Mutex};
 
@@ -19,7 +22,7 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
     TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue, TerminalStructuralValue,
 };
-use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult};
+use terminal_psi::{BoundaryMachineDeclaration, BoundaryMachineResult, StructuralMultiplicity};
 
 use super::TerminalRuntimeError;
 
@@ -34,7 +37,14 @@ struct OwnedAddress {
     // own local formal above; only the exact target-closed opaque application
     // can relate this owned payload across independently compiled components.
     application: [u8; 32],
+    multiplicity: StructuralMultiplicity,
     value: HostInternetAddress,
+}
+
+struct AddressContract {
+    structural_type: StructuralTypeId,
+    application: [u8; 32],
+    multiplicity: StructuralMultiplicity,
 }
 
 /// Slots are never recycled: a stale consumed token cannot name a replacement.
@@ -45,11 +55,38 @@ pub(super) struct AddressValues {
     values: Vec<Option<OwnedAddress>>,
 }
 
+impl AddressValues {
+    fn argument(
+        &mut self,
+        ordinal: usize,
+        application: [u8; 32],
+        multiplicity: StructuralMultiplicity,
+    ) -> Result<HostInternetAddress, TerminalEffectRejection> {
+        let invalid = || {
+            TerminalEffectRejection::new(
+                "inet owned occurrence differs from the admitted application or multiplicity",
+            )
+        };
+        let slot = self.values.get_mut(ordinal).ok_or_else(invalid)?;
+        let owned = slot.as_ref().ok_or_else(invalid)?;
+        if owned.application != application || owned.multiplicity != multiplicity {
+            return Err(invalid());
+        }
+        match multiplicity {
+            // Retire before invoking C, including when the host call fails.
+            StructuralMultiplicity::Affine => Ok(slot.take().ok_or_else(invalid)?.value),
+            // Only a checked Copy occurrence can reach this admitted path.
+            // C receives bits by value; no guest authority is minted here.
+            StructuralMultiplicity::Unrestricted => Ok(owned.value),
+            StructuralMultiplicity::Linear => Err(invalid()),
+        }
+    }
+}
+
 pub(super) struct NetworkAddressImport {
     signature: TerminalImportSignature,
     operation: AddressOperation,
-    application: [u8; 32],
-    structural_type: StructuralTypeId,
+    contract: AddressContract,
     values: Arc<Mutex<AddressValues>>,
 }
 
@@ -64,13 +101,12 @@ impl NetworkAddressImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        let (structural_type, application) =
+        let contract =
             admission::validate(declaration, binding, application, &signature, operation)?;
         Ok(Some(Self {
             signature,
             operation,
-            application,
-            structural_type,
+            contract,
             values,
         }))
     }
@@ -132,7 +168,8 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 if *network_type != word
                     || *host_type != word
                     || !structural_arguments.is_empty()
-                    || result.structural_type != self.structural_type
+                    || result.structural_type != self.contract.structural_type
+                    || result.multiplicity != self.contract.multiplicity
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
                 {
@@ -154,11 +191,16 @@ impl TerminalEffectHandler for NetworkAddressImport {
                     )
                 })?;
                 values.values.push(Some(OwnedAddress {
-                    application: self.application,
+                    application: self.contract.application,
+                    multiplicity: self.contract.multiplicity,
                     value,
                 }));
                 Ok(TerminalEffectResult::Structural(
-                    TerminalStructuralValue::minted(identity, self.structural_type, Vec::new()),
+                    TerminalStructuralValue::minted(
+                        identity,
+                        self.contract.structural_type,
+                        Vec::new(),
+                    ),
                 ))
             }
             AddressOperation::Host => {
@@ -167,7 +209,7 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 };
                 if !arguments.is_empty()
                     || result != &self.signature.result
-                    || address.structural_type != self.structural_type
+                    || address.structural_type != self.contract.structural_type
                     || !address.path.is_empty()
                     || !address.qualifications.is_empty()
                     || !address.projected_qualifications.is_empty()
@@ -176,16 +218,15 @@ impl TerminalEffectHandler for NetworkAddressImport {
                 }
                 let ordinal =
                     usize::try_from(u64::MAX - address.opaque_identity).map_err(|_| invalid())?;
-                let slot = values.values.get_mut(ordinal).ok_or_else(invalid)?;
-                let owned = slot.as_ref().ok_or_else(invalid)?;
-                if owned.application != self.application {
-                    return Err(invalid());
-                }
-                let owned = slot.take().ok_or_else(invalid)?;
+                let value = values.argument(
+                    ordinal,
+                    self.contract.application,
+                    self.contract.multiplicity,
+                )?;
                 // The exact owned value was produced by inet_makeaddr
                 // under this same selected opaque application. The C call takes
                 // the four-byte struct by value and retains no guest reference.
-                let host = owned.value.host_number().ok_or_else(|| {
+                let host = value.host_number().ok_or_else(|| {
                     TerminalEffectRejection::new(
                         "native inet implementation is unavailable on this host",
                     )

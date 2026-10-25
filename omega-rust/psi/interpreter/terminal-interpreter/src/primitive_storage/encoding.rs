@@ -267,7 +267,7 @@ impl TerminalExecution<'_> {
                 let array = arrays.backing(&home.place).ok_or_else(malformed)?;
                 if machine != home.machine
                     || array.structural_type != home.structural_type
-                    || array.elements.get(start..end).is_none_or(|bytes| {
+                    || array.elements().get(start..end).is_none_or(|bytes| {
                         bytes
                             .iter()
                             .any(|byte| byte.scalar_type() != loan.scalar_type)

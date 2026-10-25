@@ -13,3 +13,12 @@ reaches Read
 machine main() -> u64 satisfies Published::run reaches Read {
     apply<read>(17u64)
 }
+
+machine entry() crashes Trap {
+    transition main() == 17u64 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

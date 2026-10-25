@@ -165,7 +165,7 @@ impl TerminalExecution<'_> {
             &opaque_parameters,
             &opaque_values,
             &self.program.structural_types(),
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             self.account.as_ref(),
         )?;
         validate_boundary_requirements(head, |argument_index| {

@@ -8,6 +8,10 @@ mod cleanup_resume;
 mod extent_view;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
+#[path = "terminal_resident_storage.rs"]
+mod resident_storage;
+#[path = "terminal_storage_budget.rs"]
+mod storage_budget;
 
 /// Portable provisions supply semantic test sinks, never native host services.
 pub(super) fn observe_portable(
@@ -16,6 +20,10 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["storage-cells", cells, value] => storage_budget::observe(artifact, cells, value, None),
+        ["storage-cells", cells, value, "primitive", initial] => {
+            storage_budget::observe(artifact, cells, value, Some(initial))
+        }
         ["cleanup-resume"] => cleanup_resume::observe(artifact),
         ["carried-boundary-ingress"] => carried_requirements::observe(artifact),
         ["mutable-boundary"] => mutable_boundary::observe(artifact),
@@ -24,6 +32,9 @@ pub(super) fn observe_portable(
         }
         ["external-extent-view"] => extent_view::observe(artifact, false),
         ["external-extent-view-write"] => extent_view::observe(artifact, true),
+        ["resident-storage", peak, payload_peak, values @ ..] => {
+            resident_storage::observe(artifact, peak, payload_peak, values)
+        }
         _ => Err("unknown portable Terminal fixture provision".to_owned()),
     }
 }

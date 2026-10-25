@@ -207,7 +207,11 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some();
+                // Concrete entries and instantiated dynamic slots receive all
+                // data through explicit operands. A trait namespace retained
+                // on the call is not an implicit receiver storage origin.
+                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
+                    || program.dynamic_slot_by_symbol(target).is_some();
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
@@ -277,7 +281,14 @@ impl<'program> CallFrameResolver<'program> {
                 frames::type_is_caller_isolated_local(program, reference)
                     && !frames::type_reference_is_reference(program, reference)
             });
-            let origins = if detached {
+            let origins = if let Some(origin) =
+                frames::reference_subjects::owned_borrow_origin(program, machine, *argument)
+            {
+                // Address formation consumes no earlier descriptor binding.
+                // Keep its authenticated owned coordinate even when unrelated
+                // slots changed; this retains no fact about stored contents.
+                Some(vec![LocalWriteSource::from(origin)])
+            } else if detached {
                 Some(Vec::new())
             } else if preceding_effect || changes_origins {
                 // The prefix predates operand execution. Never pretend

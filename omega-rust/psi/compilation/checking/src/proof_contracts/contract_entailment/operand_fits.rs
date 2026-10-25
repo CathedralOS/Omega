@@ -5,11 +5,9 @@
 //! embedding; anonymous comparison inputs use their completed mathematical
 //! integer value. Address ceilings remain the symbolic model bound.
 
-use super::citations::CitationFacts;
-use super::structural_case_arms::structural_arm_judge;
+use super::structural_judgment::StructuralTerm;
 use super::structural_judgment::normal_returns::OperationOperandDemand;
-use super::structural_judgment::{StructuralJudge, StructuralTerm};
-use super::structural_prefix::{StructuralPrefixSite, StructuralPrefixVisitor};
+use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -413,26 +411,16 @@ impl StructuralPrefixVisitor for OperandFit {
         self.site
     }
 
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
+    fn entered(&mut self) {
         self.seen = true;
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
-        let Some(state) = program.state_in_machine(machine, self.site.state) else {
-            self.judgment = Some(CarrierFit::Unknown);
-            return;
-        };
+    }
+
+    fn unresolved(&mut self, _machine: &Machine) {
+        self.judgment = Some(CarrierFit::Unknown);
+    }
+
+    fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
+        let (_, machine, state, judge, environment) = observation;
         let entries = match self.request.source {
             OperandSource::AnonymousValue => judge.normal_value_entries(
                 self.site.statement_index,

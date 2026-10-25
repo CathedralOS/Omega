@@ -320,6 +320,22 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// Closed dispatch joins the checked slot-output relation of every possible
+    /// realization. These are custody suppliers, never private predicate facts.
+    pub fn dynamic_stored_reference_effects(
+        &self,
+        target: SymbolHandle,
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        let slot = self.program.dynamic_slot_by_symbol(target)?;
+        super::stored_calls::dynamic_effects(
+            self.program,
+            slot,
+            &self.tables.symbols,
+            &mut FrameInference::default(),
+        )
+        .and_then(super::stored_calls::public_effects)
+    }
+
     /// Complete normal-exit reference-slot relation, reconstructed from the
     /// selected body and instantiated in this exact caller prefix. Unknown
     /// evidence is not an empty effect set.
@@ -1365,7 +1381,40 @@ impl<'program> CallFrameResolver<'program> {
         let Some(machine_symbols) = self.machine_symbols(current_machine) else {
             return NormalizedWriteFrame::opaque();
         };
-        let written = with_caller_origins(
+        // Operands have completed: substitute their captured origins, not the
+        // statement prefix's old descriptor slots. Unknown origins remain in
+        // their exact positions and matter only if a relative write uses them.
+        let completed_arguments = if self
+            .program
+            .expression_table
+            .call_node(expression)
+            .is_some()
+        {
+            let Some(origins) = self.expression_call_write_origins(current_machine, expression)
+            else {
+                return NormalizedWriteFrame::opaque();
+            };
+            if origins.receiver.is_none() {
+                return NormalizedWriteFrame::opaque();
+            }
+            Some(
+                origins
+                    .arguments
+                    .into_iter()
+                    .map(|origins| {
+                        origins.map(|sources| {
+                            sources
+                                .iter()
+                                .map(LocalWriteSource::frame_origin)
+                                .collect::<Vec<_>>()
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            None
+        };
+        let written = super::caller_aliases::with_caller_origin_context(
             self.program,
             current_machine,
             &self.tables.symbols,
@@ -1382,22 +1431,9 @@ impl<'program> CallFrameResolver<'program> {
                     inference,
                     &mut written,
                     prefix,
+                    completed_arguments.as_deref(),
                 )?;
-                if !written.is_empty()
-                    && self
-                        .program
-                        .expression_table
-                        .call_node(expression)
-                        .is_some()
-                {
-                    let origins =
-                        self.expression_call_write_origins(current_machine, expression)?;
-                    origins.receiver.as_ref()?;
-                    if origins.arguments.iter().any(Option::is_none) {
-                        return None;
-                    }
-                }
-                Some(written)
+                prefix.close_observed_paths(self.program, written)
             },
         );
         written.map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
@@ -1683,6 +1719,7 @@ pub(super) fn collect_expression_call_written_paths(
         inference,
         written,
         origins,
+        None,
     )
 }
 
@@ -1700,6 +1737,7 @@ fn collect_operation_written_paths(
     inference: &mut FrameInference,
     written: &mut Vec<String>,
     origins: &CallOriginContext<'_>,
+    completed_arguments: Option<&[Option<Vec<super::FramePlaceOrigin>>]>,
 ) -> Option<()> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
@@ -1842,15 +1880,19 @@ fn collect_operation_written_paths(
                 CallerWriteSite::Expression(expression),
                 symbols,
             );
-            let argument_origins = origins.argument_origins(
-                program,
-                current_machine,
-                machine_symbols,
-                symbols,
-                inference,
-                arguments,
-                &argument_types,
-            )?;
+            let argument_origins = match completed_arguments {
+                Some(captured) if captured.len() == arguments.len() => captured.to_vec(),
+                Some(_) => return None,
+                None => origins.argument_origins(
+                    program,
+                    current_machine,
+                    machine_symbols,
+                    symbols,
+                    inference,
+                    arguments,
+                    &argument_types,
+                )?,
+            };
             let has_divergent_actual = arguments
                 .iter()
                 .any(|argument| origins.mentions_divergent(program, *argument));

@@ -28,6 +28,7 @@ impl RuntimeProviderStorage {
         let ProviderStorageSlot::Live {
             allocation,
             profile,
+            ..
         } = self.allocations.get(binding.allocation)
         else {
             return Err(malformed());

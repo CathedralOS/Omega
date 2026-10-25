@@ -64,7 +64,7 @@ impl TerminalExecution<'_> {
         crate::structural_inputs::case_membership::stored_case_at_projection(
             &self.program.structural_types(),
             structural_values.get(&discard.place)?,
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             &discard.path,
         )
     }
@@ -80,7 +80,7 @@ impl TerminalExecution<'_> {
         consume_affine_projection(
             &self.program.structural_types(),
             &self.structural_values,
-            &self.structural_cases,
+            self.structural_cases.as_map(),
             frontier,
             argument,
         )
@@ -168,7 +168,7 @@ impl TerminalExecution<'_> {
             consume_projected_ownership(
                 &self.program.structural_types(),
                 &self.structural_values,
-                &self.structural_cases,
+                self.structural_cases.as_map(),
                 &mut self.live_affine_frontier,
                 &mut self.live_claims,
                 argument,

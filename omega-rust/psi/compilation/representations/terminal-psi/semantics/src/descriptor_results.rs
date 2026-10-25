@@ -58,7 +58,9 @@ mod invocation;
 mod provider_invocation;
 pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
 mod terminal_flow;
-pub use invocation::{public_invocation, public_result_slots, writable_descriptor_slots};
+pub use invocation::{
+    public_invocation, public_realizations, public_result_slots, writable_descriptor_slots,
+};
 pub use replay::{
     DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorSourceObservation,
     DescriptorSourceObservations, DescriptorStoredCallEffect, DescriptorStoredEffect,
@@ -576,6 +578,10 @@ pub enum DescriptorInvocationTarget {
         invalidates_contents: bool,
     },
     Public {
+        /// Complete executable alternatives from the authenticated dispatch
+        /// catalog. Their stored effects join; public result contracts stay
+        /// separate from implementation-private return guarantees.
+        realizations: Vec<MachineId>,
         extent: semantic_vocabulary::ReferenceOriginExtent,
         results: Vec<DescriptorResultSlot>,
         invalidates_contents: bool,

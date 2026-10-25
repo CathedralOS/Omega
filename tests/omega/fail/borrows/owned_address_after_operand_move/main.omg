@@ -1,0 +1,8 @@
+data Cell { value: u64; }
+machine consume(cell: Cell) -> u64 { cell.value }
+machine replace(slot: &mut Cell) -> u64 { slot.value = 9; 0 }
+machine receive(first: u64, second: u64) {}
+machine main() {
+    let mut cell: Cell = Cell { value: 7 };
+    receive(consume(cell), replace(&mut cell));
+}

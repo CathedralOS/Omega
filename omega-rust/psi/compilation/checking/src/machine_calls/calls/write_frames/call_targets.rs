@@ -26,6 +26,16 @@ pub(super) fn call_argument_types(
     site: super::caller_aliases::CallerWriteSite<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
+    // A dynamic slot has already instantiated its complete operand roster,
+    // including the independent selector. The public declaration omits that
+    // lane, so reading it here would shift every actual's type by one position.
+    if let Some(slot) = program.dynamic_slot_by_symbol(target_symbol) {
+        return slot
+            .parameters
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
+    }
     let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
         receiver
             .is_empty()

@@ -27,108 +27,27 @@ macro_rules! normalized_extent_identity {
 }
 
 pub(crate) use normalized_extent_identity;
-
-normalized_extent_identity! {
-
-    AddressSpaceId, "address-space"
-}
-normalized_extent_identity! {
-
-    ExtentProvenanceId, "extent-provenance"
-}
-normalized_extent_identity! {
-
-    MappingEraId, "mapping-era"
-}
-normalized_extent_identity! {
-
-    ExtentLineageId, "extent-lineage"
-}
-
-normalized_extent_identity! {
-
-    ExtentIssuanceId, "extent-issuance"
-}
-
-normalized_extent_identity! {
-
-    ExtentBackingId, "extent-backing"
-}
-
-normalized_extent_identity! {
-
-    ExtentProviderId, "extent-provider"
-}
-
-normalized_extent_identity! {
-
-    ExtentLiveIssuancePremiseId, "extent-live-issuance-premise"
-}
-
-normalized_extent_identity! {
-
-    ExtentCustodyRootId, "extent-custody-root"
-}
-
-normalized_extent_identity! {
-
-    ExtentAliasClassId, "extent-alias-class"
-}
-
-normalized_extent_identity!(
-    ExtentProviderCorrespondenceId,
-    "extent-provider-correspondence"
-);
-
-normalized_extent_identity! {
-
-    ExtentTrustProvenanceId, "extent-trust-provenance"
-}
-
-normalized_extent_identity! {
-
-    ExtentProviderPlanId, "extent-provider-plan"
-}
-
-normalized_extent_identity! {
-
-    ExtentProviderInvocationId, "extent-provider-invocation"
-}
-
-normalized_extent_identity! {
-
-    ExtentEstablishmentRouteId, "extent-establishment-route"
-}
-
-normalized_extent_identity! {
-
-    ExtentCapacityId, "extent-capacity"
-}
-
-normalized_extent_identity! {
-
-    ExtentQualificationId, "extent-qualification"
-}
-
-normalized_extent_identity!(
-    ExtentContentInterpretationId,
-    "extent-content-interpretation"
-);
-
-normalized_extent_identity!(
-    ExtentContentValidityReceiptId,
-    "extent-content-validity-receipt"
-);
-
-normalized_extent_identity!(
-    ExtentContentCustodyReceiptId,
-    "extent-content-custody-receipt"
-);
-
-normalized_extent_identity! {
-
-    ResidentClaimId, "resident-claim"
-}
+normalized_extent_identity! { AddressSpaceId, "address-space" }
+normalized_extent_identity! { ExtentProvenanceId, "extent-provenance" }
+normalized_extent_identity! { MappingEraId, "mapping-era" }
+normalized_extent_identity! { ExtentLineageId, "extent-lineage" }
+normalized_extent_identity! { ExtentIssuanceId, "extent-issuance" }
+normalized_extent_identity! { ExtentBackingId, "extent-backing" }
+normalized_extent_identity! { ExtentProviderId, "extent-provider" }
+normalized_extent_identity! { ExtentLiveIssuancePremiseId, "extent-live-issuance-premise" }
+normalized_extent_identity! { ExtentCustodyRootId, "extent-custody-root" }
+normalized_extent_identity! { ExtentAliasClassId, "extent-alias-class" }
+normalized_extent_identity! { ExtentProviderCorrespondenceId, "extent-provider-correspondence" }
+normalized_extent_identity! { ExtentTrustProvenanceId, "extent-trust-provenance" }
+normalized_extent_identity! { ExtentProviderPlanId, "extent-provider-plan" }
+normalized_extent_identity! { ExtentProviderInvocationId, "extent-provider-invocation" }
+normalized_extent_identity! { ExtentEstablishmentRouteId, "extent-establishment-route" }
+normalized_extent_identity! { ExtentCapacityId, "extent-capacity" }
+normalized_extent_identity! { ExtentQualificationId, "extent-qualification" }
+normalized_extent_identity! { ExtentContentInterpretationId, "extent-content-interpretation" }
+normalized_extent_identity! { ExtentContentValidityReceiptId, "extent-content-validity-receipt" }
+normalized_extent_identity! { ExtentContentCustodyReceiptId, "extent-content-custody-receipt" }
+normalized_extent_identity! { ResidentClaimId, "resident-claim" }
 
 /// Exact semantic interpretation selected for provider-existing content.
 ///
@@ -161,10 +80,7 @@ impl ExtentContentInterpretation {
     }
 }
 
-normalized_extent_identity! {
-
-    ExtentRightId, "extent-right"
-}
+normalized_extent_identity! { ExtentRightId, "extent-right" }
 /// An open set of normalized identity values: the grant-established rights a
 /// claim carries, or the facts one admitted obligation family demands.
 ///

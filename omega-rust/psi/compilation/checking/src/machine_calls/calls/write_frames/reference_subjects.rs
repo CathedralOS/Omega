@@ -19,6 +19,33 @@ pub(super) mod bindings;
 mod projections;
 mod results;
 
+/// Taking an owned storage address does not load a frozen reference binding.
+/// Earlier descriptor writes may change contents but cannot relocate this home.
+/// Reference-rooted paths still require chronological origin evidence; selectors,
+/// representation and loan admission are not inferred from a write footprint.
+pub(super) fn owned_borrow_origin(
+    program: &dyn crate::CheckingInput,
+    current_machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<FramePlaceOrigin> {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let (state, _, index) = caller_aliases::caller_statement_owner(
+        program,
+        current_machine,
+        caller_aliases::CallerWriteSite::Expression(expression),
+    )?;
+    projections::validate_selectors(program, current_machine, borrow.target)?;
+    let origin = frame_place_path(program, borrow.target)?;
+    let reference = source_root_type(program, state, index, origin.source.root)?;
+    if crate::reference_shell(program, reference).is_some() {
+        return None;
+    }
+    validate_owned_projection(program, reference, &origin.source.segments)?;
+    Some(origin)
+}
+
 /// The input's own readable reference can expose carrier storage. This is a
 /// type walk only: selecting a reference field still requires a seeded leaf
 /// whose binding survives every statement before the query.

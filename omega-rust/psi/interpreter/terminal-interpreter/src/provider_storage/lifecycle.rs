@@ -157,12 +157,12 @@ impl TerminalExecution<'_> {
             opaque_identity: value.opaque_identity,
             path: vec![StructuralPathSegment::Field(field.identity)],
         };
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(
             StructuralRuntimePlace::from(&value),
             result.structural_type,
             ready.id,
-        );
+        )?;
         let child = ConstructorValue::resolve(self, extent)?;
         storage.stage(self, extent, &child, &destination, true)?;
         // Remove the old descriptor from the staged constructor. Its replacement
@@ -206,9 +206,23 @@ impl TerminalExecution<'_> {
         self.stage_result_affine_frontier(result, &mut frontier, &selected)?;
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         let storage = storage.into_detached()?;
+        // Fresh receiving homes remain unreachable on a sticky refusal. Fund
+        // and install them while the original resource and custody still live.
+        storage.install(self)?;
+        self.structural_values.insert(result.place, value)?;
+        let lease = self
+            .account
+            .as_ref()
+            .map(|account| account.reserve_storage(1, 0))
+            .transpose()
+            .map_err(TerminalInterpretError::Storage)?;
+        let descriptor = self
+            .provider_storage
+            .descriptors
+            .insert_vacant(destination, prepared.binding)?;
         let start = usize::try_from(prepared.binding.offset).map_err(|_| malformed())?;
         let end = start
-            .checked_add(prepared.image.len())
+            .checked_add(prepared.image.bytes().len())
             .ok_or_else(malformed)?;
         let ProviderStorageSlot::Live { allocation, .. } = self
             .provider_storage
@@ -222,7 +236,7 @@ impl TerminalExecution<'_> {
         // All refusing work is over. No user code runs in this commit and none
         // of its operations can fail after the first write. Write only the image
         // footprint: the exact original window and unused tail remain owned.
-        bytes.copy_from_slice(&prepared.image);
+        bytes.copy_from_slice(prepared.image.bytes());
         let resident = self
             .provider_storage
             .residents
@@ -231,19 +245,12 @@ impl TerminalExecution<'_> {
                 initialized_by: plan.boundary,
                 custody,
                 compatibility: prepared.compatibility,
+                _lease: lease,
             });
+        descriptor.resident = resident;
         retirement.commit(self);
-        storage.publish(self);
-        self.provider_storage.descriptors.insert(
-            destination,
-            super::ProviderStorageBinding {
-                resident,
-                ..prepared.binding
-            },
-        );
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 
@@ -310,8 +317,8 @@ impl TerminalExecution<'_> {
             Vec::new(),
         );
         let root = StructuralRuntimePlace::from(&value);
-        let mut storage = ConstructorStorage::default();
-        storage.stage_case(root.clone(), result.structural_type, rejected.id);
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
+        storage.stage_case(root.clone(), result.structural_type, rejected.id)?;
         let mut frontier = self.live_affine_frontier.clone();
         let mut consumed = Vec::new();
         let mut transported = BTreeMap::new();
@@ -331,7 +338,7 @@ impl TerminalExecution<'_> {
                 return Err(malformed());
             }
             if let ConstructorValue::Placed(placed) = &child
-                && crate::custody::has_live_loan(&self.reference_referents, placed)
+                && crate::custody::has_live_loan(self.reference_referents.as_map(), placed)
             {
                 return Err(TerminalInterpretError::ContentTransformationMismatch(
                     "placement rejection cannot transfer a borrowed input",
@@ -445,11 +452,12 @@ impl TerminalExecution<'_> {
         self.stage_result_affine_frontier(result, &mut frontier, &selected)?;
         // No backing writes occur on rejection. Constructor staging has
         // retained the original descriptor association, bytes and memberships.
-        self.commit_constructor_operands(frontier, &consumed, claims)?;
+        let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         storage.publish(self)?;
+        self.structural_values.insert(result.place, value)?;
+        retirement.commit(self);
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 }

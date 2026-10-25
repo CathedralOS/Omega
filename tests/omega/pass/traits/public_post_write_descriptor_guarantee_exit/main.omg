@@ -1,0 +1,11 @@
+data View<'storage> [copy] { bytes: &'storage [u8]; }
+trait Installing { machine install<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 ensures slot.bytes.len == replacement.len; }
+Installer satisfies Installing {
+ machine install<'storage>(destination: &mut View<'storage>, source: &'storage [u8]) -> u64 ensures destination.bytes.len == source.len { destination.bytes = source; 0 }
+}
+machine main() crashes Trap {
+ let mut view: View = View { bytes: "1" };
+ _ = Installing::install(Installer as dyn Installing, &mut view, "1234567");
+ transition view.bytes.len == 7 { true -> done() false -> bad() }
+ state done() {} state bad() { crash Trap; }
+}
