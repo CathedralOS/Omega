@@ -120,7 +120,7 @@ pub struct TerminalExecution<'artifact> {
     /// invocation-independent opaque identity and resolved parent path, so a
     /// projected call observes the same field without native layout claims.
     pub(crate) structural_scalar_fields:
-        BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue>,
+        RuntimeRows<StructuralScalarRuntimeField, TerminalScalarValue>,
     /// Byte fields retain either owned payloads or borrowed descriptors. Moving
     /// a record relocates the slot, never the descriptor's backing/window.
     pub(crate) structural_byte_sequence_fields: BTreeMap<
@@ -506,7 +506,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_primitive_entry_places: BTreeMap::new(),
             local_structural_identities,
             next_scalar_collection_identity: 1024,
-            structural_scalar_fields: BTreeMap::new(),
+            structural_scalar_fields: RuntimeRows::new(account.as_ref()),
             private_entry_ram: Vec::new(),
             provider_storage: Default::default(),
             entry_storage_open: true,
@@ -592,7 +592,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         )?;
         execution.structural_primitive_storage = storage;
         execution.structural_primitive_entry_places = entry_places;
-        let scalar_fields = std::mem::take(&mut execution.structural_scalar_fields);
+        let scalar_fields = execution.structural_scalar_fields.take();
         execution.structural_scalar_fields = scalar_fields::bind(
             machine,
             &program.structural_types(),

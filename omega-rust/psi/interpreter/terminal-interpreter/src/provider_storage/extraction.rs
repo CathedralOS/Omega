@@ -240,7 +240,7 @@ impl TerminalExecution<'_> {
             path: vec![StructuralPathSegment::Field(value_field.identity)],
         };
         let decoded = super::value_image::restore(self, plan, image, &value_home)?;
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(
             StructuralRuntimePlace::from(&value),
             result.structural_type,
@@ -328,12 +328,13 @@ impl TerminalExecution<'_> {
         }
         let retirement = self.prepare_constructor_operands(frontier, &consumed, claims)?;
         let storage = storage.into_detached()?;
+        storage.install(self)?;
+        self.structural_values.insert(result.place, value)?;
         // All source and receiving obligations have joined. Decoded data and
         // retained non-byte bindings now replace the private snapshot together.
         let _original = std::mem::take(self.provider_storage.residents.get_mut(binding.resident));
         self.provider_storage.residents.free(binding.resident);
         retirement.commit(self);
-        storage.publish(self);
         self.provider_storage.descriptors.insert(
             extent_home,
             ProviderStorageBinding {
@@ -343,7 +344,6 @@ impl TerminalExecution<'_> {
         );
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 }

@@ -1011,7 +1011,11 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     projection copies share that snapshot operation. Frame-local descriptors now
     retain row reservations through call staging, suspension, joins and returns;
     refused return installation retains outgoing backing and continuation custody.
-    Global descriptor/placed/case storage and cumulative result custody remain.
+    Shared scalar record-field rows now retain reservations through constructor,
+    case and subtree staging, owned call copies, entry binding and retirement;
+    exact/short-budget source controls preserve independent copied contents and
+    sticky refusal. Other global descriptor/primitive/placed/case rows and
+    cumulative result custody remain.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build

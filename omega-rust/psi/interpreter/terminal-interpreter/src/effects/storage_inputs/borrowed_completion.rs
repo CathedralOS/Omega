@@ -80,7 +80,7 @@ pub(super) fn stage(
     let changed_case = visible.iter().any(|leaf| matches!(leaf.kind, StorageLeafKind::Case { case, .. }
         if binding.original.binary_search_by(|value| value.path.cmp(&leaf.path)).ok()
             .is_none_or(|position| binding.original[position].contents != TerminalStorageContents::Case(case))));
-    let mut staged = ConstructorStorage::default();
+    let mut staged = ConstructorStorage::new(execution.account.as_ref());
     for (leaf, value) in visible.into_iter().zip(&buffer.values) {
         if leaf.path != value.path {
             return Err(malformed());
