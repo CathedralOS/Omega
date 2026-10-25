@@ -600,7 +600,16 @@ impl SymbolTable {
             return false;
         };
         if !import.exact_source {
-            return true;
+            // Syntax-only imports name this checked package's namespaces.
+            // Merely loading a foreign same-named module grants no import.
+            return self
+                .symbol_provenance_source_span(candidate)
+                .is_some_and(|span| {
+                    self.same_source_package(
+                        SourceSpan::new(binding.reference_source, span.span),
+                        span,
+                    )
+                });
         }
         self.symbol_provenance_source_span(candidate)
             .is_some_and(|span| {
