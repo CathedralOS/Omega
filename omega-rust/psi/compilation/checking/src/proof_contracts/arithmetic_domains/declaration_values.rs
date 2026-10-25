@@ -14,6 +14,7 @@ pub(crate) fn validate_declaration_value_range(
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
+    value_environment: Option<&ValueEnvironment>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
@@ -99,12 +100,17 @@ pub(crate) fn validate_declaration_value_range(
         }
         crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
+    // A local's type application uses its independently available flow facts.
+    // Initializer writes have already conservatively invalidated this context.
+    // Declaration-only applications retain the empty
+    // environment; the destination's own predicate never supplies evidence.
+    let declaration_environment = ValueEnvironment::new();
     super::expression_analysis::analyze_declaration(
         program,
         lexical_owner,
         parameters,
         expression,
-        &ValueEnvironment::new(),
+        value_environment.unwrap_or(&declaration_environment),
         target_primitive,
         target_domain,
         owner,

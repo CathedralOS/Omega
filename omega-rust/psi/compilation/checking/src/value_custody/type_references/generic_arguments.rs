@@ -270,6 +270,7 @@ pub fn validate_closed_const_argument(
             type_parameters: &[],
             lifetime_parameters: &[],
         },
+        None,
         &mut diagnostics,
     );
     if diagnostics.is_empty() {
@@ -312,6 +313,7 @@ pub(crate) fn const_argument_matches_parameter(
             type_parameters: caller_parameters,
             lifetime_parameters: &[],
         },
+        None,
         &mut diagnostics,
     );
     !diagnostics.iter().any(Diagnostic::is_error)
@@ -451,6 +453,7 @@ pub(crate) fn validate_const_data_argument(
     carrier: AppliedValueCarrier<'_>,
     argument: TypeReferenceHandle,
     type_parameter_scope: TypeParameterScope<'_>,
+    value_environment: Option<&crate::proof_contracts::arithmetic_domains::ValueEnvironment>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let carrier = carrier.resolved(program);
@@ -509,6 +512,7 @@ pub(crate) fn validate_const_data_argument(
             program.primitive_type_reference(parameter_type),
             program.arithmetic_domain_for_type_reference(parameter_type),
             &format!("value argument `{}` of `{base_name}`", parameter.name),
+            value_environment,
             diagnostics,
         );
         return;

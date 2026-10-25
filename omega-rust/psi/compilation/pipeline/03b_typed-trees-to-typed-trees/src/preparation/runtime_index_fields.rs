@@ -22,13 +22,26 @@ struct CallerEffects {
 
 impl CallerEffects {
     fn inert(&self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
-        validation::expression_traversal::inert_value_tree_with_calls(program, expression, |call| {
-            self.no_write_calls
-                .binary_search_by_key(&(call.arena_index(), call.generation()), |candidate| {
-                    (candidate.arena_index(), candidate.generation())
-                })
-                .is_ok()
-        })
+        validation::expression_traversal::inert_value_tree_with_operations(
+            program,
+            expression,
+            |call| {
+                self.no_write_calls
+                    .binary_search_by_key(&(call.arena_index(), call.generation()), |candidate| {
+                        (candidate.arena_index(), candidate.generation())
+                    })
+                    .is_ok()
+            },
+            |operation| {
+                program
+                    .machine_by_symbol(self.machine)
+                    .is_some_and(|machine| {
+                        validation::has_builtin_binary_expression_meaning(
+                            program, machine, None, operation,
+                        )
+                    })
+            },
+        )
     }
 }
 

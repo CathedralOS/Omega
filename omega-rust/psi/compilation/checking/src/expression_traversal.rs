@@ -24,6 +24,17 @@ pub fn inert_value_tree_with_calls(
     expression: ExpressionHandle,
     mut allow_call: impl FnMut(ExpressionHandle) -> bool,
 ) -> bool {
+    inert_value_tree_with_operations(program, expression, &mut allow_call, |_| false)
+}
+
+/// Extend the inert-tree judgment only with exact selected operation receipts.
+/// The callback owns operation meaning; every child still passes this traversal.
+pub fn inert_value_tree_with_operations(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    mut allow_call: impl FnMut(ExpressionHandle) -> bool,
+    mut allow_operation: impl FnMut(ExpressionHandle) -> bool,
+) -> bool {
     if !expression.is_valid() {
         return false;
     }
@@ -35,6 +46,12 @@ pub fn inert_value_tree_with_calls(
             ExpressionNode::Call(_)
         ) {
             return allow_call(*expression);
+        }
+        if matches!(
+            program.expression_table.expression(*expression),
+            ExpressionNode::Binary(_)
+        ) {
+            return allow_operation(*expression);
         }
         matches!(
             program.expression_table.expression(*expression),

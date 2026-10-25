@@ -52,6 +52,7 @@ pub(super) fn validate(
             machine,
             state: state_name,
             local: local_data.name.as_str(),
+            value_environment,
             generic_depth: 0,
         },
         crate::value_custody::type_references::TypeParameterScope {

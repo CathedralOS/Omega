@@ -116,6 +116,7 @@ pub(crate) enum TypeReferenceOwner<'program> {
         machine: &'program typed_trees::machine::Machine,
         state: &'program str,
         local: &'program str,
+        value_environment: &'program crate::proof_contracts::arithmetic_domains::ValueEnvironment,
         generic_depth: usize,
     },
     StateParameter {
@@ -152,7 +153,18 @@ pub(crate) enum TypeReferenceOwner<'program> {
     },
 }
 
-impl TypeReferenceOwner<'_> {
+impl<'program> TypeReferenceOwner<'program> {
+    fn runtime_value_environment(
+        self,
+    ) -> Option<&'program crate::proof_contracts::arithmetic_domains::ValueEnvironment> {
+        match self {
+            Self::StateLocalData {
+                value_environment, ..
+            } => Some(value_environment),
+            _ => None,
+        }
+    }
+
     fn allows_direct_routed_service_carrier(&self) -> bool {
         matches!(
             self,
@@ -226,11 +238,13 @@ impl TypeReferenceOwner<'_> {
                 machine,
                 state,
                 local,
+                value_environment,
                 generic_depth,
             } => Self::StateLocalData {
                 machine,
                 state,
                 local,
+                value_environment,
                 generic_depth: generic_depth + 1,
             },
             Self::StateParameter {
@@ -337,6 +351,7 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                 state,
                 local,
                 generic_depth,
+                ..
             } => {
                 write!(
                     formatter,
@@ -875,6 +890,7 @@ fn validate_type_reference_node(
                                 ),
                                 *argument,
                                 type_parameter_scope,
+                                owner.runtime_value_environment(),
                                 diagnostics,
                             );
                         }

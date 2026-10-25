@@ -1,0 +1,31 @@
+// A runtime limit from 9 to 10 binds Index<limit>, retaining payload 8 below the exact captured limit.
+// Expected exit: 0
+data Index<Limit: u32> [copy] where value < Limit { value: u32; }
+data Observation [copy] { payload:u32; limit:u32; }
+
+machine create<Created:u32>(value:u32)->Index<Created>
+requires value < Created
+{ Index{value:value} }
+
+machine preserve_inner(limit:u32,item:&mut Index<limit>) {}
+machine preserve(limit:u32,item:&mut Index<limit>) { preserve_inner(limit,item); }
+
+machine observe<Observed:u32>(value:u32)->u32
+requires value < Observed
+{ create<Observed>(value).value }
+
+const Minimum:u32=9;
+const Maximum:u32=10;
+machine probe(limit:u32)->Observation requires limit>=Minimum && limit<=Maximum {
+ let origin:u32=limit-1u32;
+ let mut indexed:Index<(origin+1u32)> = Index{value:8};
+ preserve(limit,&mut indexed);
+ Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit}
+}
+machine main() crashes Trap {
+ let first:Observation=probe(Minimum);
+ let second:Observation=probe(Maximum);
+ transition first.payload==8 && first.limit==9 && second.payload==8 && second.limit==10 { true->done() _->bad() }
+ state done(){}
+ state bad(){crash Trap;}
+}
