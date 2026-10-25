@@ -32,7 +32,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: '2'
       # Keep generated package outputs below Windows link.exe's path limit.
-      CARGO_TARGET_DIR: ${{ runner.temp }}/ot
+      CARGO_TARGET_DIR: ${{ matrix.runner == 'windows-2025' && 'D:/ot' || '/tmp/ot' }}
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
