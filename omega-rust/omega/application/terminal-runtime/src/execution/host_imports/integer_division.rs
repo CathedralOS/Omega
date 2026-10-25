@@ -3,9 +3,7 @@
 
 use super::super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralFieldId, StructuralTypeId,
-};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target::{ForeignLocatorCandidate, TargetProfile};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
@@ -15,11 +13,9 @@ use terminal_interpreter::{
 };
 use terminal_psi::BoundaryMachineDeclaration;
 
-pub(super) struct IntegerDivisionImport {
-    signature: TerminalImportSignature,
-    structural_type: StructuralTypeId,
-    fields: [StructuralFieldId; 2],
-}
+/// The lldiv import is the shared two-word C record admission; the effect
+/// handler below owns only the quotient/remainder call contract.
+pub(super) type IntegerDivisionImport = super::scalar_record::ScalarRecordAdmission<2>;
 
 impl IntegerDivisionImport {
     pub(super) fn admit(
@@ -42,11 +38,7 @@ impl IntegerDivisionImport {
             &[scalar, scalar],
             [scalar, scalar],
         )?;
-        Ok(Some(Self {
-            signature: admitted.signature,
-            structural_type: admitted.structural_type,
-            fields: admitted.fields,
-        }))
+        Ok(Some(admitted))
     }
 }
 
