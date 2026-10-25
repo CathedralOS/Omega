@@ -821,10 +821,15 @@ defines the complete product bar.
     runtime_call_endpoint,runtime_inclusive_call_endpoint` (70),
     `fail/slices/inclusive_*` for bounds/overlap rejection, and
     `layouts/runtime_reborrow_preserves_store_origin_exit` for address origins
-    across shared-value and write-prefix queries: current baseline `a8d49c50220`
-    refuses `NativePlacement::initialize` / `Placed::initialize_owned` with
-    “effectful invocation has unknown encoded reach”; restore its authored 70
-    in both engines. Carry exact
+    across shared-value and write-prefix queries (70 in both engines).
+    Preserve `samples/cli/facts/narrowed_integer_write`: signed eight-bit stores
+    retain semantic i64 meaning and their adjacent byte across all nine places;
+    value-200 twins reject. Open generic storage does not invent physical
+    geometry or hide concrete template-local obligations; portable families
+    discharge every member body's performed writes against the same actuals.
+    Completed call results
+    retain their checked fit evidence, including before later source writes.
+    Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.

@@ -29,6 +29,46 @@ pub(crate) fn target_machine(
         })
 }
 
+/// Entry predicates use the selected body's formal identities while source
+/// captures keep the portable call's telescope. Only an exact checked family
+/// member can supply that positional correspondence; other mismatches refuse.
+fn invocation_body_parameters<'program>(
+    program: &'program dyn validation::CheckingInput,
+    call: &FlowCallFact,
+    body: SymbolHandle,
+) -> Option<&'program [StateParameter]> {
+    let target = target_machine(program, call)?;
+    if target != body {
+        let interface = program.machine_by_symbol(target)?;
+        validation::target_family_members(program, interface)?
+            .iter()
+            .any(|member| member.machine == body)
+            .then_some(())?;
+    }
+    let machine = program.machine_by_symbol(body)?;
+    Some(program.state_parameters(program.machine_states(machine).first()?))
+}
+
+fn body_observation_actual<'program>(
+    program: &'program dyn validation::CheckingInput,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    body: SymbolHandle,
+    observation: &crate::facts::boolean_predicates::BoundObservation,
+) -> Option<Actual<'program>> {
+    let parameters = invocation_body_parameters(program, call, body)?;
+    let position = parameters.iter().position(|parameter| {
+        observation.place.root == facts::PlaceRoot::Symbol(parameter.symbol)
+    })?;
+    actual_at(
+        program,
+        state,
+        call,
+        position,
+        observation.place.segments.clone(),
+    )
+}
+
 pub(crate) struct Actual<'program> {
     pub(crate) parameter: &'program StateParameter,
     pub(crate) argument: Option<ExpressionHandle>,
@@ -526,16 +566,17 @@ fn current_actual(
     let capture = captured.observation;
     let projection = &captured.observation_projection;
     let expression = projection.expression;
-    if projection.remaining.is_empty() {
-        if !validation::has_builtin_bound_expression_meaning(
+    // Builtin meaning permits evaluating the expression algebra. Other
+    // producers still have an exact completed-result subject below; their
+    // checked guarantees may describe that value without evaluating the call.
+    if projection.remaining.is_empty()
+        && validation::has_builtin_bound_expression_meaning(
             program,
             machine,
             Some(body),
             expression,
-        ) {
-            return None;
-        }
-        if let Some(value) = crate::values::lower_unit_scalar_argument_for_places(
+        )
+        && let Some(value) = crate::values::lower_unit_scalar_argument_for_places(
             program,
             &facts.operators,
             body,
@@ -554,9 +595,9 @@ fn current_actual(
                     bindings,
                 )
             },
-        ) {
-            return Some(value);
-        }
+        )
+    {
+        return Some(value);
     }
     // Facts established on stored values belong to the observed storage, not
     // its earlier producer. A reaching match/call may explain the value but
@@ -693,7 +734,7 @@ pub(crate) fn proves_entry_predicate(
     else {
         return false;
     };
-    if target_machine(program, call) != Some(target) {
+    if invocation_body_parameters(program, call, target).is_none() {
         return false;
     }
     proves_bound_predicate(
@@ -704,7 +745,7 @@ pub(crate) fn proves_entry_predicate(
         contexts,
         &predicate,
         frames,
-        &|observation| observation_actual(program, state, call, observation),
+        &|observation| body_observation_actual(program, state, call, target, observation),
     )
 }
 
@@ -832,19 +873,30 @@ pub(crate) fn proves_bound_predicate<'program>(
         &captures,
         frames,
     ));
-    crate::facts::boolean_predicates::proves(&retained, &current, |place| {
-        scalar_at(
-            program,
-            facts,
-            &selected_contexts,
-            facts::ProgramPoint::Statement {
-                machine_symbol: state.machine_symbol,
-                state_symbol: state.state_symbol,
-                statement_index: call.statement_index,
-            },
-            place,
-        )
-    })
+    // A normal guarantee may establish an exact scalar, then justify the
+    // receiving bound. Use the shared completed-value equation closure; the
+    // required bound is never one of its premises and unseeded cycles prove
+    // nothing. Observation epochs were authenticated above.
+    super::prover::call_guarantees::proves_captured_predicates(
+        program,
+        &facts.semantic,
+        &selected_contexts,
+        &retained,
+        &current,
+        |place| {
+            scalar_at(
+                program,
+                facts,
+                &selected_contexts,
+                facts::ProgramPoint::Statement {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    statement_index: call.statement_index,
+                },
+                place,
+            )
+        },
+    )
 }
 
 /// Transport only entry-custodied observations. A callee selector remains a
@@ -857,14 +909,12 @@ pub(crate) fn entry_predicate(
     target: SymbolHandle,
     predicate: CheckedBooleanExpression,
 ) -> Option<CheckedBooleanExpression> {
-    if target_machine(program, call)? != target {
-        return None;
-    }
+    invocation_body_parameters(program, call, target)?;
     let predicate = crate::facts::boolean_predicates::bind_entry(program, target, predicate)?;
     let mut expression = predicate.expression.clone();
     crate::facts::boolean_predicates::map_observations(&mut expression, &mut |operand| {
         let observation = predicate.binding(&operand)?;
-        let actual = observation_actual(program, state, call, observation)?;
+        let actual = body_observation_actual(program, state, call, target, observation)?;
         let primitive = operand.primitive_type()?;
         let captured = captured_value(program, facts, state, call, &actual)?;
         let capture = captured.operand;

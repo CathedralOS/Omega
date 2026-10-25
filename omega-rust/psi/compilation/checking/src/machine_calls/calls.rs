@@ -820,7 +820,7 @@ fn validate_value_call_arguments(
 }
 
 mod topology;
-pub(crate) use topology::target_family_members;
+pub use topology::target_family_members;
 pub use topology::{
     call_target_has_checked_body_contract, call_target_parameters, call_target_return_type,
     call_target_state, call_target_symbol, call_target_type_parameters, find_machine,

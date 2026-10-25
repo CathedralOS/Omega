@@ -402,7 +402,7 @@ pub fn call_target_symbol(
 /// Consumers apply their own body/contract eligibility after this exact join;
 /// external members belong to the roster just as checked bodies do. This is
 /// dependency topology, not an executable dispatch or a host-target selection.
-pub(crate) fn target_family_members<'program>(
+pub fn target_family_members<'program>(
     program: &'program dyn crate::CheckingInput,
     interface: &typed_trees::machine::Machine,
 ) -> Option<&'program [typed_trees::machine::TargetMachineFamilyMember]> {
