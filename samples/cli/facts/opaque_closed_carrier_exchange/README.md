@@ -7,8 +7,10 @@ including replacement of one field without disturbing its sibling. This is
 host-boundary evidence and initial independent closed Affine input/result
 exchange. The [checked Copy continuation](independent_copy/README.md) also
 preserves the caller's original across an independently consuming call.
-Qualified or claim-bearing component inputs, remaining mismatch admission and
-replacement lifecycle acceptance remain open.
+The [Linear continuation](independent_linear/README.md) transfers actual whole
+ownership claims through independent inputs and returns on all four hosts.
+Qualified or view-backed component inputs, nested or routed claim carriers,
+remaining mismatch admission and replacement lifecycle acceptance remain open.
 
 **Closed nested Inert carrier transport preserves libc host numbers 66051 and
 513 and replacement 1027 while retaining the disjoint sibling.**
