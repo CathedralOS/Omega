@@ -81,6 +81,23 @@ pub(crate) struct PreparedExpressionSelectionRebase {
     remapped: Vec<Option<Vec<AuthoredDeclarationSelectionOccurrenceId>>>,
 }
 
+/// The per-kind `Option<&_>` readers over this table's expression nodes,
+/// one line per kind: each entry expands to the single-variant match and the
+/// `_` arm a sibling would otherwise spell out by hand.
+macro_rules! expression_node_accessors {
+    ($($(#[$doc:meta])* $name:ident($variant:ident) -> $node_type:ty;)*) => {
+        $(
+            $(#[$doc])*
+            pub fn $name(&self, handle: ExpressionHandle) -> Option<&$node_type> {
+                match self.expression(handle) {
+                    ExpressionNode::$variant(node) => Some(node),
+                    _ => None,
+                }
+            }
+        )*
+    };
+}
+
 impl ExpressionTable {
     pub fn insert_match_arms(
         &mut self,
@@ -509,68 +526,31 @@ impl ExpressionTable {
         self.nodes.expressions.get(handle)
     }
 
-    /// The typed `Name` node, or `None` for every other kind.
-    pub fn name_path_node(&self, handle: ExpressionHandle) -> Option<&TableNamePath> {
-        match self.expression(handle) {
-            ExpressionNode::Name(node) => Some(node),
-            _ => None,
-        }
-    }
+    expression_node_accessors! {
+        /// The typed `Name` node, or `None` for every other kind.
+        name_path_node(Name) -> TableNamePath;
 
-    /// The typed `Member` node, or `None` for every other kind.
-    pub fn member_node(&self, handle: ExpressionHandle) -> Option<&TableMemberExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Member(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Member` node, or `None` for every other kind.
+        member_node(Member) -> TableMemberExpression;
 
-    /// The typed `Indexed` node, or `None` for every other kind.
-    pub fn indexed_node(&self, handle: ExpressionHandle) -> Option<&TableIndexedExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Indexed(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Indexed` node, or `None` for every other kind.
+        indexed_node(Indexed) -> TableIndexedExpression;
 
-    /// The typed `Cast` node, or `None` for every other kind.
-    pub fn cast_node(&self, handle: ExpressionHandle) -> Option<&TableCastExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Cast(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Cast` node, or `None` for every other kind.
+        cast_node(Cast) -> TableCastExpression;
 
-    /// The typed binary application node, or `None` for every other kind.
-    pub fn binary_node(&self, handle: ExpressionHandle) -> Option<&TableBinaryExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Binary(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed binary application node, or `None` for every other kind.
+        binary_node(Binary) -> TableBinaryExpression;
 
-    /// The typed `Call` node, or `None` for every other kind.
-    pub fn call_node(&self, handle: ExpressionHandle) -> Option<&TableCallExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Call(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Call` node, or `None` for every other kind.
+        call_node(Call) -> TableCallExpression;
 
-    /// The typed `Unary` node, or `None` for every other kind.
-    pub fn unary_node(&self, handle: ExpressionHandle) -> Option<&TableUnaryExpression> {
-        match self.expression(handle) {
-            ExpressionNode::Unary(node) => Some(node),
-            _ => None,
-        }
-    }
+        /// The typed `Unary` node, or `None` for every other kind.
+        unary_node(Unary) -> TableUnaryExpression;
 
-    /// The typed `Integer` node, or `None` for every other kind.
-    pub fn integer_node(&self, handle: ExpressionHandle) -> Option<&IntegerLiteral> {
-        match self.expression(handle) {
-            ExpressionNode::Integer(node) => Some(node),
-            _ => None,
-        }
+        /// The typed `Integer` node, or `None` for every other kind.
+        integer_node(Integer) -> IntegerLiteral;
+
     }
 
     /// Check arena membership and generation before indexing expression side tables.
