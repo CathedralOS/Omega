@@ -418,33 +418,13 @@ pub(super) fn project_component(
                     site_guards.push((guard, true));
                     guards.push((guard, false));
                 }
-                // `-> callee(..)` and `-> (callee(..))` denote the same tail
-                // arrival. An ATTACHED machine must spell a foreign tail call
-                // with the value-call parentheses, so a ranked component now
-                // meets the parenthesized form where it used to meet the named
-                // one. Read both as the same arrival instead of letting the
-                // parenthesized spelling reach the unclassified-effect
-                // rejection below; a call nested inside an operator or
-                // aggregate is not a top-level Call node and still rejects.
+                // Use the same resolved completion boundary as operand-frame
+                // preparation and lowering: a nested call is still an operand,
+                // while a complete outer invocation is the arrival itself.
                 let target_node = program.statement_table.transition_target(transition.target);
-                let tail_arrival = match target_node {
-                    TransitionTargetNode::Named {
-                        path, arguments, ..
-                    } => Some((
-                        path.symbol,
-                        program.statement_table.expression_handles(*arguments),
-                    )),
-                    TransitionTargetNode::Value(value) => {
-                        match program.expression_table.expression(*value) {
-                            ExpressionNode::Call(call) if !call.receiver.is_valid() => Some((
-                                call.target_symbol,
-                                program.expression_table.expression_handles(call.arguments),
-                            )),
-                            _ => None,
-                        }
-                    }
-                    _ => None,
-                };
+                let tail_arrival =
+                    crate::completing_transition_transfer(program, transition.target)
+                        .map(|transfer| (transfer.target, transfer.arguments));
                 match tail_arrival {
                     Some((target_symbol, arguments)) => {
                         let Some(callee) = target_machine(program, target_symbol) else {

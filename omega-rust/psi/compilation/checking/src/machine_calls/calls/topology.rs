@@ -448,9 +448,11 @@ pub fn completing_call_transfer(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CompletingTransfer<'_>> {
     let call = program.expression_table.call_node(expression)?;
-    if !call.machine_arguments.is_empty()
-        || (call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call))
-    {
+    // Static application operands retain the generic declaration's selection;
+    // they do not evaluate another runtime operand before this arrival. The
+    // ordinary call checker validates that application. Keeping it here lets
+    // the template and its closed specialization share one completion query.
+    if call.receiver.is_valid() && !program.call_has_no_runtime_receiver_for_target(call) {
         return None;
     }
     let state = call_target_state(program, call.target_symbol)?;
