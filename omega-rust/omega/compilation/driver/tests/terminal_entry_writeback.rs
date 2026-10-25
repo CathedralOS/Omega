@@ -110,17 +110,17 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 instance.invoke(&mut meter).unwrap(),
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
-            assert_eq!(
+            assert_bytes(
                 instance
                     .observe_borrowed_entry(0, &identifier_path)
                     .unwrap(),
-                TerminalEntryStorageValue::Bytes(identifier.to_vec())
+                identifier,
             );
             if machine == "configure" {
                 let signature_path = [field(&artifact, "signature")];
-                assert_eq!(
+                assert_bytes(
                     instance.observe_borrowed_entry(0, &signature_path).unwrap(),
-                    TerminalEntryStorageValue::Bytes(vec![0, 9, 0])
+                    &[0, 9, 0],
                 );
                 assert!(matches!(
                     instance
@@ -192,6 +192,18 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
             );
         }
     }
+}
+
+fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
+    let TerminalEntryStorageValue::Bytes(bytes) = observed else {
+        panic!("expected byte readback");
+    };
+    assert_eq!(bytes.len(), expected.len());
+    let mut output = vec![0; bytes.len()];
+    bytes.copy_to(&mut output).unwrap();
+    assert_eq!(output, expected);
+    assert!(bytes.read(bytes.len()).is_err());
+    assert!(bytes.copy_to(&mut []).is_err());
 }
 
 #[test]

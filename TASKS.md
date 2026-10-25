@@ -2421,7 +2421,8 @@ then independent claimed restoration slices -> final closure.
   selection and explicit reborrowing, with ordered exactly-once binding records
   across fuel pauses. Foreign receivers, reused tickets and unissued operations
   refuse. This is not yet the production Build scheduler. Terminal instances expose normal-return readback of
-  original borrowed entry storage; source-produced Build identifier helpers run
+  original borrowed entry storage through invocation-borrowed byte readers,
+  allowing result custody to be reserved before copying; source-produced Build identifier helpers run
   through retained/loaded Terminal artifacts and return their changed bytes.
   Full Build evaluation still uses the checked-tree engine. Connect settings
   readback to that replacement together with ordered binding observations,

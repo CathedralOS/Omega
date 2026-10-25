@@ -68,6 +68,7 @@ pub use adapters::{
     TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
+pub use byte_sequences::read::TerminalByteRead;
 pub use capabilities::{
     TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
 };

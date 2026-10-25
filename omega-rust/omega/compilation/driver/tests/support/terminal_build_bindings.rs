@@ -113,10 +113,14 @@ fn exercise(
             }
             assert!(instance.result().is_some());
             assert!(paused_after_effect);
-            assert_eq!(
-                instance.observe_borrowed_entry(0, &identifier).unwrap(),
-                TerminalEntryStorageValue::Bytes(expected_identifier.as_bytes().to_vec())
-            );
+            let TerminalEntryStorageValue::Bytes(bytes) =
+                instance.observe_borrowed_entry(0, &identifier).unwrap()
+            else {
+                panic!("identifier byte readback");
+            };
+            let mut identifier_bytes = vec![0; bytes.len()];
+            bytes.copy_to(&mut identifier_bytes).unwrap();
+            assert_eq!(identifier_bytes, expected_identifier.as_bytes());
             assert_eq!(
                 instance.effects().len(),
                 slots.len() * 2,
