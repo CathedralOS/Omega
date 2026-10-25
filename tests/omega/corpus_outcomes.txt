@@ -677,6 +677,10 @@ fail/borrow/mutated_selector_entry_actual_case rejected 1966ms expected @a92f164
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/mutated_selector_entry_actual_guard rejected 1788ms expected @a92f16431042
 	cannot prove index `other` is within length 4 in main::entry
+fail/borrow/named_operator_effectful_argument_retires_bound rejected 1823ms expected @7480471d532b+wt
+	cannot prove index `index` is within length 4 in keep::entry
+fail/borrow/named_operator_mutable_argument_retires_bound rejected 790ms expected @7480471d532b+wt
+	cannot prove index `index` is within length 4 in keep::entry
 fail/borrow/nested_aggregate_result_invalidated rejected 1847ms expected @a92f16431042
 	statement 1 mutates `right` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrow/nested_borrow_carrying_local_escape rejected 1840ms expected @a92f16431042
@@ -754,6 +758,10 @@ fail/borrow/signed_window_shared_mutation rejected 3170ms expected @a92f16431042
 	argument `values` for state `entry` is declared `&mut` (`&mut [f64]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrow/state_reference_permutation_duplicate_exclusive rejected 1540ms expected @a92f16431042
 	state `repeat` receives `first` as mutable more than once
+fail/borrow/static_boundary_request_argument_effect_retires_zero rejected 708ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from entry: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrow/static_boundary_request_post_write_is_unknown rejected 743ms expected @7480471d532b+wt
+	cannot prove requires contract for call need_zero from entry: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrow/static_byte_state_loan_cannot_write rejected 874ms expected @a92f16431042
 	machine `main` state `damage` assignment cannot write `bytes` because it is not mutable in this state (if `bytes` is undeclared -- a typo -- no such field or local exists)
 fail/borrow/static_callable_write_retires_subject_fact rejected 3026ms expected @a92f16431042
@@ -4838,6 +4846,27 @@ fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected rejec
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected rejected 11ms expected @5f1191d43438+wt
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
+fail/facts/boundary_zero_origin_through_call_result_changed rejected 794ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_const_name_changed rejected 768ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_field_changed rejected 763ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: holder.request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_local_changed rejected 762ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_match_join_changed rejected 791ms expected @7480471d532b+wt
+	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_other_machine_changed rejected 760ms expected @7480471d532b+wt
+	cannot prove requires contract for call other from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_other_state_changed rejected 796ms expected @7480471d532b+wt
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_parameter_changed rejected 761ms expected @7480471d532b+wt
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_target_body_changed rejected 760ms expected @7480471d532b+wt
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 3499ms expected @a92f16431042
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
 fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 3396ms expected @a92f16431042
@@ -6824,6 +6853,24 @@ fail/facts/float_delivery_through_target_body_rejected rejected 8159ms expected 
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call admit from probe: reading.value >= 0.0 && reading.value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/float_meaning_result_through_call_result_wrong_meaning rejected 818ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_const_name_wrong_meaning rejected 887ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_field_wrong_meaning rejected 784ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_local_wrong_meaning rejected 822ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_match_join_wrong_meaning rejected 821ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_other_machine_wrong_meaning rejected 844ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_other_state_wrong_meaning rejected 842ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_parameter_wrong_meaning rejected 915ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
+fail/facts/float_meaning_result_through_target_body_wrong_meaning rejected 917ms expected @7480471d532b+wt
+	machine `forward` ensures contract proof fact `F32.meaning(result) == FloatSemantics.minimum(F32.meaning(left), F32.meaning(right))` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/facts/float_range_delivery_through_call_result_rejected rejected 8230ms expected @a92f16431042
 	cannot prove requires contract for call admit from probe: source(reading) >= 0.0 && source(reading) <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/float_range_delivery_through_const_name_rejected rejected 8131ms expected @a92f16431042
@@ -20483,6 +20530,7 @@ pass/borrow/explicit_aggregate_lifetime_selects_source checked 2519ms @a92f16431
 pass/borrow/mutable_selector_literal_replacement_exit checked 2764ms check-target:macos_arm64 @a92f16431042
 pass/borrow/mutable_selector_rhs_snapshot_exit checked 3087ms check-target:macos_arm64 @a92f16431042
 pass/borrow/mutable_selector_unchanged_exit checked 2360ms check-target:macos_arm64 @a92f16431042
+pass/borrow/named_operator_disjoint_argument_preserves_bound checked 845ms @7480471d532b+wt
 pass/borrow/nested_reference_parameter_referent_assignment checked 3054ms @a92f16431042
 pass/borrow/projected_record_state_loan_split_exit checked 2212ms check-target:macos_arm64 @a92f16431042
 pass/borrow/reference_parameter_referent_copy_exit checked 3356ms check-target:macos_arm64 @a92f16431042
@@ -22605,6 +22653,15 @@ pass/facts/boundary_provider_call_through_other_machine_exit checked 2709ms chec
 pass/facts/boundary_provider_call_through_other_state_exit checked 2706ms check-target:macos_arm64 @a92f16431042
 pass/facts/boundary_provider_call_through_parameter_exit checked 2935ms check-target:macos_arm64 @a92f16431042
 pass/facts/boundary_provider_call_through_target_body_exit checked 2663ms check-target:macos_arm64 @a92f16431042
+pass/facts/boundary_zero_origin_through_call_result_exit checked 1079ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_const_name_exit checked 1053ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_field_exit checked 1025ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_local_exit checked 988ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_match_join_exit checked 1039ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_other_machine_exit checked 1036ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_other_state_exit checked 1042ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_parameter_exit checked 1001ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_target_body_exit checked 1027ms check-target:macos_arm64 @7480471d532b+wt
 pass/facts/bounded_activation_claim_split_through_call_result_exit checked 2974ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_activation_claim_split_through_const_name_exit checked 3883ms check-target:macos_arm64 @a92f16431042
 pass/facts/bounded_activation_claim_split_through_field_exit checked 3282ms check-target:macos_arm64 @a92f16431042
@@ -23434,6 +23491,15 @@ pass/facts/float_delivery_through_other_machine_exit checked 9969ms check-target
 pass/facts/float_delivery_through_other_state_exit checked 9718ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_delivery_through_parameter_exit checked 12820ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_delivery_through_target_body_exit checked 10638ms check-target:macos_arm64 @a92f16431042
+pass/facts/float_meaning_result_through_call_result_exit checked 2608ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_const_name_exit checked 2589ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_field_exit checked 2606ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_local_exit checked 2516ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_match_join_exit checked 2543ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_other_machine_exit checked 2592ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_other_state_exit checked 2686ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_parameter_exit checked 2749ms check-target:macos_arm64 @7480471d532b+wt
+pass/facts/float_meaning_result_through_target_body_exit checked 2799ms check-target:macos_arm64 @7480471d532b+wt
 pass/facts/float_range_delivery_through_call_result_exit checked 11583ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_range_delivery_through_const_name_exit checked 14219ms check-target:macos_arm64 @a92f16431042
 pass/facts/float_range_delivery_through_field_exit checked 13264ms check-target:macos_arm64 @a92f16431042

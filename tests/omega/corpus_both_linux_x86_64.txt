@@ -1986,6 +1986,15 @@ pass/facts/boundary_provider_call_through_other_machine_exit built 2113ms exit:0
 pass/facts/boundary_provider_call_through_other_state_exit built 2126ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/boundary_provider_call_through_parameter_exit built 2094ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/boundary_provider_call_through_target_body_exit built 2029ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/boundary_zero_origin_through_call_result_exit built 1018ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_const_name_exit built 1011ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_field_exit built 1048ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_local_exit built 1048ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_match_join_exit built 1052ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_other_machine_exit built 1002ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_other_state_exit built 1021ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_parameter_exit built 1024ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/boundary_zero_origin_through_target_body_exit built 1010ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
 pass/facts/bounded_activation_claim_split_through_call_result_exit rejected 2366ms interpreter:unchecked @a92f16431042
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(2)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/facts/bounded_activation_claim_split_through_const_name_exit rejected 2467ms interpreter:unchecked @a92f16431042
@@ -3026,6 +3035,15 @@ pass/facts/float_delivery_through_other_machine_exit built 9592ms exit:0 interpr
 pass/facts/float_delivery_through_other_state_exit built 9561ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/float_delivery_through_parameter_exit built 9581ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/float_delivery_through_target_body_exit built 9535ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/float_meaning_result_through_call_result_exit built 2488ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_const_name_exit built 2655ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_field_exit built 2479ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_local_exit built 2491ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_match_join_exit built 2638ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_other_machine_exit built 2500ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_other_state_exit built 2572ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_parameter_exit built 2577ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
+pass/facts/float_meaning_result_through_target_body_exit built 2494ms exit:0 interpreter-exit:0 interpreter:agrees @7480471d532b+wt
 pass/facts/float_range_delivery_through_call_result_exit built 9490ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/float_range_delivery_through_const_name_exit built 9842ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/float_range_delivery_through_field_exit built 9835ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
