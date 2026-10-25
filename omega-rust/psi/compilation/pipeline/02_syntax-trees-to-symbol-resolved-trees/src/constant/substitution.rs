@@ -60,15 +60,12 @@ pub(crate) fn substitute_resolved_constants(
                 .with_source_span(reference));
             }
         } else if program
-            .symbols
-            .child_handles(program.symbols.root())
-            .into_iter()
-            .flatten()
+            .data_definitions
+            .iter()
+            .map(|declaration| declaration.symbol)
+            .chain(program.machines.iter().map(|machine| machine.symbol))
             .any(|other| {
-                matches!(
-                    program.symbols.get(other).kind,
-                    SymbolKind::Data | SymbolKind::Machine
-                ) && program.symbols.name(other) == program.symbols.name(*symbol)
+                program.symbols.name(other) == program.symbols.name(*symbol)
                     && program.symbols.same_symbol_source_package(other, *symbol)
                     && !program.symbols.source_scopes_separate(other, *symbol)
             })
