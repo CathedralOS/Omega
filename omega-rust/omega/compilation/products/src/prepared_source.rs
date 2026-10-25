@@ -13,25 +13,19 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 /// Indexed declarations and completed Build-context bodies before admission.
-/// Product implementations remain pending under their original source custody.
+/// With authored Build, Product imports remain unopened under captured custody;
+/// otherwise the default-Build route retains pending Product implementations.
 /// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone)]
 pub struct TypedCompilationFrontier {
     pub source: psi_compiler::SourceContinuation,
-    /// A private Build and its eventual Product have different declaration
-    /// ownership. Retain parsed input for that Product judgment, not a typed
-    /// program whose identities would have to be rewritten.
-    pub pending_product_owner: Option<PendingProductOwner>,
+    /// Product imports and declarations are prepared only after Build's join.
+    /// No checked identity or initial name-resolution context is rewritten.
+    pub product_sources: Option<package_compilation::source_assembly::DeferredProductSources>,
     pub build_source_id: Option<source::SourceId>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,
-}
-
-#[derive(Clone)]
-pub struct PendingProductOwner {
-    pub source: psi_compiler::SourceCompilationRequest,
-    pub ownership: package_compilation::AnonymousSourceCapture,
 }
 
 /// Immutable parsing shared by exact checked children. Forks share storage;

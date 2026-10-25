@@ -29,6 +29,8 @@ fn main() {
         println!("{}", compiler::compiler_build_profile());
         return;
     }
+    initial_build_source_isolation();
+    deferred_product_uses_captured_imports();
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
@@ -173,6 +175,106 @@ fn main() {
     logged_build_reuse();
     anonymous_build_completes_before_product();
     sliced_build_retains_effects();
+}
+
+/// Preparing the Build must not load the Product root or resolve its imports.
+/// Both phases still consume the same closed source capture.
+fn initial_build_source_isolation() {
+    let root = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/separate_build_product_imports_exit/main.omg");
+    let mut timings = artifacts::compile_timings::CompileTimings::default();
+    let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
+        &root,
+        None,
+        &mut timings,
+    )
+    .expect("captured Build sources");
+    let (_, mut syntax) = checkpoint
+        .assemble(None, &mut timings)
+        .expect("Build assembly");
+    assert!(syntax.build_source_id.is_some());
+    assert!(
+        syntax
+            .sources
+            .files()
+            .any(|file| file.path == root.with_file_name("naming.omg")
+                && file.dependency_scope == source::DependencyScope::Build)
+    );
+    assert!(
+        syntax
+            .sources
+            .files()
+            .all(|file| file.path != root.with_file_name("result.omg"))
+    );
+    assert!(
+        syntax.sources.files().all(|file| file.path != root),
+        "initial Build preparation loaded the Product root"
+    );
+    println!("initial_build_did_not_load_product_root");
+    let original = syntax.sources.get(syntax.build_source_id.unwrap()).unwrap();
+    let (_, product) = syntax
+        .product_sources
+        .take()
+        .expect("pending Product sources")
+        .assemble(None, &mut timings)
+        .expect("joined Product sources");
+    assert!(product.sources.files().any(|file| file.path == root));
+    assert!(
+        product
+            .sources
+            .files()
+            .any(|file| file.path == root.with_file_name("result.omg")
+                && file.dependency_scope == source::DependencyScope::Product)
+    );
+    let retained = product.sources.get(original.source_id).unwrap();
+    assert_eq!(retained.path, original.path);
+    assert!(std::sync::Arc::ptr_eq(&retained.source, &original.source));
+    assert!(product.product_sources.is_none());
+    println!("product_preparation_retained_the_exact_build_source_bytes");
+}
+
+/// An import discovered after Build still resolves in the captured namespace,
+/// including existence/canonicalization, not just the final file-byte read.
+fn deferred_product_uses_captured_imports() {
+    let authored = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/separate_build_product_imports_exit");
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock after epoch")
+        .as_nanos();
+    let temporary = std::env::temp_dir().join(format!(
+        "omega-build-capture-{}-{nonce}",
+        std::process::id()
+    ));
+    std::fs::create_dir(&temporary).expect("exclusive temporary source root");
+    for name in ["main.omg", "build.omg", "naming.omg", "result.omg"] {
+        std::fs::copy(authored.join(name), temporary.join(name)).expect("copy authored source");
+    }
+    let root = std::fs::canonicalize(&temporary).expect("temporary root");
+    let mut timings = artifacts::compile_timings::CompileTimings::default();
+    let checkpoint = package_compilation::source_assembly::ImmutableSourceParseCheckpoint::prepare(
+        &root,
+        None,
+        &mut timings,
+    )
+    .expect("directory-root Build capture");
+    let (_, build) = checkpoint
+        .assemble(None, &mut timings)
+        .expect("Build assembly");
+    std::fs::remove_file(root.join("result.omg")).expect("remove only the live Product helper");
+    let (_, product) = build
+        .product_sources
+        .expect("deferred Product")
+        .assemble(None, &mut timings)
+        .expect("Product import resolves from capture after live deletion");
+    assert!(
+        product
+            .sources
+            .files()
+            .any(|file| file.path == root.join("result.omg"))
+    );
+    std::fs::remove_dir_all(&root).expect("remove exclusive temporary fixture");
+    println!("deferred_product_import_used_captured_namespace_after_live_deletion");
 }
 
 /// The ordinary source call crosses the production scheduling quantum. Its

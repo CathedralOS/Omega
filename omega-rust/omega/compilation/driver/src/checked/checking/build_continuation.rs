@@ -39,10 +39,10 @@ pub(crate) fn evaluate_build_and_continue(
     } = child;
     let TypedCompilationFrontier {
         mut source,
-        pending_product_owner,
+        product_sources,
         build_source_id,
-        source_file_count,
-        generated_source_custody,
+        mut source_file_count,
+        mut generated_source_custody,
         mut base_sources,
     } = frontier;
     let build_input = source.build_input();
@@ -79,23 +79,34 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
-    if let Some(mut pending) = pending_product_owner {
+    if let Some(pending) = product_sources {
         // Successful Build return currently implies its dependency requests
         // have all joined (the executor refuses any unresolved request). Final
         // ownership precedes Product typing; never retag the private judgment.
-        base_sources = pending.ownership.complete_without_dependencies()?;
-        pending.source.sources = base_sources.clone();
-        let product = pending
-            .source
-            .prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
+        let (count, syntax) = pending.assemble(package_inputs, timings)?;
+        let diagnostic_sources = syntax.sources.clone();
+        let product = lower_typed_frontier(
+            count,
+            syntax,
+            build_execution_profile,
+            package_inputs,
+            timings,
+        )
+        .map_err(|mut diagnostics| {
+            super::attribute_diagnostics(&mut diagnostics, &diagnostic_sources, package_inputs);
+            diagnostics
+        })?;
         // The retained parsed input preserves declaration source coordinates.
         // No display name, allocation order or old typed handle selects a body
         // in this distinct Product context.
         let selected = match computed_build_config.selected_build_machine_symbol {
-            Some(selected) => Some(product.rejoin_machine(&source, selected)?),
+            Some(selected) => Some(product.source.rejoin_machine(&source, selected)?),
             None => None,
         };
-        source = product;
+        source = product.source;
+        base_sources = product.base_sources;
+        source_file_count = product.source_file_count;
+        generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
     }
     let sources = BuildSourceCustody {
@@ -134,6 +145,11 @@ pub(super) fn lower_typed_frontier(
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
+    if syntax.product_sources.is_none()
+        && let Some(ownership) = syntax.anonymous_owner.take()
+    {
+        syntax.sources = ownership.complete_without_dependencies()?;
+    }
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
     // Only build helpers select an execution target here. Product families
@@ -158,9 +174,6 @@ pub(super) fn lower_typed_frontier(
         &build_scope_sources,
     );
     let build_source_id = syntax.build_source_id;
-    if syntax.anonymous_owner.is_some() {
-        syntax.syntax_trees.share_pages();
-    }
     let request = psi_compiler::SourceCompilationRequest {
         syntax: syntax.syntax_trees,
         sources: syntax.sources,
@@ -169,17 +182,10 @@ pub(super) fn lower_typed_frontier(
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
     };
-    let pending_product_owner =
-        syntax
-            .anonymous_owner
-            .map(|ownership| compilation_products::PendingProductOwner {
-                source: request.clone(),
-                ownership,
-            });
     let source = request.prepare(&mut terminal_production::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         source,
-        pending_product_owner,
+        product_sources: syntax.product_sources,
         build_source_id,
         source_file_count,
         generated_source_custody,

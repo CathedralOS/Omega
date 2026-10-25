@@ -1124,6 +1124,13 @@ narrows realization only.
   `omega-rust/psi/compilation/driver/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
+  Current migration frontier: authored Build prepares its own import closure
+  before Product imports, retaining the captured namespace and parse prefix for
+  a distinct post-join Product context. Terminal activation stepping preserves
+  exactly-once effects. The application still needs executed-request acquisition
+  and final joining in place of package management's static Build projection,
+  provider readiness/resumption, and demanded Product-description queries; this
+  is not yet the completed production cutover.
   - **One Build evaluation and one Psi chain per compilation
     (BUILD-EVALUATES-ONCE, ONE-DRIVER-PER-STAGE):** `build.omg` evaluates once
     per compilation, observes no realized target, and produces checked rows for

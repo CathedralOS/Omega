@@ -53,18 +53,22 @@ pub(crate) fn discover_imports(
     parsed: &ParsedSources,
     syntax_trees: &SyntaxTrees,
     root_path: &Path,
+    filesystem: &source::SourceFileSystem,
     retained: &mut Vec<ResolvedSourceImport>,
 ) -> Result<Vec<(PathBuf, DependencyScope)>, Vec<Diagnostic>> {
-    let root_dir = root_path
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
+    let root_dir = if filesystem.is_dir(root_path) {
+        root_path.to_path_buf()
+    } else {
+        root_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf()
+    };
     let parsed_sources = parsed.sources.span_or_empty(parsed.batch);
-    let filesystem = source::SourceFileSystem::default();
     let mut imports = Vec::with_capacity(parsed_sources.len());
 
     for parsed_source in parsed_sources {
-        let source_root = standalone_source_root(&root_dir, &parsed_source.path)?;
+        let source_root = standalone_source_root(&root_dir, &parsed_source.path, filesystem)?;
         for (offset, root_item) in parsed_source.root_items[parsed_source.import_root_range.clone()]
             .iter()
             .enumerate()
@@ -73,7 +77,7 @@ pub(crate) fn discover_imports(
             if let Item::Use(use_item) = syntax_trees.root_item(*root_item) {
                 let members = syntax_trees.items.identifier_path_members(use_item.path);
                 if is_bundled_omega_path(syntax_trees, members)
-                    && local_source_exists(syntax_trees, &source_root, members, &filesystem)
+                    && local_source_exists(syntax_trees, &source_root, members, filesystem)
                 {
                     return Err(vec![Diagnostic::error(format!(
                         "import `{}` in {} collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it",
@@ -82,8 +86,8 @@ pub(crate) fn discover_imports(
                     ))]);
                 }
                 let resolved = normalize_path(
-                    &resolve_source_path(syntax_trees, &source_root, members, &filesystem)?,
-                    &filesystem,
+                    &resolve_source_path(syntax_trees, &source_root, members, filesystem)?,
+                    filesystem,
                 )?;
                 let prefix = if is_bundled_omega_path(syntax_trees, members) {
                     2
@@ -108,7 +112,7 @@ pub(crate) fn discover_imports(
                         &owner,
                         &members[prefix..],
                         &resolved,
-                        &filesystem,
+                        filesystem,
                     ),
                     path: resolved.clone(),
                 });
@@ -128,10 +132,14 @@ pub(crate) fn discover_imports(
 /// authored self-imports use ordinary package-local paths. This is standalone
 /// toolchain routing only; package-aware compilation resolves the same paths
 /// through exact package custody.
-fn standalone_source_root(default_root: &Path, source: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
+fn standalone_source_root(
+    default_root: &Path,
+    source: &Path,
+    filesystem: &source::SourceFileSystem,
+) -> Result<PathBuf, Vec<Diagnostic>> {
     let standard_library_root = bundled_omega_root()?.join("std");
-    Ok(source
-        .canonicalize()
+    Ok(filesystem
+        .canonicalize(source)
         .ok()
         .filter(|source| source.starts_with(&standard_library_root))
         .map(|_| standard_library_root)

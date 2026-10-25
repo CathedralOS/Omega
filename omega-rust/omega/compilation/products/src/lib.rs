@@ -71,7 +71,7 @@ pub use prepared_build::{
     BuiltTypedProgram, CheckedProductSource, PreparedBuild, PreparedProductSource,
 };
 pub use prepared_source::{
-    PendingProductOwner, PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
+    PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier,
 };
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
