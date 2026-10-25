@@ -46,12 +46,14 @@ pub(in crate::proof_contracts) use dispatch_environments::{
 mod cited_element_bounds;
 mod copied_values;
 pub(crate) use copied_values::CopiedIntegerValue;
+mod declaration_values;
 mod dependent_products;
 mod dependent_relations;
 pub(super) mod division_definedness;
 mod domain_exclusions;
 pub(crate) mod domain_intervals;
 mod expression_analysis;
+pub(crate) use declaration_values::validate_declaration_value_range;
 mod float_arithmetic;
 mod float_contracts;
 pub use float_contracts::{float_return_postcondition, normal_return_float_predicates};

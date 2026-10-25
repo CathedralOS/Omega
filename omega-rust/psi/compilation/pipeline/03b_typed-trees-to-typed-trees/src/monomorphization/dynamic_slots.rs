@@ -142,6 +142,24 @@ fn instantiate_slot(
     for (offset, parameter) in (0u32..).zip(parameters.iter_mut()) {
         parameter.symbol = children.handle_at(offset);
     }
+    // A fresh telescope must also own the values mentioned by dependent
+    // parameter/result recipes. Type substitution alone leaves those leaves
+    // referring to the generic requirement's unrelated parameter symbols.
+    let parameter_map = formals
+        .iter()
+        .zip(parameters.iter().skip(1))
+        .map(|(formal, parameter)| (formal.symbol, parameter.symbol))
+        .collect::<Vec<_>>();
+    for parameter in &mut parameters {
+        parameter.type_reference = super::body_cloning::copy_type_reference(
+            None,
+            program,
+            parameter.type_reference,
+            &parameter_map,
+        );
+    }
+    let return_type =
+        super::body_cloning::copy_type_reference(None, program, return_type, &parameter_map);
     Ok(DynamicSlotSignature {
         symbol,
         interface_identity,

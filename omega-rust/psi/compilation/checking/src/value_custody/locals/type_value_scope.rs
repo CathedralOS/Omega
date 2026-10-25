@@ -47,8 +47,12 @@ impl StateValueScope<'_, '_> {
                     self.type_reference(*argument, diagnostics);
                 }
             }
-            // Const expressions/array extents have a separate const telescope;
-            // nominal names do not read state storage or expand field scopes.
+            // A retained value recipe observes this exact value frontier,
+            // whether its receiving binder requires static or runtime input.
+            TypeReferenceNode::ConstExpression(expression) => {
+                self.expression(*expression, diagnostics)
+            }
+            // Nominal names denote types, never state storage observations.
             _ => {}
         }
     }

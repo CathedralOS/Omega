@@ -59,17 +59,47 @@ pub(super) fn analyze(
             }
         })
         .unwrap_or(source.interval);
-    cast_ranges::validate_target_ranges(
-        program,
-        walk.machine,
-        walk.state,
-        cast,
-        source_interval,
-        source.primitive,
-        walk.environment,
-        walk.owner,
-        diagnostics,
-    );
+    if let Some(machine) = walk.machine {
+        cast_ranges::validate_target_ranges(
+            program,
+            machine,
+            walk.state,
+            cast,
+            source_interval,
+            source.primitive,
+            walk.environment,
+            walk.owner,
+            diagnostics,
+        );
+    } else {
+        let integer_bounds = source.primitive.and_then(|primitive| {
+            super::super::integer_ranges::integer_source_bounds_from_interval(
+                program,
+                walk.environment,
+                cast.value,
+                primitive,
+                source_interval,
+            )
+        });
+        cast_ranges::validate_target_range_membership(
+            program,
+            cast.value,
+            cast.target_type,
+            source.primitive,
+            integer_bounds,
+            &|value| {
+                super::super::float_source_bounds(
+                    program,
+                    walk.lexical_owner,
+                    walk.environment,
+                    value,
+                    &|value| walk.result_type(value),
+                )
+            },
+            walk.owner,
+            diagnostics,
+        );
+    }
     require_float_to_integer_denotation(walk, cast, &source, primitive, diagnostics);
     let exact_fit = require_exact_integer_fit(walk, expression, &source, primitive, diagnostics);
     if !diagnostics[first_diagnostic..]
@@ -200,27 +230,12 @@ fn require_float_to_integer_denotation(
     // Every value permitted by the source facts must be integral and fit.
     if !super::super::float_source_bounds(
         walk.program,
-        walk.machine.symbol,
+        walk.lexical_owner,
         walk.environment,
         cast.value,
         &|value| {
-            walk.state
-                .and_then(|state| {
-                    crate::value_custody::expression_types::expression_result_type_reference(
-                        walk.program,
-                        walk.machine,
-                        state,
-                        value,
-                    )
-                })
-                .or_else(|| {
-                    crate::value_custody::places::declared_place_type_raw(
-                        walk.program,
-                        walk.machine,
-                        walk.state,
-                        value,
-                    )
-                })
+            walk.result_type(value)
+                .or_else(|| walk.declared_type(value))
         },
     )
     .is_some_and(|bounds| bounds.is_exact_integer(target))
@@ -257,15 +272,18 @@ fn require_exact_integer_fit(
     let fits = integer_interval_fits_primitive(source.interval, source_primitive, target)
         || (walk.checks_occurrence_fit
             && (source_primitive == PrimitiveType::Addr || target == PrimitiveType::Addr)
-            && walk.state.is_some_and(|state| {
-                crate::proof_contracts::contract_entailment::exact_cast_fits_at_occurrence(
-                    walk.program,
-                    walk.machine,
-                    state,
-                    expression,
-                )
-            }));
-    if !fits && walk.checks_occurrence_fit {
+            && walk
+                .machine
+                .zip(walk.state)
+                .is_some_and(|(machine, state)| {
+                    crate::proof_contracts::contract_entailment::exact_cast_fits_at_occurrence(
+                        walk.program,
+                        machine,
+                        state,
+                        expression,
+                    )
+                }));
+    if !fits && (walk.checks_occurrence_fit || walk.machine.is_none()) {
         let source_span = walk.program.expression_table.source_span(expression);
         // The executing scanner and enclosing arithmetic walk can both reach
         // this same authored coercion. Its occurrence owns one obligation;
@@ -282,7 +300,7 @@ fn require_exact_integer_fit(
             Diagnostic::error(format!(
                 "Exact integer cast in machine `{}`{} from `{}` to `{}` is not provably \
                  representable; {}",
-                walk.machine.name,
+                walk.machine.map_or(walk.owner, |machine| machine.name.as_str()),
                 walk.state
                     .map(|state| format!(" state `{}`", state.name))
                     .unwrap_or_default(),

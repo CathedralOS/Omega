@@ -51,7 +51,7 @@ pub(super) fn analyze(
     if call.layout_query.is_some() {
         analysis.recipe = Some(checked_trees::IntegerRangeRecipe::observation(
             expression,
-            walk.machine.symbol,
+            walk.lexical_owner,
         ));
     }
     analysis
@@ -78,8 +78,8 @@ fn returned_referent_range(
     let (_, selected_state) =
         crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
     let returned = frames.reference_result_origins(selected_state.symbol)?;
-    let actuals = frames.expression_call_write_origins(walk.machine, expression)?;
-    let writes = frames.expression_may_write_paths(walk.machine, expression)?;
+    let actuals = frames.expression_call_write_origins(walk.machine?, expression)?;
+    let writes = frames.expression_may_write_paths(walk.machine?, expression)?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut interval = None;
     for source in returned {
@@ -159,23 +159,7 @@ fn with_result_carrier(
     analysis: Analysis,
 ) -> Analysis {
     let program = walk.program;
-    let result = match walk.state {
-        Some(state) => {
-            crate::expression_result_type_reference(program, walk.machine, state, expression)
-        }
-        None => {
-            let parameters = program
-                .machine_states(walk.machine)
-                .first()
-                .map_or(&[][..], |entry| program.state_parameters(entry));
-            crate::parameter_expression_result_type_reference(
-                program,
-                walk.machine.symbol,
-                parameters,
-                expression,
-            )
-        }
-    };
+    let result = walk.result_type(expression);
     let Some(return_type) = result else {
         return analysis;
     };
@@ -211,27 +195,12 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         };
         let source = super::super::float_source_bounds(
             program,
-            walk.machine.symbol,
+            walk.lexical_owner,
             walk.environment,
             *operand,
             &|value| {
-                walk.state
-                    .and_then(|state| {
-                        crate::value_custody::expression_types::expression_result_type_reference(
-                            program,
-                            walk.machine,
-                            state,
-                            value,
-                        )
-                    })
-                    .or_else(|| {
-                        crate::value_custody::places::declared_place_type_raw(
-                            program,
-                            walk.machine,
-                            walk.state,
-                            value,
-                        )
-                    })
+                walk.result_type(value)
+                    .or_else(|| walk.declared_type(value))
             },
         )?;
         let (minimum, maximum) = crate::float_integer_conversion_bounds(
@@ -264,7 +233,7 @@ fn selected_const_call_result(
     let (return_type, minimum, maximum) =
         crate::proof_contracts::contract_entailment::selected_const_call_result_bounds(
             program,
-            walk.machine,
+            walk.machine?,
             walk.state,
             expression,
         )?;
@@ -315,12 +284,13 @@ fn declared_return_range(
     let lengths = argument_collection_lengths(walk, call);
     let concrete = super::super::call_result_bounds::ArgumentBounds { values, lengths };
     let ensured =
-        ensured_call_result_interval(program, walk.machine.symbol, expression, call, &concrete)
-            .map(|ensured| {
+        ensured_call_result_interval(program, walk.lexical_owner, expression, call, &concrete).map(
+            |ensured| {
                 primitive
                     .and_then(primitive_range)
                     .map_or(ensured, |carrier| ensured.intersect(carrier))
-            });
+            },
+        );
     let interval = match (declared, ensured) {
         (Some(declared), Some(ensured)) => Some(declared.intersect(ensured)),
         (declared, ensured) => declared.or(ensured),
@@ -395,12 +365,12 @@ fn argument_collection_lengths(
                 return None;
             }
             let closed =
-                crate::closed_collection_length(walk.program, walk.machine, state, *argument)
+                crate::closed_collection_length(walk.program, walk.machine?, state, *argument)
                     .and_then(|length| i64::try_from(length).ok())
                     .map(Interval::constant);
             let carried = super::super::carried_slice_length(
                 walk.program,
-                walk.machine,
+                walk.machine?,
                 Some(state),
                 walk.environment,
                 *argument,

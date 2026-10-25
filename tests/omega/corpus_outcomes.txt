@@ -7288,6 +7288,33 @@ fail/facts/index_every_width_through_target_body_rejected rejected 13159ms expec
 	cannot prove index `index_i64` is within length 4 in read_all::entry
 	cannot prove index `index_i64` is within length 4 in read_all::entry
 	cannot prove index `index_i64` is within length 4 in read_all::entry
+fail/facts/indexed_byte_view_argument_snapshot_through_call_result_exit rejected 1167ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_const_name_exit rejected 1206ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_field_exit rejected 1122ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_local_exit rejected 1178ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_match_join_exit rejected 1103ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_other_machine_exit rejected 916ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_other_state_exit rejected 963ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_parameter_exit rejected 934ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
+fail/facts/indexed_byte_view_argument_snapshot_through_target_body_exit rejected 897ms expected @a9e0628deefe+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 5; an indexed value retains its captured index
 fail/facts/indexed_crash_guard_through_call_result_rejected rejected 2456ms expected @595562a958b4+wt
 	call from `read_seven` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_crash_guard_through_const_name_rejected rejected 2553ms expected @595562a958b4+wt
@@ -16423,6 +16450,20 @@ fail/generics/runtime_index_carrier_tail_stale rejected 1693ms expected @5f66882
 	cannot prove runtime index descriptor equals its captured index
 fail/generics/runtime_index_predicate_global_shadow rejected 6360ms expected @336cafc17e1a+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/runtime_value_recipe_cannot_retag rejected 825ms expected @a9e0628deefe+wt
+	machine `retag` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/generics/runtime_value_recipe_forged_descriptor rejected 311ms expected @a9e0628deefe+wt
+	data `Counted` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/generics/runtime_value_recipe_provider_wrong_projection rejected 459ms expected @a9e0628deefe+wt
+	machine `Direct::snapshot` state `snapshot` does not satisfy trait `Counting` machine `snapshot`: expected return `Counted<const source.bytes.len>`, got `Counted<const source.sibling.len>`
+fail/generics/runtime_value_recipe_refined_carrier rejected 278ms expected @a9e0628deefe+wt
+	value parameter `Count` of `Index` requires `u64[1..=4]`, but its expression has a different or unresolved carrier
+fail/generics/runtime_value_recipe_typed_narrow_overflow rejected 264ms expected @a9e0628deefe+wt
+	exact arithmetic in value argument `Count` of `Index` may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/runtime_value_recipe_unused_overflow rejected 260ms expected @a9e0628deefe+wt
+	exact arithmetic in value argument `Count` of `Index` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/generics/runtime_value_recipe_wrong_carrier rejected 207ms expected @a9e0628deefe+wt
+	value parameter `Count` of `Index` requires `u64`, but runtime subject `flag` has a different carrier
 fail/generics/selected_map_capture_wrong_result_region rejected 480ms expected @e250c3425d3f+wt
 	machine `Selected::borrow` returns a view borrowing input `scratch`, which is not permitted by the declared result lifetime relation
 	machine `borrow` returns a view borrowing input `scratch`, which is not permitted by the declared result lifetime relation
@@ -22967,6 +23008,15 @@ pass/facts/index_every_width_through_other_machine_exit checked 8491ms check-tar
 pass/facts/index_every_width_through_other_state_exit checked 7887ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_parameter_exit checked 8276ms check-target:macos_arm64 @465f5043822d+wt
 pass/facts/index_every_width_through_target_body_exit checked 29484ms check-target:macos_arm64 @465f5043822d+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_call_result_exit checked 1280ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_const_name_exit checked 1394ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_field_exit checked 1358ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_local_exit checked 1274ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_match_join_exit checked 1374ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_other_machine_exit checked 1498ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_other_state_exit checked 1330ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_parameter_exit checked 1363ms check-target:macos_arm64 @a9e0628deefe+wt
+pass/facts/indexed_byte_view_argument_snapshot_through_target_body_exit checked 1326ms check-target:macos_arm64 @a9e0628deefe+wt
 pass/facts/indexed_crash_guard_through_call_result_exit checked 3446ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/indexed_crash_guard_through_const_name_exit checked 3393ms check-target:macos_arm64 @595562a958b4+wt
 pass/facts/indexed_crash_guard_through_field_exit checked 3395ms check-target:macos_arm64 @595562a958b4+wt
@@ -26807,6 +26857,7 @@ pass/generics/runtime_symbolic_receiver_extent_exit rejected 2403ms check-target
 	machine `nested_window` state `entry` local `view` may read, but the source supplies only write-only authority
 pass/generics/runtime_transition_result_inference_exit checked 725ms check-target:macos_arm64 @a94178e1c015
 pass/generics/runtime_value_generic_subject_exit checked 12414ms check-target:macos_arm64 @a9ae30e1c334+wt
+pass/generics/runtime_value_recipe_bounded_declaration checked 1345ms check-target:macos_arm64 @a9e0628deefe+wt
 pass/generics/selected_member_distinct_binder_names_exit checked 780ms check-target:macos_arm64 @870e735dd37d
 pass/generics/selected_member_shared_runtime_subject_exit checked 781ms check-target:macos_arm64 @870e735dd37d
 pass/generics/selected_open_capture_carriers_exit checked 876ms check-target:macos_arm64 @9be76689b257+wt

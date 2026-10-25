@@ -45,6 +45,7 @@ use validation::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
 };
 
+mod application_values;
 mod call_contracts;
 mod collections;
 mod conditions;
@@ -208,6 +209,7 @@ impl<'program> CurrentScalarValues<'program> {
                 target.is_valid(),
             ),
         };
+        values.seed_parameter_fields();
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))

@@ -11,8 +11,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     integer_bit_width, literal_interval,
 };
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, Machine, PrimitiveType, State,
-    TypeReferenceNode, declared_place_type_raw,
+    ArithmeticDomain, Diagnostic, ExpressionHandle, Interval, PrimitiveType, TypeReferenceNode,
 };
 use crate::value_custody::literals;
 
@@ -32,9 +31,7 @@ pub(super) fn analyze(
             primitive: Some(primitive),
         });
     }
-    if let Some(interval) =
-        collection_length_interval(walk.program, walk.machine, walk.state, expression)
-    {
+    if let Some(interval) = collection_length_interval(walk, expression) {
         let interval = super::super::place_path(walk.program, expression)
             .and_then(|path| walk.environment.get(&path))
             .map_or(interval, |retained| interval.intersect(retained));
@@ -42,14 +39,16 @@ pub(super) fn analyze(
         // answer must consume the same surviving order facts as an ordinary
         // place read; otherwise coarse content frames erase the string cache
         // and hide already-proved facts about an unchanged descriptor.
-        let interval = super::super::ordered_values::refine_place_interval(
-            walk.program,
-            walk.machine,
-            walk.state,
-            walk.environment,
-            expression,
-            interval,
-        );
+        let interval = walk.machine.map_or(interval, |machine| {
+            super::super::ordered_values::refine_place_interval(
+                walk.program,
+                machine,
+                walk.state,
+                walk.environment,
+                expression,
+                interval,
+            )
+        });
         return Some(Analysis {
             recipe: None,
             // Counts keep their declared carrier even when their value is known.
@@ -63,24 +62,38 @@ pub(super) fn analyze(
 }
 
 fn collection_length_interval(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
+    walk: &ExpressionWalk,
     expression: ExpressionHandle,
 ) -> Option<Interval> {
-    let receiver = crate::collection_length_receiver(program, machine, state, expression)?;
-    if let Some(state) = state
-        && let Some(length) = crate::proof_contracts::contract_entailment::closed_collection_length(
-            program, machine, state, receiver,
-        )
-    {
-        let length = i64::try_from(length).ok();
-        return Some(Interval {
-            low: Some(length.unwrap_or(0)),
-            high: length,
-        });
-    }
-    let mut receiver = declared_place_type_raw(program, machine, state, receiver)?;
+    let program = walk.program;
+    let mut receiver = if let Some(machine) = walk.machine {
+        let receiver = crate::collection_length_receiver(program, machine, walk.state, expression)?;
+        if let Some(state) = walk.state
+            && let Some(length) =
+                crate::proof_contracts::contract_entailment::closed_collection_length(
+                    program, machine, state, receiver,
+                )
+        {
+            let length = i64::try_from(length).ok();
+            return Some(Interval {
+                low: Some(length.unwrap_or(0)),
+                high: length,
+            });
+        }
+        walk.declared_type(receiver)?
+    } else {
+        let member = program.expression_table.member_node(expression)?;
+        let receiver = walk.result_type(member.receiver)?;
+        if crate::collection_operations::collection_measure_member(
+            program,
+            member,
+            crate::collection_operations::MeasureReceiver::Declared(receiver),
+        ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+        {
+            return None;
+        }
+        receiver
+    };
     loop {
         // A bounded byte buffer's capacity limits its live length; it is not
         // the exact length of every value carried by the constrained type.

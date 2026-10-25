@@ -12,7 +12,7 @@ mod integer_predicates;
 mod licenses;
 pub(super) mod normal_returns;
 mod returned_fields;
-mod selected_contracts;
+pub(super) mod selected_contracts;
 mod storage_effects;
 mod value_correspondence;
 mod value_predicates;

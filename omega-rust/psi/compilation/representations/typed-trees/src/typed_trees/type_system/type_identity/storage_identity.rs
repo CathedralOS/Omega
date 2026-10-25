@@ -19,12 +19,13 @@ pub(super) fn independent_value_index(
     };
     if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
         || data.quotient.is_some()
-        || !data.where_facts.is_empty()
-        || data.zero_gated
     {
         return false;
     }
-    // Inspect all members, including erased and variant payload fields.
+    // A data predicate constrains valid values, not their storage geometry.
+    // Application equality and predicate establishment remain source checking
+    // obligations. This identity is shared only after all member types prove
+    // independent, including erased and variant payload fields.
     // Provisional identity markers are not evidence of independence.
     program
         .data_member_fields(program.data_members(data))
