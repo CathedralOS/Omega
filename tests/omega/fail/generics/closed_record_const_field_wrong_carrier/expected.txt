@@ -1,1 +1,1 @@
-placeholder-before-measured-diagnostic
+expected an integer literal for `u64`
