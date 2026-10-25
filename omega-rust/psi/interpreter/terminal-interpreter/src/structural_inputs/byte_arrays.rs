@@ -282,7 +282,7 @@ impl TerminalExecution<'_> {
         let loan = self.element_view_values.get(&place)?;
         let (depth, frame_place, structural_type) = loan.whole_scalar_array_frame()?;
         let array = self.frame_array(depth, frame_place)?;
-        if array.structural_type != structural_type || loan.len() != array.elements.len() {
+        if array.structural_type != structural_type || loan.len() != array.elements().len() {
             return None;
         }
         byte_array_length(&self.program.structural_types(), structural_type)?;

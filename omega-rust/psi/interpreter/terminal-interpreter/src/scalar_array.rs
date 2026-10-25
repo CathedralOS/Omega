@@ -13,8 +13,16 @@ use terminal_psi::StructuralTypeShape;
 use terminal_psi::TerminalMachine;
 
 mod loans;
+mod storage;
+#[cfg(test)]
+mod tests;
 pub(crate) use loans::borrowed_array_memberships_match;
+use std::sync::Arc;
+use storage::ScalarArrayStorage;
 /// Exact row-major primitive payload; the type retains all array dimensions.
+/// Inspection clones share read-only backing and its reservation. Guest value
+/// copies use explicit snapshots; writes preserve this value's logical identity
+/// while detaching any shared physical backing before mutation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalScalarArrayValue {
     /// Allocated from the ordinary referent allocator when this payload's
@@ -22,7 +30,50 @@ pub struct TerminalScalarArrayValue {
     pub(crate) storage_identity: Option<u64>,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub structural_type: StructuralTypeId,
-    pub elements: Vec<TerminalScalarValue>,
+    elements: Arc<ScalarArrayStorage>,
+}
+
+impl TerminalScalarArrayValue {
+    pub fn elements(&self) -> &[TerminalScalarValue] {
+        self.elements.elements()
+    }
+
+    fn collect(
+        structural_type: StructuralTypeId,
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+        count: u64,
+        values: impl IntoIterator<Item = Result<TerminalScalarValue, TerminalInterpretError>>,
+        account: Option<&evaluation_accounting::EvaluationInvocationAccount>,
+    ) -> Result<Self, TerminalInterpretError> {
+        Ok(Self {
+            storage_identity: None,
+            qualifications,
+            structural_type,
+            elements: Arc::new(ScalarArrayStorage::collect(count, values, account)?),
+        })
+    }
+
+    /// A guest value copy has independent storage and no observed address.
+    /// `Clone` is only a read-only inspection alias, not this guest operation.
+    fn snapshot(&self) -> Result<Self, TerminalInterpretError> {
+        Ok(Self {
+            storage_identity: None,
+            qualifications: self.qualifications.clone(),
+            structural_type: self.structural_type,
+            elements: Arc::new(self.elements.copy()?),
+        })
+    }
+
+    pub(crate) fn elements_mut(
+        &mut self,
+    ) -> Result<&mut [TerminalScalarValue], TerminalInterpretError> {
+        if Arc::get_mut(&mut self.elements).is_none() {
+            self.elements = Arc::new(self.elements.copy()?);
+        }
+        Ok(Arc::get_mut(&mut self.elements)
+            .ok_or_else(malformed)?
+            .elements_mut())
+    }
 }
 
 /// An owned unrestricted array with its checked predicate memberships and no claims.
@@ -75,7 +126,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         self.validate_scalar_array_contents_qualifications(
             snapshot.structural_type,
-            &snapshot.elements,
+            snapshot.elements(),
             qualifications,
         )
     }
@@ -136,9 +187,9 @@ impl TerminalExecution<'_> {
             return self.stored_scalar_array_copy(argument, structural_type, scalar_type, count);
         };
         if value.structural_type != structural_type
-            || u64::try_from(value.elements.len()).ok() != Some(count)
+            || u64::try_from(value.elements().len()).ok() != Some(count)
             || value
-                .elements
+                .elements()
                 .iter()
                 .any(|value| value.scalar_type() != scalar_type)
             || self
@@ -149,9 +200,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let mut snapshot = value.clone();
-        snapshot.storage_identity = None;
-        Ok(snapshot)
+        value.snapshot()
     }
 
     /// Read every leaf of the array `argument` selects, in row-major order,
@@ -182,10 +231,9 @@ impl TerminalExecution<'_> {
         // The common shape owner validates the primitive endpoint and computes
         // the zero-aware leaf count. Recomputing a partial dimension product
         // here could overflow before a later zero, rejecting an empty value.
-        let mut elements = Vec::with_capacity(usize::try_from(count).map_err(|_| malformed())?);
         let mut path = argument.path.clone();
         let prefix = path.len();
-        for leaf in 0..count {
+        let elements = (0..count).map(|leaf| {
             path.truncate(prefix);
             let mut remainder = leaf;
             let mut stride = count;
@@ -194,14 +242,15 @@ impl TerminalExecution<'_> {
                 path.push(StructuralPathSegment::FixedIndex(remainder / stride));
                 remainder %= stride;
             }
-            elements.push(self.read_primitive_place(argument.place, &path, scalar_type)?);
-        }
-        Ok(TerminalScalarArrayValue {
-            storage_identity: None,
-            qualifications: Vec::new(),
+            self.read_primitive_place(argument.place, &path, scalar_type)
+        });
+        TerminalScalarArrayValue::collect(
             structural_type,
+            Vec::new(),
+            count,
             elements,
-        })
+            self.account.as_ref(),
+        )
     }
 
     pub(crate) fn execute_scalar_array_establishment(
@@ -228,20 +277,20 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let mut contents = Vec::with_capacity(elements.len());
-        for element in elements {
+        let contents = elements.iter().map(|element| {
             let value = self.scalar_value(*element)?;
             if value.scalar_type() != scalar_type {
                 return Err(malformed());
             }
-            contents.push(value);
-        }
-        let snapshot = TerminalScalarArrayValue {
-            storage_identity: None,
-            qualifications: result.qualifications.clone(),
-            structural_type: result.structural_type,
-            elements: contents,
-        };
+            Ok(value)
+        });
+        let snapshot = TerminalScalarArrayValue::collect(
+            result.structural_type,
+            result.qualifications.clone(),
+            count,
+            contents,
+            self.account.as_ref(),
+        )?;
         self.validate_scalar_array_qualifications(&snapshot, &result.qualifications)?;
         self.scalar_array_values.insert(result.place, snapshot);
         Ok(())

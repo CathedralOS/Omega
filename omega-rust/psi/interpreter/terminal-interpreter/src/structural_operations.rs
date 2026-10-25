@@ -1693,6 +1693,17 @@ impl TerminalExecution<'_> {
                 if self.scalar_array_values.contains_key(&result.place) {
                     return Err(malformed());
                 }
+                // Plain results retain the completed row-major batch. Besides
+                // avoiding a cell map per scalar, this makes a huge outer
+                // dimension with zero inner extent constant-size storage.
+                // Evidence-bearing results retain their placed metadata below.
+                if result.is_unrestricted_plain() {
+                    let mut copied =
+                        self.scalar_array_snapshot(&argument, result.structural_type)?;
+                    copied.qualifications.clone_from(&result.qualifications);
+                    self.scalar_array_values.insert(result.place, copied);
+                    return Ok(OperationFlow::Advance);
+                }
                 let mut elements = Vec::new();
                 value
                     .visit_scalar_leaves(self, &argument, |_, _, scalar| {
@@ -1700,22 +1711,6 @@ impl TerminalExecution<'_> {
                         Ok(())
                     })?
                     .ok_or_else(malformed)?;
-                // Plain results retain the completed row-major batch. Besides
-                // avoiding a cell map per scalar, this makes a huge outer
-                // dimension with zero inner extent constant-size storage.
-                // Evidence-bearing results retain their placed metadata below.
-                if result.is_unrestricted_plain() {
-                    self.scalar_array_values.insert(
-                        result.place,
-                        crate::scalar_array::TerminalScalarArrayValue {
-                            storage_identity: None,
-                            qualifications: Vec::new(),
-                            structural_type: result.structural_type,
-                            elements,
-                        },
-                    );
-                    return Ok(OperationFlow::Advance);
-                }
                 let mut identity_cursor = self.local_structural_identities.cursor();
                 let copied = TerminalStructuralValue {
                     opaque_identity: self

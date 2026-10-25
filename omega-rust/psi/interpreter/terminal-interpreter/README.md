@@ -85,8 +85,12 @@ return restores the caller and releases its saved header. The root activation
 remains reserved through result readback until close. A refused capture retains
 its outgoing cleanup continuation in that failed activation, including byte
 backing and returned claims; it allocates no unpaid saved frame and does not
-advance the caller's instruction position. Descriptor maps, array payload
-elements, other storage families and result publication are not yet completely accounted;
+advance the caller's instruction position. Packed scalar arrays retain one cell
+per element with their backing: guest snapshots reserve independent copies,
+inspection clones share read-only backing, and writes reserve any overlapping
+replacement. Plain projection copies use that same snapshot operation. Returned
+payloads remain charged after instance close until the last inspection drops.
+Descriptor maps, placed/case storage and result publication are not yet completely accounted;
 these partial snapshots must not become production Build usage receipts.
 
 A failed execution retains its exact host fault and unfinished custody. Calling
