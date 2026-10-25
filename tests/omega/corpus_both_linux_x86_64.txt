@@ -5630,8 +5630,17 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit built 2202m
 pass/facts/state_transition_ranking_bound_through_other_state_exit built 2706ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/state_transition_ranking_bound_through_parameter_exit built 1974ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/state_transition_ranking_bound_through_target_body_exit built 2855ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/static_callback_reach_boundary_schema built 15491ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_schema built 20425ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_scope built 20150ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_selection built 18813ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_shadow built 17355ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_captured_unused built 12373ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_evidence_scope built 12483ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
+pass/facts/static_callback_reach_private_helper built 13135ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
 pass/facts/static_callback_reach_recursive_component built 5793ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_recursive_terminal built 5484ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_requirement_telescope built 9501ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3c1b7104e4f6+wt
 pass/facts/static_callback_reach_selected_schema built 6268ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_terminal_binder built 6798ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_callback_reach_through_call_result built 10689ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt

@@ -88,6 +88,9 @@ pub(super) fn interface_retention_set(
         retain_symbol(&mut retained, index, nominal_use.selected_machine);
         retain_symbol(&mut retained, index, nominal_use.selected_entry);
         retain_symbol(&mut retained, index, nominal_use.registration_operation);
+        if let Some(declaration) = nominal_use.registration_requirement_trait {
+            retain_symbol(&mut retained, index, declaration);
+        }
         retain_symbol(&mut retained, index, nominal_use.satisfaction_requirement);
         retain_symbol(&mut retained, index, nominal_use.satisfaction_trait);
     }

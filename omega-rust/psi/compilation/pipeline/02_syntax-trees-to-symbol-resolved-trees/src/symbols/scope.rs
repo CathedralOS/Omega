@@ -27,6 +27,19 @@ pub(super) fn declaration_type_scope(
     parameters
 }
 
+/// Machine evidence has its own durable binder roster. Reuse these exact
+/// handles wherever source signatures need the complete lexical type scope.
+pub(super) fn evidence_type_parameters(
+    bounds: &[symbol_resolved_trees::machine::GenericConformanceBound],
+) -> impl Iterator<Item = TypeParameter> + '_ {
+    bounds.iter().map(|bound| TypeParameter {
+        symbol: bound.binder,
+        name: bound.binder_name.clone(),
+        kind: symbol_resolved_trees::data::TypeParameterKind::Implementation,
+        bounds: Default::default(),
+    })
+}
+
 /// Resolve the construction ordinal and finalized declaration through the same
 /// exact row owner. Inline member machines are root declarations; their symbol
 /// parent is not the conformance's lexical ownership roster.
