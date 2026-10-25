@@ -59,7 +59,8 @@ pub(crate) fn cells<'a, K: StorageKey + 'a, V: 'a>(
         .range((lower, upper))
         .filter(move |(key, _)| key.parent().path.starts_with(&root.path))
 }
-pub(crate) fn prune<K: StorageKey, V>(map: &mut BTreeMap<K, V>, root: &StructuralRuntimePlace) {
+#[cfg(test)]
+fn prune<K: StorageKey, V>(map: &mut BTreeMap<K, V>, root: &StructuralRuntimePlace) {
     let keys: Vec<_> = cells(map, root).map(|(key, _)| key.clone()).collect();
     for key in keys {
         map.remove(&key);
