@@ -77,11 +77,10 @@ pub(super) fn admit(
         .iter()
         .enumerate()
         .find_map(|(block_index, block)| {
-            if !function.blocks.block_references_register(block_index, register) {
-                return None;
-            }
-            block
-                .instructions
+            let (start_idx, end_idx) = function
+                .blocks
+                .block_register_instruction_span(block_index, register)?;
+            block.instructions[start_idx..=end_idx]
                 .iter()
                 .position(|candidate| {
                     candidate.operands.iter().any(|operand| {
@@ -89,7 +88,7 @@ pub(super) fn admit(
                             && operand.access != RegisterOperandAccess::Use
                     })
                 })
-                .map(|position| (block_index, position))
+                .map(|offset| (block_index, start_idx + offset))
         })
         .ok_or(RuntimeSplitError::UnsupportedValue)?;
     let defining = &function.blocks[block_index].instructions[definition_index];
@@ -121,22 +120,29 @@ pub(super) fn admit(
             continue;
         }
         let previous_uses = uses;
-        for (instruction_index, instruction) in block.instructions.iter().enumerate() {
-            if current_block_index == block_index && instruction_index == definition_index {
-                continue;
-            }
-            let after_definition =
-                current_block_index != block_index || instruction_index > definition_index;
-            for operand in &instruction.operands {
-                if operand.virtual_register != register {
+        if let Some((start_idx, end_idx)) = function
+            .blocks
+            .block_register_instruction_span(current_block_index, register)
+        {
+            for (offset, instruction) in block.instructions[start_idx..=end_idx].iter().enumerate()
+            {
+                let instruction_index = start_idx + offset;
+                if current_block_index == block_index && instruction_index == definition_index {
                     continue;
                 }
-                if !after_definition || !rebindable_use(operand, victim) {
-                    return Err(RuntimeSplitError::UnsupportedUse);
+                let after_definition =
+                    current_block_index != block_index || instruction_index > definition_index;
+                for operand in &instruction.operands {
+                    if operand.virtual_register != register {
+                        continue;
+                    }
+                    if !after_definition || !rebindable_use(operand, victim) {
+                        return Err(RuntimeSplitError::UnsupportedUse);
+                    }
+                    uses = uses
+                        .checked_add(1)
+                        .ok_or(RuntimeSplitError::IdentityOverflow)?;
                 }
-                uses = uses
-                    .checked_add(1)
-                    .ok_or(RuntimeSplitError::IdentityOverflow)?;
             }
         }
         let (terminal, successors) = control(&block.terminator);

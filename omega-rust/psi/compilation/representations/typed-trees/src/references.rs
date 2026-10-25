@@ -1540,7 +1540,7 @@ pub fn visit_expression(
                 retained,
                 program
                     .expression_table
-                    .match_subject(saved.capture)
+                    .value_capture(saved.capture)
                     .subject,
             );
             visit_expression(program, retained, saved.pattern_head);

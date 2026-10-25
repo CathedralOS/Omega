@@ -21,6 +21,7 @@
 //! the separate upstream authority that produced the bytes.
 
 use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
+use evaluation_accounting::EvaluationInvocationAccount;
 mod declarations;
 pub(crate) use declarations::ProgramDeclarations;
 
@@ -532,21 +533,14 @@ impl<'artifact> TerminalProgram<'artifact> {
     /// second and later instances of one program decode nothing.
     pub fn instantiate<'host>(
         &self,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_inputs: TerminalStructuralInputs<'_>,
+        request: TerminalInstantiation<'_>,
     ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
-        self.instantiate_with(scalar_arguments, structural_inputs, None)
-    }
-
-    /// Start one instance under a supply selection previously admitted
-    /// against this exact program identity.
-    pub fn instantiate_installed<'host>(
-        &self,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_inputs: TerminalStructuralInputs<'_>,
-        installation: &crate::effects::TerminalRuntimeSupplies,
-    ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
-        self.instantiate_with(scalar_arguments, structural_inputs, Some(installation))
+        let (execution, requirements) = self.prepare_execution(request)?;
+        Ok(TerminalInstance::new(
+            self.clone(),
+            execution,
+            requirements.imports,
+        ))
     }
 
     /// Share immutable storage between program handles and their instances.
@@ -572,8 +566,13 @@ impl<'artifact> TerminalProgram<'artifact> {
         installation: Option<&crate::effects::TerminalRuntimeSupplies>,
     ) -> Result<crate::execution::TerminalExecution<'artifact>, TerminalArtifactInterpretError>
     {
-        self.prepare_execution(scalar_arguments, structural_inputs, installation)
-            .map(|(execution, _)| execution)
+        self.prepare_execution(TerminalInstantiation {
+            scalar_arguments,
+            structural_inputs,
+            installation,
+            account: None,
+        })
+        .map(|(execution, _)| execution)
     }
 
     fn execution_program(
@@ -593,9 +592,7 @@ impl<'artifact> TerminalProgram<'artifact> {
 
     fn prepare_execution(
         &self,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_inputs: TerminalStructuralInputs<'_>,
-        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
+        request: TerminalInstantiation<'_>,
     ) -> Result<
         (
             crate::execution::TerminalExecution<'artifact>,
@@ -603,6 +600,22 @@ impl<'artifact> TerminalProgram<'artifact> {
         ),
         TerminalArtifactInterpretError,
     > {
+        let TerminalInstantiation {
+            scalar_arguments,
+            structural_inputs,
+            installation,
+            account,
+        } = request;
+        if let Some(account) = account
+            && !matches!(
+                account.measurement(),
+                evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
+            )
+        {
+            return Err(TerminalArtifactInterpretError::Execution(TerminalInterpretError::Storage(
+                evaluation_accounting::EvaluationAccountingError::UnsupportedMeasurementIdentity,
+            )));
+        }
         let requirements = self
             .execution_requirements_with_private_entry_ram(
                 installation,
@@ -638,6 +651,7 @@ impl<'artifact> TerminalProgram<'artifact> {
             structural_inputs.zero_initialized_arguments,
             structural_inputs.established_erased_fields,
             installation,
+            account.cloned(),
         )
         .map_err(TerminalArtifactInterpretError::Execution)
         .map_err(|error| match error {
@@ -670,21 +684,19 @@ impl<'artifact> TerminalProgram<'artifact> {
         execution.external_demands = requirements.external_completions.clone();
         Ok((execution, requirements))
     }
+}
 
-    fn instantiate_with<'host>(
-        &self,
-        scalar_arguments: &[TerminalScalarValue],
-        structural_inputs: TerminalStructuralInputs<'_>,
-        installation: Option<&crate::effects::TerminalRuntimeSupplies>,
-    ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
-        let (execution, requirements) =
-            self.prepare_execution(scalar_arguments, structural_inputs, installation)?;
-        Ok(TerminalInstance::new(
-            self.clone(),
-            execution,
-            requirements.imports,
-        ))
-    }
+/// Inputs and host policy for one instance, selected before entry storage is
+/// allocated. Installation must already be admitted against this program.
+/// The optional Terminal account currently owns byte payload reservations;
+/// it does not certify runtime-row or result accounting. Supply the same account
+/// to the fuel meter when both resource axes share an invocation.
+#[derive(Default)]
+pub struct TerminalInstantiation<'input> {
+    pub scalar_arguments: &'input [TerminalScalarValue],
+    pub structural_inputs: TerminalStructuralInputs<'input>,
+    pub installation: Option<&'input crate::effects::TerminalRuntimeSupplies>,
+    pub account: Option<&'input EvaluationInvocationAccount>,
 }
 
 /// Execution ownership comes from the authenticated callable, not from an

@@ -408,7 +408,7 @@ fn source_place_root(
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(_) => break,
             ExpressionNode::SavedSubject(saved) => {
-                let source = program.expression_table.saved_subject_source(saved)?;
+                let source = program.saved_value_source(saved)?;
                 let reference = if let Some(state) = current_state {
                     super::expression_types::expression_result_type_reference(
                         program,
@@ -426,7 +426,7 @@ fn source_place_root(
                 };
                 let anchor = program
                     .expression_table
-                    .match_subject(saved.capture)
+                    .value_capture(saved.capture)
                     .value_anchor;
                 if !program.expression_table.expression_is_valid(anchor) {
                     return None;

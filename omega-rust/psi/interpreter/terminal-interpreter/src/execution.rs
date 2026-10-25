@@ -17,6 +17,7 @@ use crate::effects::{
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
+use crate::runtime_rows::RuntimeRows;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::structural_inputs::placed_views::{
@@ -30,6 +31,7 @@ use crate::values::{
 use crate::values::{
     TerminalScalarValue, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
+use evaluation_accounting::EvaluationInvocationAccount;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
     ValueId,
@@ -66,6 +68,10 @@ pub(crate) enum OperationFlow {
 /// so a sponsor can replenish the same meter and resume without replaying
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
+    pub(crate) account: Option<EvaluationInvocationAccount>,
+    /// A host fault is not a resumable pause. Retain its exact site and custody
+    /// so retry cannot repeat an operation that may already have had effects.
+    failure: Option<TerminalInterpretError>,
     pub(crate) provider_storage: crate::provider_storage::RuntimeProviderStorage,
     /// Entry storage may be supplied only before the first resume, including
     /// a resume which exhausts its fuel without executing an operation.
@@ -90,8 +96,8 @@ pub struct TerminalExecution<'artifact> {
     /// `provider_candidates` and `boundary_supplies`, so a direct call of
     /// either requirement gains no assumed facts.
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
-    pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
-    pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
+    pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     /// Host-lent entry storage outlives frame-local views. Keep only borrowed
     /// inputs: an owned argument transfers custody and cannot be read back.
     pub(crate) borrowed_entry_storage: Vec<(u32, PlaceId, TerminalStructuralValue)>,
@@ -187,8 +193,8 @@ pub struct TerminalExecution<'artifact> {
 pub(crate) struct SuspendedCall {
     pub(crate) placed_view_occurrences: BTreeMap<TerminalPlacedViewInput, PlacedViewOccurrence>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
-    pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
-    pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
+    pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
     pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayStorage,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
@@ -383,6 +389,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         zero_initialized_arguments: &[u32],
         established_erased_fields: &[crate::structural_inputs::TerminalEstablishedErasedField],
         installation: Option<&TerminalRuntimeSupplies>,
+        account: Option<EvaluationInvocationAccount>,
     ) -> Result<Self, TerminalInterpretError> {
         let current_machine = program.resolve_entry(installation)?;
         // This host invocation supplies scalar/structural values and storage
@@ -441,9 +448,12 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             return Err(TerminalInterpretError::ScalarEntryQualificationUnsupported);
         }
-        let values = bind_arguments(&machine.parameters, scalar_arguments)?;
-        let structural_values =
-            bind_structural_arguments(&machine.structural_parameters, structural_arguments)?;
+        let values = bind_arguments(&machine.parameters, scalar_arguments, account.as_ref())?;
+        let structural_values = bind_structural_arguments(
+            &machine.structural_parameters,
+            structural_arguments,
+            account.as_ref(),
+        )?;
         let live_affine_frontier = bind_affine_frontier(
             &machine.structural_parameters,
             &structural_values,
@@ -469,6 +479,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage.push((argument_index, parameter.place, value.clone()));
         }
         let mut execution = Self {
+            account,
+            failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
             activation_storage: Default::default(),
             program: std::sync::Arc::clone(&program),
@@ -777,8 +789,12 @@ impl<'artifact> TerminalExecution<'artifact> {
         handler: &mut impl TerminalEffectHandler,
         components: &mut crate::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<TerminalExecutionStatus, TerminalInterpretError> {
+        if let Some(failure) = &self.failure {
+            return Err(failure.clone());
+        }
         self.entry_storage_open = false;
-        self.resume_operations(meter, handler, components)
+        let outcome = self
+            .resume_operations(meter, handler, components)
             .map_err(|error| {
                 // Report the execution cursor that declined the operation, including
                 // failures reached in a callee. A missing operation means the block
@@ -798,7 +814,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                     operation,
                     cause: Box::new(error),
                 }
-            })
+            });
+        if let Err(error) = &outcome {
+            self.failure = Some(error.clone());
+        }
+        outcome
     }
 
     fn resume_operations(

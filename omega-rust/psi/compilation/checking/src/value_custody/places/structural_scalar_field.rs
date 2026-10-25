@@ -989,7 +989,17 @@ pub fn structural_source(
     ) {
         return None;
     }
-    let (root, receiver_value, ordinal, source_type) =
+    let (root, receiver_value, ordinal, source_type) = if let Some(source) =
+        program.saved_argument_source(receiver_expression)
+    {
+        let reference = crate::expression_result_type_reference(program, machine, state, source)?;
+        (
+            facts::PlaceRoot::Expression(source),
+            ExpressionHandle::invalid(),
+            statement_ordinal as usize,
+            reference,
+        )
+    } else {
         match program.expression_table.expression(receiver_expression) {
             ExpressionNode::Name(receiver) => {
                 if !receiver.symbol.is_valid()
@@ -1064,7 +1074,8 @@ pub fn structural_source(
                     )
                 }
             }
-        };
+        }
+    };
     // Borrowed storage observes its referent without moving its reference.
     // An expression result must already own its home before it can be read.
     let carrier = match program

@@ -34,39 +34,91 @@ pub(super) fn block_domain(
     })
 }
 
-/// Stream before/after membership directly into block-local ranges. Liveness
-/// owns instruction order, so a repeated point is a duplicate and an adjacent
-/// point extends the last fragment. There is no per-point tree to build, clone,
-/// and collapse, nor a register-by-block rescan to recover the same ordering.
+/// Derive block-local virtual register fragments in $O(\text{instructions} + \text{operands})$
+/// time by tracking each register's open interval end during a reverse block walk,
+/// visiting only block exits/entries and instructions that explicitly define or use
+/// the register instead of scanning the full live set at every instruction.
 pub(super) fn register_fragments(
     function: usize,
     liveness: &selected_instructions::FunctionLiveness,
     register_count: usize,
     register_index: &[u32],
 ) -> Result<Vec<Vec<LiveRangeFragment>>, LiveRangeError> {
-    let mut fragments = vec![Vec::new(); register_count];
+    let mut fragments = vec![Vec::<LiveRangeFragment>::new(); register_count];
+    let mut open_end = vec![u32::MAX; register_count];
+    let mut touched_in_block = Vec::<(u32, u32)>::new();
     for block in &liveness.blocks {
-        for instruction in &block.instructions {
-            for (live, accessed, point) in [
-                (
-                    &instruction.virtual_live_in,
-                    &instruction.virtual_uses,
-                    before_point(function, instruction.position)?,
-                ),
-                (
-                    &instruction.virtual_live_out,
-                    &instruction.virtual_defs,
-                    after_point(function, instruction.position)?,
-                ),
-            ] {
-                for register in live.iter().chain(accessed) {
-                    if let Some(&idx) = register_index.get(register.0 as usize)
-                        && idx != u32::MAX
-                    {
-                        append_point(function, &mut fragments[idx as usize], block.block, point)?;
+        let Some(first) = block.instructions.first() else {
+            continue;
+        };
+        let last = block.instructions.last().unwrap();
+        let block_start = before_point(function, first.position)?.0;
+        let block_end = after_point(function, last.position)?
+            .0
+            .checked_add(1)
+            .ok_or(LiveRangeError::PointOverflow { function })?;
+        for &register in &block.virtual_live_out {
+            if let Some(&idx) = register_index.get(register.0 as usize)
+                && idx != u32::MAX
+            {
+                open_end[idx as usize] = block_end;
+            }
+        }
+        for instruction in block.instructions.iter().rev() {
+            let _before = before_point(function, instruction.position)?.0;
+            let after = after_point(function, instruction.position)?.0;
+            let after_end = after
+                .checked_add(1)
+                .ok_or(LiveRangeError::PointOverflow { function })?;
+            for &register in &instruction.virtual_defs {
+                if let Some(&idx) = register_index.get(register.0 as usize)
+                    && idx != u32::MAX
+                {
+                    if open_end[idx as usize] == u32::MAX {
+                        open_end[idx as usize] = after_end;
+                    }
+                    if !instruction.virtual_uses.contains(&register) {
+                        let slot = &mut fragments[idx as usize];
+                        if slot.last().map(|f| f.block) != Some(block.block) {
+                            touched_in_block.push((idx, slot.len() as u32));
+                        }
+                        slot.push(LiveRangeFragment {
+                            block: block.block,
+                            start: LiveRangePoint(after),
+                            end: LiveRangePoint(open_end[idx as usize]),
+                        });
+                        open_end[idx as usize] = u32::MAX;
                     }
                 }
             }
+            for &register in &instruction.virtual_uses {
+                if let Some(&idx) = register_index.get(register.0 as usize)
+                    && idx != u32::MAX
+                    && open_end[idx as usize] == u32::MAX
+                {
+                    open_end[idx as usize] = after;
+                }
+            }
+        }
+        for &register in &block.virtual_live_in {
+            if let Some(&idx) = register_index.get(register.0 as usize)
+                && idx != u32::MAX
+                && open_end[idx as usize] != u32::MAX
+            {
+                let slot = &mut fragments[idx as usize];
+                if slot.last().map(|f| f.block) != Some(block.block) {
+                    touched_in_block.push((idx, slot.len() as u32));
+                }
+                slot.push(LiveRangeFragment {
+                    block: block.block,
+                    start: LiveRangePoint(block_start),
+                    end: LiveRangePoint(open_end[idx as usize]),
+                });
+                open_end[idx as usize] = u32::MAX;
+            }
+        }
+        for (idx, first_frag) in touched_in_block.drain(..) {
+            fragments[idx as usize][first_frag as usize..].reverse();
         }
     }
     Ok(fragments)
@@ -74,6 +126,7 @@ pub(super) fn register_fragments(
 
 /// Append one point from an ordered block traversal, tolerating membership
 /// duplicates (a value can be both live and explicitly accessed).
+#[cfg(test)]
 pub(super) fn append_point(
     function: usize,
     fragments: &mut Vec<LiveRangeFragment>,

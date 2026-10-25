@@ -98,7 +98,47 @@ pub fn captured_call_index_value(
     }
 }
 
+/// The source descriptor and receiving runtime index are compared at one
+/// invocation cut. Both terms come from completed operands; no foreign result
+/// recipe or later read of the supplying home participates.
+pub fn captured_call_argument_index_matches(
+    program: &dyn crate::CheckingInput,
+    caller_state: SymbolHandle,
+    statement_index: usize,
+    call: CallSite<'_>,
+    parameters: &[StateParameter],
+    position: usize,
+    source_type: typed_trees::types::TypeReferenceHandle,
+    descriptor: SymbolHandle,
+    required: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    matches!(
+        capture_projection(
+            program,
+            caller_state,
+            statement_index,
+            call,
+            parameters,
+            ProjectionRequest::IndexEquality {
+                position,
+                source_type,
+                descriptor,
+                required,
+                owner: call.target_symbol(program)
+            }
+        ),
+        Some(ProjectionValue::Equality(true))
+    )
+}
+
 enum ProjectionRequest {
+    IndexEquality {
+        position: usize,
+        source_type: typed_trees::types::TypeReferenceHandle,
+        descriptor: SymbolHandle,
+        required: typed_trees::types::TypeReferenceHandle,
+        owner: SymbolHandle,
+    },
     Identity {
         position: usize,
         path: Vec<PlaceSegment>,
@@ -111,6 +151,7 @@ enum ProjectionRequest {
 
 #[derive(PartialEq)]
 enum ProjectionValue {
+    Equality(bool),
     Identity(String),
     Scalar(super::ScopedArithmeticValue),
 }
@@ -247,6 +288,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                     self.parameters,
                     environment,
                     (machine, state, state.return_type),
+                    Some(self.call),
                 ),
                 0,
             ),
@@ -260,6 +302,76 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
         }
         for entry in entries {
             let value = match &self.request {
+                ProjectionRequest::IndexEquality {
+                    position,
+                    source_type,
+                    descriptor,
+                    required,
+                    owner,
+                } => {
+                    let mut bindings = self
+                        .parameters
+                        .iter()
+                        .zip(&entry.arguments)
+                        .map(|(parameter, value)| (parameter.symbol, value.clone()))
+                        .collect::<Vec<_>>();
+                    if let Some(selected) = super::specification_calls::selected_call_site_contract(
+                        program,
+                        machine.symbol,
+                        self.call,
+                    ) {
+                        let Some(values) = super::specification_calls::call_scalar_substitution(
+                            program,
+                            machine.symbol,
+                            &selected,
+                            self.call,
+                            |subject| {
+                                entry.judge.completed_scalar_subject(
+                                    subject,
+                                    self.call,
+                                    &entry.arguments,
+                                    machine,
+                                    state,
+                                )
+                            },
+                        ) else {
+                            self.valid = false;
+                            continue;
+                        };
+                        bindings.extend(
+                            values
+                                .into_iter()
+                                .map(|(parameter, value)| (parameter.symbol, value)),
+                        );
+                    }
+                    let actual = entry.arguments.get(*position).cloned().and_then(|value| {
+                        super::observed_projections::project_observed_value(
+                            program,
+                            *source_type,
+                            value,
+                            &[PlaceSegment::Field {
+                                symbol: *descriptor,
+                            }],
+                        )
+                    });
+                    let expected =
+                        bound_index(program, *owner, self.parameters, &bindings, *required);
+                    actual.zip(expected).map(|(actual, expected)| {
+                        // Equality consumes the normal observer's established equations,
+                        // just as ordinary contract judgment does. Distinct completed
+                        // operands can denote equal indices without sharing identity.
+                        let actual = entry
+                            .judge
+                            .resolve(entry.judge.completed_value_identity(actual));
+                        let expected = entry
+                            .judge
+                            .resolve(entry.judge.completed_value_identity(expected));
+                        ProjectionValue::Equality(matches!(
+                            entry.judge.judge_equation(actual, expected, 0),
+                            super::structural_judgment::StructuralJudgment::Proven
+                        ))
+                    })
+                }
                 ProjectionRequest::Identity { position, path } => entry
                     .arguments
                     .get(leading + position)
@@ -359,5 +471,36 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                 self.value = Some(value);
             }
         }
+    }
+}
+
+fn bound_index(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    parameters: &[StateParameter],
+    bindings: &[(SymbolHandle, StructuralTerm)],
+    argument: typed_trees::types::TypeReferenceHandle,
+) -> Option<StructuralTerm> {
+    if let Some(literal) = program.static_const_literal_from_type_reference(argument) {
+        return literal.value_bignum().map(StructuralTerm::Integer);
+    }
+    match program.type_reference_table.type_reference(argument) {
+        typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
+            super::structural_judgment::selected_contracts::bound_term(
+                program,
+                *expression,
+                owner,
+                parameters,
+                owner,
+                bindings,
+                None,
+                0,
+            )
+        }
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => bindings
+            .iter()
+            .find(|(formal, _)| formal == symbol)
+            .map(|(_, value)| value.clone()),
+        _ => None,
     }
 }

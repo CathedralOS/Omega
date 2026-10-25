@@ -25,6 +25,32 @@ machine configure_build_readback(builder: &mut Build) {
     builder.subsystem = Subsystem::Gui;
 }
 
+// Exercise scalar, nested record, case-payload and byte-view settings through
+// the same original receiver. These helpers are selected by the embedding test,
+// not executed by the product's ordinary Build entry.
+machine configure_all_settings(builder: &mut Build) {
+    configure_build_readback(builder);
+    builder.subsystem = Subsystem::Unspecified { value: 73 };
+    builder.freestanding = true;
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+    builder.privileged_services.port_io = true;
+    builder.elf_interpreter.linux_arm64 = "/lib/omega-loader.so";
+    builder.optimizations.control_flow_cleanup = 1;
+    builder.optimizations.human_report = 1;
+}
+
+machine configure_invalid_identifier(builder: &mut Build) {
+    builder.identifier = "not an identifier";
+}
+
+machine configure_invalid_loader(builder: &mut Build) {
+    builder.elf_interpreter.linux_arm64 = "relative-loader.so";
+}
+
+machine configure_duplicate_optimization(builder: &mut Build) {
+    builder.optimizations.control_flow_cleanup = 2;
+}
+
 boundary trait ObserveBuild {
     machine record(builder: &mut Build, sequence: u64) reaches;
 }

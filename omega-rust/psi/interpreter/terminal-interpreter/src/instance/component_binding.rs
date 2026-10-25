@@ -5,6 +5,7 @@
 //! return acknowledgement. There is no result-producing host callback, adapter
 //! cloning, per-call configuration, or second execution of a suspended entry.
 
+use evaluation_accounting::EvaluationInvocationAccount;
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{BoundaryMachineId, OperationId};
@@ -196,18 +197,20 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         arguments: &[TerminalScalarValue],
         structural_operands: &[terminal_psi::StructuralArgument],
         structural_arguments: &[crate::TerminalStructuralValue],
+        account: Option<&EvaluationInvocationAccount>,
     ) -> Result<(), String> {
         self.require_ready()?;
         let mut instance = self
             .program
-            .instantiate_installed(
-                arguments,
-                TerminalStructuralInputs {
+            .instantiate(crate::TerminalInstantiation {
+                scalar_arguments: arguments,
+                structural_inputs: TerminalStructuralInputs {
                     arguments: structural_arguments,
                     ..TerminalStructuralInputs::default()
                 },
-                &self.supplies,
-            )
+                installation: Some(&self.supplies),
+                account,
+            })
             .map_err(|error| format!("component instance admission: {error:?}"))?;
         if instance.required_imports != self.required_imports {
             return Err("component invocation changed its preflighted import closure".into());

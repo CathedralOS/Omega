@@ -46,28 +46,22 @@ pub(in crate::proof_contracts::contract_entailment) struct AppliedRuntimeBinding
 }
 
 impl AppliedRuntimeBinding {
-    pub fn parameter_term(
-        &self,
-        program: &dyn crate::CheckingInput,
-        caller: SymbolHandle,
-    ) -> Option<StructuralTerm> {
-        let parameter =
-            crate::machine_calls::calls::immutable_runtime_parameter(program, caller, &self.actual)
-                .ok()?;
-        let StaticMachineBindingValue::RuntimeValue { type_reference, .. } = self.actual else {
+    pub fn observation_subject(&self) -> Option<super::RuntimeScalarSubject> {
+        let StaticMachineBindingValue::RuntimeValue {
+            subject,
+            expression,
+            ..
+        } = self.actual
+        else {
             return None;
         };
-        if program.primitive_type_reference(type_reference).is_none()
-            && !crate::has_contents(
-                program,
-                type_reference,
-                &[],
-                crate::ContentsRequirement::StableObservation,
-            )
-        {
-            return None;
+        if expression.is_valid() {
+            Some(super::RuntimeScalarSubject::Expression(expression))
+        } else if subject.is_valid() {
+            Some(super::RuntimeScalarSubject::Symbol(subject))
+        } else {
+            None
         }
-        Some(StructuralTerm::BoundValue(parameter))
     }
 }
 

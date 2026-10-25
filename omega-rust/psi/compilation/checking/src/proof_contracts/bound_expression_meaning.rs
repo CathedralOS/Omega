@@ -209,9 +209,8 @@ fn bound_subtree_height(
     // Reuse the whole subtree height, not merely each binary's local
     // verdict: generated guards and chained arithmetic share subtrees
     // across many ancestor depths while still honoring the 128-depth limit.
-    let memo = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
-        meaning_key(program, machine, state, expression).map(|key| (memos, key))
-    });
+    let memo = crate::frozen_program::frozen_program_memos(program)
+        .and_then(|memos| meaning_key(program, machine, state, expression).map(|key| (memos, key)));
     if let Some((memos, key)) = memo
         && let Ok(meanings) = memos.bound_subtree_meanings.lock()
         && let Some(&cached) = meanings.get(&key)
@@ -923,7 +922,7 @@ fn operand_type_at_depth(
             // A bound capture keeps its producer's carrier. This query reads
             // type identity only; value facts, storage epochs and access still
             // come from the actual completed capture and ordinary loan checks.
-            let source = program.expression_table.saved_subject_source(saved)?;
+            let source = program.saved_value_source(saved)?;
             operand_type_at_depth(program, machine, state, source, depth + 1)
         }
         ExpressionNode::Boolean(_) => {

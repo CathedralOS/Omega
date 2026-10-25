@@ -53,6 +53,7 @@ mod record;
 mod reference;
 mod results;
 mod runtime_indexes;
+mod runtime_rows;
 mod scalar_array;
 mod scalar_operations;
 mod storage_addresses;
@@ -95,7 +96,7 @@ pub use instance::{
     TerminalEntryStorageValue, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
     TerminalProcessExitAdmission,
 };
-pub use program::{TerminalProgram, TerminalProgramEntry};
+pub use program::{TerminalInstantiation, TerminalProgram, TerminalProgramEntry};
 pub use provider_storage::{
     TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
 };
@@ -116,6 +117,6 @@ pub use terminal_installation::{
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use values::{
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };

@@ -6846,6 +6846,24 @@ fail/facts/foreign_scalar_backing_through_target_body_rejected rejected 458ms ex
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 mutates `backing.word` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
+fail/facts/foreign_scalar_record_result_through_call_result_rejected rejected 400ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_const_name_rejected rejected 416ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_field_rejected rejected 423ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_local_rejected rejected 417ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_match_join_rejected rejected 412ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_other_machine_rejected rejected 422ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_other_state_rejected rejected 426ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_parameter_rejected rejected 406ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
+fail/facts/foreign_scalar_record_result_through_target_body_rejected rejected 399ms expected @0360a23ad5f5+wt
+	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/forty_variant_enum_payload_bound_through_call_result_rejected rejected 2577ms expected @9d9ba4fb6251+wt
 	cannot prove ensures contract for exit from extract_payload at statement 79: result >= 40 && result <= 80
 fail/facts/forty_variant_enum_payload_bound_through_const_name_rejected rejected 1856ms expected @9d9ba4fb6251+wt
@@ -7588,6 +7606,33 @@ fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 3113
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
 fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 2890ms expected @cd657b07c6e2+wt
 	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_call_result_exit rejected 1203ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_const_name_exit rejected 895ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_field_exit rejected 1158ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_local_exit rejected 1007ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_match_join_exit rejected 1332ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_other_machine_exit rejected 989ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_other_state_exit rejected 1068ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_parameter_exit rejected 1070ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/inferred_indexed_byte_view_argument_snapshot_through_target_body_exit rejected 688ms expected @e8fdf0110b10
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/inferred_record_equation_call/call_result rejected 324ms expected @1b08c4c75647
 	generic machine `read` where type equation has conflicting constructor constants
 fail/facts/inferred_record_equation_call/const_name rejected 338ms expected @1b08c4c75647
@@ -16712,6 +16757,8 @@ fail/generics/runtime_index_carrier_tail_stale rejected 1693ms expected @5f66882
 	cannot prove runtime index descriptor equals its captured index
 fail/generics/runtime_index_predicate_global_shadow rejected 6360ms expected @336cafc17e1a+wt
 	data `Index` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/generics/runtime_inferred_index_repeated_binder_mismatch rejected 610ms expected @e8fdf0110b10
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 4; an indexed value retains its captured index
 fail/generics/runtime_value_recipe_cannot_retag rejected 825ms expected @a9e0628deefe+wt
 	machine `retag` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/runtime_value_recipe_forged_descriptor rejected 311ms expected @a9e0628deefe+wt
@@ -23181,6 +23228,15 @@ pass/facts/foreign_scalar_backing_through_other_machine_exit checked 609ms check
 pass/facts/foreign_scalar_backing_through_other_state_exit checked 594ms check-target:macos_arm64 @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_parameter_exit checked 594ms check-target:macos_arm64 @db430d661cf1+wt
 pass/facts/foreign_scalar_backing_through_target_body_exit checked 586ms check-target:macos_arm64 @db430d661cf1+wt
+pass/facts/foreign_scalar_record_result_through_call_result_exit checked 723ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_const_name_exit checked 723ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_field_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_local_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_match_join_exit checked 642ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_other_machine_exit checked 681ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_other_state_exit checked 637ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_parameter_exit checked 710ms check-target:macos_arm64 @0360a23ad5f5+wt
+pass/facts/foreign_scalar_record_result_through_target_body_exit checked 656ms check-target:macos_arm64 @0360a23ad5f5+wt
 pass/facts/forty_variant_enum_payload_bound_through_call_result_exit checked 2261ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_const_name_exit checked 2452ms check-target:macos_arm64 @9d9ba4fb6251+wt
 pass/facts/forty_variant_enum_payload_bound_through_field_exit checked 2354ms check-target:macos_arm64 @9d9ba4fb6251+wt
@@ -23431,6 +23487,15 @@ pass/facts/inferred_array_equation_call_through_other_machine_exit checked 10468
 pass/facts/inferred_array_equation_call_through_other_state_exit checked 10003ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_parameter_exit checked 10223ms check-target:macos_arm64 @cd657b07c6e2+wt
 pass/facts/inferred_array_equation_call_through_target_body_exit checked 12212ms check-target:macos_arm64 @cd657b07c6e2+wt
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_call_result_exit checked 1505ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_const_name_exit checked 1446ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_field_exit checked 1386ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_local_exit checked 1354ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_match_join_exit checked 1451ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_other_machine_exit checked 1326ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_other_state_exit checked 1428ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_parameter_exit checked 1510ms check-target:macos_arm64 @e8fdf0110b10
+pass/facts/inferred_indexed_byte_view_argument_snapshot_through_target_body_exit checked 1531ms check-target:macos_arm64 @e8fdf0110b10
 pass/facts/inferred_record_equation_call/call_result checked 3046ms check-target:macos_arm64 @1b08c4c75647
 pass/facts/inferred_record_equation_call/const_name checked 3034ms check-target:macos_arm64 @1b08c4c75647
 pass/facts/inferred_record_equation_call/field checked 2791ms check-target:macos_arm64 @1b08c4c75647
@@ -27243,6 +27308,9 @@ pass/generics/runtime_index_carrier_runtime checked 6072ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_static checked 6006ms @afe3f46cebb2+wt
 pass/generics/runtime_index_carrier_static_bool checked 5957ms @afe3f46cebb2+wt
 pass/generics/runtime_index_predicate_second_descriptor_exit checked 13651ms check-target:macos_arm64 @336cafc17e1a+wt
+pass/generics/runtime_inferred_index_generic_caller_exit checked 1326ms check-target:macos_arm64 @e8fdf0110b10
+pass/generics/runtime_inferred_index_repeated_binder_exit checked 1595ms check-target:macos_arm64 @e8fdf0110b10
+pass/generics/runtime_inferred_index_statement_call_exit checked 1362ms check-target:macos_arm64 @e8fdf0110b10
 pass/generics/runtime_inherited_composite_requirement_exit checked 8636ms check-target:macos_arm64 @c9eefa9130a0+wt
 pass/generics/runtime_linear_constructor_instances_exit rejected 2407ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @5f668826adf3
 	linear state-call result scalar in main::entry at statement 2 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping

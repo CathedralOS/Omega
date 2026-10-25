@@ -32,9 +32,9 @@ impl TerminalExecution<'_> {
         if u64::try_from(length).map_err(|_| malformed())? > capacity {
             return Err(malformed());
         }
-        let mut bytes = Vec::with_capacity(length);
-        bytes.extend_from_slice(left.bytes());
-        bytes.extend_from_slice(right.bytes());
+        let mut bytes = super::storage::ByteSequenceStorage::zeroed(length, self.account.as_ref())?;
+        bytes.bytes_mut()[..left.len()].copy_from_slice(left.bytes());
+        bytes.bytes_mut()[left.len()..].copy_from_slice(right.bytes());
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
@@ -44,7 +44,7 @@ impl TerminalExecution<'_> {
             result.place,
             ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes)),
         );
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
 }

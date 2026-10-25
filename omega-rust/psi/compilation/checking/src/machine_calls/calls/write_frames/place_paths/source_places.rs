@@ -348,7 +348,7 @@ fn source_coordinates(
         && let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
             program.expression_table.expression(anchor)
     {
-        let mut source = program.expression_table.saved_subject_source(saved)?;
+        let mut source = program.saved_value_source(saved)?;
         let mut active = vec![saved.capture];
         loop {
             let source_place = crate::canonical_place_from_expression(program, source)?;
@@ -382,7 +382,7 @@ fn source_coordinates(
                 return None;
             }
             active.push(saved.capture);
-            source = program.expression_table.saved_subject_source(saved)?;
+            source = program.saved_value_source(saved)?;
         }
     }
     // Fields and element selectors already have exact raw coordinates. Only

@@ -7,9 +7,9 @@ use crate::custody::project_structural_value;
 use crate::element_views::{ElementView, ElementViewHome};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use std::collections::BTreeMap;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeShape,
@@ -38,7 +38,7 @@ impl TerminalExecution<'_> {
         referent_type: StructuralTypeId,
         argument: &StructuralArgument,
         identity_cursor: &mut Option<u64>,
-        local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+        local_roots: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ElementView)>, TerminalInterpretError> {
         if self.lent_collection_type(referent_type, argument).is_none() {
             return Ok(None);
@@ -71,7 +71,7 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
         identity_cursor: &mut Option<u64>,
-        local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+        local_roots: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ElementView)>, TerminalInterpretError> {
         if parameter.access == StructuralAccess::Owned {
             return Ok(None);
@@ -120,7 +120,7 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
         argument: &StructuralArgument,
         identity_cursor: &mut Option<u64>,
-        local_roots: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+        local_roots: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<CapturedArrayLoan>, TerminalInterpretError> {
         if argument.access == StructuralAccess::Owned {
             return Ok(None);

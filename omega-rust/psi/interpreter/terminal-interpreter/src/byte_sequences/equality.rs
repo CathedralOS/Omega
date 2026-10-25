@@ -25,7 +25,7 @@ impl TerminalExecution<'_> {
         let right = self.byte_sequence_operand_view(right)?;
         let verdict = left.bytes() == right.bytes();
         self.values
-            .insert(result.id, TerminalScalarValue::Boolean(verdict));
+            .insert(result.id, TerminalScalarValue::Boolean(verdict))?;
         Ok(OperationFlow::Advance)
     }
 }

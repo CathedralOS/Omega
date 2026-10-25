@@ -4,6 +4,7 @@
 use super::{bind_structural_arguments, transfer_claims};
 use crate::errors::TerminalInterpretError;
 use crate::execution::LiveClaim;
+use crate::runtime_rows::RuntimeRows;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::{ClaimId, PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
@@ -82,7 +83,8 @@ fn pair_transfer(
     caller_claims: &BTreeMap<ClaimId, LiveClaim>,
 ) -> Result<(BTreeMap<ClaimId, LiveClaim>, BTreeMap<ClaimId, LiveClaim>), TerminalInterpretError> {
     let callee = parameter(2, 0, 1, StructuralMultiplicity::Affine);
-    let callee_values = BTreeMap::from([(callee.place, value(9, 1, Vec::new()))]);
+    let callee_values =
+        RuntimeRows::from_rows(None, [(callee.place, value(9, 1, Vec::new()))]).unwrap();
     transfer_claims(
         &crate::program::ProgramDeclarations::new(&[]),
         &BTreeMap::new(),
@@ -170,6 +172,7 @@ fn disjoint_projections_of_one_root_bind_as_separate_arguments() {
             value(7, 3, vec![field("right")]),
             value(7, 3, vec![field("left")]),
         ],
+        None,
     )
     .unwrap();
     assert_eq!(bound.len(), 2);
@@ -188,7 +191,9 @@ fn overlapping_custody_bearing_arguments_still_alias() {
                 value(7, 3, vec![field("left")]),
                 value(7, 3, vec![field("left")]),
             ],
-        ),
-        Err(TerminalInterpretError::StructuralArgumentAliasing(7))
+            None,
+        )
+        .unwrap_err(),
+        TerminalInterpretError::StructuralArgumentAliasing(7)
     );
 }

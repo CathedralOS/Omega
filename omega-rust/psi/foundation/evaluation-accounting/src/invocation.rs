@@ -25,6 +25,7 @@ pub enum EvaluationAccountingError {
     CounterOverflow(EvaluationResource),
     AllowanceExhausted(EvaluationResource),
     LeaseReleaseExceedsReservation,
+    LeaseAccountMismatch,
 }
 
 impl std::fmt::Display for EvaluationAccountingError {
@@ -48,6 +49,9 @@ impl std::fmt::Display for EvaluationAccountingError {
             }
             Self::LeaseReleaseExceedsReservation => {
                 formatter.write_str("lease release exceeds held storage")
+            }
+            Self::LeaseAccountMismatch => {
+                formatter.write_str("storage leases belong to different invocations")
             }
         }
     }
@@ -195,6 +199,11 @@ impl InvocationAccount {
 }
 
 impl EvaluationInvocationAccount {
+    /// Identity of the exact invocation, not equality of limits or sponsor.
+    pub fn same_invocation(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.account, &other.account)
+    }
+
     pub fn measurement(&self) -> EvaluationMeasurementIdentity {
         self.account.measurement
     }
@@ -481,6 +490,34 @@ pub struct EvaluationStorageLease {
     payload_bytes: u64,
 }
 impl EvaluationStorageLease {
+    /// Transfer a reservation without charging it again. On refusal both
+    /// leases remain unchanged; even sibling invocations cannot merge custody.
+    pub fn absorb(&mut self, other: &mut Self) -> Result<(), EvaluationAccountingError> {
+        if !self.account.same_invocation(&other.account) {
+            return Err(EvaluationAccountingError::LeaseAccountMismatch);
+        }
+        let cells = self.cells.checked_add(other.cells).ok_or(
+            EvaluationAccountingError::CounterOverflow(EvaluationResource::LiveStorage),
+        )?;
+        let payload_bytes = self.payload_bytes.checked_add(other.payload_bytes).ok_or(
+            EvaluationAccountingError::CounterOverflow(EvaluationResource::LiveStorage),
+        )?;
+        self.cells = cells;
+        self.payload_bytes = payload_bytes;
+        other.cells = 0;
+        other.payload_bytes = 0;
+        Ok(())
+    }
+
+    /// Retain at most this many cells, like truncating an owned collection.
+    /// This can only retire this lease's cells; it never reserves growth or
+    /// changes payload sponsorship. The owner calls after retiring its rows.
+    pub fn truncate_cells(&mut self, retained: u64) {
+        let retained = retained.min(self.cells);
+        self.account.release_storage(self.cells - retained, 0);
+        self.cells = retained;
+    }
+
     pub fn grow(
         &mut self,
         cells: u64,

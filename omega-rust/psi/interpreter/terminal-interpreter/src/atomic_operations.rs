@@ -156,11 +156,11 @@ impl TerminalExecution<'_> {
                 } else {
                     Vec::new()
                 };
-                self.publish_scalar_case(
+                self.publish_scalar_aggregate(
                     result,
-                    crate::values::TerminalScalarCaseValue {
+                    crate::values::TerminalScalarAggregateValue {
                         structural_type: result.structural_type,
-                        result_case,
+                        result_case: Some(result_case),
                         fields,
                     },
                 )?;
@@ -169,7 +169,7 @@ impl TerminalExecution<'_> {
                 if matches!(event, AtomicAccessEvent::CompareExchangeOnce { .. }) {
                     return Err(malformed());
                 }
-                self.values.insert(result.id, prior);
+                self.values.insert(result.id, prior)?;
             }
             (None, OperationResult::Unit) => {}
             _ => return Err(malformed()),

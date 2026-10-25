@@ -103,7 +103,7 @@ impl TerminalExecution<'_> {
             continuation,
         });
         if let Some((place, value)) = receiver {
-            self.structural_values.insert(place, value);
+            self.structural_values.insert(place, value)?;
         }
         self.current_machine = target;
         self.current = entry;
@@ -196,7 +196,7 @@ impl TerminalExecution<'_> {
                 let TerminalExecutionResult::Scalar(value) = completed.value else {
                     return Err(malformed());
                 };
-                self.values.insert(destination, value);
+                self.values.insert(destination, value)?;
                 Ok(TerminatorFlow::Continue)
             }
             SuspendedCallResult::Structural {
@@ -214,7 +214,7 @@ impl TerminalExecution<'_> {
                         }
                         if self
                             .structural_values
-                            .insert(result.place, returned.value)
+                            .insert(result.place, returned.value)?
                             .is_some()
                         {
                             return Err(malformed());

@@ -208,6 +208,11 @@ pub enum TerminalInterpretError {
     },
     Crash(TerminalCrash),
     Fuel(FuelMeterError),
+    Storage(evaluation_accounting::EvaluationAccountingError),
+    StorageAllocationFailed {
+        requested_bytes: usize,
+        reason: String,
+    },
 }
 
 pub use terminal_installation::{AssumedBindingRejection, ProviderInstallationError};

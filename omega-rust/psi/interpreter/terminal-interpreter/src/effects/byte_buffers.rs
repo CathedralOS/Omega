@@ -3,15 +3,18 @@ mod writeback;
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_active_structural_arguments;
 use crate::effects::storage_inputs::BoundaryStorageInputs;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
+use evaluation_accounting::EvaluationInvocationAccount;
 use std::collections::BTreeMap;
 use terminal_psi::ByteSequenceCarrier;
 use terminal_psi::StructuralAccess;
@@ -80,6 +83,7 @@ impl BoundaryArguments {
             crate::values::StructuralRuntimePlace,
             crate::structural_inputs::case_membership::StructuralCaseContents,
         >,
+        account: Option<&EvaluationInvocationAccount>,
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
         if parameters.len() != self.byte_sequences.len()
             || parameters.len() != self.values.len()
@@ -99,8 +103,9 @@ impl BoundaryArguments {
                 value.absorb_qualifications(&parameter.qualifications);
             }
         }
-        let values = bind_active_structural_arguments(parameters, &self.values, types, cases)
-            .map_err(|error| error.in_argument_preparation("bind source memberships"))?;
+        let values =
+            bind_active_structural_arguments(parameters, &self.values, types, cases, account)
+                .map_err(|error| error.in_argument_preparation("bind source memberships"))?;
         let aggregate_backings = parameters
             .iter()
             .zip(self.aggregate_backings)
@@ -421,7 +426,7 @@ impl TerminalExecution<'_> {
             primitive_loans: Vec::with_capacity(arguments.len()),
             element_views: Vec::with_capacity(arguments.len()),
         };
-        let mut local_array_roots = BTreeMap::new();
+        let mut local_array_roots = RuntimeRows::new(self.account.as_ref());
         for (parameter, argument) in parameters.iter().zip(arguments) {
             if matches!(
                 self.program
@@ -514,7 +519,7 @@ impl TerminalExecution<'_> {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
         identity_cursor: &mut Option<u64>,
-        local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+        local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
         if terminal_semantics::borrowed_storage_parameter(
@@ -971,9 +976,9 @@ impl TerminalExecution<'_> {
             .immutable()?;
         let bytes = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),
-            ByteSequenceCarrier::BoundedOwned { .. } => {
-                ByteSequenceView::new(bytes.bytes().to_vec())
-            }
+            ByteSequenceCarrier::BoundedOwned { .. } => ByteSequenceView::new(
+                ByteSequenceStorage::copy(bytes.bytes(), self.account.as_ref())?,
+            ),
             ByteSequenceCarrier::BoundedView { .. } => {
                 return Err(malformed());
             }

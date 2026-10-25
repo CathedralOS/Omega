@@ -20,12 +20,13 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::{CallFrameResolver, ScopedArithmeticValue};
 
 #[derive(Clone)]
-struct Application {
+struct Application<'program> {
     reference: TypeReferenceHandle,
     formation: usize,
     substitutions: Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
     arguments: Vec<(SymbolHandle, Option<ExpressionHandle>)>,
-    call: ExpressionHandle,
+    call: Option<validation::CallSite<'program>>,
+    position: Option<usize>,
 }
 
 struct Scope<'a> {
@@ -77,59 +78,63 @@ impl Scope<'_> {
     fn index(
         &self,
         argument: TypeReferenceHandle,
-        application: &Application,
+        application: &Application<'_>,
     ) -> Option<ScopedArithmeticValue> {
         let supplied = matches!(
             self.program.type_reference_table.type_reference(argument),
             TypeReferenceNode::ConstExpression(_)
         ) || matches!(self.program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, .. }
                 if application.substitutions.iter().any(|(formal, _)| formal == symbol));
-        if supplied && application.call.is_valid() {
-            let statement = self
-                .program
-                .statement_table
-                .statement_at(self.state, application.formation)?;
-            let roots = self
-                .program
-                .tables
-                .expression_roots(statement)
-                .into_iter()
-                .map(|(_, expression)| expression)
-                .collect::<Vec<_>>();
-            let prefix_unchanged = validation::expression_traversal::expressions_before_occurrence(
-                self.program,
-                &roots,
-                application.call,
-            )
-            .is_some_and(|prefix| {
-                prefix.iter().all(|expression| {
-                    self.frames.is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(self.machine, *expression)
-                            .complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
+        if supplied && let Some(site) = application.call {
+            let prefix_unchanged = if let validation::CallSite::Expression { expression, .. } = site
+            {
+                let statement = self
+                    .program
+                    .statement_table
+                    .statement_at(self.state, application.formation)?;
+                let roots = self
+                    .program
+                    .tables
+                    .expression_roots(statement)
+                    .into_iter()
+                    .map(|(_, expression)| expression)
+                    .collect::<Vec<_>>();
+                validation::expression_traversal::expressions_before_occurrence(
+                    self.program,
+                    &roots,
+                    expression,
+                )
+                .is_some_and(|prefix| {
+                    prefix.iter().all(|expression| {
+                        self.frames.is_some_and(|frames| {
+                            frames
+                                .expression_write_frame(self.machine, *expression)
+                                .complete_paths()
+                                .is_some_and(|paths| paths.is_empty())
+                        })
                     })
                 })
-            });
+            } else {
+                true
+            };
+            let missing_scalar = matches!(self.program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, .. }
+                if application.substitutions.iter().any(|(formal, value)| formal == symbol && value.is_none()));
             if !prefix_unchanged
+                || missing_scalar
                 || application
                     .arguments
                     .iter()
                     .any(|(_, value)| value.is_none())
             {
-                let call = self.program.expression_table.call_node(application.call)?;
-                let parameters =
-                    validation::call_target_parameters(self.program, call.target_symbol)?;
+                let target = site.target_symbol(self.program);
+                let parameters = validation::call_target_parameters(self.program, target)?;
                 return validation::captured_call_index_value(
                     self.program,
                     self.state.symbol,
                     application.formation,
-                    validation::CallSite::Expression {
-                        expression: application.call,
-                        call,
-                    },
+                    site,
                     parameters,
-                    call.target_symbol,
+                    target,
                     argument,
                 );
             }
@@ -221,7 +226,7 @@ impl Scope<'_> {
             .unzip()
     }
 
-    fn actual(&self, expression: ExpressionHandle) -> Option<Application> {
+    fn actual(&self, expression: ExpressionHandle) -> Option<Application<'_>> {
         if !expression.is_valid() {
             return None;
         }
@@ -243,7 +248,8 @@ impl Scope<'_> {
                     formation,
                     substitutions: Vec::new(),
                     arguments: Vec::new(),
-                    call: ExpressionHandle::invalid(),
+                    call: None,
+                    position: None,
                 })
             }
             ExpressionNode::Call(call) => {
@@ -263,7 +269,8 @@ impl Scope<'_> {
                     formation: self.statement,
                     substitutions,
                     arguments: captured_arguments,
-                    call: expression,
+                    call: Some(validation::CallSite::Expression { expression, call }),
+                    position: None,
                 })
             }
             ExpressionNode::Member(member) => {
@@ -285,7 +292,7 @@ impl Scope<'_> {
         }
     }
 
-    fn compare(&self, actual: &Application, required: &Application, depth: usize) -> bool {
+    fn compare(&self, actual: &Application<'_>, required: &Application<'_>, depth: usize) -> bool {
         if depth > 128 {
             return false;
         }
@@ -376,6 +383,37 @@ impl Scope<'_> {
                                 (self.static_index(*left), self.static_index(*right))
                             {
                                 return left == right;
+                            }
+                            let closed_requirement = self.static_index(*right).is_some()
+                                || matches!(self.program.type_reference_table.type_reference(*right),
+                                    TypeReferenceNode::ConstExpression(expression)
+                                        if self.program.closed_integer_expression_value_in(*expression, self.machine.symbol).is_some());
+                            if !closed_requirement
+                                && let (Some(site), Some(position)) =
+                                    (required.call, required.position)
+                                && let Some((_, descriptor, _)) = self
+                                    .program
+                                    .data_application_value_fields(actual.reference)
+                                    .into_iter()
+                                    .find(|(binder, _, _)| binder.symbol == parameter.symbol)
+                            {
+                                let target = site.target_symbol(self.program);
+                                let Some(parameters) =
+                                    validation::call_target_parameters(self.program, target)
+                                else {
+                                    return false;
+                                };
+                                return validation::captured_call_argument_index_matches(
+                                    self.program,
+                                    self.state.symbol,
+                                    self.statement,
+                                    site,
+                                    parameters,
+                                    position,
+                                    actual.reference,
+                                    descriptor.symbol,
+                                    *right,
+                                );
                             }
                             let Some(left) = self.index(*left, actual) else {
                                 return false;
@@ -472,7 +510,7 @@ impl Scope<'_> {
     /// handle rather than treating an identically spelled ordinary field as an index.
     fn descriptor_arguments(
         &self,
-        application: &Application,
+        application: &Application<'_>,
     ) -> Vec<(SymbolHandle, TypeReferenceHandle)> {
         self.program
             .data_application_value_fields(application.reference)
@@ -485,7 +523,7 @@ impl Scope<'_> {
         &self,
         value: ExpressionHandle,
         argument: TypeReferenceHandle,
-        application: &Application,
+        application: &Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let static_equal = self.static_index(argument).is_some_and(|required| {
@@ -527,7 +565,7 @@ impl Scope<'_> {
     fn descriptor_target(
         &self,
         target: ExpressionHandle,
-    ) -> Option<(Application, TypeReferenceHandle)> {
+    ) -> Option<(Application<'_>, TypeReferenceHandle)> {
         let selected = match self.program.expression_table.expression(target) {
             ExpressionNode::Member(member) => self
                 .actual(member.receiver)
@@ -558,7 +596,8 @@ impl Scope<'_> {
                     formation,
                     substitutions: Vec::new(),
                     arguments: Vec::new(),
-                    call: ExpressionHandle::invalid(),
+                    call: None,
+                    position: None,
                 };
                 for symbol in prefix.iter().skip(1) {
                     let reference = self
@@ -617,7 +656,7 @@ impl Scope<'_> {
     fn check_binding(
         &self,
         expression: ExpressionHandle,
-        required: Application,
+        required: Application<'_>,
         erased: bool,
         expected_proof_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
         diagnostics: &mut Vec<Diagnostic>,
@@ -1251,7 +1290,7 @@ impl Scope<'_> {
     fn check(
         &self,
         expression: ExpressionHandle,
-        required: Application,
+        required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         if !self.has_indices(required.reference, 0) {
@@ -1285,7 +1324,8 @@ impl Scope<'_> {
                         formation: self.statement,
                         substitutions: Vec::new(),
                         arguments: Vec::new(),
-                        call: ExpressionHandle::invalid(),
+                        call: None,
+                        position: None,
                     },
                     diagnostics,
                 );
@@ -1465,7 +1505,8 @@ pub(super) fn check(
                         formation: statement,
                         substitutions: Vec::new(),
                         arguments: Vec::new(),
-                        call: ExpressionHandle::invalid(),
+                        call: None,
+                        position: None,
                     },
                     local.relevance.is_erased(),
                     typed_trees::type_identity::applied_type_identity(
@@ -1484,7 +1525,8 @@ pub(super) fn check(
                             formation: 0,
                             substitutions: Vec::new(),
                             arguments: Vec::new(),
-                            call: ExpressionHandle::invalid(),
+                            call: None,
+                            position: None,
                         },
                         diagnostics,
                     ),
@@ -1510,7 +1552,8 @@ pub(super) fn check(
                                     formation: 0,
                                     substitutions: Vec::new(),
                                     arguments: Vec::new(),
-                                    call: ExpressionHandle::invalid(),
+                                    call: None,
+                                    position: None,
                                 },
                                 diagnostics,
                             );
@@ -1555,7 +1598,8 @@ pub(super) fn check(
                         formation: call.statement_index,
                         substitutions: substitutions.clone(),
                         arguments: captured_arguments.clone(),
-                        call: ExpressionHandle::invalid(),
+                        call: Some(site),
+                        position: Some(position),
                     },
                     parameter.relevance.is_erased(),
                     (parameter.relevance.is_erased()

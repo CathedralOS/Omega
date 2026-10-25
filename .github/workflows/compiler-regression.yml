@@ -11,6 +11,10 @@ on:
         description: Qualify ordered cleanup on Windows and Linux instead of the small smoke
         type: boolean
         default: false
+      foreign_records:
+        description: Qualify libc scalar-record results on Ubuntu and Windows
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,7 +22,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}
+  group: compiler-regression-${{ github.ref }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}
   cancel-in-progress: false
 
 jobs:
@@ -26,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON(inputs.cleanup && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
+        runner: ${{ fromJSON((inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # The measured cold Windows build takes nearly 30 minutes.
     timeout-minutes: 45
@@ -58,11 +62,19 @@ jobs:
       - name: Check smoke report refusal paths
         run: python tools/tests/test_compiler_pilot.py -v
       - name: Execute native and Terminal smoke with rejection controls
-        if: ${{ !inputs.cleanup }}
+        if: ${{ !inputs.cleanup && !inputs.foreign_records }}
         run: python tools/ci/compiler_pilot.py
       - name: Execute ordered cleanup with rejection controls
-        if: inputs.cleanup
+        if: ${{ inputs.cleanup && !inputs.foreign_records }}
         run: python tools/ci/compiler_cleanup.py
+      - name: Check typed scalar aggregate result boundaries
+        if: inputs.foreign_records
+        run: |
+          cargo test --locked -p terminal-interpreter scalar_aggregate_tests
+          cargo test --locked -p runtime-abi integer_division
+      - name: Execute foreign scalar-record results with rejection controls
+        if: inputs.foreign_records
+        run: python tools/ci/compiler_foreign_records.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -70,6 +82,7 @@ jobs:
           path: |
             build/compiler-pilot/
             build/compiler-cleanup/
+            build/compiler-foreign-records/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7

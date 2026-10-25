@@ -457,7 +457,7 @@ impl TerminalExecution<'_> {
     fn snapshot_scalar_case(
         &self,
         value: &crate::values::TerminalStructuralValue,
-    ) -> Result<Option<crate::values::TerminalScalarCaseValue>, TerminalInterpretError> {
+    ) -> Result<Option<crate::values::TerminalScalarAggregateValue>, TerminalInterpretError> {
         if !value.qualifications.is_empty() || !value.projected_qualifications.is_empty() {
             return Ok(None);
         }
@@ -500,9 +500,9 @@ impl TerminalExecution<'_> {
                     .ok_or_else(malformed)
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let snapshot = crate::values::TerminalScalarCaseValue {
+        let snapshot = crate::values::TerminalScalarAggregateValue {
             structural_type: value.structural_type,
-            result_case: contents.case,
+            result_case: Some(contents.case),
             fields,
         };
         snapshot.validate_against(declaration)?;

@@ -102,14 +102,7 @@ pub(super) fn admit<'source>(
     let defined_instruction = function
         .blocks
         .instruction_index_in_block(block_index, definition)
-        .and_then(|idx| {
-            let instructions = &function.blocks[block_index].instructions;
-            if idx > 0 && instructions[..idx].iter().any(|inst| inst.id == definition) {
-                instructions.iter().find(|inst| inst.id == definition)
-            } else {
-                instructions.get(idx)
-            }
-        })
+        .and_then(|idx| function.blocks[block_index].instructions.get(idx))
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     let SelectedInstructionKind::MaterializeI64 { value } = defined_instruction.kind else {
         return Err(RuntimeRematerializationError::UnsupportedValue);
@@ -210,41 +203,46 @@ pub(super) fn admit<'source>(
         }) {
             return Err(RuntimeRematerializationError::UnsupportedUse);
         }
-        for instruction in &block.instructions {
-            for operand in &instruction.operands {
-                if operand.virtual_register != register {
-                    continue;
-                }
-                match operand.access {
-                    RegisterOperandAccess::Def
-                        if !defined
-                            && current_block_index == block_index
-                            && instruction.id == definition =>
-                    {
-                        defined = true;
+        if let Some((start_idx, end_idx)) = function
+            .blocks
+            .block_register_instruction_span(current_block_index, register)
+        {
+            for instruction in &block.instructions[start_idx..=end_idx] {
+                for operand in &instruction.operands {
+                    if operand.virtual_register != register {
+                        continue;
                     }
-                    RegisterOperandAccess::Use
-                        if (defined || current_block_index != block_index)
-                            && instruction.id != definition
-                            && operand.fixed_view.is_none()
-                            && operand.tied_to.is_none()
-                            && !operand.early_clobber
-                            && operand.class == victim.class =>
-                    {
-                        // An output tied to this use would extend the fresh
-                        // register's value identity.
-                        if instruction
-                            .operands
-                            .iter()
-                            .any(|other| other.tied_to == Some(operand.operand))
+                    match operand.access {
+                        RegisterOperandAccess::Def
+                            if !defined
+                                && current_block_index == block_index
+                                && instruction.id == definition =>
                         {
-                            return Err(RuntimeRematerializationError::UnsupportedUse);
+                            defined = true;
                         }
-                        uses = uses
-                            .checked_add(1)
-                            .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
+                        RegisterOperandAccess::Use
+                            if (defined || current_block_index != block_index)
+                                && instruction.id != definition
+                                && operand.fixed_view.is_none()
+                                && operand.tied_to.is_none()
+                                && !operand.early_clobber
+                                && operand.class == victim.class =>
+                        {
+                            // An output tied to this use would extend the fresh
+                            // register's value identity.
+                            if instruction
+                                .operands
+                                .iter()
+                                .any(|other| other.tied_to == Some(operand.operand))
+                            {
+                                return Err(RuntimeRematerializationError::UnsupportedUse);
+                            }
+                            uses = uses
+                                .checked_add(1)
+                                .ok_or(RuntimeRematerializationError::IdentityOverflow)?;
+                        }
+                        _ => return Err(RuntimeRematerializationError::UnsupportedUse),
                     }
-                    _ => return Err(RuntimeRematerializationError::UnsupportedUse),
                 }
             }
         }

@@ -30,11 +30,15 @@ impl TerminalExecution<'_> {
         }
         self.validate_descriptor_borrow(source, terminal_psi::StructuralAccess::SharedBorrow)?;
         let snapshot = self.scalar_array_snapshot(source, selected.id)?;
-        let bytes = snapshot
+        let values = snapshot
             .elements
             .iter()
-            .map(crate::structural_inputs::byte_arrays::storage::scalar_byte)
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(crate::structural_inputs::byte_arrays::storage::scalar_byte);
+        let bytes = super::storage::ByteSequenceStorage::from_values(
+            snapshot.elements.len(),
+            values,
+            self.account.as_ref(),
+        )?;
         Ok(Some(ByteSequenceView::new(bytes)))
     }
 

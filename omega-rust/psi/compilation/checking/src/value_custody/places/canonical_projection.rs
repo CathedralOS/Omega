@@ -552,10 +552,10 @@ pub fn canonical_place_from_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
-            program.expression_table.saved_subject_source(saved)?;
+            program.saved_value_source(saved)?;
             let anchor = program
                 .expression_table
-                .match_subject(saved.capture)
+                .value_capture(saved.capture)
                 .value_anchor;
             if !program.expression_table.expression_is_valid(anchor) {
                 return None;

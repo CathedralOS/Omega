@@ -110,7 +110,8 @@ mod ranking_range;
 mod refuted_requires;
 mod result_bounds;
 pub use call_projection_identity::{
-    captured_call_index_value, captured_call_subject_identity, owned_contract_subject,
+    captured_call_argument_index_matches, captured_call_index_value,
+    captured_call_subject_identity, owned_contract_subject,
 };
 mod scoped_arithmetic;
 mod self_induction;

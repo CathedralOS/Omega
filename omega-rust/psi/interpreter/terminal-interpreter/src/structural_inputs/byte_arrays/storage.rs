@@ -4,6 +4,7 @@
 //! remains stable for the lifetime of the loan, including nested forwarding.
 
 use crate::byte_sequences::ByteSequenceView;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
@@ -164,8 +165,8 @@ impl TerminalExecution<'_> {
             ArrayStorageHome::Runtime => self
                 .structural_byte_storage
                 .get_mut(&storage.referent)
-                .and_then(|bytes| bytes.replace_byte(index, byte))
-                .ok_or_else(malformed),
+                .ok_or_else(malformed)?
+                .replace_byte(index, byte),
             ArrayStorageHome::Frame { depth, place, .. } => {
                 let (start, end) = self.frame_byte_array_window(storage)?;
                 let absolute = start
@@ -215,13 +216,17 @@ impl TerminalExecution<'_> {
         let ArrayStorageHome::Frame { depth, place, .. } = storage.home else {
             return Err(malformed());
         };
-        self.frame_array(depth, place)
+        let values = self
+            .frame_array(depth, place)
             .and_then(|array| array.elements.get(start..end))
             .ok_or_else(malformed)?
             .iter()
-            .map(scalar_byte)
-            .collect::<Result<Vec<_>, _>>()
-            .map(ByteSequenceView::new)
+            .map(scalar_byte);
+        Ok(ByteSequenceView::new(ByteSequenceStorage::from_values(
+            end - start,
+            values,
+            self.account.as_ref(),
+        )?))
     }
 }
 

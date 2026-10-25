@@ -104,6 +104,7 @@ pub(crate) fn selection_for_call_with_local_prefix(
         caller_state,
         candidates,
         callee_states,
+        site,
         target_symbol,
         machine_arguments,
         arguments,
@@ -163,7 +164,7 @@ pub(crate) struct ProposalBindings {
     pub(crate) unresolved_const_parameters: bool,
     pub(crate) type_bindings: Vec<Option<TypeReferenceHandle>>,
     pub(crate) const_bindings: Vec<Option<TypeReferenceHandle>>,
-    pub(crate) runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
+    pub(crate) runtime_value_bindings: Vec<Option<crate::monomorphization::RuntimeValueBinding>>,
     pub(crate) machine_bindings: Vec<Option<StaticMachineArgument>>,
     pub(crate) evidence_bindings: Vec<Option<StaticMachineArgument>>,
     pub(crate) conflicted: bool,
@@ -278,9 +279,14 @@ pub(crate) fn proposal_bindings(
 /// declaration identities and exact retained expression meanings only.
 fn runtime_value_proposal_agrees(
     program: &dyn ::validation::CheckingInput,
-    subject: &StaticMachineArgument,
+    subject: &crate::monomorphization::RuntimeValueBinding,
     binding: TypeReferenceHandle,
 ) -> bool {
+    let crate::monomorphization::RuntimeValueBinding::Authored(subject) = subject else {
+        // The call's ordinary dependent-argument checks owe equality for every
+        // occurrence. A represented runtime descriptor is never a static key.
+        return true;
+    };
     if !binding.is_valid() {
         return false;
     }

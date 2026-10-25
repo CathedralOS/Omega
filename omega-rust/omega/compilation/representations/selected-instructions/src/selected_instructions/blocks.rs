@@ -14,8 +14,11 @@
 //! occupied roster, resolved every read through a span, and rebuilt the whole
 //! arena on `truncate` instead of dropping the tail.
 
-use super::plan_identity::selected_block_digest;
-use super::{SelectedBlock, SelectedInstructionId, VirtualRegisterId};
+use super::plan_identity::{CachedBlockEncoding, selected_block_digest_with_encoding};
+use super::{
+    SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedTerminator,
+    VirtualRegisterId,
+};
 use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
@@ -33,6 +36,8 @@ pub struct SelectedBlocks(Vec<Arc<BlockEntry>>);
 pub struct BlockEntry {
     block: SelectedBlock,
     digest: OnceLock<[u8; 32]>,
+    encoding: OnceLock<Arc<CachedBlockEncoding>>,
+    previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
     lookup: OnceLock<BlockLookup>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -86,6 +91,7 @@ struct BlockLookup {
     fixed_definitions: Vec<VirtualRegisterId>,
     maximum_instruction: SelectedInstructionId,
     operand_count: Option<usize>,
+    transport_count: Option<usize>,
     implicit_use_units: Vec<register_model::RegisterUnitId>,
     upward_unit_uses: Vec<register_model::RegisterUnitId>,
     unit_kills: Vec<register_model::RegisterUnitId>,
@@ -93,6 +99,7 @@ struct BlockLookup {
     fixed_views: Vec<register_model::RegisterViewId>,
     instructions_sorted: Vec<(SelectedInstructionId, usize)>,
     referenced_register_bits: Vec<u64>,
+    register_instruction_spans: Vec<(u32, u32)>,
     slot_summary: BlockSlotSummary,
 }
 impl BlockEntry {
@@ -100,13 +107,34 @@ impl BlockEntry {
         Arc::new(Self {
             block,
             digest: OnceLock::new(),
+            encoding: OnceLock::new(),
+            previous_encoding: None,
+            lookup: OnceLock::new(),
+        })
+    }
+    fn new_with_previous_encoding(
+        block: SelectedBlock,
+        previous_encoding: Option<(Arc<CachedBlockEncoding>, usize)>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            block,
+            digest: OnceLock::new(),
+            encoding: OnceLock::new(),
+            previous_encoding,
             lookup: OnceLock::new(),
         })
     }
     fn digest(&self) -> [u8; 32] {
-        *self
-            .digest
-            .get_or_init(|| selected_block_digest(&self.block))
+        *self.digest.get_or_init(|| {
+            let (digest, encoding) = selected_block_digest_with_encoding(
+                &self.block,
+                self.previous_encoding
+                    .as_ref()
+                    .map(|(enc, prefix)| (enc.as_ref(), *prefix)),
+            );
+            let _ = self.encoding.set(encoding);
+            digest
+        })
     }
     fn lookup(&self) -> &BlockLookup {
         self.lookup.get_or_init(|| {
@@ -119,6 +147,12 @@ impl BlockEntry {
             let mut instructions_sorted = Vec::with_capacity(self.block.instructions.len());
             let bitset_words = (self.block.instructions.len() / 16).max(4);
             let mut referenced_register_bits = Vec::with_capacity(bitset_words);
+            let record_spans = self.block.instructions.len() >= 64;
+            let mut register_instruction_spans: Vec<(u32, u32)> = if record_spans {
+                Vec::with_capacity(self.block.instructions.len())
+            } else {
+                Vec::new()
+            };
             let mut slot_summary = BlockSlotSummary {
                 events: Vec::new(),
                 loads: Vec::new(),
@@ -148,6 +182,19 @@ impl BlockEntry {
                 }
                 for operand in &instruction.operands {
                     set_register_bit(&mut referenced_register_bits, operand.virtual_register);
+                    if record_spans {
+                        let reg_idx = operand.virtual_register.0 as usize;
+                        if reg_idx >= register_instruction_spans.len() {
+                            register_instruction_spans.resize(reg_idx + 1, (u32::MAX, 0));
+                        }
+                        let idx_u32 = index as u32;
+                        let span = &mut register_instruction_spans[reg_idx];
+                        if span.0 == u32::MAX {
+                            *span = (idx_u32, idx_u32);
+                        } else {
+                            span.1 = idx_u32;
+                        }
+                    }
                     if let Some(view) = operand.fixed_view {
                         fixed_views.push(view);
                         if operand.access != register_model::RegisterOperandAccess::Use {
@@ -288,7 +335,23 @@ impl BlockEntry {
                     );
                 }
             }
+            let mut transport_count = Some(0usize);
             for successor in super::terminator_successors(&self.block.terminator) {
+                let edge_transports = successor
+                    .bindings
+                    .len()
+                    .checked_add(successor.structural_bindings.len())
+                    .and_then(|total| {
+                        total.checked_add(
+                            successor
+                                .structural_case
+                                .as_ref()
+                                .map_or(0, |case| case.payloads.len().saturating_add(1)),
+                        )
+                    });
+                transport_count = transport_count
+                    .zip(edge_transports)
+                    .and_then(|(total, edge)| total.checked_add(edge));
                 for binding in &successor.bindings {
                     if let super::SelectedValueTransport::Registers {
                         argument,
@@ -388,6 +451,7 @@ impl BlockEntry {
                 fixed_definitions,
                 maximum_instruction: maximum,
                 operand_count,
+                transport_count,
                 implicit_use_units,
                 upward_unit_uses,
                 unit_kills,
@@ -395,6 +459,7 @@ impl BlockEntry {
                 fixed_views,
                 instructions_sorted,
                 referenced_register_bits,
+                register_instruction_spans,
                 slot_summary,
             }
         })
@@ -417,6 +482,8 @@ impl fmt::Debug for BlockEntry {
 fn detach(entry: &mut Arc<BlockEntry>) -> &mut SelectedBlock {
     let entry = Arc::make_mut(entry);
     entry.digest.take();
+    entry.encoding.take();
+    entry.previous_encoding = None;
     entry.lookup.take();
     &mut entry.block
 }
@@ -445,6 +512,75 @@ impl SelectedBlocks {
         self.0.iter().try_fold(0usize, |total, entry| {
             total.checked_add(entry.lookup().operand_count?)
         })
+    }
+    /// Total edge-transport surface across all block terminators of this roster.
+    pub fn total_transport_count(&self) -> Option<usize> {
+        self.0.iter().try_fold(0usize, |total, entry| {
+            total.checked_add(entry.lookup().transport_count?)
+        })
+    }
+    /// Inclusive `(first_instruction_index, last_instruction_index)` in `block_index`'s
+    /// body instructions where `register` appears as an operand, or `None` when no
+    /// body instruction in `block_index` references `register`.
+    pub fn block_register_instruction_span(
+        &self,
+        block_index: usize,
+        register: VirtualRegisterId,
+    ) -> Option<(usize, usize)> {
+        let entry = self.0.get(block_index)?;
+        let len = entry.block.instructions.len();
+        if len == 0 {
+            return None;
+        }
+        let lookup = entry.lookup();
+        let word = (register.0 as usize) >> 6;
+        if !lookup
+            .referenced_register_bits
+            .get(word)
+            .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
+        {
+            return None;
+        }
+        if len >= 64 {
+            let &(first, last) = lookup
+                .register_instruction_spans
+                .get(register.0 as usize)?;
+            if first == u32::MAX {
+                None
+            } else {
+                Some((first as usize, last as usize))
+            }
+        } else {
+            Some((0, len - 1))
+        }
+    }
+    /// Replace `index`'s instructions and terminator without cloning the old
+    /// `SelectedBlock` when the entry is shared, optionally retaining the first
+    /// `unchanged_instruction_prefix` instructions' pre-encoded digest pages.
+    pub fn replace_block_contents(
+        &mut self,
+        index: usize,
+        instructions: Vec<SelectedInstruction>,
+        terminator: SelectedTerminator,
+        unchanged_instruction_prefix: usize,
+    ) {
+        let entry = &self.0[index];
+        let id = entry.block.id;
+        let origin = entry.block.origin;
+        let previous_encoding = entry
+            .encoding
+            .get()
+            .cloned()
+            .map(|enc| (enc, unchanged_instruction_prefix));
+        self.0[index] = BlockEntry::new_with_previous_encoding(
+            SelectedBlock {
+                id,
+                origin,
+                instructions,
+                terminator,
+            },
+            previous_encoding,
+        );
     }
     /// Block index containing the body instruction `instruction`, using each
     /// block's memoized instruction index.

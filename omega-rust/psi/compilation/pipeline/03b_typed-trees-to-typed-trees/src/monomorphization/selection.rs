@@ -45,6 +45,7 @@ pub(super) fn collect_call_proposals(
     caller_state: &typed_trees::state::State,
     candidates: &[Candidate],
     callee_states: &[CalleeState],
+    site: CallSite,
     target_symbol: SymbolHandle,
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
@@ -94,7 +95,11 @@ pub(super) fn collect_call_proposals(
         Some(&fixed_range_parameters),
         callee.candidate_index,
     );
-    for (argument, required) in arguments.iter().zip(callee.parameter_types.iter()) {
+    for (position, (argument, required)) in arguments
+        .iter()
+        .zip(callee.parameter_types.iter())
+        .enumerate()
+    {
         // Calls bind argument values, not the storage those values observe.
         // Place lookup strips a borrow to its referent and can infer T instead
         // of &T. The shared value query also covers declaration-backed leaves;
@@ -114,7 +119,31 @@ pub(super) fn collect_call_proposals(
         {
             continue;
         }
+        let first = inferred.constants.len();
         infer_static_bindings(context, *required, actual, &mut inferred);
+        let descriptors = program.data_application_value_fields(actual);
+        for &(_, binder, binding) in &inferred.constants[first..] {
+            if !candidate.template.value_const_parameters.contains(&binder)
+                || program
+                    .static_const_literal_from_type_reference(binding)
+                    .is_some()
+            {
+                continue;
+            }
+            if let Some((_, field, _)) = descriptors.iter().find(|(_, _, index)| *index == binding)
+            {
+                inferred.runtime_values.push((
+                    callee.candidate_index,
+                    binder,
+                    crate::monomorphization::RuntimeValueBinding::CapturedArgument {
+                        site,
+                        position: u32::try_from(position).expect("argument ordinal"),
+                        source: *argument,
+                        descriptor: field.symbol,
+                    },
+                ));
+            }
+        }
     }
     if let Some(actual) = expected_return {
         // Result context can fill an omitted endpoint, but cannot reselect a
@@ -153,6 +182,15 @@ pub(super) fn collect_call_proposals(
         }
     }
     proposals.constants.extend(inferred.constants);
+    for proposal in inferred.runtime_values {
+        if !proposals
+            .runtime_values
+            .iter()
+            .any(|explicit| explicit.0 == proposal.0 && explicit.1 == proposal.1)
+        {
+            proposals.runtime_values.push(proposal);
+        }
+    }
     ExplicitArgumentCapacity::WithinBounds
 }
 

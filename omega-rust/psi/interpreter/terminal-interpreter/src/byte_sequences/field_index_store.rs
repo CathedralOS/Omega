@@ -38,7 +38,7 @@ impl TerminalExecution<'_> {
                 scalar_type: count_type,
                 value: IntegerValue::Unsigned(u128::from(length)),
             },
-        );
+        )?;
         Ok(())
     }
 
@@ -92,7 +92,7 @@ impl TerminalExecution<'_> {
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
             return Err(malformed());
         }
-        bytes.replace_byte(byte_index, byte).ok_or_else(malformed)?;
+        bytes.replace_byte(byte_index, byte)?;
         self.invalidate_stored_provenance(&destination_field.parent);
         Ok(())
     }
@@ -142,7 +142,7 @@ impl TerminalExecution<'_> {
                 scalar_type: byte_type,
                 value: IntegerValue::Unsigned(u128::from(byte)),
             },
-        );
+        )?;
         Ok(())
     }
 }

@@ -13,6 +13,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
 use crate::execution::TerminalExecution;
+use crate::runtime_rows::RuntimeRows;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::PlaceId;
@@ -120,7 +121,7 @@ pub(crate) struct ReferenceByteRegion {
 /// Disposition ends carrier custody, never the captured primitive backing.
 /// Ownership transfers deliberately keep using ordinary map removal instead.
 pub(crate) fn discard_structural_value(
-    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     referents: &mut BTreeMap<StructuralRuntimePlace, ReferenceReferent>,
     element_views: &mut BTreeMap<StructuralRuntimePlace, crate::element_views::ElementView>,
     place: PlaceId,
@@ -342,7 +343,7 @@ impl TerminalExecution<'_> {
                 referent_type,
                 &argument,
                 identity_cursor,
-                &mut BTreeMap::new(),
+                &mut RuntimeRows::new(self.account.as_ref()),
             )?
         } else {
             None
@@ -386,7 +387,7 @@ impl TerminalExecution<'_> {
                     &parameter,
                     source,
                     identity_cursor,
-                    &mut BTreeMap::new(),
+                    &mut RuntimeRows::new(self.account.as_ref()),
                 )?
                 .ok_or_else(malformed)?,
             )
@@ -840,7 +841,7 @@ impl TerminalExecution<'_> {
         carrier.projected_qualifications = prepared.projected_qualifications;
         self.reference_referents
             .insert(StructuralRuntimePlace::from(&carrier), prepared.referent);
-        self.structural_values.insert(result.place, carrier);
+        self.structural_values.insert(result.place, carrier)?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: result.place,
             path: Vec::new(),
@@ -1702,7 +1703,7 @@ impl TerminalExecution<'_> {
         &self,
         parameters: &[StructuralParameterDeclaration],
         signature: &StructuralResultDeclaration,
-        arguments: &BTreeMap<PlaceId, TerminalStructuralValue>,
+        arguments: &RuntimeRows<PlaceId, TerminalStructuralValue>,
         aggregate_backings: &BTreeMap<PlaceId, AggregateBacking>,
         primitive_loans: &BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
         array_loans: &BTreeMap<PlaceId, crate::element_views::ElementView>,

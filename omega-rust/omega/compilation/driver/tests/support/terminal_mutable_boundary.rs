@@ -107,14 +107,15 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     );
     let mut observations = Vec::new();
     let mut instance = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: std::slice::from_ref(&original),
                 zero_initialized_arguments: &[0],
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .unwrap();
     let imports = instance.unbound_imports().collect::<Vec<_>>();
     assert_eq!(imports.len(), 1);
@@ -177,14 +178,15 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
     foreign.opaque_identity += 1;
     let mut observations = Vec::new();
     let mut instance = program
-        .instantiate(
-            &[],
-            TerminalStructuralInputs {
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: TerminalStructuralInputs {
                 arguments: std::slice::from_ref(&foreign),
                 zero_initialized_arguments: &[0],
                 ..Default::default()
             },
-        )
+            ..Default::default()
+        })
         .unwrap();
     instance
         .bind_import(

@@ -167,7 +167,7 @@ impl Builder<'_, '_> {
             let alias = if dispatch.capture.is_valid() {
                 self.program
                     .expression_table
-                    .match_subject(dispatch.capture)
+                    .value_capture(dispatch.capture)
                     .value_anchor
             } else {
                 ExpressionHandle::invalid()

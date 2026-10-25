@@ -90,7 +90,7 @@ impl TerminalExecution<'_> {
             }
         };
         self.values
-            .insert(result.id, TerminalScalarValue::IeeeFloat(adapted));
+            .insert(result.id, TerminalScalarValue::IeeeFloat(adapted))?;
         Ok(OperationFlow::Advance)
     }
 }

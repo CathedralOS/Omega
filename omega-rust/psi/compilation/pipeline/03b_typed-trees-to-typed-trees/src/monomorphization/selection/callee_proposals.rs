@@ -172,7 +172,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 proposals.runtime_values.push((
                     callee.candidate_index,
                     const_index,
-                    subject_argument,
+                    crate::monomorphization::RuntimeValueBinding::Authored(subject_argument),
                 ));
                 const_index += 1;
                 continue;
@@ -181,7 +181,7 @@ pub(crate) fn collect_machine_proposals_for_callee(
                 proposals.runtime_values.push((
                     callee.candidate_index,
                     const_index,
-                    selected.clone(),
+                    crate::monomorphization::RuntimeValueBinding::Authored(selected.clone()),
                 ));
                 const_index += 1;
                 continue;

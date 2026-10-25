@@ -11,14 +11,16 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::record::storage::{ConstructorStorage, ConstructorValue};
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{StructuralFieldNamespace, StructuralScalarRuntimeField};
-use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
 use std::collections::BTreeMap;
 use terminal_psi::{
@@ -52,27 +54,27 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        let value = TerminalScalarCaseValue {
+        let value = TerminalScalarAggregateValue {
             structural_type: result.structural_type,
-            result_case,
+            result_case: Some(result_case),
             fields: fields
                 .iter()
                 .map(|binding| Ok((binding.field, self.scalar_value(binding.value)?)))
                 .collect::<Result<Vec<_>, TerminalInterpretError>>()?,
         };
-        self.publish_scalar_case(result, value)?;
+        self.publish_scalar_aggregate(result, value)?;
         Ok(OperationFlow::Advance)
     }
 
-    /// Import semantic scalar-case contents into the same placed storage as
-    /// every other constructed sum. The external payload supplies no identity,
+    /// Import scalar aggregate contents into ordinary placed record/sum storage.
+    /// The external payload supplies no identity,
     /// so publication allocates one home only after validating all contents.
-    pub(crate) fn publish_scalar_case(
+    pub(crate) fn publish_scalar_aggregate(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
-        case: TerminalScalarCaseValue,
+        aggregate: TerminalScalarAggregateValue,
     ) -> Result<(), TerminalInterpretError> {
-        if case.structural_type != result.structural_type
+        if aggregate.structural_type != result.structural_type
             || self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
             || !result.projected_qualifications.is_empty()
@@ -84,7 +86,7 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
-        case.validate_against(
+        aggregate.validate_against(
             self.program
                 .structural_types()
                 .get(&result.structural_type)
@@ -97,17 +99,23 @@ impl TerminalExecution<'_> {
         );
         let root = StructuralRuntimePlace::from(&value);
         let mut storage = ConstructorStorage::default();
-        storage.stage_case(root.clone(), case.structural_type, case.result_case);
-        for (field, scalar) in case.fields {
+        if let Some(selected) = aggregate.result_case {
+            storage.stage_case(root.clone(), aggregate.structural_type, selected);
+        }
+        for (field, scalar) in aggregate.fields {
             storage.stage_scalar_endpoint(
                 &crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(
-                    StructuralScalarRuntimeField::case_payload(root.clone(), field),
+                    if aggregate.result_case.is_some() {
+                        StructuralScalarRuntimeField::case_payload(root.clone(), field)
+                    } else {
+                        StructuralScalarRuntimeField::member(root.clone(), field)
+                    },
                 ),
                 scalar,
             )?;
         }
         storage.publish(self)?;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         self.track_affine_result(result);
         Ok(())
     }
@@ -293,7 +301,7 @@ impl TerminalExecution<'_> {
         self.commit_constructor_operands(frontier, &consumed, claims)?;
         self.structural_scalar_fields.extend(staged_scalars);
         storage.publish(self)?;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 
@@ -358,7 +366,9 @@ impl TerminalExecution<'_> {
                 .byte_sequence_values
                 .insert(
                     destination,
-                    ByteSequenceBinding::Immutable(ByteSequenceView::new(bytes.clone())),
+                    ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                        ByteSequenceStorage::copy(bytes, self.account.as_ref())?,
+                    )),
                 )
                 .is_some()
             {
@@ -373,7 +383,7 @@ impl TerminalExecution<'_> {
                     projected_qualifications: Vec::new(),
                     path: Vec::new(),
                 },
-            );
+            )?;
         }
         Ok(OperationFlow::Advance)
     }
@@ -420,7 +430,7 @@ impl TerminalExecution<'_> {
             path: Vec::new(),
         };
         self.materialize_zeroed_structural_storage(&value)?;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         // Zeroing establishes payload; it does not discharge the nominal
         // owner's affine debt. The verified continuation still disposes it.
         self.track_affine_result(result);
@@ -506,7 +516,9 @@ impl TerminalExecution<'_> {
                             namespace: StructuralFieldNamespace::for_carrier(leaf.path()),
                             field: *field,
                         },
-                        ByteSequenceBinding::Immutable(ByteSequenceView::new(Vec::new())),
+                        ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                            ByteSequenceStorage::zeroed(0, self.account.as_ref())?,
+                        )),
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
@@ -529,12 +541,17 @@ impl TerminalExecution<'_> {
                     // Storing these bytes as separate scalar cells would make
                     // writes through a borrowed byte view invisible to the owner.
                     let length = usize::try_from(*length).map_err(|_| malformed())?;
-                    self.structural_byte_storage
-                        .entry(StructuralRuntimePlace {
+                    if let std::collections::btree_map::Entry::Vacant(entry) =
+                        self.structural_byte_storage.entry(StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
                             path: storage_path(),
                         })
-                        .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
+                    {
+                        entry.insert(ByteSequenceView::new(ByteSequenceStorage::zeroed(
+                            length,
+                            self.account.as_ref(),
+                        )?));
+                    }
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. } => {
                     self.structural_primitive_storage.insert(
@@ -604,7 +621,7 @@ impl TerminalExecution<'_> {
                 projected_qualifications: Vec::new(),
                 path: Vec::new(),
             },
-        );
+        )?;
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
@@ -641,7 +658,7 @@ impl TerminalExecution<'_> {
                 projected_qualifications: Vec::new(),
                 path: Vec::new(),
             },
-        );
+        )?;
         self.live_affine_frontier.insert(StructuralAffineDiscard {
             place: destination,
             path: Vec::new(),
@@ -929,7 +946,7 @@ impl TerminalExecution<'_> {
         storage.publish(self)?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -1004,7 +1021,7 @@ impl TerminalExecution<'_> {
             path: Vec::new(),
         };
         self.relocate_subtree(&hole, &StructuralRuntimePlace::from(&moved))?;
-        self.structural_values.insert(result.place, moved);
+        self.structural_values.insert(result.place, moved)?;
         self.live_affine_frontier = frontier;
         self.live_claims = claims;
         Ok(OperationFlow::Advance)
@@ -1073,7 +1090,11 @@ impl TerminalExecution<'_> {
         // geometry and custody; actual writes still resolve the pinned frame.
         let mut identity_cursor = self.local_structural_identities.cursor();
         let (storage, _) = self
-            .array_storage_root_staged(destination, &mut identity_cursor, &mut BTreeMap::new())
+            .array_storage_root_staged(
+                destination,
+                &mut identity_cursor,
+                &mut RuntimeRows::new(self.account.as_ref()),
+            )
             .map_err(|error| failure("destination home", error))?;
         let selected = self
             .structural_window_hole(
@@ -1216,13 +1237,13 @@ impl TerminalExecution<'_> {
         }
         for (frame_index, place, repaired) in memberships {
             if frame_index == self.call_stack.len() {
-                self.structural_values.insert(place, repaired);
+                self.structural_values.insert(place, repaired)?;
             } else {
                 self.call_stack
                     .get_mut(frame_index)
                     .ok_or_else(malformed)?
                     .structural_values
-                    .insert(place, repaired);
+                    .insert(place, repaired)?;
             }
         }
         if !copies_storage {
@@ -1616,7 +1637,7 @@ impl TerminalExecution<'_> {
                     bytes.detached_descriptor(),
                 ),
             );
-            self.structural_values.insert(result.place, copied);
+            self.structural_values.insert(result.place, copied)?;
             return Ok(OperationFlow::Advance);
         }
         // A shared descriptor may carry affine disposal metadata even though
@@ -1726,7 +1747,7 @@ impl TerminalExecution<'_> {
                     false,
                 )?;
                 storage.publish(self)?;
-                self.structural_values.insert(result.place, copied);
+                self.structural_values.insert(result.place, copied)?;
                 self.local_structural_identities
                     .commit_cursor(identity_cursor);
                 return Ok(OperationFlow::Advance);
@@ -1932,7 +1953,7 @@ impl TerminalExecution<'_> {
             &StructuralRuntimePlace::from(&leaf),
             &StructuralRuntimePlace::from(&copied),
         )?;
-        self.structural_values.insert(result.place, copied);
+        self.structural_values.insert(result.place, copied)?;
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
@@ -2044,7 +2065,7 @@ impl TerminalExecution<'_> {
                 scalar,
             );
         }
-        self.structural_values.insert(result.place, copied);
+        self.structural_values.insert(result.place, copied)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -2315,7 +2336,7 @@ impl TerminalExecution<'_> {
                 scalar_type: byte_type,
                 value: IntegerValue::Unsigned(u128::from(byte)),
             },
-        );
+        )?;
         Ok(OperationFlow::Advance)
     }
 
@@ -2339,7 +2360,7 @@ impl TerminalExecution<'_> {
                     scalar_type: integer_type,
                     value: IntegerValue::Unsigned(bytes.len() as u128),
                 },
-            );
+            )?;
             return Ok(OperationFlow::Advance);
         }
         self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
@@ -2356,7 +2377,7 @@ impl TerminalExecution<'_> {
                 scalar_type: integer_type,
                 value: IntegerValue::Unsigned(u128::from(length)),
             },
-        );
+        )?;
         Ok(OperationFlow::Advance)
     }
 }

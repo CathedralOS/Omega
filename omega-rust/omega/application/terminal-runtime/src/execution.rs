@@ -329,7 +329,12 @@ pub fn execute_sliced(
     let arrival = entry::establish(&program, &installation, request.provisions)?;
     let inputs = arrival.inputs();
     let mut instance = program
-        .instantiate_installed(&[], inputs, &installation)
+        .instantiate(terminal_interpreter::TerminalInstantiation {
+            scalar_arguments: &[],
+            structural_inputs: inputs,
+            installation: Some(&installation),
+            ..Default::default()
+        })
         .map_err(TerminalRuntimeError::Artifact)?;
     let host = host_imports::HostContext::new(request.standard_input, request.clock);
     let component_slots = request

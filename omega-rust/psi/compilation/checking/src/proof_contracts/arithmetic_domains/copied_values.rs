@@ -245,12 +245,19 @@ impl CopiedIntegerValue {
         expression: ExpressionHandle,
         destination: &ordered_values::Operand,
     ) {
+        if self.ordered_relations.is_empty() {
+            return;
+        }
         // A constructor captures children in order. Later operands may change
         // an earlier child's source home; the end environment cannot stand in
         // for that earlier observation. Retain only independent inputs across
         // the complete evaluation frame, plus this completed destination.
-        let writes = crate::CallFrameResolver::new(program)
-            .and_then(|frames| frames.expression_may_write_paths(machine, expression));
+        let writes = if crate::machine_calls::calls::expression_has_calls(program, expression) {
+            crate::CallFrameResolver::new(program)
+                .and_then(|frames| frames.expression_may_write_paths(machine, expression))
+        } else {
+            Some(Vec::new())
+        };
         self.ordered_relations.retain(|relation| {
             ordered_values::survives_delivery(
                 program,

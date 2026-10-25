@@ -18,6 +18,7 @@
 
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
+use crate::runtime_rows::RuntimeRows;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::TerminalScalarValue;
@@ -28,7 +29,6 @@ use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::ValueId;
-use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 use terminal_psi::ElementViewRegion;
@@ -523,7 +523,7 @@ impl ElementView {
 
 fn count(
     operand: &ValueId,
-    values: &BTreeMap<ValueId, TerminalScalarValue>,
+    values: &RuntimeRows<ValueId, TerminalScalarValue>,
 ) -> Result<usize, TerminalInterpretError> {
     let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
     let TerminalScalarValue::Integer {
@@ -878,7 +878,7 @@ impl TerminalExecution<'_> {
                 );
             }
             self.structural_values
-                .insert(result.place, descriptor_value);
+                .insert(result.place, descriptor_value)?;
             if multiplicity == StructuralMultiplicity::Affine {
                 self.live_affine_frontier
                     .insert(terminal_psi::StructuralAffineDiscard {
@@ -920,7 +920,7 @@ impl TerminalExecution<'_> {
                     projected_qualifications: result.projected_qualifications.clone(),
                     path: Vec::new(),
                 },
-            );
+            )?;
             if multiplicity == StructuralMultiplicity::Affine {
                 self.live_affine_frontier
                     .insert(terminal_psi::StructuralAffineDiscard {
@@ -1037,7 +1037,7 @@ impl TerminalExecution<'_> {
                             let (root, _) = self.array_storage_root_staged(
                                 source.place,
                                 &mut cursor,
-                                &mut BTreeMap::new(),
+                                &mut RuntimeRows::new(self.account.as_ref()),
                             )?;
                             crate::custody::project_structural_value(
                                 &self.program.structural_types(),
@@ -1059,7 +1059,7 @@ impl TerminalExecution<'_> {
             }
         }
         self.structural_values
-            .insert(result.place, descriptor_value);
+            .insert(result.place, descriptor_value)?;
         if multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier
                 .insert(terminal_psi::StructuralAffineDiscard {
@@ -1386,7 +1386,7 @@ impl TerminalExecution<'_> {
                 scalar_type: integer_type,
                 value: IntegerValue::Unsigned(u128::try_from(length).map_err(|_| malformed())?),
             },
-        );
+        )?;
         Ok(OperationFlow::Advance)
     }
 
@@ -1445,7 +1445,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let element = self.read_element_view_scalar(view, index, path, result.scalar_type)?;
-        self.values.insert(result.id, element);
+        self.values.insert(result.id, element)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -1555,7 +1555,7 @@ impl TerminalExecution<'_> {
         self.local_structural_identities
             .commit_cursor(identity_cursor);
         self.element_view_values.insert(result.place, window);
-        self.structural_values.insert(result.place, destination);
+        self.structural_values.insert(result.place, destination)?;
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier
                 .insert(terminal_psi::StructuralAffineDiscard {

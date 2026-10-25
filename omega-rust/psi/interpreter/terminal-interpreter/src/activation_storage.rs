@@ -1,12 +1,14 @@
 //! Claim authority is frame-local; descriptor storage identity is execution-wide.
 //! A move changes the descriptor's home, never its private byte owner or ledger.
 
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::byte_sequences::{
     ByteSequenceView,
     binding::{ByteOwnerHome, ByteSequenceBinding},
 };
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
+use crate::runtime_rows::RuntimeRows;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use extents::{
     ActivationClaimBranch, ActivationClaimId, ActivationClaimLedger, ActivationClaimRequest,
@@ -115,11 +117,10 @@ impl TerminalExecution<'_> {
                 Vec::new(),
             );
             let home = StructuralRuntimePlace::from(&owner);
-            let mut bytes = Vec::new();
-            bytes
-                .try_reserve_exact(usize::try_from(bound).map_err(|_| malformed())?)
-                .map_err(|_| malformed())?;
-            bytes.resize(usize::try_from(committed).map_err(|_| malformed())?, 0);
+            let bytes = ByteSequenceStorage::zeroed(
+                usize::try_from(committed).map_err(|_| malformed())?,
+                self.account.as_ref(),
+            )?;
             self.structural_byte_storage
                 .insert(home.clone(), ByteSequenceView::new(bytes));
             self.activation_storage
@@ -167,7 +168,7 @@ impl TerminalExecution<'_> {
             })
         })?;
         self.live_affine_frontier = frontier;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -250,7 +251,7 @@ impl TerminalExecution<'_> {
             .collect::<std::collections::BTreeSet<_>>();
         let frame_has_loan =
             |bindings: &BTreeMap<semantic_vocabulary::PlaceId, ByteSequenceBinding>,
-             values: &BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
+             values: &RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
              honor_retired: bool|
              -> Result<bool, TerminalInterpretError> {
                 for (place, binding) in bindings {
@@ -631,7 +632,7 @@ impl TerminalExecution<'_> {
             (current.place == result.place && current.path.is_empty()).then_some(case)
         })?;
         self.live_affine_frontier = frontier;
-        self.structural_values.insert(result.place, value);
+        self.structural_values.insert(result.place, value)?;
         Ok(OperationFlow::Advance)
     }
 }

@@ -4,6 +4,7 @@
 
 use super::contents::{self, StorageLeafKind, TerminalStorageContents};
 use super::{StructuralLoanBinding, TerminalBoundaryStructuralBuffer};
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::record::storage::ConstructorStorage;
@@ -195,33 +196,36 @@ pub(super) fn stage(
                     destination,
                     length,
                 } => {
-                    let bytes = (0..*length)
-                        .map(|element_index| {
-                            let mut path = leaf.path.clone();
-                            path.push(
-                                semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(
-                                    element_index,
-                                ),
-                            );
-                            let position = buffer
-                                .values
-                                .binary_search_by(|value| value.path.cmp(&path))
-                                .map_err(|_| malformed())?;
-                            let value = &buffer.values[position];
-                            let TerminalStorageContents::Scalar {
-                                value:
-                                    crate::values::TerminalScalarValue::Integer {
-                                        value: semantic_vocabulary::IntegerValue::Unsigned(byte),
-                                        ..
-                                    },
-                                ..
-                            } = value.contents
-                            else {
-                                return Err(malformed());
-                            };
-                            u8::try_from(byte).map_err(|_| malformed())
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                    let values = (0..*length).map(|element_index| {
+                        let mut path = leaf.path.clone();
+                        path.push(
+                            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(
+                                element_index,
+                            ),
+                        );
+                        let position = buffer
+                            .values
+                            .binary_search_by(|value| value.path.cmp(&path))
+                            .map_err(|_| malformed())?;
+                        let value = &buffer.values[position];
+                        let TerminalStorageContents::Scalar {
+                            value:
+                                crate::values::TerminalScalarValue::Integer {
+                                    value: semantic_vocabulary::IntegerValue::Unsigned(byte),
+                                    ..
+                                },
+                            ..
+                        } = value.contents
+                        else {
+                            return Err(malformed());
+                        };
+                        u8::try_from(byte).map_err(|_| malformed())
+                    });
+                    let bytes = ByteSequenceStorage::from_values(
+                        usize::try_from(*length).map_err(|_| malformed())?,
+                        values,
+                        execution.account.as_ref(),
+                    )?;
                     staged.stage_byte_array(destination.clone(), bytes);
                 }
                 _ => {}

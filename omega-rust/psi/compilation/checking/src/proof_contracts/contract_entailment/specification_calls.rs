@@ -1213,14 +1213,20 @@ fn applicable_requirements_of<'program>(
         .collect()
 }
 
-/// Bind static values in the selected owner's exact telescope. Erased
-/// implementation operands supply no value fact; concrete specialization and
-/// open modular checking use the same resolved symbol correspondence.
-pub(super) fn call_static_value_substitution(
+/// The same authenticated application supplies closed and runtime values.
+/// Runtime values come from the completed-operand owner, never source replay.
+#[derive(Clone, Copy)]
+pub(super) enum RuntimeScalarSubject {
+    Symbol(SymbolHandle),
+    Expression(ExpressionHandle),
+}
+
+pub(super) fn call_scalar_substitution(
     program: &dyn crate::CheckingInput,
     caller: SymbolHandle,
     owner: &SelectedCallContract<'_>,
     site: crate::CallSite<'_>,
+    mut observed: impl FnMut(RuntimeScalarSubject) -> Option<StructuralTerm>,
 ) -> Option<Vec<(typed_trees::signature::StateParameter, StructuralTerm)>> {
     let applied = AppliedProofBindings::for_call_site(program, caller, owner, site)?;
     let parameters = match owner {
@@ -1231,11 +1237,22 @@ pub(super) fn call_static_value_substitution(
             program.state_signature_type_parameters(signature)
         }
     };
+    let values = applied
+        .constants
+        .iter()
+        .map(|binding| Some((binding.symbol, binding.value_term()?)))
+        .chain(
+            applied
+                .runtime_parameters
+                .iter()
+                .map(|binding| Some((binding.symbol, observed(binding.observation_subject()?)?))),
+        )
+        .collect::<Option<Vec<_>>>()?;
     let mut result = Vec::new();
-    for binding in &applied.constants {
+    for (symbol, value) in values {
         let parameter = parameters
             .iter()
-            .find(|parameter| parameter.symbol == binding.symbol)?;
+            .find(|parameter| parameter.symbol == symbol)?;
         let (typed_trees::data::TypeParameterKind::Const { type_reference }
         | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
         else {
@@ -1243,14 +1260,10 @@ pub(super) fn call_static_value_substitution(
         };
         result.push((
             typed_trees::signature::StateParameter {
-                symbol: parameter.symbol,
-                name: format!(
-                    "\0static_{}_{}",
-                    parameter.symbol.arena_index(),
-                    parameter.symbol.generation()
-                )
-                .as_str()
-                .into(),
+                symbol,
+                name: format!("\0static_{}_{}", symbol.arena_index(), symbol.generation())
+                    .as_str()
+                    .into(),
                 type_reference: applied.project_type(program, type_reference),
                 is_const: matches!(
                     parameter.kind,
@@ -1258,7 +1271,7 @@ pub(super) fn call_static_value_substitution(
                 ),
                 ..Default::default()
             },
-            binding.value_term()?,
+            value,
         ));
     }
     Some(result)

@@ -148,7 +148,11 @@ mod linux {
     fn exchange(artifact: &CanonicalTerminalArtifact, expected: &[u32]) {
         let program = TerminalProgram::borrow(artifact.view());
         let mut instance = program
-            .instantiate(&[], TerminalStructuralInputs::default())
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs::default(),
+                ..Default::default()
+            })
             .unwrap();
         let values = Arc::new(Mutex::new(Values::default()));
         for boundary in instance.unbound_imports().collect::<Vec<_>>() {
@@ -212,13 +216,14 @@ mod linux {
         let argument =
             TerminalStructuralValue::minted(90001, parameter.structural_type, Vec::new());
         let mut instance = program
-            .instantiate(
-                &[],
-                TerminalStructuralInputs {
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs {
                     arguments: std::slice::from_ref(&argument),
                     ..Default::default()
                 },
-            )
+                ..Default::default()
+            })
             .unwrap();
         let status = instance
             .invoke(&mut TerminalFuelMeter::unbounded())
@@ -263,14 +268,15 @@ mod linux {
             },
         }];
         let mut instance = program
-            .instantiate(
-                &[],
-                TerminalStructuralInputs {
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                scalar_arguments: &[],
+                structural_inputs: TerminalStructuralInputs {
                     arguments: std::slice::from_ref(&argument),
                     scalar_fields: &scalar_fields,
                     ..Default::default()
                 },
-            )
+                ..Default::default()
+            })
             .unwrap();
         let TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(returned)) =
             instance

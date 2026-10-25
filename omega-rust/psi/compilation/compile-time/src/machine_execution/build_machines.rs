@@ -226,7 +226,11 @@ impl PreparedBuildMachineProgram {
                 })?;
                 let program = terminal_interpreter::TerminalProgram::borrow(artifact.artifact().view());
                 let mut instance = program
-                    .instantiate(&[], Default::default())
+                    .instantiate(terminal_interpreter::TerminalInstantiation {
+                        scalar_arguments: &[],
+                        structural_inputs: Default::default(),
+                        ..Default::default()
+                    })
                     .map_err(|error| error.to_string())?;
                 numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
                 // The accounting owner supplies the finite Terminal semantic meter.

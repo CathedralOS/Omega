@@ -7,6 +7,7 @@
 
 mod borrowed_storage;
 mod descriptor_io;
+mod integer_division;
 mod integer_parsing;
 mod network_address;
 mod processor_flags;
@@ -21,6 +22,7 @@ pub use borrowed_storage::{
 pub use descriptor_io::{
     DescriptorAbi, DescriptorOperation, descriptor_import, descriptor_system_call,
 };
+pub use integer_division::{HostIntegerDivision, host_integer_division};
 pub use integer_parsing::parse_host_long;
 pub use network_address::HostInternetAddress;
 pub use processor_flags::capture_host_x86_flags;

@@ -25,7 +25,7 @@ pub(crate) use evidence_rewrites::collect_evidence_requirement_closure;
 pub(crate) use evidence_rewrites::{evidence_argument_rewrites, rewrite_index_algebra};
 pub(crate) use machine_arguments::forwarded_static_argument_rewrites;
 pub(crate) use type_parameter_substitution::{
-    cloned_expression_roots, rebind_state_scoped_range_endpoints,
+    cloned_expression_roots, rebind_state_value_parameters,
     reject_runtime_bound_static_occurrences, substitute_cloned_type_parameters,
 };
 
@@ -56,7 +56,7 @@ pub(super) fn rewrite_selected_call(
 pub(super) fn runtime_value_operands(
     program: &mut TypedTrees,
     state_symbol: SymbolHandle,
-    machine_arguments: &[StaticMachineArgument],
+    machine_arguments: &[super::RuntimeValueBinding],
 ) -> Vec<ExpressionHandle> {
     let plans = {
         let Some(state) = state_by_symbol(program, state_symbol) else {
@@ -64,7 +64,30 @@ pub(super) fn runtime_value_operands(
         };
         machine_arguments
             .iter()
-            .filter_map(|argument| plan_runtime_operand(program, state, argument))
+            .filter_map(|argument| match argument {
+                super::RuntimeValueBinding::Authored(argument) => {
+                    plan_runtime_operand(program, state, argument)
+                }
+                super::RuntimeValueBinding::CapturedArgument {
+                    site,
+                    position,
+                    source,
+                    descriptor,
+                } => {
+                    if let Some(expression) =
+                        retained_capture_operand(program, *site, *position, *source, *descriptor)
+                    {
+                        Some(OperandPlan::Existing(expression))
+                    } else {
+                        Some(OperandPlan::Captured {
+                            site: *site,
+                            position: *position,
+                            source: *source,
+                            descriptor: *descriptor,
+                        })
+                    }
+                }
+            })
             .collect::<Vec<_>>()
     };
     plans
@@ -73,7 +96,81 @@ pub(super) fn runtime_value_operands(
         .collect()
 }
 
+/// The source edge and executable argument must name one capture occurrence.
+/// Repeated preparation reads the retained expression instead of inventing a
+/// new identity when the executable target becomes available.
+fn retained_capture_operand(
+    program: &TypedTrees,
+    site: super::CallSite,
+    position: u32,
+    source: ExpressionHandle,
+    descriptor: SymbolHandle,
+) -> Option<ExpressionHandle> {
+    use typed_trees::expression::ValueCaptureOwner;
+    let (application, owner) = match site {
+        super::CallSite::Expression(expression) => (
+            program
+                .expression_table
+                .call_node(expression)?
+                .authored_machine_application,
+            ValueCaptureOwner::ExpressionArgument {
+                call: expression,
+                position,
+            },
+        ),
+        super::CallSite::Statement(statement) => (
+            program
+                .statement_table
+                .statement(statement)
+                .as_call()?
+                .authored_machine_application,
+            ValueCaptureOwner::StatementArgument {
+                call: statement,
+                position,
+            },
+        ),
+    };
+    if !application.is_valid() {
+        return None;
+    }
+    program
+        .expression_table
+        .static_machine_application_bindings(application)
+        .iter()
+        .find_map(|binding| {
+            let typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue {
+                expression,
+                ..
+            } = binding.value
+            else {
+                return None;
+            };
+            if !expression.is_valid() {
+                return None;
+            }
+            let ExpressionNode::Member(member) = program.expression_table.expression(expression)
+            else {
+                return None;
+            };
+            let ExpressionNode::SavedSubject(saved) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            (member.member_symbol == descriptor
+                && program.saved_argument_source(member.receiver) == Some(source)
+                && program.expression_table.value_capture(saved.capture).owner == owner)
+                .then_some(expression)
+        })
+}
+
 enum OperandPlan {
+    Captured {
+        site: super::CallSite,
+        position: u32,
+        source: ExpressionHandle,
+        descriptor: SymbolHandle,
+    },
     Existing(ExpressionHandle),
     Name(typed_trees::name::Identifier, SymbolHandle),
     Field {
@@ -112,6 +209,40 @@ fn plan_runtime_operand(
 
 fn realize_operand(program: &mut TypedTrees, plan: OperandPlan) -> ExpressionHandle {
     match plan {
+        OperandPlan::Captured {
+            site,
+            position,
+            source,
+            descriptor,
+        } => {
+            use typed_trees::expression::{TableSavedSubject, ValueCaptureOwner};
+            let owner = match site {
+                super::CallSite::Expression(call) => {
+                    ValueCaptureOwner::ExpressionArgument { call, position }
+                }
+                super::CallSite::Statement(call) => {
+                    ValueCaptureOwner::StatementArgument { call, position }
+                }
+            };
+            let capture = program
+                .expression_table
+                .insert_call_operand_capture(source, owner);
+            let receiver = program
+                .expression_table
+                .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                    capture,
+                    pattern_head: ExpressionHandle::invalid(),
+                }));
+            let member = program.symbols.name(descriptor).into();
+            program
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member,
+                    member_symbol: descriptor,
+                    case_variant: None,
+                }))
+        }
         OperandPlan::Existing(expression) => expression,
         OperandPlan::Name(name, symbol) => {
             insert_subject_name(&mut program.expression_table, name, symbol)

@@ -47,7 +47,7 @@ pub const KEY_SCHEMA: u32 = 2;
 struct IdentityContext<'program> {
     program: &'program dyn validation::CheckingInput,
     unavailable: &'program std::cell::Cell<bool>,
-    captures: &'program [arena::Handle<typed_trees::expression::MatchSubjectCapture>],
+    captures: &'program [arena::Handle<typed_trees::expression::CompletedValueCapture>],
 }
 
 impl<'program> std::ops::Deref for IdentityContext<'program> {
@@ -615,11 +615,7 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::SavedSubject(saved) => {
-            if program
-                .expression_table
-                .saved_subject_source(saved)
-                .is_none()
-            {
+            if program.saved_value_source(saved).is_none() {
                 program.unavailable.set(true);
                 return "unbound-capture".to_owned();
             }
@@ -648,10 +644,10 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
             if node.capture.is_valid() {
                 if !program
                     .expression_table
-                    .contains_match_subject(node.capture)
+                    .contains_value_capture(node.capture)
                     || program
                         .expression_table
-                        .match_subject(node.capture)
+                        .value_capture(node.capture)
                         .definition
                         != expression
                     || captures.contains(&node.capture)

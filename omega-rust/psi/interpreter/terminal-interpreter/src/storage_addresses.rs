@@ -253,7 +253,7 @@ impl TerminalExecution<'_> {
                 scalar_type: integer,
                 value,
             },
-        );
+        )?;
         Ok(())
     }
 }

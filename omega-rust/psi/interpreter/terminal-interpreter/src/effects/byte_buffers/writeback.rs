@@ -5,6 +5,7 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::effects::TerminalEffectRejection;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -23,7 +24,7 @@ pub struct TerminalBoundaryByteBuffer {
     argument_index: usize,
     capacity: u64,
     scope: BoundaryByteWriteScope,
-    bytes: Vec<u8>,
+    bytes: ByteSequenceStorage,
 }
 
 impl TerminalBoundaryByteBuffer {
@@ -39,13 +40,13 @@ impl TerminalBoundaryByteBuffer {
     }
 
     pub fn bytes(&self) -> &[u8] {
-        &self.bytes
+        self.bytes.bytes()
     }
 
     /// Write existing initialized bytes without changing the loan's extent.
     /// This is private staged storage, not a pointer into interpreter backing.
     pub fn bytes_mut(&mut self) -> &mut [u8] {
-        &mut self.bytes
+        self.bytes.bytes_mut()
     }
 
     /// Replace a whole bounded owner's live sequence. Ordinary borrowed views
@@ -61,9 +62,9 @@ impl TerminalBoundaryByteBuffer {
                 "boundary byte replacement exceeds inline capacity",
             ));
         }
-        self.bytes.clear();
-        self.bytes.extend_from_slice(bytes);
-        Ok(())
+        self.bytes.replace(bytes).map_err(|reason| {
+            TerminalEffectRejection::new(format!("boundary byte storage: {reason:?}"))
+        })
     }
 }
 
@@ -95,15 +96,18 @@ impl BoundaryByteBufferBinding {
                 let start = usize::try_from(*offset).map_err(|_| malformed())?;
                 let end = usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
                     .map_err(|_| malformed())?;
-                let bytes = execution.stored_byte_array_snapshot(array, start, end)?;
-                (bytes.bytes().to_vec(), *length)
+                let source = execution.stored_byte_array_read_view(array, start, end)?;
+                let mut bytes =
+                    ByteSequenceStorage::zeroed(source.len(), execution.account.as_ref())?;
+                source.copy_to(bytes.bytes_mut())?;
+                (bytes, *length)
             }
             ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableOwner { .. } => {
                 source.validate_presented_referent(execution)?;
                 let (bytes, capacity) = execution.exclusive_owner_bytes(source)?;
                 let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
                 (
-                    bytes.bytes().to_vec(),
+                    ByteSequenceStorage::copy(bytes.bytes(), execution.account.as_ref())?,
                     if scope == BoundaryByteWriteScope::View {
                         length
                     } else {
@@ -137,9 +141,9 @@ impl BoundaryByteBufferBinding {
         if buffer.argument_index != self.argument_index
             || buffer.capacity != self.capacity
             || buffer.scope != self.scope
-            || buffer.bytes.len() as u128 > u128::from(self.capacity)
+            || buffer.bytes().len() as u128 > u128::from(self.capacity)
             || self.scope == BoundaryByteWriteScope::View
-                && buffer.bytes.len() as u128 != u128::from(self.capacity)
+                && buffer.bytes().len() as u128 != u128::from(self.capacity)
         {
             return Err(malformed());
         }
@@ -195,7 +199,7 @@ impl BoundaryByteBufferBinding {
         match self.source {
             ByteSequenceBinding::MutableArray { array, offset, .. } => {
                 let start = usize::try_from(offset).map_err(|_| malformed())?;
-                for (byte_offset, byte) in buffer.bytes.into_iter().enumerate() {
+                for (byte_offset, byte) in buffer.bytes().iter().copied().enumerate() {
                     execution.stored_byte_array_write(
                         &array,
                         start.checked_add(byte_offset).ok_or_else(malformed)?,
