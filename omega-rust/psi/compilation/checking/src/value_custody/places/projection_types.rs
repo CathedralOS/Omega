@@ -5,6 +5,7 @@ use super::canonical_projection::CanonicalPlace;
 use super::canonical_projection::canonical_place_from_expression_in_state;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
+use typed_trees::types::TypeReferenceHandle;
 
 /// The declared type an expression's value carries. The canonical place walk
 /// roots the expression at its storage — a symbol for names and their
@@ -473,7 +474,7 @@ pub fn canonical_place_source_type_application(
     typed_trees::types::TypeReferenceHandle,
     Vec<typed_trees::types::TypeReferenceHandle>,
 )> {
-    let mut reference = canonical_place_type_reference(
+    let reference = canonical_place_type_reference(
         program,
         state_symbol,
         statement_index,
@@ -482,8 +483,19 @@ pub fn canonical_place_source_type_application(
             segments: Vec::new(),
         },
     )?;
+    source_type_application_from_segments(program, reference, &place.segments)
+}
+
+/// Read a source declaration's supplying applications from an already resolved
+/// root type. State and abstract-parameter scopes share this projection owner;
+/// it grants no storage, lifetime or read authority.
+pub fn source_type_application_from_segments(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<(TypeReferenceHandle, Vec<TypeReferenceHandle>)> {
     let mut applications = Vec::new();
-    for segment in &place.segments {
+    for segment in segments {
         let (projected, frames) =
             program.project_enclosing_data_type_reference(reference, &applications)?;
         reference = projected;

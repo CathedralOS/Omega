@@ -470,6 +470,7 @@ mod member_paths;
 mod parameter_scoped;
 pub(crate) use parameter_scoped::has_retained_builtin_index_meaning;
 pub(crate) use parameter_scoped::parameter_scoped_type_reference;
+pub use parameter_scoped::parameter_source_type_application;
 mod projected_members;
 mod result_shape;
 pub use attached_storage::{
@@ -880,7 +881,8 @@ pub use projection_types::{
     canonical_place_type_reference, collection_element_type_reference,
     expression_type_reference_in_state, loan_carrier_has_owned_storage,
     observed_storage_type_references, owned_projection_type_reference,
-    project_type_reference_from_segments, unique_data_definition_by_symbol,
+    project_type_reference_from_segments, source_type_application_from_segments,
+    unique_data_definition_by_symbol,
 };
 pub mod receiver_projections;
 pub use receiver_projections::{

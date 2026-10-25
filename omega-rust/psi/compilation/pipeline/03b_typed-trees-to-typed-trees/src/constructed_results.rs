@@ -60,6 +60,46 @@ impl ValueTypeOwner {
         }
     }
 
+    /// Retain applications from this actual source's lexical root. Whole
+    /// computed values may have no enclosing application; an unresolved
+    /// projected prefix withholds inference rather than guessing a region.
+    fn source_applications(
+        self,
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<TypeReferenceHandle>> {
+        match self {
+            Self::State { state, .. } => {
+                let place = validation::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    usize::MAX,
+                    expression,
+                )?;
+                match validation::canonical_place_source_type_application(
+                    program,
+                    state,
+                    usize::MAX,
+                    &place,
+                ) {
+                    Some((_, applications)) => Some(applications),
+                    None if place.segments.is_empty() => Some(Vec::new()),
+                    None => None,
+                }
+            }
+            Self::Declaration {
+                callable,
+                parameters,
+            } => validation::parameter_source_type_application(
+                program,
+                callable,
+                program.state_parameters.span_or_empty(parameters),
+                expression,
+            )
+            .map(|(_, applications)| applications),
+        }
+    }
+
     fn result_type(
         self,
         program: &TypedTrees,
@@ -403,13 +443,22 @@ fn retain_constructor_result_type(
             actual,
             &mut inferred,
         );
+        // Static type/const proposals above do not need region inference.
+        // Empty telescopes and primitive scalar fields make no such demand.
+        if owner.lifetime_parameters.is_empty()
+            || program
+                .primitive_type_reference(required.type_reference)
+                .is_some()
+        {
+            continue;
+        }
+        let applications = scope.source_applications(program, field.value)?;
         crate::conformance::conformance_application_lifetimes::collect_declared_field_lifetime_bindings(
             program,
             owner,
             required,
-            machine,
-            state,
-            field.value,
+            scope.symbol(),
+            &applications,
             actual,
             &mut lifetime_bindings,
             &mut lifetime_conflict,

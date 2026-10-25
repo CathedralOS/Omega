@@ -618,16 +618,21 @@ pub(crate) fn collect_declared_field_lifetime_bindings(
     program: &TypedTrees,
     declaration: &typed_trees::data::DataDefinition,
     field: &typed_trees::data::DataField,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    source: ExpressionHandle,
+    caller: SymbolHandle,
+    applications: &[TypeReferenceHandle],
     actual: TypeReferenceHandle,
     bindings: &mut Vec<(String, String)>,
     conflict: &mut bool,
 ) -> Option<()> {
+    if !caller.is_valid() {
+        return None;
+    }
     let (owner, selected) = program.any_field_owner(field.symbol)?;
     if owner.symbol != declaration.symbol || selected.type_reference != field.type_reference {
         return None;
+    }
+    if declaration.lifetime_parameters.is_empty() {
+        return Some(());
     }
     let required_scope = if declaration.generic_instance.is_none() {
         RequiredLifetimeScope::DeclaredField(declaration.symbol)
@@ -635,20 +640,17 @@ pub(crate) fn collect_declared_field_lifetime_bindings(
         // An applied field is already an operand, not fresh schema vocabulary.
         RequiredLifetimeScope::Operand
     };
-    let applications = argument_scopes::source_application(program, state, source)
-        .map(|(_, applications)| applications)
-        .unwrap_or_default();
-    program.with_enclosing_data_identity_scopes(&applications, |frames| {
+    program.with_enclosing_data_identity_scopes(applications, |frames| {
         visit_lifetime_bindings_in_scope(
             program,
             field.type_reference,
             actual,
             &declaration.lifetime_parameters,
             argument_scopes::Scope {
-                owner: machine.symbol,
+                owner: caller,
                 frames,
             },
-            machine.symbol,
+            caller,
             required_scope,
             &mut |required, actual| {
                 if let Some(actual) = actual {
