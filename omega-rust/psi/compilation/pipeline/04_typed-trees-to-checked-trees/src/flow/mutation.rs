@@ -289,9 +289,9 @@ fn call_write_places(
                     .is_some()
         });
         if boundary_target {
-            // Boundary effects retain their exact receiver and argument footprint,
-            // including shared interior authority; a signature ceiling is not a
-            // replacement for that separately owned contract.
+            // Prefer the complete boundary receiver/argument footprint, including
+            // shared interior authority. An incomplete frame falls back to the
+            // separately retained declared authority ceiling below.
             return shared_call_storage_regions(
                 program,
                 caller_machine_symbol,

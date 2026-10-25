@@ -36,6 +36,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         provider: &TerminalProgram<'artifact>,
         provider_boundary: BoundaryMachineId,
         provider_entry: MachineId,
+        selected: &terminal_installation::AdmittedComponentProvider,
         completion_receipts: &[CompletionReceipt],
     ) -> Result<PreparedComponentArguments, TerminalInterpretError> {
         let reject = |reason| TerminalInterpretError::UnsupportedSemanticVariant(reason);
@@ -85,11 +86,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                         | StructuralMultiplicity::Unrestricted
                         | StructuralMultiplicity::Linear
                 )
-                || !required.qualifications.is_empty()
-                || !supplied.qualifications.is_empty()
                 || !required.projected_qualifications.is_empty()
                 || !supplied.projected_qualifications.is_empty()
-                || !value.qualifications.is_empty()
                 || !value.projected_qualifications.is_empty()
                 || receiver_type.owns_linear_claim
                     != (required.multiplicity == StructuralMultiplicity::Linear)
@@ -150,6 +148,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 ));
             }
             value.structural_type = supplied.structural_type;
+            selected
+                .present_input_memberships(&mut value.qualifications)
+                .map_err(reject)?;
+            value.qualifications.sort();
             if required.multiplicity == StructuralMultiplicity::Affine {
                 self.consume_affine_call_argument(&mut remaining_affine, argument)?;
             }

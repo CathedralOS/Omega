@@ -88,7 +88,6 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                         || execution.returned_claims.iter().any(|binding| {
                             !binding.path.is_empty() || !returned.claims.contains(&binding.claim)
                         })
-                        || !returned.value.qualifications.is_empty()
                         || !returned.value.projected_qualifications.is_empty()
                         || !returned.value.path.is_empty()
                         || (!declaration.owns_linear_claim && !declaration.no_code_affine_cleanup)

@@ -5,7 +5,7 @@
 //! Native ABI/representation admission and actual installed entry/era custody
 //! remain separate. In particular, this cannot make a host adapter a provider.
 
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
 use terminal_codec::TerminalArtifactView;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -23,6 +23,7 @@ pub struct AdmittedComponentProvider {
     provider_boundary: BoundaryMachineId,
     candidate: MachineId,
     selection: AdmittedProviderSelections,
+    memberships: crate::component_memberships::ComponentMemberships,
 }
 
 impl AdmittedComponentProvider {
@@ -43,6 +44,24 @@ impl AdmittedComponentProvider {
     }
     pub const fn selection(&self) -> &AdmittedProviderSelections {
         &self.selection
+    }
+
+    /// Rebind only memberships already present on the actual argument. Missing
+    /// receiving theories fail; the formal parameter is never an erasure grant.
+    pub fn present_input_memberships(
+        &self,
+        memberships: &mut [StructuralDomainId],
+    ) -> Result<(), &'static str> {
+        self.memberships.present(memberships, true)
+    }
+
+    /// Preserve actual completed evidence under the authenticated receiver's
+    /// local coordinates. This does not establish any membership.
+    pub fn present_result_memberships(
+        &self,
+        memberships: &mut [StructuralDomainId],
+    ) -> Result<(), &'static str> {
+        self.memberships.present(memberships, false)
     }
 }
 
@@ -95,6 +114,10 @@ pub fn admit_component_provider(
     }
     let selection = admit_provider_installation(provider, std::slice::from_ref(selected), &[])
         .map_err(|error| format!("component export provider admission: {error:?}"))?;
+    let memberships = crate::component_memberships::ComponentMemberships::join(
+        receiver.module(),
+        provider.module(),
+    )?;
     Ok(AdmittedComponentProvider {
         receiver: receiver.identity(),
         receiving_boundary,
@@ -102,5 +125,6 @@ pub fn admit_component_provider(
         provider_boundary: selected.boundary,
         candidate: selected.candidate,
         selection,
+        memberships,
     })
 }

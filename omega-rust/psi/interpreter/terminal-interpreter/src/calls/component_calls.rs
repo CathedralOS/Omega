@@ -62,6 +62,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 binding.provider_program(),
                 selected.provider_boundary(),
                 selected.candidate(),
+                selected,
                 completion_receipts,
             )?;
             binding
@@ -154,8 +155,6 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .ok_or_else(|| reject("component producer lost its result type".to_owned()))?;
                 if returned.value.structural_type != right.structural_type
                     || left.multiplicity != right.multiplicity
-                    || !left.qualifications.is_empty()
-                    || !right.qualifications.is_empty()
                     || !left.projected_qualifications.is_empty()
                     || !right.projected_qualifications.is_empty()
                     || receiver_type.owns_linear_claim
@@ -189,6 +188,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 // key; retain the same nonrecycled host token and exact payload.
                 let mut value = returned.value.clone();
                 value.structural_type = left.structural_type;
+                selected
+                    .present_result_memberships(&mut value.qualifications)
+                    .map_err(|reason| reject(reason.to_owned()))?;
+                value.qualifications.sort();
                 if let OperationResult::Structural(result) = &operation.result {
                     if self.structural_values.contains_key(&result.place)
                         || self
