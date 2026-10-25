@@ -34,6 +34,16 @@ pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
     encoded
 }
 
+/// Read the exact 40-byte five-counter row back in declaration order.
+pub(crate) fn decode_work_counters(encoded: &[u8]) -> Option<[u64; 5]> {
+    let row: [u8; 40] = encoded.try_into().ok()?;
+    let mut fields = [0; 5];
+    for (field, chunk) in fields.iter_mut().zip(row.chunks_exact(8)) {
+        *field = u64::from_le_bytes(chunk.try_into().expect("fixed counter width"));
+    }
+    Some(fields)
+}
+
 pub use post_terminal::{
     PostTerminalOptimizationSelectionProjection, PostTerminalOptimizationSelections,
 };

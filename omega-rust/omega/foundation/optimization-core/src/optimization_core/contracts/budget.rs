@@ -99,20 +99,13 @@ impl OptimizationWorkBudget {
     }
 
     pub fn decode(encoded: &[u8]) -> Result<Self, CoreContractDecodeError> {
-        if encoded.len() != 40 {
+        let Some(fields) = crate::optimization_core::decode_work_counters(encoded) else {
             return Err(CoreContractDecodeError::WrongLength {
                 expected: 40,
                 actual: encoded.len(),
             });
-        }
-        let value = |index: usize| {
-            u64::from_le_bytes(
-                encoded[index * 8..index * 8 + 8]
-                    .try_into()
-                    .expect("checked work-budget width"),
-            )
         };
-        Self::new(value(0), value(1), value(2), value(3), value(4))
+        Self::new(fields[0], fields[1], fields[2], fields[3], fields[4])
             .map_err(|_| CoreContractDecodeError::ZeroWorkBudget)
     }
 }
