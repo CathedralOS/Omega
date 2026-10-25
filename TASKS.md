@@ -654,7 +654,10 @@ defines the complete product bar.
     later operands mutate their source; retain the scalar, shared-reference and byte-view descriptor
     controls in [copied call argument snapshots](samples/cli/facts/copied_call_argument_snapshot/README.md),
     including captured backing exclusion after descriptor replacement, inline image-backed
-    sources and untouched sibling descriptors. Selected payload returns use ordinary
+    sources, computed image/input results with once-only content effects, named result
+    copies, retained local-array backing and untouched sibling descriptors.
+    Argument-driven descriptor replacement still needs its post-evaluation inventory.
+    Selected payload returns use ordinary
     expression continuations with captured backing across conditional arms and
     cyclic argument permutations; element origins retain logical window indices.
     Runtime-dispatched values still need their full construction schedule. Preserve

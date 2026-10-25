@@ -83,7 +83,7 @@ pub(super) fn call_origins(
                 && leaf.local_segments.is_empty()
                 && leaf.local_suffix.is_empty()
                 && origin.precision == FramePathPrecision::Exact
-                && origin.source.root.is_valid())
+                && (origin.source.root.is_valid() || origin.source.is_static()))
             .then_some(origin)
         })
         .collect()

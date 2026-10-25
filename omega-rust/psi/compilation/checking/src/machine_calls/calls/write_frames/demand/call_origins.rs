@@ -20,7 +20,6 @@ impl<'program> CallFrameResolver<'program> {
         crate::reference_shell(self.program, reference)?;
         let site = CallerWriteSite::Expression(expression);
         let (_, statement, _) = caller_statement_owner(self.program, machine, site)?;
-        let preceding_effect = self.prefix_may_change_origins(machine, statement, site);
         with_caller_origin_context(
             self.program,
             machine,
@@ -28,6 +27,8 @@ impl<'program> CallFrameResolver<'program> {
             site,
             &self.caches.state_write_shared_collections,
             |inference, prefix| {
+                let preceding_effect =
+                    self.prefix_may_change_origins(machine, statement, site, prefix);
                 self.capture_operand_origins(
                     machine,
                     inference,
@@ -94,10 +95,6 @@ impl<'program> CallFrameResolver<'program> {
         {
             return None;
         }
-        let preceding_effect = !matches!(
-            operator_use.occurrence,
-            checked_trees::CheckedOperatorOccurrence::Expression
-        ) || self.prefix_may_change_origins(machine, statement, site);
         with_caller_origin_context(
             self.program,
             machine,
@@ -105,6 +102,11 @@ impl<'program> CallFrameResolver<'program> {
             site,
             &self.caches.state_write_shared_collections,
             |inference, prefix| {
+                let preceding_effect = !matches!(
+                    operator_use.occurrence,
+                    checked_trees::CheckedOperatorOccurrence::Expression
+                ) || self
+                    .prefix_may_change_origins(machine, statement, site, prefix);
                 Some(CallWriteOrigins {
                     receiver: Some(Vec::new()),
                     arguments: self.capture_operand_origins(
@@ -210,10 +212,11 @@ impl<'program> CallFrameResolver<'program> {
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
                 // rediscover an evaluation order from rendered paths.
-                let nested_effect = self.prefix_may_change_origins(machine, statement, site);
+                let nested_effect =
+                    self.prefix_may_change_origins(machine, statement, site, prefix);
                 let preceding_effect = nested_effect
                     || (receiver_expression.is_valid()
-                        && self.operand_may_change_origins(machine, receiver_expression));
+                        && self.operand_may_change_origins(machine, receiver_expression, prefix));
                 if !callee_is_resolved
                     && (!receiver_members.is_empty() || receiver_expression.is_valid())
                 {
@@ -268,7 +271,7 @@ impl<'program> CallFrameResolver<'program> {
         let machine_symbols = self.machine_symbols(machine)?;
         let mut result = Vec::with_capacity(arguments.len());
         for (index, argument) in arguments.iter().enumerate() {
-            let changes_origins = self.operand_may_change_origins(machine, *argument);
+            let changes_origins = self.operand_may_change_origins(machine, *argument, prefix);
             let reference = argument_types.get(index).copied();
             let detached = reference.is_some_and(|reference| {
                 frames::type_is_caller_isolated_local(program, reference)
@@ -306,6 +309,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &'program Machine,
         statement: &typed_trees::statement::StatementNode,
         site: CallerWriteSite<'_>,
+        prefix: &CallOriginContext<'_>,
     ) -> bool {
         match site {
             CallerWriteSite::Expression(expression) => {
@@ -315,10 +319,10 @@ impl<'program> CallFrameResolver<'program> {
                     &roots,
                     expression,
                 )
-                .is_none_or(|prefix| {
-                    prefix
-                        .into_iter()
-                        .any(|expression| self.operand_may_change_origins(machine, expression))
+                .is_none_or(|preceding| {
+                    preceding.into_iter().any(|expression| {
+                        self.operand_may_change_origins(machine, expression, prefix)
+                    })
                 })
             }
             CallerWriteSite::Transition(_) => {
@@ -327,7 +331,7 @@ impl<'program> CallFrameResolver<'program> {
                 };
                 match transition.guard {
                     typed_trees::statement::TransitionGuardNode::When(condition) => {
-                        self.operand_may_change_origins(machine, condition)
+                        self.operand_may_change_origins(machine, condition, prefix)
                     }
                     _ => false,
                 }
@@ -340,11 +344,21 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
         expression: ExpressionHandle,
+        prefix: &CallOriginContext<'_>,
     ) -> bool {
-        !self
+        // Content writes retain reference identity when the complete frame is
+        // disjoint from every frozen descriptor/case slot. Access permission
+        // and pointee facts still follow their ordinary effect checks.
+        let writes = self
             .expression_write_frame(machine, expression)
-            .into_complete_paths()
-            .is_some_and(|paths| paths.is_empty())
+            .into_complete_paths();
+        frames::stored_origins::writes_may_replace_binding(
+            self.program,
+            prefix.stored,
+            prefix.aliases,
+            writes.as_deref(),
+            false,
+        )
     }
 
     fn statement_receiver_origins(
