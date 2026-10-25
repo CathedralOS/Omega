@@ -1,5 +1,8 @@
 # Landing on main
 
+The [GitHub merge queue pilot](ci/README.md) is isolated to `integration-pilot`.
+Its explicit branch/PR exception does not change this main publication contract.
+
 Ready worktrees join one FIFO queue shared across machines. The first ticket
 reserves final integration; its owner incorporates current main, checks locally,
 and publishes. Each promoted head has exactly **three minutes (180 seconds)**,

@@ -761,6 +761,10 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   bookkeeping, not a record. Land only finished work: every commit builds on
   its own, because main is bisected one commit at a time, and no commit says
   its own validation or review is still pending. `landing.py` refuses both.
+  The owner-authorized [GitHub queue pilot](tools/ci/README.md) may publish
+  `ci-pilot/*` branches and PRs targeting only `integration-pilot`. This is an
+  isolated experiment, not authorization to bypass main's landing path or
+  switch other agents before the queue's acceptance is demonstrated.
 - Before editing shared paths, check `python tools/claims.py status` and
   record a claim for your work ([tools/claims](tools/claims.md)) so other
   sessions can see it. Claims never grant or block work. If coordination is
