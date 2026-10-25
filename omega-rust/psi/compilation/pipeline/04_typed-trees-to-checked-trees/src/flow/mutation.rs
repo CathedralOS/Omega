@@ -300,6 +300,20 @@ fn call_write_places(
                 borrow_call,
                 call_frames,
             )
+            // An opaque descriptor frame is not an unbounded write grant.
+            // Its declared authority still supplies exact caller referents
+            // and separately anchored opaque content. If that ceiling itself
+            // cannot be represented, retain unknown rather than guessing empty.
+            .or_else(|| {
+                ceiling::signature_ceiling_regions(
+                    program,
+                    caller_machine_symbol,
+                    caller_state_symbol,
+                    Some(borrow),
+                    borrow_call,
+                    call_frames,
+                )
+            })
             .map(unattributed_writes);
         }
         // Flow invalidation is the invocation after its operands completed.
