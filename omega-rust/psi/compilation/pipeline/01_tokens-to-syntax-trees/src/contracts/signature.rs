@@ -1,6 +1,6 @@
 use crate::contracts::facts::parse_proof_facts_until;
 use crate::input::token_cursor::Input;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind};
 use tokens::{KeywordKind, PunctuationKind};
@@ -53,21 +53,17 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     allow_clauses_after_operational_separator: bool,
 ) -> Result<(SignatureClauses, Input<'tokens, 'source>), crate::diagnostics::parse_error::ParseError>
 {
-    let mut service_start = Handle::invalid();
-    let mut service_count = 0u32;
+    let mut service_reaches = crate::handle_spans::HandleSpanBuilder::new();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
-    let mut invokes_start = Handle::invalid();
-    let mut invokes_count = 0u32;
+    let mut invokes = crate::handle_spans::HandleSpanBuilder::new();
     let mut suspends_keyword_source_spans = Vec::new();
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
-    let mut contract_start = Handle::invalid();
-    let mut contract_count = 0u32;
+    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
     let mut terminates_guarantee = false;
-    let mut where_fact_start = Handle::invalid();
-    let mut where_fact_count = 0u32;
+    let mut where_facts = crate::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
@@ -86,7 +82,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             {
                 break;
             }
-            if where_fact_count != 0 {
+            if where_facts.count() != 0 {
                 return Err(input.error_here(
                     "a signature accepts one `where` clause; combine its facts in the \
                      authored clause (a finite family is one explicit disjunction, not \
@@ -96,8 +92,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             input = input.take_contextual("where")?;
             let ((facts, _token_count), rest) =
                 parse_proof_facts_until(syntax_trees, input, signature_clause_boundary)?;
-            where_fact_start = facts.start();
-            where_fact_count = facts.count();
+            where_facts.push_span(facts);
             input = rest;
             continue;
         }
@@ -116,10 +111,8 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 input,
                 syntax_trees,
                 &mut service_reach_keyword_source_spans,
-                &mut service_start,
-                &mut service_count,
+                &mut service_reaches,
                 &mut service_reach_is_installation_bound,
-                "trait machine service span count overflow",
                 signature_clause_boundary,
             )?;
             continue;
@@ -129,12 +122,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
             let handle = syntax_trees.items.append_identifier_path_member(binding);
-            if invokes_count == 0 {
-                invokes_start = handle;
-            }
-            invokes_count = invokes_count
-                .checked_add(1)
-                .expect("trait machine invocation span count overflow");
+            invokes.push(handle);
             input = take_invokes_signature_clause(
                 after_binding,
                 allow_clauses_after_operational_separator,
@@ -188,9 +176,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                         .checked_add(header_token_count)
                         .expect("crash contract token count overflow"),
                 },
-                &mut contract_start,
-                &mut contract_count,
-                "trait machine contract span count overflow",
+                &mut contracts,
             );
             input = rest;
             continue;
@@ -222,9 +208,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                     facts,
                     token_count,
                 },
-                &mut contract_start,
-                &mut contract_count,
-                "trait machine contract span count overflow",
+                &mut contracts,
             );
             input = rest;
             continue;
@@ -254,23 +238,19 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
         input = rest;
     }
 
-    let service_reaches = HandleSpan::from_parts_or_empty(service_start, service_count);
-    let invokes = HandleSpan::from_parts_or_empty(invokes_start, invokes_count);
-    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
-    let where_facts = HandleSpan::from_parts_or_empty(where_fact_start, where_fact_count);
     Ok((
         SignatureClauses {
-            service_reaches,
+            service_reaches: service_reaches.finish(),
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            invokes,
+            invokes: invokes.finish(),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts,
+            contracts: contracts.finish(),
             terminates_guarantee,
-            where_facts,
+            where_facts: where_facts.finish(),
         },
         input,
     ))

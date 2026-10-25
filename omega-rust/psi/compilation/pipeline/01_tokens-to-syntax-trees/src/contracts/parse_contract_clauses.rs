@@ -3,7 +3,7 @@ use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals_or_membership,
 };
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
@@ -52,16 +52,13 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut ranking_range = syntax_trees::expression::ExpressionHandle::invalid();
     let mut service_reach_keyword_source_spans = Vec::new();
     let mut service_reach_is_installation_bound = false;
-    let mut service_start = Handle::invalid();
-    let mut service_count = 0u32;
-    let mut invokes_start = Handle::invalid();
-    let mut invokes_count = 0u32;
+    let mut service_reaches = crate::handle_spans::HandleSpanBuilder::new();
+    let mut invokes = crate::handle_spans::HandleSpanBuilder::new();
     let mut suspends_keyword_source_spans = Vec::new();
     let mut blocks_keyword_source_spans = Vec::new();
     let mut suspends = false;
     let mut blocks = false;
-    let mut contract_start = Handle::invalid();
-    let mut contract_count = 0u32;
+    let mut contracts = crate::handle_spans::HandleSpanBuilder::new();
     let mut outcome_case_groups = Vec::<String>::new();
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
@@ -137,10 +134,8 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 input,
                 syntax_trees,
                 &mut service_reach_keyword_source_spans,
-                &mut service_start,
-                &mut service_count,
+                &mut service_reaches,
                 &mut service_reach_is_installation_bound,
-                "machine service span count overflow",
                 machine_reaches_clause_boundary,
             )?;
             continue;
@@ -150,12 +145,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             input = input.take_contextual("invokes")?;
             let (binding, after_binding) = input.take_identifier()?;
             let handle = syntax_trees.items.append_identifier_path_member(binding);
-            if invokes_count == 0 {
-                invokes_start = handle;
-            }
-            invokes_count = invokes_count
-                .checked_add(1)
-                .expect("machine invocation span count overflow");
+            invokes.push(handle);
             input = take_invokes_clause_terminator(after_binding)?;
             continue;
         }
@@ -232,9 +222,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                         .checked_add(header_token_count)
                         .expect("crash contract token count overflow"),
                 },
-                &mut contract_start,
-                &mut contract_count,
-                "machine contract span count overflow",
+                &mut contracts,
             );
             input = rest;
             continue;
@@ -258,7 +246,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             if matches!(kind, CapabilityContractKind::Ensures)
                 && outcome_case_path_followed_by_arrow(input)?
             {
-                let ((contracts, group_name), rest) =
+                let ((group_contracts, group_name), rest) =
                     parse_outcome_specific_ensures_group(syntax_trees, input, keyword_source_span)?;
                 if outcome_case_groups
                     .iter()
@@ -269,7 +257,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     )));
                 }
                 outcome_case_groups.push(group_name);
-                for contract in contracts {
+                for contract in group_contracts {
                     if let Some(binding) = contract.binding.as_ref() {
                         if public_selectors
                             .iter()
@@ -282,13 +270,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                         }
                         public_selectors.push(binding.as_str(syntax_trees).to_owned());
                     }
-                    super::record_capability_contract(
-                        syntax_trees,
-                        contract,
-                        &mut contract_start,
-                        &mut contract_count,
-                        "machine contract span count overflow",
-                    );
+                    super::record_capability_contract(syntax_trees, contract, &mut contracts);
                 }
                 input = rest;
                 continue;
@@ -335,9 +317,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     facts,
                     token_count,
                 },
-                &mut contract_start,
-                &mut contract_count,
-                "machine contract span count overflow",
+                &mut contracts,
             );
             input = rest;
             continue;
@@ -409,18 +389,10 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         ]));
     }
 
-    let service_reaches = HandleSpan::from_parts_or_empty(service_start, service_count);
-    let invokes = HandleSpan::from_parts_or_empty(invokes_start, invokes_count);
-    let contracts = HandleSpan::from_parts_or_empty(contract_start, contract_count);
-    let mut where_start = Handle::invalid();
-    let where_count = where_facts.len() as u32;
+    let mut where_facts_span = crate::handle_spans::HandleSpanBuilder::new();
     for fact in where_facts {
-        let handle = syntax_trees.items.append_proof_fact(fact);
-        if !where_start.is_valid() {
-            where_start = handle;
-        }
+        where_facts_span.push(syntax_trees.items.append_proof_fact(fact));
     }
-    let where_facts = HandleSpan::from_parts(where_start, where_count);
     Ok((
         (
             terminates_guarantee,
@@ -430,15 +402,15 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             ranking_range,
             service_reach_keyword_source_spans,
             service_reach_is_installation_bound,
-            service_reaches,
-            invokes,
+            service_reaches.finish(),
+            invokes.finish(),
             suspends_keyword_source_spans,
             blocks_keyword_source_spans,
             suspends,
             blocks,
-            contracts,
+            contracts.finish(),
             return_type,
-            where_facts,
+            where_facts_span.finish(),
             admitted_same_stack_bytes,
             same_stack_clause_span,
         ),

@@ -27,7 +27,8 @@
 //! - `type_syntax` reads one type reference.
 //!
 //! Beneath all of them, `input` owns the token cursor every module reads
-//! through and `diagnostics` owns the failure surface every module reports to.
+//! through, `handle_spans` the span staging every appending table reaches,
+//! and `diagnostics` owns the failure surface every module reports to.
 //!
 //! Meaning belongs to the resolution and typing stages that follow; this stage
 //! only recognizes shape.
@@ -46,6 +47,7 @@ mod type_syntax;
 
 // Beneath the grammar: what every module above reads through and reports to.
 mod diagnostics;
+mod handle_spans;
 mod input;
 
 // The entrance, and the two forms that create the arena for the caller.

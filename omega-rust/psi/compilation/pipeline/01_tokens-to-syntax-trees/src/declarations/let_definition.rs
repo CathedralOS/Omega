@@ -57,7 +57,7 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut parameters = crate::parameters::ParameterSpanBuilder::new();
+    let mut parameters = crate::handle_spans::HandleSpanBuilder::new();
     let mut input = input;
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
