@@ -57,3 +57,24 @@ macos_arm64 machine Main::main(main: &mut Main) crashes Trap {
 linux_arm64 machine Main::main(main: &mut Main) crashes Trap {
     Main::check(main, 404, 411);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+linux_x86_64 machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
+
+windows_x86_64 machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
+
+macos_arm64 machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
+
+linux_arm64 machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

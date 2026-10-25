@@ -76,3 +76,9 @@ machine halve(b: i32 in Saturating, h: i32 in Saturating) -> i32 in Saturating {
         _ -> (b * h / 2)
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

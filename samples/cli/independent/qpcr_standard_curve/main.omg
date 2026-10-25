@@ -153,3 +153,9 @@ machine Application::main(application: &mut Application) reaches Console crashes
     }
     state done(application: &mut Application) { Console::exit_process(0); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Application;
+    block Application::main(&mut entry_storage);
+}

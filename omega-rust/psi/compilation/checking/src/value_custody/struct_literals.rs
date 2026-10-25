@@ -106,23 +106,6 @@ pub(crate) fn validate_struct_literal_fields(
                 }
                 match statement {
                     StatementNode::Assembly(_) => {}
-                    StatementNode::RootBinding(binding) => {
-                        for expression in [binding.receiver, binding.implementation_operand] {
-                            if expression.is_valid() {
-                                scan_expression(
-                                    program,
-                                    machine,
-                                    state,
-                                    observations,
-                                    expression,
-                                    diagnostics,
-                                    &mut stored_integer_writes,
-                                    statement_index,
-                                    formation_obligations,
-                                );
-                            }
-                        }
-                    }
                     StatementNode::AssemblyFact(fact) => {
                         for expression in program.tables.proof_fact_expression_roots(fact.fact) {
                             scan_expression(

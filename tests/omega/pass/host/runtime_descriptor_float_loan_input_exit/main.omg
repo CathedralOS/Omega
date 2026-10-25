@@ -2,8 +2,8 @@ use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
 public boundary trait FloatIo {
-    machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 blocks;
-    machine write(descriptor: i32, value: &f32, count: u64) -> i64;
+    machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, value: &f32, count: u64) -> i64 reaches;
 }
 public data FloatImports {}
 data Main { }
@@ -63,4 +63,10 @@ machine Main::main(main: &mut Main) reaches FloatIo blocks; crashes Trap {
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches FloatIo blocks; crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
 }

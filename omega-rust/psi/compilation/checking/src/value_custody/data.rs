@@ -299,6 +299,20 @@ fn type_requires_establishment_inner(
                 })
                 || type_requires_establishment_inner(program, *base_type, index)
         }
+        // A selector is constructed from an exact named implementation. No
+        // all-zero representation supplies that implementation identity.
+        TypeReferenceNode::DynamicTrait { .. } => true,
+        TypeReferenceNode::Reference { .. } => {
+            // Zero bits do not establish a loan or a referent. The shared
+            // byte-view carrier alone has an empty descriptor representation;
+            // its qualifications are checked by the enclosing constraint walk.
+            !matches!(
+                crate::byte_sequence_carrier(program, type_reference, &[]),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                    access: Some(checked_trees::CheckedStructuralAccess::SharedBorrow),
+                })
+            )
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length,

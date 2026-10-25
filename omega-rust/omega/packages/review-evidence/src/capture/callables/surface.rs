@@ -34,9 +34,9 @@ pub(super) struct CallableSurface {
     pub(super) operator_realizations: Vec<PackageReviewOperatorRealization>,
     pub(super) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
     pub(super) contracts: Vec<PackageReviewCallableContract>,
-    /// `Some` preserves a published ceiling, including an explicitly empty
-    /// one. `None` is retained for the current ordinary build-machine form;
-    /// admission must not silently reinterpret it as a public empty promise.
+    /// Checked bodies retain their authored ceiling, including explicit empty,
+    /// or `None` for inference. Bodyless supplies retain their governing
+    /// published ceiling; omission never infers authority from an unknown body.
     pub(super) declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
     pub(super) checked_service_reach: PackageReviewCheckedServiceReach,
     pub(super) unresolved_installation_reaches: Vec<PackageReviewInstallationReach>,
@@ -199,10 +199,23 @@ pub(super) fn project<'a>(
             ))]
         })?;
 
+    let has_checked_body = machine.body_is_present
+        && matches!(
+            machine.supply_mode,
+            MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
+        );
+    let authored_service_reach =
+        crate::capture::source::service_reach::authored_machine_service_reach(
+            compilation,
+            machine,
+        )?;
     let declared_service_reach = match service_reach.interface {
-        language_semantics::ServiceReachInterface::PublishedCeiling(row) => {
+        language_semantics::ServiceReachInterface::PublishedCeiling(row)
+            if authored_service_reach.is_some() || !has_checked_body =>
+        {
             Some(project_service_row(compilation, row)?)
         }
+        language_semantics::ServiceReachInterface::PublishedCeiling(_) => None,
         language_semantics::ServiceReachInterface::InternalInferred
             if role == PackageReviewCallableRole::Build =>
         {
@@ -265,11 +278,6 @@ pub(super) fn project<'a>(
         | MachineSupplyMode::Requirement
         | MachineSupplyMode::ExternalRealization { .. } => {}
     }
-    let has_checked_body = machine.body_is_present
-        && matches!(
-            machine.supply_mode,
-            MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
-        );
     let checked_service_reach = if has_checked_body {
         let realized = project_service_row(compilation, service_reach.inferred_transitive)?;
         let concrete = project_service_row(compilation, service_reach.concrete_transitive)?;

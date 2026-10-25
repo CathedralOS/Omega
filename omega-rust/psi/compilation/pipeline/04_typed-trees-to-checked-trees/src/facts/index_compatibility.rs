@@ -223,8 +223,7 @@ pub(super) fn build_index_compatibility_facts(
                         );
                     }
                 }
-                StatementNode::RootBinding(_)
-                | StatementNode::AssemblyFact(_)
+                StatementNode::AssemblyFact(_)
                 | StatementNode::Call(_)
                 | StatementNode::Expression(_) => {}
             }

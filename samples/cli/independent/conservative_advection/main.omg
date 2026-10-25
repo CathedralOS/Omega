@@ -51,3 +51,9 @@ machine value(field:&model::transport::Field,index:u32 in Saturating) reaches Co
   io::report::field(field.current[index%64],field.powers[index%64],field.lower_coefficient,field.lower_power,field.upper_coefficient,field.upper_power,field.lower_value,field.lower_value_power,field.upper_value,field.upper_value_power);
  }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

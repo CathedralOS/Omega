@@ -153,40 +153,9 @@ impl SelectedProgramEntryCall {
                 ),
             )
             .map_err(|reason| format!("semantic-entry target selection: {reason}"))?;
-        // The generated ordinary caller owns a fresh local and its cleanup.
-        // Its complete call closure therefore supplies frame demand before the
-        // physical shell partitions the retained private stack. Never prepend
-        // a fabricated pointer to the caller's two already-established roots.
-        let callee = match entry.source().receiver() {
-            program_entry_plan::ProgramEntryReceiverSignature::Free => callee,
-            _ => {
-                if entry.checked_entry().receiver_eligibility().is_none() {
-                    return Err("semantic-entry context requires a checked ZII-valid value and exact retained parameter projection".into());
-                }
-                if callee != entry.checked_entry().terminal_entry() {
-                    return Err(
-                        "semantic-entry context bridge does not name the selected source member"
-                            .into(),
-                    );
-                }
-                let bridge = entry.checked_entry().context_bridge().ok_or(
-                    "selected semantic-entry context has no checked activation-local bridge",
-                )?;
-                let machine = module.machine(bridge).ok_or(
-                    "selected semantic-entry context has no checked activation-local bridge",
-                )?;
-                if !machine.parameters.is_empty()
-                    || machine.structural_parameters.len() != 2
-                    || machine.result != terminal_psi::TerminalMachineResult::Unit
-                {
-                    return Err("selected semantic-entry context bridge has incompatible visible parameters".into());
-                }
-                bridge
-            }
-        };
-        // The selected semantic boundary forwards only its actual runtime
-        // roots. The chosen continuation (including a generated bridge) has
-        // no erased witness actuals beyond that calling contract.
+        // The selected source declaration receives exactly these two existing
+        // roots. Application-local storage is ordinary authored code and its
+        // frame demand already belongs to the checked call closure.
         terminal_semantics::validate_empty_erased_invocation_inputs(module, callee)?;
         Ok(Some(Self {
             boundary: boundary.id,

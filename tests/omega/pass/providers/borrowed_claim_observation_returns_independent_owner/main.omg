@@ -4,7 +4,7 @@ data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
 data Report { value: u64; }
 data Reports { first: Report; second: Report; }
-boundary trait Reader { machine read(token: &Token) -> Report; }
+boundary trait Reader { machine read(token: &Token) -> Report reaches; }
 LocalReader satisfies Reader {
     machine read(token: &Token) -> Report { Report { value: token.value } }
 }

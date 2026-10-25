@@ -25,9 +25,10 @@ established by Scheduler::grant;
 
 public boundary trait Scheduler {
     machine notify(provider: &SchedulerProvider, value: i32)
+    reaches
     terminates;
 
-    machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair;
+    machine grant(provider: &SchedulerProvider, handle: SchedulerHandle) -> SchedulerHandle in WeakFair reaches;
 }
 
 public data SchedulerProvider { grant: addr; notify: addr; }
@@ -67,4 +68,13 @@ terminates;
 {
     main.hits = 1;
     Scheduler::notify(&main.provider, 65);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Scheduler
+terminates;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

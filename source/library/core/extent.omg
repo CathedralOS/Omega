@@ -35,6 +35,7 @@ established by ResidentContentTransfer::transfer, PlacementLifecycle::initialize
 // range to an allocator, or permit reclassification by an ordinary checked call.
 public boundary trait VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
+    reaches
     ensures
         result in Granted & Vacant,
         Granted::content(old(&storage)) == Granted::content(&result);
@@ -92,6 +93,7 @@ ensures
 // result annotation cannot supply them. This is not Initialize or a byte cast.
 public boundary trait ResidentContentTransfer<P, T> {
     machine transfer(storage: Extent in Granted) -> Extent
+    reaches
     ensures
         result in Granted & Resident<P, T>,
         Granted::content(old(&storage)) == Granted::content(&result);
@@ -129,7 +131,7 @@ public boundary trait ProgramStorageEntry {
     machine enter(
         image: Extent in Granted,
         initial_storage: Extent in Granted
-    );
+    ) reaches;
 }
 
 // Explicitly selected transport to this artifact's Build-bound continuation.
@@ -164,6 +166,7 @@ satisfies Content<Extent, IntervalSet<Nat>>::project
 // the same receipt as the resource-frontier implementation lands.
 public boundary trait ExtentRootProvider {
     machine grant(root: Extent) -> Extent
+    reaches
     ensures
         result in Extent::Granted;
 }

@@ -54,27 +54,25 @@ pub(crate) fn transported_value_type(
     Some(actual)
 }
 
-/// A source-selected storage view forms its authored reference value before
+/// A source-selected loan forms its authored reference value before
 /// a consumer attenuates access. The receiving formal cannot choose this
 /// carrier's type or replace its storage interpretation.
-pub(crate) fn formed_view_type(
+pub(crate) fn formed_reference_type(
     program: &dyn validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     let formation = validation::reference_formation_source(program, expression)?;
-    if !formation.view_type.is_valid() {
-        return None;
-    }
     let reference =
         validation::expression_result_type_reference(program, machine, state, expression)?;
     let shell = validation::reference_shell(program, reference)?;
     let referee = shell.referee;
     let access = CheckedStructuralAccess::from(shell.access);
     (access == CheckedStructuralAccess::from(formation.access)
-        && program.normalized_type_identity(referee)
-            == program.normalized_type_identity(formation.view_type))
+        && (!formation.view_type.is_valid()
+            || program.normalized_type_identity(referee)
+                == program.normalized_type_identity(formation.view_type)))
     .then_some(reference)
 }
 

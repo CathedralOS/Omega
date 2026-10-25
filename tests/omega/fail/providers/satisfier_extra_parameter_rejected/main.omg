@@ -7,8 +7,8 @@
 data TallyState { total: u32; }
 
 public boundary trait Tally {
-    machine add(amount: u32) -> u32;
-    machine reset() -> u32;
+    machine add(amount: u32) -> u32 reaches;
+    machine reset() -> u32 reaches;
 }
 
 // Exact satisfaction edge.
@@ -32,7 +32,7 @@ MappedTally satisfies Tally {
 
 // Foreign-bound external leaf.
 boundary trait Process {
-    machine exit(code: i32);
+    machine exit(code: i32) reaches;
 }
 machine stateful_exit(state: &mut TallyState, code: i32)
 satisfies Process::exit

@@ -58,11 +58,11 @@ public boundary trait TaskRuntime {
         arguments: Arguments
     ) -> Task<T>
     where machine Target(arguments: Arguments) -> T suspends; blocks;
-    ensures true;
+    ensures true reaches;
 
     machine try_start<T, Arguments, machine Target>(
         arguments: Arguments
     ) -> StartOutcome<T, Arguments>
     where machine Target(arguments: Arguments) -> T suspends; blocks;
-    ensures true;
+    ensures true reaches;
 }

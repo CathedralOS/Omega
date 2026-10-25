@@ -1,7 +1,7 @@
 // A selected provider cannot narrow the public primitive-loan requirement or
 // omit its guarantee. Reading through a reference does not change refinement.
 public boundary trait Reader {
-    machine read(value: &u32) -> u32 terminates;
+    machine read(value: &u32) -> u32 reaches terminates;
     requires value <= 9
     ensures result == value;
 }

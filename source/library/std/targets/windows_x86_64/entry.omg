@@ -13,7 +13,7 @@ use entry_shapes;
 // loader admission, receiver, or numeric stack guarantee. ProviderSelected
 // requires independent backing.
 boundary trait WindowsProcessEntry {
-    machine enter() -> u32;
+    machine enter() -> u32 reaches;
 }
 
 data WindowsX86_64 {}

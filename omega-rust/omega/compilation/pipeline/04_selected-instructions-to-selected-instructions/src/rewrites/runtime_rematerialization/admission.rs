@@ -52,11 +52,6 @@ pub(super) fn admit<'source>(
     else {
         return Err(RuntimeRematerializationError::UnsupportedValue);
     };
-    let block_index = function
-        .blocks
-        .iter()
-        .position(|block| block.instruction(definition).is_some())
-        .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     // The regenerable family is one nonaddress runtime value produced by a
     // target-materialized immediate. Narrow values keep their exact type on
     // the fresh register; the repeated instruction reproduces all resident
@@ -78,6 +73,10 @@ pub(super) fn admit<'source>(
     {
         return Err(RuntimeRematerializationError::UnsupportedValue);
     }
+    let block_index = function
+        .blocks
+        .instruction_block(definition)
+        .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     let materialize = environment
         .constraint(environment.selected_keys().materialize_i64)
         .ok_or(RuntimeRematerializationError::ConstraintMismatch)?;
@@ -100,10 +99,17 @@ pub(super) fn admit<'source>(
     {
         return Err(RuntimeRematerializationError::ConstraintMismatch);
     }
-    let defined_instruction = function.blocks[block_index]
-        .instructions
-        .iter()
-        .find(|candidate| candidate.id == definition)
+    let defined_instruction = function
+        .blocks
+        .instruction_index_in_block(block_index, definition)
+        .and_then(|idx| {
+            let instructions = &function.blocks[block_index].instructions;
+            if idx > 0 && instructions[..idx].iter().any(|inst| inst.id == definition) {
+                instructions.iter().find(|inst| inst.id == definition)
+            } else {
+                instructions.get(idx)
+            }
+        })
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
     let SelectedInstructionKind::MaterializeI64 { value } = defined_instruction.kind else {
         return Err(RuntimeRematerializationError::UnsupportedValue);
@@ -133,6 +139,12 @@ pub(super) fn admit<'source>(
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
+        if !function
+            .blocks
+            .block_references_register(current_block_index, register)
+        {
+            continue;
+        }
         let previous_uses = uses;
         let (terminal, successors) = control(&block.terminator);
         // A terminator operand use executes after every block instruction, so

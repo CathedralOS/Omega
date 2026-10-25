@@ -935,9 +935,7 @@ fn walk_state_write_prefix_body(
         }
         let mut assignment_replacement = None;
         match statement {
-            StatementNode::RootBinding(_)
-            | StatementNode::Assembly(_)
-            | StatementNode::AssemblyFact(_) => {}
+            StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             StatementNode::Assignment(assignment) => {
                 let replaces_local_binding = representable_alias_rebinding
                     || (include_shared

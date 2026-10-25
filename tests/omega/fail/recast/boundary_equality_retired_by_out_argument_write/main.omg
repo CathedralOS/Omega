@@ -5,8 +5,9 @@
 // is the same program without the write.
 public boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
+    reaches
     ensures size == cap && cap <= 8;
-    machine refill(cap: &mut u32);
+    machine refill(cap: &mut u32) reaches;
 }
 
 data Main {

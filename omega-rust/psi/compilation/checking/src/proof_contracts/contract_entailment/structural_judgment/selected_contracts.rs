@@ -1211,7 +1211,7 @@ pub(super) fn capture_guarantees(
 /// Formal substitution uses selected symbols. Names are only the existing
 /// structural judge's diagnostic payload; no caller spelling chooses a formal.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn bound_term(
+pub(in crate::proof_contracts::contract_entailment) fn bound_term(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     scope: SymbolHandle,

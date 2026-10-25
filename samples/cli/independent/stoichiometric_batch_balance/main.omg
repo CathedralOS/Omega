@@ -281,3 +281,9 @@ machine Main::read(context: &mut Main, input: &mut Input) reaches Console {
     state invalid(input: &mut Input) { input.status = 1; }
     state done() { }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

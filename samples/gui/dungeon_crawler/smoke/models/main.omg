@@ -86,3 +86,8 @@ machine Smoke::main(smoke: &mut Smoke) reaches Console {
     state passed() { Console::write_line("PASS: bounded components and terminating controller fan-out"); Console::exit_process(0); }
     state failed() { Console::exit_process(1); }
 }
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Smoke;
+    Smoke::main(&mut entry_storage);
+}

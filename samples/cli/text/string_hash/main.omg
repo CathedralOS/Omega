@@ -73,3 +73,9 @@ machine Main::main(context: &mut Main) reaches Console {
     _ = block Console::read_line(&mut pause);
     Console::exit_process(output);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

@@ -33,6 +33,9 @@ use crate::{
     FilesystemOperationResult, PrivateLayoutPlacementReceipt,
 };
 use checked_trees::{CheckedOperatorFacts, CheckedTrees};
+use language_semantics::declaration_selection::{
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+};
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use numerics::float_semantics::{
@@ -47,6 +50,7 @@ use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableNamePath, UnaryOperator,
 };
 use typed_trees::machine::Machine;
+use typed_trees::product_operand::ProductEntryCompatibility;
 use typed_trees::state::State;
 use typed_trees::statement::{
     StatementNode, TableCall, TableTransition, TransitionGuardNode, TransitionTargetNode,
@@ -248,7 +252,9 @@ pub(crate) struct Evaluator<'program> {
     pub(super) build_log: Vec<u8>,
     /// The activation's original Build cell, never an authored copy.
     root_build: Option<Cell>,
-    pub(super) executed_root_bindings: Vec<crate::ExecutedRootBinding>,
+    pub(super) executed_root_bindings: Vec<ExecutedRootBinding>,
+    pub(super) pending_root_bindings:
+        Vec<arena::Handle<language_semantics::declaration_selection::RootBindingRequest>>,
     /// Executed `exclude_crash`/`exclude_service` selections on the root
     /// Build, in evaluation order.
     pub(super) executed_behavior_exclusions: Vec<crate::ExecutedBehaviorExclusion>,
@@ -258,20 +264,20 @@ pub(crate) struct Evaluator<'program> {
     /// opaque `ProductEntryRef` markers. The marker value indexes this table;
     /// evaluated code can copy the marker but cannot read or fabricate the
     /// selection payload.
-    product_entry_descriptions: Vec<crate::DescribedProductEntry>,
-    pub(super) product_entry_compatibility: Option<&'program dyn crate::ProductEntryCompatibility>,
+    product_entry_descriptions: Vec<DescribedProductEntry>,
+    pub(super) product_entry_compatibility: Option<&'program dyn ProductEntryCompatibility>,
     /// Compiler-issued product-type-schema descriptions handed to evaluated
     /// code as opaque `ProductTypeSchema` markers. Same marker discipline as
     /// the entry table: the marker indexes this table and evaluated code
     /// cannot read or fabricate the payload; `schema.path()` is the single
     /// sanctioned inspection.
-    product_schema_descriptions: Vec<crate::DescribedProductSchema>,
+    product_schema_descriptions: Vec<DescribedProductSchema>,
     /// Compiler-issued product-provider descriptions handed to evaluated code
     /// as opaque `ProductProviderRef` markers. Same marker discipline as the
     /// schema table: the marker indexes this table and evaluated code cannot
     /// read or fabricate the payload; `provider.path()` is the single
     /// sanctioned inspection.
-    product_provider_descriptions: Vec<crate::DescribedProductProvider>,
+    product_provider_descriptions: Vec<DescribedProductProvider>,
     stdin: &'program [u8],
     stdin_cursor: usize,
     /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every

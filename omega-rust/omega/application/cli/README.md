@@ -110,7 +110,7 @@ dependency, so its first check or run needs the accepted program-entry binding
 that `omega update` reviews (accept the pending decisions, then rerun with
 `--resume`). Without it the entry slot rejects and names that review.
 
-`--entry-ram` explicitly constructs fresh private initialized scalar-record RAM for an exact borrowed placed entry position. It grants no host address or external allocation. The initial physical lender supports Linux x86-64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, original backing observations and actual Terminal effect receipts are retained separately from guest streams; see [placed entry RAM sample](../../../../samples/cli/systems/placed_entry_ram/README.md).
+`--entry-ram` explicitly constructs fresh private initialized scalar-record RAM for an exact borrowed placed entry position. It grants no host address or external allocation. The physical lender supports Linux x86-64 and macOS ARM64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, original backing observations and actual Terminal effect receipts are retained separately from guest streams; see [placed entry RAM sample](../../../../samples/cli/systems/placed_entry_ram/README.md).
 
 CLI startup and dispatch live in `src/main.rs`; typed invocations
 are parsed in `src/cli/arguments/`. Full surface:

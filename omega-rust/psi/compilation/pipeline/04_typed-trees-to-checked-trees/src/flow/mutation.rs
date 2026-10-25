@@ -888,30 +888,17 @@ pub(crate) fn statement_storage_writes(
             call_frames,
         );
     }
-    if !matches!(
-        statement,
-        StatementNode::Assignment(_) | StatementNode::RootBinding(_)
-    ) {
+    if !matches!(statement, StatementNode::Assignment(_)) {
         return Some(Vec::new());
     }
-    let places = if let Some(binding) = statement.as_root_binding() {
-        super::reference_expression_storage_places(
-            program,
-            state_symbol,
-            statement_index,
-            binding.receiver,
-            call_frames,
-        )?
-    } else {
-        local_origins::assignment_storage_places(
-            program,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            statement,
-            call_frames,
-        )?
-    };
+    let places = local_origins::assignment_storage_places(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        statement,
+        call_frames,
+    )?;
     // When the resolver cannot enumerate this state's local origins (a
     // reference local of finite candidate origins is such a state), borrow
     // exclusivity already forbids a second live alias of the written

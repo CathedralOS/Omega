@@ -308,6 +308,61 @@ impl StructuralJudge<'_> {
         self.intake_admitted_data_predicates(reference, value, &mut Vec::new());
     }
 
+    /// A completed callable result retains each explicit index application
+    /// under the same captured actuals as its published result contracts.
+    pub(super) fn intake_result_indices(
+        &mut self,
+        reference: TypeReferenceHandle,
+        value: &StructuralTerm,
+        callable: SymbolHandle,
+        parameters: &[StateParameter],
+        bindings: &[(SymbolHandle, StructuralTerm)],
+    ) {
+        use typed_trees::types::TypeReferenceNode;
+        let program = self.program;
+        for (_, descriptor, argument) in program.data_application_value_fields(reference) {
+            let index =
+                if let Some(literal) = program.static_const_literal_from_type_reference(argument) {
+                    literal.value_bignum().map(StructuralTerm::Integer)
+                } else {
+                    match program.type_reference_table.type_reference(argument) {
+                        TypeReferenceNode::ConstExpression(expression) => {
+                            super::selected_contracts::bound_term(
+                                program,
+                                *expression,
+                                callable,
+                                parameters,
+                                callable,
+                                bindings,
+                                Some(value),
+                                0,
+                            )
+                        }
+                        TypeReferenceNode::Named { symbol, .. } => bindings
+                            .iter()
+                            .find(|(formal, _)| formal == symbol)
+                            .map(|(_, value)| value.clone()),
+                        _ => None,
+                    }
+                };
+            let Some(index) = index else {
+                continue;
+            };
+            let path = [facts::PlaceSegment::Field {
+                symbol: descriptor.symbol,
+            }];
+            let Some(descriptor) = super::super::observed_projections::project_observed_value(
+                program,
+                reference,
+                value.clone(),
+                &path,
+            ) else {
+                continue;
+            };
+            self.intake_equation(descriptor, index, 0);
+        }
+    }
+
     /// The carrier belongs to this completed value, even after conversion or
     /// a later write to its former source. A reference descriptor alone does
     /// not establish a scalar observation. These intrinsic integer facts say
@@ -377,6 +432,45 @@ impl StructuralJudge<'_> {
             bindings.push((parameter.name.to_string(), value));
             parameters.push(parameter);
         }
+        // A runtime Value binder denotes its represented descriptor word.
+        // Admission of this completed value already checked that word against
+        // the application at formation. It is independent of the source home
+        // or expression from which an earlier caller obtained the index.
+        for (binder, descriptor, _) in program.data_application_value_fields(reference) {
+            let path = [facts::PlaceSegment::Field {
+                symbol: descriptor.symbol,
+            }];
+            let Some(index) = super::super::observed_projections::project_observed_value(
+                program,
+                reference,
+                value.clone(),
+                &path,
+            ) else {
+                continue;
+            };
+            if let Some(parameter) = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == binder.symbol)
+                && let Some((_, actual)) = bindings
+                    .iter()
+                    .find(|(name, _)| *name == parameter.name.as_str())
+            {
+                self.intake_equation(index, actual.clone(), 0);
+                continue;
+            }
+            let name = format!(
+                "\0value_{}_{}",
+                binder.symbol.arena_index(),
+                binder.symbol.generation()
+            );
+            parameters.push(StateParameter {
+                symbol: binder.symbol,
+                name: name.as_str().into(),
+                type_reference: descriptor.type_reference,
+                ..Default::default()
+            });
+            bindings.push((name, index));
+        }
         // Unknown case identity admits only common fields. Payload predicates
         // enter through the separately authenticated selected-case arm; reading
         // every variant here would project inactive same-named payloads onto
@@ -436,7 +530,17 @@ impl StructuralJudge<'_> {
         else {
             return Vec::new();
         };
-        let Some(application) = definition.generic_instance else {
+        let carrier = program
+            .type_reference_table
+            .peeled_type_reference(reference);
+        let application = if matches!(
+            program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Generic { .. }
+        ) {
+            carrier
+        } else if let Some(application) = definition.generic_instance {
+            application
+        } else {
             return Vec::new();
         };
         let TypeReferenceNode::Generic {

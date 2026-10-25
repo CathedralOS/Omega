@@ -575,28 +575,6 @@ fn collect_state_mutation_summary_places(
         .statement_table
         .indexed_statements(state.statement_nodes)
     {
-        if let Some(binding) = statement.as_root_binding() {
-            let places = crate::flow::reference_expression_storage_places(
-                program,
-                state.symbol,
-                statement_index,
-                binding.receiver,
-                call_frames,
-            )?;
-            for place in places {
-                let write = MutationWrite {
-                    region: StorageRegion::Declared(place),
-                    requires_exclusive_access: true,
-                    destination: WriteDestination::Referent,
-                };
-                if state_summary_exposes_place(program, state, &write.region, call_frames)?
-                    && !writes.contains(&write)
-                {
-                    writes.push(write);
-                }
-            }
-            continue;
-        }
         if let Some(local) = statement.as_local_data()
             && validation::atomic_once_carrier(program, local.initial_value).is_some()
         {

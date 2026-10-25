@@ -29,10 +29,6 @@ impl TypedTrees {
             if machines.next().is_some() {
                 return Err("authored target has repeated machine coordinates");
             }
-            if let Some(origin) = machine.entry_context_origin {
-                symbol = origin.entry;
-                continue;
-            }
             let mut members = self
                 .target_machine_families
                 .iter()

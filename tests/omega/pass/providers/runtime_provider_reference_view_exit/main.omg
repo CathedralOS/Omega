@@ -52,7 +52,7 @@ machine SignedByte::plan(schema: Schema) -> Plan {
 data PortableByte [copy] { value: i64; }
 data RawView { value: SignedByte<PortableByte>; }
 use omega::language::core::external_binding;
-boundary trait Version { machine locate() -> &RawView; }
+boundary trait Version { machine locate() -> &RawView reaches; }
 linux_x86_64 machine binding() -> ForeignBinding<9, 20, 11> {
  ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "gnu_get_libc_version", version: "GLIBC_2.2.5" } }
 }

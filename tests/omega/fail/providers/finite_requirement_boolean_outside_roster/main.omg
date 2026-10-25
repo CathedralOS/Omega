@@ -1,6 +1,6 @@
 // The Boolean carrier is valid, but the exact public predicate is false.
 public boundary trait Service {
-    machine echo<const Selected: bool>(value: i32) -> i32 where Selected == true;
+    machine echo<const Selected: bool>(value: i32) -> i32 reaches where Selected == true;
 }
 Provider satisfies Service { Service::echo = echo; }
 machine echo<const Selected: bool>(value: i32) -> i32 { value }
@@ -11,4 +11,10 @@ macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
 data Main { }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service {
     let result: i32 = Service::echo<false>((17 as i32));
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+macos_arm64 machine entry_start() reaches Service {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

@@ -3,8 +3,8 @@ data Word {}
 data Other {}
 domain<Value, Element> Token::Issued<Value, Element> established by Supply::issue;
 boundary trait Supply<Value> {
-    machine issue<Element>(value: u64) -> Token ensures result in Issued<Value, Element>;
-    machine forward<Element>(value: Token in Issued<Value, Element>) -> Token in Issued<Value, Element>;
+    machine issue<Element>(value: u64) -> Token reaches ensures result in Issued<Value, Element>;
+    machine forward<Element>(value: Token in Issued<Value, Element>) -> Token in Issued<Value, Element> reaches;
 }
 machine wrong() reaches Supply {
     let issued: Token in Issued<Word, Other> = Supply<Word>::issue<Other>(29);

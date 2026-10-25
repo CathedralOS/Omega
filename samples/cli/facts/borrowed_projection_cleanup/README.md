@@ -89,11 +89,13 @@ Producer `116d5550a53f899c0c069e9c3c436ab38a5541db`, opt-level 1,
 Earlier Unit-call records at `cc2f948d148` and `9ff26a87021` are historical
 coverage of that production, not execution of these new compositions.
 
-## Remaining scope
+## Execution scope
 
-CML4's cross-host qualification, suspension acceptance, and remaining moved
-linear-place and computed-call result composition stay open. This row establishes
-normal death after borrowed supplier reads; it does not complete those requirements.
+This completed CML4 row establishes normal death after borrowed supplier reads.
+Its nine places run on macOS ARM64, including the reference-free projected
+supplier. The separate ordered-edge controls run on Linux x86-64 and Windows
+x86-64. Producer `b457b1978b87` refreshes the macOS row and fuel/retry provision;
+the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
 
 ```sh
 omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg

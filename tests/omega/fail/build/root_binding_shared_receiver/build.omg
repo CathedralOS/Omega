@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "root_binding_shared_receiver");
+    bind_entry(builder);
+}
+
+machine bind_entry(builder: &Build) {
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

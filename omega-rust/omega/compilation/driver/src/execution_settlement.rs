@@ -239,7 +239,6 @@ fn select_checked_providers(
             selected_target_profile,
             &providers.boundary_calling_plan_realizations,
             package_inputs,
-            |program, definition| validation::data_requires_establishment(program, definition),
         )?;
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;

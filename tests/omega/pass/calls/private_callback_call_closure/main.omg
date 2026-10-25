@@ -156,7 +156,7 @@ public boundary trait Initializer: Calling<InitializerCalling> {
 }
 
 public boundary trait ProcessId: Calling<ProcessIdCalling> {
-    machine current() -> i32;
+    machine current() -> i32 reaches;
 }
 
 // Darwin declares getpid(void) -> pid_t, a signed 32-bit result. This import
@@ -180,6 +180,7 @@ public data OnceControl { signature: u64; opaque: u64; }
 public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(control: &mut OnceControl, native callback initialize from Handler) -> i32
     where machine Handler satisfies Initializer::call;
+    reaches
     invokes Initializer;
 }
 
@@ -401,4 +402,13 @@ macos_arm64 machine initialize_control(control: &mut OnceControl) {
 linux_x86_64 machine initialize_control(control: &mut OnceControl) {
     control.signature = 0;
     control.opaque = 0;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches OnceRegistrar + Initializer + Console + ProcessId
+invokes OnceRegistrar;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

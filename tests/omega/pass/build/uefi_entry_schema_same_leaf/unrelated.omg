@@ -2,5 +2,5 @@ module unrelated;
 
 // These declarations are not the target's explicitly accepted schema.
 boundary trait UefiApplication {}
-boundary trait UefiPhysicalEntry { machine enter() -> u64; }
-boundary trait ProgramStorageEntry { machine enter() -> u64; }
+boundary trait UefiPhysicalEntry { machine enter() -> u64 reaches; }
+boundary trait ProgramStorageEntry { machine enter() -> u64 reaches; }

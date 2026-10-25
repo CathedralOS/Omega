@@ -18,10 +18,7 @@ pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequenc
 pub use terminal_module::RegisterAccessEvent;
 
 pub use artifacts::{
-    AdmissionEvidence, AdmissionKind, CertificateEnvelope,
-    CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
-    CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
-    CheckedProgramEntryReceiverProjection, CheckedProgramEntryTerminalReceipt,
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryTerminalReceipt,
     CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, DebugFileId, DebugSite,
     DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
     EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,

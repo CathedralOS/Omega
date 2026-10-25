@@ -12,11 +12,6 @@ pub fn statement_uses_symbol(
     symbol: SymbolHandle,
 ) -> bool {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            expression_uses_symbol(program, binding.receiver, symbol)
-                || (binding.implementation_operand.is_valid()
-                    && expression_uses_symbol(program, binding.implementation_operand, symbol))
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
         StatementNode::Assignment(assignment) => {
             expression_uses_symbol(program, assignment.target, symbol)

@@ -19,6 +19,7 @@
 mod arguments;
 mod calls;
 mod hoist_temp_type;
+mod root_bindings;
 mod transitions;
 
 use crate::lowerer::Lowerer;
@@ -62,27 +63,9 @@ fn lower_statement_node(
         resolved::statement::StatementNode::Assembly(_) => Err(Diagnostic::error(
             "assembly typing requires its complete enclosing statement window",
         )),
-        resolved::statement::StatementNode::RootBinding(binding) => Ok(
-            typed::statement::StatementNode::RootBinding(typed::statement::RootBinding {
-                receiver: lower_statement_expression(lowerer, binding.receiver)?,
-                slot: binding
-                    .slot
-                    .iter()
-                    .map(crate::lowerer::name::lower_name)
-                    .collect(),
-                implementation: binding
-                    .implementation
-                    .iter()
-                    .map(crate::lowerer::name::lower_name)
-                    .collect(),
-                implementation_operand: if binding.implementation_operand.is_valid() {
-                    lower_statement_expression(lowerer, binding.implementation_operand)?
-                } else {
-                    typed::expression::ExpressionHandle::invalid()
-                },
-                source_span: binding.source_span,
-            }),
-        ),
+        resolved::statement::StatementNode::RootBinding(binding) => {
+            root_bindings::lower(lowerer, binding)
+        }
         resolved::statement::StatementNode::AssemblyFact(fact) => Ok(
             typed::statement::StatementNode::AssemblyFact(typed::statement::TableAssemblyFact {
                 kind: match fact.kind {
@@ -139,6 +122,7 @@ fn lower_statement_node(
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: Some(request),
+                    root_binding: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::default(),
                     operational_acknowledgement: call.operational_acknowledgement,

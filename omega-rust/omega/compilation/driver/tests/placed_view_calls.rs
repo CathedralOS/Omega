@@ -26,6 +26,7 @@ fn produce(machine: &str) -> CanonicalTerminalArtifact {
     CompilationSession::default()
         .produce(request, CompilationProduct::Inspection(machine.to_owned()))
         .and_then(compiler::CompilationOutput::into_inspection)
+        .map(|produced| produced.into_artifact())
         .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
 }
 

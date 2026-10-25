@@ -71,6 +71,11 @@ pub fn parameter_expression_result_type_reference(
                     let symbol = crate::expression_traversal::single_segment_name_symbol(
                         program, expression,
                     )?;
+                    if let Some(reference) =
+                        crate::value_custody::places::declaration_type_reference(program, symbol)
+                    {
+                        return Some(reference);
+                    }
                     let parameter = program.data_type_parameter_by_symbol(symbol)?;
                     match parameter.kind {
                         typed_trees::data::TypeParameterKind::Const { type_reference }

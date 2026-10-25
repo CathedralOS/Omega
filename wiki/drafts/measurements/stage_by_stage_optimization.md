@@ -524,3 +524,46 @@ from 6,164.6 ms to 1,444.6 ms (4.27x; `check_flow_call_contracts` 4,028.1 ->
 1,900.0 ms (`ordered_relations.rows` = 616). On the three standard fact
 workloads, all native images are SHA-256 identical and exit 0.
 [Details and tables](stage_five_2026_10_24/README.md).
+
+### Backend register allocation (`06.1.d.05_stage_register_allocation`) dense indexing, memoized block summaries, and incremental spill recovery - 2026-10-25
+
+Base `8023f4f24da7` on Windows x86_64. Retained incremental single-function
+spill reanalysis (`SelectedInstructions::replace_function` and
+`reanalyze_spilled_function`), dense `Vec` and `u64`-bitset indexing across
+`FunctionRanges`, `FunctionLiveness`, `FunctionAllocationLegality`,
+`FunctionDomains`, `PreparedConflicts`, `PreparedAffinities`, `same_home`, and
+`physical_requirement`, sorted interval pruning and single-pass fragment
+collection, and `BlockLookup` memoization of per-block unit liveness transfers
+(`upward_unit_uses`, `unit_kills`) and spill-slot summaries (`BlockSlotSummary`).
+On `thirtytwo_arg_stack_calling_plan/other_machine`, total compilation falls
+from 32,589.1 ms to 5,979.7 ms (5.45x; backend realization 30,906.9 -> 4,669.0 ms,
+6.62x; `06.1.d.05_stage_register_allocation` 41,625.4 -> 4,603.0 ms, 9.04x). On
+`sixteen_arg_stack_calling_plan/other_machine`, total compilation falls from
+2,666.9 ms to 1,482.6 ms (1.80x; backend realization 1,560.7 -> 592.6 ms, 2.63x).
+On the three standard fact workloads (`length`, `dyn_dispatch`, `nested_record`),
+total compilation falls by 14.5–26.0%, and all five emitted native images are
+SHA-256 identical and exit 0.
+[Details and tables](stage_five_2026_10_24/README.md).
+
+### Backend register allocation (`06.1.d.05_stage_register_allocation`) paged prefix digests, unsealed intermediate spill recovery, crossing-spill deduplication, bitset `BlockLookup`, and CSR tables - 2026-10-25
+
+Base `b9643fb8b52e` on Windows x86_64. Retained 64-byte chunked `DigestEncoder`
+and 64-register paged `CachedFunctionPrefix` on `FunctionEntry` (`seal_digest`
+932.5 -> 160.3 ms on `32_arg`), `UnsealedRecoveryFacts` and
+`FunctionHomeReuse::probe_all` to defer receipt hashing during intermediate
+spill-batch probes (`reanalyze` 1,508 -> 642.9 ms),
+`spill_selected_runtime_value_with_crossing_status` to eliminate redundant
+`UnitWriteCrossing` probes when no unit writer is crossed (`crossing_probes`
+103 -> 0), `u64`-bitset `BlockLookup` register summaries and word-level bitset
+intersection in `slot::classify_all` with lazy `RawCandidateSlots` and
+`partition_point` fast-forwarding in `shareable()`, incremental
+`materialize_block` liveness, and flat CSR tables in `operand_rows`,
+`PreparedConflicts`, `PreparedAffinities`, and `BatchFunctionIndex`. On
+`thirtytwo_arg_stack_calling_plan/other_machine`, total compilation (`total elapsed`)
+falls from 5,620.0 ms to 4,450.4 ms (-20.8%; backend realization 4,277.8 ->
+3,071.8 ms, -28.2%; `06.1.d.05_stage_register_allocation` 4,167.2 -> 2,542.6 ms,
+-39.0%). On `sixteen_arg_stack_calling_plan/other_machine`, backend realization
+falls from 537.0 ms to 471.2 ms (-12.2%). On `length/local`, `compile` reaches
+1,000.5 ms (`total elapsed` 1,042.3 ms, backend 228.9 ms). All five emitted
+native images are SHA-256 identical and exit 0.
+[Details and tables](stage_five_2026_10_24/README.md).

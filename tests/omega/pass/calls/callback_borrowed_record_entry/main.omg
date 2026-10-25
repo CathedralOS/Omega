@@ -138,7 +138,7 @@ public data Element [copy] { value: u64; stamp: u64; }
 public data Elements { first: Element; second: Element; }
 
 public boundary trait Comparator: Calling<ComparatorCalling> {
-    machine compare(first: &Element, second: &Element) -> i32;
+    machine compare(first: &Element, second: &Element) -> i32 reaches;
 }
 public boundary trait SortRegistrar: Calling<SortCalling> {
     machine sort<machine Handler>(
@@ -146,6 +146,7 @@ public boundary trait SortRegistrar: Calling<SortCalling> {
         native callback compare from Handler
     )
     where machine Handler satisfies Comparator::compare;
+    reaches
     invokes Comparator;
     requires count == 2 && width == 16;
 }
@@ -330,3 +331,12 @@ linux_x86_64 machine SortPolicies::sort(signature: BoundarySignature) -> Boundar
 }
 
 data LinuxSortPolicies {}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches SortRegistrar + Comparator + Console
+invokes SortRegistrar;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

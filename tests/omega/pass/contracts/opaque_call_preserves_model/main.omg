@@ -2,7 +2,7 @@
 data Value [copy] { number: u64; }
 data View<'scope> { value: &'scope Value; }
 boundary trait Replace {
-    machine replace<'scope>(view: &mut View<'scope>, value: &'scope Value) -> u64;
+    machine replace<'scope>(view: &mut View<'scope>, value: &'scope Value) -> u64 reaches;
 }
 
 ReplaceValue satisfies Replace {

@@ -21,6 +21,7 @@ data WindowsFilesystemPositionImports {}
 
 boundary trait WindowsFilesystemPositionIo {
     machine object_access(handle: i64, information_class: u32, output: &mut WindowsNativeObjectBasicInfo, size: u32, returned: &mut u32) -> i32
+    reaches
     requires information_class == 0 && size == 56
     blocks;
     machine reopen_read(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64

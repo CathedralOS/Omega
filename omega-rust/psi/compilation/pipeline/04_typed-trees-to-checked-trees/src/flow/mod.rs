@@ -127,7 +127,7 @@ pub(crate) use cleanup_effect_dependencies::{
 pub(crate) use reference_places::{
     assignment_preserves_reference_binding, local_reference_candidate_storages_at_call,
     local_reference_storage_at_call, local_reference_storage_before_statement,
-    reference_expression_storage_places, reference_expression_storage_places_including_shared,
+    reference_expression_storage_places_including_shared,
     reference_result_candidates_before_statement, reference_route_source,
 };
 pub(crate) use value_origins::{

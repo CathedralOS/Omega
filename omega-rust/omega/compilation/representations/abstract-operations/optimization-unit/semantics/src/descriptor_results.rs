@@ -426,7 +426,9 @@ fn adapt(
             }
             graph.places.push(DescriptorPlace {
                 place: parameter.place,
-                definition: DescriptorDefinition::Local,
+                definition: DescriptorDefinition::Arrival {
+                    access: parameter.access,
+                },
             });
         }
         for node in &block.nodes {

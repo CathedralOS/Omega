@@ -1435,10 +1435,6 @@ impl ArrivalWalk<'_, '_> {
                 StatementNode::Expression(expression) => {
                     self.expression(source, *expression, environment)
                 }
-                StatementNode::RootBinding(binding) => {
-                    self.expression(source, binding.receiver, environment);
-                    self.expression(source, binding.implementation_operand, environment);
-                }
                 StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
             }
         }
@@ -1490,10 +1486,6 @@ impl ArrivalWalk<'_, '_> {
             }
             StatementNode::Expression(expression) => {
                 self.expression(source, *expression, environment);
-            }
-            StatementNode::RootBinding(binding) => {
-                self.expression(source, binding.receiver, environment);
-                self.expression(source, binding.implementation_operand, environment);
             }
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         }
@@ -1732,10 +1724,6 @@ fn state_has_in_machine_arrivals(
                 stack.extend_from_slice(program.statement_table.expression_handles(call.arguments));
             }
             StatementNode::Expression(expression) => stack.push(*expression),
-            StatementNode::RootBinding(binding) => {
-                stack.push(binding.receiver);
-                stack.push(binding.implementation_operand);
-            }
             StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         }
     }

@@ -1838,7 +1838,7 @@ fn visit_statement(
             retained,
             arena::HandleSpan::from_parts(fact.fact, 1),
         ),
-        StatementNode::RootBinding(_) | StatementNode::Expression(_) => {}
+        StatementNode::Expression(_) => {}
     }
 }
 
@@ -1899,10 +1899,6 @@ fn visit_machine_with_sidecars(
     visit_owned_implementation_arguments(program, retained, machine.symbol);
     for signature in program.requirement_invocation_signatures(machine.symbol) {
         visit_signature(program, retained, signature);
-    }
-    if let Some(origin) = machine.entry_context_origin {
-        visit_symbol(retained, origin.entry);
-        visit_symbol(retained, origin.context_parameter);
     }
     if let Some(origin) = machine.lexical_region_origin {
         retained.declaration_description_dependency(origin.machine);
@@ -2130,6 +2126,7 @@ mod conformance_occurrence_tests {
                     private_layout_operation: None,
                     layout_query: None,
                     native_code_layout: None,
+                    root_binding: Default::default(),
                     arguments: Default::default(),
                     evidence_arguments: Box::new([]),
                     operational_acknowledgement: Default::default(),

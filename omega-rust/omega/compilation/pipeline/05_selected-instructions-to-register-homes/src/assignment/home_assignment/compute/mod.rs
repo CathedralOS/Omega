@@ -83,6 +83,30 @@ impl FunctionHomeReuse {
         });
         Ok(homes)
     }
+
+    pub(crate) fn probe_all(
+        &mut self,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        legality_functions: &[Arc<FunctionAllocationLegality>],
+        range_functions: &[Arc<FunctionLiveRanges>],
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Result<(), RegisterHomeError> {
+        if legality_functions.len() != range_functions.len() {
+            return Err(RegisterHomeError::RootMismatch);
+        }
+        self.pressure.clear();
+        for (index, (legality, ranges)) in legality_functions
+            .iter()
+            .zip(range_functions)
+            .enumerate()
+        {
+            if legality.machine != ranges.machine {
+                return Err(RegisterHomeError::FunctionMismatch { function: index });
+            }
+            self.compute(register_environment, index, legality, ranges, physical)?;
+        }
+        Ok(())
+    }
 }
 
 pub(crate) fn compute_terminal_register_homes(

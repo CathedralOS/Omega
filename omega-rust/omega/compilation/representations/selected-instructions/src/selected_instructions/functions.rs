@@ -18,7 +18,7 @@ use std::ops::{Index, IndexMut};
 use std::sync::{Arc, OnceLock};
 
 use super::SelectedFunction;
-use super::plan_identity::selected_function_digest;
+use super::plan_identity::{CachedFunctionPrefix, selected_function_digest_with_prefix};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectedFunctions(Vec<Arc<FunctionEntry>>);
@@ -30,6 +30,8 @@ pub struct SelectedFunctions(Vec<Arc<FunctionEntry>>);
 pub struct FunctionEntry {
     function: SelectedFunction,
     digest: OnceLock<[u8; 32]>,
+    prefix: OnceLock<Arc<CachedFunctionPrefix>>,
+    previous_prefix: Option<Arc<CachedFunctionPrefix>>,
 }
 
 impl FunctionEntry {
@@ -37,13 +39,20 @@ impl FunctionEntry {
         Arc::new(Self {
             function,
             digest: OnceLock::new(),
+            prefix: OnceLock::new(),
+            previous_prefix: None,
         })
     }
 
     fn digest(&self) -> [u8; 32] {
-        *self
-            .digest
-            .get_or_init(|| selected_function_digest(&self.function))
+        *self.digest.get_or_init(|| {
+            let (digest, prefix) = selected_function_digest_with_prefix(
+                &self.function,
+                self.previous_prefix.as_deref(),
+            );
+            let _ = self.prefix.set(prefix);
+            digest
+        })
     }
 }
 
@@ -65,8 +74,13 @@ impl fmt::Debug for FunctionEntry {
 /// The only route to a mutable function: detach a shared entry and drop its
 /// digest, which no longer describes what the caller may write.
 fn detach(entry: &mut Arc<FunctionEntry>) -> &mut SelectedFunction {
+    let prior_prefix = entry.prefix.get().cloned();
     let entry = Arc::make_mut(entry);
     entry.digest.take();
+    entry.prefix.take();
+    if prior_prefix.is_some() {
+        entry.previous_prefix = prior_prefix;
+    }
     &mut entry.function
 }
 

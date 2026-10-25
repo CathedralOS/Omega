@@ -24,7 +24,7 @@ data CellLine {
 }
 
 public boundary trait Console {
-    machine write_line(text: [u8; 2] in Utf8);
+    machine write_line(text: [u8; 2] in Utf8) reaches;
 }
 
 data Main {

@@ -27,7 +27,7 @@ public data PortableByte [copy] { value: i64; }
 public data RawView { value: SignedByte2<PortableByte>; }
 public data ForeignByte { value: i8; }
 public boundary trait ClearByte {
-    machine clear(value: &mut ForeignByte, count: u64);
+    machine clear(value: &mut ForeignByte, count: u64) reaches;
 }
 macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport {
@@ -39,7 +39,7 @@ macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
 macos_arm64 machine clear_bytes(value: &mut ForeignByte, count: u64)
     satisfies ClearByte::clear via clear_binding();
 public boundary trait CompareByte {
-    machine compare(left: &RawView, right: &RawView, count: u64) -> i32;
+    machine compare(left: &RawView, right: &RawView, count: u64) -> i32 reaches;
 }
 macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
     ForeignBinding::DllImport {

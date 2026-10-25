@@ -5,23 +5,22 @@ use register_model::{RegisterClass, RegisterViewId};
 use super::{fixed_views, view_candidates::CandidateViews};
 use crate::AllocationLegalityError;
 use register_homes::VirtualEarlyClobberPointLegality;
-use selected_instructions::{FunctionLiveRanges, VirtualLiveRange};
+use selected_instructions::{EarlyClobberConstraint, VirtualLiveRange};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(
     function_index: usize,
-    function: &FunctionLiveRanges,
+    early_clobbers: &[&EarlyClobberConstraint],
     register: &VirtualLiveRange,
     class: &RegisterClass,
     available: &[RegisterViewId],
     views: &mut CandidateViews<'_>,
 ) -> Result<Vec<VirtualEarlyClobberPointLegality>, AllocationLegalityError> {
-    let mut early_clobber_points = Vec::new();
-    for early in function
-        .early_clobbers
-        .iter()
-        .filter(|early| early.def_virtual_register == register.virtual_register)
-    {
+    if early_clobbers.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut early_clobber_points = Vec::with_capacity(early_clobbers.len());
+    for &early in early_clobbers {
         if early.def_class != register.class {
             return Err(AllocationLegalityError::UnknownClass {
                 function: function_index,

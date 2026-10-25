@@ -40,7 +40,9 @@ pub fn liveness_identity_from_digests(
 
 /// One function's share of `liveness_identity`.
 pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(
+        256 + function.operand_positions.len() * 24 + function.blocks.len() * 1024,
+    );
     bytes.extend_from_slice(b"omega.terminal-register-liveness-function.v2\0");
     encode_function(&mut bytes, function);
     crate::digest_encoder::content_identity(&bytes).into()

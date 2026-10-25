@@ -2,14 +2,14 @@
 // Direct imports and both named-table mechanisms retain the exact source leaf.
 use omega::language::core::external_binding;
 boundary trait ModuleSymbols {
-    machine module(name: &[u8; 13]) -> addr;
-    machine symbol(module: addr, name: &[u8; 24]) -> addr;
+    machine module(name: &[u8; 13]) -> addr reaches;
+    machine symbol(module: addr, name: &[u8; 24]) -> addr reaches;
 }
 data CounterTable { value: i64; query: addr; }
 data ProcessTable { current: addr; }
 data Holder { table: ProcessTable; }
-boundary trait Counter { machine query(table: &mut CounterTable) -> i32; }
-boundary trait Process { machine current(table: &ProcessTable) -> u32; }
+boundary trait Counter { machine query(table: &mut CounterTable) -> i32 reaches; }
+boundary trait Process { machine current(table: &ProcessTable) -> u32 reaches; }
 machine module_binding() -> ForeignBinding<12, 16, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName {
         library: "kernel32.dll", export: "GetModuleHandleA"

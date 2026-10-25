@@ -1,6 +1,6 @@
 // Build selects a declaration, never a conformance instance. This applied
 // map is otherwise well-formed; its instance arguments cannot become selection.
-boundary trait Reading<Value> { machine read(value: Value) -> Value; }
+boundary trait Reading<Value> { machine read(value: Value) -> Value reaches; }
 ReadingMap<Value> satisfies Reading<Value> {
     machine read(value: Value) -> Value { value }
 }

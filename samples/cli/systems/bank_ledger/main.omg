@@ -146,3 +146,9 @@ machine Main::withdraw(main: &mut Main, amount: i32 in Saturating) {
     let neg: i32 in Saturating = 0 - amount;
     Main::deposit(main, neg);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

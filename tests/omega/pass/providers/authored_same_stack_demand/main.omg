@@ -4,8 +4,8 @@
 // A table-function leaf in the same machine carries its own demand.
 
 public boundary trait TextOutput {
-    machine output_string(this: addr);
-    machine query(table: addr);
+    machine output_string(this: addr) reaches;
+    machine query(table: addr) reaches;
 }
 
 data Protocol { reset: addr; output_string: addr; }

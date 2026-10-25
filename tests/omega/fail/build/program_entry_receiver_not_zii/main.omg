@@ -9,3 +9,9 @@ data Application where launch_count >= 1 && launch_count <= 255 {
 machine Application::launch(application: &mut Application) {
     let seen: u8 = application.launch_count;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Application;
+    Application::launch(&mut entry_storage);
+}

@@ -1,5 +1,5 @@
 // Source-only specialization: two instances must not mutate their template.
-boundary trait Forward<T> { machine call(value: T) -> T; }
+boundary trait Forward<T> { machine call(value: T) -> T reaches; }
 Identity satisfies Forward<u64> {
     machine call(value: u64) -> u64 { value }
 }

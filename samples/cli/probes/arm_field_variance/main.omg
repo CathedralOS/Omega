@@ -22,7 +22,7 @@ use omega::language::core::external_binding;
 public data Receipt [linear] { code: i32; }
 
 public boundary trait Acknowledgement {
-    machine ack(receipt: Receipt) -> i32;
+    machine ack(receipt: Receipt) -> i32 reaches;
 }
 
 public data ReceiptSink {}
@@ -113,4 +113,10 @@ machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
     main.hits = 1;
     verify(first_left == 1 && first_right == 2
         && second_left == 2 && second_right == 1);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Acknowledgement crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

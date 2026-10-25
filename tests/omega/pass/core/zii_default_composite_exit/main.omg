@@ -66,3 +66,10 @@ machine Main::build(main: &mut Main) reaches Console
     state wrong_nested(main: &mut Main)
     { Console::exit_process(75); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

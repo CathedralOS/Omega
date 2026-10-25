@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 data Actual { invoke: addr; }
 data Lookalike { invoke: addr; }
-boundary trait Query { machine query(table: &Lookalike) -> u32; }
+boundary trait Query { machine query(table: &Lookalike) -> u32 reaches; }
 windows_x86_64 machine Actual::query(table: &Lookalike) -> u32
 satisfies Query::query via ForeignBinding::TableFunction(invoke);
 machine main() reaches Query {

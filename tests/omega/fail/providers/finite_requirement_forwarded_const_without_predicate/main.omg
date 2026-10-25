@@ -2,6 +2,7 @@
 // generic relay's public requirement at every Count.
 public boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
+    reaches
     where Count == 4 || Count == 8;
 }
 Provider satisfies Service { Service::echo = echo; }
@@ -16,4 +17,10 @@ macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
 data Main { }
 macos_arm64 machine Main::main(main: &mut Main) reaches Service {
     let result: i32 = relay<4>((17 as i32));
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+macos_arm64 machine entry_start() reaches Service {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

@@ -5,5 +5,5 @@ machine build(builder: &mut Build) {
  Build::select_provider<ClassApi, Imports>(builder);
  Build::select_provider<ContextApi, Imports>(builder);
  Build::select_provider<ModuleApi, Imports>(builder);
- Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+ Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }

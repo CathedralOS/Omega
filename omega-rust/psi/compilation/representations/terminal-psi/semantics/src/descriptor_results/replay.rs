@@ -544,83 +544,82 @@ fn indirect_contents_contain_slot(
     contains
 }
 
-/// Pointer slots whose storage a parameter can replace outside its owned
-/// carrier. Owned aggregates may lend external storage through reference fields;
-/// an outer ownership mode alone cannot classify their stored effects.
-pub fn writable_reference_slots(
-    types: &[StructuralTypeDeclaration],
-    root: PlaceId,
-    structural_type: StructuralTypeId,
-    access: StructuralAccess,
-) -> Option<Vec<DescriptorLocation>> {
-    writable_borrowed_slots(
-        DescriptorSlotKind::References,
-        types,
-        root,
-        structural_type,
-        access,
-    )
-}
-
-/// The same access walk applies to every tracked resident slot. Selecting a
-/// larger inventory cannot acquire write permission through a shared carrier.
-fn writable_borrowed_slots(
-    kind: DescriptorSlotKind,
-    types: &[StructuralTypeDeclaration],
-    root: PlaceId,
-    structural_type: StructuralTypeId,
-    access: StructuralAccess,
-) -> Option<Vec<DescriptorLocation>> {
-    // Shared carrier access cannot acquire stronger permission by reading an
-    // embedded exclusive pointer. Its unavailable pointee layout is irrelevant
-    // to pointer-slot writes, even for an open or growing recursive schema.
-    if access == StructuralAccess::SharedBorrow {
-        return Some(Vec::new());
-    }
-    let inventory = kind.inventory(types, root, structural_type)?;
-    let writable = |path: &[DescriptorPathSegment]| -> Option<bool> {
-        let mut external = access != StructuralAccess::Owned;
-        let mut permission = access;
-        for (index, segment) in path.iter().enumerate() {
-            if *segment == DescriptorPathSegment::Referent {
-                // A write-only carrier may replace its resident pointer, but
-                // cannot read that pointer to reach another storage region.
-                if matches!(
-                    permission,
-                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                ) {
-                    return Some(false);
+impl DescriptorSlotKind {
+    /// Descriptor slots whose storage a parameter can replace outside its owned
+    /// carrier. Owned aggregates may lend external storage through reference fields;
+    /// an outer ownership mode alone cannot classify their stored effects.
+    pub fn writable_slots(
+        self,
+        types: &[StructuralTypeDeclaration],
+        root: PlaceId,
+        structural_type: StructuralTypeId,
+        access: StructuralAccess,
+    ) -> Option<Vec<DescriptorLocation>> {
+        // Shared carrier access cannot acquire stronger permission by reading an
+        // embedded exclusive pointer. Its unavailable pointee layout is irrelevant
+        // to pointer-slot writes, even for an open or growing recursive schema.
+        if access == StructuralAccess::SharedBorrow {
+            return Some(Vec::new());
+        }
+        // A canonical view presentation lends its backing, not a mutable home
+        // for the pointer/count pair. Stored view values retain Some(access)
+        // on their declaration and still need an output contract when replaced.
+        if self.tracks_views()
+            && matches!(
+                find_structural_type(types, structural_type)?.shape,
+                StructuralTypeShape::ByteSequence(
+                    ByteSequenceCarrier::BorrowedView { access: None }
+                        | ByteSequenceCarrier::BoundedView { access: None, .. }
+                ) | StructuralTypeShape::ElementView { access: None, .. }
+            )
+        {
+            return Some(Vec::new());
+        }
+        let inventory = self.inventory(types, root, structural_type)?;
+        let writable = |path: &[DescriptorPathSegment]| -> Option<bool> {
+            let mut external = access != StructuralAccess::Owned;
+            let mut permission = access;
+            for (index, segment) in path.iter().enumerate() {
+                if *segment == DescriptorPathSegment::Referent {
+                    // A write-only carrier may replace its resident pointer, but
+                    // cannot read that pointer to reach another storage region.
+                    if matches!(
+                        permission,
+                        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                    ) {
+                        return Some(false);
+                    }
+                    let ty = crate::descriptor_lifetimes::descriptor_location_type(
+                        types,
+                        structural_type,
+                        &path[..index],
+                    )?;
+                    let StructuralTypeShape::Reference { access, .. } =
+                        find_structural_type(types, ty)?.shape
+                    else {
+                        return None;
+                    };
+                    external = true;
+                    permission = access;
                 }
-                let ty = crate::descriptor_lifetimes::descriptor_location_type(
-                    types,
-                    structural_type,
-                    &path[..index],
-                )?;
-                let StructuralTypeShape::Reference { access, .. } =
-                    find_structural_type(types, ty)?.shape
-                else {
-                    return None;
-                };
-                external = true;
-                permission = access;
+            }
+            Some(external && matches!(permission, terminal_psi::exclusive_borrow_pair_pattern!()))
+        };
+        // Only an inaccessible/read-only opaque subtree can be ignored. Unknown
+        // storage reachable with write authority still prevents a complete effect.
+        for opaque in inventory.opaque_referents {
+            if writable(&opaque.path)? {
+                return None;
             }
         }
-        Some(external && matches!(permission, terminal_psi::exclusive_borrow_pair_pattern!()))
-    };
-    // Only an inaccessible/read-only opaque subtree can be ignored. Unknown
-    // storage reachable with write authority still prevents a complete effect.
-    for opaque in inventory.opaque_referents {
-        if writable(&opaque.path)? {
-            return None;
+        let mut slots = Vec::new();
+        for slot in inventory.slots {
+            if writable(&slot.path)? {
+                slots.push(slot);
+            }
         }
+        Some(slots)
     }
-    let mut slots = Vec::new();
-    for slot in inventory.slots {
-        if writable(&slot.path)? {
-            slots.push(slot);
-        }
-    }
-    Some(slots)
 }
 
 /// Materialized descriptor slots and referent subtrees whose layout is not

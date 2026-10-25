@@ -162,12 +162,6 @@ fn collect_statement_expressions(
 ) {
     match statement {
         StatementNode::Assembly(_) => {}
-        StatementNode::RootBinding(binding) => {
-            expressions.push(binding.receiver);
-            if binding.implementation_operand.is_valid() {
-                expressions.push(binding.implementation_operand);
-            }
-        }
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
             expressions.push(assignment.target);

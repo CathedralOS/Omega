@@ -1,7 +1,7 @@
 // The selected map owns the provider identity independently of its code.
 boundary trait Pick {
-    machine choose() -> i32;
-    machine spare() -> i32;
+    machine choose() -> i32 reaches;
+    machine spare() -> i32 reaches;
 }
 FirstMap satisfies Pick {
     Pick::choose = first;

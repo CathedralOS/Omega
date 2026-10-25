@@ -1,2 +1,1 @@
-cannot prove requires contract for call selected_continuation
-context.phase == 17
+cannot prove requires contract for call

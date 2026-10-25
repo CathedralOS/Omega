@@ -4,7 +4,7 @@ data Ticket [copy] { number: u64; }
 domain Ticket::Issued established by issue;
 machine issue(number: u64) -> Ticket in Issued { Ticket { number: number } }
 data Holder { ticket: Ticket in Issued; counter: u64; }
-boundary trait Change { machine replace(holder: &mut Holder) -> u64; }
+boundary trait Change { machine replace(holder: &mut Holder) -> u64 reaches; }
 Changer satisfies Change {
     machine replace(holder: &mut Holder) -> u64 {
         holder.ticket = issue(43);

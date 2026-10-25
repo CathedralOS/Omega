@@ -240,3 +240,9 @@ machine render_row(search: &MazeSearch, line: &mut [u8; 16] in Ascii,
         transition { _ -> column(search, line, row, column_index + 1) }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

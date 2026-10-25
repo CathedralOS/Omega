@@ -319,21 +319,24 @@ public data Retired {
 // is a borrowed view returning a copy of the resident value.
 public boundary trait ResidentStorage {
     machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
+    reaches
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 
-    machine read(placed: &Occupied) -> Slot;
+    machine read(placed: &Occupied) -> Slot reaches;
 
     machine retire(placed: Occupied) -> Retired
+    reaches
     ensures
         Granted::content(old(&placed.storage)) == Granted::content(&result.storage);
 
     // The same view and retirement over the restated qualified extent: the
     // parameter domains are the exact indexed application, so a caller must
     // prove `Resident<SlotPlacement, Slot>` on the argument it passes.
-    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot;
+    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot reaches;
 
     machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
+    reaches
     ensures
         Granted::content(old(&storage)) == Granted::content(&result.storage);
 }

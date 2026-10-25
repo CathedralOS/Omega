@@ -17,6 +17,7 @@ use checked_trees::CheckedTrees;
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::product_operand::ProductEntryCompatibility;
 
 /// Options for [`interpret_entry`]. `Default` selects the hermetic
 /// virtual filesystem and the compiler host's checked standard metadata
@@ -31,13 +32,6 @@ pub struct InterpretOptions<'bindings> {
     pub virtual_clock_bindings: Vec<crate::VirtualClockBinding>,
     pub filesystem: FilesystemAccess,
     pub filesystem_metadata_layout: FilesystemMetadataLayout,
-    /// The entry parameter occurrence the selected entry shape provisions
-    /// with a zero-initialized context
-    /// (wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge). The
-    /// target-owned `ProgramEntry` settlement names it; the interpreter never
-    /// chooses a context by parameter type, spelling or declaration
-    /// attachment. Absent, the entry receives no implicit state.
-    pub provisioned_context_parameter: Option<SymbolHandle>,
 }
 
 /// Interpret a checked program from one exact machine identity.
@@ -220,132 +214,6 @@ impl<'program> BuildMachineProgram<'program> {
             Self::Typed(typed) => typed,
             Self::Checked(checked) => &checked.typed,
             Self::CheckedClosure { execution, .. } => &execution.typed,
-        }
-    }
-}
-
-/// Source-signature compatibility for the narrowly designated product-entry
-/// query. The build owner supplies target meaning; Psi retains lexical lookup
-/// and exact-symbol selection without depending on target or native crates.
-/// This check must not execute the entry or require the build's unfinished
-/// provider, receiver-provision, or layout settlement. Final admission rechecks
-/// the selected declaration after the build completes.
-/// Every declaration handle and parameter must come from the supplied program;
-/// sharing a Rust lifetime alone does not establish arena identity.
-pub trait ProductEntryCompatibility: Sync {
-    fn validate_entry(
-        &self,
-        program: &TypedTrees,
-        declaration: ProductEntryDeclaration<'_>,
-        slot: &str,
-    ) -> Result<(), String>;
-}
-
-/// Declaration data needed by the Build owner's entry-slot judgment. This view
-/// carries no executable state or statement span. The query issuer retains the
-/// exact selected symbol and its lexical authority separately; this is neither
-/// an issued description nor evidence that the product has been admitted.
-///
-/// The backing program still supplies type identities and any computations
-/// required by the interface, including predicates on a provisioned context.
-/// Removing the entry body does not authorize dropping those dependencies.
-#[derive(Clone, Copy)]
-pub struct ProductEntryDeclaration<'program> {
-    /// Exact product declaration, shared by query compatibility and final
-    /// settlement. Display names cannot authenticate its contract inputs.
-    machine_symbol: SymbolHandle,
-    /// Complete retained input headers. Only the Psi factory may construct
-    /// these; realization receives their data query, never a supplied truth bit.
-    machine_contracts: &'program [typed_trees::signature::SignatureContract],
-    entry_contracts: &'program [typed_trees::signature::SignatureContract],
-    pub name: &'program str,
-    pub attached_data_symbol: SymbolHandle,
-    pub type_parameters: &'program [typed_trees::data::TypeParameter],
-    pub entry: Option<ProductEntrySignature<'program>>,
-}
-
-#[derive(Clone, Copy)]
-pub struct ProductEntrySignature<'program> {
-    pub parameters: &'program [typed_trees::signature::StateParameter],
-    pub return_type: typed_trees::types::TypeReferenceHandle,
-}
-
-impl<'program> ProductEntryDeclaration<'program> {
-    /// Rejoin an exact retained product declaration independently of a supplied
-    /// projection. A missing owner or incomplete header never becomes empty
-    /// input metadata. Bodyless descriptions retain these same source headers.
-    pub fn from_declared_owner(
-        program: &'program TypedTrees,
-        symbol: SymbolHandle,
-    ) -> Option<Self> {
-        let machine = program.machine(symbol)?;
-        let contracts = program.machine_contracts(machine);
-        if contracts.len() != machine.contracts.len()
-            || program.machine_states(machine).len() != machine.states.len()
-        {
-            return None;
-        }
-        let entry_contracts = program
-            .machine_states(machine)
-            .first()
-            .map_or(&[][..], |entry| program.state_contracts(entry));
-        if program
-            .machine_states(machine)
-            .first()
-            .is_some_and(|entry| entry_contracts.len() != entry.contracts.len())
-        {
-            return None;
-        }
-        if contracts.iter().chain(entry_contracts).any(|contract| {
-            program.proof_facts.span_or_empty(contract.facts).len() != contract.facts.len()
-        }) {
-            return None;
-        }
-        Some(Self::from_machine(program, machine))
-    }
-
-    pub const fn machine_symbol(&self) -> SymbolHandle {
-        self.machine_symbol
-    }
-
-    /// Exact named erased inputs declared by this retained entry interface.
-    /// This is boundary input data, not evidence that any input was supplied.
-    /// Normal source binding rules still require a real invocation witness.
-    pub fn erased_requires_inputs(self) -> impl Iterator<Item = &'program str> + 'program {
-        self.machine_contracts
-            .iter()
-            .chain(self.entry_contracts)
-            .filter_map(|contract| {
-                (contract.kind == typed_trees::signature::SignatureContractKind::Requires)
-                    .then_some(contract.binding.as_ref())
-                    .flatten()
-                    .map(|binding| binding.as_str())
-            })
-    }
-
-    /// Project the existing complete-program producer onto the declaration
-    /// boundary. A missing entry stays missing; it is never an empty body.
-    pub fn from_machine(
-        program: &'program TypedTrees,
-        machine: &'program typed_trees::machine::Machine,
-    ) -> Self {
-        Self {
-            machine_symbol: machine.symbol,
-            machine_contracts: program.machine_contracts(machine),
-            entry_contracts: program
-                .machine_states(machine)
-                .first()
-                .map_or(&[][..], |entry| program.state_contracts(entry)),
-            name: machine.name.as_str(),
-            attached_data_symbol: machine.attached_data_symbol,
-            type_parameters: program.machine_type_parameters(machine),
-            entry: program
-                .machine_states(machine)
-                .first()
-                .map(|entry| ProductEntrySignature {
-                    parameters: program.state_parameters(entry),
-                    return_type: entry.return_type,
-                }),
         }
     }
 }
@@ -915,13 +783,10 @@ fn interpret_on_current_thread(
             evaluator.real_fs = Some(filesystem);
         }
     }
-    let provisioned_context = options.provisioned_context_parameter;
     let result = match entry {
-        BuildMachineEntry::Name(entry_machine_name) => {
-            evaluator.run_entry(entry_machine_name, provisioned_context)
-        }
+        BuildMachineEntry::Name(entry_machine_name) => evaluator.run_entry(entry_machine_name),
         BuildMachineEntry::Symbol(entry_machine_symbol) => {
-            evaluator.run_entry_symbol(entry_machine_symbol, provisioned_context)
+            evaluator.run_entry_symbol(entry_machine_symbol)
         }
     };
     evaluator.finish_cell_usage();

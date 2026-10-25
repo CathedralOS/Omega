@@ -44,3 +44,9 @@ machine Main::main(main: &mut Main) {
     Main::accept(SCALAR, 3 as u64 in Below<5>, RECORD);
     main.hits = 1;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

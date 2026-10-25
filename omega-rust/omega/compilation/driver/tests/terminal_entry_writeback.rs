@@ -1,0 +1,250 @@
+//! Host readback of actual source-produced entry storage, including the Build
+//! record. No second evaluator or synthesized Terminal machine supplies results.
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
+use compiler::{CheckedCompileRequest, CompilationProduct, CompilationSession};
+use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
+use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue};
+use terminal_codec::CanonicalTerminalArtifact;
+use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::{
+    TerminalEntryStorageError, TerminalEntryStorageValue, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalProgram, TerminalScalarValue, TerminalStorageContents,
+    TerminalStructuralInputs, TerminalStructuralValue,
+};
+
+fn produce(machine: &str) -> CanonicalTerminalArtifact {
+    // The fixture harness restages one process-local path for each request.
+    // Hold that source owner until compilation has finished reading it.
+    static STAGING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _staging = STAGING.lock().unwrap();
+    let root = repo_root().join("tests/omega/pass/build/receiver_view_writeback_exit/main.omg");
+    let prepared =
+        reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
+    let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
+    request.package_inputs = prepared.package_inputs;
+    CompilationSession::default()
+        .produce(request, CompilationProduct::Inspection(machine.to_owned()))
+        .and_then(compiler::CompilationOutput::into_inspection)
+        .map(|produced| produced.into_artifact())
+        .unwrap_or_else(|error| panic!("{machine}: {error:?}"))
+}
+
+fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
+    let program = TerminalProgram::borrow(artifact.view());
+    let entry = program.entry().unwrap();
+    let root = entry.structural_parameters[0].structural_type;
+    let declaration = artifact
+        .semantic_module()
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root)
+        .unwrap();
+    let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        panic!("record entry");
+    };
+    let identities = &artifact.semantic_module().identities;
+    Path::Field(
+        fields
+            .iter()
+            .find(|field| identities.text(field.identity) == Some(name))
+            .unwrap()
+            .id,
+    )
+}
+
+#[test]
+fn completed_helpers_return_original_entry_storage_to_the_embedding() {
+    for (machine, identifier) in [
+        ("configure", b"omega".as_slice()),
+        ("configure_build_readback", b"com.example.omega".as_slice()),
+    ] {
+        let artifact = produce(machine);
+        let identifier_path = [field(&artifact, "identifier")];
+        for loaded in [false, true] {
+            let program = if loaded {
+                TerminalProgram::load_envelope(&artifact.to_bytes()).expect("external artifact")
+            } else {
+                TerminalProgram::borrow(artifact.view())
+            };
+            let entry = program.entry().unwrap();
+            let mut argument = TerminalStructuralValue::minted(
+                79,
+                entry.structural_parameters[0].structural_type,
+                Vec::new(),
+            );
+            // A host may lend a subtree rather than an allocation root. Its
+            // original path, like its identity, survives helper frames.
+            if loaded {
+                argument
+                    .path
+                    .push(terminal_psi::StructuralPathSegment::FixedIndex(2));
+            }
+            let arguments = [argument];
+            let mut instance = program
+                .instantiate(
+                    &[],
+                    TerminalStructuralInputs {
+                        arguments: &arguments,
+                        zero_initialized_arguments: &[0],
+                        ..Default::default()
+                    },
+                )
+                .expect("host establishes zero-backed borrowed input");
+            assert_eq!(
+                instance.observe_borrowed_entry(0, &identifier_path),
+                Err(TerminalEntryStorageError::NormalReturnRequired)
+            );
+            let mut meter = TerminalFuelMeter::with_allowance(0);
+            assert!(matches!(
+                instance.invoke(&mut meter).unwrap(),
+                TerminalExecutionStatus::SponsorExhausted(_)
+            ));
+            assert_eq!(
+                instance.observe_borrowed_entry(0, &identifier_path),
+                Err(TerminalEntryStorageError::NormalReturnRequired)
+            );
+            meter.replenish(100_000).unwrap();
+            assert_eq!(
+                instance.invoke(&mut meter).unwrap(),
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_bytes(
+                instance
+                    .observe_borrowed_entry(0, &identifier_path)
+                    .unwrap(),
+                identifier,
+            );
+            if machine == "configure" {
+                let signature_path = [field(&artifact, "signature")];
+                assert_bytes(
+                    instance.observe_borrowed_entry(0, &signature_path).unwrap(),
+                    &[0, 9, 0],
+                );
+                assert!(matches!(
+                    instance
+                        .observe_borrowed_entry(
+                            0,
+                            &[signature_path[0].clone(), Path::FixedIndex(1)]
+                        )
+                        .unwrap(),
+                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                        value: TerminalScalarValue::Integer {
+                            value: IntegerValue::Unsigned(9),
+                            ..
+                        },
+                        ..
+                    })
+                ));
+                assert_eq!(
+                    instance.observe_borrowed_entry(
+                        0,
+                        &[signature_path[0].clone(), Path::FixedIndex(3)]
+                    ),
+                    Err(TerminalEntryStorageError::UnknownPath)
+                );
+                assert!(matches!(
+                    instance
+                        .observe_borrowed_entry(0, &[field(&artifact, "revision")])
+                        .unwrap(),
+                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                        value: TerminalScalarValue::Integer {
+                            value: IntegerValue::Unsigned(42),
+                            ..
+                        },
+                        ..
+                    })
+                ));
+            } else {
+                let TerminalEntryStorageValue::Storage(TerminalStorageContents::Case(selected)) =
+                    instance
+                        .observe_borrowed_entry(0, &[field(&artifact, "subsystem")])
+                        .unwrap()
+                else {
+                    panic!("Build subsystem retains its selected case");
+                };
+                let module = artifact.semantic_module();
+                let selected_case = module
+                    .structural_types
+                    .iter()
+                    .filter_map(|declaration| match &declaration.shape {
+                        terminal_psi::StructuralTypeShape::Sum { cases } => Some(cases),
+                        _ => None,
+                    })
+                    .flatten()
+                    .find(|case| case.id == selected)
+                    .expect("nominal case declaration");
+                assert_eq!(module.identities.text(selected_case.identity), Some("Gui"));
+            }
+            assert_eq!(
+                instance.observe_borrowed_entry(1, &identifier_path),
+                Err(TerminalEntryStorageError::NotBorrowedEntryArgument { argument_index: 1 })
+            );
+            assert_eq!(
+                instance.observe_borrowed_entry(0, &[]),
+                Err(TerminalEntryStorageError::UnknownPath)
+            );
+            instance.close().unwrap();
+            assert_eq!(
+                instance.observe_borrowed_entry(0, &identifier_path),
+                Err(TerminalEntryStorageError::Closed)
+            );
+        }
+    }
+}
+
+fn assert_bytes(observed: TerminalEntryStorageValue<'_>, expected: &[u8]) {
+    let TerminalEntryStorageValue::Bytes(bytes) = observed else {
+        panic!("expected byte readback");
+    };
+    assert_eq!(bytes.len(), expected.len());
+    let mut output = vec![0; bytes.len()];
+    bytes.copy_to(&mut output).unwrap();
+    assert_eq!(output, expected);
+    assert!(bytes.read(bytes.len()).is_err());
+    assert!(bytes.copy_to(&mut []).is_err());
+}
+
+#[test]
+fn owned_inputs_and_failed_activations_do_not_return_borrowed_storage() {
+    for machine in ["consume", "fail_after_write"] {
+        let artifact = produce(machine);
+        let identifier_path = [field(&artifact, "identifier")];
+        let program = TerminalProgram::borrow(artifact.view());
+        let arguments = [TerminalStructuralValue::minted(
+            79,
+            program.entry().unwrap().structural_parameters[0].structural_type,
+            Vec::new(),
+        )];
+        let mut instance = program
+            .instantiate(
+                &[],
+                TerminalStructuralInputs {
+                    arguments: &arguments,
+                    zero_initialized_arguments: &[0],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let status = instance
+            .invoke(&mut TerminalFuelMeter::unbounded())
+            .unwrap();
+        if machine == "consume" {
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+            );
+            assert_eq!(
+                instance.observe_borrowed_entry(0, &identifier_path),
+                Err(TerminalEntryStorageError::NotBorrowedEntryArgument { argument_index: 0 })
+            );
+        } else {
+            assert!(matches!(status, TerminalExecutionStatus::Crashed(_)));
+            assert_eq!(
+                instance.observe_borrowed_entry(0, &identifier_path),
+                Err(TerminalEntryStorageError::NormalReturnRequired)
+            );
+        }
+    }
+}

@@ -501,6 +501,37 @@ pub(crate) fn validate_const_data_argument(
         }
         return;
     }
+    if matches!(parameter.kind, TypeParameterKind::Value { .. })
+        && let TypeReferenceNode::ConstExpression(expression) =
+            program.type_reference_table.type_reference(argument)
+    {
+        let parameters = declaration_parameters(program, type_parameter_scope.lexical_owner);
+        let actual = crate::parameter_expression_result_type_reference(
+            program,
+            type_parameter_scope.lexical_owner,
+            &parameters,
+            *expression,
+        );
+        let anonymous = actual.is_none() && crate::has_anonymous_numeric_results(program, *expression)
+            && crate::value_custody::expression_types::argument_matches_type_reference_with_substitutions(program, *expression, parameter_type, &[]);
+        if !anonymous && !actual.is_some_and(|actual| carrier.matches(program, actual)) {
+            diagnostics.push(Diagnostic::error(format!(
+                "value parameter `{}` of `{base_name}` requires `{}`, but its expression has a different or unresolved carrier",
+                parameter.name, canonical_carrier_label(program, carrier),
+            )));
+        }
+        crate::proof_contracts::arithmetic_domains::validate_declaration_value_range(
+            program,
+            type_parameter_scope.lexical_owner,
+            &parameters,
+            *expression,
+            program.primitive_type_reference(parameter_type),
+            program.arithmetic_domain_for_type_reference(parameter_type),
+            &format!("value argument `{}` of `{base_name}`", parameter.name),
+            diagnostics,
+        );
+        return;
+    }
     let primitive = program.type_reference_table.primitive_type(parameter_type);
     let is_integer_parameter = primitive.is_some_and(PrimitiveType::accepts_integer_literal);
     if let TypeReferenceNode::ConstExpression(root) =
@@ -1493,4 +1524,28 @@ pub(crate) fn validate_parameter_bounds(
             )));
         }
     }
+}
+
+/// Declaration symbols, rather than diagnostic names, select operand types.
+fn declaration_parameters(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+) -> Vec<typed_trees::signature::StateParameter> {
+    if let Some(machine) = program.machine_by_symbol(owner) {
+        return program
+            .machine_states(machine)
+            .iter()
+            .flat_map(|state| program.state_parameters(state).iter().cloned())
+            .collect();
+    }
+    program
+        .trait_machine_signature(owner)
+        .map(|(_, signature)| signature)
+        .or_else(|| {
+            program
+                .retained_static_machine_contract(owner)
+                .map(|contract| contract.signature())
+        })
+        .map(|signature| program.state_signature_parameters(signature).to_vec())
+        .unwrap_or_default()
 }

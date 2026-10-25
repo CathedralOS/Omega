@@ -54,6 +54,19 @@ class WorkDiscoveryTests(unittest.TestCase):
         self.assertEqual(measure.call_count, 2)
 
 
+class ExplicitEntryInputsTests(unittest.TestCase):
+    def test_exact_occurrences_and_malformed_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "entry_ram.txt"
+            self.assertEqual(gate.entry_ram_rows(path), [])
+            path.write_text("0=2900000003000000\n1=3500000005000000\n")
+            self.assertEqual(gate.entry_ram_rows(path), [(0, "2900000003000000"), (1, "3500000005000000")])
+            for malformed in ["0=01\n0=02", "-1=00", "4294967296=00", "0=0", "0=gg"]:
+                path.write_text(malformed)
+                with self.subTest(malformed=malformed), self.assertRaises(ValueError):
+                    gate.entry_ram_rows(path)
+
+
 class ChildDecodingTests(unittest.TestCase):
     """Arbitrary child bytes cannot kill the gate.
 

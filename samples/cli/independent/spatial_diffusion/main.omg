@@ -99,3 +99,9 @@ machine Main::main(main: &mut Main) reaches Console invokes Console; {
  state invalid() { Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); Console::exit_process(65); }
  state input_error() { Console::write_line("REJECT input: expected exactly one byte 0..9 or a..f"); Console::exit_process(64); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console invokes Console; {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

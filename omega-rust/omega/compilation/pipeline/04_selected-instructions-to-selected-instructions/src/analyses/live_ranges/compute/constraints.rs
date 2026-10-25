@@ -29,6 +29,9 @@ pub(crate) fn derive_early_clobbers(
                 .map(move |definition| (block, operands, definition))
         })
         .collect::<Vec<_>>();
+    if early_definitions.is_empty() {
+        return Ok(Vec::new());
+    }
     let tied_edges = instruction_operands()
         .flat_map(|(_, operands)| {
             operands
@@ -42,6 +45,11 @@ pub(crate) fn derive_early_clobbers(
                 })
         })
         .collect::<Vec<_>>();
+    let mut tied_registers = BTreeSet::new();
+    for &(left, right) in &tied_edges {
+        tied_registers.insert(left);
+        tied_registers.insert(right);
+    }
     let mut rows = Vec::with_capacity(early_definitions.len());
     for (block, operands, definition) in &early_definitions {
         let tied_source = match definition.tied_to {
@@ -57,8 +65,6 @@ pub(crate) fn derive_early_clobbers(
                     })?,
             ),
         };
-        let mut participants = BTreeSet::new();
-        let mut operand_ordinals = BTreeSet::new();
         let multiple_definitions = operands
             .iter()
             .filter(|operand| operand.access == RegisterOperandAccess::Def)
@@ -71,13 +77,10 @@ pub(crate) fn derive_early_clobbers(
                 && source.class == definition.class
                 && source.tied_to.is_none()
         });
-        let unrelated = operands
-            .iter()
-            .filter(|operand| {
-                operand.operand != definition.operand
-                    && tied_source.is_none_or(|source| source.operand != operand.operand)
-            })
-            .collect::<Vec<_>>();
+        let is_unrelated = |operand: &selected_instructions::OperandPosition| {
+            operand.operand != definition.operand
+                && tied_source.is_none_or(|source| source.operand != operand.operand)
+        };
         // SingleEarlyDefTiedComponentAgainstUntiedUsesV1 keeps the source in
         // ordinary tie evidence and only unrelated Uses in this hazard row.
         let tie_component_has_one_early_definition = tied_source.is_none_or(|source| {
@@ -93,10 +96,8 @@ pub(crate) fn derive_early_clobbers(
                     .count()
                     == 1
         });
-        let untied_definition_is_free = tied_source.is_some()
-            || tied_edges.iter().all(|(left, right)| {
-                *left != definition.virtual_register && *right != definition.virtual_register
-            });
+        let untied_definition_is_free =
+            tied_source.is_some() || !tied_registers.contains(&definition.virtual_register);
         if definition.access != RegisterOperandAccess::Def
             || !multiple_definitions
                 && operands
@@ -110,24 +111,25 @@ pub(crate) fn derive_early_clobbers(
                 .any(|operand| operand.access == RegisterOperandAccess::Use)
             || multiple_definitions && operands.iter().any(|operand| operand.tied_to.is_some())
             || !source_is_valid
-            || tied_source.is_some() && unrelated.is_empty()
-            || operands.iter().any(|operand| {
+            || tied_source.is_some() && !operands.iter().any(&is_unrelated)
+            || operands.iter().enumerate().any(|(idx, operand)| {
                 (operand.operand != definition.operand
                     && ((operand.access != RegisterOperandAccess::Use
                         && !(multiple_definitions
                             && operand.access == RegisterOperandAccess::Def
                             && operand.early_clobber))
                         || operand.tied_to.is_some()))
-                    || !participants.insert(operand.virtual_register)
-                    || !operand_ordinals.insert(operand.operand)
+                    || operands[..idx].iter().any(|prior| {
+                        prior.virtual_register == operand.virtual_register
+                            || prior.operand == operand.operand
+                    })
             })
             || !tie_component_has_one_early_definition
             || !untied_definition_is_free
-            || unrelated.iter().any(|operand| {
-                tied_edges.iter().any(|(left, right)| {
-                    *left == operand.virtual_register || *right == operand.virtual_register
-                })
-            })
+            || operands
+                .iter()
+                .filter(|operand| is_unrelated(operand))
+                .any(|operand| tied_registers.contains(&operand.virtual_register))
         {
             return Err(LiveRangeError::UnsupportedEarlyClobber {
                 function,
@@ -135,11 +137,11 @@ pub(crate) fn derive_early_clobbers(
                 operand: definition.operand,
             });
         }
-        let uses = unrelated
-            .into_iter()
+        let uses = operands
+            .iter()
             // Other definitions interfere at the ordinary after point, even
             // when dead. Only incoming Uses belong to early-clobber hazards.
-            .filter(|operand| operand.access == RegisterOperandAccess::Use)
+            .filter(|operand| is_unrelated(operand) && operand.access == RegisterOperandAccess::Use)
             .map(|operand| EarlyClobberUse {
                 operand: operand.operand,
                 virtual_register: operand.virtual_register,

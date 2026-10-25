@@ -2,7 +2,7 @@
 
 public data Counter { count: u64; }
 public boundary trait Parent {
-    machine reset(counter: &mut Counter) ensures counter.count <= 7u64;
+    machine reset(counter: &mut Counter) reaches ensures counter.count <= 7u64;
 }
 public boundary trait Child: Parent {}
 Good satisfies Child { Parent::reset = reset; }
@@ -21,4 +21,10 @@ machine Main::main(main: &mut Main) reaches Child + Parent crashes Trap {
     transition observed == 0 { true -> done() _ -> bad() }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Child + Parent crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

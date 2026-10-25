@@ -53,6 +53,9 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+bounded-process = { path = "../../foundation/bounded-process" }
+
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
 omega-build = { path = "../../application/build" }
 terminal-runtime = { path = "../../application/terminal-runtime" }
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
@@ -102,6 +105,10 @@ path = "tests/terminal_decode_once.rs"
 [[test]]
 name = "placed_view_calls"
 path = "tests/placed_view_calls.rs"
+
+[[test]]
+name = "terminal_entry_writeback"
+path = "tests/terminal_entry_writeback.rs"
 
 # Loose roots intentionally have no fixture-supplied package owner. This
 # boundary test derives that owner, reloads its artifact and runs consumers

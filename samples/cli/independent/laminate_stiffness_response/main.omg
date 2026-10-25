@@ -112,3 +112,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state bad_model(main: &mut Main) { Console::write_line("INVALID MODEL"); Console::exit_process(2); }
     state done(main: &mut Main) { Console::write_line("OK"); Console::exit_process(0); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

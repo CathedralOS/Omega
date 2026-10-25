@@ -28,7 +28,7 @@ domain Receipt::Extra(receipt) requires receipt.code >= 0;
 domain Receipt::ExtraIssued = Issued & Extra;
 
 public boundary trait Acknowledgement {
-    machine acknowledge(receipt: Receipt in Receipt::Issued) crashes Trap;
+    machine acknowledge(receipt: Receipt in Receipt::Issued) reaches crashes Trap;
 }
 
 machine verify_payload(receipt: &Receipt) {}
@@ -48,4 +48,10 @@ data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: &mut Main) {
     main.hits = 1;
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

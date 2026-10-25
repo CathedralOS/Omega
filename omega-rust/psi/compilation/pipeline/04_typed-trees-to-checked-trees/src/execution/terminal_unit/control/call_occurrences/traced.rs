@@ -731,9 +731,6 @@ pub(in crate::execution::terminal_unit) fn outer_calls_in_prefix_traced<'a>(
             Some(StatementNode::Transition(_)) => {
                 "outer calls: unconsumed nested call in a transition"
             }
-            Some(StatementNode::RootBinding(_)) => {
-                "outer calls: unconsumed nested call in a root binding"
-            }
             Some(StatementNode::Assembly(_)) => "outer calls: control metadata contains no call",
             Some(StatementNode::AssemblyFact(_)) => {
                 "outer calls: unconsumed nested call in an assembly fact"

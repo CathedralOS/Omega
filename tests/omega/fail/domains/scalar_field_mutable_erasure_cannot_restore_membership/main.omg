@@ -1,6 +1,6 @@
 // Invalid: replacing a routed field through a bare primitive reference cannot restore membership.
 domain u64::AtLeast100(value) requires value >= 100 established by issue;
-boundary trait Consume { machine subtract(value: u64 in AtLeast100) -> u64; }
+boundary trait Consume { machine subtract(value: u64 in AtLeast100) -> u64 reaches; }
 Actual satisfies Consume { machine subtract(value: u64 in AtLeast100) -> u64 { value - 100 } }
 machine issue(value: u64) -> u64 in AtLeast100 requires value >= 100 { value }
 data Payload { value: u64 in AtLeast100; }

@@ -3,8 +3,8 @@
 public data Status [copy] { code: u64; }
 public data Counter { value: u64; }
 public boundary trait Values {
-    machine scalar(input: u64) -> u64 ensures result == input;
-    machine status(output: &mut Counter) -> Status ensures result.code == 7;
+    machine scalar(input: u64) -> u64 reaches ensures result == input;
+    machine status(output: &mut Counter) -> Status reaches ensures result.code == 7;
 }
 public ForwardedValues satisfies Values {
     machine scalar(input: u64) -> u64 ensures result == input; {

@@ -3,6 +3,7 @@ domain Ticket::Issued established by issue;
 machine issue() -> Ticket in Issued { Ticket { number: 7 } }
 boundary trait Change {
     machine replace(ticket: &mut Ticket)
+    reaches
     requires ticket in Issued;
 }
 machine read(ticket: &Ticket in Issued) -> u64 { ticket.number }

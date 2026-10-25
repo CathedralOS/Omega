@@ -267,7 +267,6 @@ fn valid_header<'a>(
         || machine.authored_target.is_some()
         || machine.target_family_interface
         || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
-        || machine.entry_context_origin.is_some()
         || !machine.owned_data.is_empty()
         || machine.service_reach_is_installation_bound
         || machine.admitted_same_stack_bytes != 0
@@ -465,7 +464,6 @@ fn common_boundary_state<'a>(
         || machine.authored_target.is_some()
         || machine.target_family_interface
         || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
-        || machine.entry_context_origin.is_some()
         || !machine.owned_data.is_empty()
         || machine.service_reach_is_installation_bound
         || machine.admitted_same_stack_bytes != 0

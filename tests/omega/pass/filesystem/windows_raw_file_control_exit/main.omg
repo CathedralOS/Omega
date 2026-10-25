@@ -89,3 +89,10 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery
         transition released == 0 && reset == 0 && removed == 0 { true -> 70 false -> 81 }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

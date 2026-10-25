@@ -304,24 +304,6 @@ fn statement_may_overwrite(
                 read_path,
             )
         }
-        StatementNode::RootBinding(binding) => {
-            place_interferes(program, machine_symbol, binding.receiver, symbol, read_path)
-                || expression_may_overwrite(
-                    program,
-                    machine_symbol,
-                    binding.receiver,
-                    symbol,
-                    read_path,
-                )
-                || (binding.implementation_operand.is_valid()
-                    && expression_may_overwrite(
-                        program,
-                        machine_symbol,
-                        binding.implementation_operand,
-                        symbol,
-                        read_path,
-                    ))
-        }
         StatementNode::AssemblyFact(fact) => program
             .tables
             .proof_fact_expression_roots(fact.fact)

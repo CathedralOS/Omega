@@ -124,3 +124,9 @@ machine Main::apply(main: &mut Main, event: Event) {
     state done(main: &mut Main) {
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

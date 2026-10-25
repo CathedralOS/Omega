@@ -2,8 +2,8 @@
 // Expected rejection: a borrowed supplier parameter is a different passing mode.
 data Index [copy] { value: u32; }
 domain Index::Bounded(index) requires index.value <= 1;
-boundary trait Required { machine get(index: Index) -> u32; }
-boundary trait Supplied { machine get(index: &Index) -> u32 requires index in Bounded; }
+boundary trait Required { machine get(index: Index) -> u32 reaches; }
+boundary trait Supplied { machine get(index: &Index) -> u32 reaches requires index in Bounded; }
 Actual satisfies Supplied {
     machine get(index: &Index) -> u32 requires index in Bounded { index.value }
 }

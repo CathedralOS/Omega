@@ -58,76 +58,7 @@ pub(crate) fn finalize_checked_authored_selections(
 
     {
         let _s = phase_profile::guard("05.d.11_13.a.2.root_bindings");
-        for machine in program.machines() {
-            for state in program.machine_states(machine) {
-                for (statement_index, statement) in program
-                    .statement_table
-                    .indexed_statements(state.statement_nodes)
-                {
-                    let Some(binding) = statement.as_root_binding() else {
-                        continue;
-                    };
-                    let receiver_type = validation::expression_type_reference_in_state(
-                        program,
-                        state.symbol,
-                        statement_index,
-                        binding.receiver,
-                    );
-                    // Source/result loan checking establishes receiver authority,
-                    // including a returned temporary's lifetime across its operand.
-                    // Selection finalization checks the exact compiler-owned type;
-                    // evaluation separately checks this activation's original cell.
-                    let mut receiver = binding.receiver;
-                    while let ExpressionNode::Borrow(borrow) = expressions.expression(receiver) {
-                        if borrow.access != language_semantics::ReferenceAccess::Mutable {
-                            return Err(Diagnostic::error(
-                                "root binding requires a compiler-issued &mut Build place",
-                            )
-                            .with_source_span(binding.source_span));
-                        }
-                        receiver = borrow.target;
-                    }
-                    if !receiver_type.is_some_and(|receiver_type| {
-                    matches!(program.type_reference_table.type_reference(receiver_type),
-                        typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
-                            if *access == language_semantics::ReferenceAccess::Mutable && validation::compiler_operations::exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
-                })
-                {
-                    return Err(Diagnostic::error("root binding requires a compiler-issued &mut Build receiver")
-                        .with_source_span(binding.source_span));
-                }
-                    if binding.slot.is_empty()
-                        || (binding.implementation.is_empty()
-                            && !binding.implementation_operand.is_valid())
-                    {
-                        return Err(Diagnostic::error("root-slot binding requires exactly one slot path and one implementation path or description expression")
-                        .with_source_span(binding.source_span));
-                    }
-                    if binding.implementation_operand.is_valid() {
-                        // Description expressions undergo the ordinary call,
-                        // effect and ownership checks. Their declared type is not
-                        // issuance authority: build evaluation still rejoins the
-                        // resulting value with this activation's issued entries.
-                        let operand_type = validation::expression_type_reference_in_state(
-                            program,
-                            state.symbol,
-                            statement_index,
-                            binding.implementation_operand,
-                        );
-                        if !operand_type.is_some_and(|operand_type| {
-                        validation::compiler_operations::type_reference_names_exact_prelude_data(
-                            program,
-                            operand_type,
-                            "ProductEntryRef",
-                        )
-                    }) {
-                        return Err(Diagnostic::error("delegated root binding requires an operand of the compiler-owned ProductEntryRef description type")
-                            .with_source_span(binding.source_span));
-                    }
-                    }
-                }
-            }
-        }
+        super::root_bindings::validate(program, &owner_index)?;
     }
 
     {

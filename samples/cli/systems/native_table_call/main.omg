@@ -4,8 +4,8 @@
 use omega::language::core::external_binding;
 
 boundary trait ModuleSymbols {
-    machine module(name: &[u8; 13]) -> addr;
-    machine symbol(module: addr, name: &[u8; 24]) -> addr;
+    machine module(name: &[u8; 13]) -> addr reaches;
+    machine symbol(module: addr, name: &[u8; 24]) -> addr reaches;
 }
 data CounterTable { value: i64; query: addr; }
 data Observations { table: CounterTable; }
@@ -14,16 +14,16 @@ data FunctionHolder { functions: CounterFunctions; }
 data ProcessFunctions { current: addr; }
 data ArithmeticFunctions { multiply_divide: addr; }
 boundary trait Arithmetic {
-    machine multiply_divide(table: &ArithmeticFunctions, numerator: i32, multiplier: i32, denominator: i32) -> i32;
+    machine multiply_divide(table: &ArithmeticFunctions, numerator: i32, multiplier: i32, denominator: i32) -> i32 reaches;
 }
 boundary trait ProcessIdentity {
-    machine current(table: &ProcessFunctions) -> u32;
+    machine current(table: &ProcessFunctions) -> u32 reaches;
 }
 boundary trait CounterFunction {
-    machine query(table: &CounterFunctions, output: &mut i64) -> i32;
+    machine query(table: &CounterFunctions, output: &mut i64) -> i32 reaches;
 }
 boundary trait Counter {
-    machine query(table: &mut CounterTable) -> i32;
+    machine query(table: &mut CounterTable) -> i32 reaches;
 }
 windows_x86_64 machine module_binding() -> ForeignBinding<12, 16, 0> {
     ForeignBinding::DllImport { import: DllImport::PeByName {

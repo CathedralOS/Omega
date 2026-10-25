@@ -10,6 +10,7 @@ public data Split {
 
 public boundary trait ExtentPartition {
     machine merge(parts: Split) -> Extent
+    reaches
     ensures
         embed(result.length) == embed(parts.taken.length) + embed(parts.rest.length),
         result in Granted & Vacant,

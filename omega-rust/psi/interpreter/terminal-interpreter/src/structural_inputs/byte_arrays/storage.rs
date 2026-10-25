@@ -36,6 +36,33 @@ impl From<StructuralRuntimePlace> for ArrayStorage {
 }
 
 impl TerminalExecution<'_> {
+    pub(crate) fn stored_byte_array_read_view(
+        &self,
+        storage: &ArrayStorage,
+        start: usize,
+        end: usize,
+    ) -> Result<crate::byte_sequences::read::TerminalByteRead<'_>, TerminalInterpretError> {
+        use crate::byte_sequences::read::TerminalByteRead;
+        match storage.home {
+            ArrayStorageHome::Runtime => {
+                let bytes = self
+                    .structural_byte_storage
+                    .get(&storage.referent)
+                    .ok_or_else(malformed)?;
+                let window = bytes.bytes().get(start..end).ok_or_else(malformed)?;
+                Ok(TerminalByteRead::contiguous(window))
+            }
+            ArrayStorageHome::Frame { depth, place, .. } => {
+                let (_, length) = self.frame_byte_array_window(storage)?;
+                if start > end || end > length {
+                    return Err(malformed());
+                }
+                let values = self.frame_array(depth, place).ok_or_else(malformed)?;
+                TerminalByteRead::scalars(&values.elements[start..end])
+            }
+        }
+    }
+
     pub(crate) fn frame_array(
         &self,
         depth: usize,

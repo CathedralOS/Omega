@@ -30,3 +30,4 @@ phase-profile = { path = "../../../psi/foundation/phase-profile" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }

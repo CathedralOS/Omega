@@ -42,13 +42,6 @@ pub enum StatementSnapshot {
     AssemblyLabel {
         label: String,
     },
-    RootBinding {
-        receiver: ExpressionSnapshot,
-        slot: Vec<String>,
-        implementation: Vec<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        implementation_operand: Option<ExpressionSnapshot>,
-    },
     AssemblyFact {
         contract_kind: &'static str,
         fact: super::declaration_snapshots::ProofFactSnapshot,
@@ -337,15 +330,6 @@ pub(crate) fn statement_snapshot(
                     .collect(),
             }
         }
-        StatementNode::RootBinding(binding) => StatementSnapshot::RootBinding {
-            receiver: expression_snapshot(program, binding.receiver),
-            slot: to_strings(binding.slot.iter()),
-            implementation: to_strings(binding.implementation.iter()),
-            implementation_operand: binding
-                .implementation_operand
-                .is_valid()
-                .then(|| expression_snapshot(program, binding.implementation_operand)),
-        },
         StatementNode::AssemblyFact(fact) => StatementSnapshot::AssemblyFact {
             contract_kind: match fact.kind {
                 crate::statement::AssemblyFactKind::Requires => "requires",

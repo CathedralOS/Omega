@@ -10,16 +10,6 @@ pub(crate) fn find_call_site_in_statement<'program>(
     statement: &'program StatementNode,
 ) -> Option<CallSite<'program>> {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid()
-                    && let Some(site) = find_call_site_in_expression(traversal, expression)
-                {
-                    return Some(site);
-                }
-            }
-            None
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => None,
         StatementNode::Assignment(assignment) => {
             // The authored target operand precedes the value. A call-valued

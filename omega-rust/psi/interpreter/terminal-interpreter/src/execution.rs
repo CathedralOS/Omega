@@ -92,6 +92,9 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
+    /// Host-lent entry storage outlives frame-local views. Keep only borrowed
+    /// inputs: an owned argument transfers custody and cannot be read back.
+    pub(crate) borrowed_entry_storage: Vec<(u32, PlaceId, TerminalStructuralValue)>,
     pub(crate) private_entry_ram: Vec<crate::reference::placed::PrivateEntryRamAllocation>,
     pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
@@ -452,6 +455,19 @@ impl<'artifact> TerminalExecution<'artifact> {
             &machine.structural_parameters,
             &structural_values,
         )?;
+        let mut borrowed_entry_storage = Vec::new();
+        for (index, (parameter, value)) in machine
+            .structural_parameters
+            .iter()
+            .zip(structural_arguments)
+            .enumerate()
+        {
+            if parameter.access == terminal_psi::StructuralAccess::Owned {
+                continue;
+            }
+            let argument_index = u32::try_from(index).map_err(|_| malformed())?;
+            borrowed_entry_storage.push((argument_index, parameter.place, value.clone()));
+        }
         let mut execution = Self {
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
             activation_storage: Default::default(),
@@ -465,6 +481,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .map(|installation| installation.assumed_bindings.clone())
                 .unwrap_or_default(),
             values,
+            borrowed_entry_storage,
             structural_values,
             aggregate_argument_backings: BTreeMap::new(),
             reference_referents: BTreeMap::new(),

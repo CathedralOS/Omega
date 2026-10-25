@@ -10,10 +10,10 @@ public data Variant {
     case Empty;
 }
 public boundary trait PacketIo {
-    machine read(descriptor: i32, variant: &mut Variant, count: u64) -> i64 blocks;
+    machine read(descriptor: i32, variant: &mut Variant, count: u64) -> i64 reaches blocks;
 }
 public boundary trait ByteIo: Calling<ByteViewCallingPolicy<u8>> {
-    machine write(descriptor: i32, bytes: &[u8]) -> i64;
+    machine write(descriptor: i32, bytes: &[u8]) -> i64 reaches;
 }
 public data Imports {}
 data Envelope { prefix: u32; variant: Variant; suffix: u32; }
@@ -86,4 +86,10 @@ machine Main::main(main: &mut Main) reaches PacketIo, ByteIo blocks; crashes Tra
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches PacketIo, ByteIo blocks; crashes Trap {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
 }

@@ -3,7 +3,7 @@ use omega::language::core::assembly_model;
 data Cell { value: AtomicU64; }
 data Ack [linear] { nonce: u64; }
 boundary trait Completion {
- machine complete(ack: Ack, mut word: &Cell, other: &Cell);
+ machine complete(ack: Ack, mut word: &Cell, other: &Cell) reaches;
 }
 proposition acknowledged(ack: Ack, word: &Cell) = atomic_release_written<AtomicU64, u64>(&word.value, ack.nonce);
 machine finish(ack: Ack, mut word: &Cell, other: &Cell) satisfies Completion::complete

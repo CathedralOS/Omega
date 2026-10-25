@@ -196,10 +196,6 @@ impl ActivationCarryAccumulator<'_> {
     fn visit_statement(&mut self, statement: &StatementNode) {
         match statement {
             StatementNode::Assembly(_) => {}
-            StatementNode::RootBinding(binding) => {
-                self.visit_expression(binding.receiver);
-                self.visit_expression(binding.implementation_operand);
-            }
             StatementNode::AssemblyFact(fact) => {
                 for expression in self.program.tables.proof_fact_expression_roots(fact.fact) {
                     self.visit_expression(expression);

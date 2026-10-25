@@ -57,3 +57,9 @@ machine RankExample::run(context: &mut RankExample) reaches Console {
         Console::exit_process(1);
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: RankExample;
+    RankExample::run(&mut entry_storage);
+}

@@ -45,6 +45,7 @@ use validation::{
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
 };
 
+mod application_values;
 mod call_contracts;
 mod collections;
 mod conditions;
@@ -214,6 +215,7 @@ impl<'program> CurrentScalarValues<'program> {
             )
             .scalar_values,
         };
+        values.seed_parameter_fields();
         let owned_frames = frames
             .is_none()
             .then(|| validation::CallFrameResolver::new(program))
@@ -434,7 +436,6 @@ impl<'program> CurrentScalarValues<'program> {
                 // retain their ordinary effects. Assertions are obligations,
                 // never premises introduced by this value transfer.
                 StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
-                StatementNode::RootBinding(_) => return None,
             }
         }
         if target.is_valid() {

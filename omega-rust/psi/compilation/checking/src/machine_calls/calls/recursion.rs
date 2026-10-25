@@ -30,13 +30,6 @@ pub(crate) fn validate_self_recursive_call_positions(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
-        StatementNode::RootBinding(binding) => {
-            for expression in [binding.receiver, binding.implementation_operand] {
-                if expression.is_valid() {
-                    reject_embedded_self_calls(program, machine, expression, diagnostics);
-                }
-            }
-        }
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => {}
         // The statement-position fence in `validate_call_node` owns
         // StatementNode::Call; transition ARM TARGETS are the legal tail

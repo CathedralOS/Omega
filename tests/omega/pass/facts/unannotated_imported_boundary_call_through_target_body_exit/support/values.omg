@@ -1,0 +1,3 @@
+public boundary trait Mark { machine read() -> u64 reaches Mark; }
+machine read_private() -> u64 invokes Mark; { Mark::read() }
+public machine fetch_mark() -> u64 invokes Mark; { read_private() }

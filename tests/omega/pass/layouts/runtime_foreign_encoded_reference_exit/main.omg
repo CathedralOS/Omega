@@ -42,7 +42,7 @@ public data RawView { value: SignedByte<PortableByte>; }
 public data ForeignByte { value: i8; }
 
 public boundary trait ClearByte {
-    machine clear(value: &mut ForeignByte, count: u64);
+    machine clear(value: &mut ForeignByte, count: u64) reaches;
 }
 macos_arm64 machine clear_binding() -> ForeignBinding<26, 6, 0> {
     ForeignBinding::DllImport {
@@ -70,7 +70,7 @@ machine clear(value: &mut RawView) reaches ClearByte {
 }
 
 public boundary trait CompareByte {
-    machine compare(left: &RawView, right: &RawView, count: u64) -> i32;
+    machine compare(left: &RawView, right: &RawView, count: u64) -> i32 reaches;
 }
 macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {
     ForeignBinding::DllImport {
@@ -111,4 +111,10 @@ machine Main::main(main: &mut Main) reaches CompareByte + ClearByte crashes Trap
     }
     state done() {}
     state bad() { crash Trap; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches CompareByte + ClearByte crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

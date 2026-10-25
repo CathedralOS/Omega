@@ -1,6 +1,12 @@
 use source::SourceSpan;
 use symbols::SymbolHandle;
 
+mod product;
+pub use product::{
+    DescribedProductEntry, DescribedProductProvider, DescribedProductSchema, ExecutedRootBinding,
+    RootBindingOperand, RootBindingRequest, RootBindingSelection,
+};
+
 /// Whether an authored declaration selection contributes only to an
 /// implementation or is exposed through a package's published surface.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

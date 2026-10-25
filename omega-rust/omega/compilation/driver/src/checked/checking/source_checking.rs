@@ -36,40 +36,6 @@ pub(crate) fn check_product_source(
     let constant_recipe_source =
         (!constant_recipe_continuations.is_empty()).then(|| Arc::new(typed.clone()));
     let build = &computed_build_config.config;
-    let mut entry_contexts = Vec::new();
-    for root in build.program_roots() {
-        let mut entries = vec![root];
-        for family in &typed.target_machine_families {
-            if family.canonical == root
-                || family.members.iter().any(|member| member.machine == root)
-            {
-                entries.extend(family.members.iter().map(|member| member.machine));
-            }
-        }
-        for entry_symbol in entries {
-            let Some(entry) = typed.machine_by_symbol(entry_symbol) else {
-                continue;
-            };
-            if !entry.supplies_checked_body() {
-                continue;
-            }
-            let Some(state) = typed.machine_states(entry).first() else {
-                continue;
-            };
-            if let Some(context) =
-                provider_planning::program_entry::provisioned_entry_context(&typed, entry, state)
-                    .map_err(|diagnostic| vec![diagnostic])?
-            {
-                let origin = checked_trees::typed_trees::machine::EntryContextOrigin {
-                    entry: entry_symbol,
-                    context_parameter: context.parameter.symbol,
-                };
-                if !entry_contexts.contains(&origin) {
-                    entry_contexts.push(origin);
-                }
-            }
-        }
-    }
     let representations = representation_planning::rederive_opaque_representation_selections(
         &typed,
         computed_build_config.selected_build_machine_symbol,
@@ -85,7 +51,6 @@ pub(crate) fn check_product_source(
         .collect::<Vec<_>>();
     let symbol_sources = typed.symbols.source_map();
     let source_admission = psi_compiler::SourceAdmission {
-        entry_contexts: &entry_contexts,
         completion: match package_inputs.and_then(|inputs| {
             inputs.accepted_semantic_binding(
                 package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,

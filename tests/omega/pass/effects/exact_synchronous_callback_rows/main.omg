@@ -10,11 +10,13 @@ public boundary trait Handler {
 public boundary trait Registrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies Handler::read;
+    reaches
     invokes Handler;
 
     // Merely retaining a callback does not synchronously enter it.
     machine register<machine Callback>()
     where machine Callback satisfies Handler::read;
+    reaches;
 }
 
 machine read_callback() -> u64 satisfies Handler::read reaches Read { 7 }

@@ -1,5 +1,5 @@
 
-public boundary trait Scheduler { machine advance() suspends; }
+public boundary trait Scheduler { machine advance() reaches suspends; }
 machine observe(value: &i32) -> i32 { value }
 
 machine invalid() suspends; reaches Scheduler {

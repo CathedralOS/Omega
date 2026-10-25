@@ -1,5 +1,5 @@
 public data Observation { value: i32; }
-public boundary trait RawSource { machine fill(destination: &mut Observation); }
+public boundary trait RawSource { machine fill(destination: &mut Observation) reaches; }
 trait Other { machine fill(destination: &mut Observation); }
 Unrelated satisfies Other {
     machine fill(destination: &mut Observation) { destination.value = 99; }

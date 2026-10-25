@@ -8,3 +8,9 @@ machine main(context: &mut Context) {
     reflexive(Ordinal::Zero);
     reflexive(Ordinal::Step { previous: Ordinal::Zero });
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
+}

@@ -306,6 +306,19 @@ impl CallSiteVisitor for InvocationCallSites<'_> {
         _statement_index: usize,
         _ordinal: usize,
     ) {
+        // A designated product selection executes a compiler-owned operation,
+        // not a user-selected component binding. Its private host protocol is
+        // explicit in Terminal, but is not a new authored `invokes` obligation.
+        // The common traversal still visits every operand's ordinary calls;
+        // selecting a product cannot hide a helper's actual service invocations.
+        if self
+            .program
+            .expression_table
+            .root_binding_request(call.root_binding)
+            .is_some()
+        {
+            return;
+        }
         let receiver = origin_for_expression(self.program, self.machine, self.state, call.receiver);
         self.resolved_call(
             call.target_symbol,

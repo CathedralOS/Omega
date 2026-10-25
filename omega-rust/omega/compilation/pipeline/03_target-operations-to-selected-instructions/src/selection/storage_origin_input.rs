@@ -421,44 +421,58 @@ fn collect_calls(
                     if result.place != place || result.structural_type != structural_type {
                         return Err(SelectedInstructionError::custody());
                     }
-                    if call.descriptor_origins.is_empty() {
-                        if contains_borrowed_storage(
-                            &signature.structural_types,
-                            structural_type,
-                            &mut BTreeSet::new(),
-                        ) {
-                            return Err(SelectedInstructionError::custody());
-                        }
+                    // A by-value result materializes its own inline scalar
+                    // storage. Descriptor siblings do not change that field's
+                    // allocation. Crossing a pointer still needs the retained
+                    // completed-call origin roster below.
+                    let inline_scalar = crate::structural_inputs::structural_reference_input::reference_formation_geometry(
+                        structural_type, &coordinate.path, &signature.structural_types,
+                    ).is_some_and(|geometry| !geometry.uses_borrowed_backing)
+                        && crate::structural_inputs::structural_reference_input::projected_scalar_codec(
+                            structural_type, &coordinate.path, &signature.structural_types,
+                        ).is_some();
+                    if inline_scalar {
+                        visited.origin();
                     } else {
-                        calls.insert((producer, place));
-                        // A selected descendant can contain another descriptor.
-                        // Its backing comes from the retained actual-origin
-                        // roster, not from the returned carrier's allocation.
-                        if !coordinate.path.is_empty() {
-                            for origin in &call.descriptor_origins {
-                                if let legalized_operations::LegalizedDescriptorOrigin::Argument {
-                                    source,
-                                    ..
-                                } = origin
-                                {
-                                    collect_calls(geometry, source, visited, calls)?;
+                        if call.descriptor_origins.is_empty() {
+                            if contains_borrowed_storage(
+                                &signature.structural_types,
+                                structural_type,
+                                &mut BTreeSet::new(),
+                            ) {
+                                return Err(SelectedInstructionError::custody());
+                            }
+                        } else {
+                            calls.insert((producer, place));
+                            // A selected descendant can contain another descriptor.
+                            // Its backing comes from the retained actual-origin
+                            // roster, not from the returned carrier's allocation.
+                            if !coordinate.path.is_empty() {
+                                for origin in &call.descriptor_origins {
+                                    if let legalized_operations::LegalizedDescriptorOrigin::Argument {
+                                        source,
+                                        ..
+                                    } = origin
+                                    {
+                                        collect_calls(geometry, source, visited, calls)?;
+                                    }
                                 }
                             }
                         }
+                        visited.returned_origin(
+                            !coordinate.path.is_empty()
+                                && !call.descriptor_origins.is_empty()
+                                && call.descriptor_origins.iter().all(|origin| {
+                                    matches!(
+                                        origin,
+                                        legalized_operations::LegalizedDescriptorOrigin::Argument {
+                                            exact: true,
+                                            ..
+                                        }
+                                    )
+                                }),
+                        );
                     }
-                    visited.returned_origin(
-                        !coordinate.path.is_empty()
-                            && !call.descriptor_origins.is_empty()
-                            && call.descriptor_origins.iter().all(|origin| {
-                                matches!(
-                                    origin,
-                                    legalized_operations::LegalizedDescriptorOrigin::Argument {
-                                        exact: true,
-                                        ..
-                                    }
-                                )
-                            }),
-                    );
                 }
                 I::ByteSequenceSubslice {
                     source: parent,

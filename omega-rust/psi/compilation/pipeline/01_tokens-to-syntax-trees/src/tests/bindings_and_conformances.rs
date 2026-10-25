@@ -8,7 +8,7 @@ use syntax_trees::types::TypeReferenceNode;
 fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
     let source = r#"
         boundary trait Console {
-            machine write_byte(byte: i32);
+            machine write_byte(byte: i32) reaches;
         }
 
         machine console_write_byte(byte: i32)
@@ -107,7 +107,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
 fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
     let source = r#"
         boundary trait Kernel32Requirements {
-            machine write_file();
+            machine write_file() reaches;
         }
 
         machine write_file_binding() -> i32 {
@@ -155,7 +155,7 @@ fn parses_ordinary_via_machine_call_without_bootstrap_binding_reconstruction() {
 fn rejects_legacy_named_compiler_intrinsic_payload() {
     let source = r#"
         boundary trait Console {
-            machine write_byte(byte: i32);
+            machine write_byte(byte: i32) reaches;
         }
 
         machine console_write_byte(byte: i32)
@@ -174,7 +174,7 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
 fn retired_vtable_slot_rejects_before_consuming_its_payload() {
     let source = r#"
         boundary trait Firmware {
-            machine invoke(this: addr);
+            machine invoke(this: addr) reaches;
         }
 
         machine legacy(this: addr)
@@ -1009,8 +1009,9 @@ fn retired_provides_declarations_name_the_external_leaf_migration() {
         "demo_target provides Flags { open_read -> Syscall(0) }",
         "host demo_target provides Flags { open_read -> Syscall(0) }",
     ] {
-        let source =
-            format!("boundary trait Flags {{ machine open_read() -> i32; }}\n{declaration}");
+        let source = format!(
+            "boundary trait Flags {{ machine open_read() -> i32 reaches; }}\n{declaration}"
+        );
         let error = super::parse_source_error(
             &source,
             "tokenize should succeed",

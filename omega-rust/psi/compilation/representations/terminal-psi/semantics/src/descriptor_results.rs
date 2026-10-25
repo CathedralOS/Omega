@@ -63,7 +63,7 @@ pub use replay::{
     DescriptorAnalysis, DescriptorSlotInventory, DescriptorSlotKind, DescriptorSourceObservation,
     DescriptorSourceObservations, DescriptorStoredCallEffect, DescriptorStoredEffect,
     DescriptorStoredOrigin, descriptor_slot_inventory, descriptor_slots,
-    reconstruct_source_origins, reconstruct_stored_effects, writable_reference_slots,
+    reconstruct_source_origins, reconstruct_stored_effects,
 };
 
 #[derive(Clone)]
@@ -610,6 +610,11 @@ pub enum DescriptorDefinition {
         access: StructuralAccess,
         structural_type: StructuralTypeId,
     },
+    /// An edge names either a receiving value home or an alias of borrowed
+    /// storage. Preserve the actual formal's access across graph adaptation.
+    Arrival {
+        access: StructuralAccess,
+    },
     Local,
     Literal,
 }
@@ -843,7 +848,9 @@ fn terminal_definition(
             {
                 return None;
             }
-            Some(DescriptorDefinition::Local)
+            Some(DescriptorDefinition::Arrival {
+                access: block.structural_parameters.get(position as usize)?.access,
+            })
         }
         StructuralPlaceKind::OperationResult {
             producer,

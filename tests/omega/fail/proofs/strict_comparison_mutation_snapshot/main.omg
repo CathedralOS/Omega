@@ -5,3 +5,9 @@ machine main(context: &mut Context) {
     state bounded(context: &Context) requires context.count < 6 { }
     state done() { }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Context;
+    main(&mut entry_storage);
+}

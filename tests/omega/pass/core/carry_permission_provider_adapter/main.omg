@@ -9,6 +9,7 @@ public domain Token::SuspensionSafe = Carry::AcrossSuspend;
 
 public boundary trait ClaimProvider {
     machine grant(token: Token) -> Token
+    reaches
     ensures
         result in Token::SuspensionSafe;
 }
@@ -26,7 +27,7 @@ machine forward_claim(token: Token) -> Token {
 }
 
 public boundary trait Scheduler {
-    machine park() suspends;
+    machine park() reaches suspends;
 }
 
 data Harness {

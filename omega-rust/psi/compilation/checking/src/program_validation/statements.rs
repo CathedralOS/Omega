@@ -96,7 +96,6 @@ pub(super) fn validate_state_statement_node<'p>(
         diagnostics,
     };
     match statement {
-        StatementNode::RootBinding(_) => {}
         StatementNode::Assembly(_) => {} // Control admission owns the lexical window and local edges.
         StatementNode::AssemblyFact(_) => {
             assembly_fact_statements::validate(&scope, &mut outputs, statement)
@@ -159,7 +158,6 @@ pub(crate) fn statement_source_span(
     };
     match statement {
         StatementNode::Assembly(_) => None,
-        StatementNode::RootBinding(binding) => authored(binding.source_span),
         StatementNode::AssemblyFact(fact) => {
             program.proof_fact_source_span(fact.fact).and_then(authored)
         }

@@ -15,7 +15,7 @@ pub(in crate::checks) fn reachable_arms(
     for (ordinal, arm) in program.expression_table.match_arms(arms).iter().enumerate() {
         let mut covered = false;
         match arm.pattern {
-            MatchPattern::Destructure(_) => {},
+            MatchPattern::Destructure(_) => {}
             MatchPattern::Wildcard => covered = true,
             MatchPattern::Value(pattern) => {
                 let node = program.expression_table.expression(pattern);

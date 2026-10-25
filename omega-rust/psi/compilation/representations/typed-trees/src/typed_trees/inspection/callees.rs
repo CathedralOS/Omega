@@ -80,10 +80,6 @@ fn collect_statement_callees(
                 collect_transition_target_callees(typed, target, visited, called);
             }
         }
-        StatementNode::RootBinding(binding) => {
-            collect_expression_callees(typed, binding.receiver, visited, called);
-            collect_expression_callees(typed, binding.implementation_operand, visited, called);
-        }
     }
 }
 

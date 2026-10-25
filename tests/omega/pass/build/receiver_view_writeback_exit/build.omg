@@ -1,0 +1,39 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "receiver_view_writeback_exit");
+    configure_build(builder);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+
+machine configure_build(builder: &mut Build) {
+    replace_build_identifier(builder);
+}
+
+// An explicit reborrow keeps the original activation identity at the host.
+machine bind_reborrowed(builder: &mut Build) {
+    Build::bind(&mut builder, macos_arm64::ProgramEntry, main);
+}
+
+machine replace_build_identifier(builder: &mut Build) {
+    builder.identifier = "com.example.omega";
+}
+
+machine configure_build_readback(builder: &mut Build) {
+    configure_build(builder);
+    builder.subsystem = Subsystem::Gui;
+}
+
+boundary trait ObserveBuild {
+    machine record(builder: &mut Build, sequence: u64) reaches;
+}
+
+machine configure_build_boundary(builder: &mut Build)
+reaches ObserveBuild
+{
+    builder.identifier = "before";
+    ObserveBuild::record(builder, 1);
+    builder.identifier = "after";
+    ObserveBuild::record(builder, 2);
+}

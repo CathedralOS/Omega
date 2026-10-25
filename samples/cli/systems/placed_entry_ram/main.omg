@@ -1,5 +1,5 @@
 // Expected exit: 0. Expected output contains: 41
-// Run: omega run --both --keep --entry-ram 1=2900000003000000 main.omg
+// Run: omega run --both --keep --entry-ram 0=2900000003000000 main.omg
 // The explicit runtime recipe constructs original Registers{status:41,transmit:3}
 // before lending this direct entry parameter. Read32@0 yields41; write8@4 stores9.
 // Native and captured Terminal streams must contain41 followed by LF. After
@@ -33,11 +33,12 @@ machine RegPlacement::plan(schema: Schema) -> PlacementPlan {
         access: AccessPlan,
         entries: [FieldEntry; 64]
     ) -> PlacementPlan {
+        let status_key: u64 = schema.fields[0].key;
         transition { _ -> place_transmit(
             schema,
             AccessPlan::with(
                 access,
-                schema.fields[0].key,
+                status_key,
                 FieldAccess::External {
                     read: ExternalRead::Read,
                     write: false,
@@ -99,4 +100,10 @@ machine Main::main(main: &mut Main, view: &mut Placed<RegPlacement, Registers>) 
     Console::write_byte((observed % 10) as i32 + 48);
     Console::write_byte(10);
     view.transmit.write(&mut view.transmit, 9);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start(view: &mut Placed<RegPlacement, Registers>) reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage, view);
 }

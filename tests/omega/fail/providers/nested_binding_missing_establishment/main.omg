@@ -3,7 +3,7 @@
 // authority: the entry reads a nested field, passes it to a helper that reaches
 // `Reading::read`, and still has no selected provider.
 
-public boundary trait Reading { machine read() -> u64; }
+public boundary trait Reading { machine read() -> u64 reaches; }
 data Session { reading: u64; }
 data Main { session: Session; }
 
@@ -19,4 +19,10 @@ machine Main::main(main: &mut Main) reaches Reading {
     }
     state done() {}
     state bad() {}
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Reading {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
 }

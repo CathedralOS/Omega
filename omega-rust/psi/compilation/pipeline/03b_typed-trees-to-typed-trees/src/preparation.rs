@@ -7,7 +7,6 @@
 mod data_applications;
 mod default_domain_zero;
 mod deferred_constants;
-mod entry_contexts;
 mod opaque_property_receipts;
 mod runtime_index_fields;
 mod selections;
@@ -21,7 +20,6 @@ use typed_trees::TypedTrees;
 /// authority is checked by the following stage, not accepted here.
 #[derive(Clone, Copy)]
 pub struct PreparationRequest<'request> {
-    entry_contexts: &'request [typed_trees::machine::EntryContextOrigin],
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: &'request [validation::OpaqueDataPropertyReceipt],
@@ -33,7 +31,6 @@ impl<'request> PreparationRequest<'request> {
     /// Final source admission requires all constant operands to be settled.
     pub const fn settled() -> Self {
         Self {
-            entry_contexts: &[],
             admits_pending_inputs: false,
             asm_authority: None,
             opaque_property_receipts: &[],
@@ -48,16 +45,6 @@ impl<'request> PreparationRequest<'request> {
             admits_pending_inputs: true,
             ..Self::settled()
         }
-    }
-
-    /// Prepare every requested source entry before target realization chooses
-    /// one. The ordinary generated body receives no installation authority.
-    pub const fn with_entry_contexts(
-        mut self,
-        entries: &'request [typed_trees::machine::EntryContextOrigin],
-    ) -> Self {
-        self.entry_contexts = entries;
-        self
     }
 
     /// Admit privileged instructions against this invocation's evaluated Build.
@@ -104,7 +91,6 @@ impl<'request> PreparationRequest<'request> {
 /// exact preparation and the judgment may be taken without preparing again.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreparationAdmission {
-    entry_contexts: Vec<typed_trees::machine::EntryContextOrigin>,
     admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
@@ -118,7 +104,6 @@ impl PreparationRequest<'_> {
     /// construction-time data.
     pub fn admission(&self) -> PreparationAdmission {
         PreparationAdmission {
-            entry_contexts: self.entry_contexts.to_vec(),
             admits_pending_inputs: self.admits_pending_inputs,
             asm_authority: self.asm_authority,
             opaque_property_receipts: self.opaque_property_receipts.to_vec(),
@@ -203,7 +188,6 @@ pub fn prepare_typed_trees(
     // Cloning binds only its newly produced instance after substitution; no
     // final whole-program receiver repair or data-method search is needed.
     validation::resolve_dynamic_call_targets(&mut program)?;
-    entry_contexts::prepare(&mut program, request.entry_contexts)?;
     selections::retain_static_argument_contexts(&mut program);
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
@@ -334,9 +318,6 @@ pub fn prepare_typed_trees(
     phase_profile::scope("05.c.3.k.assignment_destinations", || {
         crate::assignment_destinations::prepare(&mut program)
     });
-    phase_profile::scope("05.c.3.l.zero_contexts", || {
-        entry_contexts::validate_zero_contexts(&program, request.entry_contexts)
-    })?;
     phase_profile::scope("05.c.3.m.assembly_admit", || {
         crate::assembly_control::admit(&program)
     })?;

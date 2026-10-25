@@ -244,10 +244,43 @@ crashes Trap
     state requirement(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
         let head: MachineHead = Parser::member_machine_head(token.start, MachineContainer::Trait);
+        let index: u64 in Trapping = parser.output.machine_count as u64 in Trapping;
+        let boundary: bool = parser.declaration_is_boundary;
         Parser::parse_machine(parser, input, head);
         transition parser.output.accepted {
-            true -> member(parser, input)
+            true -> requirement_contract(parser, input, index, boundary)
             _ -> done()
+        }
+    }
+
+    // The trait owns boundary identity; its member has no boundary keyword
+    // or executable receiver of its own. Read the member's produced clause
+    // range, including a zero-member Reaches row, instead of inferring an
+    // absent contract from a selected/default implementation body.
+    state requirement_contract(parser: &mut Parser, input: &TokenStream, index: u64 in Trapping, boundary: bool) {
+        transition boundary {
+            true -> boundary_contract(parser, input, index)
+            _ -> member(parser, input)
+        }
+    }
+
+    state boundary_contract(parser: &mut Parser, input: &TokenStream, index: u64 in Trapping) {
+        let declaration: MachineItem = SyntaxTrees::machine_item(&parser.output, index);
+        transition { _ -> reach_clause(parser, input, declaration.first_clause, declaration.clause_count, 0) }
+    }
+
+    state reach_clause(parser: &mut Parser, input: &TokenStream, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
+        transition offset < count {
+            true -> inspected_clause(parser, input, first, count, offset)
+            _ -> reject(parser, input, ParseDiagnosticCode::MissingBoundaryReachCeiling)
+        }
+    }
+
+    state inspected_clause(parser: &mut Parser, input: &TokenStream, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
+        let clause: Clause = SyntaxTrees::clause(&parser.output, first + offset);
+        transition clause.kind == ClauseKind::Reaches {
+            true -> member(parser, input)
+            _ -> reach_clause(parser, input, first, count, offset + 1)
         }
     }
 

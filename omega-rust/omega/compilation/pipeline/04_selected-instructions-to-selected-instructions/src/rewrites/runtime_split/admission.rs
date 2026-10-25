@@ -21,6 +21,7 @@ use crate::rewrites::runtime_spill::{
 pub(super) struct Admission {
     pub block_index: usize,
     pub definition_index: usize,
+    pub use_blocks: Vec<usize>,
     pub register: VirtualRegister,
     pub copy: SelectedInstruction,
 }
@@ -76,6 +77,9 @@ pub(super) fn admit(
         .iter()
         .enumerate()
         .find_map(|(block_index, block)| {
+            if !function.blocks.block_references_register(block_index, register) {
+                return None;
+            }
             block
                 .instructions
                 .iter()
@@ -110,6 +114,12 @@ pub(super) fn admit(
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
     for (current_block_index, block) in function.blocks.iter().enumerate() {
+        if !function
+            .blocks
+            .block_references_register(current_block_index, register)
+        {
+            continue;
+        }
         let previous_uses = uses;
         for (instruction_index, instruction) in block.instructions.iter().enumerate() {
             if current_block_index == block_index && instruction_index == definition_index {
@@ -186,6 +196,7 @@ pub(super) fn admit(
     Ok(Admission {
         block_index,
         definition_index,
+        use_blocks,
         register: VirtualRegister {
             id: fresh,
             scalar_type: victim.scalar_type,

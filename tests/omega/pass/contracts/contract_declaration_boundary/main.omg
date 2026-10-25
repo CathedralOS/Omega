@@ -3,7 +3,7 @@
 public data Status [copy] { code: u64; }
 public data Table { read: addr; }
 public boundary trait ForeignReports {
-    machine read(table: &Table) -> Status ensures result.code == 0;
+    machine read(table: &Table) -> Status reaches ensures result.code == 0;
 }
 trait Identity<T> { machine same(value: T) -> T; }
 data Wrapped<T> { value: T; }
