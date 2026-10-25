@@ -270,7 +270,7 @@ pub(crate) struct ConstructorStorage {
     byte_descriptors:
         BTreeMap<StructuralRuntimePlace, crate::byte_sequences::binding::ByteSequenceBinding>,
     references: BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
-    primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
+    primitives: RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
     byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView>,
     owner_writes: Vec<(
         crate::byte_sequences::binding::ByteOwnerHome,
@@ -309,7 +309,7 @@ impl ConstructorStorage {
             views: BTreeMap::new(),
             byte_descriptors: BTreeMap::new(),
             references: BTreeMap::new(),
-            primitives: BTreeMap::new(),
+            primitives: RuntimeRows::new(account),
             byte_arrays: BTreeMap::new(),
             owner_writes: Vec::new(),
             cases: BTreeMap::new(),
@@ -384,7 +384,7 @@ impl ConstructorStorage {
         // not overlaid on stale byte-array or scalar aliases in the snapshot.
         // All non-byte associations above continue from the original value.
         self.scalars.append(&mut decoded.scalars)?;
-        self.primitives.extend(decoded.primitives);
+        self.primitives.append(&mut decoded.primitives)?;
         self.bytes.extend(decoded.bytes);
         self.byte_arrays.extend(decoded.byte_arrays);
         self.cases.extend(decoded.cases);
@@ -565,7 +565,7 @@ impl ConstructorStorage {
     ) -> Result<(), TerminalInterpretError> {
         match destination {
             crate::primitive_storage::PrimitiveStorageEndpoint::Scalar(home) => {
-                self.primitives.insert(home.clone(), value);
+                self.primitives.insert(home.clone(), value)?;
             }
             crate::primitive_storage::PrimitiveStorageEndpoint::ScalarField(field) => {
                 self.scalars.insert(field.clone(), value)?;
@@ -622,7 +622,7 @@ impl ConstructorStorage {
                 if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(*value) {
                     return Err(malformed());
                 }
-                self.primitives.insert(destination.clone(), *value);
+                self.primitives.insert(destination.clone(), *value)?;
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let (scalar_type, leaf_count) = terminal_semantics::scalar_array_leaf_shape(
@@ -964,7 +964,7 @@ impl ConstructorStorage {
             crate::structural_storage::cells(&execution.structural_primitive_storage, source)
         {
             if let Some(target) = relocate(home) {
-                self.primitives.insert(target, *value);
+                self.primitives.insert(target, *value)?;
             }
         }
         for (home, bytes) in
@@ -998,6 +998,9 @@ impl ConstructorStorage {
         execution
             .structural_scalar_fields
             .validate_append(&self.scalars)?;
+        execution
+            .structural_primitive_storage
+            .validate_append(&self.primitives)?;
         for (home, _) in &self.owner_writes {
             execution.byte_owner_bytes(home)?;
         }
@@ -1014,6 +1017,9 @@ impl ConstructorStorage {
         execution
             .structural_scalar_fields
             .append(&mut self.scalars)?;
+        execution
+            .structural_primitive_storage
+            .append(&mut self.primitives)?;
         execution
             .activation_storage
             .claim_descriptors
@@ -1032,9 +1038,6 @@ impl ConstructorStorage {
             .structural_byte_descriptors
             .extend(self.byte_descriptors);
         execution.reference_referents.extend(self.references);
-        execution
-            .structural_primitive_storage
-            .extend(self.primitives);
         execution.structural_byte_storage.extend(self.byte_arrays);
         execution.structural_cases.extend(self.cases);
         execution.structural_host_atoms.extend(self.host_atoms);

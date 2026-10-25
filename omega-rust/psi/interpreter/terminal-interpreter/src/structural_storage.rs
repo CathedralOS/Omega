@@ -66,6 +66,18 @@ pub(crate) fn prune<K: StorageKey, V>(map: &mut BTreeMap<K, V>, root: &Structura
     }
 }
 
+/// Retire selected cells through their reservation owner, retaining the same
+/// identity-range traversal as the remaining unaccounted storage tables.
+pub(crate) fn prune_rows<K: StorageKey, V>(
+    map: &mut crate::runtime_rows::RuntimeRows<K, V>,
+    root: &StructuralRuntimePlace,
+) {
+    let keys: Vec<_> = cells(map, root).map(|(key, _)| key.clone()).collect();
+    for key in keys {
+        map.remove(&key);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

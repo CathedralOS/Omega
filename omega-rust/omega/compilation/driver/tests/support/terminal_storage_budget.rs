@@ -5,13 +5,14 @@ use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationAccountingError,
     EvaluationMeasurementIdentity, EvaluationResource, TerminalStorageScheduleIdentity,
 };
-use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
-    TerminalExecutionResult, TerminalExecutionStatus, TerminalInstanceCloseError,
-    TerminalInstanceError, TerminalInstantiation, TerminalInterpretError, TerminalProgram,
-    TerminalScalarValue,
+    TerminalEntryStorageValue, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalInstantiation,
+    TerminalInterpretError, TerminalProgram, TerminalScalarValue, TerminalStorageContents,
+    TerminalStructuralInputs, TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 
 fn describe(error: impl std::fmt::Debug) -> String {
@@ -22,6 +23,7 @@ pub(super) fn observe(
     artifact: &CanonicalTerminalArtifact,
     cells: &str,
     value: &str,
+    initial: Option<&str>,
 ) -> Result<(), String> {
     let peak: u64 = cells.parse().map_err(describe)?;
     let expected: u64 = value.parse().map_err(describe)?;
@@ -30,13 +32,40 @@ pub(super) fn observe(
     }
     let loaded = TerminalProgram::load_envelope(&artifact.to_bytes()).map_err(describe)?;
     for program in [TerminalProgram::borrow(artifact.view()), loaded] {
-        observe_program(program, peak, expected)?;
+        observe_program(program, peak, expected, initial)?;
     }
     Ok(())
 }
 
-fn observe_program(program: TerminalProgram<'_>, peak: u64, expected: u64) -> Result<(), String> {
+fn observe_program(
+    program: TerminalProgram<'_>,
+    peak: u64,
+    expected: u64,
+    initial: Option<&str>,
+) -> Result<(), String> {
     let short = peak - 1;
+    let mut arguments = Vec::new();
+    let mut primitives = Vec::new();
+    if let Some(initial) = initial {
+        let entry = program.entry().map_err(describe)?;
+        let [parameter] = entry.structural_parameters else {
+            return Err(
+                "primitive storage fixture requires one structural entry argument".to_owned(),
+            );
+        };
+        arguments.push(TerminalStructuralValue::minted(
+            79,
+            parameter.structural_type,
+            Vec::new(),
+        ));
+        primitives.push(TerminalStructuralPrimitiveValue {
+            argument_index: 0,
+            value: TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).map_err(describe)?,
+                value: IntegerValue::Unsigned(initial.parse::<u32>().map_err(describe)?.into()),
+            },
+        });
+    }
     let measurement = EvaluationMeasurementIdentity::TerminalPsi {
         fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
@@ -54,6 +83,11 @@ fn observe_program(program: TerminalProgram<'_>, peak: u64, expected: u64) -> Re
         let mut instance = program
             .instantiate(TerminalInstantiation {
                 account: Some(&account),
+                structural_inputs: TerminalStructuralInputs {
+                    arguments: &arguments,
+                    primitive_values: &primitives,
+                    ..Default::default()
+                },
                 ..Default::default()
             })
             .map_err(describe)?;
@@ -81,6 +115,18 @@ fn observe_program(program: TerminalProgram<'_>, peak: u64, expected: u64) -> Re
                     "expected peak {peak}, observed {}",
                     sponsor.peak_live_cells()
                 ));
+            }
+            if initial.is_some()
+                && !matches!(
+                    instance.observe_borrowed_entry(0, &[]).map_err(describe)?,
+                    TerminalEntryStorageValue::Storage(TerminalStorageContents::Scalar {
+                        value: TerminalScalarValue::Integer { value: IntegerValue::Unsigned(observed), .. }, ..
+                    }) if observed == u128::from(expected)
+                )
+            {
+                return Err(
+                    "original primitive entry backing differs from the scalar result".to_owned(),
+                );
             }
             instance.close().map_err(describe)?;
         } else {

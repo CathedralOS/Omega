@@ -1014,7 +1014,10 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     Shared scalar record-field rows now retain reservations through constructor,
     case and subtree staging, owned call copies, entry binding and retirement;
     exact/short-budget source controls preserve independent copied contents and
-    sticky refusal. Other global descriptor/primitive/placed/case rows and
+    sticky refusal. Shared primitive backing and entry lookup rows now retain
+    reservations through construction, mutation, subtree staging and retirement;
+    exact/short-budget controls preserve original borrowed entry writeback.
+    Other global descriptor/placed/case rows and
     cumulative result custody remain.
     Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
