@@ -584,6 +584,7 @@ fn append_constructed_owners(
                     },
                     completion_ordinal,
                     completion: typed_trees::expression::ExpressionHandle::invalid(),
+                    completion_constraints: None,
                 });
             }
         }
