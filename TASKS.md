@@ -2475,7 +2475,7 @@ then independent claimed restoration slices -> final closure.
   operation into its Psi owner. Depends on **INTERPRETER-CORE-ENTRY**.
   Owners: `omega-rust/psi/compilation/compile-time/src/machine_execution/`,
   `omega-rust/psi/compilation/compile-time/src/const_evaluation/const_lengths.rs`,
-  `omega-rust/omega/compilation/driver/terminal-production/src/` and the owning
+  `omega-rust/psi/compilation/driver/terminal-production/src/` and the owning
   Psi stages. One immutable declaration/type arena supplies every job. Job-local
   overlays retain selected closures, evaluated values and materialized results;
   compile-time evaluation must not clone `SyntaxTrees`/`TypedTrees`, inject a
@@ -2492,14 +2492,19 @@ then independent claimed restoration slices -> final closure.
   still reject. Record a precise dependency if the demanded closure itself
   cannot yet check; do not establish a permanent typed-tree execution exception.
   Current frontier: the shared stage 05-07 production operation is now owned by
-  `omega-rust/psi/compilation/driver/`; the Omega product adapter
+  `omega-rust/psi/compilation/driver/terminal-production/`; the Omega product adapter
   delegates to it and retains product timing/report vocabulary. Fixed-array
   jobs now demand within the original executable roster, settle shared type
   prerequisites in one private arena and reject actual cycles with their chain.
   Each job retains its checked facts and exact prepared entry; selected-provider
-  meaning survives ordinary call normalization. Common Terminal job production
-  and execution still depend on **INTERPRETER-CORE-ENTRY**. The current evaluator
-  remains the existing tree engine; this does not close the Terminal acceptance.
+  meaning survives ordinary call normalization. Fixed-array jobs use that common
+  producer and execute through a Terminal instance, with admitted primitive
+  numeric imports, call-local result policy and Terminal semantic fuel. Early Psi
+  and package review share the exact source-identity protocol in the source
+  foundation. Remaining acceptance: remove private arena cloning/rechecking and
+  admission projections, migrate the other early-evaluation consumers, and
+  measure shared-dependency memory. This does not close those requirements or
+  migrate general Build execution.
 
 - **TERMINAL-BUILD-SEED.** (new-scope) Establish the minimum package-aware
   Build activation that lets agents keep building/checking/running the compiler
@@ -2559,14 +2564,15 @@ then independent claimed restoration slices -> final closure.
   resolution/review, Psi requirement admission, and Terminal continuation plus
   provider-slot installation as their existing owners rather than another Build
   driver. The seed's
-  runtime work is its four authored `Build::bind` rows. Unpublished source
-  preparation carries generalized `RootBinding` plans, exact declaration
-  coordinates and authenticated original Build inputs through the common core;
-  its four ordered observations, pause/resume without replay, actual settings
-  readback and foreign/malformed-input refusals are measured. This is not the
-  default package Build route. Forwarded identifier mutation still refuses
-  `InvalidStructuralByteViewFieldStore(OperationId(8))`: the mutable boundary
-  receiver has no portable stored-descriptor effect/lifetime contract.
+  runtime work is its four authored `Build::bind` rows. On published
+  `0f544a8a211`, inspecting this Build through Terminal refuses `root binding`
+  at statement 2; prior unpublished RootBinding preparation is not a current
+  implementation or acceptance result. General binding operations must carry
+  exact declaration coordinates and authenticated original Build inputs through
+  the common core. Verify ordered observations, pause/resume without replay,
+  settings readback and foreign/malformed-input refusal on the resulting route.
+  Mutable boundary receivers also need a portable stored-descriptor
+  effect/lifetime contract.
   `RetainedBorrow` covers shared inputs returned as structural results, not
   Unit-return receiver writeback. Carry an authenticated general mutable-slot
   effect/backing relation through checked admission, boundary declarations,

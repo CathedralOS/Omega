@@ -49,6 +49,7 @@ members = [
     "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi",
     "omega-rust/omega/compilation/driver/terminal-production",
     "omega-rust/psi/compilation/driver",
+    "omega-rust/psi/compilation/driver/terminal-production",
     "omega-rust/psi/compilation/proof/admission",
     "omega-rust/psi/compilation/representations/terminal-psi/codec",
     "omega-rust/psi/compilation/representations/terminal-psi/fuel",

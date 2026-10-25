@@ -13,20 +13,17 @@
 //! `source_checking.rs` owns preparation, exact retained-judgment matching and
 //! checking for both Product and Build. Successful checking precedes product
 //! pruning; consumers supply admission facts, never a stage sequence.
-//! `terminal_production.rs` owns checked trees through stages 05-07 and canonical
-//! publication, including separate consumer admissions. Source/package assembly,
+//! `terminal-production/src/terminal_production.rs` owns checked trees through
+//! stages 05-07 and canonical publication, including separate consumer admissions.
+//! That shared operation sits below this source facade so early compile-time jobs
+//! can use it without recursively importing their source coordinator. Source/package assembly,
 //! source completion roles and distinct entry-root production remain outside
 //! this facade; this is not yet a complete one-call source-to-Terminal API.
 //! Observers record existing stage operations without choosing or replaying them.
 
-mod composition_admission;
-mod custody;
-pub use composition_admission::TerminalCompositionAdmission;
-mod observation;
 mod source_checking;
 mod source_compilation;
 mod source_parsing;
-mod terminal_production;
 
 pub use source_checking::{
     CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductSelections, RetainedCheck,
@@ -39,13 +36,10 @@ pub use source_compilation::{
     SourceContinuation, SourceExtensionRequest,
 };
 
-pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
-pub use checked_trees_to_lowered_psi::TerminalProgramRoots;
-pub use custody::{
-    ProducedTerminalArtifact, TerminalApplicationCustody, TerminalProductionCustody,
-};
-pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
-pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, RetainedCallableSignature, TerminalArtifactProductionError,
-    TerminalProductionRequest, retained_callable_signature,
+pub use psi_terminal_production::{
+    ProducedTerminalArtifact, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
+    PsiCompilationStage, RetainedCallableSignature, TerminalApplicationCustody,
+    TerminalArtifactProductionError, TerminalCompositionAdmission, TerminalMachineSelection,
+    TerminalProductionCustody, TerminalProductionRequest, TerminalProgramRoots,
+    UnmeasuredProduction, retained_callable_signature,
 };

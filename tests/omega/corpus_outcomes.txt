@@ -2338,7 +2338,7 @@ fail/comptime/const_array_length_dependency_cycle rejected 339ms expected @5f668
 fail/comptime/effectful_const_array_length rejected 798ms expected @5f668826adf3
 	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `@array-extent-2-2` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/comptime/fuel_exhausted_const_array_length rejected 837ms expected @5f668826adf3
-	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
+	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: constant Terminal execution exhausted its fuel allowance after 100000 units
 fail/comptime/negative_const_array_length rejected 686ms expected @5f668826adf3
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
 fail/comptime/recipe_endpoint_membership_refused_at_closure rejected 7668ms expected @5f668826adf3

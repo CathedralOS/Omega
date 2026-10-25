@@ -227,13 +227,18 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "psi-terminal-production",
  "semantic-vocabulary",
  "source",
+ "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
  "syntax-trees",
  "syntax-trees-to-symbol-resolved-trees",
+ "terminal-fuel",
+ "terminal-interpreter",
+ "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-checked-trees",
  "typed-trees-to-typed-trees",
@@ -1657,13 +1662,11 @@ dependencies = [
  "arena",
  "build-time-evaluation",
  "checked-trees",
- "checked-trees-to-lowered-psi",
  "diagnostics",
  "language-semantics",
- "lowered-psi-to-lowered-psi",
- "lowered-psi-to-terminal-psi",
  "optimization",
  "phase-profile",
+ "psi-terminal-production",
  "rayon",
  "representation-selections",
  "semantic-vocabulary",
@@ -1681,6 +1684,23 @@ dependencies = [
  "typed-trees-to-checked-trees",
  "typed-trees-to-typed-trees",
  "validation",
+]
+
+[[package]]
+name = "psi-terminal-production"
+version = "0.1.0"
+dependencies = [
+ "checked-trees",
+ "checked-trees-to-lowered-psi",
+ "diagnostics",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
+ "optimization",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+ "terminal-codec",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2086,6 +2106,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "semantic-vocabulary",
+ "sha2",
 ]
 
 [[package]]

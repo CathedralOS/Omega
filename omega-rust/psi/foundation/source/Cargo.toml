@@ -9,5 +9,6 @@ name = "source"
 path = "src/lib.rs"
 
 [dependencies]
+sha2 = "0.10"
 arena = { path = "../arena" }
 semantic-vocabulary = { path = "../semantic-vocabulary" }
