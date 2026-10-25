@@ -45,8 +45,6 @@ pub const COMPONENT_DESCRIPTION_SCHEMA_V3: u32 = 3;
 pub(crate) const MAX_COMPONENT_DESCRIPTION_BYTES: usize = 8 * 1024 * 1024;
 /// Hard bound on any single roster inside a description.
 pub(crate) const MAX_DESCRIPTION_ROSTER: usize = 4096;
-/// Hard bound on one declared or derived identity string.
-pub(crate) const MAX_IDENTITY_BYTES: usize = 1024;
 
 /// How far the checked component evidence has advanced.
 ///
@@ -1259,9 +1257,10 @@ impl<'a> Reader<'a> {
 
     fn identity(&mut self) -> Result<String, DescriptionDecodeRejection> {
         let length = self.u32()? as usize;
-        if length > MAX_IDENTITY_BYTES {
-            return Err(DescriptionDecodeRejection::IdentityInvalid("too long"));
-        }
+        // Derived exports retain several complete closed identities. Their
+        // text shares the description's already checked byte envelope; a
+        // separate small identifier limit rejects valid composed contracts.
+        // Check the actual remaining bytes before allocating UTF-8 storage.
         let bytes = self.take(length)?;
         String::from_utf8(bytes.to_vec())
             .map_err(|_| DescriptionDecodeRejection::IdentityInvalid("not utf-8"))

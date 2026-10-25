@@ -51,6 +51,16 @@ has zero WCSU”; that prerequisite and the original-view namespace/path join ar
 part of the same unfinished acceptance. The corresponding native corpus oracle
 requires all four actual component exports.
 
+The [overlapping-view control](overlapping_views/main.omg) passes a shared pair
+and views of both of its fields to the same independent invocation. Both fields
+contain legitimate Copy occurrences with equal opaque host tokens. The provider
+must observe the original field addresses as equal to their corresponding views
+and distinct from each other. This prevents equal immutable payloads from hiding
+an alias-coordinate collision. Its [twin](overlapping_views/invalid/main.omg)
+retains the same immutable-access rejection. The frozen baseline refuses the
+positive earlier, while decoding a complete derived component identity longer
+than 1024 bytes; that serialization prerequisite remains part of this witness.
+
 The required establishment and identity are the actual caller's live root,
 selected path and checked shared loan. Copying an opaque child is permitted by
 its checked Copy property; copying a pointer or layout cannot grant access or
@@ -78,7 +88,20 @@ the owning claim's `build/opaque-copy/borrowed-b1-baseline/` capture. The initia
 smaller same-fact witness is retained in `borrowed-component-baseline-v1/`.
 
 All positive entries bind the four hosted targets and declare exit 0. The row
-remains unfinished until matched native/Terminal execution, fixture gates and
-independent review pass. Other-host execution, general nested-machine migration,
+at `e2d769a35bd6` now executes all nine places and the original/child address
+control with native 0 and Terminal 0 on Windows x86-64; all eleven exclusive-demand
+controls reject for the intended immutable loan. The additional overlapping-view
+positive still refuses at description decoding, and matched fixture gates and
+final independent execution review remain unfinished. Actual binary profile,
+hashes and raw observations are retained in
+`build/opaque-copy/borrowed-e2d769a35bd6-20261025T221119Z/`.
+
+The implementation gives each imported view a private reference-descriptor home;
+it retains the original owner namespace, root and path for address observations.
+The descriptor home never becomes another owned referent or opaque C token.
+Source-only independent review found and then verified the correction of an
+overlapping root/subview coordinate collision before this execution capture.
+
+Other-host execution, general nested-machine migration,
 publication, remaining descriptor lanes, edge drift and retained outbound backing
 remain open parent acceptance.
