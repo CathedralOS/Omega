@@ -491,3 +491,19 @@ all 49 checked outcomes, 21 native/Terminal outcomes, eight Rust tests and the
 medians but inconsistent minima under load averages around 20–24; it is
 inconclusive for a precise integrated speedup and is kept separate from the
 original result. [Integrated evidence](stage_five_2026_10_22/ordered_graph/integration/README.md).
+
+### Stage 05 checking memo retention and case-evidence batching - 2026-10-24
+
+Base `9e49ea3065f` on Windows x86_64. Three changes are retained:
+- Shared checking memos survive context rebuilds when their effect plans and
+  selections match.
+- Write-frame demand reuses the prebuilt machine symbol tables.
+- Aggregate constructed-value transport prepares case-selection evidence once
+  per member walk instead of once per member fact.
+
+The last change removes the flow critical path, which was 2,976 rescans for
+`UefiX86_64::plan`. In five interleaved rounds across three fact workloads,
+`build_flow_facts` falls from 242-244 to 146-147 ms and Stage 05 falls by 77-124
+ms. Every native image is SHA-identical and exits 0. One rejected experiment,
+first-pass machine page reuse, is recorded with its measurements.
+[Mechanism, tables, rejected experiment and remaining profile](stage_five_2026_10_24/README.md).

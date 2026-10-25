@@ -498,11 +498,7 @@ fn walk_state_write_prefix_body(
     }
     let mut written = Vec::new();
 
-    let mut nested_diagnostics = Vec::new();
-    let machine_symbols = MachineSymbols::build(program, machine, &mut nested_diagnostics);
-    if !nested_diagnostics.is_empty() {
-        return None;
-    }
+    let machine_symbols = super::demand::machine_symbols(program, machine)?;
 
     let statements = program.statement_table.statements(state.statement_nodes);
     let order = program
