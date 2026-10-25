@@ -357,8 +357,8 @@ pub enum BorrowLoanLineage {
     /// It is not a local borrow activation or a reborrow parent. The exact
     /// output identity, completed-call roster and destination slot must agree.
     SuppliedOutput,
-    /// An opaque output retains this input's lifetime, but does not establish
-    /// that its pointer addresses any part of the input's storage.
+    /// An opaque output retains an input or earlier output's lifetime. This
+    /// supplies keepalive, never a spatial pointer or reborrow permission.
     LifetimeDependency,
 }
 
@@ -835,12 +835,29 @@ impl BorrowFacts {
         &self,
         handle: Handle<BorrowLoanFact>,
     ) -> Option<Handle<BorrowCallFact>> {
+        if !self.loans.is_valid(handle)
+            || self.loans.get(handle).lineage != BorrowLoanLineage::SuppliedOutput
+        {
+            return None;
+        }
+        self.output_origin_call(handle)
+    }
+
+    /// Rejoin the exact completed output occurrence for provenance, including
+    /// an output retained only as a lifetime dependency. This supplies neither
+    /// current availability nor the SuppliedOutput permission role above.
+    pub fn output_origin_call(
+        &self,
+        handle: Handle<BorrowLoanFact>,
+    ) -> Option<Handle<BorrowCallFact>> {
         if !self.loans.is_valid(handle) {
             return None;
         }
         let loan = self.loans.get(handle);
-        if loan.lineage != BorrowLoanLineage::SuppliedOutput
-            || !self.incoming_references.is_valid(loan.incoming_reference)
+        if !matches!(
+            loan.lineage,
+            BorrowLoanLineage::SuppliedOutput | BorrowLoanLineage::LifetimeDependency
+        ) || !self.incoming_references.is_valid(loan.incoming_reference)
             || !loan.segments.is_empty()
         {
             return None;
@@ -890,7 +907,7 @@ impl BorrowFacts {
             .span(source.completed_reference_loans)?
             .iter()
             .any(|completed| {
-                completed.lineage == BorrowLoanLineage::SuppliedOutput
+                completed.lineage == loan.lineage
                     && completed.established_by_call == call
                     && completed.incoming_reference == loan.incoming_reference
                     && completed.root == loan.root

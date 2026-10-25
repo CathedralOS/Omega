@@ -335,6 +335,7 @@ fn retained_parents(
             state,
             statement: leaf.statement_index,
             borrow_state,
+            question: StorageQuestion::RetainForArrival,
             forbidden: &[],
             ingress: &ingress,
             ingress_storage: &ingress_storage,
@@ -386,6 +387,7 @@ fn retained_parents(
         state,
         statement: capture.statement_index,
         borrow_state,
+        question: StorageQuestion::RetainForArrival,
         forbidden: &[],
         ingress: &ingress,
         ingress_storage: &ingress_storage,
@@ -671,6 +673,7 @@ pub(super) fn retired_carrier_backing(
         state,
         statement,
         borrow_state,
+        question: StorageQuestion::ProveRelocationIndependence,
         forbidden: &[backing_root, carrier_root],
         ingress: &[],
         ingress_storage: &[],
@@ -785,12 +788,22 @@ pub(super) fn retired_carrier_backing(
     Some(backing)
 }
 
+/// Continuing a lifetime and proving freedom to relocate storage have
+/// different conclusions. The same captured graph answers both questions;
+/// external output provenance can justify only the former.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StorageQuestion {
+    RetainForArrival,
+    ProveRelocationIndependence,
+}
+
 struct Dependencies<'a> {
     program: &'a dyn validation::CheckingInput,
     facts: &'a CheckFacts,
     state: SymbolHandle,
     statement: usize,
     borrow_state: &'a checked_trees::StateBorrowFact,
+    question: StorageQuestion,
     forbidden: &'a [PlaceRoot],
     /// Exact caller-supplied leaf contracts are sufficient for continued
     /// lifetime, not for proving relocation independence. That judgment passes
@@ -835,6 +848,46 @@ impl Dependencies<'_> {
                 .borrow
                 .incoming_references
                 .get(resource.backing_incoming_reference);
+            if matches!(
+                incoming.origin,
+                checked_trees::IncomingReferenceOrigin::Output { .. }
+            ) {
+                if self.question != StorageQuestion::RetainForArrival
+                    || incoming.machine_symbol != self.borrow_state.machine_symbol
+                    || incoming.state_symbol != self.state
+                    || incoming.place_root() != root
+                {
+                    return false;
+                }
+                let sources = match resource.source {
+                    CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
+                    CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
+                        let Some(parents) = self.facts.borrow.call_loan_parents.span(parents)
+                        else {
+                            return false;
+                        };
+                        parents.to_vec()
+                    }
+                };
+                // The captured resource must carry this exact namespace. Check
+                // every supplier, including its other retained input debts;
+                // matching one opaque source never drops an alternative.
+                return sources.iter().any(|handle| {
+                    self.facts.borrow.loans.is_valid(*handle) && {
+                        let loan = self.facts.borrow.loans.get(*handle);
+                        loan.incoming_reference == resource.backing_incoming_reference
+                            && loan.root == root
+                    }
+                }) && sources.iter().all(|handle| {
+                    self.loan(
+                        *handle,
+                        constraints,
+                        &mut Vec::new(),
+                        &mut Vec::new(),
+                        captured,
+                    )
+                });
+            }
             // Reuse the exact entry permission for lifetime only. Independence
             // passes no ingress assumptions and cannot prove opaque relocation.
             return incoming.machine_symbol == self.borrow_state.machine_symbol
@@ -1074,10 +1127,43 @@ impl Dependencies<'_> {
                         checked_trees::IncomingReferenceOrigin::Parameter { symbol }
                             if loan.root == PlaceRoot::Symbol(symbol))
             };
-        if loan.incoming_reference.is_valid() && !incoming {
+        let output = self.question == StorageQuestion::RetainForArrival
+            && self
+                .facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+            && {
+                let identity = self
+                    .facts
+                    .borrow
+                    .incoming_references
+                    .get(loan.incoming_reference);
+                identity.machine_symbol == self.borrow_state.machine_symbol
+                    && identity.state_symbol == self.state
+                    && matches!(identity.origin,
+                        checked_trees::IncomingReferenceOrigin::Output { identity }
+                            if loan.root == PlaceRoot::InvocationOutput(identity))
+            };
+        if loan.incoming_reference.is_valid() && !incoming && !output {
             return false;
         }
-        if !incoming && !self.root(loan.root, constraints, active_roots, captured) {
+        if output {
+            let Some(suppliers) = self.facts.borrow.loan_suppliers.span(loan.supplying_loans)
+            else {
+                return false;
+            };
+            let same_output_supplier = suppliers.iter().any(|parent| {
+                self.facts.borrow.loans.is_valid(*parent) && {
+                    let source = self.facts.borrow.loans.get(*parent);
+                    source.incoming_reference == loan.incoming_reference && source.root == loan.root
+                }
+            });
+            if self.facts.borrow.output_origin_call(handle).is_none() && !same_output_supplier {
+                return false;
+            }
+        }
+        if !incoming && !output && !self.root(loan.root, constraints, active_roots, captured) {
             return false;
         }
         active_loans.push(handle);
@@ -1090,9 +1176,12 @@ impl Dependencies<'_> {
                 captured,
             ),
             checked_trees::BorrowLoanLineage::DirectRoot => true,
-            // A keepalive obligation does not locate provider-owned storage.
-            checked_trees::BorrowLoanLineage::SuppliedOutput
-            | checked_trees::BorrowLoanLineage::LifetimeDependency => false,
+            // A keepalive obligation can cross an arrival, but never proves
+            // freedom to relocate its opaque or retained backing storage.
+            checked_trees::BorrowLoanLineage::SuppliedOutput => output,
+            checked_trees::BorrowLoanLineage::LifetimeDependency => {
+                self.question == StorageQuestion::RetainForArrival
+            }
             // Transport has no new reborrow parent. Its exact incoming
             // identity or complete supplier relation still names its backing;
             // this independence query grants no restoration authority.
