@@ -4,6 +4,8 @@
 //! inspection, packages}` owns each command surface, and `main` maps outcomes
 //! onto process exits. No compilation semantics live at this root.
 
+compile_error!("intentional merge queue negative control; never merge");
+
 mod cli;
 
 use arguments::Invocation;
