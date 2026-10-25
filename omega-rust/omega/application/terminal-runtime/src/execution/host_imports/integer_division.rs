@@ -65,13 +65,14 @@ impl IntegerDivisionImport {
             return Err(invalid("lldiv result is not a record"));
         };
         if fields.len() != 2
-            || fields.iter().any(|field| {
+            || fields.iter().zip([0, 8]).any(|(field, offset)| {
                 field.relevance.is_erased()
                     || field.field_type != terminal_psi::StructuralFieldType::Scalar(scalar)
+                    || !has_c_scalar_storage(field.storage.as_ref(), offset, scalar)
             })
         {
             return Err(invalid(
-                "lldiv result must contain exactly two ordered unrestricted i64 fields",
+                "lldiv result must contain exactly two ordered i64 fields with their exact C scalar storage",
             ));
         }
         let application = application
@@ -184,6 +185,27 @@ impl IntegerDivisionImport {
     }
 }
 
+/// ABI classification retains physical width/class, not signed storage codecs.
+/// Rejoin the declaration's effective codec before treating C's signed words as
+/// semantic fields. Explicit identical layouts remain admitted; an equal-sized
+/// unsigned codec or a bit-fragment recipe does not become C long long.
+fn has_c_scalar_storage(
+    storage: Option<&semantic_vocabulary::AuthoredFieldStorage>,
+    offset: u64,
+    scalar: ScalarType,
+) -> bool {
+    use semantic_vocabulary::AuthoredFieldStorage;
+    match storage {
+        None => true,
+        Some(AuthoredFieldStorage::Scalar {
+            byte_offset,
+            stored_scalar,
+        }) => *byte_offset == offset && stored_scalar.is_none_or(|stored| stored == scalar),
+        Some(AuthoredFieldStorage::Direct { byte_offset }) => *byte_offset == offset,
+        Some(AuthoredFieldStorage::Repeated { .. } | AuthoredFieldStorage::Fragmented(_)) => false,
+    }
+}
+
 fn matches_locator(binding: &NormalizedForeignCallBinding) -> Result<bool, TerminalRuntimeError> {
     let Some((locator, _)) = binding.import() else {
         return Ok(false);
@@ -231,6 +253,58 @@ fn matches_locator(binding: &NormalizedForeignCallBinding) -> Result<bool, Termi
     let expected = target::normalize_foreign_locator(candidate, target)
         .map_err(|_| TerminalRuntimeError::InvalidProvision("lldiv host locator is invalid"))?;
     Ok(*locator == expected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::AuthoredFieldStorage;
+
+    #[test]
+    fn c_record_admission_retains_signed_codec_not_only_equal_width() {
+        let signed = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+        let unsigned = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        assert!(has_c_scalar_storage(None, 0, signed));
+        for stored_scalar in [None, Some(signed)] {
+            assert!(has_c_scalar_storage(
+                Some(&AuthoredFieldStorage::Scalar {
+                    byte_offset: 8,
+                    stored_scalar,
+                }),
+                8,
+                signed
+            ));
+        }
+        assert!(has_c_scalar_storage(
+            Some(&AuthoredFieldStorage::Direct { byte_offset: 8 }),
+            8,
+            signed
+        ));
+        assert!(!has_c_scalar_storage(
+            Some(&AuthoredFieldStorage::Scalar {
+                byte_offset: 8,
+                stored_scalar: Some(unsigned),
+            }),
+            8,
+            signed
+        ));
+        assert!(!has_c_scalar_storage(
+            Some(&AuthoredFieldStorage::Scalar {
+                byte_offset: 0,
+                stored_scalar: Some(signed),
+            }),
+            8,
+            signed
+        ));
+        assert!(!has_c_scalar_storage(
+            Some(&AuthoredFieldStorage::Repeated {
+                byte_offset: 8,
+                element_stride: 8,
+            }),
+            8,
+            signed
+        ));
+    }
 }
 
 import_signature_via_clone!(IntegerDivisionImport);
