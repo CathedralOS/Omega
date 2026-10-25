@@ -4652,10 +4652,11 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   delivers the bounded scalar-result link through public Build evaluation,
   provider installation, native call custody and exact package risk consent.
   `samples/cli/facts/assumed_binding_result_bound` carries that exit bound
-  and its evaluated Product risk rows across nine places. Input-side authority
-  issuance, broader invocation correspondence, refutable-connection audit, and
-  the install/update/audit acceptance below remain; unsupported authority or
-  independent compatibility relationships fail closed.
+  and its evaluated Product risk rows across nine places. The risk-row audit
+  classifies disjoint literal integer result bounds and same-index parameter
+  bounds as refuted. Input-side authority issuance, broader invocation
+  correspondence, and the install/update/audit acceptance below remain;
+  unsupported authority or independent compatibility relationships fail closed.
 
   Retain exact entry/exit assumptions, authorized issuer/subject mapping and
   the selected implementation closure through erasure and inlining. Both
