@@ -509,10 +509,65 @@ impl FactPlan {
     }
 
     pub fn fact_place_equals(&self, fact_place: FactPlace, place: PlaceHandle) -> bool {
-        match fact_place {
-            FactPlace::Place(other) => self.places_equal(other, place),
-            _ => false,
+        self.fact_places_equal(fact_place, FactPlace::Place(place))
+    }
+
+    /// Exact fact subject equality, including structural place geometry.
+    /// Distinct subject vocabularies do not become aliases of one another.
+    pub fn fact_places_equal(&self, left: FactPlace, right: FactPlace) -> bool {
+        match (left, right) {
+            (FactPlace::Place(left), FactPlace::Place(right)) => self.places_equal(left, right),
+            _ => left == right,
         }
+    }
+
+    fn fact_place_bucket_hash(&self, place: FactPlace) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        std::mem::discriminant(&place).hash(&mut hash);
+        match place {
+            FactPlace::Unknown => {}
+            FactPlace::Place(place) => {
+                let place = self.places.get(place);
+                places::place_bucket_hash(
+                    place.root,
+                    self.place_segments.span_or_empty(place.segments),
+                )
+                .hash(&mut hash);
+            }
+            FactPlace::Symbol(symbol) => symbol.hash(&mut hash),
+            FactPlace::Expression(expression) => expression.hash(&mut hash),
+            FactPlace::TypeReference(reference) => reference.hash(&mut hash),
+        }
+        hash.finish()
+    }
+
+    /// Couple facts about the same exact subject, retaining first group order
+    /// and every reference's original order and multiplicity within its group.
+    /// Keys only partition scratch candidates; complete equality handles every
+    /// collision. No place/evidence cache survives this immutable batch.
+    pub fn group_fact_refs_by_place(&self, references: HandleSpan<FactRef>) -> Vec<Vec<FactRef>> {
+        let references = self.refs.span_or_empty(references);
+        let subjects: Vec<_> = references
+            .iter()
+            .map(|reference| self.facts.get(reference.fact).place)
+            .collect();
+        let buckets = places::PlaceBucketIndex::new(
+            subjects
+                .iter()
+                .map(|place| self.fact_place_bucket_hash(*place)),
+        );
+        let first = buckets.group_equal_positions(|left, right| {
+            self.fact_places_equal(subjects[left], subjects[right])
+        });
+        let mut groups: Vec<Vec<FactRef>> = (0..references.len()).map(|_| Vec::new()).collect();
+        for (position, reference) in references.iter().enumerate() {
+            groups[first[position]].push(*reference);
+        }
+        groups
+            .into_iter()
+            .filter(|group| !group.is_empty())
+            .collect()
     }
 
     pub fn places_equal(&self, left: PlaceHandle, right: PlaceHandle) -> bool {
