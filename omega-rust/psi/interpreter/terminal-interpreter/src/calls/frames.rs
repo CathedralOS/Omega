@@ -17,7 +17,7 @@ use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, PlaceId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use terminal_psi::{
     ClaimTransfer, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralTypeShape,
@@ -25,7 +25,7 @@ use terminal_psi::{
 };
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 /// Whether the borrowed parameter directly rebinds the argument's resolved
 /// value — same type, matching borrow access, and
@@ -118,11 +118,11 @@ impl TerminalExecution<'_> {
             loan_completions,
             values: self.values.take(),
             structural_values: self.structural_values.take(),
-            aggregate_argument_backings: std::mem::take(&mut self.aggregate_argument_backings),
-            byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
-            primitive_loan_values: std::mem::take(&mut self.primitive_loan_values),
-            scalar_array_values: std::mem::take(&mut self.scalar_array_values),
-            element_view_values: std::mem::take(&mut self.element_view_values),
+            aggregate_argument_backings: self.aggregate_argument_backings.take(),
+            byte_sequence_values: self.byte_sequence_values.take(),
+            primitive_loan_values: self.primitive_loan_values.take(),
+            scalar_array_values: self.scalar_array_values.take(),
+            element_view_values: self.element_view_values.take(),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             current_machine: self.current_machine,
@@ -151,11 +151,11 @@ impl TerminalExecution<'_> {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
         resolved_arguments: &[TerminalStructuralValue],
-    ) -> Result<BTreeMap<PlaceId, ByteSequenceBinding>, TerminalInterpretError> {
+    ) -> Result<RuntimeRows<PlaceId, ByteSequenceBinding>, TerminalInterpretError> {
         if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
             return Err(malformed());
         }
-        let mut values = BTreeMap::new();
+        let mut values = RuntimeRows::new(self.account.as_ref());
         for ((parameter, argument), resolved) in
             parameters.iter().zip(arguments).zip(resolved_arguments)
         {
@@ -170,7 +170,7 @@ impl TerminalExecution<'_> {
             if let Some((value, binding)) =
                 self.prepare_owned_byte_descriptor_argument(parameter, argument, resolved)?
             {
-                if value != *resolved || values.insert(parameter.place, binding).is_some() {
+                if value != *resolved || values.insert(parameter.place, binding)?.is_some() {
                     return Err(malformed());
                 }
                 continue;
@@ -178,7 +178,7 @@ impl TerminalExecution<'_> {
             if let Some((value, binding)) =
                 self.prepare_byte_descriptor_argument(parameter, argument)?
             {
-                if value != *resolved || values.insert(parameter.place, binding).is_some() {
+                if value != *resolved || values.insert(parameter.place, binding)?.is_some() {
                     return Err(malformed());
                 }
                 continue;
@@ -218,7 +218,7 @@ impl TerminalExecution<'_> {
                         .insert(
                             parameter.place,
                             ByteSequenceBinding::Immutable(snapshot.detached_descriptor()),
-                        )
+                        )?
                         .is_some()
                 {
                     return Err(malformed());
@@ -241,11 +241,12 @@ impl TerminalExecution<'_> {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
         resolved_arguments: &[TerminalStructuralValue],
-    ) -> Result<BTreeMap<PlaceId, crate::element_views::ElementView>, TerminalInterpretError> {
+    ) -> Result<RuntimeRows<PlaceId, crate::element_views::ElementView>, TerminalInterpretError>
+    {
         if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
             return Err(malformed());
         }
-        let mut values = BTreeMap::new();
+        let mut values = RuntimeRows::new(self.account.as_ref());
         for ((parameter, argument), resolved) in
             parameters.iter().zip(arguments).zip(resolved_arguments)
         {
@@ -306,7 +307,7 @@ impl TerminalExecution<'_> {
             };
             let presented = view.subslice(0, view.len(), access).ok_or(malformed())?;
             let presented = presented.with_descriptor_home(resolved.clone());
-            if values.insert(parameter.place, presented).is_some() {
+            if values.insert(parameter.place, presented)?.is_some() {
                 return Err(malformed());
             }
         }

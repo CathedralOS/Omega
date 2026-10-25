@@ -20,7 +20,7 @@ use terminal_psi::{
     StructuralResultClaimBinding, TerminalMachine, TerminalModule, Terminator,
 };
 
-fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
+pub(crate) fn empty_program() -> Arc<AdmittedTerminalProgram<'static>> {
     let machine = MachineId::new(1).unwrap();
     let entry = BlockId::new(1).unwrap();
     let mut module = TerminalModule::for_entry(machine);

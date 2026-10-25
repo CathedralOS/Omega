@@ -407,9 +407,8 @@ defines the complete product bar.
   - **Computed calls and state transfers:** finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results, cyclic/opaque/provider/dependent result
-    composition (runtime-indexed returned carriers preserving post-write
-    descriptor observations when an earlier operand mutates a source, copied
-    returns through ranked identities and public local-dyn slots, and returned
+    composition (public mutating-provider post-state contracts consumed by dependent
+    producers, copied returns through ranked identities and public local-dyn slots, and returned
     window extents as mathematical endpoint differences), and runtime-dispatched
     value construction on the common `EstablishStructuralValue` route through
     ordinary argument evaluation. Preserve once-only field/operand order,
@@ -417,7 +416,7 @@ defines the complete product bar.
     affine cleanup, and occurrence-bound routed memberships through completed
     children, copies, and nested projections (retaining
     `samples/cli/facts/copied_call_argument_snapshot` including
-    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view}`
+    `copied_call_argument_snapshot/*/{indexed_byte_view,inferred_indexed_byte_view,post_write_indexed_byte_view}`
     and `samples/cli/facts/matched_field_windows` across all nine places).
   - **Loan locals and projected storage (REFERENCE-LOCAL-BINDING-ROUTES):**
     reference-valued locals from every admitted producer keep their loan
@@ -1009,9 +1008,15 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     scalar/structural/cleanup custody and retires saved headers on return.
     Packed scalar-array backing now retains element reservations through guest
     snapshots and result inspection, including after instance close; plain
-    projection copies share that snapshot operation. Descriptor maps, placed/case
-    storage and cumulative result custody remain. Connect those
-    admitted operations, remaining live-storage and result accounting, remaining
+    projection copies share that snapshot operation. Frame-local descriptors now
+    retain row reservations through call staging, suspension, joins and returns;
+    refused return installation retains outgoing backing and continuation custody.
+    Shared scalar record-field rows now retain reservations through constructor,
+    case and subtree staging, owned call copies, entry binding and retirement;
+    exact/short-budget source controls preserve independent copied contents and
+    sticky refusal. Other global descriptor/primitive/placed/case rows and
+    cumulative result custody remain.
+    Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation.

@@ -216,7 +216,7 @@ impl TerminalExecution<'_> {
                             field.field,
                         ),
                         value,
-                    )
+                    )?
                     .is_some()
                 {
                     return Err(malformed());

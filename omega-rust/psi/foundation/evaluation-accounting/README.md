@@ -55,8 +55,11 @@ instance close. Source-produced empty calls check peak depth rather than cumulat
 call count. Packed scalar-array elements now own reservations through construction,
 independent guest copies, frame transfers and retained result inspection. Inspection
 aliases share one reservation; mutation funds any detached replacement first.
-Descriptor maps, placed/case storage and cumulative result custody still need
-their real lifetime hooks.
+Frame-local descriptor tables now use that same row reservation owner; staged
+arguments and joins transfer their leases instead of reallocating unpaid maps.
+Failed return installation retains the outgoing backing and continuation even
+after partial caller installation. Global descriptor/placed/case storage and
+cumulative result custody still need their real lifetime hooks.
 These partial snapshots are not complete Build usage or storage budgeting; do
 not publish them as production Build accounting receipts. The ordinary
 package-aware CLI remains on the checked Build evaluator until accounting and

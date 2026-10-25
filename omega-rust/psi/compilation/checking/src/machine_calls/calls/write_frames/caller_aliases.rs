@@ -154,27 +154,30 @@ pub enum ReferenceResultTransport {
 }
 
 impl LocalWriteSource {
-    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
-        super::place_paths::project_write_path(
-            program,
-            &FramePlaceOrigin {
-                path: self.path.clone(),
-                precision: if self.collection_coarse {
-                    FramePathPrecision::CollectionCoarse
-                } else {
-                    FramePathPrecision::Exact
-                },
-                source: super::place_paths::FrameSourcePlace {
-                    recasts: self.recasts.clone(),
-                    root: self.root,
-                    segments: self.segments.clone(),
-                    representation: self.representation.clone(),
-                    builtin_coordinates: self.root.is_valid(),
-                    ..Default::default()
-                },
+    pub(super) fn frame_origin(&self) -> FramePlaceOrigin {
+        let mut source = if self.is_image_storage {
+            super::place_paths::FrameSourcePlace::image_storage()
+        } else {
+            super::place_paths::FrameSourcePlace::default()
+        };
+        source.recasts = self.recasts.clone();
+        source.root = self.root;
+        source.segments = self.segments.clone();
+        source.representation = self.representation.clone();
+        source.builtin_coordinates = self.root.is_valid() || self.is_image_storage;
+        FramePlaceOrigin {
+            path: self.path.clone(),
+            precision: if self.collection_coarse {
+                FramePathPrecision::CollectionCoarse
+            } else {
+                FramePathPrecision::Exact
             },
-            "",
-        )
+            source,
+        }
+    }
+
+    pub(crate) fn write_path(&self, program: &dyn crate::CheckingInput) -> String {
+        super::place_paths::project_write_path(program, &self.frame_origin(), "")
     }
 
     /// Substitute relative storage using the frame owner's coordinate algebra.
@@ -675,6 +678,17 @@ pub(super) struct CallOriginContext<'prefix> {
 }
 
 impl CallOriginContext<'_> {
+    /// Observation consumers also retire aliases of each possible backing.
+    /// State-frame collection keeps canonical coordinates through `close_paths`;
+    /// publishing a caller observation retains this conservative inverse closure.
+    pub fn close_observed_paths(
+        &self,
+        program: &dyn crate::CheckingInput,
+        paths: Vec<String>,
+    ) -> Option<Vec<String>> {
+        close_over_origins(program, paths, self.aliases, self.divergent, self.stored)
+    }
+
     /// Expand finite local referents before a state summary filters private
     /// roots. Do not back-map canonical writes to coarse aggregate aliases;
     /// that observer-only closure belongs to the public demand boundary.
@@ -785,13 +799,7 @@ pub(super) fn with_caller_origins(
     let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
     with_retained_origin_context(program, machine, site, evidence, |inference, prefix| {
         let written = resolve(inference, prefix)?;
-        close_over_origins(
-            program,
-            written,
-            prefix.aliases,
-            prefix.divergent,
-            prefix.stored,
-        )
+        prefix.close_observed_paths(program, written)
     })
 }
 

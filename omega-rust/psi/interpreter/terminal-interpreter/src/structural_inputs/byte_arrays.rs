@@ -107,7 +107,7 @@ impl TerminalExecution<'_> {
             .get(&self.current_machine)
             .ok_or_else(malformed)?;
         let mut storage = BTreeMap::new();
-        let mut descriptors = BTreeMap::new();
+        let mut descriptors = RuntimeRows::new(self.account.as_ref());
         for argument in arguments {
             // External byte arrays name physical initialized cells. Unlike
             // internal checked projections, this envelope carries no case
@@ -195,7 +195,7 @@ impl TerminalExecution<'_> {
                     ByteSequenceBinding::Immutable(bytes.clone())
                 };
                 if self.byte_sequence_values.contains_key(&parameter.place)
-                    || descriptors.insert(parameter.place, binding).is_some()
+                    || descriptors.insert(parameter.place, binding)?.is_some()
                 {
                     return Err(malformed());
                 }
@@ -207,7 +207,7 @@ impl TerminalExecution<'_> {
             }
         }
         self.structural_byte_storage.extend(storage);
-        self.byte_sequence_values.extend(descriptors);
+        self.byte_sequence_values.append(&mut descriptors)?;
         Ok(())
     }
 

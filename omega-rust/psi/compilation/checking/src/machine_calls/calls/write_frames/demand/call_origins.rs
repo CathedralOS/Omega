@@ -277,7 +277,14 @@ impl<'program> CallFrameResolver<'program> {
                 frames::type_is_caller_isolated_local(program, reference)
                     && !frames::type_reference_is_reference(program, reference)
             });
-            let origins = if detached {
+            let origins = if let Some(origin) =
+                frames::reference_subjects::owned_borrow_origin(program, machine, *argument)
+            {
+                // Address formation consumes no earlier descriptor binding.
+                // Keep its authenticated owned coordinate even when unrelated
+                // slots changed; this retains no fact about stored contents.
+                Some(vec![LocalWriteSource::from(origin)])
+            } else if detached {
                 Some(Vec::new())
             } else if preceding_effect || changes_origins {
                 // The prefix predates operand execution. Never pretend

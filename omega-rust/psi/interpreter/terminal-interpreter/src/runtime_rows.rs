@@ -79,13 +79,21 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
         self.lease = None;
     }
 
+    pub(crate) fn retain(&mut self, keep: impl FnMut(&Key, &mut Value) -> bool) {
+        self.rows.retain(keep);
+        self.retire_removed_rows();
+    }
+
     /// Suspend a frame's table while preserving the new frame's account.
     pub(crate) fn take(&mut self) -> Self {
         let empty = Self::new(self.account.as_ref());
         std::mem::replace(self, empty)
     }
 
-    pub(crate) fn append(&mut self, other: &mut Self) -> Result<(), TerminalInterpretError> {
+    /// Check transfer identity before an enclosing transaction retires sources.
+    /// Both reservations already coexist under the same checked sponsor total;
+    /// transfer cannot add a charge or exceed that admitted total.
+    pub(crate) fn validate_append(&self, other: &Self) -> Result<(), TerminalInterpretError> {
         if other.rows.is_empty() {
             return Ok(());
         }
@@ -98,6 +106,14 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
             return Err(TerminalInterpretError::Storage(
                 EvaluationAccountingError::LeaseAccountMismatch,
             ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn append(&mut self, other: &mut Self) -> Result<(), TerminalInterpretError> {
+        self.validate_append(other)?;
+        if other.rows.is_empty() {
+            return Ok(());
         }
         match (&mut self.lease, &mut other.lease) {
             (Some(destination), Some(source)) => destination
@@ -143,6 +159,9 @@ impl<Key: Ord, Value> RuntimeRows<Key, Value> {
     }
     pub(crate) fn len(&self) -> usize {
         self.rows.len()
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.rows.is_empty()
     }
     pub(crate) fn keys(&self) -> btree_map::Keys<'_, Key, Value> {
         self.rows.keys()

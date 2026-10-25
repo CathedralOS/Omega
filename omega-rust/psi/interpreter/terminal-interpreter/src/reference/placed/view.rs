@@ -89,7 +89,7 @@ impl TerminalExecution<'_> {
             Vec::new(),
         );
         let root = StructuralRuntimePlace::from(&value);
-        let mut storage = ConstructorStorage::default();
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
         match assessment {
             Ok(compatibility) => {
                 let [field] = ready.fields.as_slice() else {
@@ -154,13 +154,13 @@ impl TerminalExecution<'_> {
             },
         )?;
         let storage = storage.into_detached()?;
+        storage.install(self)?;
+        self.structural_values.insert(result.place, value)?;
         // All refusing work is complete. Rejection publishes no reference;
         // Ready's one descriptor keeps the source loan visible to retirement.
-        storage.publish(self);
         self.live_affine_frontier = frontier;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.structural_values.insert(result.place, value)?;
         Ok(())
     }
 }

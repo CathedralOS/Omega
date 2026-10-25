@@ -1257,6 +1257,8 @@ fail/borrows/opaque_static_stored_writeonly_input rejected 955ms expected @a92f1
 	bodyless boundary symbol `entry` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 fail/borrows/opaque_stored_writeonly_input rejected 852ms expected @a92f16431042
 	machine `consume` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
+fail/borrows/owned_address_after_operand_move rejected 714ms expected @68bdb64789cb
+	cannot use `cell` in machine `main` state `entry` (statement 1) after `cell` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `cell` first
 fail/borrows/owned_carrier_descriptor_parameter_replacement rejected 469ms expected @a92f16431042
 	machine `replace` state `entry` assignment cannot write `slot` because it is not mutable in this state (if `slot` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/owned_carrier_immutable_parameter_field rejected 621ms expected @a92f16431042
@@ -10445,6 +10447,33 @@ fail/facts/placed_stable_write_through_parameter_rejected rejected 2239ms expect
 	placed write application: the placement plan does not permit this operation
 fail/facts/placed_stable_write_through_target_body_rejected rejected 3197ms expected @a92f16431042
 	placed write application: the placement plan does not permit this operation
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_call_result_exit rejected 851ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_const_name_exit rejected 922ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_field_exit rejected 1114ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_local_exit rejected 1043ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_match_join_exit rejected 1035ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_other_machine_exit rejected 1026ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_other_state_exit rejected 1100ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_parameter_exit rejected 961ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
+fail/facts/post_write_indexed_byte_view_argument_snapshot_through_target_body_exit rejected 1054ms expected @68bdb64789cb
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index
 fail/facts/predicate_array_copy_through_call_result_rejected rejected 2725ms expected @a92f16431042
 	cannot prove default-domain field requirement for return from produce, state entry, at statement 3: values requires [u16; N]::ZeroTail
 fail/facts/predicate_array_copy_through_const_name_rejected rejected 2535ms expected @a92f16431042
@@ -16620,6 +16649,8 @@ fail/generics/runtime_index_carrier_nested_stale rejected 2041ms expected @a92f1
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_nested_type_extent_mismatch rejected 2187ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_rejects_prewrite_extent rejected 841ms expected @68bdb64789cb
+	machine `exercise` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_result_argument_effect rejected 2043ms expected @a92f16431042
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_shadow rejected 2038ms expected @a92f16431042
@@ -24551,6 +24582,15 @@ pass/facts/placed_stable_write_through_other_machine_exit checked 8620ms check-t
 pass/facts/placed_stable_write_through_other_state_exit checked 9743ms check-target:macos_arm64 @a92f16431042
 pass/facts/placed_stable_write_through_parameter_exit checked 6853ms check-target:macos_arm64 @a92f16431042
 pass/facts/placed_stable_write_through_target_body_exit checked 10410ms check-target:macos_arm64 @a92f16431042
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_call_result_exit checked 1507ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_const_name_exit checked 1500ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_field_exit checked 1476ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_local_exit checked 1473ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_match_join_exit checked 1501ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_other_machine_exit checked 1251ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_other_state_exit checked 1250ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_parameter_exit checked 1396ms check-target:macos_arm64 @68bdb64789cb
+pass/facts/post_write_indexed_byte_view_argument_snapshot_through_target_body_exit checked 1449ms check-target:macos_arm64 @68bdb64789cb
 pass/facts/predicate_array_copy_through_call_result_exit checked 2432ms check-target:macos_arm64 @a92f16431042
 pass/facts/predicate_array_copy_through_const_name_exit checked 4860ms check-target:macos_arm64 @a92f16431042
 pass/facts/predicate_array_copy_through_field_exit checked 2679ms check-target:macos_arm64 @a92f16431042
@@ -27116,6 +27156,7 @@ pass/generics/runtime_generic_qualified_constructor_shadow_exit checked 2165ms c
 pass/generics/runtime_generic_selected_extent_fields_exit checked 2139ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_grouped_decimal_const_argument_exit checked 6392ms check-target:macos_arm64 @a92f16431042
 pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 5649ms check-target:macos_arm64 @a92f16431042
+pass/generics/runtime_index_carrier_after_earlier_descriptor_write_exit checked 1474ms check-target:macos_arm64 @68bdb64789cb
 pass/generics/runtime_index_carrier_array_valid checked 3086ms @a92f16431042
 pass/generics/runtime_index_carrier_call_result checked 2427ms @a92f16431042
 pass/generics/runtime_index_carrier_call_selected_index checked 1846ms @a92f16431042
