@@ -22,9 +22,7 @@ pub(super) fn evaluate_admitted_machine(
     machine_name: &str,
 ) -> Result<MeasuredBuildMachine, Vec<Diagnostic>> {
     let product_entry_compatibility =
-        provider_planning::program_entry::ProductEntryQueryCompatibility::new(
-            |program, definition| validation::data_requires_establishment(program, definition),
-        );
+        provider_planning::program_entry::ProductEntryQueryCompatibility;
     build_time_evaluation::evaluate_build_machine_measured(
         prepared,
         BuildMachineInvocation {

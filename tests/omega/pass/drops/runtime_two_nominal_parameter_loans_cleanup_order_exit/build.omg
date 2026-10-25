@@ -1,1 +1,1 @@
-machine build(builder: &mut Build) { Build::application(builder,"runtime_two_nominal_parameter_loans_cleanup_order_exit"); Build::select_provider<Console,ConsoleNativeProviderConsoleImplementation>(builder); Build::bind(builder,linux_x86_64::ProgramEntry,Main::main); }
+machine build(builder: &mut Build) { Build::application(builder,"runtime_two_nominal_parameter_loans_cleanup_order_exit"); Build::select_provider<Console,ConsoleNativeProviderConsoleImplementation>(builder); Build::bind(builder,linux_x86_64::ProgramEntry,entry_start); }

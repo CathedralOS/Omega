@@ -48,3 +48,9 @@ machine Clearance::main(clearance: &mut Clearance) reaches Console {
         Console::exit_process(64);
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Clearance;
+    Clearance::main(&mut entry_storage);
+}

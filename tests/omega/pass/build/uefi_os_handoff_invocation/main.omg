@@ -53,3 +53,13 @@ machine Loader::drive(loader: &mut Loader)
 {
     UefiOsHandoffCycle::run(&mut loader.cycle);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start(image: Extent in Granted, initial_storage: Extent in Granted)
+    reaches UefiBootServices + UefiOsHandoffTermination
+    invokes UefiBootServices;
+    invokes UefiOsHandoffTermination;
+{
+    let mut entry_storage: Loader;
+    Loader::run(&mut entry_storage, image, initial_storage);
+}

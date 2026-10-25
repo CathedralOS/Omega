@@ -168,11 +168,6 @@ pub(super) fn collect_machine_edges(
     }
 
     for machine in program.machines() {
-        if let Some(origin) = machine.entry_context_origin {
-            // Build names the authored entry; its independently checked
-            // context-owning caller is part of that entry's implementation.
-            push_edge(&mut edges, origin.entry, Some(machine.symbol));
-        }
         retain_machine_references(
             program,
             index,

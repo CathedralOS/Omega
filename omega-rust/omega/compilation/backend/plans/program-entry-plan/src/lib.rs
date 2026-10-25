@@ -41,18 +41,17 @@ pub use optimized_semantic_entry::{
     bind_optimized_program_storage_semantic_entry_contract,
 };
 pub(crate) use optimized_semantic_wrapper::OptimizedProgramStorageSemanticWrapperPlan;
-pub use optimized_semantic_wrapper::{
-    OptimizedProgramStorageSemanticReceiverLayout,
-    OptimizedProgramStorageSemanticWrapperEncodingError,
-    StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    plan_optimized_program_storage_semantic_wrapper,
-    select_optimized_program_storage_semantic_wrapper_encoding,
-};
 pub(crate) use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperRelocationKind,
     OptimizedProgramStorageSemanticWrapperStep,
+};
+pub use optimized_semantic_wrapper::{
+    OptimizedProgramStorageSemanticWrapperEncodingError,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    plan_optimized_program_storage_semantic_wrapper,
+    select_optimized_program_storage_semantic_wrapper_encoding,
 };
 #[cfg(feature = "installed-writer")]
 pub use post_handoff_writer::{

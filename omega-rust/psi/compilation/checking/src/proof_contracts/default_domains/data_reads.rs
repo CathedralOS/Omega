@@ -3,7 +3,7 @@
 //!
 //! An input parameter arrives as a value, not a fresh zero representation.
 //! Nominal input checking proves its declared domains at the call boundary;
-//! entry provisioning independently refuses a non-ZII-valid context. Neither
+//! ordinary local construction separately establishes initialization. Neither
 //! judgment depends on the callee's qualified name. Retain resolved parameter
 //! identity through a projected read so qualification cannot reclassify that
 //! incoming value as vacant storage. Subsequent invariant windows still police

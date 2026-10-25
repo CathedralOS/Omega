@@ -8,7 +8,7 @@
 
 use crate::ProgramStorageEntryRootRole;
 
-const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v3\0";
+const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v4\0";
 
 /// Source-path-free identity of one exact checked `ProgramEntry` signature.
 /// Exact declaration ownership, normalized callable/type identities and the
@@ -26,34 +26,19 @@ impl ProgramEntrySignatureIdentity {
     }
 }
 
+/// ProgramEntry never allocates an implicit receiver. Installed schema
+/// arguments are represented individually in `visible_parameters`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProgramEntryReceiverSignature {
     Free,
-    ProvisionedMutable {
-        /// Formal declaration position, not a dense Terminal or ABI parameter index.
-        source_position: u32,
-        normalized_type_identity: terminal_psi::TerminalIdentityIndex,
-    },
 }
 
 impl ProgramEntryReceiverSignature {
     pub const fn source_position(&self) -> Option<u32> {
-        match self {
-            Self::Free => None,
-            Self::ProvisionedMutable {
-                source_position, ..
-            } => Some(*source_position),
-        }
+        None
     }
-
     pub const fn normalized_type_identity(&self) -> Option<terminal_psi::TerminalIdentityIndex> {
-        match self {
-            Self::Free => None,
-            Self::ProvisionedMutable {
-                normalized_type_identity,
-                ..
-            } => Some(*normalized_type_identity),
-        }
+        None
     }
 }
 
@@ -324,32 +309,13 @@ impl SelectedProgramEntrySignature {
             target::ProgramEntryVisibleParameters::None => 1,
             target::ProgramEntryVisibleParameters::ImageAndInitialStorage => 2,
         });
-        canonical.push(match self.target_slot.receiver {
-            target::ProgramEntryReceiverProvisioning::NoneOrProvisionedZii => 1,
-        });
         push_string(
             &mut canonical,
             self.identities
                 .text(self.normalized_callable_identity)
                 .unwrap_or_default(),
         );
-        match &self.receiver {
-            ProgramEntryReceiverSignature::Free => canonical.push(1),
-            ProgramEntryReceiverSignature::ProvisionedMutable {
-                source_position,
-                normalized_type_identity,
-                ..
-            } => {
-                canonical.push(2);
-                crate::codec_bytes::push_encoded(&mut canonical, source_position.to_le_bytes());
-                push_string(
-                    &mut canonical,
-                    self.identities
-                        .text(*normalized_type_identity)
-                        .unwrap_or_default(),
-                );
-            }
-        }
+
         canonical.extend_from_slice(
             &u64::try_from(self.visible_parameters.len())
                 .expect("ProgramEntry parameter count fits u64")

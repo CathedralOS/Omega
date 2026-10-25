@@ -146,3 +146,14 @@ machine Main::main(main: &mut Main) reaches
         macos_window_destroy(window);
     }
 }
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit + Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

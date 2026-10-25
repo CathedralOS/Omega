@@ -39,3 +39,10 @@ requires context.phase == 17;
         transition { _ -> retain(image, storage) }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start(image: Extent in Granted, storage: Extent in Granted)
+{
+    let mut entry_storage: KernelState;
+    selected_continuation(image, &mut entry_storage, storage);
+}

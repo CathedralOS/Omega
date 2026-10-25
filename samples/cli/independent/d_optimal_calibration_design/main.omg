@@ -256,3 +256,9 @@ machine Main::mode_character(degree: i64 in Wrapping, position: i64 in Wrapping)
         transition position { 1 -> 117 2 -> 97 3 -> 100 4 -> 114 5 -> 97 6 -> 116 7 -> 105 8 -> 99 _ -> -1 }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

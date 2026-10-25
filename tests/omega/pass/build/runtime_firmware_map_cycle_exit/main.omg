@@ -204,3 +204,12 @@ crashes Trap
     state done() {}
     state wrong() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches UefiBootServices
+invokes UefiBootServices;
+crashes Trap
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -56,19 +56,6 @@ pub(super) fn validate(
     // Unit source and a source whose receiver the wrapper provisions as fresh
     // mutable storage are both exact. The receiver's identity is part of the
     // checked source signature, so its custody never re-derives from bytes.
-    match source.receiver() {
-        ProgramEntryReceiverSignature::Free => {}
-        ProgramEntryReceiverSignature::ProvisionedMutable {
-            normalized_type_identity,
-            ..
-        } if !normalized_type_identity.is_absent() => {}
-        _ => {
-            return Err(ProgramStorageEntryDiagnostic(
-                "optimized semantic ProgramStorage entry requires an exact receiver signature"
-                    .into(),
-            ));
-        }
-    }
     if source.result() != ProgramEntryResultSignature::Unit {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage entry requires one Unit source".into(),

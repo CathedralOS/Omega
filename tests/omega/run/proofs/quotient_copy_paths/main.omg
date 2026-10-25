@@ -107,3 +107,9 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
     state matched(main: &mut Main) { Console::exit_process(70); }
     state mismatched(main: &mut Main) { Console::exit_process(71); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -206,7 +206,6 @@ pub struct CheckedProgramEntryTerminalReceipt {
     terminal_psi_identity: TerminalPsiIdentity,
     terminal_entry: MachineId,
     receiver_eligibility: Option<CheckedProgramEntryReceiverEligibility>,
-    context_bridge: Option<MachineId>,
 }
 
 impl CheckedProgramEntryTerminalReceipt {
@@ -225,20 +224,7 @@ impl CheckedProgramEntryTerminalReceipt {
             terminal_psi_identity,
             terminal_entry,
             receiver_eligibility,
-            context_bridge: None,
         }
-    }
-
-    /// Ordinary checked caller that owns this entry occurrence's context.
-    /// Its presence conveys no installation authority; settlement joins this receipt
-    /// to the source signature and the complete canonical artifact identity.
-    pub const fn context_bridge(&self) -> Option<MachineId> {
-        self.context_bridge
-    }
-
-    pub fn with_context_bridge(mut self, bridge: Option<MachineId>) -> Self {
-        self.context_bridge = bridge;
-        self
     }
 
     /// Checked-source eligibility for zero establishment and no-code owned

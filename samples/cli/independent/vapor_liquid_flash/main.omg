@@ -39,3 +39,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state failed() { Console::write_line("FAIL numerical_closure_or_composition"); Console::exit_process(65); }
     state invalid() { Console::write_line("INVALID fractions_or_K"); Console::exit_process(64); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

@@ -3,8 +3,8 @@ machine build(builder: &mut Build) {
     Build::select_provider<Writer, ByteWriter>(builder);
     Build::select_provider<GenericWriter, GenericByteWriter>(builder);
     Build::select_provider<NestedWriter, NestedByteWriter>(builder);
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
 }

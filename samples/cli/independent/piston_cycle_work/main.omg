@@ -160,3 +160,11 @@ crashes Trap
     integer(stage); Console::write(","); integer(point); Console::write(",");
     number(volume); Console::write(","); number(pressure); Console::write_line("");
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console
+crashes Trap
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

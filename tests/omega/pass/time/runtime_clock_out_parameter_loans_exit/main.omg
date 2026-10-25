@@ -161,3 +161,9 @@ ClockImportsClockProbeImplementation satisfies ClockProbe {
     ClockProbe::sleep_unit = ClockImports::sleep_unit;
     ClockProbe::wait = ClockImports::wait;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ClockProbe crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

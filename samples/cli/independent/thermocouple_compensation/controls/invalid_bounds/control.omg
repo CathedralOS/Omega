@@ -6,3 +6,9 @@ machine InvalidControl::main(control: &mut InvalidControl) reaches Console {
     let invalid: i32 = temperatures[2];
     Console::exit_process(invalid);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: InvalidControl;
+    InvalidControl::main(&mut entry_storage);
+}

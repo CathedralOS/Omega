@@ -18,3 +18,10 @@ requires addr::Bound == 18446744073709551616
     state done() {}
     state wrong() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

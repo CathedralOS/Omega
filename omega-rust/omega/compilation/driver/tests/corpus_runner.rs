@@ -877,10 +877,6 @@ fn interpret_checked_fixture(
         checked_interpreter::InterpretOptions {
             boundary_adapters: &checked.execution().dispatch.boundary_adapters,
             float_comparisons: &checked.execution().dispatch.float_comparisons,
-            provisioned_context_parameter: entry
-                .context_parameter()
-                .is_valid()
-                .then(|| entry.context_parameter()),
             ..checked_interpreter::InterpretOptions::default()
         },
     );

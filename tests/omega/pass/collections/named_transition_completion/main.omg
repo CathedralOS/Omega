@@ -46,3 +46,9 @@ machine Main::step(name: &[u8], i: u64) -> Score {
 machine Main::finish(name: &[u8]) -> Score {
     Score { value: 7 }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

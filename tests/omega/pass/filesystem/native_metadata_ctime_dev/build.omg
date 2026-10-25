@@ -5,7 +5,7 @@ machine build(builder: &mut Build) {
     Build::depend(builder, Source::Path {
         location: "../../../../../source/library/std"
     });
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main_linux);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::main_linux);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main_macos);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start_);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start_);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

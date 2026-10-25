@@ -216,3 +216,9 @@ requires index < 32;
 {
     pairs[index]
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Application;
+    Application::main(&mut entry_storage);
+}

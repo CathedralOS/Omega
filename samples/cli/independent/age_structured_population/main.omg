@@ -58,3 +58,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state infeasible() { Console::write_line("ERROR infeasible cohort"); Console::exit_process(3); }
     state done() { Console::exit_process(0); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

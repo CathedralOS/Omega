@@ -36,3 +36,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state infeasible() { Console::write_line("INFEASIBLE"); Console::exit_process(2); }
     state invalid() { Console::write_line("INVALID_INPUT"); Console::exit_process(64); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

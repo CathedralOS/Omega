@@ -11,3 +11,11 @@ invokes Console;
     Console::write_line("must never execute");
     Console::exit_process(overflow);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console
+invokes Console;
+{
+    let mut entry_storage: InvalidEntry;
+    InvalidEntry::main(&mut entry_storage);
+}

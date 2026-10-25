@@ -357,3 +357,12 @@ where machine Handler satisfies Comparator::compare;
 satisfies SortRegistrar::sort
 via linux_sort_binding()
 requires count == 2 && width == 16;
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches SortRegistrar + Comparator + Console
+invokes SortRegistrar;
+invokes Console;
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

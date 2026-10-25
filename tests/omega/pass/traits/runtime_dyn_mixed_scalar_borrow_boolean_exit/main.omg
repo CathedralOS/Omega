@@ -43,3 +43,9 @@ machine dispatch(selected: dyn Matching<Amount>, expected: i32, actual: &Amount)
     let result: bool = Matching::matches(selected, expected, actual);
     transition { _ -> result }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

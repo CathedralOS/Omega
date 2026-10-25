@@ -197,3 +197,9 @@ machine field_plan(kind: &FieldKind, tag: i64) -> FieldPlan {
     state varint(tag: i64) -> FieldPlan { FieldPlan::Varint { tag: tag } }
     state blob(tag: i64) -> FieldPlan { FieldPlan::LengthPrefixed { tag: tag } }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

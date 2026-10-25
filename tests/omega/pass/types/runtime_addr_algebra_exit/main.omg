@@ -38,3 +38,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state bad_diff(main: &mut Main) { Console::exit_process(72); }
     state bad_order(main: &mut Main){ Console::exit_process(73); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

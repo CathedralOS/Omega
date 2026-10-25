@@ -1,35 +1,21 @@
-//! A hosted receiver bridge is an exact conditional image contract, not a
-//! runtime grant. Its disjoint writable-image residences become usable only
-//! under the selected loader/root installation occurrence. Native settlement
-//! must separately establish source ZII and normal-cleanup eligibility.
+//! Installed private entry backing, carried only by exact checked recipes.
 //!
-//! The ordinary native claim is conditional on conforming target loading and
-//! fixups, process-local exclusive writable-image storage, one entry activation,
-//! admitted provider behavior, and the declared completion contract. No address
-//! or physical calling-plan row creates a live installed root. Shared target
-//! image replay proves mapping/fixup correspondence; this module proves the
-//! disjoint activation partitions and the actual bridge's pointer/control flow.
+//! Ordinary source parameters never request storage. This bridge constructs
+//! explicitly supplied typed RAM, lends its exact occurrences for one call,
+//! and observes the same allocations after normal loan retirement. Its stack
+//! is a separate disjoint partition whose demand comes from the whole callee.
 
 mod instructions;
 
 use diagnostics::Diagnostic;
-use program_entry_plan::{
-    ProgramEntryFusedServiceEstablishment, ProgramEntryPhysicalContractPlan,
-    SelectedProgramEntrySignature,
-};
-pub(crate) use terminal_semantics::zero_valid_record_storage;
+use program_entry_plan::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostedReceiverBinding {
     source: SelectedProgramEntrySignature,
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: ProgramEntryPhysicalContractPlan,
-    services: Vec<ProgramEntryFusedServiceEstablishment>,
-    determined_evidence: Vec<terminal_psi::CheckedProgramEntryDeterminedEvidenceField>,
     demand: crate::StackDemand,
-    receiver_byte_count: u64,
-    receiver_alignment: u64,
-    cleanup_occupancy: bool,
     private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
 }
 
@@ -46,52 +32,12 @@ impl HostedReceiverBinding {
     pub const fn stack_demand(&self) -> &crate::StackDemand {
         &self.demand
     }
-    pub const fn receiver_byte_count(&self) -> u64 {
-        self.receiver_byte_count
-    }
-    pub const fn receiver_alignment(&self) -> u64 {
-        self.receiver_alignment
-    }
-
-    /// Whether the receiver's nominal cleanup must occupy its hosted extent
-    /// through completion. The receiver partition then counts as a
-    /// cleanup-occupied extent for ledger tracking; the flag is minted only
-    /// from the checked eligibility, never derived from emitted bytes.
-    pub const fn cleanup_occupancy(&self) -> bool {
-        self.cleanup_occupancy
-    }
 }
 
-/// The retained message names the admitted bridge surface: each supported
-/// target fails closed under its own exact contract custody, and the Darwin
-/// spelling deliberately stays byte-identical for its existing readers.
 fn invalid(target: target::NativeTarget) -> Diagnostic {
-    if target == target::NativeTarget::macos_arm64() {
-        return Diagnostic::error(
-            "macOS hosted receiver bridge lost exact contract, storage, or entry custody",
-        );
-    }
-    if target == target::NativeTarget::macos_x64() {
-        return Diagnostic::error(
-            "macOS x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
-        );
-    }
-    if target == target::NativeTarget::linux_x64() {
-        return Diagnostic::error(
-            "Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
-        );
-    }
-    if target == target::NativeTarget::linux_arm64() {
-        return Diagnostic::error(
-            "Linux ARM64 hosted receiver bridge lost exact contract, storage, or entry custody",
-        );
-    }
-    if target == target::NativeTarget::windows_x64() {
-        return Diagnostic::error(
-            "Windows x86-64 hosted receiver bridge lost exact contract, storage, or entry custody",
-        );
-    }
-    Diagnostic::error("hosted receiver bridge lost exact contract, storage, or entry custody")
+    Diagnostic::error(format!(
+        "installed private entry RAM lost exact contract, storage, or entry custody for {target:?}"
+    ))
 }
 
 fn align(value: u64, alignment: u64, invalid: &dyn Fn() -> Diagnostic) -> Result<u64, Diagnostic> {
@@ -109,8 +55,7 @@ pub struct HostedReceiverPartitions {
     pub saved_continuation_offset: u64,
     pub stack_offset: u64,
     pub stack_byte_count: u64,
-    pub receiver_offset: u64,
-    pub receiver_byte_count: u64,
+    pub allocation_offset: u64,
     pub end_offset: u64,
 }
 
@@ -147,13 +92,11 @@ impl HostedReceiverBinding {
             &invalid,
         )?;
         let stack_end = stack.checked_add(stack_bytes).ok_or_else(invalid)?;
-        let receiver = align(stack_end, self.receiver_alignment.max(16), &invalid)?;
-        let receiver_bytes = self.receiver_byte_count.max(1);
-        let receiver_end = receiver.checked_add(receiver_bytes).ok_or_else(invalid)?;
+        let allocation_offset = stack_end;
         let end = self
             .private_entry_ram
             .iter()
-            .try_fold(receiver_end, |end, recipe| {
+            .try_fold(allocation_offset, |end, recipe| {
                 align(end, recipe.alignment(), &invalid)?
                     .checked_add(
                         recipe.contents().len() as u64 + recipe.observation_header().len() as u64,
@@ -164,8 +107,7 @@ impl HostedReceiverBinding {
             saved_continuation_offset: saved,
             stack_offset: stack,
             stack_byte_count: stack_bytes,
-            receiver_offset: receiver,
-            receiver_byte_count: receiver_bytes,
+            allocation_offset,
             end_offset: end,
         })
     }
@@ -175,7 +117,6 @@ impl HostedReceiverBinding {
 struct ReceiverStorage {
     scratch: object_file::ObjectSymbolHandle,
     stack_top: object_file::ObjectSymbolHandle,
-    receiver: object_file::ObjectSymbolHandle,
     private_ram: Vec<object_file::ObjectSymbolHandle>,
     observation_headers: Vec<object_file::ObjectSymbolHandle>,
 }
@@ -213,7 +154,7 @@ fn provision_receiver_storage(
             .private_entry_ram
             .iter()
             .map(|recipe| recipe.alignment())
-            .fold(binding.receiver_alignment.max(16), u64::max),
+            .fold(16, u64::max),
     )
     .map_err(|_| invalid())?;
     if let Some((handle, _, previous_alignment)) = existing.first() {
@@ -247,14 +188,9 @@ fn provision_receiver_storage(
         partitions.stack_offset + partitions.stack_byte_count,
         0,
     )?;
-    let receiver = symbol_at(
-        "omega_hosted_receiver",
-        partitions.receiver_offset,
-        partitions.receiver_byte_count,
-    )?;
     let mut private_ram = Vec::new();
     let mut observation_headers = Vec::new();
-    let mut private_end = partitions.receiver_offset + partitions.receiver_byte_count;
+    let mut private_end = partitions.allocation_offset;
     for (index, recipe) in binding.private_entry_ram.iter().enumerate() {
         let offset = align(private_end, recipe.alignment(), &invalid)?;
         private_ram.push(symbol_at(
@@ -276,7 +212,6 @@ fn provision_receiver_storage(
         ReceiverStorage {
             scratch,
             stack_top,
-            receiver,
             private_ram,
             observation_headers,
         },
@@ -307,152 +242,6 @@ fn install_entry_text(
     Ok((object, text, symbol, offset))
 }
 
-/// Fixed macOS x86-64 hosted-receiver bridge byte width. The emitted text is
-/// `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; lea rdi, [rip+receiver];
-/// call rel32; mov rsp, [rip+scratch]; xor eax, eax; ret`.
-pub(crate) const MACOS_X86_64_RECEIVER_SHIM_BYTES: usize = 36;
-
-/// Fixed macOS ARM64 hosted-receiver bridge byte width: sixteen A64
-/// instructions — the `adrp`/`add` pairs, the call, and the restore tail.
-const MACOS_ARM64_RECEIVER_SHIM_BYTES: usize = 64;
-
-/// Exact inputs an independent reader re-derives one bridge from: final text
-/// bytes, their load address, the exact semantic entry, the mapped BSS base
-/// and the admitted private-stack partitions.
-struct ReceiverReaderInput<'a> {
-    bytes: &'a [u8],
-    address: u64,
-    selected_entry: u64,
-    bss_address: u64,
-    partitions: HostedReceiverPartitions,
-    private_entry_ram: &'a [terminal_installation::CheckedPrivateEntryRamRecipe],
-}
-
-type ReceiverReader = for<'a> fn(&ReceiverReaderInput<'a>) -> Result<(), Diagnostic>;
-
-/// One hosted-receiver leg: the target's emitted bridge, the shim byte-count
-/// rule replay reads, the format header probe that proves the published image
-/// selects it, and the independent instruction reader for its final bytes.
-/// `prepare` and `validate_image` both select this row once, so a hosted
-/// target is one row rather than another family of arms.
-struct ReceiverForm {
-    encode: fn(
-        &crate::ObjectArtifact,
-        &HostedReceiverBinding,
-        object_file::ObjectPlan,
-        ReceiverStorage,
-    ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic>,
-    /// Emitted shim byte count: constant for the fixed-width legs. The Linux
-    /// x86-64 bridge embeds its private allocation initializers, so its width
-    /// is the exact prepared text tail.
-    shim_byte_count: fn(&[u8], usize) -> Option<usize>,
-    /// Independent format-header probe over the final image.
-    header_probe: fn(&image::EmittedImageOutput, usize, &[u8], target::NativeTarget) -> bool,
-    reader: ReceiverReader,
-}
-
-/// The row for a hosted-receiver target. `None` names a target this bridge
-/// does not answer, so no leg falls through to another target's bridge.
-fn receiver_form(target: target::NativeTarget) -> Option<ReceiverForm> {
-    Some(if target == target::NativeTarget::macos_arm64() {
-        ReceiverForm {
-            encode: prepare_macos_arm64,
-            shim_byte_count: |_, _| Some(MACOS_ARM64_RECEIVER_SHIM_BYTES),
-            header_probe: |output, offset, _expected, target| {
-                crate::hosted_unit_entry::main_points_to(&output.bytes, offset, target)
-            },
-            reader: read_darwin_arm64,
-        }
-    } else if target == target::NativeTarget::macos_x64() {
-        ReceiverForm {
-            encode: prepare_macos_x86_64,
-            shim_byte_count: |_, _| Some(MACOS_X86_64_RECEIVER_SHIM_BYTES),
-            header_probe: |output, offset, _expected, target| {
-                crate::hosted_unit_entry::main_points_to(&output.bytes, offset, target)
-            },
-            reader: read_darwin_x86_64,
-        }
-    } else if target == target::NativeTarget::linux_x64() {
-        ReceiverForm {
-            encode: prepare_linux_x86_64,
-            shim_byte_count: |text, offset| text.len().checked_sub(offset),
-            header_probe: |output, offset, _expected, _target| elf_entry_points_to(output, offset),
-            reader: read_linux_x86_64,
-        }
-    } else if target == target::NativeTarget::linux_arm64() {
-        ReceiverForm {
-            encode: prepare_linux_arm64,
-            shim_byte_count: |_, _| Some(LINUX_ARM64_RECEIVER_SHIM_BYTES),
-            header_probe: |output, offset, _expected, _target| elf_entry_points_to(output, offset),
-            reader: read_linux_arm64,
-        }
-    } else if target == target::NativeTarget::windows_x64() {
-        ReceiverForm {
-            encode: prepare_windows_x86_64,
-            shim_byte_count: |_, _| Some(WINDOWS_X86_64_RECEIVER_SHIM_BYTES),
-            header_probe: |output, offset, expected, _target| {
-                crate::hosted_unit_entry::pe_entry_points_to(&output.bytes, offset, expected)
-            },
-            reader: read_windows_x86_64,
-        }
-    } else {
-        return None;
-    })
-}
-
-/// The five independent readers, selected by the row and given the exact
-/// coordinates the writer's own plan cannot establish.
-fn read_darwin_arm64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
-    instructions::validate(
-        input.bytes,
-        input.address,
-        input.selected_entry,
-        input.bss_address,
-        input.partitions,
-    )
-}
-
-fn read_darwin_x86_64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
-    instructions::validate_macos_x86_64(
-        input.bytes,
-        input.address,
-        input.selected_entry,
-        input.bss_address,
-        input.partitions,
-    )
-}
-
-fn read_linux_x86_64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
-    instructions::validate_x86_64(
-        input.bytes,
-        input.address,
-        input.selected_entry,
-        input.bss_address,
-        input.partitions,
-        input.private_entry_ram,
-    )
-}
-
-fn read_linux_arm64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
-    instructions::validate_linux_arm64(
-        input.bytes,
-        input.address,
-        input.selected_entry,
-        input.bss_address,
-        input.partitions,
-    )
-}
-
-fn read_windows_x86_64(input: &ReceiverReaderInput<'_>) -> Result<(), Diagnostic> {
-    instructions::validate_windows_x86_64(
-        input.bytes,
-        input.address,
-        input.selected_entry,
-        input.bss_address,
-        input.partitions,
-    )
-}
-
 pub(crate) fn prepare(
     artifact: &crate::ObjectArtifact,
 ) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
@@ -460,125 +249,10 @@ pub(crate) fn prepare(
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
     validate_binding(artifact, binding)?;
     let (object, _partitions, storage) = provision_receiver_storage(artifact, binding)?;
-    let form = receiver_form(artifact.target).ok_or_else(invalid)?;
-    (form.encode)(artifact, binding, object, storage)
+    prepare_linux_x86_64(artifact, binding, object, storage)
 }
 
-/// The Darwin loader arrives at the LC_MAIN entry on AArch64 with the incoming
-/// stack supplying the return continuation. The bridge preserves that physical
-/// input in the saved-continuation residence, switches sp to the exact private
-/// stack top before the application can spill, passes the receiver through x0,
-/// calls the exact semantic continuation, restores the incoming sp, and
-/// completes through `ret` with the value-free Unit result published as a
-/// physical i32 zero.
-fn prepare_macos_arm64(
-    artifact: &crate::ObjectArtifact,
-    _binding: &HostedReceiverBinding,
-    object: object_file::ObjectPlan,
-    storage: ReceiverStorage,
-) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    let invalid = || invalid(artifact.target);
-    let offset = artifact.text_bytes.len();
-    let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 9 * 4);
-    if !offset.is_multiple_of(4)
-        || displacement % 4 != 0
-        || !(-134_217_728..134_217_728).contains(&displacement)
-    {
-        return Err(invalid());
-    }
-    // No access through SP occurs before switching: the original SP/LR pair
-    // lives in a separate image residence, not on an assumed loader stack.
-    let words = [
-        0x9000_0009,
-        0x9100_0129, // scratch -> x9
-        0x9100_03ea, // mov x10, sp
-        0xa900_792a, // stp x10, x30, [x9]
-        0x9000_000a,
-        0x9100_014a, // stack top -> x10
-        0x9100_015f, // mov sp, x10
-        0x9000_0000,
-        0x9100_0000, // receiver -> x0
-        0x9400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff),
-        0x9000_0009,
-        0x9100_0129, // scratch again; callee may clobber x9
-        0xa940_792a, // ldp x10, x30, [x9]
-        0x9100_015f, // restore sp
-        0x5280_0000, // normal Unit -> physical i32 zero
-        0xd65f_03c0, // return to exact saved loader continuation
-    ];
-    debug_assert_eq!(words.len() * 4, MACOS_ARM64_RECEIVER_SHIM_BYTES);
-    finish_aarch64_receiver_shim(
-        artifact,
-        object,
-        &words,
-        "omega_macos_hosted_receiver_entry",
-        &[
-            (0, storage.scratch),
-            (4, storage.stack_top),
-            (7, storage.receiver),
-            (10, storage.scratch),
-        ],
-        |symbol, offset| crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
-    )
-}
-
-/// Install an AArch64 receiver shim: every `adrp`/`add` pair becomes the two
-/// page relocations at its named instruction, and the row's constructor names
-/// the entry shim. The x86-64 counterpart is `finish_receiver_shim`.
-fn finish_aarch64_receiver_shim(
-    artifact: &crate::ObjectArtifact,
-    object: object_file::ObjectPlan,
-    words: &[u32],
-    name: &'static str,
-    fields: &[(usize, object_file::ObjectSymbolHandle)],
-    shim: impl Fn(object_file::ObjectSymbolHandle, usize) -> crate::hosted_unit_entry::EntryShim,
-) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
-    let shim_bytes = words
-        .iter()
-        .flat_map(|word| word.to_le_bytes())
-        .collect::<Vec<_>>();
-    let (object, text, symbol, offset) = install_entry_text(object, artifact, &shim_bytes, name)?;
-    let mut relocations = artifact.relocations.clone();
-    for &(instruction, destination) in fields {
-        for (relative, kind) in [
-            (0, RelocationKind::Aarch64Page21),
-            (1, RelocationKind::Aarch64PageOffset12),
-        ] {
-            relocations.push_record(RelocationRecord {
-                origin: RelocationOrigin::Materialization {
-                    object_symbol_handle: symbol,
-                },
-                section: SectionKind::Text,
-                offset: offset + (instruction + relative) * 4,
-                byte_width: 4,
-                symbol_handle: destination,
-                addend: 0,
-                kind,
-            });
-        }
-    }
-    Ok(crate::hosted_unit_entry::PreparedEntry {
-        object,
-        text,
-        relocations,
-        shim: shim(symbol, offset),
-    })
-}
-
-/// The Linux kernel arrives with rsp at the initial process-stack image and
-/// supplies no return continuation. The bridge preserves that physical input
-/// in the saved-continuation residence, switches rsp to the exact private
-/// stack top before the application can spill, passes the receiver through
-/// the first System V integer register, calls the exact semantic
-/// continuation, and completes through exit_group with the value-free Unit
-/// result published as status zero. `ud2` fails closed if the nonreturning
-/// supervisor call ever returned.
-/// Install an x86-64 receiver shim's text and relocation fields and return
-/// the prepared entry record. Every hosted x86-64 bridge ends with the same
-/// tail: its instruction bytes land as one text record, the destinations it
-/// patches each become a `Relative32` materialization, and the entry shim
-/// variant carries the installed symbol and offset.
+/// Attach the prepared bytes and symbolic pointer/call relocations.
 fn finish_receiver_shim(
     artifact: &crate::ObjectArtifact,
     object: object_file::ObjectPlan,
@@ -632,26 +306,13 @@ fn prepare_linux_x86_64(
         }
     }
     let (function, _) = crate::function_fragments::replay::entry_source(artifact)?;
-    let terminal_psi::CheckedProgramEntryReceiverProjection::Retained { terminal_self, .. } =
-        binding
-            .checked_entry
-            .receiver_eligibility()
-            .ok_or_else(invalid)?
-            .projection()
-    else {
-        return Err(invalid());
-    };
-    for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
-        let symbol = if parameter.place == terminal_self {
-            storage.receiver
-        } else {
-            let index = binding
-                .private_entry_ram
-                .iter()
-                .position(|recipe| recipe.input().runtime_position as usize == ordinal)
-                .ok_or_else(invalid)?;
-            *storage.private_ram.get(index).ok_or_else(invalid)?
-        };
+    for (ordinal, _) in function.structural_parameters.iter().enumerate() {
+        let index = binding
+            .private_entry_ram
+            .iter()
+            .position(|recipe| recipe.input().runtime_position as usize == ordinal)
+            .ok_or_else(invalid)?;
+        let symbol = *storage.private_ram.get(index).ok_or_else(invalid)?;
         let (rex, modrm) = [
             (0x48, 0x3d),
             (0x48, 0x35),
@@ -713,14 +374,6 @@ fn prepare_linux_x86_64(
     )
 }
 
-/// Fixed Linux ARM64 hosted-receiver bridge byte width: fifteen A64
-/// instructions — adrp/add the saved-continuation residence, observe the
-/// incoming sp, load the authored contract's head-word input, store the
-/// pair, switch sp to the private stack top, adrp/add the receiver into x0,
-/// call the semantic continuation, and complete through exit_group (x8 = 94)
-/// with a brk fence.
-pub(crate) const LINUX_ARM64_RECEIVER_SHIM_BYTES: usize = 60;
-
 fn linux_argument_register(ordinal: usize) -> Option<calling_conventions::MachineRegister> {
     use calling_conventions::MachineRegister::*;
     [X86Rdi, X86Rsi, X86Rdx, X86Rcx, X86R8, X86R9]
@@ -728,192 +381,24 @@ fn linux_argument_register(ordinal: usize) -> Option<calling_conventions::Machin
         .copied()
 }
 
-/// The Darwin loader arrives at the LC_MAIN entry with the incoming stack
-/// supplying the return continuation. The bridge preserves that physical
-/// input in the saved-continuation residence, switches rsp to the exact
-/// private stack top before the application can spill, passes the receiver
-/// through the first System V integer register, calls the exact semantic
-/// continuation, restores the incoming stack, and completes through `ret`
-/// with the value-free Unit result published as a physical i32 zero. The
-/// continuation's own return address lands on the private stack, so the
-/// saved loader stack still carries dyld's continuation when `ret` runs.
-fn prepare_macos_x86_64(
-    artifact: &crate::ObjectArtifact,
-    _binding: &HostedReceiverBinding,
-    object: object_file::ObjectPlan,
-    storage: ReceiverStorage,
-) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    let entry = artifact.entry_function();
-    let mut bytes = Vec::with_capacity(MACOS_X86_64_RECEIVER_SHIM_BYTES);
-    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
-    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
-    bytes.extend([0x48, 0x8d, 0x3d, 0, 0, 0, 0]); // lea rdi, [rip+receiver]
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 -> semantic continuation
-    bytes.extend([0x48, 0x8b, 0x25, 0, 0, 0, 0]); // mov rsp, [rip+scratch]
-    bytes.extend([0x31, 0xc0]); // xor eax, eax: Unit -> physical i32 zero
-    bytes.extend([0xc3]); // ret to exact saved loader continuation
-    debug_assert_eq!(bytes.len(), MACOS_X86_64_RECEIVER_SHIM_BYTES);
-    finish_receiver_shim(
-        artifact,
-        object,
-        &bytes,
-        "omega_macos_x86_64_hosted_receiver_entry",
-        &[
-            (3, storage.scratch, 0),
-            (10, storage.stack_top, 0),
-            (17, storage.receiver, 0),
-            (22, entry.symbol, 0),
-            (29, storage.scratch, 0),
-        ],
-        |symbol, offset| crate::hosted_unit_entry::EntryShim::DarwinReceiver { symbol, offset },
-    )
-}
-
-/// The Linux kernel arrives on AArch64 with the machine stack pointer at the
-/// initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])
-/// and supplies no return continuation. The bridge preserves the incoming sp —
-/// the continuation pointer — together with the authored contract's head-word
-/// input (`argc`, the value at the image base) in the sixteen-byte
-/// saved-continuation residence, then switches sp to the exact private stack
-/// top before the application can spill, passes the receiver through x0 under
-/// AAPCS64, calls the exact semantic continuation, and completes through
-/// exit_group with the value-free Unit result published as status zero in w0.
-/// `brk #0` fails closed if the nonreturning supervisor call ever returned.
-fn prepare_linux_arm64(
-    artifact: &crate::ObjectArtifact,
-    _binding: &HostedReceiverBinding,
-    object: object_file::ObjectPlan,
-    storage: ReceiverStorage,
-) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    let invalid = || invalid(artifact.target);
-    let offset = artifact.text_bytes.len();
-    let displacement = (artifact.entry_function().text_offset as i128) - (offset as i128 + 10 * 4);
-    if !offset.is_multiple_of(4)
-        || displacement % 4 != 0
-        || !(-134_217_728..134_217_728).contains(&displacement)
-    {
-        return Err(invalid());
-    }
-    // The incoming stack image is read once, through the observed base, before
-    // sp moves to the private stack; nothing else touches the provider stack.
-    let words = [
-        0x9000_0009,
-        0x9100_0129, // continuation residence -> x9
-        0x9100_03ea, // mov x10, sp: observe the incoming stack image base
-        0xf940_014b, // ldr x11, [x10]: the contract's head-word input (argc)
-        0xa900_2d2a, // stp x10, x11, [x9]: preserve continuation and input
-        0x9000_000a,
-        0x9100_014a, // private stack top -> x10
-        0x9100_015f, // mov sp, x10: switch before any application spill
-        0x9000_0000,
-        0x9100_0000,                                             // receiver -> x0
-        0x9400_0000 | ((displacement / 4) as u32 & 0x03ff_ffff), // bl semantic entry
-        0x5280_0000, // mov w0, #0: Unit -> physical status zero
-        0xd280_0bc8, // movz x8, #94: exit_group
-        0xd400_0001, // svc #0
-        0xd420_0000, // brk #0 if the nonreturning call ever returned
-    ];
-    debug_assert_eq!(words.len() * 4, LINUX_ARM64_RECEIVER_SHIM_BYTES);
-    finish_aarch64_receiver_shim(
-        artifact,
-        object,
-        &words,
-        "omega_linux_arm64_hosted_receiver_entry",
-        &[
-            (0, storage.scratch),
-            (5, storage.stack_top),
-            (8, storage.receiver),
-        ],
-        |symbol, offset| crate::hosted_unit_entry::EntryShim::LinuxArm64Receiver { symbol, offset },
-    )
-}
-
-/// Fixed Windows x86-64 hosted-receiver bridge byte width. The emitted text
-/// is `mov [rip+scratch], rsp; lea rsp, [rip+stack_top]; sub rsp, 32;
-/// lea rcx, [rip+receiver]; call rel32; xor eax, eax;
-/// mov rsp, [rip+scratch]; ret`.
-pub(crate) const WINDOWS_X86_64_RECEIVER_SHIM_BYTES: usize = 40;
-
-/// The Windows loader enters at the PE `AddressOfEntryPoint` under the
-/// Microsoft x64 convention with no contractual register input and a loader
-/// return continuation on the incoming stack. The bridge preserves that
-/// incoming stack pointer in the saved-continuation residence, switches rsp
-/// to the exact private stack top, reserves the thirty-two bytes of incoming
-/// shadow space the Microsoft x64 call owes the callee, passes the receiver
-/// through rcx, calls the exact semantic continuation, maps the value-free
-/// Unit result to a zero eax completion status, restores the incoming stack
-/// pointer, and returns to the loader's exact continuation. No access through
-/// the incoming stack pointer occurs before it is preserved, and the loader
-/// maps the returned status to the process exit code.
-fn prepare_windows_x86_64(
-    artifact: &crate::ObjectArtifact,
-    _binding: &HostedReceiverBinding,
-    object: object_file::ObjectPlan,
-    storage: ReceiverStorage,
-) -> Result<crate::hosted_unit_entry::PreparedEntry, Diagnostic> {
-    let entry = artifact.entry_function();
-    let mut bytes = Vec::with_capacity(WINDOWS_X86_64_RECEIVER_SHIM_BYTES);
-    bytes.extend([0x48, 0x89, 0x25, 0, 0, 0, 0]); // mov [rip+scratch], rsp
-    bytes.extend([0x48, 0x8d, 0x25, 0, 0, 0, 0]); // lea rsp, [rip+stack_top]
-    bytes.extend([0x48, 0x83, 0xec, 0x20]); // sub rsp, 32: callee shadow space
-    bytes.extend([0x48, 0x8d, 0x0d, 0, 0, 0, 0]); // lea rcx, [rip+receiver]
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 -> semantic continuation
-    bytes.extend([0x31, 0xc0]); // xor eax, eax: Unit -> status zero
-    bytes.extend([0x48, 0x8b, 0x25, 0, 0, 0, 0]); // mov rsp, [rip+scratch]
-    bytes.extend([0xc3]); // ret -> loader continuation maps eax to exit code
-    debug_assert_eq!(bytes.len(), WINDOWS_X86_64_RECEIVER_SHIM_BYTES);
-    finish_receiver_shim(
-        artifact,
-        object,
-        &bytes,
-        "omega_windows_x86_64_hosted_receiver_entry",
-        &[
-            (3, storage.scratch, 0),
-            (10, storage.stack_top, 0),
-            (21, storage.receiver, 0),
-            (26, entry.symbol, 0),
-            (35, storage.scratch, 0),
-        ],
-        |symbol, offset| crate::hosted_unit_entry::EntryShim::WindowsReceiver { symbol, offset },
-    )
-}
-
-/// Bind the exact hosted receiver bridge the admitted settlement selected.
-/// The target chooses the emitted bridge surface — Darwin dyld arrival on
-/// AArch64, kernel process arrival on Linux x86-64 and Linux ARM64 — and
-/// `validate_binding` rejects any pairing drift before bytes exist.
+/// Bind only explicitly installed typed backing; source selection allocates nothing.
 pub fn bind_hosted_receiver(
     artifact: &mut crate::ObjectArtifact,
     source: &SelectedProgramEntrySignature,
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: &ProgramEntryPhysicalContractPlan,
-    services: &[ProgramEntryFusedServiceEstablishment],
-    determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
     demand: &crate::StackDemand,
-    cleanup_occupancy: bool,
     private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Result<(), Diagnostic> {
     if artifact.hosted_receiver.is_some() || artifact.physical_entry.is_some() {
         return Err(invalid(artifact.target));
     }
-    let (receiver_byte_count, receiver_alignment) = receiver_layout(
-        artifact,
-        source,
-        checked_entry,
-        services,
-        determined_evidence,
-        private_entry_ram,
-    )?;
+    validate_entry_arguments(artifact, source, checked_entry, private_entry_ram)?;
     let binding = HostedReceiverBinding {
         source: source.clone(),
         checked_entry: checked_entry.clone(),
         physical: physical.clone(),
-        services: services.to_vec(),
-        determined_evidence: determined_evidence.to_vec(),
         demand: demand.clone(),
-        receiver_byte_count,
-        receiver_alignment,
-        cleanup_occupancy,
         private_entry_ram: private_entry_ram.to_vec(),
     };
     validate_binding(artifact, &binding)?;
@@ -926,35 +411,25 @@ pub(crate) fn validate_binding(
     binding: &HostedReceiverBinding,
 ) -> Result<(), Diagnostic> {
     let invalid = || invalid(artifact.target);
-    let eligibility = binding
-        .checked_entry
-        .receiver_eligibility()
-        .ok_or_else(invalid)?;
     artifact
         .fragment_replay
         .as_ref()
         .map(|replay| replay.terminal_module())
         .ok_or_else(invalid)?;
     if !physical_contract_matches(&binding.physical, artifact.target)
-        || eligibility.determined_evidence_fields() != binding.determined_evidence
-        || binding.cleanup_occupancy
-            != (eligibility.cleanup()
-                == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent)
         || binding.physical.target_slot() != binding.source.target_slot()
         || binding.physical.target_slot().owner.native_target() != artifact.target
         || crate::derive_stack_demand(artifact, artifact.entry).map_err(|_| invalid())?
             != binding.demand
-        || receiver_layout(
-            artifact,
-            &binding.source,
-            &binding.checked_entry,
-            &binding.services,
-            &binding.determined_evidence,
-            &binding.private_entry_ram,
-        )? != (binding.receiver_byte_count, binding.receiver_alignment)
     {
         return Err(invalid());
     }
+    validate_entry_arguments(
+        artifact,
+        &binding.source,
+        &binding.checked_entry,
+        &binding.private_entry_ram,
+    )?;
     Ok(())
 }
 
@@ -1085,174 +560,71 @@ fn physical_contract_matches(
 /// Layout-side zero checking cannot establish authored default domains or
 /// absence of nominal cleanup. Native realization must separately retain and
 /// replay its checked source receipt before installing this conditional bridge.
-fn receiver_layout(
+fn validate_entry_arguments(
     artifact: &crate::ObjectArtifact,
     source: &SelectedProgramEntrySignature,
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
-    services: &[ProgramEntryFusedServiceEstablishment],
-    determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
     private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
-) -> Result<(u64, u64), Diagnostic> {
+) -> Result<(), Diagnostic> {
     use calling_conventions::CallingPolicy;
-    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     let invalid = || invalid(artifact.target);
-    // The layout policy is not a second per-target table: `calling-conventions`
-    // already declares every supported (architecture, object-format) pair's
-    // callable policy, and the hosted-receiver row owns which targets this
-    // bridge answers. Only the arrival register of the receiver argument stays
-    // here, because it is this bridge's own placement choice.
-    if receiver_form(artifact.target).is_none() {
+    if artifact.target != target::NativeTarget::linux_x64()
+        || private_entry_ram.is_empty()
+        || checked_entry.receiver_eligibility().is_some()
+    {
         return Err(invalid());
     }
-    let expected_policy = CallingPolicy::native_for_target(artifact.target);
-    let receiver_register = match expected_policy {
-        CallingPolicy::Aapcs64 => calling_conventions::MachineRegister::Aarch64X(0),
-        CallingPolicy::SystemVAMD64 => calling_conventions::MachineRegister::X86Rdi,
-        CallingPolicy::MicrosoftX64 => calling_conventions::MachineRegister::X86Rcx,
-        CallingPolicy::LinuxSyscallX86_64 | CallingPolicy::LinuxSyscallAarch64 => {
-            return Err(invalid());
-        }
-    };
     let (function, target) = crate::function_fragments::replay::entry_source(artifact)?;
     let replay = artifact.fragment_replay.as_ref().ok_or_else(invalid)?;
     let terminal = replay.terminal_module();
-    let profile = source.target_slot().owner;
-    if profile.native_realization() != Some(artifact.target) {
-        return Err(invalid());
-    }
-    let terminal_identity =
-        terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?;
-    let selected_entry = checked_entry.terminal_entry();
-    if let Some(selections) = replay.target_machine_selections() {
-        if selections.target() != profile.target_name()
-            || selections
-                .entry(
-                    terminal_identity,
-                    terminal,
-                    terminal_psi::TargetMachineCallable::Machine(selected_entry),
-                )
-                .map_err(|_| invalid())?
-                != selected_entry
-        {
-            return Err(invalid());
-        }
-    } else if terminal.entry != terminal_psi::TargetMachineCallable::Machine(selected_entry) {
-        return Err(invalid());
-    }
-    let eligibility = checked_entry.receiver_eligibility().ok_or_else(invalid)?;
-    let terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
-        terminal_self,
-        source_position,
-    } = eligibility.projection()
-    else {
-        return Err(invalid());
-    };
-    // Join exact declaration ownership, not source arena coordinates or display
-    // names. Module-qualified and attached display spellings may legitimately
-    // differ; the portable declaration identity binds the package and path.
-    if checked_entry.source_signature_identity() != source.identity().bytes()
+    let identity = terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?;
+    let selected = checked_entry.terminal_entry();
+    if source.target_slot().owner.native_realization() != Some(artifact.target)
+        || checked_entry.source_signature_identity() != source.identity().bytes()
+        || checked_entry.terminal_psi_identity() != identity
+        || checked_entry.terminal_entry() != function.machine
         || terminal
             .identities
             .text(checked_entry.declaration().identity())
             != Some(source.declaration())
         || terminal
-            .machine(selected_entry)
+            .machine(selected)
             .and_then(|machine| machine.declaration.as_ref())
-            .is_none_or(|declaration| {
-                terminal.identities.text(declaration.machine.identity())
-                    != Some(source.declaration())
-            })
-        || checked_entry.terminal_entry() != selected_entry
-        || checked_entry.terminal_entry() != function.machine
-        || checked_entry.terminal_psi_identity() != terminal_identity
-        || source.receiver().source_position() != Some(source_position)
-        || source
-            .receiver()
-            .normalized_type_identity()
-            .and_then(|identity| source.identities().text(identity))
-            != terminal
-                .identities
-                .text(eligibility.source_receiver_type_identity())
-    {
-        return Err(invalid());
-    }
-    let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == terminal_self)
-    else {
-        return Err(invalid());
-    };
-    let terminal_parameter = terminal
-        .machine(selected_entry)
-        .and_then(|machine| machine.structural_parameter(terminal_self));
-    if terminal_parameter != Some(parameter) {
-        return Err(invalid());
-    }
-    let Some(native) = target
-        .graph
-        .parameters
-        .iter()
-        .find(|native| native.place == terminal_self)
-    else {
-        return Err(invalid());
-    };
-    let receiver_identity = source
-        .receiver()
-        .normalized_type_identity()
-        .ok_or_else(invalid)?;
-    if !matches!(
-        function.result,
-        abstract_operations::AbstractFunctionResult::Unit
-    ) || !function.parameters.is_empty()
+            .and_then(|declaration| terminal.identities.text(declaration.machine.identity()))
+            != Some(source.declaration())
+        || !matches!(
+            function.result,
+            abstract_operations::AbstractFunctionResult::Unit
+        )
+        || !function.parameters.is_empty()
         || !function.entry_claims.is_empty()
         || !source.visible_parameters().is_empty()
-        || parameter.place != terminal_self
-        || parameter.structural_type != eligibility.terminal_receiver_type()
-        || parameter.access != StructuralAccess::MutableBorrow
-        || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
-            terminal.structural_types.iter(),
-            terminal.structural_domains.iter(),
-            parameter.structural_type,
-            &parameter.projected_qualifications,
-        )
         || function.attachment.is_some()
-        || target.graph.call_plan.policy != expected_policy
-        || function.structural_parameters.len() != 1 + private_entry_ram.len()
-        || target.graph.parameters.len() != function.structural_parameters.len()
-        || target.graph.call_plan.parameters.len() != target.graph.parameters.len()
+        || target.graph.call_plan.policy != CallingPolicy::SystemVAMD64
+        || function.structural_parameters.len() != private_entry_ram.len()
+        || target.graph.parameters.len() != private_entry_ram.len()
+        || target.graph.call_plan.parameters.len() != private_entry_ram.len()
         || target.graph.call_plan.result.is_some()
-        || native.place != parameter.place
-        || native.structural_type != parameter.structural_type
-        || native.access != parameter.access
-        || !receiver_pointer_matches(
-            native.shape,
-            &native.placement,
-            if private_entry_ram.is_empty() {
-                receiver_register
-            } else {
-                linux_argument_register(
-                    function
-                        .structural_parameters
-                        .iter()
-                        .position(|parameter| parameter.place == terminal_self)
-                        .ok_or_else(invalid)?,
-                )
-                .ok_or_else(invalid)?
-            },
-        )
     {
         return Err(invalid());
     }
-    if !private_entry_ram.is_empty() && artifact.target != target::NativeTarget::linux_x64() {
+    if let Some(selections) = replay.target_machine_selections() {
+        if selections.target() != source.target_slot().owner.target_name()
+            || selections
+                .entry(
+                    identity,
+                    terminal,
+                    terminal_psi::TargetMachineCallable::Machine(selected),
+                )
+                .map_err(|_| invalid())?
+                != selected
+        {
+            return Err(invalid());
+        }
+    } else if terminal.entry != terminal_psi::TargetMachineCallable::Machine(selected) {
         return Err(invalid());
     }
     for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
-        if parameter.place == terminal_self {
-            continue;
-        }
         let recipe = private_entry_ram
             .iter()
             .find(|recipe| recipe.input().runtime_position as usize == ordinal)
@@ -1263,14 +635,14 @@ fn receiver_layout(
             .iter()
             .find(|native| native.place == parameter.place)
             .ok_or_else(invalid)?;
-        if recipe.terminal() != terminal_identity
-            || recipe.target() != target::TargetProfile::LinuxX64.target_name()
-            || recipe.input().machine != selected_entry
+        if recipe.terminal() != identity
+            || recipe.target() != source.target_slot().owner.target_name()
+            || recipe.input().machine != selected
             || terminal_semantics::placed_view_input_parameter(terminal, recipe.input()).ok()
                 != Some(parameter)
             || actual.structural_type != parameter.structural_type
             || actual.access != parameter.access
-            || actual.shape.byte_size as u64 != recipe.contents().len() as u64
+            || actual.shape.byte_size as usize != recipe.contents().len()
             || (actual.shape.alignment as u64) < recipe.alignment()
             || !receiver_pointer_matches(
                 actual.shape,
@@ -1282,255 +654,11 @@ fn receiver_layout(
             return Err(invalid());
         }
     }
-    let mut declarations = target
-        .graph
-        .structural_types
-        .iter()
-        .filter(|declaration| declaration.id == parameter.structural_type);
-    let declaration = declarations.next().ok_or_else(invalid)?;
-    if declarations.next().is_some()
-        || declaration.identity != eligibility.owned_receiver_type_identity()
-    {
-        return Err(invalid());
-    }
-    let Some(fields) = declaration.shape.record_fields() else {
-        return Err(invalid());
-    };
-    // Binding payload erasure requires the exact Fused establishment roster. The
-    // logical Binding marker, like an erased proof field, grants no authority
-    // merely because its carrier has no payload in this realization.
-    let mut erased = ErasedRowUse::default();
-    validate_receiver_fields(
-        &target.graph.structural_types,
-        fields,
-        source,
-        receiver_identity,
-        declaration.identity,
-        &terminal.identities,
-        ErasedRows {
-            services,
-            determined_evidence,
-        },
-        &mut Vec::new(),
-        &mut vec![parameter.structural_type],
-        &mut erased,
-        &invalid,
-    )?;
-    if erased.services != services.len()
-        || erased.determined_evidence != determined_evidence.len()
-        || !native.shape.alignment.is_power_of_two()
-    {
-        return Err(invalid());
-    }
-    Ok((
-        u64::from(native.shape.byte_size),
-        u64::from(native.shape.alignment),
-    ))
-}
-
-/// Replay the receiver's record-field tree against the exact Fused
-/// establishment rows and determined-evidence rows. Every service or erased field — at
-/// the receiver root or under nested record fields — must rejoin exactly one
-/// row of exactly one roster by its complete field route, and every
-/// non-erased leaf keeps the zero-valid judgment. Nested
-/// `Structural` record children extend the route; array elements and sum
-/// cases cannot name a route and keep the source-free nested-erased
-/// rejection inside `zero_valid_record_storage`.
-/// The rows a service or erased receiver-tree field may rejoin: a Fused service
-/// establishment, or Psi's witness that the field is determined evidence.
-#[derive(Clone, Copy)]
-struct ErasedRows<'a> {
-    services: &'a [ProgramEntryFusedServiceEstablishment],
-    determined_evidence: &'a [terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
-}
-
-/// How many erased fields rejoined each roster; every row must be used.
-#[derive(Default)]
-struct ErasedRowUse {
-    services: usize,
-    determined_evidence: usize,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn validate_receiver_fields(
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
-    fields: &[terminal_psi::StructuralFieldDeclaration],
-    source: &SelectedProgramEntrySignature,
-    receiver_identity: terminal_psi::TerminalIdentityIndex,
-    attachment_type_identity: terminal_psi::TerminalIdentityIndex,
-    identities: &terminal_psi::TerminalIdentityTable,
-    rows: ErasedRows<'_>,
-    field_path: &mut Vec<terminal_psi::TerminalIdentityIndex>,
-    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-    erased: &mut ErasedRowUse,
-    invalid: &dyn Fn() -> Diagnostic,
-) -> Result<(), Diagnostic> {
-    use terminal_psi::StructuralFieldType;
-    for field in fields {
-        let service_carrier = terminal_semantics::fused_service_field_carrier(declarations, field);
-        if field.relevance.is_erased()
-            || matches!(field.field_type, StructuralFieldType::Erased { .. })
-            || service_carrier.is_some()
-        {
-            // Retained service leaves require the same establishment as erased
-            // ones. Never recurse into their zero-payload type as zero-valid data.
-            let type_identity = service_carrier.ok_or_else(invalid)?;
-            field_path.push(field.identity);
-            // Service rows index the signature's plan-local table; the walked
-            // field path resolves against the module's table.
-            let mut matches =
-                rows.services.iter().filter(|row| {
-                    row.field_path().len() == field_path.len()
-                        && row.field_path().iter().zip(field_path.iter()).all(
-                            |(segment, identity)| {
-                                source.identities().text(*segment) == identities.text(*identity)
-                            },
-                        )
-                });
-            let mut determined = rows
-                .determined_evidence
-                .iter()
-                .filter(|row| row.field_path() == field_path.as_slice());
-            let outcome = match (matches.next(), determined.next()) {
-                (None, Some(row)) => {
-                    if !matches!(field.field_type, StructuralFieldType::Erased { .. })
-                        || determined.next().is_some()
-                        || row.carrier_type_identity() != type_identity
-                    {
-                        Err(invalid())
-                    } else {
-                        erased.determined_evidence += 1;
-                        Ok(())
-                    }
-                }
-                (None, None) | (Some(_), Some(_)) => Err(invalid()),
-                (Some(row), None)
-                    if matches.next().is_some()
-                        || row.source_signature_identity() != source.identity()
-                        || row.target_slot() != source.target_slot()
-                        || row.receiver_type_identity() != receiver_identity
-                        || source.identities().text(row.attachment_type_identity())
-                            != identities.text(attachment_type_identity)
-                        || source.identities().text(row.carrier_type_identity())
-                            != identities.text(type_identity) =>
-                {
-                    Err(invalid())
-                }
-                (Some(_), None) => {
-                    erased.services += 1;
-                    Ok(())
-                }
-            };
-            field_path.pop();
-            outcome?;
-        } else if let StructuralFieldType::Structural(structural_type) = field.field_type {
-            // A nested record field extends the walked route so the rows beneath
-            // it rejoin their own service or determined-evidence establishment;
-            // any other nested shape keeps the source-free zero-valid rejection
-            // inside `zero_valid_record_storage`.
-            if visiting.contains(&structural_type) {
-                return Err(invalid());
-            }
-            let nested = declarations
-                .iter()
-                .filter(|declaration| declaration.id == structural_type)
-                .collect::<Vec<_>>();
-            let [nested_declaration] = nested.as_slice() else {
-                return Err(invalid());
-            };
-            match &nested_declaration.shape {
-                terminal_psi::record_or_mixed_shape_pattern!(nested_fields) => {
-                    visiting.push(structural_type);
-                    field_path.push(field.identity);
-                    let outcome = validate_receiver_fields(
-                        declarations,
-                        nested_fields,
-                        source,
-                        receiver_identity,
-                        attachment_type_identity,
-                        identities,
-                        rows,
-                        field_path,
-                        visiting,
-                        erased,
-                        invalid,
-                    );
-                    field_path.pop();
-                    visiting.pop();
-                    outcome?;
-                }
-                _ => {
-                    let valid = zero_valid_record_storage(
-                        declarations,
-                        structural_type,
-                        visiting,
-                        zero_valid_field,
-                    );
-                    if !valid {
-                        return Err(invalid());
-                    }
-                }
-            }
-        } else if !zero_valid_field(declarations, field, visiting) {
-            // Every non-erased leaf keeps the one zero-valid judgment; this walk
-            // does not carry a second copy of its accept table.
-            return Err(invalid());
-        }
-    }
+    // There is no implicit receiver residence. Only the explicit recipes
+    // allocate backing, after the independently accounted activation stack.
     Ok(())
 }
 
-fn zero_valid_field(
-    declarations: &[terminal_psi::StructuralTypeDeclaration],
-    field: &terminal_psi::StructuralFieldDeclaration,
-    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-) -> bool {
-    use semantic_vocabulary::ScalarType;
-    use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
-    !field.relevance.is_erased()
-        && match field.field_type {
-            // Zero-filled IEEE storage is the exact positive `0.0` of either
-            // format, so float leaves start zero-valid like booleans and
-            // integers. Terminal retains a relevant float leaf as its own
-            // `IeeeFloat` field variant.
-            StructuralFieldType::Scalar(
-                ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
-            )
-            | StructuralFieldType::Atomic(_)
-            | StructuralFieldType::IeeeFloat(_) => true,
-            StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
-                terminal_semantics::scalar_field_accepts_zero(&field.field_type)
-            }
-            // Zero-filled owned storage has live length zero for every
-            // capacity. Source receipts separately establish its domains.
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
-            StructuralFieldType::PredicateByteSequence {
-                carrier: ByteSequenceCarrier::BoundedOwned { .. },
-                predicates,
-            } => predicates.holds_for(&[]),
-            // A zero shared-view descriptor is the empty view.
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-            }) => true,
-            StructuralFieldType::PredicateByteSequence {
-                carrier:
-                    ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    },
-                predicates,
-            } => predicates.holds_for(&[]),
-            StructuralFieldType::Structural(child) => {
-                zero_valid_record_storage(declarations, child, visiting, zero_valid_field)
-            }
-            // No nested service occurrence is established by this bridge.
-            _ => false,
-        }
-}
-
-/// The bridge supplies an address in the target's first integer-argument
-/// register (x0 under AAPCS64, rdi under System V AMD64), not an eight-byte
-/// receiver value. Indirect placement retains the referent geometry, including
-/// empty receivers.
 fn receiver_pointer_matches(
     shape: calling_conventions::ValueShape,
     placement: &calling_conventions::ValuePlacement,
@@ -1574,9 +702,8 @@ pub(crate) fn validate_image(
         return Err(invalid());
     }
     let binding = artifact.hosted_receiver_binding().ok_or_else(invalid)?;
-    let form = receiver_form(artifact.target).ok_or_else(invalid)?;
     let (symbol, offset) = shim.symbol_offset();
-    let byte_count = (form.shim_byte_count)(text, offset).ok_or_else(invalid)?;
+    let byte_count = text.len().checked_sub(offset).ok_or_else(invalid)?;
     let end = offset.checked_add(byte_count).ok_or_else(invalid)?;
     if !crate::hosted_unit_entry::unique_region(object, symbol, offset, byte_count, output) {
         return Err(invalid());
@@ -1585,7 +712,7 @@ pub(crate) fn validate_image(
         .final_text_bytes
         .get(offset..end)
         .ok_or_else(invalid)?;
-    if !(form.header_probe)(output, offset, shim_bytes, artifact.target) {
+    if !elf_entry_points_to(output, offset) {
         return Err(invalid());
     }
     let mut original_bss = artifact
@@ -1615,14 +742,14 @@ pub(crate) fn validate_image(
         .text_address
         .checked_add(offset as u64)
         .ok_or_else(invalid)?;
-    (form.reader)(&ReceiverReaderInput {
-        bytes: shim_bytes,
-        address: shim_address,
+    instructions::validate_x86_64(
+        shim_bytes,
+        shim_address,
         selected_entry,
-        bss_address: output.final_image_layout.bss_address,
+        output.final_image_layout.bss_address,
         partitions,
-        private_entry_ram: &binding.private_entry_ram,
-    })
+        &binding.private_entry_ram,
+    )
 }
 
 /// ELF64 `e_entry` must select the emitted bridge inside `.text`; the scalar
@@ -1655,29 +782,21 @@ fn validate_partitions(
         .stack_offset
         .checked_add(partitions.stack_byte_count)
         .ok_or_else(invalid)?;
-    let receiver_end = partitions
-        .receiver_offset
-        .checked_add(partitions.receiver_byte_count)
-        .ok_or_else(invalid)?;
     if partitions.saved_continuation_offset < original_bss_bytes
         || continuation_end > partitions.stack_offset
         || partitions.stack_byte_count < binding.demand.ceiling_bytes()
-        || stack_end > partitions.receiver_offset
-        || partitions.receiver_byte_count < binding.receiver_byte_count.max(1)
-        || receiver_end > partitions.end_offset
+        || stack_end != partitions.allocation_offset
+        || partitions.allocation_offset > partitions.end_offset
         || partitions.end_offset != output.bss_bytes as u64
     {
         return Err(invalid());
     }
     let bss = output.final_image_layout.bss_address;
     for (offset, alignment) in [
-        (partitions.saved_continuation_offset, 16),
+        (partitions.saved_continuation_offset, 16u64),
         (partitions.stack_offset, 16),
         (stack_end, 16),
-        (
-            partitions.receiver_offset,
-            binding.receiver_alignment.max(16),
-        ),
+        (partitions.allocation_offset, 16),
     ] {
         if !alignment.is_power_of_two()
             || !bss
@@ -1691,6 +810,3 @@ fn validate_partitions(
     bss.checked_add(partitions.end_offset).ok_or_else(invalid)?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

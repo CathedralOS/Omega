@@ -27,3 +27,9 @@ machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, othe
  }
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

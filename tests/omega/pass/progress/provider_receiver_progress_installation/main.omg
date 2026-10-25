@@ -66,3 +66,11 @@ reaches Scheduler
     let granted: SchedulerHandle in SchedulerHandle::WeakFair = Scheduler::grant(&main.provider, main.scheduler);
     Main::notify_fair(&main.provider, granted);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start()
+reaches Scheduler
+{
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}
