@@ -167,30 +167,16 @@ impl Operand {
                         let local = statement.as_local_data()?;
                         (local.symbol == *root).then_some((!local.is_mutable, local.type_reference))
                     });
-                let static_value =
-                    program
-                        .machine_holding_state(state.symbol)
-                        .is_some_and(|machine| {
-                            program
-                                .machine_type_parameters(machine)
-                                .iter()
-                                .any(|parameter| {
-                                    parameter.symbol == *root
-                                        && match parameter.kind {
-                                            typed_trees::data::TypeParameterKind::Value {
-                                                type_reference,
-                                            }
-                                            | typed_trees::data::TypeParameterKind::Const {
-                                                type_reference,
-                                            } => program
-                                                .primitive_type_reference(type_reference)
-                                                .is_some_and(|primitive| {
-                                                    primitive.is_fixed_integer()
-                                                }),
-                                            _ => false,
-                                        }
-                                })
-                        });
+                let static_value = program
+                    .machine_holding_state(state.symbol)
+                    .and_then(|machine| program.machine_lexical_type_parameter(machine, *root))
+                    .is_some_and(|parameter| match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Value { type_reference }
+                        | typed_trees::data::TypeParameterKind::Const { type_reference } => program
+                            .primitive_type_reference(type_reference)
+                            .is_some_and(|primitive| primitive.is_fixed_integer()),
+                        _ => false,
+                    });
                 if static_value {
                     return true;
                 }
@@ -505,15 +491,13 @@ fn build_operand(
                 .iter()
                 .any(|parameter| parameter.symbol == path.symbol);
             let value_binder = program
-                .machine_type_parameters(machine)
-                .iter()
-                .any(|parameter| {
-                    parameter.symbol == path.symbol
-                        && matches!(
-                            parameter.kind,
-                            typed_trees::data::TypeParameterKind::Value { .. }
-                                | typed_trees::data::TypeParameterKind::Const { .. }
-                        )
+                .machine_lexical_type_parameter(machine, path.symbol)
+                .is_some_and(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Value { .. }
+                            | typed_trees::data::TypeParameterKind::Const { .. }
+                    )
                 });
             if !local && !parameter && !value_binder {
                 return None;

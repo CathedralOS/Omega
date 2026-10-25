@@ -1898,6 +1898,16 @@ fn visit_machine_with_sidecars(
             visit_closed_conformance(program, retained, &capture.conformance_application);
         }
     }
+    for (_, lexical) in program
+        .lexical_machine_declarations
+        .iter()
+        .filter(|(_, row)| row.instance == machine.symbol)
+    {
+        retained.declaration_description_dependency(lexical.template);
+        retained.declaration_description_dependency(lexical.parent_template);
+        retained.declaration_description_dependency(lexical.parent_instance);
+        visit_static_machine_bindings(program, retained, lexical.parent_application);
+    }
     let mut visit_specialization = |specialization: &crate::typed_trees::MachineSpecialization| {
         visit_type_parameters(program, retained, specialization.template_parameters);
         visit_static_machine_bindings(program, retained, specialization.binding_application);

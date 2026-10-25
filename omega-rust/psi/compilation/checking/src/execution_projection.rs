@@ -390,6 +390,14 @@ pub fn retain_machine_roster(
     let mut applications = arena::Arena::default();
     applications.insert_many(captures);
     program.captured_machine_applications = applications;
+    let lexical = program
+        .lexical_machine_declarations
+        .iter()
+        .filter(|(_, row)| retained.contains(&row.instance))
+        .map(|(_, row)| row.clone())
+        .collect::<Vec<_>>();
+    program.lexical_machine_declarations = arena::Arena::default();
+    program.lexical_machine_declarations.insert_many(lexical);
     program.retain_live_trait_implementation_applications(pruned);
     // Trait requirement signatures own reach rows too; only rows owned by a
     // pruned machine leave.

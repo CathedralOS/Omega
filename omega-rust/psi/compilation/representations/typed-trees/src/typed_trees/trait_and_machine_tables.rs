@@ -282,7 +282,7 @@ impl TypedTrees {
         let mut lifetime_parameters = machine.lifetime_parameters.clone();
         // A named map's owned row captures its public regions. They are
         // visible during formation, not fresh binders of each invocation.
-        let mut enclosing = self.declaration_scope_parent(machine.symbol);
+        let mut enclosing = self.applied_machine_parent(machine.symbol);
         while enclosing.is_valid() {
             let declaration = self
                 .machine_by_symbol(enclosing)
@@ -315,7 +315,7 @@ impl TypedTrees {
                     }
                 }
             }
-            enclosing = self.declaration_scope_parent(enclosing);
+            enclosing = self.applied_machine_parent(enclosing);
         }
         if let Some(attached_data) = &machine.attached_data
             && let Some(definition) = self.data_definition_by_name(attached_data)
@@ -343,20 +343,16 @@ impl TypedTrees {
         // (which would admit undeclared regions). The roster bounds traversal
         // even when a recursive specialization refers to its own application.
         let mut owner = machine.symbol;
-        for _ in 0..self.machine_specializations.len() {
-            let Some(specialization) = self
-                .machine_specializations
-                .iter()
-                .find(|specialization| specialization.instance == owner)
-            else {
+        let bound = self.machine_specializations.len()
+            + self.captured_machine_applications.len()
+            + self.lexical_machine_declarations.len();
+        for _ in 0..bound {
+            let Ok(Some(application)) = self.executable_binding_application(owner) else {
                 break;
             };
-            if !specialization.binding_application.is_valid() {
-                break;
-            }
             let lexical_owner = self
                 .expression_table
-                .static_machine_application(specialization.binding_application)
+                .static_machine_application(application)
                 .lexical_owner;
             if lexical_owner == owner {
                 break;
@@ -384,53 +380,52 @@ impl TypedTrees {
         (type_parameters, lifetime_parameters)
     }
 
-    /// The authored callable contract of a compile-time machine parameter in
-    /// `machine`. The parameter symbol is also the contract's call-target
-    /// identity until specialization replaces it with a concrete state.
-    pub fn machine_parameter_signature_in(
+    /// Exact visible static declaration binding. Runtime parameters and locals
+    /// are deliberately outside this ancestry walk.
+    pub fn machine_lexical_type_parameter(
         &self,
         machine: &machine::Machine,
         symbol: SymbolHandle,
-    ) -> Option<&signature::StateSignature> {
-        let own = self.machine_type_parameters(machine);
-        let mut parameters = own;
-        let mut enclosing = machine.symbol;
+    ) -> Option<&data::TypeParameter> {
+        let mut parameters = self.machine_type_parameters(machine);
+        let mut owner = machine.symbol;
         let mut visited = Vec::new();
+        let mut shadowed = Vec::new();
         loop {
             if let Some(parameter) = parameters
                 .iter()
                 .find(|parameter| parameter.symbol == symbol)
             {
-                return match &parameter.kind {
-                    data::TypeParameterKind::Machine { contract } => self
-                        .machine_parameter_contract_view(contract)
-                        .map(data::MachineParameterContractView::signature),
-                    _ => None,
-                };
+                return (!shadowed.contains(&parameter.name.as_str())).then_some(parameter);
             }
-            enclosing = self.declaration_scope_parent(enclosing);
-            if !enclosing.is_valid() || visited.contains(&enclosing) {
+            shadowed.extend(parameters.iter().map(|parameter| parameter.name.as_str()));
+            owner = self.applied_machine_parent(owner);
+            if !owner.is_valid() || visited.contains(&owner) {
                 return None;
             }
-            visited.push(enclosing);
-            if let Some(declaration) = self
-                .machine_by_symbol(enclosing)
+            visited.push(owner);
+            parameters = self
+                .machine_by_symbol(owner)
                 .map(|parent| self.machine_type_parameters(parent))
                 .or_else(|| {
-                    self.conformance_by_symbol(enclosing)
+                    self.conformance_by_symbol(owner)
                         .map(|parent| self.conformance_type_parameters(parent))
                 })
-            {
-                parameters = declaration;
-                if parameters.iter().any(|parameter| {
-                    parameter.symbol == symbol
-                        && own.iter().any(|local| local.name == parameter.name)
-                }) {
-                    return None;
-                }
-            } else {
-                parameters = &[];
-            }
+                .unwrap_or(&[]);
+        }
+    }
+
+    /// The authored callable contract of a compile-time machine parameter.
+    pub fn machine_parameter_signature_in(
+        &self,
+        machine: &machine::Machine,
+        symbol: SymbolHandle,
+    ) -> Option<&signature::StateSignature> {
+        match &self.machine_lexical_type_parameter(machine, symbol)?.kind {
+            data::TypeParameterKind::Machine { contract } => self
+                .machine_parameter_contract_view(contract)
+                .map(data::MachineParameterContractView::signature),
+            _ => None,
         }
     }
 

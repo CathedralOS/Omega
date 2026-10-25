@@ -59,9 +59,9 @@ mod wire_schema_queries;
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, MachineSpecialization,
-    MachineSpecializationCommitment, MachineTemplateCommitment, StaticRequirementDispatch,
-    TraitImplementationApplication, closed_conformance_applications_of,
+    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, LexicalMachineDeclaration,
+    MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
+    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };
 pub use placed_plans::{
@@ -186,6 +186,7 @@ pub struct TypedTrees {
     /// specialization. Referenced realizers have no row in this arena.
     pub captured_machine_applications: Arena<CapturedMachineApplication>,
     pub captured_machine_states: Arena<CapturedMachineState>,
+    pub lexical_machine_declarations: Arena<LexicalMachineDeclaration>,
     /// Source trait implementation slots demand map captures before checking.
     pub trait_implementation_applications: Arena<TraitImplementationApplication>,
     /// Requirements instantiated under the `dyn Trait<Args>` applications
@@ -509,6 +510,7 @@ impl TypedTrees {
             wire_schema_plans: Vec::new(),
             machine_specializations: Vec::new(),
             captured_machine_applications: Arena::new(),
+            lexical_machine_declarations: Arena::new(),
             captured_machine_states: Arena::new(),
             trait_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
