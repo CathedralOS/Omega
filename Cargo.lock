@@ -457,6 +457,7 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "evaluation-accounting",
  "extents",
  "image-emission",
  "installation-evidence",
@@ -2312,6 +2313,7 @@ dependencies = [
 name = "terminal-fuel"
 version = "0.1.0"
 dependencies = [
+ "evaluation-accounting",
  "semantic-vocabulary",
  "terminal-psi",
 ]

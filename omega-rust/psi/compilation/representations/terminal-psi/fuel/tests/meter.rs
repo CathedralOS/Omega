@@ -341,6 +341,96 @@ fn operation() -> Operation {
     }
 }
 
+fn terminal_sponsor(units: u64) -> evaluation_accounting::BuildEvaluationSponsor {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    BuildEvaluationSponsor::new_with_measurement(
+        BuildEvaluationSponsorLimits::new(units, 8, 2, 2, 8, 8, 8, 8).unwrap(),
+        EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: TerminalFuelSchedule::CURRENT.identity(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn invocation_payment_is_atomic_with_local_attribution_and_shared_between_meters() {
+    use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
+    let sponsor = terminal_sponsor(2);
+    let invocation = sponsor.begin_invocation(sponsor.measurement(), 3).unwrap();
+    let mut meter = TerminalFuelMeter::with_invocation(invocation.clone(), Some(0)).unwrap();
+    let operation = operation();
+    assert!(matches!(
+        meter.charge_operation(&operation),
+        Err(FuelMeterError::Exhausted(_))
+    ));
+    assert_eq!(sponsor.consumed_fuel_units(), 0);
+    meter.replenish(10).unwrap();
+    meter.charge_operation(&operation).unwrap();
+    let mut alias = meter.clone();
+    alias.charge_operation(&operation).unwrap();
+    assert_eq!(sponsor.consumed_fuel_units(), 2);
+    let before = meter.usage().clone();
+    let allowance = meter.remaining_allowance();
+    assert_eq!(
+        meter.charge_operation(&operation),
+        Err(FuelMeterError::InvocationCharge {
+            site: FuelChargeSite::Operation(operation.id),
+            reason: EvaluationAccountingError::AllowanceExhausted(EvaluationResource::Fuel),
+        })
+    );
+    assert_eq!(meter.usage(), &before);
+    assert_eq!(meter.remaining_allowance(), allowance);
+    assert_eq!(invocation.snapshot().unwrap().record().fuel_units, 2);
+    let second = sponsor.begin_invocation(sponsor.measurement(), 3).unwrap();
+    let mut independent = TerminalFuelMeter::with_invocation(second.clone(), None).unwrap();
+    assert!(matches!(
+        independent.charge_operation(&operation),
+        Err(FuelMeterError::InvocationCharge { .. })
+    ));
+    assert_eq!(second.snapshot().unwrap().record().fuel_units, 0);
+    assert_eq!(independent.usage().total_units(), 0);
+}
+
+#[test]
+fn invocation_ceiling_and_engine_identity_cannot_be_changed_by_the_meter() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+    };
+    let tree = BuildEvaluationSponsor::new(
+        BuildEvaluationSponsorLimits::new(8, 8, 2, 2, 8, 8, 8, 8).unwrap(),
+    );
+    let tree_invocation = tree
+        .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 8)
+        .unwrap();
+    assert!(matches!(
+        TerminalFuelMeter::with_invocation(tree_invocation, None),
+        Err(FuelMeterError::InvocationMeasurementMismatch)
+    ));
+    assert_eq!(tree.consumed_fuel_units(), 0);
+    let sponsor = terminal_sponsor(8);
+    let invocation = sponsor.begin_invocation(sponsor.measurement(), 1).unwrap();
+    let mut meter = TerminalFuelMeter::with_invocation(invocation.clone(), None).unwrap();
+    meter.charge_operation(&operation()).unwrap();
+    meter.replenish(100).unwrap();
+    let edge = Terminator::ReturnUnit {
+        edge: edge_id(3),
+        cleanup_actions: Vec::new(),
+    };
+    assert!(matches!(
+        meter.charge_terminator(&edge),
+        Err(FuelMeterError::InvocationCharge {
+            site: FuelChargeSite::Edge(_),
+            ..
+        })
+    ));
+    assert_eq!(invocation.snapshot().unwrap().record().fuel_units, 1);
+    assert_eq!(meter.usage().total_units(), 1);
+}
+
 fn operation_id(raw: u64) -> OperationId {
     OperationId::new(raw).expect("test operation identity is nonzero")
 }

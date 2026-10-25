@@ -9,6 +9,9 @@
 
 use std::collections::BTreeMap;
 
+use evaluation_accounting::{
+    EvaluationAccountingError, EvaluationInvocationAccount, EvaluationMeasurementIdentity,
+};
 use semantic_vocabulary::{EdgeId, OperationId};
 use terminal_psi::{Operation, OperationKind, Terminator};
 
@@ -198,11 +201,12 @@ impl TerminalFuelUsage {
 /// fails before executing the first site it cannot pay for. Exhaustion leaves
 /// both usage and remaining allowance unchanged, so it is a sponsor event and
 /// never partially charges one semantic instruction.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct TerminalFuelMeter {
     schedule: TerminalFuelSchedule,
     remaining_allowance: Option<u64>,
     usage: TerminalFuelUsage,
+    invocation: Option<EvaluationInvocationAccount>,
 }
 
 impl TerminalFuelMeter {
@@ -214,11 +218,36 @@ impl TerminalFuelMeter {
         Self::new(TerminalFuelSchedule::CURRENT, Some(units))
     }
 
+    /// Pay each real Terminal charge from this exact invocation account as well
+    /// as the optional resumable local allowance. Cloning a meter shares the
+    /// account; replenishing local allowance cannot enlarge the sponsor's budget.
+    /// Account refusal is a host accounting error, never a guest crash/result.
+    /// This connects fuel only: it does not claim that the interpreter's storage
+    /// or returned values have been reserved against the same account.
+    pub fn with_invocation(
+        invocation: EvaluationInvocationAccount,
+        allowance: Option<u64>,
+    ) -> Result<Self, FuelMeterError> {
+        let schedule = TerminalFuelSchedule::CURRENT;
+        let EvaluationMeasurementIdentity::TerminalPsi { fuel_schedule, .. } =
+            invocation.measurement()
+        else {
+            return Err(FuelMeterError::InvocationMeasurementMismatch);
+        };
+        if fuel_schedule != schedule.identity() {
+            return Err(FuelMeterError::InvocationMeasurementMismatch);
+        }
+        let mut meter = Self::new(schedule, allowance);
+        meter.invocation = Some(invocation);
+        Ok(meter)
+    }
+
     fn new(schedule: TerminalFuelSchedule, remaining_allowance: Option<u64>) -> Self {
         Self {
             schedule,
             remaining_allowance,
             usage: TerminalFuelUsage::empty(schedule.identity()),
+            invocation: None,
         }
     }
 
@@ -315,6 +344,14 @@ impl TerminalFuelMeter {
             .checked_add(units)
             .ok_or(FuelMeterError::AccountingOverflow(site))?;
 
+        // All local refusals precede shared payment. The account atomically
+        // checks invocation and aggregate ceilings; only successful payment
+        // commits local attribution and permits the semantic site to execute.
+        if let Some(invocation) = &self.invocation {
+            invocation
+                .charge_fuel(units)
+                .map_err(|reason| FuelMeterError::InvocationCharge { site, reason })?;
+        }
         self.usage.total_units = total_units;
         self.usage.attribution.insert(
             site,
@@ -346,6 +383,11 @@ pub struct FuelExhaustion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FuelMeterError {
+    InvocationMeasurementMismatch,
+    InvocationCharge {
+        site: FuelChargeSite,
+        reason: EvaluationAccountingError,
+    },
     ConditionalEdgeNotSelected,
     EdgeNotOwnedByTerminator(EdgeId),
     Exhausted(FuelExhaustion),
