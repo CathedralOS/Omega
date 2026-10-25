@@ -7,7 +7,7 @@ use legalized_operations::{
 };
 use selected_instructions::AtomicForm;
 use semantic_vocabulary::ScalarType;
-use terminal_psi::{StructuralAccess, StructuralFieldType};
+use terminal_psi::StructuralAccess;
 
 pub(super) fn form(
     source: &LegalizedScalarFunction,
@@ -15,6 +15,7 @@ pub(super) fn form(
 ) -> Option<(
     AtomicForm,
     crate::structural_inputs::structural_reference_input::PrimitiveAccessGeometry,
+    ScalarType,
 )> {
     let LegalizedScalarInstructionKind::AtomicAccess {
         location,
@@ -42,9 +43,6 @@ pub(super) fn form(
         || event.observes_resident() && root_access == StructuralAccess::WriteOnlyBorrow
         || row.result.is_some()
             != (event.observes_resident() && event.single_attempt_custody().is_none())
-        || row
-            .result
-            .is_some_and(|result| result.scalar_type != ScalarType::Integer(*scalar_type))
     {
         return None;
     }
@@ -70,18 +68,24 @@ pub(super) fn form(
         &location.path,
         *field,
     )?;
-    if declaration.field_type != StructuralFieldType::Atomic(ScalarType::Integer(*scalar_type)) {
+    let logical_type = declaration.field_type.atomic_scalar_type()?;
+    if target_operations::operations::atomic_storage_integer_type(*event, logical_type)?
+        != *scalar_type
+        || row
+            .result
+            .is_some_and(|result| result.scalar_type != logical_type)
+    {
         return None;
     }
     let geometry = crate::structural_inputs::structural_reference_input::atomic_field_geometry(
         root,
         &location.path,
         *field,
-        ScalarType::Integer(*scalar_type),
+        logical_type,
         &signature.structural_types,
     )?;
     (geometry.byte_offset == *field_byte_offset
         && geometry.byte_size == u32::from(form.width.bytes())
         && geometry.byte_offset % geometry.byte_size == 0)
-        .then_some((form, geometry))
+        .then_some((form, geometry, logical_type))
 }
