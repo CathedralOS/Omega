@@ -73,32 +73,49 @@ pub(super) fn admit<'source>(
     {
         return Err(RuntimeRematerializationError::UnsupportedValue);
     }
+    let check_materialize = || -> Result<&RegisterInstructionConstraint, RuntimeRematerializationError> {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .ok_or(RuntimeRematerializationError::ConstraintMismatch)?;
+        // The target row must be a single flexible def with no hidden effects:
+        // implicit uses would make repetition consume unproven state, implicit
+        // defs or clobbers would destroy values the replayed stream does not name.
+        if materialize.operands.len() != 1
+            || !materialize.implicit_uses.is_empty()
+            || !materialize.implicit_defs.is_empty()
+            || !materialize.clobbers.is_empty()
+        {
+            return Err(RuntimeRematerializationError::ConstraintMismatch);
+        }
+        let row_operand = &materialize.operands[0];
+        if row_operand.access != RegisterOperandAccess::Def
+            || row_operand.class != victim.class
+            || row_operand.fixed_view.is_some()
+            || row_operand.tied_to.is_some()
+            || row_operand.early_clobber
+        {
+            return Err(RuntimeRematerializationError::ConstraintMismatch);
+        }
+        Ok(materialize)
+    };
+    let materialize = match check_materialize() {
+        Ok(m) => m,
+        Err(err) => {
+            function
+                .blocks
+                .instruction_block(definition)
+                .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
+            return Err(err);
+        }
+    };
+    let row_operand = &materialize.operands[0];
+    if !function.blocks.has_materialize_definition(register) {
+        return Err(RuntimeRematerializationError::UnsupportedValue);
+    }
     let block_index = function
         .blocks
         .instruction_block(definition)
         .ok_or(RuntimeRematerializationError::UnsupportedValue)?;
-    let materialize = environment
-        .constraint(environment.selected_keys().materialize_i64)
-        .ok_or(RuntimeRematerializationError::ConstraintMismatch)?;
-    // The target row must be a single flexible def with no hidden effects:
-    // implicit uses would make repetition consume unproven state, implicit
-    // defs or clobbers would destroy values the replayed stream does not name.
-    if materialize.operands.len() != 1
-        || !materialize.implicit_uses.is_empty()
-        || !materialize.implicit_defs.is_empty()
-        || !materialize.clobbers.is_empty()
-    {
-        return Err(RuntimeRematerializationError::ConstraintMismatch);
-    }
-    let row_operand = &materialize.operands[0];
-    if row_operand.access != RegisterOperandAccess::Def
-        || row_operand.class != victim.class
-        || row_operand.fixed_view.is_some()
-        || row_operand.tied_to.is_some()
-        || row_operand.early_clobber
-    {
-        return Err(RuntimeRematerializationError::ConstraintMismatch);
-    }
     let defined_instruction = function
         .blocks
         .instruction_index_in_block(block_index, definition)

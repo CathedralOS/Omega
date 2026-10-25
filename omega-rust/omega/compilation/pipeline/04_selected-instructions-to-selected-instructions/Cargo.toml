@@ -14,6 +14,7 @@ register-environment = { path = "../../backend/register-environment" }
 isa-aarch64 = { path = "../../backend/instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
 optimization-core = { path = "../../../foundation/optimization-core" }
+phase-profile = { path = "../../../../psi/foundation/phase-profile" }
 register-model = { path = "../../backend/register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
