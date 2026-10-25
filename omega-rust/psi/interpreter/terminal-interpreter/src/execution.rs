@@ -111,8 +111,9 @@ pub struct TerminalExecution<'artifact> {
         BTreeMap<StructuralRuntimePlace, crate::reference::ReferenceReferent>,
     /// Mutable primitive contents live outside call frames. Machine-local
     /// place maps are only views into this stable logical storage arena.
-    pub(crate) structural_primitive_storage: BTreeMap<StructuralRuntimePlace, TerminalScalarValue>,
-    pub(crate) structural_primitive_entry_places: BTreeMap<u32, StructuralRuntimePlace>,
+    pub(crate) structural_primitive_storage:
+        RuntimeRows<StructuralRuntimePlace, TerminalScalarValue>,
+    pub(crate) structural_primitive_entry_places: RuntimeRows<u32, StructuralRuntimePlace>,
     pub(crate) local_structural_identities: LocalStructuralIdentities,
     /// Amortized scalar-only storage reclamation, never an ownership frontier.
     pub(crate) next_scalar_collection_identity: u64,
@@ -502,8 +503,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             reference_referents: BTreeMap::new(),
             structural_element_view_fields: BTreeMap::new(),
             structural_byte_descriptors: BTreeMap::new(),
-            structural_primitive_storage: BTreeMap::new(),
-            structural_primitive_entry_places: BTreeMap::new(),
+            structural_primitive_storage: RuntimeRows::new(account.as_ref()),
+            structural_primitive_entry_places: RuntimeRows::new(account.as_ref()),
             local_structural_identities,
             next_scalar_collection_identity: 1024,
             structural_scalar_fields: RuntimeRows::new(account.as_ref()),
@@ -581,7 +582,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 &established_fields,
             )?;
         }
-        let primitive_storage = std::mem::take(&mut execution.structural_primitive_storage);
+        let primitive_storage = execution.structural_primitive_storage.take();
         let (storage, entry_places) = bind_structural_primitive_values(
             machine,
             &program.structural_types(),
@@ -589,6 +590,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_primitive_value_arguments,
             primitive_storage,
             zero_initialized_arguments,
+            execution.account.as_ref(),
         )?;
         execution.structural_primitive_storage = storage;
         execution.structural_primitive_entry_places = entry_places;

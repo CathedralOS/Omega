@@ -95,6 +95,13 @@ descriptor tables use the same paid row owner through argument staging, saved
 frames, joins and return installation. Even an empty array needs its descriptor
 cell. A refused return retains its output, caller continuation and loan roster
 beside any partially installed rows until the failed activation is discarded.
+Shared scalar fields, primitive backing cells and primitive entry lookup rows
+also use the paid row owner. Constructor and subtree snapshots reserve before
+copying and transfer those reservations at publication; pruning retires the
+selected rows. Updating an existing primitive retains its cell, and first
+initialization reserves before invalidating stored provenance. Source controls
+check local and borrowed-entry mutation with exact and one-cell-short budgets,
+including readback through the original entry reference after a successful run.
 Global descriptor/placed/case storage and result publication are not yet completely accounted;
 these partial snapshots must not become production Build usage receipts.
 

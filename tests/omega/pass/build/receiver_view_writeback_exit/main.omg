@@ -48,6 +48,16 @@ machine copied_record_storage() -> u32 {
     original.value = 99;
     copied.value
 }
+machine write_number(value: &mut u32) { value = 37; }
+machine primitive_storage() -> u32 {
+    let mut value: u32 = 11;
+    write_number(&mut value);
+    value
+}
+machine primitive_entry(value: &mut u32) -> u32 {
+    write_number(value);
+    value
+}
 machine array_result() -> [u32; 3] {
     let original: [u32; 3] = [11, 22, 33];
     let mut copied: [u32; 3] = copy_array(original);

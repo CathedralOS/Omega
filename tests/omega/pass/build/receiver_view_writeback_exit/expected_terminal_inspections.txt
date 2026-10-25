@@ -4,3 +4,5 @@ bind_reborrowed runtime portable build-bindings macos_arm64::ProgramEntry main -
 record_storage runtime portable storage-cells 6 37
 moved_record_storage runtime portable storage-cells 6 37
 copied_record_storage runtime portable storage-cells 14 37
+primitive_storage runtime portable storage-cells 10 37
+primitive_entry runtime portable storage-cells 9 37 primitive 11

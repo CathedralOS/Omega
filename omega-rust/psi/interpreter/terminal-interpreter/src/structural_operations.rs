@@ -312,20 +312,14 @@ impl TerminalExecution<'_> {
         crate::structural_storage::prune(&mut self.activation_storage.claim_descriptors, from);
         self.invalidate_stored_provenance(from);
         crate::structural_storage::prune(&mut self.structural_host_atoms, from);
-        let scalar_cells: Vec<_> =
-            crate::structural_storage::cells(&self.structural_scalar_fields, from)
-                .map(|(cell, _)| cell.clone())
-                .collect();
-        for cell in scalar_cells {
-            self.structural_scalar_fields.remove(&cell);
-        }
+        crate::structural_storage::prune_rows(&mut self.structural_scalar_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_sequence_fields, from);
         crate::structural_storage::prune(&mut self.structural_byte_descriptors, from);
         crate::structural_storage::prune(&mut self.structural_byte_storage, from);
         crate::structural_storage::prune(&mut self.structural_cases, from);
         crate::structural_storage::prune(&mut self.reference_referents, from);
         crate::structural_storage::prune(&mut self.structural_element_view_fields, from);
-        crate::structural_storage::prune(&mut self.structural_primitive_storage, from);
+        crate::structural_storage::prune_rows(&mut self.structural_primitive_storage, from);
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
@@ -567,7 +561,7 @@ impl TerminalExecution<'_> {
                             path: storage_path(),
                         },
                         zero(*scalar_type).ok_or_else(malformed)?,
-                    );
+                    )?;
                 }
                 terminal_semantics::ZeroedStructuralLeaf::SumSelection {
                     path: _,
@@ -1538,12 +1532,15 @@ impl TerminalExecution<'_> {
                     retarget(carrier).map(|place| (place, referent.clone()))
                 })
                 .collect();
-        let staged_primitives: Vec<_> =
+        let mut staged_primitives = crate::runtime_rows::RuntimeRows::from_rows(
+            self.account.as_ref(),
             crate::structural_storage::cells(&self.structural_primitive_storage, from)
-                .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
-                .collect();
+                .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar))),
+        )?;
         self.structural_scalar_fields
             .validate_append(&staged_scalars)?;
+        self.structural_primitive_storage
+            .validate_append(&staged_primitives)?;
         self.prune_subtree(to);
         if vacate {
             self.prune_subtree(from);
@@ -1559,7 +1556,8 @@ impl TerminalExecution<'_> {
         self.reference_referents.extend(staged_referents);
         self.structural_element_view_fields
             .extend(staged_element_views);
-        self.structural_primitive_storage.extend(staged_primitives);
+        self.structural_primitive_storage
+            .append(&mut staged_primitives)?;
         Ok(())
     }
 
