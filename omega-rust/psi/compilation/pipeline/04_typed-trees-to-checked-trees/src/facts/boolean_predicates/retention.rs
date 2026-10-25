@@ -122,7 +122,7 @@ fn domain_predicates(
             symbol,
             identity,
             // Existing lowering retains its telescope, selected operators,
-            // per-proof budget and generic/index/alias refusal behavior.
+            // per-proof budget and generic/index refusal behavior.
             predicates: super::domain_predicates_for_subject(
                 program,
                 operators,

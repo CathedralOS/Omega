@@ -16,7 +16,7 @@ pub struct DataDefinition {
     pub generic_instance: Option<TypeReferenceHandle>,
     pub properties: DataProperties,
     /// Selected default-domain cleanup, independent from the data namespace.
-    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
+    pub cleanup_selection: Option<crate::domain::CleanupSelection>,
     /// N6 proof-only quotient metadata, retained through typing so proof and
     /// validation consumers share the exact carrier/relation identity.
     pub quotient: Option<QuotientDefinition>,

@@ -471,20 +471,27 @@ pub(crate) fn domain_predicates_for_subject(
     domain: &typed_trees::domain::DomainDefinition,
     subject: &CanonicalPlace,
 ) -> Option<Vec<BoundPredicate>> {
-    if !domain.type_parameters.is_empty()
-        || !domain.index_arguments.is_empty()
-        || domain.alias.is_some()
-    {
-        return None;
-    }
-    let parameters = [typed_trees::signature::StateParameter {
-        symbol: domain.subject_symbol,
-        name: domain.subject_name.clone(),
-        type_reference: domain.target_type,
-        ..Default::default()
-    }];
-    Some(
-        program
+    fn visit(
+        program: &dyn ::validation::CheckingInput,
+        operators: &checked_trees::CheckedOperatorFacts,
+        domain: &typed_trees::domain::DomainDefinition,
+        subject: &CanonicalPlace,
+        active: &mut Vec<SymbolHandle>,
+    ) -> Option<Vec<BoundPredicate>> {
+        if !domain.type_parameters.is_empty()
+            || !domain.index_arguments.is_empty()
+            || active.contains(&domain.symbol)
+        {
+            return None;
+        }
+        active.push(domain.symbol);
+        let parameters = [typed_trees::signature::StateParameter {
+            symbol: domain.subject_symbol,
+            name: domain.subject_name.clone(),
+            type_reference: domain.target_type,
+            ..Default::default()
+        }];
+        let mut predicates: Vec<BoundPredicate> = program
             .proof_facts(domain)
             .iter()
             .filter_map(|fact| {
@@ -502,6 +509,13 @@ pub(crate) fn domain_predicates_for_subject(
                         )?
                     }
                     typed_trees::domain::ProofFact::Membership(membership) => {
+                        if typed_trees::domain::domain_subject_reference(
+                            program,
+                            domain,
+                            membership.value,
+                        ) {
+                            return None;
+                        }
                         crate::values::scalar::result_contract::lower_callable_scalar_membership(
                             program,
                             operators,
@@ -531,8 +545,31 @@ pub(crate) fn domain_predicates_for_subject(
                 }
                 Some(predicate)
             })
-            .collect(),
-    )
+            .collect();
+        // Whole-subject membership retains the parent's complete supported
+        // predicate theory at this exact subject. Projecting a record membership
+        // through the scalar-only lowerer used to drop every inherited clause.
+        // Field memberships keep their separate subjects and ordinary projection.
+        for membership in typed_trees::domain::subject_membership_facts(program, domain) {
+            if let Some(parent) = program.domain_definition(membership.domain_symbol)
+                && let Some(inherited) = visit(program, operators, parent, subject, active)
+            {
+                predicates.extend(inherited);
+            }
+        }
+        if let Some(alias) = &domain.alias {
+            for constituent in &alias.constituents {
+                if let Some(parent) = program.domain_definition(constituent.domain_symbol)
+                    && let Some(inherited) = visit(program, operators, parent, subject, active)
+                {
+                    predicates.extend(inherited);
+                }
+            }
+        }
+        active.pop();
+        Some(predicates)
+    }
+    visit(program, operators, domain, subject, &mut Vec::new())
 }
 
 struct Values<'a, Resolve> {

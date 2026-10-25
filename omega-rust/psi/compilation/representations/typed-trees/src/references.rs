@@ -1045,7 +1045,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             visit_symbol(retained, quotient.relation_symbol);
         }
         if let Some(selection) = &data.cleanup_selection {
-            visit_static_argument(program, retained, selection);
+            visit_cleanup_selection(program, retained, selection);
         }
         visit_proof_facts(program, retained, data.where_facts);
         for member in program.data_members(data) {
@@ -1236,7 +1236,7 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_symbol(retained, domain.symbol);
         visit_type_parameters(program, retained, domain.type_parameters);
         if let Some(selection) = &domain.cleanup_selection {
-            visit_static_argument(program, retained, selection);
+            visit_cleanup_selection(program, retained, selection);
         }
         visit_type_reference(program, retained, domain.target_type);
         for argument in &domain.index_arguments {
@@ -1257,6 +1257,29 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             }
         }
     }
+}
+
+fn visit_cleanup_selection(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    selection: &crate::domain::CleanupSelection,
+) {
+    let application = program
+        .expression_table
+        .static_machine_application(selection.application);
+    if let Some(occurrence) = selection.authorization {
+        retained.authored_selection(occurrence);
+    }
+    visit_symbol(retained, application.registration_operation);
+    visit_symbol(retained, selection.executable);
+    visit_type_reference(program, retained, selection.subject);
+    for argument in program
+        .expression_table
+        .static_machine_application_arguments(selection.application)
+    {
+        visit_static_argument(program, retained, argument);
+    }
+    visit_static_machine_bindings(program, retained, selection.application);
 }
 
 /// Retain machines referenced by one proof fact: embedded expressions,

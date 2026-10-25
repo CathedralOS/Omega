@@ -17,7 +17,7 @@ pub struct DomainDefinition {
     pub index_arguments: Vec<TypeReferenceHandle>,
     pub is_public: bool,
     /// Selected machine identity and its full declaration-site application.
-    pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
+    pub cleanup_selection: Option<CleanupSelection>,
     /// Authored transparent alias theory. Semantic consumers expand this
     /// record before normalization rather than treating the alias as evidence.
     pub alias: Option<DomainAliasDefinition>,
@@ -530,4 +530,17 @@ pub fn type_selects_semantic_domain(
             }),
         _ => false,
     }
+}
+
+/// One owner-authored cleanup interface. The canonical application retains its
+/// supplying declaration, static tuple and bounds; executable retargeting never
+/// replaces that source identity. The exact subject prevents one shared helper
+/// from borrowing the first carrier that happened to select it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CleanupSelection {
+    pub application: crate::static_applications::StaticMachineApplicationHandle,
+    pub authorization:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId>,
+    pub subject: TypeReferenceHandle,
+    pub executable: SymbolHandle,
 }

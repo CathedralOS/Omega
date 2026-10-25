@@ -16,7 +16,7 @@ pub fn validate_behavior_plan(
             continue;
         };
 
-        if crate::nominal_cleanup_owner(program, machine.symbol).is_some()
+        if crate::value_custody::cleanup::is_reserved_cleanup(program, machine)
             && (machine.suspends
                 || machine.blocks
                 || machine_summary.transitive_may_suspend

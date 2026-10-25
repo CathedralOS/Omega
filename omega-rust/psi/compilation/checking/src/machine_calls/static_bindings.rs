@@ -55,6 +55,24 @@ impl<'program> StaticDeclaration<'program> {
                 conformance_bounds: &machine.conformance_bounds,
             });
         }
+        if let Some(data) = program.unique_data_definition_by_symbol(symbol) {
+            return Some(Self {
+                symbol,
+                name: &data.name,
+                parameters: program.data_type_parameters(data),
+                lifetime_parameters: &data.lifetime_parameters,
+                conformance_bounds: &[],
+            });
+        }
+        if let Some(domain) = program.domain_definition(symbol) {
+            return Some(Self {
+                symbol,
+                name: &domain.name,
+                parameters: program.domain_type_parameters(domain),
+                lifetime_parameters: &[],
+                conformance_bounds: &[],
+            });
+        }
         let signature = program
             .trait_machine_signature(symbol)
             .map(|(_, signature)| signature)
@@ -270,6 +288,15 @@ pub fn validate_static_machine_bindings(
             .filter(|specialization| program.machine_by_symbol(specialization.instance).is_some())
             .map(|specialization| specialization.binding_application),
     );
+    applications.extend(program.data_definitions().iter().filter_map(|data| {
+        data.cleanup_selection
+            .map(|selection| selection.application)
+    }));
+    applications.extend(program.domain_definitions().iter().filter_map(|domain| {
+        domain
+            .cleanup_selection
+            .map(|selection| selection.application)
+    }));
     applications.retain(|handle| handle.is_valid());
     applications.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     applications.dedup();
@@ -460,9 +487,9 @@ pub fn validate_static_machine_bindings(
         }
         judged.push((machine.symbol, scope, handle));
         let parameters = machine.parameters;
-        let scope_parameters: &[TypeParameter] = program
-            .machine_by_symbol(application.lexical_owner)
-            .map_or(&[], |owner| program.machine_type_parameters(owner));
+        let scope_parameters: &[TypeParameter] =
+            StaticDeclaration::find(program, application.lexical_owner)
+                .map_or(&[], |owner| owner.parameters);
         let mut type_bounds_satisfied = true;
         for binding in bindings {
             let parameter = parameters

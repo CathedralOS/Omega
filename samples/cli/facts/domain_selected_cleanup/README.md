@@ -23,10 +23,17 @@ The producer's package-free environment smoke separately returned native 0 and
 interpreter 0. The raw commands, producer digest, canonical packet, and logs are
 retained in the lane's ignored `build/slot3-evidence` directory.
 
-This fact is unfinished. Parsing and retained source-tree selection are a local
-implementation checkpoint, not runtime acceptance. Cleanup selection, exact
-application substitution, inherited/default/alias/conjoined selection, obligation
-transport and erasure, authority, hook effects, and Terminal/native execution
-must all be demonstrated. Only the initial positive currently exists. The nine
-transport places and sensitive reject twins are not yet established or pinned.
-No parent-task acceptance has been subtracted.
+This fact is unfinished. The source-equivalent candidate at local checkpoint
+`ec2a6feafcc` executed the original local, owned-parameter, and named-domain
+productions with native 0 and interpreter 0. Their prerequisite controls rejected.
+Those observations retain their original source hashes and producer digest;
+the current witnesses strengthen the oracle with an invocation counter and
+need fresh execution. A child refinement repeating the same selection currently
+fails to retain the inherited `keeper.code == 7` prerequisite; candidate 6 includes
+a shared predicate-retention repair awaiting execution.
+
+Authority, exact generic application substitution, erasure and intact transport,
+remaining hook contracts, product-producer parity, the complete nine-place row
+and pinned reject twins, and independent review remain open. Only `local` and
+`parameter` standard places currently exist. Additional productions stay under
+this fact folder. No parent-task acceptance has been subtracted.
