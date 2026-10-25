@@ -433,7 +433,7 @@ fn summarize_resolved_call(
     let actual_values = inference.argument_values(program, arguments);
     inference.active_states.push(callee_state.symbol);
     let relative_paths =
-        inference.with_invocation(program, callee_state, &actual_values, |inference| {
+        inference.with_invocation(program, callee_state, &actual_values, &[], |inference| {
             summarize_complete_state_written_paths(
                 program,
                 callee_machine,
