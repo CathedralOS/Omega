@@ -6,6 +6,8 @@ mod cleanup_resume;
 mod extent_view;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
+#[path = "terminal_project_requests.rs"]
+mod project_requests;
 #[path = "terminal_resident_storage.rs"]
 mod resident_storage;
 #[path = "terminal_result_custody.rs"]
@@ -20,6 +22,7 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["project-requests"] => project_requests::observe(artifact),
         ["result-custody", cells, bytes, oracle @ ..] => {
             result_custody::observe(artifact, cells, bytes, oracle)
         }
