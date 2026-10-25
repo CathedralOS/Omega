@@ -7,6 +7,7 @@
 
 use sha2::{Digest, Sha256};
 
+#[derive(Clone)]
 pub struct DomainDigestEncoder(Sha256);
 
 impl DomainDigestEncoder {

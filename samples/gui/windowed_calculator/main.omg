@@ -1098,3 +1098,16 @@ machine Main::memory_recall(main: &mut Main) {
     main.typing = 1;
     main.error = 0;
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches
+    NativeCodeExecution + WindowManagement + SurfacePresentation +
+    WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
+    ClockObservation + ExecutionDelay + FilesystemContentRead +
+    FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
+    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
+    ProcessOutput + ProcessExit + Clock +
+    Console + Gui + Input {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

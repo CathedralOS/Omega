@@ -89,13 +89,6 @@ pub enum ProgramEntryVisibleParameters {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramEntryReceiverProvisioning {
-    /// The selected source machine may be free or request one ZII-valid
-    /// exclusive receiver occurrence from the generated bridge.
-    NoneOrProvisionedZii,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgramEntryCallingConvention {
     MicrosoftX64,
     Aapcs64,
@@ -266,7 +259,6 @@ pub struct ProgramEntrySlotDeclaration {
     /// when both currently select Microsoft x64.
     pub semantic_calling_convention: Option<ProgramEntryCallingConvention>,
     pub visible_parameters: ProgramEntryVisibleParameters,
-    pub receiver: ProgramEntryReceiverProvisioning,
 }
 
 /// One build-bound environment-to-program root required by a target profile.
@@ -619,7 +611,6 @@ impl TargetProfile {
             physical_calling_convention,
             semantic_calling_convention,
             visible_parameters,
-            receiver: ProgramEntryReceiverProvisioning::NoneOrProvisionedZii,
         }
     }
 

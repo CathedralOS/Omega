@@ -182,7 +182,10 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ScalarType, ValueId};
 
-pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
+pub use rewrite::{
+    spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
+    spill_selected_runtime_value_with_span_policy,
+};
 
 /// How far a block's still-open shared reload interval may reach. The
 /// entrypoint fixes this once per rewrite so the proposal and the
@@ -452,6 +455,16 @@ pub(crate) fn next_instruction_id(function: &SelectedFunction) -> Option<u32> {
 
 /// The register twin of [`next_instruction_id`].
 pub(crate) fn next_register_id(function: &SelectedFunction) -> Option<u32> {
+    if let Some(last) = function.virtual_registers.last()
+        && function.virtual_registers.len() > 1
+        && last.id.0 as usize >= function.virtual_registers.len() - 1
+        && function
+            .virtual_registers
+            .windows(2)
+            .all(|pair| pair[0].id.0 < pair[1].id.0)
+    {
+        return last.id.0.checked_add(1);
+    }
     function
         .virtual_registers
         .iter()
@@ -566,6 +579,7 @@ pub(super) struct RuntimeSpillDerivation<'source> {
     /// member. Proposal, replay, and the slot-reuse analysis all read this
     /// one decision.
     pub span_closes: Vec<std::collections::BTreeSet<usize>>,
+    pub crossed_unit_write: bool,
     // Establishment retains its exact address operand; only later uses reload.
     pub retained_uses: std::collections::BTreeSet<(SelectedInstructionId, u16)>,
     pub victim: &'source VirtualRegister,
@@ -1619,9 +1633,16 @@ pub(super) fn derive_runtime_spill<'source>(
             if span_policy == RuntimeSpillSpanPolicy::UnitWriteCrossing
                 && shared_reload[block_index]
             {
+                let has_structural = structural_uses
+                    .iter()
+                    .any(|pending| pending.block == block_index);
+                let last_unpinned = use_positions[block_index].unpinned.iter().next_back().copied();
                 let mut open = false;
                 let mut written = std::collections::BTreeSet::new();
                 for (index, instruction) in block.instructions.iter().enumerate() {
+                    if !has_structural && last_unpinned.is_none_or(|last| index >= last) {
+                        break;
+                    }
                     if use_positions[block_index].unpinned.contains(&index) {
                         open = true;
                     }
@@ -1656,6 +1677,7 @@ pub(super) fn derive_runtime_spill<'source>(
             crossed
         })
         .collect();
+    let crossed_unit_write = crossed_unit_writes.iter().any(|set| !set.is_empty());
     // The shared span-closing decision, computed once: every victim
     // redefinition — the held reload's value stops restating the register —
     // and every unit-writing instruction the policy did not cross. Proposal,
@@ -1673,6 +1695,20 @@ pub(super) fn derive_runtime_spill<'source>(
                     .any(|pending| pending.block == block_index)
             {
                 return std::collections::BTreeSet::new();
+            }
+            if let Some(writers) = function.blocks.block_unit_writer_indices(block_index) {
+                let mut closes = redefinitions[block_index].clone();
+                let crossed = &crossed_unit_writes[block_index];
+                if crossed.is_empty() {
+                    closes.extend(writers.iter().copied());
+                } else {
+                    for &index in writers {
+                        if !crossed.contains(&index) {
+                            closes.insert(index);
+                        }
+                    }
+                }
+                return closes;
             }
             block
                 .instructions
@@ -1874,6 +1910,7 @@ pub(super) fn derive_runtime_spill<'source>(
         shared_reload,
         dedicated_tie_uses,
         span_closes,
+        crossed_unit_write,
         retained_uses,
         victim,
         lineage,

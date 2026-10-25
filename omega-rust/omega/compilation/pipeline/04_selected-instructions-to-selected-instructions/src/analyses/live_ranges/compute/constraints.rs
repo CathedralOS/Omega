@@ -29,6 +29,9 @@ pub(crate) fn derive_early_clobbers(
                 .map(move |definition| (block, operands, definition))
         })
         .collect::<Vec<_>>();
+    if early_definitions.is_empty() {
+        return Ok(Vec::new());
+    }
     let tied_edges = instruction_operands()
         .flat_map(|(_, operands)| {
             operands

@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "callback_shared_program_excluded_trap");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::exclude_crash(builder, CrashCause::Trap);
 }

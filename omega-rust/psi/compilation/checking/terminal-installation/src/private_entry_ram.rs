@@ -296,3 +296,38 @@ pub fn admit_private_entry_ram(
         fields: initializers,
     })
 }
+
+/// Admit the complete runtime-owned observation roster after normal return.
+/// Metadata binds the actual canonical artifact and exact ingress occurrence;
+/// guest streams and a caller's expected bytes cannot stand in for this lane.
+pub fn decode_private_entry_observations(
+    recipes: &[CheckedPrivateEntryRamRecipe],
+    bytes: &[u8],
+) -> Result<Vec<(u32, Vec<u8>)>, String> {
+    let mut offset = 0usize;
+    let mut observations = Vec::new();
+    for recipe in recipes {
+        let header = recipe.observation_header();
+        let header_end = offset
+            .checked_add(header.len())
+            .ok_or("private observation header overflows")?;
+        if bytes.get(offset..header_end) != Some(header.as_slice()) {
+            return Err(
+                "private observation lost its exact artifact, placement seal, position or extent"
+                    .into(),
+            );
+        }
+        let end = header_end
+            .checked_add(recipe.contents().len())
+            .ok_or("private observation extent overflows")?;
+        let contents = bytes
+            .get(header_end..end)
+            .ok_or("private observation backing is incomplete")?;
+        observations.push((recipe.input().position, contents.to_vec()));
+        offset = end;
+    }
+    if offset != bytes.len() {
+        return Err("private observation contains an extra row".into());
+    }
+    Ok(observations)
+}

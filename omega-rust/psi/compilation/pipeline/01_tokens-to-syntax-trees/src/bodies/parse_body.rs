@@ -58,7 +58,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
     }
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_contextual("entry")
+        if starts_retired_entry_member(input)
             || (input.at_keyword(KeywordKind::Public)
                 && input
                     .take_keyword(KeywordKind::Public, "public")?
@@ -99,7 +99,7 @@ pub(crate) fn parse_body<'tokens, 'source>(
 fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
     !input.at_punctuation(PunctuationKind::RightBrace)
         && !input.at_keyword(KeywordKind::Public)
-        && !input.at_contextual("entry")
+        && !starts_retired_entry_member(input)
         && !starts_state_member(input)
         && !starts_retired_invariant_member(input)
 }
@@ -107,9 +107,50 @@ fn starts_implicit_entry_body(input: Input<'_, '_>) -> bool {
 pub(super) fn starts_machine_member(input: Input<'_, '_>) -> bool {
     input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::Public)
-        || input.at_contextual("entry")
+        || starts_retired_entry_member(input)
         || starts_state_member(input)
         || starts_retired_invariant_member(input)
+}
+
+/// `entry` remains an ordinary contextual name. Only declaration-shaped
+/// heads end the implicit statement body; `entry(value);` is a normal call.
+fn starts_retired_entry_member(input: Input<'_, '_>) -> bool {
+    if !input.at_contextual("entry") {
+        return false;
+    }
+    let after_name = input.restarted(input.tokens.get(1..).unwrap_or_default());
+    if after_name
+        .tokens
+        .first()
+        .is_some_and(crate::input::token_cursor::is_identifier_token_for_parser)
+    {
+        return true;
+    }
+    if !after_name.at_punctuation(PunctuationKind::LeftParen) {
+        return false;
+    }
+    let mut nesting = 0u32;
+    for (position, token) in after_name.tokens.iter().enumerate() {
+        match token.kind {
+            tokens::TokenKind::Punctuation(PunctuationKind::LeftParen) => nesting += 1,
+            tokens::TokenKind::Punctuation(PunctuationKind::RightParen) => {
+                nesting = nesting.saturating_sub(1);
+                if nesting == 0 {
+                    let tail =
+                        input.restarted(after_name.tokens.get(position + 1..).unwrap_or_default());
+                    return tail.at_punctuation(PunctuationKind::LeftBrace)
+                        || tail.at_punctuation(PunctuationKind::Arrow)
+                        || [
+                            "requires", "ensures", "crashes", "reaches", "blocks", "suspends",
+                        ]
+                        .iter()
+                        .any(|keyword| tail.at_contextual(keyword));
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn starts_retired_invariant_member(input: Input<'_, '_>) -> bool {

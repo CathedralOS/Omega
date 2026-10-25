@@ -161,3 +161,9 @@ machine composed_wrapping_policy_bound(value: u64) -> u64 requires value <= wrap
 machine match_wrapping_policy_bound(value: u64) -> u64 requires value <= wrapping_endpoint((match true { true -> 254, false -> 0 }) + 1) {
     upper_bound<257>(value)
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

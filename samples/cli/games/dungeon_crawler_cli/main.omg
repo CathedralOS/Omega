@@ -29,3 +29,9 @@ machine Main::main(main: &mut Main) {
     state shutdown(main: &mut Main) {
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

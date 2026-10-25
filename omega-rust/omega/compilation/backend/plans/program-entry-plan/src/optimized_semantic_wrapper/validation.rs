@@ -6,94 +6,28 @@ use calling_conventions::{
 
 use crate::{
     OptimizedProgramStoragePhysicalEntryDisposition, OptimizedProgramStorageSemanticEntryContract,
-    ProgramEntryReceiverSignature, ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
+    ProgramStorageEntryDiagnostic, ProgramStorageEntryRootRole,
 };
 
 use super::recipe::{
-    EXTENT_ALIGNMENT, EXTENT_BYTE_COUNT, OUTGOING_FRAME_BYTE_COUNT,
-    OptimizedProgramStorageSemanticReceiverLayout, PRE_CALL_STACK_ALIGNMENT,
-    RECEIVER_SLOT_BYTE_OFFSET, SHADOW_BYTE_COUNT, expected_relocation, expected_steps,
+    EXTENT_ALIGNMENT, EXTENT_BYTE_COUNT, OUTGOING_FRAME_BYTE_COUNT, PRE_CALL_STACK_ALIGNMENT,
+    SHADOW_BYTE_COUNT, expected_relocation, expected_steps,
 };
 use super::{
-    OptimizedProgramStorageSemanticReceiverStorage,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperPlan, OptimizedProgramStorageSemanticWrapperStep,
 };
-
-/// The receiver residence is not a boundary input: nothing outside the
-/// wrapper can supply it. Its checked extent is a property of the emitted
-/// semantic child, so the caller derives the referent layout there and the
-/// plan records it verbatim for downstream custody.
-pub(super) fn receiver_storage(
-    receiver: Option<OptimizedProgramStorageSemanticReceiverLayout>,
-    contract: &OptimizedProgramStorageSemanticEntryContract,
-) -> Result<Option<OptimizedProgramStorageSemanticReceiverStorage>, ProgramStorageEntryDiagnostic> {
-    let declared = matches!(
-        contract.source_signature().receiver(),
-        ProgramEntryReceiverSignature::ProvisionedMutable { .. }
-    );
-    match (receiver, declared) {
-        (None, false) => Ok(None),
-        (Some(_), false) | (None, true) => Err(ProgramStorageEntryDiagnostic(
-            "optimized semantic ProgramStorage wrapper receiver storage must match the exact receiver signature"
-                .into(),
-        )),
-        (Some(receiver), true) => {
-            if receiver.byte_count() == 0
-                || !receiver.alignment().is_power_of_two()
-                || receiver.alignment() > 16
-            {
-                return Err(ProgramStorageEntryDiagnostic(
-                    "optimized semantic ProgramStorage wrapper receiver requires a checked layout within one aligned slot"
-                        .into(),
-                ));
-            }
-            let slot_byte_count = receiver.slot_byte_count().ok_or(ProgramStorageEntryDiagnostic(
-                "optimized semantic ProgramStorage wrapper receiver layout overflowed its slot"
-                    .into(),
-            ))?;
-            // Frame coordinates are u32 throughout this plan. The ISA owner
-            // separately checks its signed immediate limit; neither bound is
-            // evidence that firmware supplied the required stack backing.
-            RECEIVER_SLOT_BYTE_OFFSET.checked_add(slot_byte_count)
-                .and_then(|end| end.checked_add(super::recipe::RECEIVER_FRAME_TAIL_PAD))
-                .ok_or(ProgramStorageEntryDiagnostic(
-                    "optimized semantic ProgramStorage wrapper receiver frame overflowed".into(),
-                ))?;
-            Ok(Some(OptimizedProgramStorageSemanticReceiverStorage {
-                byte_count: receiver.byte_count(),
-                alignment: receiver.alignment(),
-                slot_byte_count,
-                outgoing_stack_byte_offset: RECEIVER_SLOT_BYTE_OFFSET,
-            }))
-        }
-    }
-}
 
 pub(super) fn validate(
     plan: &OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     validate_contract_surface(&plan.source)?;
-    let expected_frame = match plan.receiver {
-        Some(receiver) => receiver
-            .outgoing_stack_byte_offset
-            .checked_add(receiver.slot_byte_count)
-            .and_then(|end| end.checked_add(8))
-            .ok_or(ProgramStorageEntryDiagnostic(
-                "optimized semantic ProgramStorage wrapper receiver frame overflowed".into(),
-            ))?,
-        None => OUTGOING_FRAME_BYTE_COUNT,
-    };
+    let expected_frame = OUTGOING_FRAME_BYTE_COUNT;
     if plan.source_signature_identity != plan.source.source_signature_identity()
         || plan.shadow_byte_count != SHADOW_BYTE_COUNT
         || plan.outgoing_frame_byte_count != expected_frame
         || plan.outgoing_release_byte_count != plan.outgoing_frame_byte_count
         || plan.pre_call_stack_alignment != PRE_CALL_STACK_ALIGNMENT
-        || (plan.receiver.is_some()
-            != matches!(
-                plan.source.source_signature().receiver(),
-                ProgramEntryReceiverSignature::ProvisionedMutable { .. }
-            ))
         || plan.encoding_disposition
             != OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1
         || plan.physical_disposition
@@ -101,19 +35,6 @@ pub(super) fn validate(
     {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage wrapper frame or source custody drifted".into(),
-        ));
-    }
-    if let Some(receiver) = plan.receiver
-        && (receiver.outgoing_stack_byte_offset != RECEIVER_SLOT_BYTE_OFFSET
-            || receiver.slot_byte_count & 15 != 0
-            || receiver.slot_byte_count < receiver.byte_count
-            || receiver.slot_byte_count < 16
-            || receiver.byte_count == 0
-            || !receiver.alignment.is_power_of_two()
-            || receiver.alignment > 16)
-    {
-        return Err(ProgramStorageEntryDiagnostic(
-            "optimized semantic ProgramStorage wrapper receiver residence drifted".into(),
         ));
     }
     replay_steps(plan)?;
@@ -213,15 +134,12 @@ fn validate_root_placement(
     Ok(())
 }
 
-/// The replay is the whole recipe — the incoming boundary plan never carries
-/// a receiver, so when the source signature provisions one the wrapper itself
-/// owns the zeroed residence and shifts the continuation's argument order to
-/// `self`, image, storage.
+/// Replay the complete two-root transfer and its unchanged argument order.
 fn replay_steps(
     plan: &OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     let fingerprint = plan.source.semantic_calling_plan_report_fingerprint();
-    if plan.steps != expected_steps(fingerprint, plan.receiver) {
+    if plan.steps != expected_steps(fingerprint) {
         return Err(ProgramStorageEntryDiagnostic(
             "optimized semantic ProgramStorage wrapper action sequence drifted".into(),
         ));

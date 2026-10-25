@@ -271,138 +271,143 @@ pub(super) fn reject_unsupported_constraints(
                 });
             }
         }
-        let early = instruction
-            .operands
-            .iter()
-            .filter(|operand| operand.early_clobber)
-            .collect::<Vec<_>>();
-        if early.len() > 1 {
-            // Independent early outputs share the instruction's after point,
-            // so ordinary Def/Def interference separates even dead scratch.
-            // Each output also retains every untied Use as an early hazard.
-            let mut participants = BTreeSet::new();
-            let mut positions = BTreeSet::new();
-            let valid = instruction.operands.iter().all(|operand| {
-                operand.tied_to.is_none()
-                    && matches!(
-                        (operand.access, operand.early_clobber),
-                        (RegisterOperandAccess::Use, false) | (RegisterOperandAccess::Def, true)
-                    )
-                    && participants.insert(operand.virtual_register)
-                    && positions.insert(operand.operand)
-            }) && instruction
+        if instruction.operands.iter().any(|operand| operand.early_clobber) {
+            let early = instruction
                 .operands
                 .iter()
-                .any(|operand| operand.access == RegisterOperandAccess::Use);
-            if !valid {
-                return Err(LivenessError::UnsupportedEarlyClobber {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: early[1].operand,
-                });
-            }
-            for definition in early {
-                early_rows.push((
-                    instruction.id.0,
-                    definition.operand,
-                    definition.virtual_register,
-                    None,
-                    instruction
-                        .operands
-                        .iter()
-                        .filter(|operand| operand.access == RegisterOperandAccess::Use)
-                        .map(|operand| (operand.virtual_register, operand.operand))
-                        .collect::<Vec<_>>(),
-                ));
-            }
-        } else if !early.is_empty() {
-            let definition = early[0];
-            let mut participants = BTreeSet::new();
-            let tied_source = definition
-                .tied_to
-                .and_then(|operand| instruction.operand(operand));
-            let valid_source = tied_source.is_none_or(|source| {
-                source.access == RegisterOperandAccess::Use
-                    && source.operand < definition.operand
-                    && source.virtual_register != definition.virtual_register
-                    && source.class == definition.class
-                    && source.tied_to.is_none()
-            });
-            let valid = early.len() == 1
-                && definition.access == RegisterOperandAccess::Def
-                && instruction.operands.len() > 1
-                && valid_source
-                && instruction.operands.iter().all(|operand| {
-                    (operand.operand == definition.operand
-                        || (tied_source.is_some_and(|source| source.operand == operand.operand)
-                            && operand.tied_to.is_none())
-                        || (operand.tied_to.is_none()
-                            && operand.access == RegisterOperandAccess::Use))
+                .filter(|operand| operand.early_clobber)
+                .collect::<Vec<_>>();
+            if early.len() > 1 {
+                // Independent early outputs share the instruction's after point,
+                // so ordinary Def/Def interference separates even dead scratch.
+                // Each output also retains every untied Use as an early hazard.
+                let mut participants = BTreeSet::new();
+                let mut positions = BTreeSet::new();
+                let valid = instruction.operands.iter().all(|operand| {
+                    operand.tied_to.is_none()
+                        && matches!(
+                            (operand.access, operand.early_clobber),
+                            (RegisterOperandAccess::Use, false)
+                                | (RegisterOperandAccess::Def, true)
+                        )
                         && participants.insert(operand.virtual_register)
+                        && positions.insert(operand.operand)
+                }) && instruction
+                    .operands
+                    .iter()
+                    .any(|operand| operand.access == RegisterOperandAccess::Use);
+                if !valid {
+                    return Err(LivenessError::UnsupportedEarlyClobber {
+                        function: function_index,
+                        instruction: instruction.id.0,
+                        operand: early[1].operand,
+                    });
+                }
+                for definition in early {
+                    early_rows.push((
+                        instruction.id.0,
+                        definition.operand,
+                        definition.virtual_register,
+                        None,
+                        instruction
+                            .operands
+                            .iter()
+                            .filter(|operand| operand.access == RegisterOperandAccess::Use)
+                            .map(|operand| (operand.virtual_register, operand.operand))
+                            .collect::<Vec<_>>(),
+                    ));
+                }
+            } else if !early.is_empty() {
+                let definition = early[0];
+                let mut participants = BTreeSet::new();
+                let tied_source = definition
+                    .tied_to
+                    .and_then(|operand| instruction.operand(operand));
+                let valid_source = tied_source.is_none_or(|source| {
+                    source.access == RegisterOperandAccess::Use
+                        && source.operand < definition.operand
+                        && source.virtual_register != definition.virtual_register
+                        && source.class == definition.class
+                        && source.tied_to.is_none()
                 });
-            let unrelated_use_count = instruction
-                .operands
-                .iter()
-                .filter(|operand| {
-                    operand.operand != definition.operand
-                        && tied_source.is_none_or(|source| source.operand != operand.operand)
-                })
-                .count();
-            if !valid || tied_source.is_some() && unrelated_use_count == 0 {
-                let operand = early.get(1).copied().unwrap_or(definition).operand;
-                return Err(LivenessError::UnsupportedEarlyClobber {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand,
-                });
-            }
-            early_rows.push((
-                instruction.id.0,
-                definition.operand,
-                definition.virtual_register,
-                tied_source.map(|source| source.virtual_register),
-                instruction
+                let valid = early.len() == 1
+                    && definition.access == RegisterOperandAccess::Def
+                    && instruction.operands.len() > 1
+                    && valid_source
+                    && instruction.operands.iter().all(|operand| {
+                        (operand.operand == definition.operand
+                            || (tied_source.is_some_and(|source| source.operand == operand.operand)
+                                && operand.tied_to.is_none())
+                            || (operand.tied_to.is_none()
+                                && operand.access == RegisterOperandAccess::Use))
+                            && participants.insert(operand.virtual_register)
+                    });
+                let unrelated_use_count = instruction
                     .operands
                     .iter()
                     .filter(|operand| {
                         operand.operand != definition.operand
                             && tied_source.is_none_or(|source| source.operand != operand.operand)
                     })
-                    .map(|operand| (operand.virtual_register, operand.operand))
-                    .collect::<Vec<_>>(),
-            ));
+                    .count();
+                if !valid || tied_source.is_some() && unrelated_use_count == 0 {
+                    let operand = early.get(1).copied().unwrap_or(definition).operand;
+                    return Err(LivenessError::UnsupportedEarlyClobber {
+                        function: function_index,
+                        instruction: instruction.id.0,
+                        operand,
+                    });
+                }
+                early_rows.push((
+                    instruction.id.0,
+                    definition.operand,
+                    definition.virtual_register,
+                    tied_source.map(|source| source.virtual_register),
+                    instruction
+                        .operands
+                        .iter()
+                        .filter(|operand| {
+                            operand.operand != definition.operand
+                                && tied_source
+                                    .is_none_or(|source| source.operand != operand.operand)
+                        })
+                        .map(|operand| (operand.virtual_register, operand.operand))
+                        .collect::<Vec<_>>(),
+                ));
+            }
         }
-        let tied = instruction
-            .operands
-            .iter()
-            .filter(|operand| operand.tied_to.is_some())
-            .collect::<Vec<_>>();
-        for definition in tied {
-            let Some(use_operand) = instruction
+        if instruction.operands.iter().any(|operand| operand.tied_to.is_some()) {
+            for definition in instruction
                 .operands
                 .iter()
-                .find(|operand| Some(operand.operand) == definition.tied_to)
-            else {
-                return Err(LivenessError::UnsupportedTiedOperand {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: definition.operand,
-                });
-            };
-            if definition.access != RegisterOperandAccess::Def
-                || use_operand.access != RegisterOperandAccess::Use
-                || definition.operand <= use_operand.operand
-                || definition.virtual_register == use_operand.virtual_register
-                || definition.class != use_operand.class
-                || use_operand.tied_to.is_some()
+                .filter(|operand| operand.tied_to.is_some())
             {
-                return Err(LivenessError::UnsupportedTiedOperand {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: definition.operand,
-                });
+                let Some(use_operand) = instruction
+                    .operands
+                    .iter()
+                    .find(|operand| Some(operand.operand) == definition.tied_to)
+                else {
+                    return Err(LivenessError::UnsupportedTiedOperand {
+                        function: function_index,
+                        instruction: instruction.id.0,
+                        operand: definition.operand,
+                    });
+                };
+                if definition.access != RegisterOperandAccess::Def
+                    || use_operand.access != RegisterOperandAccess::Use
+                    || definition.operand <= use_operand.operand
+                    || definition.virtual_register == use_operand.virtual_register
+                    || definition.class != use_operand.class
+                    || use_operand.tied_to.is_some()
+                {
+                    return Err(LivenessError::UnsupportedTiedOperand {
+                        function: function_index,
+                        instruction: instruction.id.0,
+                        operand: definition.operand,
+                    });
+                }
+                tied_edges.push((use_operand.virtual_register, definition.virtual_register));
             }
-            tied_edges.push((use_operand.virtual_register, definition.virtual_register));
         }
     }
     // SingleEarlyDefTiedComponentAgainstUntiedUsesV1 admits an ordinary tied
@@ -477,43 +482,32 @@ fn materialize_block(
     block_index: usize,
 ) -> Result<BlockLiveness, LivenessError> {
     let state = &flow.blocks[block_index];
-    let word_count = (flow.max_reg_id + 1).div_ceil(64);
-    let mut virtual_live_bits = vec![0u64; word_count];
-    for &reg in &state.virtual_exit {
-        let idx = reg.0 as usize;
-        virtual_live_bits[idx / 64] |= 1u64 << (idx % 64);
-    }
-    let mut next_virtual_live = state.virtual_exit.clone();
+    let mut current_virtual_live = state.virtual_exit.clone();
     let mut unit_live = state.unit_exit.clone();
+    let mut current_unit_live = sorted(&unit_live);
     let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
     for instruction in block_instructions(block).rev() {
-        let virtual_live_out = next_virtual_live;
-        let unit_live_out = sorted(&unit_live);
+        let virtual_live_out = current_virtual_live.clone();
+        let unit_live_out = current_unit_live.clone();
         let (uses, defs) = virtual_uses_defs_vec(instruction);
-        let mut changed = false;
         for definition in &defs {
-            let idx = definition.0 as usize;
-            let mask = 1u64 << (idx % 64);
-            if (virtual_live_bits[idx / 64] & mask) != 0 {
-                virtual_live_bits[idx / 64] &= !mask;
-                changed = true;
+            if let Ok(pos) = current_virtual_live.binary_search(definition) {
+                current_virtual_live.remove(pos);
             }
         }
         for used in &uses {
-            let idx = used.0 as usize;
-            let mask = 1u64 << (idx % 64);
-            if (virtual_live_bits[idx / 64] & mask) == 0 {
-                virtual_live_bits[idx / 64] |= mask;
-                changed = true;
+            if let Err(pos) = current_virtual_live.binary_search(used) {
+                current_virtual_live.insert(pos, *used);
             }
         }
-        let virtual_live_in = if changed {
-            flow::bits_to_vregs(&virtual_live_bits)
-        } else {
-            virtual_live_out.clone()
-        };
-        next_virtual_live = virtual_live_in.clone();
-        transfer_units(&mut unit_live, instruction);
+        let virtual_live_in = current_virtual_live.clone();
+        if !instruction.implicit_defs.is_empty()
+            || !instruction.clobbers.is_empty()
+            || !instruction.implicit_uses.is_empty()
+        {
+            transfer_units(&mut unit_live, instruction);
+            current_unit_live = sorted(&unit_live);
+        }
         let pos = positions[instruction.id.0 as usize];
         instructions.push(InstructionLiveness {
             position: LivenessPosition(pos),
@@ -526,7 +520,7 @@ fn materialize_block(
             unit_uses: instruction.implicit_uses.clone(),
             unit_defs: instruction.implicit_defs.clone(),
             unit_clobbers: instruction.clobbers.clone(),
-            unit_live_in: sorted(&unit_live),
+            unit_live_in: current_unit_live.clone(),
             unit_live_out,
         });
     }

@@ -104,3 +104,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state bad_beyond(main: &mut Main)    { Console::exit_process(74); }
     state bad_truncated(main: &mut Main) { Console::exit_process(75); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

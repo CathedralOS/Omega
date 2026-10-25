@@ -3,7 +3,7 @@
 //!
 //! An input parameter arrives as a value, not a fresh zero representation.
 //! Nominal input checking proves its declared domains at the call boundary;
-//! entry provisioning independently refuses a non-ZII-valid context. Neither
+//! ordinary local construction separately establishes initialization. Neither
 //! judgment depends on the callee's qualified name. Retain resolved parameter
 //! identity through a projected read so qualification cannot reclassify that
 //! incoming value as vacant storage. Subsequent invariant windows still police
@@ -31,12 +31,14 @@ pub(crate) fn scan_statement_reads(
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
+    statement_ordinal: usize,
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
     inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let diagnostic_start = diagnostics.len();
     let mut reads: Vec<ExpressionHandle> = Vec::new();
     match statement {
         // An assembly fact is itself a checked consumption point. Its proof
@@ -115,6 +117,12 @@ pub(crate) fn scan_statement_reads(
             diagnostics,
         );
     }
+    for diagnostic in &mut diagnostics[diagnostic_start..] {
+        diagnostic.message = format!(
+            "machine `{}` state `{}` statement {statement_ordinal}: {}",
+            machine.name, state.name, diagnostic.message,
+        );
+    }
 }
 
 fn scan_expression_reads(
@@ -169,6 +177,7 @@ fn scan_expression_use(
         entry_established,
         call_established,
         inherited_windows,
+        consumes_value,
         diagnostics,
     );
     if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
@@ -616,6 +625,7 @@ fn validate_qualified_place_read(
     entry_established: &[String],
     call_established: &[String],
     inherited_windows: &[InvariantWindow],
+    consumes_value: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !matches!(
@@ -635,10 +645,29 @@ fn validate_qualified_place_read(
     ) else {
         return;
     };
-    if !matches!(
+    if !crate::value_custody::data::type_requires_establishment(program, reference) {
+        return;
+    }
+    // Traversing an array or reference to address one child does not consume
+    // its other children. An authored qualification still fences projection
+    // through that carrier, independently of whole-value validity.
+    if !consumes_value
+        && !matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::Constrained { .. }
+        )
+    {
+        return;
+    }
+    // Record consumption is checked by the composition walk, which can prove
+    // a completed value from accepted stores to all of its children. Other
+    // carriers have their own validity obligations even without an authored
+    // refinement: zero does not construct a loan or a dynamic selector.
+    if matches!(
         program.type_reference_table.type_reference(reference),
-        typed_trees::types::TypeReferenceNode::Constrained { .. }
-    ) || !crate::value_custody::data::type_requires_establishment(program, reference)
+        typed_trees::types::TypeReferenceNode::Named { .. }
+            | typed_trees::types::TypeReferenceNode::Generic { .. }
+    ) && super::place_queries::data_definition_for_type(program, reference).is_some()
     {
         return;
     }
@@ -679,7 +708,16 @@ fn validate_qualified_place_read(
     let established = established
         || call_established
             .iter()
-            .any(|place| place_spelling_covers(place, &spelling));
+            .any(|place| place_spelling_covers(place, &spelling))
+        || composed_carrier_established(
+            program,
+            reference,
+            &spelling,
+            tracked,
+            entry_established,
+            call_established,
+            &mut Vec::new(),
+        );
     let open = tracked.iter().any(|place| {
         place.any_window_open()
             && (place_spelling_covers(&place.spelling, &spelling)
@@ -844,9 +882,9 @@ fn composed_value_established(
         .map(|(name, value)| (name.as_str(), *value))
         .collect::<Vec<_>>();
     for fact in program.proof_facts.span_or_empty(definition.where_facts) {
-        if !super::place_queries::fact_mentions_any_field(program, definition, fact) {
-            continue;
-        }
+        // Static predicates constrain the exact application even when no
+        // stored field occurs in them. A zero-valid sibling application cannot
+        // establish this one merely because both have the same owner.
         let Some(expression) = fact.as_expression() else {
             return false;
         };
@@ -893,6 +931,22 @@ fn composed_value_established(
             if direct_place_established(&child, tracked, entry_established, call_established) {
                 return true;
             }
+            if matches!(
+                program
+                    .type_reference_table
+                    .type_reference(field.type_reference),
+                typed_trees::types::TypeReferenceNode::FixedArray { .. }
+            ) {
+                return composed_carrier_established(
+                    program,
+                    field.type_reference,
+                    &child,
+                    tracked,
+                    entry_established,
+                    call_established,
+                    active,
+                );
+            }
             if let Some(definition) =
                 super::place_queries::data_definition_for_type(program, field.type_reference)
             {
@@ -937,6 +991,58 @@ fn composed_value_established(
         });
     active.pop();
     established
+}
+
+/// Exact child stores can complete a fixed array just as field stores can
+/// complete a record. Unknown-index stores never supply an element identity;
+/// an authored constrained shell still needs its separate whole-value proof.
+fn composed_carrier_established(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    spelling: &str,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    active: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if direct_place_established(spelling, tracked, entry_established, call_established)
+        || !crate::value_custody::data::type_requires_establishment(program, reference)
+    {
+        return true;
+    }
+    match program.type_reference_table.type_reference(reference) {
+        typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: typed_trees::types::FixedArrayLength::Literal(extent),
+        } => (0..*extent).all(|index| {
+            composed_carrier_established(
+                program,
+                *element_type,
+                &format!("{spelling}[{index}]"),
+                tracked,
+                entry_established,
+                call_established,
+                active,
+            )
+        }),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+        | typed_trees::types::TypeReferenceNode::Generic { .. } => {
+            super::place_queries::data_definition_for_type(program, reference).is_some_and(
+                |definition| {
+                    composed_value_established(
+                        program,
+                        definition,
+                        spelling,
+                        tracked,
+                        entry_established,
+                        call_established,
+                        active,
+                    )
+                },
+            )
+        }
+        _ => false,
+    }
 }
 
 fn direct_place_established(

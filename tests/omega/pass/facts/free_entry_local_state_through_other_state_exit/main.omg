@@ -20,3 +20,6 @@ machine start() crashes Trap {
         check(&tally);
     }
 }
+
+// A hosted shape alone cannot establish this ordinary mutable argument.
+data Unprovided { byte: u8; }

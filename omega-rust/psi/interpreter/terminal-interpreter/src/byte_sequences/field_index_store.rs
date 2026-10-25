@@ -130,12 +130,12 @@ impl TerminalExecution<'_> {
         if capacity.is_some_and(|capacity| live_length > capacity) || byte_index >= live_length {
             return Err(malformed());
         }
-        let bytes = self.byte_field_snapshot(&source_field)?;
+        let bytes = self.byte_field_read(&source_field)?;
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
             return Err(malformed());
         }
         let byte_index = usize::try_from(byte_index).map_err(|_| malformed())?;
-        let byte = *bytes.get(byte_index).ok_or_else(malformed)?;
+        let byte = bytes.read(byte_index)?;
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {

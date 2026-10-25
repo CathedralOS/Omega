@@ -7,8 +7,8 @@ machine build(builder: &mut Build) {
     Build::select_provider<assert_kit::main::Assert, assert_kit::main::NoOpAssertProvider>(builder);
     Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
     Build::exclude_crash(builder, CrashCause::Trap);
-    Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
-    Build::bind(builder, linux_arm64::ProgramEntry, Main::main);
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
+    Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
 }

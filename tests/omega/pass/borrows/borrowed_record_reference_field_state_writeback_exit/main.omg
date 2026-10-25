@@ -1,0 +1,18 @@
+// Expected exit: 0
+// A borrowed aggregate arrival updates its original descriptor field.
+data Holder<'storage> { reference: &'storage i32; }
+machine replace<'storage>(holder: &mut Holder<'storage>, incoming: &'storage i32) {
+    transition { _ -> apply(holder, incoming) }
+    state apply(holder: &mut Holder<'storage>, incoming: &'storage i32) {
+        holder.reference = incoming;
+    }
+}
+machine main() crashes Trap {
+    let before: i32 = 11;
+    let after: i32 = 29;
+    let mut holder: Holder = Holder { reference: &before };
+    replace(&mut holder, &after);
+    transition holder.reference == 29 { true -> done() false -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

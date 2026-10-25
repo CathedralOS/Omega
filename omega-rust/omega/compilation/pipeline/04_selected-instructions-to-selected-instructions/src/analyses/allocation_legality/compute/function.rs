@@ -7,7 +7,7 @@ use crate::{AllocationLegalityError, ValidatedAllocatorAvailability};
 use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
 use selected_instructions::FunctionLiveRanges;
 
-pub(super) fn compute(
+pub(crate) fn compute(
     function_index: usize,
     function: &FunctionLiveRanges,
     availability: &ValidatedAllocatorAvailability,

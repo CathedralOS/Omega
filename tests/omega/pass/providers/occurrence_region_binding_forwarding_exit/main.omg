@@ -38,3 +38,9 @@ machine Main::main<'activation>(main: &'activation mut Main) reaches Reading cra
     state done() {}
     state bad() { crash Trap; }
 }
+
+// The root owns ordinary local storage and supplies its borrow explicitly.
+machine entry_start<'activation>() reaches Reading crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

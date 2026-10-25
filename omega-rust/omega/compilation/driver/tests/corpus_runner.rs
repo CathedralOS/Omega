@@ -152,6 +152,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/artifact_capture.rs"]
 mod artifact_capture;
+#[path = "support/entry_inputs.rs"]
+mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "support/native_component_descriptions.rs"]
@@ -877,10 +879,6 @@ fn interpret_checked_fixture(
         checked_interpreter::InterpretOptions {
             boundary_adapters: &checked.execution().dispatch.boundary_adapters,
             float_comparisons: &checked.execution().dispatch.float_comparisons,
-            provisioned_context_parameter: entry
-                .context_parameter()
-                .is_valid()
-                .then(|| entry.context_parameter()),
             ..checked_interpreter::InterpretOptions::default()
         },
     );
@@ -1046,7 +1044,14 @@ fn build_native_fixture(
     rollback: Option<&OptimizationRollback>,
     interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
     capture: Option<&artifact_capture::Capture>,
-) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        PathBuf,
+        Option<String>,
+        Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let target_profile = target::TargetProfile::from_omega_target_name(Some(target))
         .map_err(|diagnostic| vec![diagnostic])?;
     let compiled_roots = interpretation
@@ -1098,7 +1103,7 @@ fn build_native_fixture(
                     build_dir.to_path_buf(),
                     compiler::CompilationProduct::Native(
                         compilation_products::NativeProductRequest {
-                            private_entry_ram: Vec::new(),
+                            private_entry_ram: entry_inputs::load(root_path)?,
                             terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
                             terminal_authority_permission_policy: None,
                             optimization_rollback: rollback.cloned().unwrap_or_default(),
@@ -1131,7 +1136,8 @@ fn build_native_fixture(
     let build_snapshot = fixture_build_snapshot(&prepared.root_path)?;
     let mut request =
         CompileRequest::for_targets(prepared.root_path, build_dir.to_path_buf(), targets)
-            .with_requested_product(RequestedCompileProduct::NativeArtifact);
+            .with_requested_product(RequestedCompileProduct::NativeArtifact)
+            .with_private_entry_ram(entry_inputs::load(root_path)?);
     if let Some(rollback) = rollback {
         request = request.with_optimization_rollback(rollback.clone());
     }
@@ -1228,6 +1234,10 @@ fn build_native_fixture(
     let receipt = report
         .optimization_rollback_receipt()
         .map(std::string::ToString::to_string);
+    let private_entry_ram = report
+        .runtime_provisions()
+        .map(|provisions| provisions.private_entry_ram().to_vec())
+        .unwrap_or_default();
     let (_, report) = reports.swap_remove(primary);
     let published = compilation_products::publication::publish_compilation(report, build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
@@ -1241,7 +1251,7 @@ fn build_native_fixture(
             .observe_executable(executable)
             .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
     }
-    Ok((executable.to_path_buf(), receipt))
+    Ok((executable.to_path_buf(), receipt, private_entry_ram))
 }
 
 /// Run one built fixture in a fresh directory, stdin from `input.txt`, and
@@ -1255,6 +1265,7 @@ fn execute_fixture(
     launcher: &[&str],
     fixture_dir: &Path,
     sequence: usize,
+    private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
 ) -> Vec<String> {
     let work = sealed_fixture_staging::temporary_session_root().join(format!("run-{sequence}"));
     let _ = fs::remove_dir_all(&work);
@@ -1271,6 +1282,19 @@ fn execute_fixture(
             command
         }
         None => process::Command::new(executable),
+    };
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    let observation = if private_entry_ram.is_empty() {
+        None
+    } else {
+        let expected = private_entry_ram
+            .iter()
+            .map(|recipe| recipe.observation_header().len() + recipe.contents().len())
+            .sum();
+        match bounded_process::prepare_private_observation(&mut command, expected) {
+            Ok(capture) => Some(capture),
+            Err(_) => return vec!["exit:unrunnable".to_owned()],
+        }
     };
     let spawned = command
         .current_dir(&work)
@@ -1325,6 +1349,18 @@ fn execute_fixture(
     let stdout = receive_stream(stdout_receiver, drain_deadline);
     let stderr = receive_stream(stderr_receiver, drain_deadline);
     let _ = fs::remove_dir_all(&work);
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if let Some(capture) = observation {
+        let observations = capture
+            .finish()
+            .ok()
+            .and_then(|bytes| {
+                terminal_installation::decode_private_entry_observations(private_entry_ram, &bytes)
+                    .ok()
+            })
+            .unwrap_or_default();
+        facts.extend(entry_inputs::observe(fixture_dir, "", &observations));
+    }
     facts.insert(0, exit);
     facts.extend(output_oracles::observe(
         fixture_dir,
@@ -1374,8 +1410,9 @@ fn check_fail_fixture(
     let publishes = root_path
         .parent()
         .is_some_and(|directory| directory.join("expected_published.txt").is_file());
+    let private_entry_ram = entry_inputs::load(root_path)?;
     let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
-        private_entry_ram: Vec::new(),
+        private_entry_ram,
         terminal_authority_policy:
             terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
@@ -1624,7 +1661,7 @@ fn realize_fixture(
     {
         let product =
             compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-                private_entry_ram: Vec::new(),
+                private_entry_ram: entry_inputs::load(root_path)?,
                 terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: rollback.cloned().unwrap_or_default(),
@@ -1657,7 +1694,8 @@ fn realize_fixture(
         target_name,
     };
     let mut request = CompileRequest::new(options)
-        .with_requested_product(RequestedCompileProduct::NativeArtifact);
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_private_entry_ram(entry_inputs::load(root_path)?);
     if let Some(rollback) = rollback {
         request = request.with_optimization_rollback(rollback.clone());
     }
@@ -1954,7 +1992,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 Err(error) => Err(vec![diagnostics::Diagnostic::error(error.clone())]),
             };
             let mut integrity_error = None;
-            if let Ok((executable, receipt)) = &built {
+            if let Ok((executable, receipt, private_entry_ram)) = &built {
                 if let Some(receipt) = receipt {
                     facts.push(format!("rollback:{}", space_free(receipt)));
                 }
@@ -1973,6 +2011,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                             &launcher,
                             &fixture_dir,
                             sequence,
+                            private_entry_ram,
                         ));
                     }
                     if let Ok(Some(capture)) = &capture

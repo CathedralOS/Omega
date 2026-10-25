@@ -7,7 +7,7 @@
 //! supplies those premises at its own explicit runtime boundary.
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
-use terminal_psi::{CheckedProgramEntryReceiverEligibility, TerminalPsiIdentity};
+use terminal_psi::TerminalPsiIdentity;
 
 /// An exact host operation admitted for the native product. Reference execution
 /// may implement its semantic contract, but cannot substitute another slot or
@@ -225,7 +225,6 @@ pub struct TerminalRuntimeProvisions {
     entry: MachineId,
     source_signature_identity: [u8; 32],
     target_slot: target::ProgramEntrySlotDeclaration,
-    receiver: Option<CheckedProgramEntryReceiverEligibility>,
     fused_services: Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>,
     /// The ProgramEntry signature's plan-local identity table — establishment
     /// rows index it, never the module's table.
@@ -526,7 +525,6 @@ impl TerminalRuntimeProvisions {
             entry: checked.terminal_entry(),
             source_signature_identity: checked.source_signature_identity(),
             target_slot,
-            receiver: checked.receiver_eligibility().cloned(),
             fused_services: fused_services.to_vec(),
             plan_identities: plan_identities.clone(),
             fused_service_boundary_slots,
@@ -607,10 +605,6 @@ impl TerminalRuntimeProvisions {
     /// the source-signature digest or inferred from selected host providers.
     pub const fn target_slot(&self) -> target::ProgramEntrySlotDeclaration {
         self.target_slot
-    }
-
-    pub const fn receiver(&self) -> Option<&CheckedProgramEntryReceiverEligibility> {
-        self.receiver.as_ref()
     }
 
     /// The signature table the establishment rows' identity indices resolve

@@ -60,3 +60,9 @@ machine Main::main(main: &mut Main) reaches Console {
     state wrong_payload(main: &mut Main) { Console::exit_process(4); }
     state wrong_arm(main: &mut Main) { Console::exit_process(71); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

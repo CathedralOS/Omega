@@ -57,6 +57,22 @@ One admission object follows initialization through decoding. The compiler
 retains the settings whole beside separately checked root/provider/trust rows;
 it does not reproduce the value protocol or reconstruct its fields.
 
+[`terminal_settings.rs`](src/terminal_settings.rs) projects the settings from a
+normally returned Terminal instance's original borrowed Build storage, then
+uses that same validator. It reads paths and selected cases from the instance's
+own catalog; the admitted initial value supplies only result-descriptor labels.
+Host facets and product capabilities are not copied into settings. The embedding
+must retain the matching admission and initial value with its activation; this
+projection does not independently admit an arbitrary Terminal artifact as Build.
+`terminal_entry_writeback` exercises complete source-produced Build execution,
+ordered binding effects and settings readback across fuel pauses, using both
+retained and loaded artifacts. It also tests nested records, case payloads,
+byte views and invalid identifiers, loaders and duplicate optimization counts.
+This is migration machinery, not a second production execution route. Production
+Build still uses the checked-tree evaluator; Terminal live-storage/result
+accounting, the remaining host operations and dependency/provider suspension
+must join the activation before that route replaces it.
+
 Filesystem preparation, retained captured-input views, observation identities and
 sealed-output settlement belong to
 [package compilation custody](../../packages/compilation-inputs/src/build_execution.rs).
@@ -139,10 +155,12 @@ Build workflow rather than adding another language transport fact.
 
 ## Root-binding implementation boundary
 
-`Build::bind(builder, Target::Slot, Product::entry);` is retained as a dedicated
-Psi statement with separate product-context operand paths. It is not an ordinary
-machine invocation. The host resolver does not resolve those operands through
-host imports; selected-target/product admission still owns that resolution.
+`Build::bind(builder, Target::Slot, Product::entry);` lowers into ordinary
+boundary prepare/commit calls. Psi retains its designated product operands as
+source-issued companion context bound to the artifact and exact call identities,
+not as another typed statement or runtime debug-name lookup. The host resolver
+does not resolve those operands through host imports; selected-target/product
+admission still owns that resolution.
 
 Binding follows execution through the original compiler-issued `&mut Build`
 cell. Same-package helpers (including imported local modules), reference aliases,
@@ -150,10 +168,11 @@ and state transitions use ordinary loan checking. Uncalled helpers and untaken
 states contribute no bindings; binding a slot twice on an executed path rejects.
 Build.target remains immutable through every alias.
 
-The interpreter returns executed statement coordinates alongside its argument
-results, separate from host observations. This owner rejoins them to the exact
-prepared program and the occurrence's source/package before target selection.
-Requests are not target-admission evidence.
+The interpreter returns executed lexical selections separately from host
+observations. Terminal's binding adapter authenticates the original receiver,
+issues an activation-local ticket and consumes it once at commit. This owner
+rejoins requests to the occurrence's source/package before target selection;
+requests are not target-admission evidence.
 
 Foreign helpers are admitted lexically: each `Build::bind` occurrence resolves
 its implementation against the product machines of its own source package, so a

@@ -96,3 +96,9 @@ machine Main::advance(main: &mut Main) {
         main.light.phase = Phase::Red;
     }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

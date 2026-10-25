@@ -15,6 +15,7 @@ pub(crate) mod field_index_store;
 pub(crate) mod field_store;
 pub(crate) mod operands;
 pub(crate) mod predicate;
+pub(crate) mod read;
 pub(crate) mod store;
 pub(crate) mod subslice;
 pub(crate) mod write;

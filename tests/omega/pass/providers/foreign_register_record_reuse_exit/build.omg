@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_register_record_reuse_exit");
-    Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

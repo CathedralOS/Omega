@@ -8,3 +8,9 @@ machine read_then_trap() -> u64 reaches MachineControl crashes Trap {
 machine Main::main(main: &mut Main) reaches MachineControl crashes Trap {
     main.value = read_then_trap();
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches MachineControl crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

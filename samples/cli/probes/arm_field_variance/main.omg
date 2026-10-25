@@ -114,3 +114,9 @@ machine Main::main(main: &mut Main) reaches Acknowledgement crashes Trap {
     verify(first_left == 1 && first_right == 2
         && second_left == 2 && second_right == 1);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Acknowledgement crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

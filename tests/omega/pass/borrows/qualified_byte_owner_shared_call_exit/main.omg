@@ -108,3 +108,9 @@ requires left.len <= 16; right.len <= 16 - left.len {
     }
     state bad() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

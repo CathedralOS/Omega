@@ -203,15 +203,11 @@ impl<'program> Evaluator<'program> {
 
     // ---- entry --------------------------------------------------------------
 
-    pub(in crate::interpreter) fn run_entry(
-        &mut self,
-        entry_machine_name: &str,
-        provisioned_context: Option<SymbolHandle>,
-    ) -> EvalResult<()> {
+    pub(in crate::interpreter) fn run_entry(&mut self, entry_machine_name: &str) -> EvalResult<()> {
         let entry_machine = self
             .find_machine_by_name(entry_machine_name)
             .ok_or_else(|| Halt::Unsupported(format!("no entry machine `{entry_machine_name}`")))?;
-        self.run_resolved_entry(entry_machine, provisioned_context)
+        self.run_resolved_entry(entry_machine)
     }
 
     /// Entry dispatch on the selected machine's exact symbol. Root-slot
@@ -220,7 +216,6 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_entry_symbol(
         &mut self,
         entry_machine_symbol: SymbolHandle,
-        provisioned_context: Option<SymbolHandle>,
     ) -> EvalResult<()> {
         let entry_machine = self
             .find_machine_by_symbol(entry_machine_symbol)
@@ -229,14 +224,10 @@ impl<'program> Evaluator<'program> {
                     "the selected program entry is not a machine in the checked program".to_owned(),
                 )
             })?;
-        self.run_resolved_entry(entry_machine, provisioned_context)
+        self.run_resolved_entry(entry_machine)
     }
 
-    fn run_resolved_entry(
-        &mut self,
-        entry_machine: &'program Machine,
-        provisioned_context: Option<SymbolHandle>,
-    ) -> EvalResult<()> {
+    fn run_resolved_entry(&mut self, entry_machine: &'program Machine) -> EvalResult<()> {
         let entry_machine_name = entry_machine.name.as_str();
         let entry_state = self.machine_entry_state(entry_machine).ok_or_else(|| {
             Halt::Unsupported(format!(
@@ -244,8 +235,7 @@ impl<'program> Evaluator<'program> {
             ))
         })?;
 
-        let arguments =
-            self.entry_arrival_arguments(entry_machine, entry_state, provisioned_context)?;
+        let arguments = self.entry_arrival_arguments(entry_machine, entry_state)?;
         // The entry machine's value (its terminal `Value` transition / final expression)
         // becomes the process exit code when it has no explicit `exit_process`. Mirrors the
         // backend: `machine Main::main(...) -> i32` returns the exit status.
@@ -258,66 +248,21 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    /// The source arguments the arrival bridge supplies to the entry state
-    /// (wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
-    ///
-    /// Under `NoneOrProvisionedZii` the bridge supplies at most one value: the
-    /// exact context parameter occurrence the target-owned entry shape
-    /// selected, as an exclusive borrow of a fresh zero-initialized record of
-    /// the parameter's declared referent type -- never the machine's qualified
-    /// name or attached data. Service fields need no separate establishment
-    /// here: the interpreter dispatches boundary calls by their resolved
-    /// requirement, not by a runtime binding value, so their ZII placeholder is
-    /// never read. Namespace attachment never supplies implicit storage.
-    ///
-    /// Every other runtime parameter is arrival the interpreter cannot supply
-    /// (freestanding image/initial-storage roots, placed-view custody inputs).
-    /// It declines instead of binding `Unit`, which would surface later as a
-    /// misleading field or index trap inside the program.
+    /// This evaluator has no installed argument source. A parameter requires
+    /// an ordinary explicit caller; its type cannot manufacture backing.
     fn entry_arrival_arguments(
         &mut self,
         entry_machine: &Machine,
         entry_state: &'program State,
-        provisioned_context: Option<SymbolHandle>,
     ) -> EvalResult<Vec<EvaluatedArgument>> {
-        let program = self.program;
-        let entry_machine_name = entry_machine.name.as_str();
-        let mut context_bound = false;
-        let mut arguments = Vec::new();
-        for parameter in program.state_parameters(entry_state) {
-            let is_context = provisioned_context == Some(parameter.symbol);
-            context_bound |= is_context;
-            if !is_context {
-                return unsupported(format!(
-                    "entry machine `{entry_machine_name}` parameter `{}` is not the selected entry shape's provisioned context; the interpreter supplies no other arrival value",
-                    parameter.name.as_str()
-                ));
-            }
-            let TypeReferenceNode::Reference {
-                referee,
-                access: language_core::ReferenceAccess::Mutable,
-                ..
-            } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                return unsupported(format!(
-                    "entry machine `{entry_machine_name}` context `{}` is not an exclusive borrow",
-                    parameter.name.as_str()
-                ));
-            };
-            let context = self.default_value_for_type(*referee)?;
-            let context = self.allocate_cell(context)?;
-            arguments.push(EvaluatedArgument::plain(
-                self.allocate_cell(Value::reference(context))?,
-            ));
-        }
-        if provisioned_context.is_some() && !context_bound {
+        if let Some(parameter) = self.program.state_parameters(entry_state).first() {
             return unsupported(format!(
-                "the selected entry shape's provisioned context is not a parameter of entry machine `{entry_machine_name}`"
+                "entry machine `{}` parameter `{}` has no installed arrival value",
+                entry_machine.name.as_str(),
+                parameter.name.as_str()
             ));
         }
-        Ok(arguments)
+        Ok(Vec::new())
     }
 
     /// CONST EVALUATION: run `machine_name` (zero arguments, fresh default

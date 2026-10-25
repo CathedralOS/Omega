@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "machine_equation_constructor_binder_carrier_explicit");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 }

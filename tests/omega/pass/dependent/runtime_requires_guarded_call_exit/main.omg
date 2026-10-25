@@ -31,3 +31,9 @@ machine Main::helper(main: &mut Main, x: u32) requires main.a <= main.b, x <= ma
     let diff: u32 = main.b - x;
     main.out = narrow_u32_to_i32_trapping(diff);
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

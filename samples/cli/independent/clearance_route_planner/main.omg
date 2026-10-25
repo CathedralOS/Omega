@@ -169,3 +169,9 @@ machine number(main: &mut Main, value: i64 in Wrapping) reaches Console {
     state done() { }
     state bad(main: &mut Main) { Console::exit_process(1); }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    block Main::main(&mut entry_storage);
+}

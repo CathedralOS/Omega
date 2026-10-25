@@ -58,6 +58,22 @@ fn retired_capability_entry_names_the_boundary_provider_migration() {
 }
 
 #[test]
+fn ordinary_entry_named_calls_do_not_become_retired_members() {
+    for body in [
+        "entry();",
+        "entry(value);",
+        "entry()",
+        "let answer: i32 = entry();",
+    ] {
+        let source = format!("machine entry() -> i32 {{ 7 }} machine run() {{ {body} }}");
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize ordinary entry call");
+        parse_syntax_trees(&tokens).unwrap_or_else(|error| panic!("{body}: {}", error.message));
+    }
+}
+
+#[test]
 fn retired_explicit_machine_entry_members_name_the_machine_body_migration() {
     for retired in [
         "machine run { entry() {} }",

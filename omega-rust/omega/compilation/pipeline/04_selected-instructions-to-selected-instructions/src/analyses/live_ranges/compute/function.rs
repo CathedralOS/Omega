@@ -1,14 +1,14 @@
 //! Ordinary and structural function live-range construction.
 use super::{
-    BTreeSet, FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualLiveRange, VirtualOccurrence,
+    FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint, VirtualFixedConstraintSite,
+    VirtualLiveRange, VirtualOccurrence,
 };
 use super::{
     LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
     derive_tied_pairs, operand_point, register_fragments,
 };
 
-pub(super) fn compute_function(
+pub(crate) fn compute_function(
     function_index: usize,
     selected: &selected_instructions::SelectedFunction,
     liveness: &selected_instructions::FunctionLiveness,
@@ -43,12 +43,28 @@ pub(super) fn compute_function(
     }
     let mut fragment_rows =
         register_fragments(function_index, liveness, register_count, &register_index)?;
-    let mut operand_rows = vec![Vec::new(); register_count];
-    for row in liveness.operand_positions.storage_slice() {
+    let operand_slice = liveness.operand_positions.storage_slice();
+    let mut operand_counts = vec![0u32; register_count];
+    for row in operand_slice {
         if let Some(&idx) = register_index.get(row.virtual_register.0 as usize)
             && idx != u32::MAX
         {
-            operand_rows[idx as usize].push(row);
+            operand_counts[idx as usize] += 1;
+        }
+    }
+    let mut operand_offsets = vec![0u32; register_count + 1];
+    for i in 0..register_count {
+        operand_offsets[i + 1] = operand_offsets[i] + operand_counts[i];
+    }
+    let mut operand_cursors = operand_offsets.clone();
+    let mut operand_indices = vec![0u32; operand_offsets[register_count] as usize];
+    for (row_idx, row) in operand_slice.iter().enumerate() {
+        if let Some(&idx) = register_index.get(row.virtual_register.0 as usize)
+            && idx != u32::MAX
+        {
+            let cursor = &mut operand_cursors[idx as usize];
+            operand_indices[*cursor as usize] = row_idx as u32;
+            *cursor += 1;
         }
     }
     let mut edge_rows = vec![Vec::new(); register_count];
@@ -72,19 +88,10 @@ pub(super) fn compute_function(
     let mut virtual_rows = Vec::with_capacity(register_count);
     for (pos, register) in selected.virtual_registers.iter().enumerate() {
         let canonical_idx = register_index[register.id.0 as usize] as usize;
-        let rows = operand_rows[canonical_idx].as_slice();
-        let occurrences = rows
-            .iter()
-            .map(|row| {
-                Ok(VirtualOccurrence {
-                    position: row.position,
-                    point: operand_point(function_index, row.position, row.access)?,
-                    instruction: row.instruction,
-                    operand: row.operand,
-                    access: row.access,
-                })
-            })
-            .collect::<Result<Vec<_>, LiveRangeError>>()?;
+        let row_start = operand_offsets[canonical_idx] as usize;
+        let row_end = operand_offsets[canonical_idx + 1] as usize;
+        let row_indices = &operand_indices[row_start..row_end];
+        let mut occurrences = Vec::with_capacity(row_indices.len());
         let mut fixed_constraints = Vec::new();
         if let Some(view) = register.entry_fixed_view {
             fixed_constraints.push(VirtualFixedConstraint {
@@ -92,12 +99,21 @@ pub(super) fn compute_function(
                 view,
             });
         }
-        for row in rows {
+        for &row_idx in row_indices {
+            let row = &operand_slice[row_idx as usize];
+            let point = operand_point(function_index, row.position, row.access)?;
+            occurrences.push(VirtualOccurrence {
+                position: row.position,
+                point,
+                instruction: row.instruction,
+                operand: row.operand,
+                access: row.access,
+            });
             if let Some(view) = row.fixed_view {
                 fixed_constraints.push(VirtualFixedConstraint {
                     site: VirtualFixedConstraintSite::Operand {
                         position: row.position,
-                        point: operand_point(function_index, row.position, row.access)?,
+                        point,
                         instruction: row.instruction,
                         operand: row.operand,
                         access: row.access,

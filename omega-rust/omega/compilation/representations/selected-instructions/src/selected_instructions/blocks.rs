@@ -54,19 +54,45 @@ pub enum BlockSlotEvent {
 pub struct BlockSlotSummary {
     pub events: Vec<BlockSlotEvent>,
     pub loads: Vec<(VirtualRegisterId, usize)>,
-    pub non_load_registers: Vec<VirtualRegisterId>,
+    non_load_register_bits: Vec<u64>,
+}
+
+impl BlockSlotSummary {
+    #[inline]
+    pub fn has_non_load_register(&self, register: VirtualRegisterId) -> bool {
+        let word = (register.0 as usize) >> 6;
+        self.non_load_register_bits
+            .get(word)
+            .is_some_and(|&bits| (bits & (1u64 << (register.0 & 63))) != 0)
+    }
+
+    #[inline]
+    pub fn non_load_register_bits(&self) -> &[u64] {
+        &self.non_load_register_bits
+    }
+}
+
+#[inline]
+fn set_register_bit(bits: &mut Vec<u64>, register: VirtualRegisterId) {
+    let word = (register.0 as usize) >> 6;
+    if word >= bits.len() {
+        bits.resize(word + 1, 0);
+    }
+    bits[word] |= 1u64 << (register.0 & 63);
 }
 
 #[derive(Clone)]
 struct BlockLookup {
     fixed_definitions: Vec<VirtualRegisterId>,
     maximum_instruction: SelectedInstructionId,
+    operand_count: Option<usize>,
     implicit_use_units: Vec<register_model::RegisterUnitId>,
     upward_unit_uses: Vec<register_model::RegisterUnitId>,
     unit_kills: Vec<register_model::RegisterUnitId>,
+    unit_writer_indices: Vec<usize>,
     fixed_views: Vec<register_model::RegisterViewId>,
     instructions_sorted: Vec<(SelectedInstructionId, usize)>,
-    referenced_registers: Vec<VirtualRegisterId>,
+    referenced_register_bits: Vec<u64>,
     slot_summary: BlockSlotSummary,
 }
 impl BlockEntry {
@@ -88,19 +114,23 @@ impl BlockEntry {
             let mut implicit_use_units = Vec::new();
             let mut upward_unit_uses = Vec::new();
             let mut unit_kills = Vec::new();
+            let mut unit_writer_indices = Vec::new();
             let mut fixed_views = Vec::new();
             let mut instructions_sorted = Vec::with_capacity(self.block.instructions.len());
-            let mut referenced_registers =
-                Vec::with_capacity(self.block.instructions.len() * 2 + 4);
+            let bitset_words = (self.block.instructions.len() / 16).max(4);
+            let mut referenced_register_bits = Vec::with_capacity(bitset_words);
             let mut slot_summary = BlockSlotSummary {
                 events: Vec::new(),
                 loads: Vec::new(),
-                non_load_registers: Vec::with_capacity(self.block.instructions.len() * 2 + 4),
+                non_load_register_bits: Vec::with_capacity(bitset_words),
             };
             let terminator = super::terminator_instruction(&self.block.terminator);
             let mut maximum = terminator.id;
+            let mut operand_count = Some(terminator.operands.len());
             for (index, instruction) in self.block.instructions.iter().enumerate() {
                 maximum = maximum.max(instruction.id);
+                operand_count =
+                    operand_count.and_then(|total| total.checked_add(instruction.operands.len()));
                 instructions_sorted.push((instruction.id, index));
                 implicit_use_units.extend_from_slice(&instruction.implicit_uses);
                 for &unit in &instruction.implicit_uses {
@@ -113,8 +143,11 @@ impl BlockEntry {
                         unit_kills.push(unit);
                     }
                 }
+                if !instruction.clobbers.is_empty() || !instruction.implicit_defs.is_empty() {
+                    unit_writer_indices.push(index);
+                }
                 for operand in &instruction.operands {
-                    referenced_registers.push(operand.virtual_register);
+                    set_register_bit(&mut referenced_register_bits, operand.virtual_register);
                     if let Some(view) = operand.fixed_view {
                         fixed_views.push(view);
                         if operand.access != register_model::RegisterOperandAccess::Use {
@@ -137,9 +170,10 @@ impl BlockEntry {
                                 .push(BlockSlotEvent::Store { slot: target, index });
                         }
                         for operand in &instruction.operands {
-                            slot_summary
-                                .non_load_registers
-                                .push(operand.virtual_register);
+                            set_register_bit(
+                                &mut slot_summary.non_load_register_bits,
+                                operand.virtual_register,
+                            );
                         }
                     }
                     super::SelectedInstructionKind::FrameAddress {
@@ -151,9 +185,10 @@ impl BlockEntry {
                                 .events
                                 .push(BlockSlotEvent::Invalidate { slot: target });
                             for operand in &instruction.operands {
-                                slot_summary
-                                    .non_load_registers
-                                    .push(operand.virtual_register);
+                                set_register_bit(
+                                    &mut slot_summary.non_load_register_bits,
+                                    operand.virtual_register,
+                                );
                             }
                         } else {
                             for operand in &instruction.operands {
@@ -163,9 +198,10 @@ impl BlockEntry {
                                         register: operand.virtual_register,
                                     });
                                 } else {
-                                    slot_summary
-                                        .non_load_registers
-                                        .push(operand.virtual_register);
+                                    set_register_bit(
+                                        &mut slot_summary.non_load_register_bits,
+                                        operand.virtual_register,
+                                    );
                                 }
                             }
                         }
@@ -176,9 +212,10 @@ impl BlockEntry {
                             .events
                             .push(BlockSlotEvent::Invalidate { slot: target });
                         for operand in &instruction.operands {
-                            slot_summary
-                                .non_load_registers
-                                .push(operand.virtual_register);
+                            set_register_bit(
+                                &mut slot_summary.non_load_register_bits,
+                                operand.virtual_register,
+                            );
                         }
                     }
                     super::SelectedInstructionKind::Load64 { byte_offset: 0 } => {
@@ -186,17 +223,19 @@ impl BlockEntry {
                             if operand.access == register_model::RegisterOperandAccess::Use {
                                 slot_summary.loads.push((operand.virtual_register, index));
                             } else {
-                                slot_summary
-                                    .non_load_registers
-                                    .push(operand.virtual_register);
+                                set_register_bit(
+                                    &mut slot_summary.non_load_register_bits,
+                                    operand.virtual_register,
+                                );
                             }
                         }
                     }
                     _ => {
                         for operand in &instruction.operands {
-                            slot_summary
-                                .non_load_registers
-                                .push(operand.virtual_register);
+                            set_register_bit(
+                                &mut slot_summary.non_load_register_bits,
+                                operand.virtual_register,
+                            );
                         }
                     }
                 }
@@ -230,7 +269,7 @@ impl BlockEntry {
                 _ => {}
             }
             for operand in &terminator.operands {
-                referenced_registers.push(operand.virtual_register);
+                set_register_bit(&mut referenced_register_bits, operand.virtual_register);
                 if let Some(view) = operand.fixed_view {
                     fixed_views.push(view);
                 }
@@ -243,9 +282,10 @@ impl BlockEntry {
                         .loads
                         .push((operand.virtual_register, usize::MAX));
                 } else {
-                    slot_summary
-                        .non_load_registers
-                        .push(operand.virtual_register);
+                    set_register_bit(
+                        &mut slot_summary.non_load_register_bits,
+                        operand.virtual_register,
+                    );
                 }
             }
             for successor in super::terminator_successors(&self.block.terminator) {
@@ -255,9 +295,9 @@ impl BlockEntry {
                         parameter,
                     } = binding.transport
                     {
-                        referenced_registers.push(argument);
-                        referenced_registers.push(parameter);
-                        slot_summary.non_load_registers.push(argument);
+                        set_register_bit(&mut referenced_register_bits, argument);
+                        set_register_bit(&mut referenced_register_bits, parameter);
+                        set_register_bit(&mut slot_summary.non_load_register_bits, argument);
                     }
                 }
                 for binding in &successor.structural_bindings {
@@ -267,11 +307,11 @@ impl BlockEntry {
                             argument,
                             ..
                         } => {
-                            referenced_registers.push(argument);
+                            set_register_bit(&mut referenced_register_bits, argument);
                             slot_summary
                                 .events
                                 .push(BlockSlotEvent::Invalidate { slot: destination });
-                            slot_summary.non_load_registers.push(argument);
+                            set_register_bit(&mut slot_summary.non_load_register_bits, argument);
                         }
                         super::SelectedStructuralTransport::ScalarReference {
                             base,
@@ -293,8 +333,11 @@ impl BlockEntry {
                                         .push(BlockSlotEvent::Invalidate { slot: base_slot });
                                 }
                                 super::SelectedAddressBase::Register(argument) => {
-                                    referenced_registers.push(argument);
-                                    slot_summary.non_load_registers.push(argument);
+                                    set_register_bit(&mut referenced_register_bits, argument);
+                                    set_register_bit(
+                                        &mut slot_summary.non_load_register_bits,
+                                        argument,
+                                    );
                                 }
                             }
                         }
@@ -309,7 +352,7 @@ impl BlockEntry {
                     }
                     if let super::SelectedCaseDispatchSource::Borrowed { pointer, .. } = case.source
                     {
-                        referenced_registers.push(pointer);
+                        set_register_bit(&mut referenced_register_bits, pointer);
                     }
                     for payload in &case.payloads {
                         match payload.transport {
@@ -317,12 +360,15 @@ impl BlockEntry {
                                 argument,
                                 parameter,
                             } => {
-                                referenced_registers.push(argument);
-                                referenced_registers.push(parameter);
-                                slot_summary.non_load_registers.push(argument);
+                                set_register_bit(&mut referenced_register_bits, argument);
+                                set_register_bit(&mut referenced_register_bits, parameter);
+                                set_register_bit(
+                                    &mut slot_summary.non_load_register_bits,
+                                    argument,
+                                );
                             }
                             super::SelectedCasePayloadTransport::Unmaterialized { parameter } => {
-                                referenced_registers.push(parameter);
+                                set_register_bit(&mut referenced_register_bits, parameter);
                             }
                             super::SelectedCasePayloadTransport::Unused => {}
                         }
@@ -335,20 +381,20 @@ impl BlockEntry {
             implicit_use_units.dedup();
             fixed_views.sort_unstable();
             fixed_views.dedup();
-            instructions_sorted.sort_unstable_by_key(|&(id, _)| id);
-            referenced_registers.sort_unstable();
-            referenced_registers.dedup();
-            slot_summary.non_load_registers.sort_unstable();
-            slot_summary.non_load_registers.dedup();
+            if instructions_sorted.windows(2).any(|w| w[0].0 >= w[1].0) {
+                instructions_sorted.sort_unstable();
+            }
             BlockLookup {
                 fixed_definitions,
                 maximum_instruction: maximum,
+                operand_count,
                 implicit_use_units,
                 upward_unit_uses,
                 unit_kills,
+                unit_writer_indices,
                 fixed_views,
                 instructions_sorted,
-                referenced_registers,
+                referenced_register_bits,
                 slot_summary,
             }
         })
@@ -394,6 +440,12 @@ impl SelectedBlocks {
             .map(|entry| entry.lookup().maximum_instruction)
             .max()
     }
+    /// Total operand count across all body instructions and terminators of this block roster.
+    pub fn total_operand_count(&self) -> Option<usize> {
+        self.0.iter().try_fold(0usize, |total, entry| {
+            total.checked_add(entry.lookup().operand_count?)
+        })
+    }
     /// Block index containing the body instruction `instruction`, using each
     /// block's memoized instruction index.
     pub fn instruction_block(&self, instruction: SelectedInstructionId) -> Option<usize> {
@@ -412,9 +464,12 @@ impl SelectedBlocks {
         instruction: SelectedInstructionId,
     ) -> Option<usize> {
         let sorted = &self.0.get(block_index)?.lookup().instructions_sorted;
-        let pos = sorted
+        let mut pos = sorted
             .binary_search_by_key(&instruction, |&(id, _)| id)
             .ok()?;
+        while pos > 0 && sorted[pos - 1].0 == instruction {
+            pos -= 1;
+        }
         Some(sorted[pos].1)
     }
     /// Memoized implicit-use units and fixed views per block.
@@ -433,21 +488,21 @@ impl SelectedBlocks {
         let lookup = self.0.get(block_index)?.lookup();
         Some((&lookup.upward_unit_uses, &lookup.unit_kills))
     }
+    /// Memoized body instruction indices that clobber or implicitly define at least one unit.
+    pub fn block_unit_writer_indices(&self, block_index: usize) -> Option<&[usize]> {
+        Some(&self.0.get(block_index)?.lookup().unit_writer_indices)
+    }
     /// Memoized slot access summary per block.
     pub fn block_slot_summary(&self, block_index: usize) -> Option<&BlockSlotSummary> {
         Some(&self.0.get(block_index)?.lookup().slot_summary)
     }
-    /// Memoized fixed definitions for `block_index`.
-    pub fn block_fixed_definitions(&self, block_index: usize) -> Option<&[VirtualRegisterId]> {
-        Some(&self.0.get(block_index)?.lookup().fixed_definitions)
-    }
     /// Whether `block_index` references `register` in any instruction, terminator, or edge transport.
     pub fn block_references_register(&self, block_index: usize, register: VirtualRegisterId) -> bool {
         self.0.get(block_index).is_some_and(|entry| {
-            let refs = &entry.lookup().referenced_registers;
-            refs.first()
-                .is_some_and(|&first| register >= first && register <= *refs.last().unwrap())
-                && refs.binary_search(&register).is_ok()
+            let bits = &entry.lookup().referenced_register_bits;
+            let word = (register.0 as usize) >> 6;
+            bits.get(word)
+                .is_some_and(|&w| (w & (1u64 << (register.0 & 63))) != 0)
         })
     }
     pub fn len(&self) -> usize {

@@ -3,6 +3,6 @@ machine build(builder: &mut Build) {
     builder.identifier = "com.omega.dungeon-crawler";
     Build::depend(builder, Source::Path { location: "../../../source/library/std" });
     Build::depend(builder, Source::Path { location: "engine" });
-    Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     builder.subsystem = Subsystem::Gui;
 }

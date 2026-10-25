@@ -1,1 +1,1 @@
-all-zero image is not a valid value
+open default-domain invariant window

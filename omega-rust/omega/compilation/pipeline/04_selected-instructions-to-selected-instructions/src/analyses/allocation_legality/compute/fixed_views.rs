@@ -45,6 +45,9 @@ pub(super) fn at_live_point(
     point: LiveRangePoint,
     entry_point: Option<(SelectedBlockId, LiveRangePoint)>,
 ) -> Result<Option<RegisterViewId>, AllocationLegalityError> {
+    if register.fixed_constraints.is_empty() {
+        return Ok(None);
+    }
     let mut fixed = BTreeSet::new();
     for constraint in &register.fixed_constraints {
         let applies = match constraint.site {
@@ -71,6 +74,9 @@ pub(super) fn at_live_point(
 /// declaration, and a boundary that never fires leaves its rows unused —
 /// declarations are licenses, not the split manifest.
 pub(super) fn entry_transitions(register: &VirtualLiveRange) -> Vec<EntryFixedViewTransition> {
+    if register.fixed_constraints.len() < 2 {
+        return Vec::new();
+    }
     let pinned = register
         .fixed_constraints
         .iter()

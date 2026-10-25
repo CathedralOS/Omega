@@ -43,3 +43,9 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
     state done() {}
     state bad() { crash Trap; }
 }
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Scheduler crashes Trap {
+    let mut entry_storage: Main;
+    suspend Main::main(&mut entry_storage);
+}

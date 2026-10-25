@@ -30,7 +30,6 @@ pub(super) struct FunctionFlow {
     pub(super) blocks: Vec<BlockFlow>,
     pub(super) edges: Vec<Vec<EdgeFlow>>,
     registers: Vec<VirtualRegisterId>,
-    pub(super) max_reg_id: usize,
 }
 
 #[derive(Default)]
@@ -247,7 +246,6 @@ impl FunctionFlow {
                 .collect(),
             edges,
             registers,
-            max_reg_id,
         };
         if !include_virtual && transfers.iter().all(|t| t.unit_uses.is_empty()) {
             return Ok(flow);

@@ -181,7 +181,6 @@ fn lower_machine_contents(
     retain_attached_data_type_reference(lowerer, machine.attached_data_symbol);
     let mut typed_machine = typed::machine::Machine {
         lexical_region_origin: None,
-        entry_context_origin: None,
         assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability::Any,
         symbol: machine.symbol,
         name: crate::lowerer::name::lower_name(&machine.name),

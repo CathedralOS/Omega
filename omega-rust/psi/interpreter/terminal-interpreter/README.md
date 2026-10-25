@@ -48,13 +48,19 @@ After normal return, `TerminalInstance::observe_borrowed_entry` reads a semantic
 leaf of an original host-lent structural argument by dense argument index and
 canonical declaration path. The original home survives retired helper/entry
 frames; owned inputs are not retained for readback. Observation returns plain
-scalar/case contents or copied byte payloads, never a qualified guest value or
+scalar/case contents or borrowed byte readers, never a qualified guest value or
 opaque host capability. Paused, crashed, externally terminated and closed
 instances cannot report a normal borrowed result. Source-produced ordinary and
 Build helpers exercise this route in `compiler`'s `terminal_entry_writeback`
 integration test, with retained and externally loaded artifacts. This supplies
 Build settings observation; it does not migrate Build effects or activation
 scheduling from the legacy evaluator.
+
+Byte readback retains a Rust borrow of the instance, not another payload copy.
+`TerminalByteRead::len` lets the host validate size and reserve live storage and
+result custody before allocating its output; `copy_to` fills that caller-owned
+buffer. A scalar-backed byte window stays scalar-backed during observation.
+This is a publication prerequisite, not completed Terminal storage accounting.
 
 Retained checked-provider candidates describe availability, not the receiving
 host's selection. `TerminalProgram::admit_runtime_supplies` joins explicit normal

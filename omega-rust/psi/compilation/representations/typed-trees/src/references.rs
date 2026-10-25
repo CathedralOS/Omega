@@ -1871,10 +1871,6 @@ fn visit_machine_with_sidecars(
     for signature in program.requirement_invocation_signatures(machine.symbol) {
         visit_signature(program, retained, signature);
     }
-    if let Some(origin) = machine.entry_context_origin {
-        visit_symbol(retained, origin.entry);
-        visit_symbol(retained, origin.context_parameter);
-    }
     if let Some(origin) = machine.lexical_region_origin {
         retained.declaration_description_dependency(origin.machine);
         retained.declaration_description_dependency(origin.state);

@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
     Build::application(builder, "program_entry_receiver_not_zii");
-    Build::bind(builder, windows_x86_64::ProgramEntry, Application::launch);
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
 }

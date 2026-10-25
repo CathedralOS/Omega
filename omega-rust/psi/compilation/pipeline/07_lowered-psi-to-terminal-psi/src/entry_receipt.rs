@@ -8,8 +8,6 @@ use lowered_psi::LoweredPsi;
 use terminal_codec::{CanonicalTerminalArtifact, terminal_psi_identity};
 use terminal_psi::{CheckedProgramEntryTerminalReceipt, TerminalMachineResult};
 
-mod receiver_eligibility;
-
 #[derive(Debug)]
 pub enum ProgramEntryTerminalReceiptError {
     TerminalEntryMultiplicity(usize),
@@ -57,78 +55,13 @@ pub fn prepare_program_entry_receipt(
         .ok_or(ProgramEntryTerminalReceiptError::MissingEntryDeclaration)?;
     let identity = terminal_psi_identity(&optimized_lowered.semantic_module)
         .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)?;
-    let receiver_eligibility = receiver_eligibility::derive(
-        checked,
-        selection,
-        entry.id,
-        &optimized_lowered.semantic_module,
-    );
-    let bridges: Vec<_> = checked
-        .machines()
-        .iter()
-        .filter(|machine| {
-            machine
-                .entry_context_origin
-                .is_some_and(|origin| origin.entry == selection.machine)
-        })
-        .collect();
-    let context_bridge = match bridges.as_slice() {
-        [] => None,
-        [bridge] => {
-            let origin = bridge
-                .entry_context_origin
-                .ok_or(ProgramEntryTerminalReceiptError::ContextBridgeOccurrenceMismatch)?;
-            let source = checked
-                .machine(selection.machine)
-                .and_then(|machine| checked.machine_states(machine).first())
-                .ok_or(ProgramEntryTerminalReceiptError::ContextBridgeOccurrenceMismatch)?;
-            let position = checked
-                .state_parameters(source)
-                .iter()
-                .position(|parameter| parameter.symbol == origin.context_parameter)
-                .ok_or(ProgramEntryTerminalReceiptError::ContextBridgeOccurrenceMismatch)?;
-            // This association records a checked caller, not provisioning
-            // eligibility. Preserve a missing eligibility judgment for the
-            // native owner to diagnose instead of claiming origin corruption.
-            if let Some(eligibility) = receiver_eligibility.as_ref() {
-                let source_position = match eligibility.projection() {
-                    terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
-                        source_position,
-                        ..
-                    }
-                    | terminal_psi::CheckedProgramEntryReceiverProjection::Erased {
-                        source_position,
-                    } => source_position,
-                };
-                if usize::try_from(source_position).ok() != Some(position) {
-                    return Err(ProgramEntryTerminalReceiptError::ContextBridgeOccurrenceMismatch);
-                }
-            }
-            Some(
-                retained_source_machine(
-                    checked,
-                    bridge.symbol,
-                    exact_toolchain_sources,
-                    &optimized_lowered.semantic_module,
-                )?
-                .id,
-            )
-        }
-        _ => {
-            return Err(ProgramEntryTerminalReceiptError::ContextBridgeMultiplicity(
-                bridges.len(),
-            ));
-        }
-    };
     Ok(CheckedProgramEntryTerminalReceipt::new(
         source_signature_identity,
         selection.name.clone(),
         declaration.machine.clone(),
         identity,
         entry.id,
-        receiver_eligibility,
-    )
-    .with_context_bridge(context_bridge))
+    ))
 }
 
 /// Rejoin one checked declaration to its unique retained body. This identifies
