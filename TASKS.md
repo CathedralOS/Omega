@@ -1558,7 +1558,7 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     and `host/runtime_descriptor_*_exit` passing.
   - Connect `omega-rust/omega/compilation/realization/provider-planning/src/calling_policy_plans/boundary_signatures.rs::opaque_representation_movement`
     to provider call-frame transport and backend emission for the remaining
-    linear, qualified, and view-backed opaque inputs with exact composition-edge
+    qualified and view-backed opaque inputs with exact composition-edge
     drift rejection. The direct and independent closed Affine rows in
     `samples/cli/facts/opaque_closed_carrier_exchange` now pass all nine places
     on all four hosted targets, including Linux ARM64. The
@@ -1566,6 +1566,9 @@ decision (`SourceChecked`) into stage 05 and stage 00.
     also has nine-place native/Terminal agreement and copy-only rejects on all
     four targets. Its README retains the original Windows timeout and the
     independently reviewed finite diagnostic; that original run remains red.
+    The [Linear continuation](samples/cli/facts/opaque_closed_carrier_exchange/independent_linear/README.md)
+    carries actual whole ownership claims through independent inputs and returns
+    across all nine places on all four targets.
   - Connect stage 05 `retention/retained_borrow_custody.rs` and native
     marshaling to installed-provider custody and default Terminal adapters for
     moved, lifetime-borrowed, and permitted-snapshot boundaries so all nine
