@@ -3,7 +3,7 @@
 //! of a typed captured endpoint supplies an address. Every request is staged
 //! before any input/result commit, so replacement cannot reread another output.
 
-use super::contents::{StorageLeafKind, TerminalBoundaryReferenceSelection};
+use super::contents::{ReferenceOutputWrite, StorageLeafKind, TerminalBoundaryReferenceSelection};
 use super::{CapturedReferenceInput, StructuralLoanBinding, TerminalBoundaryStorageBuffer};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -275,6 +275,35 @@ pub(super) fn stage(
             let destination = leaves.next().ok_or_else(malformed)?.clone();
             if leaves.next().is_some() {
                 return Err(malformed());
+            }
+            if request.write == ReferenceOutputWrite::Address {
+                let previous = execution
+                    .reference_referents
+                    .get(&destination)
+                    .ok_or_else(malformed)?;
+                // Scalar references carry their exact selected storage codec,
+                // including IntegerAt/recast views. Logical referent equality
+                // cannot justify preserving that word after an address write.
+                let stored_scalar = |reference: &crate::reference::ReferenceReferent| {
+                    reference
+                        .primitive_loan
+                        .as_ref()
+                        .map(|loan| loan.storage.storage_scalar().unwrap_or(loan.scalar_type))
+                };
+                let StructuralTypeShape::Reference { referent, .. } = endpoint.shape else {
+                    return Err(malformed());
+                };
+                let primitive = matches!(
+                    types.get(&referent).ok_or_else(malformed)?.shape,
+                    StructuralTypeShape::PrimitiveScalar(_)
+                );
+                let old_scalar = stored_scalar(previous);
+                let new_scalar = stored_scalar(&captured.referent);
+                if old_scalar != new_scalar || (primitive && old_scalar.is_none()) {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "address-only reference output changes its captured scalar storage interpretation",
+                    ));
+                }
             }
             staged.push((binding_index, destination, captured.referent));
         }

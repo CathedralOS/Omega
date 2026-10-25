@@ -61,6 +61,13 @@ pub struct TerminalBoundaryReferenceSelection {
 pub(super) struct BoundaryReferenceReplacement {
     pub path: Vec<StructuralPathSegment>,
     pub source: TerminalBoundaryReferenceSelection,
+    pub write: ReferenceOutputWrite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ReferenceOutputWrite {
+    Descriptor,
+    Address,
 }
 
 impl TerminalBoundaryStructuralBuffer {
@@ -85,6 +92,26 @@ impl TerminalBoundaryStructuralBuffer {
         path: &[StructuralPathSegment],
         source: TerminalBoundaryReferenceSelection,
     ) -> Result<(), TerminalEffectRejection> {
+        self.stage_reference_replacement(path, source, ReferenceOutputWrite::Descriptor)
+    }
+
+    /// Stage an address-only foreign write. Completion retains the old scalar
+    /// storage interpretation and requires the selected endpoint to have the
+    /// same captured interpretation before publishing any guest storage.
+    pub fn replace_reference_address(
+        &mut self,
+        path: &[StructuralPathSegment],
+        source: TerminalBoundaryReferenceSelection,
+    ) -> Result<(), TerminalEffectRejection> {
+        self.stage_reference_replacement(path, source, ReferenceOutputWrite::Address)
+    }
+
+    fn stage_reference_replacement(
+        &mut self,
+        path: &[StructuralPathSegment],
+        source: TerminalBoundaryReferenceSelection,
+        write: ReferenceOutputWrite,
+    ) -> Result<(), TerminalEffectRejection> {
         if self.access != StructuralAccess::MutableBorrow
             || self
                 .references
@@ -98,6 +125,7 @@ impl TerminalBoundaryStructuralBuffer {
         self.references.push(BoundaryReferenceReplacement {
             path: path.to_vec(),
             source,
+            write,
         });
         Ok(())
     }

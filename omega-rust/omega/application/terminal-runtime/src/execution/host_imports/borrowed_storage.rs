@@ -31,7 +31,9 @@ pub(super) struct CapturedStorage<'layout> {
     primitive_byte_root: bool,
 }
 
-/// Exact native root-word output geometry. This plan names only semantic paths
+/// Exact native root-word output geometry. Scalar descriptors additionally
+/// retain a disjoint codec lane; address-only semantic completion authenticates
+/// it against the old and new captured endpoints. This plan names only semantic paths
 /// and overlap guards; the selected host pointer is never decoded as a scalar
 /// or exposed as a guest address. Trailing disjoint storage remains untouched.
 pub(super) struct PointerOutputPlan {
@@ -55,6 +57,34 @@ impl PointerOutputPlan {
                 "native pointer output root has incompatible extent or alignment",
             ));
         }
+        let tip = terminal_semantics::runtime_structural_path_tip(
+            program.module().structural_types.iter(),
+            layout.structural_type,
+            declared_path,
+        )
+        .ok_or_else(invalid_operands)?;
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = tip.shape else {
+            return Err(invalid_operands());
+        };
+        let descriptor_bytes = match program.structural_type(referent).map(|row| &row.shape) {
+            Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)) => {
+                runtime_abi::ScalarStorageCodec::from_scalar(*scalar)
+                    .ok_or_else(invalid_operands)?;
+                let lanes = runtime_abi::ScalarReferenceLayout::NATIVE;
+                if usize::try_from(lanes.address_byte_size).ok() != Some(pointer_bytes)
+                    || lanes.address_byte_offset != 0
+                    || lanes.codec_byte_offset != lanes.address_byte_size
+                    || lanes.codec_byte_offset.checked_add(lanes.codec_byte_size)
+                        != Some(lanes.byte_size)
+                    || layout.alignment < lanes.alignment
+                {
+                    return Err(invalid_operands());
+                }
+                usize::try_from(lanes.byte_size).map_err(|_| invalid_operands())?
+            }
+            Some(_) => pointer_bytes,
+            None => return Err(invalid_operands()),
+        };
         let mut selected = None;
         let mut overlaps = Vec::new();
         for cell in geometry::expand(layout)? {
@@ -77,11 +107,11 @@ impl PointerOutputPlan {
                     if storage == declared_path {
                         if byte_offset != 0
                             || usize::try_from(region.byte_size).map_err(|_| invalid_operands())?
-                                != pointer_bytes
+                                != descriptor_bytes
                             || selected.replace(path).is_some()
                         {
                             return Err(TerminalEffectRejection::new(
-                                "declared reference output is not exactly the native root pointer word",
+                                "declared reference output has incompatible native address/codec lanes",
                             ));
                         }
                     } else if byte_offset < pointer_bytes && region.byte_size != 0 {

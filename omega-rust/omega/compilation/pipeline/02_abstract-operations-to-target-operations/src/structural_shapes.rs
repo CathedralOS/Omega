@@ -345,7 +345,7 @@ fn shape(
         // Independently reconstruct the address payload, including nested
         // record leaves. Pointer bits carry no ownership authority.
         StructuralTypeShape::Reference { referent, .. } => ValueShape::integer(
-            if declarations.get(referent).is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar) if runtime_abi::ScalarStorageCodec::from_scalar(scalar).is_some())) { 16 } else { 8 }, 8),
+            if declarations.get(referent).is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar) if runtime_abi::ScalarStorageCodec::from_scalar(scalar).is_some())) { runtime_abi::ScalarReferenceLayout::NATIVE.byte_size } else { 8 }, 8),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),

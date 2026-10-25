@@ -419,7 +419,7 @@ pub(crate) fn structural_shape(
             // as whole results, so enclosing record offsets remain coherent.
             StructuralTypeShape::Reference { referent, .. } => Ok(ValueShape::integer(
                 if scalar_storage_type(*referent, declarations).is_some() {
-                    16
+                    runtime_abi::ScalarReferenceLayout::NATIVE.byte_size
                 } else {
                     8
                 },

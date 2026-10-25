@@ -264,7 +264,7 @@ impl TerminalEffectHandler for IntegerParsingImport {
         {
             return Err(invalid());
         }
-        output.replace_reference(&self.output_path, selection)?;
+        output.replace_reference_address(&self.output_path, selection)?;
         Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
             scalar_type: self.result_type,
             value: IntegerValue::Signed(i128::from(value)),
