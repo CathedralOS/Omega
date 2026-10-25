@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "entry RAM"
+    "private entry RAM requires the complete nonempty bounded schema extent"
   ]
 }

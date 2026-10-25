@@ -1,1 +1,1 @@
-entry RAM
+private entry RAM initializer answers no declared entry position

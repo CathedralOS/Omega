@@ -31,12 +31,14 @@ pub(crate) fn scan_statement_reads(
     machine: &Machine,
     state: &State,
     statement: &StatementNode,
+    statement_ordinal: usize,
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
     inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let diagnostic_start = diagnostics.len();
     let mut reads: Vec<ExpressionHandle> = Vec::new();
     match statement {
         // An assembly fact is itself a checked consumption point. Its proof
@@ -120,6 +122,12 @@ pub(crate) fn scan_statement_reads(
             call_established,
             inherited_windows,
             diagnostics,
+        );
+    }
+    for diagnostic in &mut diagnostics[diagnostic_start..] {
+        diagnostic.message = format!(
+            "machine `{}` state `{}` statement {statement_ordinal}: {}",
+            machine.name, state.name, diagnostic.message,
         );
     }
 }
