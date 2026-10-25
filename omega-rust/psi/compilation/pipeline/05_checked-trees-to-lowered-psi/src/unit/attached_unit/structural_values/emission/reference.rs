@@ -131,7 +131,7 @@ impl Emission<'_, '_, '_> {
             .with_view_locals(&self.evaluation.view_locals)
             .with_structural_observations(self.structural_types)
             .with_primitive_storage(&self.evaluation.primitive_storage);
-        let argument = match referent.shape {
+        let mut argument = match referent.shape {
             StructuralTypeShape::PrimitiveScalar(_)
                 if matches!(
                     source.source,
@@ -214,14 +214,35 @@ impl Emission<'_, '_, '_> {
                 argument
             }
         };
-        // Destination access distinguishes an alias from a stored descriptor.
-        // A slice descriptor can have the same shape as the collection it
-        // reborrows; shape equality alone cannot turn its owned field into an
-        // alias of the supplying descriptor. Conversely a borrowed join keeps
-        // the referent itself even when that referent contains references.
-        if self.result_access != terminal_psi::StructuralAccess::Owned {
+        // A borrowed destination aliases the referent only when that loan keeps
+        // the referent's representation. Equal type identities do. So does an
+        // unchanged descriptor presentation: a shared byte view and the
+        // mutable view it reborrows are different type identities with the
+        // same pointer and extent, and the destination access is only a lower
+        // ceiling. Owned access is never that alias. A slice descriptor can
+        // have the same shape as the collection it reborrows, and shape
+        // equality cannot turn the owned field into the supplying referent.
+        // Addressing inline backing, or any other carrier change, is a new
+        // descriptor. The carrier producer below selects that representation.
+        // Establishing a whole-collection view for an unchanged reborrow looks
+        // for collection storage the existing descriptor does not have.
+        let same_representation = self.structural_type == referent_type
+            || terminal_semantics::borrowed_referent_presentation(
+                self.structural_types.iter(),
+                referent_type,
+                self.structural_type,
+            ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged);
+        if self.result_access != terminal_psi::StructuralAccess::Owned && same_representation {
             if self.structural_type != referent_type {
-                return unsupported("reference alias changes its referent carrier");
+                if !crate::expression_preparation::bindings::structural_paths::structural_access_can_supply(
+                    argument.access,
+                    self.result_access,
+                ) {
+                    return unsupported("reference alias changes its referent carrier");
+                }
+                // Present the destination ceiling. The place remains the
+                // existing descriptor, so the window and backing stay put.
+                argument.access = self.result_access;
             }
             let loan = match argument.access {
                 terminal_psi::StructuralAccess::SharedBorrow => LoanAccess::Shared,
