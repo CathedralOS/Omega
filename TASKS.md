@@ -4744,6 +4744,14 @@ and `mapped` need matching-host measurements, including the full-i32 status.
     during remaining host qualification: earlier snapshots survive allocation,
     later results and release.
 
+  [Materialized C scalar-record results](samples/cli/facts/foreign_scalar_record_result/README.md)
+  now preserve libc `lldiv`'s signed quotient/remainder through all nine places,
+  a second real C call and ordinary copying, with nine copy-custody reject twins.
+  Native and Terminal agree on macOS ARM64, Linux x86-64 and Windows x64;
+  Windows exercises the actual 16-byte indirect C result, while the Mac/Linux
+  pair is register-returned. Linux ARM64 and macOS indirect C results remain
+  unqualified by this row; the parent descriptor and host obligations stay open.
+
   Acceptance: corpus fixtures pass a borrowed descriptor and receive an
   indirect aggregate result from C with exact values, register/stack placement
   and formal order on each matching host. Terminal Psi stays target-neutral.

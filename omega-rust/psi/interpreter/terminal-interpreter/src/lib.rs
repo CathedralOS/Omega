@@ -116,6 +116,6 @@ pub use terminal_installation::{
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use values::{
-    TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
