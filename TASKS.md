@@ -6219,8 +6219,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     anonymous SQOS; use a controlled named-pipe endpoint to verify that the
     portable API grants no client-identity impersonation while explicit raw
     caller flags keep their native meaning.
-  - Run `file_journal` (exit 7), `note_vault` (exit 14) and applicable
-    filesystem fixture oracles on Windows x86-64. Linux x86-64 retains
+  - Windows x86-64 `file_journal` exits 7 and `note_vault` exits 14. Applicable
+    filesystem fixture oracles on Windows x86-64 remain. Linux x86-64 retains
     its portable provider; the moved shared algorithms, direct raw byte-view
     adapters and Linux-only `write_all_full_device_exit` need Linux x86-64
     execution. Foreign publication alone does not establish those outcomes.

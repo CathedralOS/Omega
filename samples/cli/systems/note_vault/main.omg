@@ -19,6 +19,7 @@
 
 use omega_language_std::filesystem;
 use omega_language_std::time;
+use omega_language_std::time_host;
 
 use omega_language_std::console;
 
@@ -27,7 +28,7 @@ data Main {
     time: Time;
 }
 
-machine Main::main(context: &mut Main) reaches Console {
+machine Main::main(context: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
     let passed: i32 in Wrapping = 0;
     // 1. The vault lives in a DEEP directory (create_dir_all's dispatched
     // mkall walkers).
