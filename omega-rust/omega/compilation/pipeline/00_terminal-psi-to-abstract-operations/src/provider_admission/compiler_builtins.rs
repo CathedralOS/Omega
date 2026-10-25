@@ -263,6 +263,7 @@ pub(super) fn settle_compiler_builtins<'request>(
             boundary: boundary.id,
             execution: AdmittedBoundaryExecution::CompilerBuiltin(execution),
             realization: BoundarySettlementRealization::Builtin(realization),
+            checked_component: None,
         });
         mechanisms.push(AdmittedTerminalMechanism {
             boundary: boundary.id,

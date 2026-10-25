@@ -131,6 +131,10 @@ pub(crate) fn admit_native_providers<'request>(
         let module = input.context().module();
         if let Some(boundary) = module.boundary_machine(settlement.boundary)
             && boundary.requires_checked_result(&module.structural_domains)
+            && !settlement.checked_component.is_some_and(|call| {
+                call.selection().receiver() == artifact.view().identity()
+                    && call.selection().receiving_boundary() == boundary.id
+            })
         {
             return Err(vec![Diagnostic::error(format!(
                 "native provider for `{}` cannot establish result provenance owned by another issuer; a checked provider must return the qualified value",
@@ -142,7 +146,9 @@ pub(crate) fn admit_native_providers<'request>(
         }
     }
     // Opaque provider supply above cannot manufacture another issuer's
-    // qualified result. Private lifecycle operations instead implement the
+    // qualified result. A checked component retains its admitted actual
+    // export through physical settlement; raw imports and builtins do not.
+    // Private lifecycle operations instead implement the
     // authenticated core result contract: rejection returns the actual inputs,
     // initialization establishes content only after writing it, and extraction
     // transfers the original resident and grant. Their operation-owned

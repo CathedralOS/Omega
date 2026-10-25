@@ -54,6 +54,12 @@ pub struct AdmittedBoundarySettlement<'execution> {
     pub boundary: BoundaryMachineId,
     pub execution: AdmittedBoundaryExecution<'execution>,
     pub realization: BoundarySettlementRealization,
+    /// Retain the authenticated checked export through physical normalization.
+    /// A locator or normalized foreign row alone cannot forward another
+    /// issuer's qualified result. Only settlement's exact component rejoin
+    /// supplies this borrowed admission, beside its original artifact owner.
+    pub(super) checked_component:
+        Option<&'execution crate::AdmittedNativeComponentCall<'execution>>,
 }
 
 #[derive(Debug, Clone, Copy)]

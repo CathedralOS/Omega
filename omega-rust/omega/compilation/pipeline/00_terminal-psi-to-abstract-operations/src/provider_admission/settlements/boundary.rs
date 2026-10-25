@@ -161,6 +161,10 @@ pub(super) fn settle_boundary<'request>(
             boundary: boundary.id,
             execution: crate::AdmittedBoundaryExecution::Provider(evidence),
             realization: realization.clone(),
+            checked_component: match settlement.realization {
+                NativeBoundaryRealization::Component { call, .. } => Some(call),
+                _ => None,
+            },
         });
     }
     Ok((admitted, evidence))

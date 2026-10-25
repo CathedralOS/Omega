@@ -137,6 +137,7 @@ pub(super) fn settle_native_lifecycles<'execution>(
                             boundary: plan.boundary,
                         },
                     ),
+                    checked_component: None,
                 });
                 mechanisms.push(AdmittedTerminalMechanism {
                     boundary: plan.boundary,
