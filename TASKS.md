@@ -4729,10 +4729,17 @@ and `mapped` need matching-host measurements, including the full-i32 status.
   and `providers/foreign_multiregister_result_exit` exit 70 on macOS ARM64.
   Foreign imports share one mechanism template per target ABI, derived from
   the evaluated plans.
+  - [Original scalar backing](samples/cli/facts/foreign_scalar_backing/README.md)
+    carries an owned inline field through nine places before lending its exact
+    backing to a thin foreign pointer on macOS ARM64. Producer `5985d0f756fb`
+    completed the root, nine places, original customer and reference-sibling
+    control on native and Terminal, with nine intended live-loan rejections.
+    Narrow/mixed footprint refusals remain controls;
+    this does not qualify arbitrary shared logical-width ingress or other hosts.
   - Qualify remaining descriptor carriers and register/stack placement on each
-    matching host. Restore original scalar-field backing through thin foreign
-    export: `host/runtime_descriptor_direct_array_exit` currently refuses with
-    `SourceCustodyMismatch` on macOS ARM64. Keep narrow/mixed backing export
+    matching host. Original scalar-field backing through thin foreign export
+    now executes on macOS ARM64: `host/runtime_descriptor_direct_array_exit`
+    retains its authored streams and zero exit. Keep narrow/mixed backing export
     refusals. Preserve `host/runtime_descriptor_output_streams_exit`: readonly
     byte views transport their evaluated pointer/length, never the descriptor's address.
   - Qualify indirect (memory-returned) aggregate results on the remaining
