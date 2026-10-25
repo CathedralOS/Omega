@@ -1,0 +1,4 @@
+domain u64::Foreign dropped by finish;
+machine finish(value: &mut u64) {}
+machine consume(value: u64 in Foreign) {}
+machine main() { consume(7); }

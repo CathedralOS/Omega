@@ -322,7 +322,11 @@ pub(super) fn build_symbol_table(
     }
     // Machine children require namespace-aware attachment selection. Their root
     // headers already exist; publish children after the namespace is installed.
-    for _ in &program.machines {
+    for _ in program
+        .machines
+        .iter()
+        .filter(|machine| machine.lexical_parent.is_none())
+    {
         let _ = root_children.next();
     }
     for proposition in &program.propositions {

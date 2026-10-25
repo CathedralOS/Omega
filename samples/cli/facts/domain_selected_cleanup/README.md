@@ -42,3 +42,16 @@ applications, all hook-effect/authority controls, product-producer parity,
 legacy source retirement, pinned corpus fixtures and independent review remain
 open. All nine standard place sources now exist; no parent acceptance is closed
 or subtracted. Historical results are tied to their original producers and source.
+
+Candidate 16 carries the unchanged `other_state` witness through genuine nested
+machine declarations with native 0 and interpreter 0; its prerequisite twin
+rejects. Deeper nesting, sibling calls, terminal nested calls and transparent
+alias selections also run in both engines. Runtime capture, external qualified
+access and statements after declarations reject. The parser retains lexical
+machine trees and resolution assigns distinct machine symbols; it does not
+translate the spelling into states. Enclosing generic/static telescopes are
+explicitly staged as unsupported. The indexed domain selection production is
+currently red: a forwarded const binder is incorrectly required to be closed.
+The authority control and the canonical process-exit control reject with their
+intended cleanup diagnostics. These observations have separate immutable
+producer/source-diff manifests and raw logs.

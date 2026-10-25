@@ -1,6 +1,7 @@
 {
   "role": "intended-invalid",
   "rejection_contains": [
-    "helper"
+    "qualified call",
+    "has no resolved callable declaration"
   ]
 }
