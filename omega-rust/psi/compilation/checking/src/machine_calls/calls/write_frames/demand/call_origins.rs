@@ -218,7 +218,14 @@ impl<'program> CallFrameResolver<'program> {
                 // otherwise an empty signature ceiling becomes opaque here.
                 let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some()
                     || program.dynamic_slot_by_symbol(target).is_some()
-                    || program.operator_definition_by_symbol(target).is_some();
+                    || program.operator_definition_by_symbol(target).is_some()
+                    // A static boundary namespace has no runtime storage.
+                    // Keep receiver-bearing calls on the ordinary origin path;
+                    // only the exact selected signature can distinguish them.
+                    || frames::boundary_calls::boundary_trait_signature_and_receiver(
+                        program, machine, &receiver_members, name, site,
+                    )
+                    .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
