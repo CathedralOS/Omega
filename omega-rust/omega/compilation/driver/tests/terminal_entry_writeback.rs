@@ -64,6 +64,108 @@ fn produce(
     (artifact, admission, initial)
 }
 
+#[test]
+fn array_result_storage_outlives_the_completed_instance() {
+    use evaluation_accounting::{
+        BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
+        TerminalStorageScheduleIdentity,
+    };
+    let (produced, _, _) = produce("array_result");
+    let artifact = produced.artifact();
+    let execute = |loaded, cell_limit, should_refuse| {
+        let program = if loaded {
+            TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
+        } else {
+            TerminalProgram::borrow(artifact.view())
+        };
+        let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        };
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(
+            BuildEvaluationSponsorLimits::new(100_000, 8, 2, 2, cell_limit, 1000, 1000, 1000)
+                .unwrap(),
+            measurement,
+        )
+        .unwrap();
+        let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+        let mut instance = program
+            .instantiate(terminal_interpreter::TerminalInstantiation {
+                account: Some(&account),
+                ..Default::default()
+            })
+            .unwrap();
+        let mut meter = TerminalFuelMeter::with_invocation(account.clone(), Some(0)).unwrap();
+        let result = loop {
+            match instance.invoke(&mut meter) {
+                Ok(TerminalExecutionStatus::SponsorExhausted(_)) => meter.replenish(1).unwrap(),
+                result => break result,
+            }
+        };
+        if should_refuse {
+            let refusal = result.unwrap_err();
+            assert!(
+                format!("{refusal:?}").contains("AllowanceExhausted(LiveStorage)"),
+                "{refusal:?}"
+            );
+            assert!(instance.result().is_none());
+            assert_eq!(
+                instance.close(),
+                Err(terminal_interpreter::TerminalInstanceCloseError::Busy)
+            );
+            let usage = account.snapshot().unwrap();
+            assert_eq!(instance.invoke(&mut meter), Err(refusal));
+            assert_eq!(
+                account.snapshot().unwrap().record(),
+                usage.record(),
+                "fault retries cannot repeat charges"
+            );
+        } else {
+            let TerminalExecutionStatus::Complete(TerminalExecutionResult::ScalarArray(returned)) =
+                result.unwrap()
+            else {
+                panic!("array return expected")
+            };
+            let observed = returned
+                .value
+                .elements()
+                .iter()
+                .map(|value| match value {
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(value),
+                        ..
+                    } => *value,
+                    _ => panic!("u32 element expected"),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                observed,
+                [11, 44, 22],
+                "guest copies retain independent values"
+            );
+            let retained = returned.clone();
+            instance.close().unwrap();
+            assert_eq!(
+                sponsor.live_storage_cells(),
+                3,
+                "inspection retains the payload after close"
+            );
+            drop(returned);
+            assert_eq!(sponsor.live_storage_cells(), 3);
+            drop(retained);
+            assert_eq!(sponsor.live_storage_cells(), 0);
+        }
+        let peak = sponsor.peak_live_cells();
+        drop(instance);
+        assert_eq!(sponsor.live_storage_cells(), 0);
+        peak
+    };
+    let peak = execute(true, 1000, false);
+    assert!(peak > 3);
+    assert_eq!(execute(false, peak, false), peak);
+    execute(true, peak - 1, true);
+}
+
 fn field(artifact: &CanonicalTerminalArtifact, name: &str) -> Path {
     let program = TerminalProgram::borrow(artifact.view());
     let entry = program.entry().unwrap();

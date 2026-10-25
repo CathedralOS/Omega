@@ -27,6 +27,14 @@ machine frame_leaf() {}
 machine frame_nested() { frame_leaf(); }
 machine frame_sequence() { frame_nested(); frame_nested(); }
 
+machine copy_array(values: [u32; 3]) -> [u32; 3] { values }
+machine array_result() -> [u32; 3] {
+    let original: [u32; 3] = [11, 22, 33];
+    let mut copied: [u32; 3] = copy_array(original);
+    copied[1] = 44;
+    [copied[0], copied[1], original[1]]
+}
+
 machine fail_after_write(settings: &mut Settings) crashes Trap {
     configure(settings);
     crash Trap;

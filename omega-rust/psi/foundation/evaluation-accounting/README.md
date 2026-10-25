@@ -52,8 +52,11 @@ Build control checks exact and one-cell-short budgets through fuel pauses.
 Root activations and saved call headers reserve one cell each before creation;
 saved headers retire on return, while the root remains through readback until
 instance close. Source-produced empty calls check peak depth rather than cumulative
-call count. Descriptor maps, array payload elements, other storage families
-and result custody still need their real lifetime hooks.
+call count. Packed scalar-array elements now own reservations through construction,
+independent guest copies, frame transfers and retained result inspection. Inspection
+aliases share one reservation; mutation funds any detached replacement first.
+Descriptor maps, placed/case storage and cumulative result custody still need
+their real lifetime hooks.
 These partial snapshots are not complete Build usage or storage budgeting; do
 not publish them as production Build accounting receipts. The ordinary
 package-aware CLI remains on the checked Build evaluator until accounting and

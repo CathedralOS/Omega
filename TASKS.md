@@ -1007,7 +1007,10 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     exercises exact and short cell budgets across fuel pauses. Root and saved
     call headers now reserve before creation; one frame-capture owner preserves
     scalar/structural/cleanup custody and retires saved headers on return.
-    Descriptor maps, array payload elements and result custody remain. Connect those
+    Packed scalar-array backing now retains element reservations through guest
+    snapshots and result inspection, including after instance close; plain
+    projection copies share that snapshot operation. Descriptor maps, placed/case
+    storage and cumulative result custody remain. Connect those
     admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build

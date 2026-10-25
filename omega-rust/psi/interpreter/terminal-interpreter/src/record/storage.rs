@@ -39,7 +39,7 @@ impl<'execution> ConstructorValue<'execution> {
             }
             let types = execution.program.structural_types();
             let mut structural_type = array.structural_type;
-            let mut elements = array.elements.as_slice();
+            let mut elements = array.elements();
             // A packed tree's static child is a contiguous row-major span.
             // Select the actual source span before any receiving declaration
             // is consulted; neither a referent nor byte window owns this data.
