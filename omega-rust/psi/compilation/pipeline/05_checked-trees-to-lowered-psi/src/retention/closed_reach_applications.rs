@@ -38,6 +38,7 @@ struct ReachApplicationView<'a> {
     const_argument_identities: Vec<String>,
     machine_arguments: Vec<SymbolHandle>,
     machine_contracts: Vec<[u8; 32]>,
+    evidence_bindings: Vec<(SymbolHandle, String)>,
 }
 
 impl ReachApplicationView<'_> {
@@ -121,6 +122,7 @@ fn capture_view<'a>(
             .map(|argument| argument.symbol)
             .collect(),
         machine_contracts: identity.machine_argument_contract_commitments.to_vec(),
+        evidence_bindings: Vec::new(),
     })
 }
 
@@ -171,9 +173,11 @@ fn application_views<'a>(
                 const_argument_identities: Vec::new(),
                 machine_arguments: Vec::new(),
                 machine_contracts: Vec::new(),
+                evidence_bindings: Vec::new(),
             }
         };
         view.instance = application.instance;
+        view.evidence_bindings = closed_evidence_bindings(checked, application)?;
         view.normalized_template_identity = &application.normalized_template_identity;
         view.parameters.extend_from_slice(parameters);
         view.type_argument_identities
@@ -192,6 +196,69 @@ fn application_views<'a>(
         }
     }
     Ok(applications)
+}
+
+/// Close proof-static evidence from the exact original binder ledger. The
+/// historical source application commitment identifies its full tuple; it is
+/// distinct from the independently re-encoded Terminal conformance commitment.
+fn closed_evidence_bindings(
+    checked: &CheckedTrees,
+    application: &typed_trees::typed_trees::MachineSpecialization,
+) -> Result<Vec<(SymbolHandle, String)>, LoweringError> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let template = checked
+        .machine(application.template)
+        .ok_or(LoweringError::Unsupported(
+            "closed reach evidence lost its original machine",
+        ))?;
+    let bounds = &template.conformance_bounds;
+    if bounds.len() != application.conformance_arguments.len()
+        || bounds.len() != application.conformance_applications.len()
+    {
+        return unsupported("closed reach evidence lost its complete substitution");
+    }
+    let bindings = checked
+        .expression_table
+        .static_machine_application_bindings(application.binding_application);
+    bounds
+        .iter()
+        .enumerate()
+        .map(|(position, bound)| {
+            let mut matches = bindings
+                .iter()
+                .filter(|binding| binding.parameter == bound.binder);
+            let (Some(binding), None) = (matches.next(), matches.next()) else {
+                return unsupported("closed reach evidence has no unique original binder operand");
+            };
+            let StaticMachineBindingValue::Conformance(selected) = &binding.value else {
+                return unsupported("closed reach evidence operand differs from its declared kind");
+            };
+            let selected_application = &application.conformance_applications[position];
+            if selected.symbol != application.conformance_arguments[position]
+                || selected.symbol != selected_application.declaration
+            {
+                return unsupported(
+                    "closed reach evidence operand differs from its exact application",
+                );
+            }
+            let declaration = declaration_identity(checked, selected.symbol);
+            let commitment = selected_application
+                .commitment
+                .as_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
+            Ok((
+                bound.binder,
+                format!(
+                    "closed-reach-source-conformance-v1({}:{}|{})",
+                    declaration.len(),
+                    declaration,
+                    commitment
+                ),
+            ))
+        })
+        .collect()
 }
 
 fn parameter_kind(parameter: &checked_trees::data::TypeParameter) -> u8 {
@@ -236,17 +303,7 @@ fn requirement_arguments(
         .enumerate()
         .map(|(position, parameter)| (parameter.symbol, format!("reach-slot({position})")))
         .collect::<Vec<_>>();
-    if let Some(template) = checked.machine(application.template) {
-        binders.extend(
-            template
-                .conformance_bounds
-                .iter()
-                .enumerate()
-                .map(|(position, bound)| {
-                    (bound.binder, format!("reach-evidence-slot({position})"))
-                }),
-        );
-    }
+    binders.extend(application.evidence_bindings.iter().cloned());
     for (original, applied) in &application.parameter_aliases {
         if let Some((symbol, name)) = binders
             .iter()
@@ -338,10 +395,12 @@ pub(crate) fn retain_closed_reach_applications(
             .dependency_parameters
             .span_or_empty(template.dependency.parameters)
         {
-            let position = specialization.position(*dependency)
-                .ok_or(LoweringError::Unsupported(
-                    "closed reach dependency is outside its full telescope",
-                ))?;
+            let position =
+                specialization
+                    .position(*dependency)
+                    .ok_or(LoweringError::Unsupported(
+                        "closed reach dependency is outside its full telescope",
+                    ))?;
             dependencies.push(u32::try_from(position).map_err(|_| {
                 LoweringError::Unsupported("closed reach telescope exceeds portable positions")
             })?);
@@ -350,9 +409,10 @@ pub(crate) fn retain_closed_reach_applications(
         let mut telescope = Vec::with_capacity(parameters.len());
         let mut types = specialization.type_argument_identities.iter();
         let mut constants = specialization.const_argument_identities.iter();
-        let mut machines = specialization.machine_arguments.iter().zip(
-            specialization.machine_contracts.iter(),
-        );
+        let mut machines = specialization
+            .machine_arguments
+            .iter()
+            .zip(specialization.machine_contracts.iter());
         for parameter in parameters {
             telescope.push(match &parameter.kind {
                 TypeParameterKind::Type => ClosedReachParameter::Type {
@@ -514,10 +574,11 @@ pub(crate) fn retain_closed_reach_applications(
                 if !call.static_machine_parameter.is_valid() {
                     continue;
                 }
-                let binder = specialization.position(call.static_machine_parameter)
-                .ok_or(LoweringError::Unsupported(
-                    "closed reach call lost its original binder",
-                ))?;
+                let binder = specialization
+                    .position(call.static_machine_parameter)
+                    .ok_or(LoweringError::Unsupported(
+                        "closed reach call lost its original binder",
+                    ))?;
                 let mut matches = occurrences.iter().filter(|occurrence| {
                     occurrence.source_state == state.symbol
                         && occurrence.statement_index == call.statement_index
@@ -533,18 +594,30 @@ pub(crate) fn retain_closed_reach_applications(
                 if matches.next().is_some() {
                     return unsupported("closed reach call has ambiguous emitted occurrences");
                 }
-                let Some(operation) = occurrence.terminal_site.operation() else { continue; };
-                let emitted = module.machine(owner)
-                    .and_then(|machine| machine.operations().find(|emitted| emitted.id == operation))
-                    .ok_or(LoweringError::Unsupported("closed reach call lost its emitted operation"))?;
-                if emitted.kind.direct_callee().is_none() { continue; }
+                let Some(operation) = occurrence.terminal_site.operation() else {
+                    continue;
+                };
+                let emitted = module
+                    .machine(owner)
+                    .and_then(|machine| {
+                        machine.operations().find(|emitted| emitted.id == operation)
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "closed reach call lost its emitted operation",
+                    ))?;
+                if emitted.kind.direct_callee().is_none() {
+                    continue;
+                }
                 calls.push(ClosedReachCall {
                     operation,
                     binder: binder as u32,
                     application: match &telescope[binder] {
                         ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
                             closed_call_application(
-                                identities, checked, source_machines, call.target_state_symbol,
+                                identities,
+                                checked,
+                                source_machines,
+                                call.target_state_symbol,
                             )?
                         }
                         _ => None,
@@ -633,12 +706,13 @@ pub(crate) fn retain_closed_reach_applications(
             })
             .transpose()?;
         terminal_owner.closed_reach_application = Some(ClosedReachApplication {
-            template_identity: identities
-                .intern(specialization.normalized_template_identity),
+            template_identity: identities.intern(specialization.normalized_template_identity),
             template_commitment: checked_identity.template_contract_commitment.as_bytes(),
             specialization_commitment: checked_identity.commitment.as_bytes(),
             parameter_kinds: specialization.parameters[specialization.invocation_start..]
-                .iter().map(parameter_kind).collect(),
+                .iter()
+                .map(parameter_kind)
+                .collect(),
             telescope,
             capture,
             fixed,

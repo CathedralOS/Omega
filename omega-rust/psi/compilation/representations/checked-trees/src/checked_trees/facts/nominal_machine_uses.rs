@@ -135,6 +135,8 @@ pub struct CheckedNominalMachineUse {
     pub application_index: u32,
     pub site: NominalMachineUseSite,
     pub registration_operation: SymbolHandle,
+    /// Retained exact public requirement owner; grants no provider placement.
+    pub registration_requirement_trait: Option<SymbolHandle>,
     pub static_machine_ordinal: u32,
     pub selected_machine: SymbolHandle,
     pub selected_entry: SymbolHandle,

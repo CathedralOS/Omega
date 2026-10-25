@@ -298,6 +298,7 @@ pub fn validate_nominal_callback_placement_bindings(
             typed,
             selected_providers,
             nominal_use.registration_operation,
+            nominal_use.registration_requirement_trait,
         ) {
             Ok(registration) => registration,
             Err(reason) => {
@@ -495,31 +496,11 @@ enum SelectedCallbackRegistration {
     ForeignLeaf,
 }
 
-/// A symbolic requirement template can own several checked closed tuples.
-/// This query recovers only its exact declaration category, never a selected
-/// implementation, native callback entry or provider placement.
-fn checked_symbolic_requirement_origin(
-    typed: &TypedTrees,
-    operation: symbols::SymbolHandle,
-) -> bool {
-    let mut families = typed
-        .closed_requirement_applications()
-        .filter(|family| family.template == operation);
-    let Some(first) = families.next() else {
-        return false;
-    };
-    if families.any(|family| family.declaring_trait != first.declaring_trait) {
-        return false;
-    }
-    typed
-        .trait_definition_by_symbol(first.declaring_trait)
-        .is_some_and(|declaration| !declaration.is_boundary)
-}
-
 fn selected_callback_registration(
     typed: &TypedTrees,
     selected: &effects::SelectedProviderPlanFacts,
     operation: symbols::SymbolHandle,
+    requirement_trait: Option<symbols::SymbolHandle>,
 ) -> Result<SelectedCallbackRegistration, String> {
     let identity = if let Some((owner, signature)) = typed.trait_machine_signature(operation) {
         if !owner.is_boundary {
@@ -539,7 +520,8 @@ fn selected_callback_registration(
         // A checked generic forwarding edge retains its binder declaration.
         // Its eventual concrete selection owns any external materialization.
         return Ok(SelectedCallbackRegistration::CheckedSource);
-    } else if checked_symbolic_requirement_origin(typed, operation) {
+    } else if requirement_trait.and_then(|owner| typed.trait_definition_by_symbol(owner))
+        .is_some_and(|declaration| !declaration.is_boundary) {
         return Ok(SelectedCallbackRegistration::CheckedSource);
     } else {
         return Err(format!(
