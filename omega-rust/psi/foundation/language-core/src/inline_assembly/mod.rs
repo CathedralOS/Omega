@@ -800,6 +800,25 @@ impl AsmInstructionContract {
             clobbers,
         }
     }
+
+    /// Contract for one modeled memory-ordering fence. The fence kind is
+    /// both the instruction's shape and the ordering it establishes, and
+    /// the serializing fence carries no authority, operands, flag effect
+    /// or clobbers of its own; each fence mnemonic therefore presents the
+    /// kind once instead of restating the coupling per arm.
+    fn memory_fence(kind: AsmFenceKind) -> Self {
+        Self {
+            availability: AsmInstructionAvailability::UserChecked,
+            shape: AsmInstructionShape::MemoryFence(kind),
+            target: AsmTargetApplicability::X86_64,
+            required_authority: AsmAuthorityRequirement::None,
+            operands: NO_OPERANDS,
+            memory_ordering: AsmMemoryOrdering::Fence(kind),
+            interrupt_flag_effect: AsmInterruptFlagEffect::None,
+            flags_data_flow: AsmFlagsDataFlow::None,
+            clobbers: NO_CLOBBERS,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -985,15 +1004,15 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
     use AsmInstructionSerializationKind::{InstructionSynchronizationBarrier, Serialize};
     use AsmInstructionShape::{
         CacheOperation, DerivedExit, DescriptorTableLoad, FlagsRestore, FlagsSnapshot, Halt,
-        InstructionSerialization, InterruptControl, JumpState, MemoryFence, MemoryTransfer,
-        MsrRead, MsrWrite, PortIn, PortOut, RegisterMove, SchedulingHint,
+        InstructionSerialization, InterruptControl, JumpState, MemoryTransfer, MsrRead, MsrWrite,
+        PortIn, PortOut, RegisterMove, SchedulingHint,
     };
     use AsmInterruptControlKind::{Disable, Enable};
     use AsmInterruptFlagEffect::{
         Disable as DisablesInterrupts, EnableAfterNextInstruction, None as NoInterruptChange,
         RestoreFromOperand as RestoreInterruptFlag,
     };
-    use AsmMemoryOrdering::{Fence, None as NoOrdering};
+    use AsmMemoryOrdering::None as NoOrdering;
     use AsmSchedulingHintKind::{
         Nop, SendEvent, SendEventLocal, SpinPause, WaitForEvent, WaitForInterrupt, Yield,
     };
@@ -1141,39 +1160,9 @@ pub fn asm_catalog_entry(mnemonic: &str) -> Option<AsmCatalogEntry> {
             flags_data_flow: NoFlagsDataFlow,
             clobbers: PORT_IN_CLOBBERS,
         }),
-        "lfence" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryFence(Load),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: Fence(Load),
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "sfence" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryFence(Store),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: Fence(Store),
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
-        "mfence" => Contract(AsmInstructionContract {
-            availability: UserChecked,
-            shape: MemoryFence(Full),
-            target: X86_64,
-            required_authority: NoAuthority,
-            operands: NO_OPERANDS,
-            memory_ordering: Fence(Full),
-            interrupt_flag_effect: NoInterruptChange,
-            flags_data_flow: NoFlagsDataFlow,
-            clobbers: NO_CLOBBERS,
-        }),
+        "lfence" => Contract(AsmInstructionContract::memory_fence(Load)),
+        "sfence" => Contract(AsmInstructionContract::memory_fence(Store)),
+        "mfence" => Contract(AsmInstructionContract::memory_fence(Full)),
         "cli" => Contract(AsmInstructionContract {
             availability: UserChecked,
             shape: InterruptControl(Disable),
