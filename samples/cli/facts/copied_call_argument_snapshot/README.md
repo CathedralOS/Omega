@@ -123,6 +123,36 @@ all nine false-input twins rejecting `receive`'s unchanged obligation, and the
 named-source row retaining its behavior. These observations are for macOS ARM64;
 Windows native execution remains owner-deferred and Linux execution unverified.
 
+## Computed byte-view sources
+
+The selected value of a copied first argument remains 7 when the second argument
+replaces its former descriptor home with a view of 9.
+
+The nine `<place>/computed_byte_view/main.omg` witnesses keep that obligation and
+its false-input twin. Each program exercises a source-free helper and a helper
+that toggles a counter exactly once. The field place binds the computed result
+before the call; the parameter place borrows the counter through a helper;
+the call-result place returns a local array view and reads its distinct first
+byte after installation. The sibling view stays at extent 4. Matching pins are
+`tests/omega/{pass,fail}/facts/computed_byte_view_argument_snapshot_through_*`.
+
+Baseline `a59b4a6ce16cdba1316ae78d83a945a2eee46b23` refused all nine programs.
+Stored-call origins now compose checked image/input result relations, and complete
+content-write footprints preserve unrelated descriptor bindings. Reference-free
+storage has an authenticated empty binding inventory; an unknown inventory is
+still unknown. Owned record projections transport descriptor bindings separately
+from pointee contents, retaining the completed copy's epoch. Reads through a
+reference still observe live contents. The additional rejection controls
+`computed_view_content_write_retires_old_scalar_fact` and
+`computed_view_store_retains_local_array_backing` check that this preservation
+grants neither stale scalar facts nor permission to mutate borrowed backing.
+
+Host acceptance is nine native/Terminal exit-0 agreements and nine twins refusing
+`receive`'s 7 obligation, together with both ownership controls. Windows execution
+remains owner-deferred; Linux execution is unverified. Calls whose argument
+replaces a descriptor still need a post-evaluation origin inventory; this repair
+does not claim that remaining implementation frontier is complete.
+
 ## Requirements and evidence
 
 - Establishment: initial 7 and the completed operand capture establish the fact; checked call/arrival contracts carry it, never the later 9 or an unproved goal.
@@ -132,6 +162,6 @@ Windows native execution remains owner-deferred and Linux execution unverified.
 - Checked-to-Terminal Psi and native realization: every positive binds all four hosted targets and declares exit 0. Acceptance requires observed native exit 0 and interpreter exit 0 through `omega run --both`; flags alone establish no other-host execution.
 - Provider/layout/ABI: the descriptor rows pass shared-reference and byte-view records through ordinary field layout and call/return placements, including its call-result place. It does not establish every aggregate ABI or target lane.
 - Instruction/frame/encoding/image realization: host execution exercises ordinary indirect loads, argument staging, frame homes, calls and direct Mach-O emission. No claim is made for unexecuted targets, concurrency, or unrelated instruction paths.
-- Remaining scope: these witnesses establish scalar, shared-reference and shared byte-view operand snapshots. Inline image sources also preserve the untouched sibling through the ordinary stored-call relation; this does not establish every computed or opaque output relation. The rest of both parent outcomes, including general computed/cyclic composition, remains open.
+- Remaining scope: these witnesses establish scalar, shared-reference and shared byte-view operand snapshots. Inline image sources also preserve the untouched sibling through the ordinary stored-call relation; computed image/input results and binding-preserving effects are also covered; this does not establish every computed or opaque output relation. The rest of both parent outcomes, including general computed/cyclic composition, remains open.
 
 Actual baseline diagnostics, producer/source/oracle identities, engine observations and reject reasons belong in the owning qualification/claim records. No unexecuted target is claimed.

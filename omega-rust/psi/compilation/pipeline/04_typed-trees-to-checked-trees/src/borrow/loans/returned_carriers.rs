@@ -43,7 +43,14 @@ pub(crate) fn call_reference_lifetime_sources(
     state_symbol: SymbolHandle,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<ViewReturnFieldSource>> {
-    call_view_return_contract(program, state_symbol, call)?.reference_sources(program)
+    let contract = call_view_return_contract(program, state_symbol, call)?;
+    match contract.source(program) {
+        // No declared input debt is not evidence of image backing. Result
+        // capture must still establish every output leaf from its checked
+        // body (or admitted provider relation); ambiguity remains unknown.
+        validation::borrow_contracts::ViewReturnSource::NotApplicable => Some(Vec::new()),
+        _ => contract.reference_sources(program),
+    }
 }
 
 pub(super) fn completed_sources(

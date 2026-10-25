@@ -276,11 +276,14 @@ fn invocation_effects(
             program, machine, parameters, arguments, context, symbols, inference,
         );
     }
-    if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
-        return None;
-    }
+    // An authenticated empty writable-slot inventory needs no body summary.
+    // This also covers portable target-family heads: their members cannot
+    // replace caller descriptors without a formal that lends such storage.
     if destination_inventory(program, state)?.is_empty() {
         return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    if !callee.body_is_present || !callee.supply_mode.is_checked_body() {
+        return None;
     }
     let relative = state_effects(program, callee, state, symbols, inference)?;
     instantiate(
@@ -954,10 +957,11 @@ fn instantiate(
     if parameters.len() != arguments.len() || !context.divergent.is_empty() {
         return None;
     }
-    // The relation below captures actuals from the incoming inventory. Pure
-    // argument calls preserve it; a write during argument evaluation needs a
-    // post-evaluation inventory, which this query must not fabricate from the
-    // pre-call snapshot. Use ordinary frame inference, not a syntactic call ban.
+    // Reference origins come from this frozen inventory. Content writes may
+    // preserve that inventory: changing a scalar beside a descriptor does not
+    // rebind the descriptor. Use the shared binding-preservation law, while
+    // unknown effects and actual descriptor/case replacements still require a
+    // post-evaluation inventory this query must not invent.
     if arguments
         .iter()
         .any(|argument| super::caller_aliases::expression_has_calls(program, *argument))
@@ -994,7 +998,13 @@ fn instantiate(
                 &origins,
             )?;
         }
-        if !writes.is_empty() {
+        if stored_origins::writes_may_replace_binding(
+            program,
+            &context.stored,
+            &context.aliases,
+            Some(&writes),
+            false,
+        ) {
             return None;
         }
     }
@@ -1373,9 +1383,6 @@ fn argument_origin(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
 ) -> Option<FramePlaceOrigin> {
-    if super::caller_aliases::expression_has_calls(program, actual) {
-        return None;
-    }
     if super::type_reference_is_reference(program, parameter.type_reference) {
         return super::reference_subjects::backing_origin(
             program,

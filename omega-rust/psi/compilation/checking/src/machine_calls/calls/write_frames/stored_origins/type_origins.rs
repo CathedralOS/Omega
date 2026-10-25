@@ -191,6 +191,9 @@ fn walk_declared_origins(
     // contain many scalar cases. Reuse the capability proof (which excludes
     // opaque and unresolved storage) before materializing any slot paths.
     if super::super::type_capabilities::type_is_reference_free_value(program, reference, &[]) {
+        // This complete shape proof establishes an empty binding inventory;
+        // it is not an unresolved symbolic descriptor frontier.
+        origins.symbolic = false;
         return Some(origins);
     }
     let mut walk = TypeWalk::default();

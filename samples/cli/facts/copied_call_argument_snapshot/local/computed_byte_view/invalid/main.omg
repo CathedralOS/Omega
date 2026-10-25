@@ -1,0 +1,43 @@
+// Expected rejection: cannot prove requires contract for call receive
+// The selected value of a copied first argument remains 7 when the second argument replaces its former descriptor home with a view of 9.
+// Place: local.
+data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
+machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 {
+    slot.bytes = replacement;
+    0
+}
+data Counter { called: bool; }
+machine replacement(counter: &mut Counter) -> &[u8]
+ensures result.len == 9
+{
+    counter.called = !counter.called;
+    "123456789"
+}
+machine pure_replacement() -> &[u8] ensures result.len == 9 { "123456789" }
+machine seven(value: u64) -> u64
+requires value == 7
+ensures result == 7
+{ value }
+machine receive<'storage>(selected: View<'storage>, ignored: u64) -> u64
+requires selected.bytes.len == 7
+ensures result == 7
+{
+    let saved: View = selected;
+    seven(saved.bytes.len)
+}
+
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { called: false };
+    let first: &[u8] = "123456789";
+    let mut original: View = View { bytes: first, sibling: "tail" };
+    let observed: u64 = receive(original, overwrite(&mut original, replacement(&mut counter)));
+    let mut pure_original: View = View { bytes: "1234567", sibling: "tail" };
+    let pure_observed: u64 = receive(pure_original, overwrite(&mut pure_original, pure_replacement()));
+    let pure_difference: u64 = pure_observed - 7;
+    let difference: u64 = observed - 7;
+    transition difference == 0 && original.bytes.len == 9 && original.sibling.len == 4 && counter.called && pure_difference == 0 && pure_original.bytes.len == 9 && pure_original.sibling.len == 4 {
+        true -> done() false -> wrong()
+    }
+    state done() {}
+    state wrong() { crash Trap; }
+}

@@ -1,0 +1,1 @@
+mutates `storage[0]` while local borrow `original` is still active

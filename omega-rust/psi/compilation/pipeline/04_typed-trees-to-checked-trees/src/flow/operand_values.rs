@@ -262,15 +262,19 @@ fn reaching_store_values<'capture>(
         value.type_reference,
         &value.projection.remaining,
     )?;
-    // An owned linear record need not be copyable for a stable scalar field
-    // read to retain its reaching store. Judge the observed projection, not
-    // the containing owner's unrelated custody or mutable fields. A live view
-    // still observes invocation storage; tracing its old store would freeze
-    // referent predicates across later operand writes.
+    // An owned value transports its descriptor words, not the pointee's
+    // contents. Selecting a reference-valued field therefore follows Binding
+    // at this capture's cut, even though that reference is not stable contents.
+    // Keep the selected value typed as a live view: subsequent reads through
+    // it still observe invocation storage and cannot freeze pointee predicates.
+    // Stable scalar fields likewise follow their exact reaching contents;
+    // the containing owner's unrelated custody does not decide their identity.
+    let descriptor = super::operand_contexts::operand_binds_live_view(program, observed_type);
     if (observation.is_none()
         && super::operand_contexts::operand_binds_live_view(program, value.type_reference))
         || operand.state_symbol != state.state_symbol
-        || !super::operand_contexts::operand_binds_stable_copy(program, observed_type)
+        || (!descriptor
+            && !super::operand_contexts::operand_binds_stable_copy(program, observed_type))
     {
         return None;
     }
@@ -288,7 +292,11 @@ fn reaching_store_values<'capture>(
         &flow.control,
         operand.storage_snapshot,
         source,
-        super::stored_values::StoredObservation::Contents,
+        if descriptor {
+            super::stored_values::StoredObservation::Binding
+        } else {
+            super::stored_values::StoredObservation::Contents
+        },
     )?
     .captures()?;
     let mut values = Vec::new();
@@ -307,7 +315,11 @@ fn reaching_store_values<'capture>(
                 &selected.projection,
             )
             .is_some_and(|projected| {
-                super::operand_contexts::operand_binds_stable_copy(program, projected)
+                let selected_descriptor =
+                    super::operand_contexts::operand_binds_live_view(program, projected);
+                selected_descriptor == descriptor
+                    && (selected_descriptor
+                        || super::operand_contexts::operand_binds_stable_copy(program, projected))
             })
         {
             return None;

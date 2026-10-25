@@ -1,7 +1,7 @@
 //! Parameter-relative alias identity and reborrow queries.
 //!
 //! This leaf owns the narrow origin carrier shared by transparent-result
-//! analysis, plus syntax-only binding lookup and mutable-reborrow detection. It
+//! analysis, plus typed binding lookup and mutable-reference rebinding detection. It
 //! does not infer a call result or resolve a frame.
 
 use super::place_paths::{FramePlaceOrigin, frame_place_path, split_place_root};
@@ -14,9 +14,9 @@ use typed_trees::signature::StateParameter;
 #[derive(Debug, Clone)]
 pub(super) struct ParameterRelativeFrameOrigin {
     pub(super) place: FramePlaceOrigin,
-    /// Zero means a proven caller-isolated local with no caller parameter.
-    /// Such origins may compose inside a helper but cannot be exported as its
-    /// returned-place relation.
+    /// Zero means no caller parameter: either proven image storage or a
+    /// caller-isolated local. The spatial source distinguishes them; only the
+    /// image route can leave a helper without a formal input boundary.
     pub(super) parameter_symbol: SymbolHandle,
 }
 
@@ -63,9 +63,26 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
                             && (root_symbol == Some(parameter.symbol) && is_self_receiver(root)
                                 || root == parameter.name.as_str())
                     }) || aliases.iter().any(|(name, symbol, _)| {
-                        root_symbol.is_some_and(|root| {
+                        let selected = root_symbol.is_some_and(|root| {
                             root.is_valid() && symbol.is_valid() && root == *symbol
-                        }) || root == name
+                        }) || root == name;
+                        if !selected {
+                            return false;
+                        }
+                        // Carrier-place rows also name ordinary owned locals.
+                        // Borrowing their storage is not rebinding a reference
+                        // descriptor. Only an actual reference binding needs
+                        // this fence; unresolved declarations stay opaque.
+                        symbol
+                            .is_valid()
+                            .then(|| {
+                                crate::find_state(program, program.symbols.get(*symbol).parent)
+                            })
+                            .flatten()
+                            .and_then(|(_, state)| program.state_local_declaration(state, *symbol))
+                            .is_none_or(|(_, local)| {
+                                super::type_reference_is_reference(program, local.type_reference)
+                            })
                     })
                 });
             reborrows_binding || visit(inner.target)
