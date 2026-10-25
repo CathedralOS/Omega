@@ -50,8 +50,26 @@ The local reject diagnoses `linear value sent reaches scope exit without being
 consumed or transferred`. Versioned raw records are under the owning claim's
 `build/opaque-copy/` run ledger. This is a demonstrated repair, not closure.
 
-Remaining acceptance includes the full nine-place fixed runtime row and pinned
-fixtures, independent exact-candidate review, matching-host observations beyond
-Windows, the general nested-machine source/product migration prerequisite, and
-normal main landing. The parent additionally retains qualified and view-backed
-exchange, composition drift, outbound retention and remaining host ABI lanes.
+At `153b9a000b60`, the public CLI observes native 0 / Terminal 0 at all nine
+places and the nine unconsumed-debt controls reject. Independent review also
+replays local, field and true nested transports, plus an added duplicate-consume
+control. The corpus's additional retained-target audit exposed a separate
+linear-result refusal at `normalized_foreign.rs:71`. Its `9337a2b70540` repair
+retains the entire checked result, including claim IDs and paths, under exact
+source/target equality while evaluating physical geometry independently. All
+nine linear corpus positives then observe 0/0, and the checked gate observes
+18 copy/linear positives plus 24 intended rejects. That corpus run remains
+nonaccepted overall because a copy-row match join timed out natively.
+
+Each linear fixture also requests a retained-target negative control through
+`expected_native_linear_result_claims.txt`: an unmodified source-produced audit
+must pass, while clearing or substituting its target-only root claim must fail
+source custody. The control clones target proposals and retains the exact
+validated source; it cannot mutate the admitted artifact. Execution of this
+new control and final exact-candidate review remain pending.
+
+Remaining acceptance includes pinned corpus records, matching-host observations
+beyond Windows, the general nested-machine source/product migration prerequisite,
+and normal main landing. The parent additionally retains qualified and
+view-backed exchange, composition drift, outbound retention and remaining host
+ABI lanes.

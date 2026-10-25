@@ -90,10 +90,18 @@ also verifies nine independent native/Terminal executions and four existing
 linear, borrowed, qualified-result and selection controls. These observations
 retain their actual source and producer identities in `build/opaque-copy/`.
 
-The authored row now uses canonical nested `machine` declarations, explicit
-arguments and explicit nested crash/reach contracts. Its current first failure
-is the parser's refusal of a nested declaration (`expected ;, found identifier`),
-also reproduced on the fresh main producer. That prerequisite belongs to
-NESTED-MACHINE-UNIFICATION. Neither the positive nor its reject currently reaches
-the copy obligation in that canonical form. The legacy-form observations do not
-close this row, and no canonical execution or other-host result is claimed.
+The canonical row uses nested `machine` declarations, explicit arguments and
+explicit nested crash/reach contracts. The parser refusal recorded on the old
+baseline was repaired by the practically integrated lexical-machine changes.
+At `86942a5d0924`, all nine canonical positives observe native 0 / Terminal 0,
+the nine twins reject their own transfer obligation, and the matched corpus
+observes all nine independent products with its component-count oracle. The
+copy/affine ownership change also received scoped independent review. Later
+`fbc7d0be2f79`, `153b9a000b60` and `9337a2b70540` CLI runs retain all nineteen
+positive/twin/affine-regression outcomes. The last corpus run at `9337a2b70540`
+observes eight copy positives at 0/0 and a native-process timeout for match
+join, with Terminal 0; that run is retained as nonaccepted pending replay.
+
+These are local Windows observations. The general NESTED-MACHINE-UNIFICATION
+source/product migration remains unfinished, the candidate is not on main,
+goldens remain unrecorded, and other-host execution is unverified.

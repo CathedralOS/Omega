@@ -36,6 +36,7 @@ pub(super) fn inspect(
             products.len()
         ));
     }
+    inspect_linear_result_claims(report, fixture)?;
     for (ordinal, product) in products.iter().enumerate() {
         if let Some(capture) = capture {
             capture.observe(
@@ -129,6 +130,89 @@ pub(super) fn inspect(
             .map_err(|error| error.to_string())?;
         receipt.revalidate()?;
         std::fs::remove_dir_all(directory).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+/// Source negatives stop before the retained target trust boundary. This
+/// oracle corrupts only the target's proposed root receipt, keeping the
+/// accepted abstract source, boundary binding and physical layout unchanged.
+fn inspect_linear_result_claims(
+    report: &compilation_products::CompileReport,
+    fixture: &Path,
+) -> Result<(), String> {
+    let oracle = fixture.join("expected_native_linear_result_claims.txt");
+    let expected = match std::fs::read_to_string(&oracle) {
+        Ok(text) => text
+            .trim()
+            .parse::<usize>()
+            .map_err(|error| error.to_string())?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(format!("read linear result claim oracle: {error}")),
+    };
+    if expected != 1 {
+        return Err("linear opaque result control requires one actual root claim".into());
+    }
+    let artifact = report
+        .retained_native_artifact()
+        .ok_or("linear result claim control requires retained native input")?;
+    image_emission::verify_retained_target_operations(artifact.object())
+        .map_err(|error| format!("unmodified linear target audit failed: {error}"))?;
+    for clear in [true, false] {
+        let mut changed = 0;
+        let outcome =
+            artifact
+                .object()
+                .verify_test_target_operation_mutation(&mut |plan| {
+                    for function in &mut plan.functions {
+                        for block in &mut function.graph.blocks {
+                            for operation in &mut block.operations {
+                                let target_operations::TargetUnitOperation::NormalizedForeignCall {
+                                    result:
+                                        target_operations::TargetBoundaryResult::Structural(home),
+                                    ..
+                                } = operation
+                                else {
+                                    continue;
+                                };
+                                let target_operations::TargetStructuralHomeOrigin::OperationResult {
+                            result, ..
+                        } = &mut home.origin else { continue };
+                                if changed != 0
+                                    || result.multiplicity
+                                        != terminal_psi::StructuralMultiplicity::Linear
+                                    || result.claims.len() != expected
+                                    || !result.claims[0].path.is_empty()
+                                {
+                                    continue;
+                                }
+                                changed += 1;
+                                if clear {
+                                    result.claims.clear();
+                                } else {
+                                    let original = result.claims[0].claim.get();
+                                    let replacement = if original == 1 { 2 } else { 1 };
+                                    result.claims[0].claim =
+                                        semantic_vocabulary::ClaimId::new(replacement)
+                                            .expect("nonzero distinct test claim ID");
+                                }
+                            }
+                        }
+                    }
+                });
+        if changed != 1 {
+            return Err(format!(
+                "linear target control mutated {changed} actual result(s), expected 1"
+            ));
+        }
+        match outcome {
+            Err(error) if error.to_string().contains("SourceCustodyMismatch") => {}
+            result => {
+                return Err(format!(
+                    "changed linear result claim was not refused by source custody: {result:?}"
+                ));
+            }
+        }
     }
     Ok(())
 }
