@@ -89,7 +89,7 @@ pub fn validate_dynamic_reference_regions<'types>(
     Ok(())
 }
 
-fn validate_input_region<'types>(
+pub(super) fn validate_input_region<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     access: StructuralAccess,
