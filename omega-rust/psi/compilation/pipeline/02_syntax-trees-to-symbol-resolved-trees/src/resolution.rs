@@ -126,12 +126,12 @@ fn resolve_deferred_from(
             provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
             provisional.equation_sources = Some(Default::default());
             if let Some(base) = &base {
-                provisional.seed_resolved_base(base.as_ref().clone())?;
+                provisional.seed_resolved_base(Arc::clone(base))?;
             }
             index_declarations(&mut provisional, &syntax)?;
             // Settlement also demands receipt helpers for normalized constants.
             // Their links belong to this batch just like header applications.
-            finish_resolution(&mut provisional, &syntax, &[])?;
+            finish_resolution(&mut provisional, &syntax, &[], &[])?;
             let selection = provisional.take_constant_selection()?;
             let links = provisional.equation_sources.take().unwrap_or_default();
             let before = syntax.root_item_handles().len();
@@ -148,7 +148,7 @@ fn resolve_deferred_from(
         lowerer.equation_sources = Some(Default::default());
     }
     if let Some(base) = base {
-        lowerer.seed_resolved_base(Arc::unwrap_or_clone(base))?;
+        lowerer.seed_resolved_base(base)?;
     }
     lowerer.structural_type_equations_pending = false;
     index_deferred(syntax, lowerer, sources, bindings)
@@ -201,7 +201,7 @@ fn index_deferred(
     bindings: Vec<symbols::SourceScopedTopLevelBinding>,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
     index_declarations(&mut lowerer, &syntax)?;
-    finish_resolution(&mut lowerer, &syntax, &[])?;
+    finish_resolution(&mut lowerer, &syntax, &[], &[])?;
     let pending = std::mem::take(&mut lowerer.pending_machine_bodies);
     let pending_type_inputs =
         type_inputs::bind(&lowerer.symbol_resolved_trees, &lowerer.pending_type_inputs)?;
@@ -257,7 +257,7 @@ pub fn resolve_const_argument_selection(
         &syntax,
         crate::lowering::state::LexicalInputDemand::TypeOperands,
     )?;
-    finish_resolution(&mut lowerer, &syntax, &[])?;
+    finish_resolution(&mut lowerer, &syntax, &[], &[])?;
     Ok(lowerer.into_trees())
 }
 
@@ -377,20 +377,17 @@ fn begin_complete(
     request: ResolutionRequest,
     base: Option<SymbolResolvedTrees>,
 ) -> Result<(SyntaxTrees, Lowerer), Vec<Diagnostic>> {
+    let base = base.map(Arc::new);
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();
-    let (mut syntax, mut lowerer) = begin(
-        request,
-        ConstResolutionMode::Complete,
-        base.clone().map(Arc::new),
-    )?;
-    if preparation::machine_equations::required(&syntax, base.as_ref()) {
+    let (mut syntax, mut lowerer) = begin(request, ConstResolutionMode::Complete, base.clone())?;
+    if preparation::machine_equations::required(&syntax, base.as_deref()) {
         let mut provisional = Lowerer::new(sources, bindings);
         provisional.constant_selection = lowerer.constant_selection.take();
         provisional.const_resolution_mode = ConstResolutionMode::ArgumentSelection;
         provisional.equation_sources = Some(Default::default());
         if let Some(base) = &base {
-            provisional.seed_resolved_base(base.clone())?;
+            provisional.seed_resolved_base(Arc::clone(base))?;
         }
         let (trees, selection, links) = drive_recorded(provisional, &syntax)?;
         preparation::machine_equations::complete(
@@ -467,18 +464,29 @@ fn drive_recorded(
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
     crate::symbols::assign(&mut lowerer)?;
-    finish_resolution(&mut lowerer, syntax, &[])?;
+    finish_resolution(&mut lowerer, syntax, &[], &[])?;
     let links = lowerer.equation_sources.take();
     Ok((lowerer.into_trees(), constant_selection, links))
 }
 
+/// One normalization route for new declarations and completed implementations.
+/// Source activation can shrink roots while retaining backing coordinates;
+/// rebuilding those tables would move the typed continuation's ledger frontier.
+/// Exact completed owners append their newly available bodies beside that prefix.
 fn finish_resolution(
     lowerer: &mut Lowerer,
     syntax: &SyntaxTrees,
     inputs: &[selection::body_calls::CallSelectionInput],
+    completed_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
+    let predecessor = lowerer.seed.as_ref().map(|seed| Arc::clone(&seed.source));
     settle_resolution(lowerer, syntax)?;
-    lowerer.symbol_resolved_trees.rebuild_tables();
+    match predecessor {
+        Some(predecessor) => lowerer
+            .symbol_resolved_trees
+            .append_completed_body_tables(&predecessor, completed_machines),
+        None => lowerer.symbol_resolved_trees.rebuild_tables(),
+    }
     finish_resolved_tables(lowerer, inputs)
 }
 
@@ -549,7 +557,7 @@ pub fn resolve_call_result_selection(
         &syntax,
         crate::lowering::state::LexicalInputDemand::CallResults,
     )?;
-    finish_resolution(&mut lowerer, &syntax, &inputs)?;
+    finish_resolution(&mut lowerer, &syntax, &inputs, &[])?;
     Ok(lowerer.into_trees())
 }
 

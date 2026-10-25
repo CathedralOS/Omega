@@ -201,10 +201,11 @@ pub(super) fn select_retained_source(
     }
     candidates.sort_unstable_by_key(|(count, _, _)| std::cmp::Reverse(*count));
     for (count, source, sources) in candidates {
-        let typing = source
-            .typing
-            .clone()
-            .activate_sources(Arc::clone(&sources), context.bindings.clone())?;
+        let typing = source.typing.clone().activate_sources(
+            Arc::clone(&sources),
+            Arc::clone(&request.sources),
+            context.bindings.clone(),
+        )?;
         // Removal cannot leave a retained resolved use naming an absent source.
         // A changed closure takes ordinary resolution, never a source rejection.
         let references = typed_trees::references::collect_program_references(typing.typed());

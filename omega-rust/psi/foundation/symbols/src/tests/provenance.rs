@@ -391,6 +391,26 @@ fn source_activation_retains_authored_imports_without_borrowing_a_foreign_namesp
         .expect("same source custody, no loader bindings")
         .finish();
     assert_eq!(lookup(&activated), Some(handles[0]));
+    let certified = activated
+        .clone()
+        .begin_source_activation(
+            Arc::new(sources.clone()),
+            vec![crate::SourceScopedTopLevelBinding::module_import(
+                declarations[1].source_id,
+                declarations[0].source_id,
+                "left::Helper",
+                0,
+            )],
+        )
+        .expect("current loader custody supersedes the same authored import")
+        .finish();
+    assert_eq!(lookup(&certified), Some(handles[0]));
+    assert_eq!(
+        certified
+            .source_module_import_paths(declarations[1].source_id)
+            .count(),
+        1
+    );
     let mut selected = sources;
     selected.retain_selected_sources(|file| file.source_id != declarations[0].source_id);
     let activated = activated

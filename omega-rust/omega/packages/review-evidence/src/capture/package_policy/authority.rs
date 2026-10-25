@@ -15,7 +15,8 @@ pub(super) fn registrations(
     let mut services = Vec::new();
     for registration in &compilation.custody.build().config.service_audits {
         let mut selected = None;
-        for definition in compilation.facts.service_reaches.services.definitions() {
+        for definition in current_boundary_services(compilation) {
+            let definition = definition?;
             let identity = compilation
                 .typed
                 .normalized_hermetic_symbol_identity(definition.symbol)
@@ -54,7 +55,8 @@ pub(super) fn project(
 > {
     let mut dangerous = Vec::new();
     let mut slack = Vec::new();
-    for definition in compilation.facts.service_reaches.services.definitions() {
+    for definition in current_boundary_services(compilation) {
+        let definition = definition?;
         let Some(class) = dangerous_authority_class(compilation, definition)? else {
             continue;
         };
@@ -91,6 +93,34 @@ pub(super) fn project(
     slack.sort();
     slack.dedup();
     Ok((dangerous, slack))
+}
+
+/// Service IDs retain historical backing across source activations. Current
+/// boundary declarations, not interner capacity, define this review's surface.
+/// A missing row for a current declaration is still lost checking custody.
+fn current_boundary_services<'program>(
+    compilation: &'program PackageReviewInput<'_>,
+) -> impl Iterator<Item = Result<&'program language_semantics::ServiceReachDefinition, Vec<Diagnostic>>>
+{
+    let services = &compilation.facts.service_reaches.services;
+    compilation
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .map(|definition| {
+            services
+                .id_for_symbol(definition.symbol)
+                .and_then(|identity| services.definition(identity))
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "current boundary trait `{}` has no checked service identity",
+                        compilation
+                            .typed
+                            .symbols
+                            .display_path(definition.symbol, "::"),
+                    ))]
+                })
+        })
 }
 
 fn exposes(callable: &PackagePolicyCallable, service: &PackageReviewNominalIdentity) -> bool {

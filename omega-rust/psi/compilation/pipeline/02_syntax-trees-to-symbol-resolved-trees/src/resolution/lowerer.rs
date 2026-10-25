@@ -244,8 +244,7 @@ impl RootWatermarks {
 /// What a seeded lowerer keeps from its base until finishing consumes it.
 pub(crate) struct BaseSeed {
     pub(crate) roots: RootWatermarks,
-    pub(crate) service_reaches: language_semantics::ServiceReachTable,
-    pub(crate) service_reach_rows: language_semantics::ServiceReachRowTable,
+    pub(crate) source: Arc<SymbolResolvedTrees>,
 }
 
 impl Lowerer {
@@ -310,7 +309,7 @@ impl Lowerer {
     /// sidecars a later stratum resolves against.
     pub(crate) fn seed_resolved_base(
         &mut self,
-        base: SymbolResolvedTrees,
+        base: Arc<SymbolResolvedTrees>,
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(sources) = &self.sources else {
             return Err(vec![Diagnostic::error(
@@ -329,8 +328,7 @@ impl Lowerer {
         }
         self.seed = Some(BaseSeed {
             roots: RootWatermarks::capture(&base),
-            service_reaches: base.service_reaches.clone(),
-            service_reach_rows: base.service_reach_rows.clone(),
+            source: Arc::clone(&base),
         });
         self.pending_const_declarations = base
             .const_declarations
@@ -388,7 +386,7 @@ impl Lowerer {
         }
         self.bound_generic_application_origins =
             base.tables.types.generic_application_origins.len();
-        self.symbol_resolved_trees = base;
+        self.symbol_resolved_trees = base.as_ref().clone();
         Ok(())
     }
 

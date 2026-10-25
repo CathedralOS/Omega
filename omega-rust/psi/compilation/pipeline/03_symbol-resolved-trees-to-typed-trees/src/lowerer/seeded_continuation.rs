@@ -61,6 +61,7 @@ impl SeededTypingBase {
     pub fn activate_sources(
         mut self,
         sources: Arc<source::SourceMap>,
+        current_sources: Arc<source::SourceMap>,
         bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut resolved = self.resolved_base_for_extension()?;
@@ -112,7 +113,13 @@ impl SeededTypingBase {
         let symbols = typed
             .symbols
             .clone()
-            .begin_source_activation(sources, bindings)
+            .begin_source_activation(sources, bindings.clone())
+            .map_err(|reason| vec![Diagnostic::error(reason)])?
+            .finish()
+            // Fix the old cohort first. Current files admitted for fresh
+            // parsing lose historical module registrations, but their removed
+            // declarations must not become lookup candidates again.
+            .begin_source_activation(current_sources, bindings)
             .map_err(|reason| vec![Diagnostic::error(reason)])?
             .finish();
         resolved.symbols = symbols.clone();

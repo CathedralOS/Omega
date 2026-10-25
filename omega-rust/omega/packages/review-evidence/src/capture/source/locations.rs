@@ -12,6 +12,16 @@ pub(crate) fn canonical_source_span_location(
     span: source::SourceSpan,
     role: PackageReviewSourceLocationRole,
 ) -> Result<PackageReviewSourceLocation, Vec<Diagnostic>> {
+    if compilation
+        .typed
+        .symbols
+        .source_map()
+        .is_some_and(|sources| !sources.source_is_selected(span.source_id))
+    {
+        return Err(vec![Diagnostic::error(
+            "reviewed declaration location does not belong to the current source activation",
+        )]);
+    }
     let source_file = compilation.typed.symbols.source_file(span).ok_or_else(|| {
         vec![Diagnostic::error(
             "reviewed declaration source span has no retained source file",

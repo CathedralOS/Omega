@@ -263,7 +263,7 @@ impl DeferredResolvedFrontier {
                 provisional.structural_type_equations_pending = true;
                 append_generated_declarations(&mut provisional, &self.syntax, syntax_frontier)?;
                 lower_selected_bodies(&mut provisional, &self.syntax, &pending, selected)?;
-                super::finish_resolution(&mut provisional, &self.syntax, &[])?;
+                super::finish_resolution(&mut provisional, &self.syntax, &[], selected)?;
                 let selection = provisional.take_constant_selection()?;
                 let links = provisional.equation_sources.take().unwrap_or_default();
                 let before = self.syntax.root_item_handles().len();
@@ -284,11 +284,7 @@ impl DeferredResolvedFrontier {
         let mut lowerer = self.seed_body_lowerer()?;
         append_generated_declarations(&mut lowerer, &self.syntax, syntax_frontier)?;
         lower_selected_bodies(&mut lowerer, &self.syntax, &pending, selected)?;
-        super::settle_resolution(&mut lowerer, &self.syntax)?;
-        lowerer
-            .symbol_resolved_trees
-            .append_completed_body_tables(&predecessor, selected);
-        super::finish_resolved_tables(&mut lowerer, &[])?;
+        super::finish_resolution(&mut lowerer, &self.syntax, &[], selected)?;
         let hoist_counter = lowerer.hoist_counter;
         self.supplied_operand_owners = std::mem::take(&mut lowerer.supplied_operand_owners);
         self.conformance_inputs = std::mem::take(&mut lowerer.conformance_inputs);
@@ -317,7 +313,7 @@ impl DeferredResolvedFrontier {
 
     fn seed_body_lowerer(&self) -> Result<Lowerer, Vec<Diagnostic>> {
         let mut lowerer = Lowerer::new(self.sources.clone(), self.bindings.clone());
-        lowerer.seed_resolved_base((*self.trees).clone())?;
+        lowerer.seed_resolved_base(Arc::clone(&self.trees))?;
         lowerer.supplied_operand_owners = self.supplied_operand_owners.clone();
         lowerer.conformance_inputs = self.conformance_inputs.clone();
         lowerer.constant_selection = Some(self.selection.clone());

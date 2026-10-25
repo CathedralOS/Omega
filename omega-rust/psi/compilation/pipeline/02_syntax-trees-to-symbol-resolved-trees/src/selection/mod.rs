@@ -133,8 +133,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
             &mut lowerer.symbol_resolved_trees,
             &pending_machine_service_reaches,
             &pending_signature_service_reaches,
-            seed.service_reaches,
-            seed.service_reach_rows,
+            seed.source.service_reaches.clone(),
+            seed.source.service_reach_rows.clone(),
         ),
     }
     .map_err(|diagnostic| vec![diagnostic])?;

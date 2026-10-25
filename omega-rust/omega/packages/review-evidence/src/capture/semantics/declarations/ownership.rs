@@ -36,6 +36,12 @@ pub(crate) fn nominal_owner_from_symbols(
     symbol: SymbolHandle,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
+    if !symbols.symbol_source_is_selected(symbol) {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed declaration `{}` does not belong to the current source activation",
+            symbols.display_path(symbol, "::"),
+        ))]);
+    }
     if let Some(package) = symbols.symbol_package_identity(symbol) {
         return Ok(PackageReviewNominalOwner::Package(package));
     }

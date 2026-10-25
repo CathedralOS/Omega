@@ -335,6 +335,9 @@ impl<'base> ConstantSelection<'base> {
             name.source_span(),
         )?;
         let retained = self.retained.as_deref()?;
+        if !retained.symbols.symbols().nodes().is_valid(selected) {
+            return None;
+        }
         (retained.symbols.get(selected).kind == kind).then_some(selected)
     }
 
@@ -367,6 +370,9 @@ impl<'base> ConstantSelection<'base> {
             carrier.source_span(),
         )?;
         let retained = self.retained.as_deref()?;
+        if !retained.symbols.symbols().nodes().is_valid(carrier) {
+            return None;
+        }
         if !matches!(
             retained.symbols.get(carrier).kind,
             SymbolKind::BuiltinType | SymbolKind::Data

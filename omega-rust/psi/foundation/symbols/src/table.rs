@@ -1150,7 +1150,7 @@ impl SymbolTable {
 
     /// Current declaration membership; source-free vocabulary remains present.
     /// Logical modules are present while any selected source contributes to them.
-    fn symbol_source_is_selected(&self, symbol: SymbolHandle) -> bool {
+    pub fn symbol_source_is_selected(&self, symbol: SymbolHandle) -> bool {
         let Some(sources) = self.sources.as_deref() else {
             return true;
         };
