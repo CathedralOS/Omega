@@ -72,6 +72,7 @@ jobs:
         run: |
           cargo test --locked -p terminal-interpreter scalar_aggregate_tests
           cargo test --locked -p runtime-abi integer_division
+          cargo test --locked -p terminal-runtime scalar_record
       - name: Execute foreign scalar-record results with rejection controls
         if: inputs.foreign_records
         run: python tools/ci/compiler_foreign_records.py
