@@ -68,17 +68,14 @@ pub(super) fn invoked_callable(
     {
         return None;
     }
-    let TransitionTargetNode::Named {
-        path,
-        static_machine_parameter,
-        ..
-    } = program.statement_table.transition_target(transition.target)
+    let TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(transition.target)
     else {
         return None;
     };
-    if static_machine_parameter.is_valid() {
-        return None;
-    }
+    // The static binder records source reach custody after specialization.
+    // Invocation classification follows the resolved target, not that retained
+    // provenance marker. Unresolved binders still have no executable call plan.
     validation::terminal_callable_target(program, machine, path.symbol).map(|(target, _)| target)
 }
 

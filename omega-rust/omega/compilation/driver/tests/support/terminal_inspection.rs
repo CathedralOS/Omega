@@ -13,6 +13,8 @@ use crate::fixture_package_inputs::{
     fixture_build_snapshot, reviewed_repository_fixture_package_inputs,
 };
 
+#[path = "closed_reach_controls.rs"]
+mod closed_reach_controls;
 #[path = "terminal_host_provisions.rs"]
 mod host_provisions;
 #[path = "indexed_family_controls.rs"]
@@ -28,6 +30,7 @@ enum InspectionControls {
     BoundaryCallables,
     IndexedFamily,
     MathematicalActuals,
+    ClosedReach,
 }
 
 #[derive(Clone, Copy)]
@@ -82,6 +85,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::MethodApplications),
             ),
+            [machine, "closed-reach-controls"] => {
+                (*machine, false, Some(InspectionControls::ClosedReach))
+            }
             [machine, "boundary-conformance-controls"] => {
                 (*machine, false, Some(InspectionControls::BoundaryCallables))
             }
@@ -95,7 +101,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `boundary-conformance-controls`, `indexed-family-controls` or `mathematical-actuals`"
                 ));
             }
         };
@@ -203,6 +209,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::BoundaryCallables => boundary_conformance_controls(&decoded)?,
                 InspectionControls::IndexedFamily | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")

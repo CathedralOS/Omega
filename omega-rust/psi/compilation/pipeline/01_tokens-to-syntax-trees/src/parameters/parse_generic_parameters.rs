@@ -1,7 +1,7 @@
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use crate::type_syntax::properties::parse_property_brackets;
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{
@@ -48,17 +48,14 @@ pub(crate) enum GenericParameterSyntax {
 fn close_generic_parameter_list<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     lifetime_parameters: Vec<Identifier>,
-    type_parameter_start: Handle<TypeParameter>,
-    type_parameter_count: u32,
+    type_parameters: crate::handle_spans::HandleSpanBuilder<TypeParameter>,
     conformance_bounds: Vec<syntax_trees::item::GenericConformanceBound>,
 ) -> ParseResult<'tokens, 'source, ParsedGenericParameters> {
     let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-    let type_parameters =
-        HandleSpan::from_parts_or_empty(type_parameter_start, type_parameter_count);
     Ok((
         ParsedGenericParameters {
             lifetime_parameters,
-            type_parameters,
+            type_parameters: type_parameters.finish(),
             conformance_bounds,
         },
         input,
@@ -92,8 +89,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
-    let mut type_parameter_start = Handle::invalid();
-    let mut type_parameter_count = 0u32;
+    let mut type_parameters = crate::handle_spans::HandleSpanBuilder::new();
     let mut lifetime_parameters = Vec::new();
     let mut conformance_bounds = Vec::new();
     let mut declared_names = Vec::<String>::new();
@@ -141,8 +137,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             return close_generic_parameter_list(
                 input,
                 lifetime_parameters,
-                type_parameter_start,
-                type_parameter_count,
+                type_parameters,
                 conformance_bounds,
             );
         }
@@ -227,12 +222,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                     kind: TypeParameterKind::Implementation,
                     bounds: DataProperties::default(),
                 });
-                if type_parameter_count == 0 {
-                    type_parameter_start = handle;
-                }
-                type_parameter_count = type_parameter_count
-                    .checked_add(1)
-                    .ok_or_else(|| input.error_here("trait parameter count exceeds u32"))?;
+                type_parameters.push(handle);
             }
             input = rest;
 
@@ -243,8 +233,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             return close_generic_parameter_list(
                 input,
                 lifetime_parameters,
-                type_parameter_start,
-                type_parameter_count,
+                type_parameters,
                 conformance_bounds,
             );
         }
@@ -330,12 +319,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         let handle = syntax_trees
             .items
             .append_type_parameter(TypeParameter { name, kind, bounds });
-        if type_parameter_count == 0 {
-            type_parameter_start = handle;
-        }
-        type_parameter_count = type_parameter_count
-            .checked_add(1)
-            .expect("data type parameter span count overflow");
+        type_parameters.push(handle);
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -345,8 +329,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         return close_generic_parameter_list(
             input,
             lifetime_parameters,
-            type_parameter_start,
-            type_parameter_count,
+            type_parameters,
             conformance_bounds,
         );
     }

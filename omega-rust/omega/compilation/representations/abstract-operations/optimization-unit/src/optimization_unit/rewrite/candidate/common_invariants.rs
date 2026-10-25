@@ -35,21 +35,12 @@ pub(super) fn validate(
     if provenance.is_empty() || provenance.iter().any(|row| row.sources.is_empty()) {
         return Err(PsiRewriteCandidateError::EmptyProvenanceSource);
     }
-    if provenance.windows(2).any(|pair| {
-        let left = (
-            pair[0].input,
-            pair[0].disposition.canonical_tag(),
-            pair[0].disposition.site(),
-        );
-        let right = (
-            pair[1].input,
-            pair[1].disposition.canonical_tag(),
-            pair[1].disposition.site(),
-        );
-        left >= right
-    }) || provenance
-        .iter()
-        .any(|row| row.sources.iter().copied().collect::<BTreeSet<_>>().len() != row.sources.len())
+    if provenance
+        .windows(2)
+        .any(|pair| pair[0].canonical_sort_key() >= pair[1].canonical_sort_key())
+        || provenance.iter().any(|row| {
+            row.sources.iter().copied().collect::<BTreeSet<_>>().len() != row.sources.len()
+        })
     {
         return Err(PsiRewriteCandidateError::NonCanonicalProvenance);
     }

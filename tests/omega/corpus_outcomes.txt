@@ -13398,6 +13398,85 @@ fail/facts/state_transition_ranking_bound_through_target_body_rejected rejected 
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 	exact arithmetic in machine `probe` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `ranked_loop(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/static_callback_reach_recursive_component rejected 2258ms expected @3353916f9430+wt
+	terminating machine traverse: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `traverse$specialized$1a9069ef08e7f8c1$0` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `traverse` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_recursive_terminal rejected 1788ms expected @3353916f9430+wt
+	machine call cycle: `traverse` -- an abstract call has no unconditional public termination contract; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_recursive_terminal_rank rejected 1381ms expected @3353916f9430+wt
+	terminating machine traverse: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	terminating machine traverse$specialized$1a9069ef08e7f8c1$0: cannot prove strict rank decrease on a recurrent arrival: the transition from `traverse$specialized$1a9069ef08e7f8c1$0` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `traverse$specialized$1a9069ef08e7f8c1$0` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+	machine call cycle: `traverse` -- a member lacks a source-complete ranking witness; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
+fail/facts/static_callback_reach_selected_schema rejected 1695ms expected @3353916f9430+wt
+	machine `TraversalCode::traverse$specialized$e7faf60c2b169585$0` state `traverse` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
+	machine `ordinary$specialized$3051a3ac972a47e8$0` state `entry` value call to `quiet` violates required fact `value <= 37 && Count <= 37`: the instantiated fact is structurally false (`first <= 37 && 38 <= 37`)
+fail/facts/static_callback_reach_terminal_binder rejected 1538ms expected @3353916f9430+wt
+	cannot prove ensures contract for exit from traverse at statement 1: result <= 37
+	cannot prove ensures contract for exit from traverse at statement 2: result <= 37
+fail/facts/static_callback_reach_through_call_result rejected 1743ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `produce` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_const_name rejected 2428ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_field rejected 1631ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_local rejected 1905ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_match_join rejected 3085ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_other_machine rejected 3194ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_other_state rejected 2854ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_parameter rejected 1902ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+fail/facts/static_callback_reach_through_target_body rejected 1462ms expected @3353916f9430+wt
+	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
+	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
+	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
 fail/facts/static_evidence_premise_through_call_result_rejected rejected 1378ms expected @a92f16431042
 	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/static_evidence_premise_through_const_name_rejected rejected 1378ms expected @a92f16431042
@@ -26195,6 +26274,19 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit checked 268
 pass/facts/state_transition_ranking_bound_through_other_state_exit checked 2738ms check-target:macos_arm64 @a92f16431042
 pass/facts/state_transition_ranking_bound_through_parameter_exit checked 2660ms check-target:macos_arm64 @a92f16431042
 pass/facts/state_transition_ranking_bound_through_target_body_exit checked 2656ms check-target:macos_arm64 @a92f16431042
+pass/facts/static_callback_reach_recursive_component checked 6066ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_recursive_terminal checked 5442ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_selected_schema checked 6599ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_terminal_binder checked 6378ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_call_result checked 9674ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_const_name checked 10365ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_field checked 8674ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_local checked 9811ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_match_join checked 10833ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_other_machine checked 10081ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_other_state checked 9254ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_parameter checked 10772ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_target_body checked 8570ms check-target:macos_arm64 terminal-inspections:match @3353916f9430+wt
 pass/facts/static_evidence_premise_through_call_result_exit checked 2686ms check-target:macos_arm64 @a92f16431042
 pass/facts/static_evidence_premise_through_const_name_exit checked 3027ms check-target:macos_arm64 @a92f16431042
 pass/facts/static_evidence_premise_through_field_exit checked 3738ms check-target:macos_arm64 @a92f16431042

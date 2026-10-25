@@ -1,6 +1,6 @@
 use crate::diagnostics::parse_error::ParseError;
 use crate::input::token_cursor::{Input, ParseResult};
-use arena::{Handle, HandleSpan};
+use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
@@ -79,8 +79,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         subject_captures.push((name, captured));
     }
 
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut statements = crate::handle_spans::HandleSpanBuilder::new();
     let mut arm_statements: Vec<StatementHandle> = Vec::new();
     let mut arm_bool_tuples: Vec<Option<Vec<Option<bool>>>> = Vec::new();
     // Parsed arms are COLLECTED first and their Transition statements
@@ -200,12 +199,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             },
         ));
         let handle = syntax_trees.items.append_statement_handle(capture);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("transition block statement span count overflow");
+        statements.push(handle);
     }
 
     for (name, initial_value) in subject_captures {
@@ -220,12 +214,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             },
         ));
         let handle = syntax_trees.items.append_statement_handle(capture);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("transition block statement span count overflow");
+        statements.push(handle);
     }
 
     for (marker_name, subject_place) in pattern_markers {
@@ -240,12 +229,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             },
         ));
         let handle = syntax_trees.items.append_statement_handle(marker);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("transition block statement span count overflow");
+        statements.push(handle);
     }
 
     for (guard, target, proof_selectors, source_span) in parsed_arms {
@@ -263,12 +247,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 }));
         let handle = syntax_trees.items.append_statement_handle(statement);
         arm_statements.push(statement);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("transition block statement span count overflow");
+        statements.push(handle);
     }
 
     // Keep the authored block boundary after flattening its arms. A later
@@ -335,8 +314,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    let statements = HandleSpan::from_parts_or_empty(start, count);
-    Ok((statements, input))
+    Ok((statements.finish(), input))
 }
 
 /// A boolean literal, or an equality of two boolean literals: the subject shapes

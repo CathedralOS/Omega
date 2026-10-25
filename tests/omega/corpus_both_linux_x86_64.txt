@@ -5629,6 +5629,19 @@ pass/facts/state_transition_ranking_bound_through_other_machine_exit built 2202m
 pass/facts/state_transition_ranking_bound_through_other_state_exit built 2706ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/state_transition_ranking_bound_through_parameter_exit built 1974ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/state_transition_ranking_bound_through_target_body_exit built 2855ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/static_callback_reach_recursive_component built 5793ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_recursive_terminal built 5484ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_selected_schema built 6268ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_terminal_binder built 6798ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_call_result built 10689ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_const_name built 9610ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_field built 8329ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_local built 8232ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_match_join built 10391ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_other_machine built 10249ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_other_state built 8913ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_parameter built 9302ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
+pass/facts/static_callback_reach_through_target_body built 7200ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @3353916f9430+wt
 pass/facts/static_evidence_premise_through_call_result_exit built 2428ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/static_evidence_premise_through_const_name_exit built 2035ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/static_evidence_premise_through_field_exit built 1988ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
