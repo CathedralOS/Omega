@@ -28,6 +28,11 @@ struct RuntimeHostRequirement {
     selected_requirement_identity: String,
     provider_plan_report_identity: u64,
     calling_application: Option<calling_conventions::BoundaryCallingApplication>,
+    /// Produced once from this admitted row. An unavailable physical route
+    /// stays an explicit runtime limitation; it does not invalidate an otherwise
+    /// valid native program or cause the interpreter to compile a replacement.
+    native_adapter:
+        Option<Result<std::sync::Arc<image_emission::NativeForeignAdapterImage>, String>>,
 }
 
 /// Exact callable host and selected-provider companions. These are shared
@@ -93,6 +98,28 @@ impl TerminalRuntimeHostProvisions {
             if applications.next().is_some() {
                 return Err("runtime foreign calling application is ambiguous");
             }
+            let native_adapter = binding.import().map(|(locator, _)| {
+                let application = calling_application.as_ref().ok_or_else(|| {
+                    "foreign runtime adapter has no retained complete calling application"
+                        .to_owned()
+                })?;
+                let bridge = machine_emission::native_foreign_bridge::emit_native_foreign_bridge(
+                    machine_emission::native_foreign_bridge::NativeForeignBridgeRequest {
+                        target: application.target,
+                        foreign: application.plan.clone(),
+                    },
+                )
+                .map_err(|reason| {
+                    format!("foreign runtime adapter physical transport: {reason:?}")
+                })?;
+                image_emission::emit_native_foreign_adapter(
+                    bridge,
+                    locator.clone(),
+                    application.commitment,
+                )
+                .map(std::sync::Arc::new)
+                .map_err(|error| error.diagnostic.to_string())
+            });
             host_requirements.push(RuntimeHostRequirement {
                 boundary: boundary.id,
                 boundary_identity: identities
@@ -105,6 +132,7 @@ impl TerminalRuntimeHostProvisions {
                     .to_owned(),
                 provider_plan_report_identity: binding.provider_plan_report_identity(),
                 calling_application,
+                native_adapter,
             });
         }
         Ok(Self {
@@ -149,6 +177,26 @@ impl TerminalRuntimeHostProvisions {
             .find(|row| row.boundary == boundary)?
             .calling_application
             .as_ref()
+    }
+
+    /// Physical fixed-frame product of the same admitted provider/calling row.
+    /// A receiving runtime must still establish the actual provider instance,
+    /// native homes, leases and exact semantic completion before using it.
+    pub fn host_native_foreign_adapter(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<Result<&image_emission::NativeForeignAdapterImage, &str>> {
+        self.host_requirements
+            .iter()
+            .find(|row| row.boundary == boundary)?
+            .native_adapter
+            .as_ref()
+            .map(|adapter| {
+                adapter
+                    .as_ref()
+                    .map(std::sync::Arc::as_ref)
+                    .map_err(String::as_str)
+            })
     }
 
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {

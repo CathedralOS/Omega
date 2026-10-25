@@ -4,7 +4,9 @@
 
 use std::{fmt::Write, path::PathBuf, process::Command};
 
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use calling_conventions::{
+    CallSignature, CallingPolicy, ValueShape, evaluate_ordinary_boundary_entry_plan,
+};
 use machine_emission::native_foreign_bridge::{
     NativeForeignBridgeRequest, emit_native_foreign_bridge,
 };
@@ -19,7 +21,7 @@ fn append_bridge(
 ) {
     let bridge = emit_native_foreign_bridge(NativeForeignBridgeRequest {
         target,
-        foreign: evaluate_call_plan(
+        foreign: evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::native_for_target(target),
             &CallSignature { parameters, result },
         )
@@ -152,22 +154,25 @@ fn actual_c_retention_stack_float_and_record_calls() {
 }
 
 #[test]
-fn forged_call_locations_are_rejected() {
+fn another_host_calling_policy_is_rejected() {
     for target in [
         NativeTarget::macos_arm64(),
         NativeTarget::linux_arm64(),
         NativeTarget::linux_x64(),
         NativeTarget::windows_x64(),
     ] {
-        let mut plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(target),
+        let plan = evaluate_ordinary_boundary_entry_plan(
+            if CallingPolicy::native_for_target(target) == CallingPolicy::MicrosoftX64 {
+                CallingPolicy::SystemVAMD64
+            } else {
+                CallingPolicy::MicrosoftX64
+            },
             &CallSignature {
                 parameters: vec![ValueShape::integer(8, 8)],
                 result: None,
             },
         )
         .unwrap();
-        plan.parameters[0].locations.clear();
         assert!(
             emit_native_foreign_bridge(NativeForeignBridgeRequest {
                 target,

@@ -91,8 +91,41 @@ pub fn emit_component_shared_image(
         export_symbol,
         slot_commitment,
     } = function;
-    let name = crate::component_export_symbol(&slot_commitment).into_bytes();
-    let emitted = match image.target.object_format {
+    let emitted = emit_shared_function_container(
+        image,
+        export_symbol,
+        slot_commitment,
+        crate::component_export_symbol(&slot_commitment).into_bytes(),
+    );
+    match emitted {
+        Ok(image) => Ok(ComponentSharedImage {
+            body,
+            entry_bridge,
+            image,
+            slot_commitment,
+        }),
+        Err((image, diagnostic)) => Err(Box::new(ComponentSharedImageEmissionError {
+            function: crate::ComponentFunctionImage {
+                body,
+                entry_bridge,
+                image,
+                export_symbol,
+                slot_commitment,
+            },
+            diagnostic,
+        })),
+    }
+}
+
+/// Physical container dispatch shared by checked body exports and foreign ABI
+/// adapters. The caller retains the semantic admission and original function.
+pub(crate) fn emit_shared_function_container(
+    image: image::FinalImage,
+    export_symbol: image::FinalImageSymbolHandle,
+    slot_commitment: [u8; 32],
+    name: Vec<u8>,
+) -> Result<ComponentSharedContainer, (image::FinalImage, Diagnostic)> {
+    match image.target.object_format {
         target::ObjectFormat::Elf => image_elf::emit_elf_shared_component(
             image,
             vec![image_elf::ElfComponentExport {
@@ -140,23 +173,5 @@ pub fn emit_component_shared_image(
                 "shared component requires an admitted ELF, Mach-O, or Windows PE container",
             ),
         )),
-    };
-    match emitted {
-        Ok(image) => Ok(ComponentSharedImage {
-            body,
-            entry_bridge,
-            image,
-            slot_commitment,
-        }),
-        Err((image, diagnostic)) => Err(Box::new(ComponentSharedImageEmissionError {
-            function: crate::ComponentFunctionImage {
-                body,
-                entry_bridge,
-                image,
-                export_symbol,
-                slot_commitment,
-            },
-            diagnostic,
-        })),
     }
 }

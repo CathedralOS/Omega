@@ -12,8 +12,8 @@
 //! A stable backing owner and actual completion remain separate obligations.
 
 use calling_conventions::{
-    CallPlan, CallSignature, CallingPolicy, MachineRegister, ValueLocation, ValueShape,
-    evaluate_call_plan,
+    CallSignature, CallingPolicy, EntryControl, MachineRegister, ValidatedBoundaryEntryPlan,
+    ValueLocation, ValueShape, evaluate_call_plan,
 };
 use register_model::validate_physical_register_model;
 use target::{Architecture, NativeTarget};
@@ -26,7 +26,7 @@ use crate::native_bridge_encoding::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeForeignBridgeRequest {
     pub target: NativeTarget,
-    pub foreign: CallPlan,
+    pub foreign: ValidatedBoundaryEntryPlan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,14 +92,11 @@ pub fn emit_native_foreign_bridge(
     request: NativeForeignBridgeRequest,
 ) -> Result<NativeForeignBridge, Error> {
     let policy = CallingPolicy::native_for_target(request.target);
-    let foreign = &request.foreign;
-    // Rejoin the complete canonical C plan, including its stack and clobbers.
-    // An arbitrary register tuple cannot masquerade as the fixed host entry.
-    let signature = CallSignature {
-        parameters: foreign.parameters.iter().map(|value| value.shape).collect(),
-        result: foreign.result.as_ref().map(|value| value.shape),
-    };
-    if evaluate_call_plan(policy, &signature).map_err(|_| Error::IncompatiblePlan)? != *foreign
+    let foreign = &request.foreign.plan().call;
+    // Consume the producer's admitted plan rather than reevaluating its policy.
+    // This physical adapter supports the host's ordinary C call regime only.
+    if foreign.policy != policy
+        || foreign.entry_control != EntryControl::CallReturn
         || foreign.stack_alignment != 16
         || !foreign.callback_materializations.is_empty()
     {
