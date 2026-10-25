@@ -317,13 +317,13 @@ fn predicate_expression_holds_on_value(
     };
     // Judge the complete proposition before asking specialized leaf owners.
     // An observed disjunction need not establish either alternative globally.
-    if validation::completed_value_proves_domain_predicate(
+    if validation::completed_value_proves_bound_domain_predicate(
         program,
         machine,
         state_declaration,
         statement_index,
         value,
-        domain.symbol,
+        domain,
         expression,
         &[],
     ) {
