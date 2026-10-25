@@ -704,12 +704,10 @@ impl OptimizationSelections {
 
     /// Canonical standalone encoding for cache, artifact, and replay inputs.
     pub fn encode(&self) -> Vec<u8> {
-        let count = u32::try_from(self.selected.len())
-            .expect("the closed optimization vocabulary fits in u32");
         let mut encoded = Vec::with_capacity(16 + self.selected.len());
         encoded.extend_from_slice(SELECTION_ENCODING_MAGIC);
         crate::codec_bytes::push_encoded(&mut encoded, SELECTION_ENCODING_VERSION.to_le_bytes());
-        crate::codec_bytes::push_encoded(&mut encoded, count.to_le_bytes());
+        crate::codec_bytes::push_count_u32(&mut encoded, self.selected.len());
         encoded.extend(self.selected.iter().map(|optimization| *optimization as u8));
         encoded
     }
