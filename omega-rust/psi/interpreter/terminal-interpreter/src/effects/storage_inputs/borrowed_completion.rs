@@ -231,7 +231,10 @@ pub(super) fn stage(
                 _ => {}
             }
         }
-        binding.replacement = Some(staged);
+        binding.replacement = Some(
+            staged
+                .prepare_replacement(execution, StructuralRuntimePlace::from(&binding.referent))?,
+        );
     }
     Ok(())
 }
@@ -244,7 +247,6 @@ pub(super) fn commit(
         return Ok(());
     }
     if let Some(replacement) = binding.replacement {
-        execution.prune_subtree(&StructuralRuntimePlace::from(&binding.referent));
         replacement.publish(execution)?;
         return Ok(());
     }

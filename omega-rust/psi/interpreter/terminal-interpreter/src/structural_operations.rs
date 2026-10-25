@@ -1230,6 +1230,7 @@ impl TerminalExecution<'_> {
                 ConstructorValue::Placed(child) => Some(StructuralRuntimePlace::from(&child)),
                 ConstructorValue::PackedScalars { .. } => None,
             };
+            storage.preserve_replaced_residents(self, &hole)?;
             self.prune_subtree(&hole);
             if !copies_storage && let Some(source) = source {
                 self.prune_subtree(&source);
@@ -1565,6 +1566,12 @@ impl TerminalExecution<'_> {
             .validate_append(&staged_referents)?;
         self.structural_element_view_fields
             .validate_append(&staged_element_views)?;
+        let scalar_writes = staged_scalars
+            .prepare_resident_replacement(&self.structural_scalar_fields, Some(to))?;
+        let primitive_writes = staged_primitives
+            .prepare_resident_replacement(&self.structural_primitive_storage, Some(to))?;
+        scalar_writes.commit(&mut staged_scalars)?;
+        primitive_writes.commit(&mut staged_primitives)?;
         self.prune_subtree(to);
         if vacate {
             self.prune_subtree(from);

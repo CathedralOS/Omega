@@ -135,6 +135,13 @@ impl<Key: Ord> ScalarStorageRows<Key> {
         key: Key,
         cell: ScalarCell,
     ) -> Result<Option<ScalarCell>, TerminalInterpretError> {
+        if self
+            .0
+            .get(&key)
+            .is_some_and(|cell| matches!(cell, ScalarCell::Resident { .. }))
+        {
+            return self.insert(key, cell.read()?);
+        }
         self.0.insert(key, cell)
     }
     pub(crate) fn prune(&mut self, root: &crate::values::StructuralRuntimePlace)
@@ -170,14 +177,87 @@ impl<Key: Ord> ScalarStorageRows<Key> {
     pub(crate) fn validate_append(&self, other: &Self) -> Result<(), TerminalInterpretError> {
         self.0.validate_append(&other.0)
     }
-    pub(crate) fn append(&mut self, other: &mut Self) -> Result<(), TerminalInterpretError> {
+    pub(crate) fn append(&mut self, other: &mut Self) -> Result<(), TerminalInterpretError>
+    where
+        Key: crate::structural_storage::StorageKey,
+    {
+        self.0.validate_append(&other.0)?;
+        other
+            .prepare_resident_replacement(self, None)?
+            .commit(other)?;
         self.0.append(&mut other.0)
+    }
+
+    /// Capture incoming values and original homes before any external write.
+    /// A complete subtree replacement must carry every resident it will prune;
+    /// a changed active layout needs its original allocation codec.
+    pub(crate) fn prepare_resident_replacement(
+        &self,
+        original: &Self,
+        root: Option<&crate::values::StructuralRuntimePlace>,
+    ) -> Result<ResidentReplacementWrites<Key>, TerminalInterpretError>
+    where
+        Key: crate::structural_storage::StorageKey,
+    {
+        if let Some(root) = root {
+            for (key, cell) in crate::structural_storage::cells(original, root) {
+                if matches!(cell, ScalarCell::Resident { .. }) && !self.0.contains_key(key) {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "resident replacement needs a codec for its changed active layout",
+                    ));
+                }
+            }
+        }
+        let mut writes = Vec::new();
+        for (key, incoming) in self.0.iter() {
+            if let Some(
+                resident @ ScalarCell::Resident {
+                    scalar_type,
+                    backing,
+                },
+            ) = original.0.get(key)
+            {
+                if matches!(incoming, ScalarCell::Resident { backing: other, .. } if Rc::ptr_eq(backing, other))
+                {
+                    continue;
+                }
+                let value = incoming.read()?;
+                if value.scalar_type() != *scalar_type {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "resident replacement needs a codec for its changed scalar declaration",
+                    ));
+                }
+                writes.push((key.clone(), resident.clone(), value));
+            }
+        }
+        Ok(ResidentReplacementWrites(writes))
     }
 }
 
 impl<Key> std::borrow::Borrow<BTreeMap<Key, ScalarCell>> for ScalarStorageRows<Key> {
     fn borrow(&self) -> &BTreeMap<Key, ScalarCell> {
         self.0.borrow()
+    }
+}
+
+/// Values are captured once while every replacement is still staged. Native
+/// write failure faults the operation; it never restores a detached snapshot.
+pub(crate) struct ResidentReplacementWrites<Key>(Vec<(Key, ScalarCell, TerminalScalarValue)>);
+
+impl<Key: Ord> ResidentReplacementWrites<Key> {
+    pub(crate) fn commit(
+        self,
+        staged: &mut ScalarStorageRows<Key>,
+    ) -> Result<(), TerminalInterpretError> {
+        if self.0.iter().any(|(key, _, _)| !staged.0.contains_key(key)) {
+            return Err(malformed());
+        }
+        for (key, mut resident, value) in self.0 {
+            resident.write(value)?;
+            // Every receiving key already owns a funded staging row.
+            staged.0.insert(key, resident)?;
+        }
+        Ok(())
     }
 }
 
@@ -257,5 +337,76 @@ mod tests {
         assert!(resident.relocated(false).is_err());
         assert!(resident.write(word(99)).is_err());
         assert_eq!(*home.value.borrow(), word(37));
+    }
+
+    #[test]
+    fn aggregate_replacement_keeps_the_original_home_after_pruning_old_rows() {
+        let home = backing();
+        let root = crate::values::StructuralRuntimePlace {
+            opaque_identity: 11,
+            path: Vec::new(),
+        };
+        let mut original = ScalarStorageRows::new(None);
+        original
+            .insert_cell(
+                root.clone(),
+                ScalarCell::resident(word(37), home.clone()).unwrap(),
+            )
+            .unwrap();
+        let mut replacement = ScalarStorageRows::new(None);
+        replacement.insert(root.clone(), word(91)).unwrap();
+        let writes = replacement
+            .prepare_resident_replacement(&original, Some(&root))
+            .unwrap();
+        assert_eq!(
+            home.read().unwrap(),
+            word(37),
+            "preflight performs no writes"
+        );
+        writes.commit(&mut replacement).unwrap();
+        original.prune(&root);
+        original.append(&mut replacement).unwrap();
+        assert_eq!(home.read().unwrap(), word(91));
+        *home.value.borrow_mut() = word(99);
+        assert_eq!(original.get(&root).unwrap().read().unwrap(), word(99));
+        let mut next = ScalarStorageRows::new(None);
+        next.insert(root.clone(), word(101)).unwrap();
+        original.append(&mut next).unwrap();
+        assert_eq!(
+            home.read().unwrap(),
+            word(101),
+            "overlapping append retains the resident"
+        );
+    }
+
+    #[test]
+    fn incomplete_or_retyped_resident_replacement_refuses_before_writing() {
+        let home = backing();
+        let root = crate::values::StructuralRuntimePlace {
+            opaque_identity: 11,
+            path: Vec::new(),
+        };
+        let mut original = ScalarStorageRows::new(None);
+        original
+            .insert_cell(
+                root.clone(),
+                ScalarCell::resident(word(37), home.clone()).unwrap(),
+            )
+            .unwrap();
+        let mut replacement = ScalarStorageRows::new(None);
+        assert!(
+            replacement
+                .prepare_resident_replacement(&original, Some(&root))
+                .is_err()
+        );
+        replacement
+            .insert(root.clone(), TerminalScalarValue::Boolean(true))
+            .unwrap();
+        assert!(
+            replacement
+                .prepare_resident_replacement(&original, Some(&root))
+                .is_err()
+        );
+        assert_eq!(home.read().unwrap(), word(37));
     }
 }

@@ -14,7 +14,7 @@ pub(crate) mod contents;
 use crate::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
-use crate::record::storage::ConstructorStorage;
+use crate::record::storage::PreparedConstructorReplacement;
 use crate::values::TerminalStructuralValue;
 use std::sync::Arc;
 use terminal_psi::{StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration};
@@ -40,7 +40,7 @@ struct StructuralLoanBinding {
     original: Vec<TerminalBoundaryStorageValue>,
     leaves: Vec<contents::StorageLeaf>,
     scalars: Vec<contents::PinnedScalar>,
-    replacement: Option<ConstructorStorage>,
+    replacement: Option<PreparedConstructorReplacement>,
     stores: Vec<(
         crate::primitive_storage::PrimitiveStorage,
         semantic_vocabulary::ScalarType,

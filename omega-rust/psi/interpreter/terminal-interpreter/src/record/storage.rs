@@ -286,6 +286,38 @@ pub(crate) struct ConstructorStorage {
 /// Install its funded rows before committing source custody or external writes.
 pub(crate) struct DetachedConstructorStorage(ConstructorStorage);
 
+struct ConstructorResidentWrites {
+    scalars: crate::scalar_storage::ResidentReplacementWrites<StructuralScalarRuntimeField>,
+    primitives: crate::scalar_storage::ResidentReplacementWrites<StructuralRuntimePlace>,
+}
+
+impl ConstructorResidentWrites {
+    fn commit(self, storage: &mut ConstructorStorage) -> Result<(), TerminalInterpretError> {
+        self.scalars.commit(&mut storage.scalars)?;
+        self.primitives.commit(&mut storage.primitives)?;
+        Ok(())
+    }
+}
+
+/// Boundary writeback retains the complete admitted replacement, including
+/// original resident endpoints, before any input or result commits.
+pub(crate) struct PreparedConstructorReplacement {
+    root: StructuralRuntimePlace,
+    storage: ConstructorStorage,
+    residents: ConstructorResidentWrites,
+}
+
+impl PreparedConstructorReplacement {
+    pub(crate) fn publish(
+        mut self,
+        execution: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        self.residents.commit(&mut self.storage)?;
+        execution.prune_subtree(&self.root);
+        self.storage.publish(execution)
+    }
+}
+
 impl DetachedConstructorStorage {
     pub(crate) fn install(
         self,
@@ -1045,6 +1077,50 @@ impl ConstructorStorage {
             }
         }
         Ok(())
+    }
+
+    /// Prepare original resident endpoints before an in-place replacement
+    /// retires the old subtree. All shape and funding checks precede writes.
+    pub(crate) fn preserve_replaced_residents(
+        &mut self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<(), TerminalInterpretError> {
+        self.prepare_resident_writes(execution, root)?.commit(self)
+    }
+
+    pub(crate) fn prepare_replacement(
+        self,
+        execution: &TerminalExecution<'_>,
+        root: StructuralRuntimePlace,
+    ) -> Result<PreparedConstructorReplacement, TerminalInterpretError> {
+        let residents = self.prepare_resident_writes(execution, &root)?;
+        Ok(PreparedConstructorReplacement {
+            root,
+            storage: self,
+            residents,
+        })
+    }
+
+    fn prepare_resident_writes(
+        &self,
+        execution: &TerminalExecution<'_>,
+        root: &StructuralRuntimePlace,
+    ) -> Result<ConstructorResidentWrites, TerminalInterpretError> {
+        self.validate_publication(execution)?;
+        let scalars = self
+            .scalars
+            .prepare_resident_replacement(&execution.structural_scalar_fields, Some(root))?;
+        let primitives = self
+            .primitives
+            .prepare_resident_replacement(&execution.structural_primitive_storage, Some(root))?;
+        for (home, _) in &self.owner_writes {
+            execution.byte_owner_bytes(home)?;
+        }
+        Ok(ConstructorResidentWrites {
+            scalars,
+            primitives,
+        })
     }
 
     pub(crate) fn publish(
