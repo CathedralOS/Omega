@@ -11,7 +11,6 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::Machine;
 use tokens::PunctuationKind;
 
-use crate::bodies::tail_calls::rewrite_terminal_tail_calls;
 use crate::contracts::conformance::parse_conformance::parse_satisfies_traits;
 use crate::contracts::parse_contract_clauses::parse_machine_clauses;
 use crate::parameters::contracts::parse_machine_parameter_contracts;
@@ -114,17 +113,9 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         machine_parameters,
         machine_return_type,
     )?;
-    // Measured recursion MR2: a MEASURED machine's state whose TERMINAL
-    // expression is a bare call to the machine's own entry (`sum(n - 1, acc + n)`) is TAIL
-    // recursion -- rewrite it to the loop-back transition `{ _ ->
-    // <entry>(args) }` here, so every downstream pass (termination decrease
-    // proof, loop-carried arg staging, both engines) sees the same bare
-    // back-edge the arm spelling produces. Unmeasured machines keep the
-    // call; validation names the missing measure.
-    if !bodyless && !ranking_subjects.is_empty() {
-        let entry_callable = entry_name.clone().unwrap_or_else(|| name.clone());
-        rewrite_terminal_tail_calls(syntax_trees, states, &entry_callable);
-    }
+    // Tail normalization belongs to resolved machine identity. Parsing a
+    // same-spelled call as a backedge here loses generic applications and can
+    // choose a different callable before binding has established its target.
     if admitted_same_stack_bytes != 0 {
         let span = same_stack_clause_span.expect("a positive stack demand records its clause span");
         if !bodyless {

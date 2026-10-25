@@ -202,23 +202,22 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
         {
             // Declaration transfer supplies frozen evidence; raw calls retain
             // symbolic source leaves for their existing caller-prefix closure.
-            let moved = if let ExpressionNode::Call(call) =
-                program.expression_table.expression(expression)
-            {
-                super::super::result_origins::call_result_origins(
-                    program,
-                    caller_machine,
-                    call,
-                    reference,
-                    symbols,
-                    inference,
-                    include_shared,
-                    resolve_reference,
-                    resolve_origins,
-                )?
-            } else {
-                resolve_origins(expression, reference, inference)?
-            };
+            let moved =
+                if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
+                    super::super::result_origins::call_result_origins(
+                        program,
+                        caller_machine,
+                        expression,
+                        reference,
+                        symbols,
+                        inference,
+                        include_shared,
+                        resolve_reference,
+                        resolve_origins,
+                    )?
+                } else {
+                    resolve_origins(expression, reference, inference)?
+                };
             if !demand_is_declared(program, reference, suffix) {
                 return None;
             }
