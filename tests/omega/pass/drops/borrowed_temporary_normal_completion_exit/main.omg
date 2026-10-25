@@ -19,8 +19,8 @@ machine wrap<'borrow>(receipt: &'borrow Receipt) -> ReceiptBorrow<'borrow> {
 machine hold<'storage, 'borrow>(wrapper: &'storage ReceiptBorrow<'borrow>)
     -> &'storage ReceiptBorrow<'borrow> { wrapper }
 boundary trait Reader {
-    machine read(receipt: &Receipt) -> u64;
-    machine copy(receipt: &Receipt) -> Observation;
+    machine read(receipt: &Receipt) -> u64 reaches;
+    machine copy(receipt: &Receipt) -> Observation reaches;
 }
 Provider satisfies Reader {
     machine read(receipt: &Receipt) -> u64 {

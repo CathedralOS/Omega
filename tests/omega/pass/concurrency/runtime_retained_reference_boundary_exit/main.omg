@@ -1,6 +1,6 @@
 
 public boundary trait Scheduler {
-    machine advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 suspends;
+    machine advance(value: &i32, forwarded: &i32, stored: Envelope<&i32>, constructed: Envelope<&i32>) -> i64 reaches suspends;
 }
 
 data InlineScheduler {}

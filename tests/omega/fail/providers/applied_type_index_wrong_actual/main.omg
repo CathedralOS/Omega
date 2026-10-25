@@ -1,6 +1,6 @@
 domain<Value> u64::Tagged<Value>;
 boundary trait Identity<Value> {
-    machine identity(value: u64 in Tagged<Value>) -> u64 in Tagged<Value>;
+    machine identity(value: u64 in Tagged<Value>) -> u64 in Tagged<Value> reaches;
 }
 machine wrong<Left, Right>(value: u64 in Tagged<Left>) -> u64 in Tagged<Right>
 reaches Identity

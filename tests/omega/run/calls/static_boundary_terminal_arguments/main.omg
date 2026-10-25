@@ -1,8 +1,8 @@
 // Expected exit: 0. Every ordinary argument runs once, left to right,
 // inside only the selected terminal arm, for both scalar and Unit calls.
 public boundary trait Character {
-    machine echo(value: i32, observed: i32) -> i32;
-    machine store(output: &mut i32, value: i32, observed: i32);
+    machine echo(value: i32, observed: i32) -> i32 reaches;
+    machine store(output: &mut i32, value: i32, observed: i32) reaches;
 }
 CharacterImplementation satisfies Character {
     Character::echo = echo;

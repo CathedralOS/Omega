@@ -1,7 +1,7 @@
 // Expected exit: 0. Nested fields, a borrowed local and two helper telescopes
 // preserve one receiving requirement application without selecting caller regions.
 
-public boundary trait Reading<Value> { machine read(value: Value) -> i32; }
+public boundary trait Reading<Value> { machine read(value: Value) -> i32 reaches; }
 BorrowedReading<'provider> satisfies Reading<&'provider i32> {
     Reading::read = read;
 }

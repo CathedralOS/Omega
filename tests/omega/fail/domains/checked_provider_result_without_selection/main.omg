@@ -1,7 +1,7 @@
 public data Resource { identity: u64; }
 public domain Resource::Open established by acquire;
 machine acquire() -> Resource in Open { Resource { identity: 73 } }
-public boundary trait Source { machine open() -> Resource in Open; }
+public boundary trait Source { machine open() -> Resource in Open reaches; }
 machine close(resource: Resource in Open) {}
 data Main { }
 machine Main::main(context: &mut Main) reaches Source { close(Source::open()); }

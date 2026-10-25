@@ -12,7 +12,7 @@ use entry_shapes;
 // loader admission, receiver, or numeric stack guarantee. ProviderSelected
 // requires independent backing.
 boundary trait LinuxX86_64PhysicalEntry {
-    machine enter(initial_stack: addr) -> i32;
+    machine enter(initial_stack: addr) -> i32 reaches;
 }
 
 data LinuxX86_64 {}

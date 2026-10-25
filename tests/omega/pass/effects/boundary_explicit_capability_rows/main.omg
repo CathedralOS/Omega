@@ -6,13 +6,13 @@ public boundary trait Write {}
 public boundary trait Host {
     machine read() -> u64 reaches Read;
     machine write(value: u64) reaches Write;
-    machine pure(value: u64) -> u64;
-    machine wait() blocks;
+    machine pure(value: u64) -> u64 reaches;
+    machine wait() reaches blocks;
 }
 
 public boundary trait Portable {
     machine read() -> u64 reaches Read invokes Host;
-    machine pure() -> u64 invokes Host;
+    machine pure() -> u64 reaches invokes Host;
 }
 
 machine portable_read() -> u64 reaches Read {

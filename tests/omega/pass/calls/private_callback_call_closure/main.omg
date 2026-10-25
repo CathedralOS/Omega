@@ -156,7 +156,7 @@ public boundary trait Initializer: Calling<InitializerCalling> {
 }
 
 public boundary trait ProcessId: Calling<ProcessIdCalling> {
-    machine current() -> i32;
+    machine current() -> i32 reaches;
 }
 
 // Darwin declares getpid(void) -> pid_t, a signed 32-bit result. This import
@@ -180,6 +180,7 @@ public data OnceControl { signature: u64; opaque: u64; }
 public boundary trait OnceRegistrar: Calling<OnceCalling> {
     machine execute<machine Handler>(control: &mut OnceControl, native callback initialize from Handler) -> i32
     where machine Handler satisfies Initializer::call;
+    reaches
     invokes Initializer;
 }
 

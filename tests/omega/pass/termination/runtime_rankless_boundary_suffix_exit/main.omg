@@ -1,6 +1,6 @@
 // The boundary contract cannot reenter the countdown. The rankless suffix
 // still executes its selected provider; the entry checks the observed result.
-public boundary trait Output { machine value() -> u32; }
+public boundary trait Output { machine value() -> u32 reaches; }
 public data Provider {}
 machine Provider::value() -> u32 satisfies Output::value { 37 }
 // Each family member retains the abstract service it invokes. The generated

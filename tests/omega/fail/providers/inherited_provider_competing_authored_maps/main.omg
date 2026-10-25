@@ -1,7 +1,7 @@
 // Equal realizer bodies do not permit mixing selecting owners. The Child
 // choice owns Parent's entire roster; another authored Parent map competes.
-public boundary trait Parent { machine read() -> i32; }
-public boundary trait Child: Parent { machine choose() -> i32; }
+public boundary trait Parent { machine read() -> i32 reaches; }
+public boundary trait Child: Parent { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
     Parent::read = shared;
     Child::choose = shared;

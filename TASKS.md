@@ -133,20 +133,6 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
-- **OPTIONAL-REACH-CEILINGS.** Complete the ratified
-  [optional reach contract](wiki/spec/language/effects.md#declarations).
-  Remaining: require explicit ceilings on boundary-trait machine requirements
-  (including empty), migrate affected declarations and retain their runtime
-  oracles; finish injected-provider refinement and package acceptance/round-trip
-  coverage for the full contract.
-  Checked implementations may omit their own clause while refining their pinned
-  requirement. Keep optional versus explicitly empty custody through source,
-  generic substitution, joins, recursive summaries, Terminal production and
-  package comparison. Audit must retain inferred reach, declared slack and exact
-  critical/custom identities. Manifest/provider authority, foreign trust,
-  blocking, suspension and crashes remain separate. A green transport row or
-  annotation-only migration does not close the remaining acceptance.
-
 - **EXPLICIT-ENTRY-STORAGE.** Retire automatic provisioned ZII entry contexts
   under [entry roots](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
   Entry selection names an ordinary static machine, never an allocated context.

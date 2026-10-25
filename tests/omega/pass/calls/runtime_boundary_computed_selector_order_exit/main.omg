@@ -1,6 +1,6 @@
 use omega_language_std::console;
 use omega::language::core::external_binding;
-public boundary trait CText { machine length(text: &u8, limit: u64) -> u64; }
+public boundary trait CText { machine length(text: &u8, limit: u64) -> u64 reaches; }
 macos_arm64 machine binding() -> ForeignBinding<26, 8, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {

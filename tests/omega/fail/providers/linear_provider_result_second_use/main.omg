@@ -2,7 +2,7 @@ use omega::language::core::drop;
 
 public data Receipt [linear] { code: i32; }
 machine Receipt::drop(receipt: &mut Receipt) {}
-public boundary trait Relay { machine forward(receipt: Receipt) -> Receipt; }
+public boundary trait Relay { machine forward(receipt: Receipt) -> Receipt reaches; }
 Adapter satisfies Relay { Relay::forward = forward; }
 machine forward(receipt: Receipt) -> Receipt { receipt }
 

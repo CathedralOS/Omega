@@ -2,9 +2,9 @@ use omega::language::core::external_binding;
 
 public data Choice { case Cell(counter: AtomicU32); case Empty; }
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, choice: &mut Choice, count: u64) -> i64 blocks;
-    machine write(descriptor: i32, choice: &mut Choice, count: u64) -> i64;
-    machine write_tag(descriptor: i32, choice: &Choice, count: u64) -> i64;
+    machine read(descriptor: i32, choice: &mut Choice, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, choice: &mut Choice, count: u64) -> i64 reaches;
+    machine write_tag(descriptor: i32, choice: &Choice, count: u64) -> i64 reaches;
 }
 public data Imports {}
 data Main { }

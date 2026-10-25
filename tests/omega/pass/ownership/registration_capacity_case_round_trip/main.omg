@@ -15,7 +15,7 @@ data Outcome {
  case Rejected(capacity: Capacity in Capacity::Held);
 }
 boundary trait Registrar {
- machine exchange(capacity: Capacity in Capacity::Held, accept: bool) -> Outcome;
+ machine exchange(capacity: Capacity in Capacity::Held, accept: bool) -> Outcome reaches;
 }
 data Provider { }
 machine Provider::exchange(capacity: Capacity in Capacity::Held, accept: bool) -> Outcome

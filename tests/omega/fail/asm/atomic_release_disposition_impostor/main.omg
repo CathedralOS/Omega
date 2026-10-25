@@ -3,7 +3,7 @@ public proposition atomic_release_written<Cell, Value>(destination: &Cell, value
 data Cell { value: AtomicU64; }
 data Ack [linear] { nonce: u64; }
 boundary trait Completion {
- machine complete(ack: Ack, word: &Cell);
+ machine complete(ack: Ack, word: &Cell) reaches;
 }
 proposition acknowledged(ack: Ack, word: &Cell) = atomic_release_written<AtomicU64, u64>(&word.value, ack.nonce);
 machine finish(ack: Ack, word: &Cell) satisfies Completion::complete

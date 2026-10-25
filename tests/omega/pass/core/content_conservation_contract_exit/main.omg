@@ -50,6 +50,7 @@ public data SplitResult {
 
 public boundary trait RegionSplit {
     machine split(whole: Region in Owned, head: u64) -> SplitResult
+    reaches
     requires head <= whole.remaining
     ensures
         Owned::content(old(&whole))
@@ -62,7 +63,7 @@ public boundary trait RegionSplit {
 // The custody exit: a selected boundary accepts a residual outright. It
 // admits acceptance of custody, never the partition arithmetic.
 public boundary trait RegionSink {
-    machine accept(piece: Region in Owned);
+    machine accept(piece: Region in Owned) reaches;
 }
 
 // The selected provider pair the entry's `Binding` fields demand. The

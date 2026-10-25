@@ -7,8 +7,9 @@ public data Allocation [linear] { address: addr; }
 public domain Allocation::Held established by NativeHeap::allocate;
 public boundary trait NativeHeap {
     machine allocate(bytes: u64) -> Allocation
+    reaches
     ensures result in Held;
-    machine release(allocation: Allocation in Held);
+    machine release(allocation: Allocation in Held) reaches;
 }
 
 HeapProvider satisfies NativeHeap {

@@ -1,6 +1,6 @@
 data Table { query: u64; }
 boundary trait Query {
-    machine run(table: &Table) -> i32;
+    machine run(table: &Table) -> i32 reaches;
 }
 windows_x86_64 machine Table::invoke(table: &Table) -> i32
 satisfies Query::run via ForeignBinding::VtableField(query);

@@ -4,6 +4,7 @@ public boundary trait Handler { machine read() -> u64 reaches Read; }
 public boundary trait Registrar {
     machine execute<machine Callback>() -> u64
     where machine Callback satisfies Handler::read;
+    reaches
     invokes Handler;
 }
 machine read_callback() -> u64 satisfies Handler::read reaches Read { 7 }

@@ -4,7 +4,7 @@
 use omega_language_std::console;
 
 public boundary trait Value {
-    machine read(input: i32) -> i32 ensures result == input;
+    machine read(input: i32) -> i32 reaches ensures result == input;
 }
 
 public SelectedValue satisfies Value {

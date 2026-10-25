@@ -1,8 +1,8 @@
 // The borrowed phantom argument carries an elided region even though neither
 // boundary trait declares a lifetime. Erased carrier equality cannot settle
 // Parent's competing choices through Child's whole map.
-public boundary trait Parent<Value> { machine read() -> i32; }
-public boundary trait Child: Parent<&u64> { machine choose() -> i32; }
+public boundary trait Parent<Value> { machine read() -> i32 reaches; }
+public boundary trait Child: Parent<&u64> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
     Parent::read = shared;
     Child::choose = shared;

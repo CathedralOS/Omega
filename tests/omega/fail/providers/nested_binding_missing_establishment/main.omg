@@ -3,7 +3,7 @@
 // authority: the entry reads a nested field, passes it to a helper that reaches
 // `Reading::read`, and still has no selected provider.
 
-public boundary trait Reading { machine read() -> u64; }
+public boundary trait Reading { machine read() -> u64 reaches; }
 data Session { reading: u64; }
 data Main { session: Session; }
 

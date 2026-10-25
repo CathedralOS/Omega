@@ -31,6 +31,7 @@ public data SplitResult {
 
 public boundary trait RegionSplit {
     machine split(whole: Region in Owned, head: u64) -> SplitResult
+    reaches
     requires head <= whole.remaining
     ensures
         Owned::content(old(&whole))
@@ -41,7 +42,7 @@ public boundary trait RegionSplit {
 }
 
 public boundary trait RegionSink {
-    machine accept(piece: Region in Owned);
+    machine accept(piece: Region in Owned) reaches;
 }
 
 

@@ -1,5 +1,6 @@
 public boundary trait RankReader {
     machine step(value: i32) -> i32
+    reaches
     terminates;
     requires value > 0 && value <= 9
     ensures result == value >> 1;

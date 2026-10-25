@@ -2,7 +2,7 @@
 // provider and an ordinary call. Prefix/suffix sentinels retain disjoint bytes.
 use omega_language_std::console;
 
-public boundary trait Fill { machine fill(bytes: &mut [u8], value: u8); }
+public boundary trait Fill { machine fill(bytes: &mut [u8], value: u8) reaches; }
 FillProvider satisfies Fill { Fill::fill = fill; }
 machine fill(bytes: &mut [u8], value: u8) {
     transition bytes.len > 0 { true -> write(bytes, value) _ -> done() }

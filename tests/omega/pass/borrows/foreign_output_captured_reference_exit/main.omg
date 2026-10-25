@@ -10,6 +10,7 @@ public data TerminatedInput where terminator == 0, {
 }
 public boundary trait ParseNumber {
     machine parse<'source>(source: &'source TerminatedInput, output: &mut Output<'source>, base: i32) -> i64
+    reaches
     requires base == 10;
 }
 

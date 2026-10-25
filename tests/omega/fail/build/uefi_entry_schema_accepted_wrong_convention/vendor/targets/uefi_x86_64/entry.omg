@@ -19,7 +19,7 @@ boundary trait UefiPhysicalEntry {
     machine enter(
         image_handle: EfiImageHandle,
         system_table: &EfiSystemTable
-    ) -> EfiStatus;
+    ) -> EfiStatus reaches;
 }
 
 data SystemVUefi { }

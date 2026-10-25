@@ -11,8 +11,8 @@ public data AddressCarrier<T> { payload: T; }
 public AddressRepresentation satisfies OpaqueRepresentation<InternetAddress, AddressCarrier<AddressCarrier<AddressWord>>> { }
 
 public boundary trait AddressParts {
-    machine make(network: u32, host: u32) -> InternetAddress;
-    machine host(address: InternetAddress) -> u32;
+    machine make(network: u32, host: u32) -> InternetAddress reaches;
+    machine host(address: InternetAddress) -> u32 reaches;
 }
 
 macos_arm64 machine make_binding() -> ForeignBinding<26, 14, 0> {

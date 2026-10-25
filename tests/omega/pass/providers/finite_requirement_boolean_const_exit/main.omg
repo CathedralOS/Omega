@@ -2,6 +2,7 @@
 // Package review also retains the authored generic crash contract.
 public boundary trait Service {
     machine echo<const Selected: bool>(value: i32) -> i32
+    reaches
     where Selected == true || Selected == false
     crashes Trap value < 0;
 }

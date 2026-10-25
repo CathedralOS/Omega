@@ -12,7 +12,7 @@ machine Token::drop(token: &mut Token) {}
 public domain Token::Issued;
 
 public boundary trait TokenMint {
-    machine issue(value: u64) -> Token;
+    machine issue(value: u64) -> Token reaches;
 }
 
 data TokenMintProvider {}

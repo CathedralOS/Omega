@@ -1,6 +1,6 @@
 
 public boundary trait Scheduler {
-    machine advance(first: i32, second: i32, left: Marker, right: Marker) -> i32 suspends;
+    machine advance(first: i32, second: i32, left: Marker, right: Marker) -> i32 reaches suspends;
 }
 
 public data Marker [copy] { value: i32; }

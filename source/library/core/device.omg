@@ -99,19 +99,22 @@ public boundary trait DeviceLoanProvider {
     // the `Granted` claim. A hosted entry supplies no arrival extents; this
     // is the only `Granted` source a hosted program reaches today.
     machine reserve(length: u64) -> Extent
+    reaches
     ensures
         result in Extent::Granted;
 
     // Returns a restored range's `Granted` authority to the provider's pool,
     // ending the caller's claim. Every reserved extent terminates here or
     // beneath a frame that never exits.
-    machine release(range: Extent in Granted);
+    machine release(range: Extent in Granted) reaches;
 
     machine lend_for_read(range: Extent in Granted) -> DeviceLoan
+    reaches
     ensures
         result in DeviceLoan::DeviceReads;
 
     machine lend_for_write(range: Extent in Granted) -> DeviceLoan
+    reaches
     ensures
         result in DeviceLoan::DeviceWrites;
 
@@ -119,6 +122,7 @@ public boundary trait DeviceLoanProvider {
     // intersecting CPU write after this crossing invalidates the occurrence
     // before `notify` may consume it.
     machine publish(loan: &DeviceLoan) -> DeviceOrderingEvent
+    reaches
     ensures
         result in DeviceOrderingEvent::Publication;
 
@@ -128,6 +132,7 @@ public boundary trait DeviceLoanProvider {
     // instruction-free coherent realization produces no occurrence here —
     // it simply has nothing to report.
     machine maintain_cache(loan: &DeviceLoan) -> DeviceOrderingEvent
+    reaches
     ensures
         result in DeviceOrderingEvent::CacheMaintenance;
 
@@ -135,23 +140,24 @@ public boundary trait DeviceLoanProvider {
     // the recorded notification and requalifies the occurrence, or rejects a
     // publication an intersecting write already invalidated.
     machine notify(publication: DeviceOrderingEvent in DeviceOrderingEvent::Publication) -> DeviceOrderingEvent
+    reaches
     ensures
         result in DeviceOrderingEvent::Notification;
 
     // Retire one carried occurrence the protocol no longer needs. `settle`
     // consumes the event; it restores no custody and establishes no
     // completion, access, or ordering fact.
-    machine settle(event: DeviceOrderingEvent);
+    machine settle(event: DeviceOrderingEvent) reaches;
 
     // The completion obligation: consumes the live loan. On proven borrower
     // release the `Completed` case carries the `Completion` occurrence for
     // `acquire`; otherwise the `Pending` case returns the still-live loan so
     // the caller may retry — a failed start of the release never strands the
     // borrow.
-    machine complete(loan: DeviceLoan) -> DeviceCompletionAttempt;
+    machine complete(loan: DeviceLoan) -> DeviceCompletionAttempt reaches;
 
     // Acquisition consumes a `Completion` occurrence tied to the same request,
     // loan, device, and scope: `Acquired` restores the range's Stable CPU
     // custody, `Pending` returns the retained completion candidate for retry.
-    machine acquire(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) -> DeviceAcquisitionAttempt;
+    machine acquire(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) -> DeviceAcquisitionAttempt reaches;
 }

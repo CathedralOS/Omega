@@ -42,6 +42,7 @@ public boundary trait CathedralTranslationProvider {
         install: TranslationInstallObligations,
         release: TranslationReleaseObligations
     ) -> Mapping
+    reaches
     satisfies TranslationAuthority::map
     ensures
         separate(
@@ -56,6 +57,7 @@ public boundary trait CathedralTranslationProvider {
     // receipt stands behind: it consumes the same pending carrier this edge
     // requalifies, so activation never outruns the walk.
     machine activate(pending: Mapping in Pending) -> Mapping
+    reaches
     satisfies TranslationAuthority::activate
     ensures
         separate(
@@ -69,6 +71,7 @@ public boundary trait CathedralTranslationProvider {
     // checked `CathedralPageTables::remove` that clears the leaf and
     // invalidates the page's local translation.
     machine unmap(active: Mapping in Installed) -> Unmapped
+    reaches
     satisfies TranslationAuthority::unmap
     ensures
         separate(
@@ -84,6 +87,7 @@ public boundary trait CathedralTranslationProvider {
         install: TranslationInstallObligations,
         release: TranslationReleaseObligations
     ) -> BorrowedMapping
+    reaches
     satisfies TranslationAuthority::map_borrowed
     ensures
         Granted::content(&result.destination)
@@ -91,6 +95,7 @@ public boundary trait CathedralTranslationProvider {
 
     machine activate_borrowed(pending: BorrowedMapping in Pending)
         -> BorrowedMapping
+    reaches
     satisfies TranslationAuthority::activate_borrowed
     ensures
         Granted::content(&result.destination)
@@ -98,6 +103,7 @@ public boundary trait CathedralTranslationProvider {
 
     machine unmap_borrowed(active: BorrowedMapping in Installed)
         -> UnmappedBorrowed
+    reaches
     satisfies TranslationAuthority::unmap_borrowed
     ensures
         Granted::content(&result.destination)

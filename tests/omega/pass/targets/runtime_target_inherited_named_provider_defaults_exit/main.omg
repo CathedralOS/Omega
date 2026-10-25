@@ -2,10 +2,10 @@
 // which no runtime body calls. Separate Parent candidates are not a demand
 // for another choice. The selecting map stays distinct from its shared code.
 boundary trait Parent {
-    machine echo(value: i32) -> i32;
-    machine spare() -> i32;
+    machine echo(value: i32) -> i32 reaches;
+    machine spare() -> i32 reaches;
 }
-boundary trait Child: Parent { machine choose() -> i32; }
+boundary trait Child: Parent { machine choose() -> i32 reaches; }
 
 FirstMap satisfies Child {
     Parent::echo = echo;

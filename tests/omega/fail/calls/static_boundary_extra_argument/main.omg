@@ -1,2 +1,2 @@
-public boundary trait Service { machine read() -> i32; }
+public boundary trait Service { machine read() -> i32 reaches; }
 machine invalid() -> i32 { Service::read(7) }

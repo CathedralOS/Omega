@@ -2,5 +2,5 @@
 data Token { value: u64; }
 domain Token::Issued established by Issuer::issue;
 data Phantom<T> { case Empty; }
-boundary trait Issuer { machine issue() -> Phantom<Token in Issued>; }
+boundary trait Issuer { machine issue() -> Phantom<Token in Issued> reaches; }
 machine main() {}

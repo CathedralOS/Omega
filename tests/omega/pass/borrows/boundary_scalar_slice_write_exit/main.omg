@@ -1,7 +1,7 @@
 // Expected exit: 0. A writable slice of scalars has no reference-output slots,
 // independent of its runtime extent or whether a helper transports the slice.
 public boundary trait Fill {
-    machine first(output: &mut [u8]);
+    machine first(output: &mut [u8]) reaches;
 }
 
 ScalarWriter satisfies Fill {

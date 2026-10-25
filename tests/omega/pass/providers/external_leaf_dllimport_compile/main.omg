@@ -10,7 +10,7 @@
 use omega::language::core::external_binding;
 
 public boundary trait Leaf {
-    machine exit(code: i32) -> i32;
+    machine exit(code: i32) -> i32 reaches;
 }
 
 macos_arm64 machine leaf_binding() -> ForeignBinding<17, 5, 0> {

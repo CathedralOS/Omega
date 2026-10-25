@@ -1,4 +1,4 @@
-boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Console { machine exit_process(return_code: i32) reaches; }
 machine effectful() -> u64 reaches Console ensures result == 9 { 9 }
 // Expected exit: 0
 // Selected<Base + 4> at Base = 3 supplies at least seven before exact value - 7.

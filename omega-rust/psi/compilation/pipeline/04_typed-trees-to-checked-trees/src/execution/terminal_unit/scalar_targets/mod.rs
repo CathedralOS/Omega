@@ -45,10 +45,15 @@ impl ScalarCallSite<'_> {
     }
 
     pub(super) fn of_composed_operation<'a>(
-        machine: SymbolHandle,
+        program: &dyn ::validation::CheckingInput,
         state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Option<ScalarCallSite<'a>> {
+        // Fusion changes the dispatch body, never the source owner of its
+        // retained states. Call coordinates and flow facts stay indexed by
+        // that authored owner, including an ordinary call after a recursive
+        // backedge. Derive it here so callers cannot substitute the dispatcher.
+        let machine = program.machine_holding_state(state.state)?.symbol;
         let owns = |operations: &[&CheckedUnitEffectOperationPlan]| {
             operations
                 .iter()

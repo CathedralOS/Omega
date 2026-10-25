@@ -4,7 +4,7 @@
 // selected — `NonRoot::run` still checks its `reaches Ping` declaration.
 
 public boundary trait Ping {
-    machine ping();
+    machine ping() reaches;
 }
 data PingProvider { }
 machine PingProvider::ping() satisfies Ping::ping { }

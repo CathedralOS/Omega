@@ -1,8 +1,8 @@
 use omega::language::core::external_binding;
 
 public boundary trait ScalarOutput {
-    machine flag(descriptor: i32, value: &bool, count: u64) -> i64;
-    machine byte(descriptor: i32, value: &u8, count: u64) -> i64;
+    machine flag(descriptor: i32, value: &bool, count: u64) -> i64 reaches;
+    machine byte(descriptor: i32, value: &u8, count: u64) -> i64 reaches;
 }
 public data ScalarImports {}
 data Main { }

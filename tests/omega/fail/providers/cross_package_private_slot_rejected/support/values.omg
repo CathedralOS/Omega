@@ -3,6 +3,6 @@ module values;
 // Private on purpose: the twin's subject is that a dependency package's
 // non-public boundary trait and conformance are not selectable across a
 // package boundary.
-boundary trait Hidden { machine read() -> u64; }
+boundary trait Hidden { machine read() -> u64 reaches; }
 HiddenMap satisfies Hidden { Hidden::read = hidden_provider_read; }
 machine hidden_provider_read() -> u64 { 7 }

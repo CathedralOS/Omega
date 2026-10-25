@@ -1,7 +1,7 @@
 // An external realization does not erase a boundary's interface exposure.
 use omega::language::core::external_binding;
 data Payload { value: i32; }
-boundary trait Observe { machine observe(payload: &Payload) -> i32; }
+boundary trait Observe { machine observe(payload: &Payload) -> i32 reaches; }
 public macos_arm64 machine binding() -> ForeignBinding<26, 4, 0> {
     ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
         install_name: "/usr/lib/libSystem.B.dylib", symbol: "_abs"

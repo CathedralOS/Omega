@@ -3,10 +3,10 @@
 use omega_language_std::console;
 
 public boundary trait RawMeasure {
-    machine measure(value: i32) -> i32;
+    machine measure(value: i32) -> i32 reaches;
 }
 public boundary trait PortableMeasure {
-    machine measure(value: i32) -> i32 invokes RawMeasure;
+    machine measure(value: i32) -> i32 reaches invokes RawMeasure;
 }
 PortableMeasureProvider satisfies PortableMeasure {
     machine measure(value: i32) -> i32 invokes RawMeasure; {

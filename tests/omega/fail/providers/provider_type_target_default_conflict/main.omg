@@ -2,7 +2,7 @@
 // same slot. The build root may override this explicitly; absent an override,
 // the conflict is loud.
 boundary trait Pick {
-    machine choose() -> i32;
+    machine choose() -> i32 reaches;
 }
 
 data FirstProvider { }

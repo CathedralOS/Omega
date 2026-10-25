@@ -1,6 +1,6 @@
 // Expected rejection: incompatible or unsupported operational/lifetime correspondence
-boundary trait Required { machine get<'a, 'b>(left: &'a u32, right: &'b u32) -> u32 ensures result <= 1; }
-boundary trait Supplied { machine get<'a>(left: &'a u32, right: &'a u32) -> u32; }
+boundary trait Required { machine get<'a, 'b>(left: &'a u32, right: &'b u32) -> u32 reaches ensures result <= 1; }
+boundary trait Supplied { machine get<'a>(left: &'a u32, right: &'a u32) -> u32 reaches; }
 Actual satisfies Supplied { machine get<'a>(left: &'a u32, right: &'a u32) -> u32 { 1 } }
 machine main() reaches Required crashes Trap {
     let seed: u32 = 0;

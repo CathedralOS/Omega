@@ -7,7 +7,7 @@ data Message {
 }
 
 public boundary trait Scheduler {
-    machine park() suspends;
+    machine park() reaches suspends;
 }
 
 data Main {

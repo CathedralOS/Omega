@@ -1,6 +1,6 @@
 public data Token [copy] { identity: u64; }
 public domain Token::Fair satisfies ProgressProfile established by Grants::grant;
-public boundary trait Grants { machine grant() -> Token in Fair; }
+public boundary trait Grants { machine grant() -> Token in Fair reaches; }
 data Holder [copy] { token: Token; }
 machine ordinary<T>(left: &Holder) -> u64
 requires left.token in Token::Fair

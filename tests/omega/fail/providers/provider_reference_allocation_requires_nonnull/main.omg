@@ -5,9 +5,11 @@ data Allocation [linear] { pointer: addr; }
 domain Allocation::AllocationIssued established by Heap::allocate;
 boundary trait Heap {
  machine allocate(count: u64, allocation_size: u64) -> Allocation
+ reaches
  requires count == 1 && allocation_size >= 64
  ensures result in Allocation::AllocationIssued;
  machine initialize(allocation: Allocation in AllocationIssued, value: i32, allocation_size: u64) -> &mut Frame<i32>
+ reaches
  requires allocation.pointer != 0 && value == 0 && allocation_size == 64;
 }
 linux_x86_64 machine allocation_binding() -> ForeignBinding<9, 6, 11> {

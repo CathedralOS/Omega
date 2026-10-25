@@ -18,23 +18,24 @@ satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 boundary trait BorrowedWriter {
-    machine unused() -> i32;
+    machine unused() -> i32 reaches;
     machine submit<'buffer>(buffer: &'buffer Buffer in Buffer::Owned)
         -> PendingWrite<'buffer>
+    reaches
     ensures result in PendingWrite::Retained;
 }
 data UnusedWriter {}
 machine UnusedWriter::unused() -> i32 satisfies BorrowedWriter::unused { 9 }
 
 boundary trait Pick {
-    machine choose() -> i32;
+    machine choose() -> i32 reaches;
     // Whole-provider selection keeps this coordinate even though no body calls it.
-    machine spare() -> i32;
+    machine spare() -> i32 reaches;
 }
 
 data FirstProvider {}
 // An unrelated unique provider is not a demanded installation schema.
-boundary trait Unused { machine spare() -> i32; }
+boundary trait Unused { machine spare() -> i32 reaches; }
 data Lone {}
 machine Lone::spare() -> i32 satisfies Unused::spare { 9 }
 

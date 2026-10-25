@@ -6,7 +6,7 @@ data LoanHolder {
     storage: &mut Extent in Granted & Resident<Policy, Word>;
 }
 boundary trait OpaqueWrite {
-    machine overwrite(holder: LoanHolder);
+    machine overwrite(holder: LoanHolder) reaches;
 }
 machine forward(holder: LoanHolder)
 reaches OpaqueWrite

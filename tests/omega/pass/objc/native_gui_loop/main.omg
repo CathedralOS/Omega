@@ -96,9 +96,9 @@ public boundary trait ObjectiveC {
 }
 
 public boundary trait CoreGraphics {
-    machine color_space_rgb() -> u64;
-    machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
-    machine bitmap_context_image(ctx: u64) -> u64;
+    machine color_space_rgb() -> u64 reaches;
+    machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64 reaches;
+    machine bitmap_context_image(ctx: u64) -> u64 reaches;
 }
 
 data Main where 0 <= frame, frame <= 8 {

@@ -7,7 +7,7 @@
 public data Receipt [linear] { code: i32; }
 
 public boundary trait Acknowledgement {
-    machine ack(receipt: Receipt) -> i32;
+    machine ack(receipt: Receipt) -> i32 reaches;
 }
 
 data Pair { left: Receipt; right: Receipt; }

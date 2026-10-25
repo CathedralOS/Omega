@@ -13,8 +13,8 @@ public data Token [linear] { value: u64; }
 machine Token::drop(token: &mut Token) {}
 
 public boundary trait TokenScale {
-    machine weigh(token: &Token) -> u64;
-    machine tag(token: &Token, marker: u64) -> bool;
+    machine weigh(token: &Token) -> u64 reaches;
+    machine tag(token: &Token, marker: u64) -> bool reaches;
 }
 
 data TokenScaleProvider {}

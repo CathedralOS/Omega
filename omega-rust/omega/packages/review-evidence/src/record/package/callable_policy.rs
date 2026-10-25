@@ -64,9 +64,9 @@ pub struct PackagePolicyCallable {
     pub(crate) operator_realizations: Vec<PackageReviewOperatorRealization>,
     pub(crate) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
     pub(crate) contracts: Vec<PackageReviewCallableContract>,
-    /// `Some` preserves a published ceiling, including an explicitly empty
-    /// one. `None` is retained for the current ordinary build-machine form;
-    /// admission must not silently reinterpret it as a public empty promise.
+    /// Checked bodies retain their authored ceiling, including explicit empty,
+    /// or `None` for inference. Bodyless supplies retain their governing
+    /// published ceiling; omission never infers authority from an unknown body.
     pub(crate) declared_service_reach: Option<Vec<PackageReviewNominalIdentity>>,
     pub(crate) service_reach_dependency: PackagePolicyServiceReachDependency,
     pub(crate) checked_service_reach: PackageReviewCheckedServiceReach,

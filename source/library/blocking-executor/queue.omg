@@ -28,7 +28,7 @@ boundary trait BoundedQueueAccess {
     // Live element count. O(1) measure for `requires`/`ensures`.
     machine Length<T, const N: u64>(
         queue: &BoundedQueue<T, N>
-    ) -> u64;
+    ) -> u64 reaches;
 
     // Append `value` at the tail. Custody of `value` moves into the queue;
     // requires provable spare room.
@@ -36,6 +36,7 @@ boundary trait BoundedQueueAccess {
         queue: &mut BoundedQueue<T, N>,
         value: T
     )
+    reaches
     requires
         queue.length < queue.items.len;
 
@@ -45,6 +46,7 @@ boundary trait BoundedQueueAccess {
     machine pop<T, const N: u64>(
         queue: &mut BoundedQueue<T, N>
     ) -> T
+    reaches
     requires
         queue.length > 0;
 
@@ -54,6 +56,7 @@ boundary trait BoundedQueueAccess {
     machine close<T, const N: u64>(
         queue: BoundedQueue<T, N>
     )
+    reaches
     requires
         queue.length == 0;
 }

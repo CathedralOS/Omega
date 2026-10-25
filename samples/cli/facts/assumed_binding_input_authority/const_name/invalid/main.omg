@@ -2,8 +2,8 @@
 // Expected rejection: cannot prove index at the length-2 indexing operation.
 data Index [copy] { value: u32; }
 domain Index::Bounded(index) requires index.value <= 2;
-boundary trait Required { machine get(index: Index) -> u32; }
-boundary trait Supplied { machine get(index: Index) -> u32 requires index in Bounded; }
+boundary trait Required { machine get(index: Index) -> u32 reaches; }
+boundary trait Supplied { machine get(index: Index) -> u32 reaches requires index in Bounded; }
 Actual satisfies Supplied {
     machine get(index: Index) -> u32 requires index in Bounded {
         let values: [u32; 2] = [7, 11];

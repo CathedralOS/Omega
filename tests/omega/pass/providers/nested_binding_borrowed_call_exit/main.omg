@@ -2,14 +2,14 @@
 // call. Only the selected entry establishes provider custody.
 
 public boundary trait Reading {
-    machine read() -> u64;
+    machine read() -> u64 reaches;
 }
 
 ReadingMap satisfies Reading { Reading::read = reading_provider_read; }
 machine reading_provider_read() -> u64 { 42 }
 
 // Merely checking a helper's application must not demand an unrelated selection.
-public boundary trait Unselected { machine read() -> u64; }
+public boundary trait Unselected { machine read() -> u64 reaches; }
 machine unused() -> u64 reaches Unselected {
     Unselected::read()
 }

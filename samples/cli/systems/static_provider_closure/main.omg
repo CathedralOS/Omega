@@ -4,11 +4,11 @@
 public data Observation { value: i32; }
 
 public boundary trait RawSource {
-    machine read() -> i32;
-    machine fill(destination: &mut Observation);
+    machine read() -> i32 reaches;
+    machine fill(destination: &mut Observation) reaches;
 }
 public boundary trait PortableSource {
-    machine read() -> i32 invokes RawSource;
+    machine read() -> i32 reaches invokes RawSource;
 }
 data RawProvider {}
 data OtherRawProvider {}

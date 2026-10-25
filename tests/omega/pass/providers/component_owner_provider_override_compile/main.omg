@@ -1,7 +1,7 @@
 // PRV4c: the canonical free build root selects one complete provider for the
 // component slot without reconstructing individual rows.
 boundary trait Pick {
-    machine choose() -> i32;
+    machine choose() -> i32 reaches;
 }
 
 data FirstProvider { }

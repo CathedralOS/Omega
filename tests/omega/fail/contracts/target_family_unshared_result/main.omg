@@ -1,7 +1,7 @@
 // A nonselected target's differing result cannot become a portable guarantee.
 public data Status [copy] { code: u64; }
 public boundary trait Reports {
-    machine status() -> Status ensures result.code == 7;
+    machine status() -> Status reaches ensures result.code == 7;
 }
 public ForwardedReports satisfies Reports {
     machine status() -> Status ensures result.code == 7; {

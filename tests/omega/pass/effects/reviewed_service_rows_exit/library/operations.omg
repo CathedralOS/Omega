@@ -2,7 +2,7 @@
 public boundary trait ReadCapability { }
 public boundary trait Operations {
     machine read(value: i32) -> i32 reaches ReadCapability;
-    machine identity(value: i32) -> i32;
+    machine identity(value: i32) -> i32 reaches;
 }
 public machine read_value(value: i32) -> i32
 reaches ReadCapability

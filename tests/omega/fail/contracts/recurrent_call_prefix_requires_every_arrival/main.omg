@@ -1,6 +1,6 @@
 data Status [copy] { code: u64; }
 data Device { pending: u64; }
-boundary trait Poll { machine poll(device: &mut Device) -> Status; }
+boundary trait Poll { machine poll(device: &mut Device) -> Status reaches; }
 machine read(device: &mut Device, retry: u64) -> u64
 reaches Poll
 invokes Poll;

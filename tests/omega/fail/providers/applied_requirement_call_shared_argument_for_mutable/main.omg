@@ -2,8 +2,8 @@
 // requirement, whether the call is a statement or produces a value and
 // whether the parameter spells the trait's type parameter or a concrete type.
 public boundary trait Parent<Value> {
-    machine mutate(value: &mut Value) -> i32;
-    machine touch(value: &mut i32);
+    machine mutate(value: &mut Value) -> i32 reaches;
+    machine touch(value: &mut i32) reaches;
 }
 machine invalid(value: &i32) -> i32 reaches Parent {
     Parent<i32>::touch(value);

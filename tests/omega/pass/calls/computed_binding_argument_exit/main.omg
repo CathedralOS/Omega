@@ -3,7 +3,7 @@
 // through a nested operand.
 
 public boundary trait Character {
-    machine echo(value: i32) -> i32;
+    machine echo(value: i32) -> i32 reaches;
 }
 CharacterImplementation satisfies Character {
     Character::echo = echo;

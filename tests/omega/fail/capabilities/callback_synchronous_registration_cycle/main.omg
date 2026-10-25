@@ -140,6 +140,7 @@ public data ThreadKey { token: u64; }
 public boundary trait Registration: Calling<RegistrationCalling> {
     machine register<machine Handler>(key: &mut ThreadKey, native callback initialize from Handler) -> i32
     where machine Handler satisfies Initializer::call;
+    reaches
     invokes Initializer;
 }
 

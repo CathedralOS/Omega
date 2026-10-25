@@ -19,7 +19,7 @@ boundary data PtrRange<T>;
 // Pointer arithmetic is a runtime boundary operation on explicit `Ptr`
 // arguments; the carrier owns no code.
 boundary trait PointerArithmetic {
-    machine offset<T>(ptr: Ptr<T>, count: u64) -> Ptr<T>;
+    machine offset<T>(ptr: Ptr<T>, count: u64) -> Ptr<T> reaches;
 
-    machine range<T>(ptr: Ptr<T>, len: u64) -> PtrRange<T>;
+    machine range<T>(ptr: Ptr<T>, len: u64) -> PtrRange<T> reaches;
 }

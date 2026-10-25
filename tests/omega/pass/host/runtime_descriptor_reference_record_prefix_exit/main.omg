@@ -8,8 +8,8 @@ public data Cell { value: u64; counter: AtomicU64; }
 public data Header { value: u64; }
 public data Packet { header: Header; reference: &Cell; counter: AtomicU64; tail: u64; }
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, packet: &mut Header, count: u64) -> i64 blocks;
-    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64;
+    machine read(descriptor: i32, packet: &mut Header, count: u64) -> i64 reaches blocks;
+    machine write(descriptor: i32, packet: &Packet, count: u64) -> i64 reaches;
 }
 public data DescriptorImports {}
 data Main { cell: Cell; }

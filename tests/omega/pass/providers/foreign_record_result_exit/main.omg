@@ -8,7 +8,7 @@ public data Division {
 }
 
 public boundary trait IntegerDivision {
-    machine divide(numerator: i32, denominator: i32) -> Division;
+    machine divide(numerator: i32, denominator: i32) -> Division reaches;
 }
 
 macos_arm64 machine division_binding() -> ForeignBinding<26, 4, 0> {

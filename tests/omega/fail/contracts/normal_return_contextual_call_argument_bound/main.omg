@@ -1,7 +1,7 @@
 // The contextual first argument cannot narrow the independently completed
 // endpoint. Its valid public contract permits the out-of-bounds index 146.
 data Main { record: [u8; 146]; }
-boundary trait Writer { machine write(path: &[u8], bytes: &mut [u8]) -> i32; }
+boundary trait Writer { machine write(path: &[u8], bytes: &mut [u8]) -> i32 reaches; }
 machine Main::main(main: &mut Main) reaches Writer invokes Writer; {
     let end: u64 = endpoint();
     main.record[end] = 94;

@@ -2,7 +2,7 @@
 public data Counter { count: i16; pad: u16; }
 public data Source { first: u16; count: u16; }
 public boundary trait Parent {
-    machine reset(counter: &mut Counter) ensures counter.count <= 7i16;
+    machine reset(counter: &mut Counter) reaches ensures counter.count <= 7i16;
 }
 public boundary trait Child: Parent {}
 Good satisfies Child { Parent::reset = reset; }

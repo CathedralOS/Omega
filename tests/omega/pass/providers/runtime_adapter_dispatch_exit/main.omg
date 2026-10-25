@@ -2,7 +2,7 @@
 // selected named implementation in both engine pipelines.
 use omega_language_std::console;
 public boundary trait Echo {
-    machine echo(x: i32) -> i32;
+    machine echo(x: i32) -> i32 reaches;
 }
 data EchoProvider {}
 machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {

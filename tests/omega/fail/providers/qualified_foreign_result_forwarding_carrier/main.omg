@@ -5,6 +5,7 @@ data View { protocol: &mut Guid; }
 domain Guid::Selected(value) requires value.value == 42;
 boundary trait Reports {
     machine read(table: &Table, view: View) -> Status
+    reaches
     requires view.protocol in Guid::Selected
     ensures result.code == 0;
 }

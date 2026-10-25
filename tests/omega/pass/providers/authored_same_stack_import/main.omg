@@ -12,7 +12,7 @@ public data Pair {
 }
 
 public boundary trait AggregateImport {
-    machine call(tag: u64, pair: Pair) -> Pair;
+    machine call(tag: u64, pair: Pair) -> Pair reaches;
 }
 
 linux_x86_64 machine aggregate_binding() -> ForeignBinding<18, 32, 7> {

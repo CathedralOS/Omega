@@ -6,7 +6,7 @@ data Message {
     lease: Lease;
     value: i32;
 }
-public boundary trait Scheduler { machine park() suspends; }
+public boundary trait Scheduler { machine park() reaches suspends; }
 machine inspect(message: Message)
 suspends; reaches Scheduler {
     let value: i32 = message.value;

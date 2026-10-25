@@ -2,7 +2,7 @@
 
 public data Instant { seconds: i64; nanoseconds: i64; }
 public boundary trait ClockProbe {
-    machine read(selector: u32, instant: &mut Instant) -> i32;
+    machine read(selector: u32, instant: &mut Instant) -> i32 reaches;
 }
 data Main { }
 

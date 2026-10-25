@@ -4,6 +4,7 @@ public domain i32::MagnitudeInput(value)
     requires value > -2147483648; (value & 1) == 0;
 public boundary trait Magnitude {
     machine absolute(value: i32 in MagnitudeInput) -> i32
+        reaches
         requires 6 in MagnitudeInput;
 }
 macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {

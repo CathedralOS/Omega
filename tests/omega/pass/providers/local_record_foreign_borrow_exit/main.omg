@@ -8,7 +8,7 @@ public data Pair { first: i64; second: i64; }
 data Holder { prefix: i64; payload: Pair; }
 public boundary trait Compare {
     // Raw memcmp leaf: both calls below supply the record's exact 16 bytes.
-    machine bytes(left: &Pair, right: &Pair, count: u64) -> i32;
+    machine bytes(left: &Pair, right: &Pair, count: u64) -> i32 reaches;
 }
 
 macos_arm64 machine compare_binding() -> ForeignBinding<26, 7, 0> {

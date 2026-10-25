@@ -23,7 +23,7 @@ public boundary trait UefiPhysicalEntry {
     machine enter(
         image_handle: EfiImageHandle,
         system_table: &EfiSystemTable
-    ) -> EfiStatus crashes Trap;
+    ) -> EfiStatus reaches crashes Trap;
 }
 
 data UefiX86_64 { }

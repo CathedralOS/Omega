@@ -1,0 +1,13 @@
+// A checked call publishes its complete Mark reach, so an empty ceiling cannot hide it.
+// Expected exit: 0
+use support::values;
+MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
+machine take() -> u64 {
+    fetch_mark()
+}
+machine main() crashes Trap {
+    let value: u64 = take();
+    transition value == 7 { true -> done() _ -> bad() }
+    state done() {}
+    state bad() { crash Trap; }
+}

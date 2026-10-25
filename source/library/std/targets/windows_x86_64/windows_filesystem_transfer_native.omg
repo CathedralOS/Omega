@@ -18,10 +18,12 @@ established by windows_synchronous_duplicate;
 
 boundary trait WindowsFilesystemTransferIo: Calling<WindowsFilesystemTransferCalling> {
     machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8], transferred: &mut u32, overlapped: u64) -> i32
+    reaches
     requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
     reaches FilesystemContentWrite
     blocks;
     machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &mut [u8], transferred: &mut u32, overlapped: u64) -> i32
+    reaches
     requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
     reaches FilesystemContentRead
     blocks;

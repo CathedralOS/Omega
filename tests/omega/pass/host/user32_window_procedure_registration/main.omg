@@ -143,21 +143,23 @@ data NativeClass { header: ClassLayout<ClassHeader>; name: &[u8; 13]; small_icon
 boundary trait ClassApi: Calling<User32PolicyCalling> {
  machine register<machine Selected>(specification: &NativeClass) -> u16
  where machine Selected satisfies WindowProcedure::call;
- machine unregister(atom: u64, instance: u64) -> i32;
+ reaches;
+ machine unregister(atom: u64, instance: u64) -> i32 reaches;
  machine create(extended_style: u32, atom: u64, title: &[u8; 13], style: u32,
   x: i32, y: i32, width: i32, height: i32, parent: u64, menu: u64, instance: u64, parameter: u64) -> u64
+ reaches
  invokes WindowProcedure;
- machine dispatch(message: &[u64; 6]) -> i64 invokes WindowProcedure;
- machine is_window(window: u64) -> i32;
- machine destroy(window: u64) -> i32 invokes WindowProcedure;
+ machine dispatch(message: &[u64; 6]) -> i64 reaches invokes WindowProcedure;
+ machine is_window(window: u64) -> i32 reaches;
+ machine destroy(window: u64) -> i32 reaches invokes WindowProcedure;
 }
 boundary trait ContextApi {
- machine set_context(window: u64, index: i32, context: i64) -> i64;
- machine get_context(window: u64, index: i32) -> i64;
+ machine set_context(window: u64, index: i32, context: i64) -> i64 reaches;
+ machine get_context(window: u64, index: i32) -> i64 reaches;
 }
 boundary trait ModuleApi {
- machine acquire(flags: u32, name: u64, module: &mut u64) -> i32;
- machine release(module: u64) -> i32;
+ machine acquire(flags: u32, name: u64, module: &mut u64) -> i32 reaches;
+ machine release(module: u64) -> i32 reaches;
 }
 data Imports { }
 windows_x86_64 machine register_binding() -> ForeignBinding<10, 16, 0> {

@@ -15,5 +15,6 @@ requires region.remaining != 0
 // selected precondition. No prior requires fact establishes nonzero content.
 boundary trait Forward {
     machine forward(whole: Region in Owned) -> Region in Owned
+    reaches
     ensures Owned::content(old(&whole)) == Owned::content(&result);
 }

@@ -6,8 +6,8 @@
 // rows make the same local trait a selectable slot.
 use omega_language_std::console;
 
-public boundary trait Gate { machine open() -> i32; }
-public boundary trait Latch { machine hold() -> i32; }
+public boundary trait Gate { machine open() -> i32 reaches; }
+public boundary trait Latch { machine hold() -> i32 reaches; }
 LatchProvider satisfies Latch { Latch::hold = hold; }
 machine hold() -> i32 { 1 }
 

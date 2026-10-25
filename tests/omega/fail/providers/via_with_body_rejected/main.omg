@@ -2,7 +2,7 @@
 // lowering is an ordinary checked machine; only a bodyless leaf carries a
 // realization. Silent drop is the bug class this pin fences.
 boundary trait Process {
-    machine exit(code: i32);
+    machine exit(code: i32) reaches;
 }
 
 machine exit_composite(code: i32) satisfies Process::exit via ForeignBinding::Syscall(60) {

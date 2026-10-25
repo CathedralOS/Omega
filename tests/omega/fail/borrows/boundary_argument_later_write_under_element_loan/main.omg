@@ -1,7 +1,7 @@
 // The first boundary actual lends the local element before the later scalar
 // actual executes. The latter cannot mutate the lent array before the call.
 use omega::language::core::external_binding;
-public boundary trait CText { machine length(text: &u8, limit: u64) -> u64; }
+public boundary trait CText { machine length(text: &u8, limit: u64) -> u64 reaches; }
 macos_arm64 machine binding() -> ForeignBinding<26, 8, 0> {
     ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {

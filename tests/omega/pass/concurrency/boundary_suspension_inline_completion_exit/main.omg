@@ -3,7 +3,7 @@ use omega::language::core::drop;
 // A possibly-suspending requirement may complete inline. Its call still needs
 // an exact suspension crossing; this is not a park/resume runtime witness.
 public boundary trait Scheduler {
-    machine advance(value: i32, inventory: Inventory) -> i32 suspends;
+    machine advance(value: i32, inventory: Inventory) -> i32 reaches suspends;
 }
 
 data InlineScheduler {}

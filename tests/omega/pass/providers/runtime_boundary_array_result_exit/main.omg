@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
 public boundary trait ArrayFactory {
-    machine produce() -> [u8; 2];
+    machine produce() -> [u8; 2] reaches;
 }
 data ArrayFactoryProvider {}
 machine ArrayFactoryProvider::produce() -> [u8; 2]

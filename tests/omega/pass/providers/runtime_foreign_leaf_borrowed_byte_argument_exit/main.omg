@@ -12,7 +12,7 @@ use omega::language::core::external_binding;
 use omega_language_std::console;
 
 public boundary trait CText {
-    machine length(text: &u8) -> u64;
+    machine length(text: &u8) -> u64 reaches;
 }
 
 macos_arm64 machine c_strlen_binding() -> ForeignBinding<26, 7, 0> {
@@ -44,7 +44,7 @@ public data Words {
 }
 
 public boundary trait Measure {
-    machine measure(text: &u8, words: &Words) -> i32 invokes CText;
+    machine measure(text: &u8, words: &Words) -> i32 reaches invokes CText;
 }
 
 data MeasureProvider {}

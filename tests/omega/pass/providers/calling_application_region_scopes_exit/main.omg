@@ -2,7 +2,7 @@
 // region. The method binder named 'provider stays separate from Reader's binder.
 
 public boundary trait Reading<'first, 'second, Value> {
-    machine read<'provider>(value: Value, other: &'provider i32) -> i32;
+    machine read<'provider>(value: Value, other: &'provider i32) -> i32 reaches;
 }
 Reader<'provider> satisfies Reading<'provider, 'provider, &'provider i32> {
     Reading::read = read;

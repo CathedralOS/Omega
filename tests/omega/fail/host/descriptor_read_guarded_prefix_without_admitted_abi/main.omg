@@ -9,7 +9,7 @@ use omega::language::core::external_binding;
 public data Cell { value: u64; }
 public data Packet { header: u64; reference: &Cell; tail: u64; }
 public boundary trait DescriptorIo {
-    machine read(descriptor: i32, packet: &mut Packet, count: u32) -> i64 blocks;
+    machine read(descriptor: i32, packet: &mut Packet, count: u32) -> i64 reaches blocks;
 }
 public data DescriptorImports {}
 data Main { cell: Cell; }

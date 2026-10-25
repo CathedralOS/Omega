@@ -4,8 +4,8 @@ module gate;
 // module of the root package; the build selects the map before any entry
 // binding is spelled.
 public boundary trait Gate {
-    machine open() -> i32;
-    machine close(ticket: i32) -> i32;
+    machine open() -> i32 reaches;
+    machine close(ticket: i32) -> i32 reaches;
 }
 public GateProvider satisfies Gate {
     Gate::open = open_gate;
