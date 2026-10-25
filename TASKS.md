@@ -1944,9 +1944,9 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   through specialization, layout, and native execution (`Psi 02–07` and `Omega
   00–09`). Reuse
   `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/{type_equations/,machine_equations.rs}`.
-  - Combine equations with argument/result inference and forwarding beyond
-    `samples/cli/facts/inferred_array_equation_call` to open schemas, retained
-    extensions, late-selected receivers, operator/conformance supply,
+  - Extend equation and argument/result composition beyond closed generic
+    results in `samples/cli/facts/inferred_array_equation_call/forwarded_result`
+    to open schemas, retained extensions, late-selected receivers, operator/conformance supply,
     machine/evidence/value binders, named-lifetime identity, and unspecialized
     body checking under finite type-equality disjunctions.
   - Extend typed const-expression and invocation evaluators to selected computed

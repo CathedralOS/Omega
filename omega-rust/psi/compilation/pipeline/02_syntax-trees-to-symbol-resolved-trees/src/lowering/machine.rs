@@ -260,8 +260,11 @@ pub(crate) fn lower_machine_into(
             authored: service_reaches,
         },
     );
+    // Equation consumers can receive an ordinary generic call's result. Keep
+    // that selected telescope too: its substituted result is type evidence even
+    // when the producing machine declares no equation of its own.
     if let Some(sources) = &mut lowerer.equation_sources
-        && !machine.where_facts.is_empty()
+        && (!machine.where_facts.is_empty() || !machine.type_parameters.is_empty())
     {
         sources.declarations.push((
             lowerer.symbol_resolved_trees.machines.len(),
