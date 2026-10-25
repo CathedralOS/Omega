@@ -15,7 +15,7 @@ Every place performs the same operation: zero-extend bounded 8-bit unsigned oper
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a function call returns the zero-extended u32 value before discharging subtraction bounds |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms produce the zero-extended u32 value joining into subtraction bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply the narrow u8 operand for zero-extension |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the zero-extended u32 value and discharges subtraction bounds |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the zero-extended u32 value and discharges subtraction bounds |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine sends the zero-extended u32 value to the verifying machine to discharge bounds |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs u8-to-u32 zero-extension and discharges subtraction bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `narrow == 100u8`, zero extension produces `wide == 100u32`, `headroom == 60u32`, `margin == 60u32`, returning `0i32`. The transition `probe() == 0 { true -> done() _ -> bad() }` routes to `state done() {}`, exiting 0. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1` in `main.omg`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, with `narrow == 100u8`, zero extension produces `wide == 100u32`, `headroom == 60u32`, `margin == 60u32`, returning `0i32`. The transition `probe() == 0 { true -> done() _ -> bad() }` routes to `machine done() {}`, exiting 0. A 1-token perturbation of the demanded result (`transition probe() == 0` to `transition probe() == 1` in `main.omg`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - In each invalid twin, `narrow` upper bound is widened to `161u8` so `wide` can reach `161u32 > 160u32`. Exact subtraction `160u32 - wide` statically detects potential underflow below zero, failing closed under the **Exact arithmetic overflow** obligation class with ``may overflow `u32` ``. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -62,7 +62,7 @@ omega --check samples/cli/facts/narrow_to_wide_unsigned_8to32_extension/<place>/
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow | ``may overflow `u32` `` |
 

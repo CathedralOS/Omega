@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 8-bit inputs `lhs
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the wrapping product result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the wrapping product result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs is multiplied via wrapping multiplication with the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping product result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping product result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the wrapping product result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit signed wrapping multiplication and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating wrapping multiplication with inputs `10i8` and `7i8` (or `10i8` and `8i8` for const_name) produces `prod == 70i8` (or `80i8`) within static interval `40i8..96i8`. Passing `prod` to `verify_prod(prod)` satisfies its contract `value >= 40 && value <= 96`. `verify_prod` evaluates exact subtractions `head = 96 - prod` and `tail = prod - 40`, sums them to `56i8`, and returns `56i8`. In `main`, `transition res == 56` transitions to `state done() {}`, terminating with native exit 0. If wrapping multiplication or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating wrapping multiplication with inputs `10i8` and `7i8` (or `10i8` and `8i8` for const_name) produces `prod == 70i8` (or `80i8`) within static interval `40i8..96i8`. Passing `prod` to `verify_prod(prod)` satisfies its contract `value >= 40 && value <= 96`. `verify_prod` evaluates exact subtractions `head = 96 - prod` and `tail = prod - 40`, sums them to `56i8`, and returns `56i8`. In `main`, `transition res == 56` transitions to `machine done() {}`, terminating with native exit 0. If wrapping multiplication or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `lhs` bound (`lhs <= 12i8` becomes `lhs <= 13i8`), so `prod` reaches `104i8 > 96i8`. Calling `verify_prod(prod)` fails closed at compile time with `cannot prove requires contract for call verify_prod`. None reaches native execution.
 
 Check all nine invalid twins with:

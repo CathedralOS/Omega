@@ -46,7 +46,7 @@ The nine positive places and nine reject twins are pinned in the compiler corpus
 | call result | `call_result/` | a producer machine returns the zero-extended u64 scalar under postcondition ensures result >= 300u64 && result <= 500u64 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
 | match join | `match_join/` | both branches of a boolean match expression yield the zero-extended u64 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
 | const name | `const_name/` | named constants BASE_NARROW and UPPER_NARROW define bounded u16 operands before zero-extension | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| another state | `other_state/` | an internal state transition transfers the zero-extended u64 scalar to a successor state with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the zero-extended u64 scalar to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
 | another machine | `other_machine/` | an associated Relay machine zero-extends and forwards the u64 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
 | another target body | `target_body/` | each of the four hosted target bodies zero-extends the u16 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
 
@@ -72,7 +72,7 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `narrow as u64` with input `400u16` produces `400u64` within static interval `[300u64, 500u64]`. Downstream exact subtractions `diff1 = 500u64 - wide == 100u64` and `diff2 = wide - 300u64 == 100u64` evaluate to `100u64`, yielding `exit_code == 0i32`. In `main`, `transition exit_code == 0i32` routes to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition exit_code == 0i32` to `transition exit_code == 1i32`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating `narrow as u64` with input `400u16` produces `400u64` within static interval `[300u64, 500u64]`. Downstream exact subtractions `diff1 = 500u64 - wide == 100u64` and `diff2 = wide - 300u64 == 100u64` evaluate to `100u64`, yielding `exit_code == 0i32`. In `main`, `transition exit_code == 0i32` routes to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition exit_code == 0i32` to `transition exit_code == 1i32`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the `narrow` upper bound to `501u16` (`501u64`), causing exact subtraction `500u64 - wide` to fail closed at compile time under the **Exact arithmetic overflow/underflow** obligation class with ``may overflow `u64` ``. None reaches native execution.
 
 Check each twin with:
@@ -97,7 +97,7 @@ omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/target_
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 

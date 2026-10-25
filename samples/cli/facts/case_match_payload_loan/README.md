@@ -22,7 +22,7 @@ shared; the nested payload's requested mutable access stays unchanged.
 | Call result | [program](call_result/main.omg) | [shared descriptor](call_result/invalid/main.omg) |
 | Match join | [program](match_join/main.omg) | [shared descriptor](match_join/invalid/main.omg) |
 | Const name | [program](const_name/main.omg) | [shared descriptor](const_name/invalid/main.omg) |
-| Another state | [program](other_state/main.omg) | [shared descriptor](other_state/invalid/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [shared descriptor](other_state/invalid/main.omg) |
 | Another machine | [program](other_machine/main.omg) | [shared descriptor](other_machine/invalid/main.omg) |
 | Another target body | [program](target_body/main.omg) | [shared descriptor](target_body/invalid/main.omg) |
 

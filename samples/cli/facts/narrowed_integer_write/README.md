@@ -26,7 +26,7 @@ in an unrelated generic library declaration.
 | [call result](call_result/main.omg) | Completed identity result [invalid](call_result/invalid/main.omg) |
 | [match join](match_join/main.omg) | Both normal-return arms, including an inline result [invalid](match_join/invalid/main.omg) |
 | [const name](const_name/main.omg) | Named static value [invalid](const_name/invalid/main.omg) |
-| [other state](other_state/main.omg) | Named state arrival [invalid](other_state/invalid/main.omg) |
+| [other state](other_state/main.omg) | Nested machine arrival [invalid](other_state/invalid/main.omg) |
 | [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](other_machine/invalid/main.omg) |
 | [target body](target_body/main.omg) | Checked body for each hosted target [invalid](target_body/invalid/main.omg) |
 

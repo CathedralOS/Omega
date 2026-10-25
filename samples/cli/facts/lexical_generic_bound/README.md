@@ -21,7 +21,7 @@ place spells the same seven through a typed named constant.
 The witnesses are [local](local/main.omg), [field](field/main.omg),
 [parameter](parameter/main.omg), [call result](call_result/main.omg),
 [match join](match_join/main.omg), [const name](const_name/main.omg),
-[another state](other_state/main.omg), [another machine](other_machine/main.omg),
+[a nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
 and [another target body](target_body/main.omg). Each has `invalid/main.omg`
 beside it. Every twin changes only the public requirement's precondition from
 `input <= Units` to `true`, so it no longer implies the implementation's

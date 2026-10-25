@@ -222,7 +222,7 @@ player.health = next_health;
 The subtraction needs the same range proof as any other arithmetic. The local's
 scope and ownership determine how long it may be used; introducing it does not
 make it part of the data layout.
-Values needed by a later named state are passed as state arguments. A temporary
+Values needed by a later nested machine are passed as machine arguments. A temporary
 buffer or calculation does not become a field merely because several operations
 use it; fields describe state whose lifetime belongs to the record.
 
@@ -317,6 +317,6 @@ introduces that model.
 
 ## Foundation
 
-Data owns fields; machines receive access; state transitions transfer explicit
+Data owns fields; machines receive access; terminal transfers transfer explicit
 values within an activation. Later chapters build on those rules without adding
 hidden storage or ambient authority.

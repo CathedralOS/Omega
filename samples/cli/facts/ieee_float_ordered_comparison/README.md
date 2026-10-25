@@ -21,7 +21,7 @@ Every place performs the same operation: establish or transport a bounded IEEE `
 | Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A machine call returns the bounded reading directly into window verification |
 | Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms produce the bounded reading joining into window verification |
 | Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constants define the interval bounds proving the downstream contract |
-| Another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor state receives the bounded reading and verifies the downstream window |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine receives the bounded reading and verifies the downstream window |
 | Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine forwards the bounded reading to the verifying machine |
 | Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target bodies forwards the bounded reading to `verify_window` |
 
@@ -61,7 +61,7 @@ omega --check samples/cli/facts/ieee_float_ordered_comparison/<place>/invalid/ma
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
 
@@ -77,13 +77,13 @@ All 18 positive and reject places are pinned as byte-identical copies in the com
 | call result | [`pass/facts/ieee_float_ordered_comparison_through_call_result_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_call_result_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_call_result_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_call_result_rejected/main.omg) |
 | match join | [`pass/facts/ieee_float_ordered_comparison_through_match_join_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_match_join_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_match_join_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_match_join_rejected/main.omg) |
 | const name | [`pass/facts/ieee_float_ordered_comparison_through_const_name_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_const_name_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_const_name_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_const_name_rejected/main.omg) |
-| another state | [`pass/facts/ieee_float_ordered_comparison_through_other_state_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_state_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_state_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_state_rejected/main.omg) |
+| a nested machine | [`pass/facts/ieee_float_ordered_comparison_through_other_state_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_state_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_state_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_state_rejected/main.omg) |
 | another machine | [`pass/facts/ieee_float_ordered_comparison_through_other_machine_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_other_machine_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_other_machine_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_other_machine_rejected/main.omg) |
 | another target body | [`pass/facts/ieee_float_ordered_comparison_through_target_body_exit`](../../../../tests/omega/pass/facts/ieee_float_ordered_comparison_through_target_body_exit/main.omg) | [`fail/facts/ieee_float_ordered_comparison_through_target_body_rejected`](../../../../tests/omega/fail/facts/ieee_float_ordered_comparison_through_target_body_rejected/main.omg) |
 
 ## Measured discrimination
 
-- **Runtime oracle discrimination:** A 1-token perturbation of the demanded verification result in `local/main.omg` (`transition probe(reading) == 0` perturbed to `transition probe(reading) == 1`) routes execution to `state bad() { crash Trap; }` and traps both engines identically: `native exit -1073741795` (`0xC000001D` illegal instruction trap on `windows_x86_64`) and `interp crash: Trap (host presentation agrees)`.
+- **Runtime oracle discrimination:** A 1-token perturbation of the demanded verification result in `local/main.omg` (`transition probe(reading) == 0` perturbed to `transition probe(reading) == 1`) routes execution to `machine bad() { crash Trap; }` and traps both engines identically: `native exit -1073741795` (`0xC000001D` illegal instruction trap on `windows_x86_64`) and `interp crash: Trap (host presentation agrees)`.
 - **Static domain-construction discrimination:** A 1-token perturbation of the float literal at `Reading` construction in `local/main.omg` (`Reading { value: 2.0 }` perturbed to `Reading { value: 3.25 }`) fails closed before code generation with ``error: data `Reading` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)``.
 - **Static contract-refinement discrimination:** A 1-token perturbation of the interval upper bound from `2.5` to `3.5` in `<place>/invalid/main.omg` fails closed at the consuming `verify_window` call with ``error: cannot prove requires contract for call verify_window ... (needs fact `reading >= 1.0 && reading <= 3.0` here)``.
 
@@ -100,7 +100,7 @@ Producer: `omega` (`--build-profile` reporting `{"schema":"omega-compiler-build-
 | call result | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: source(reading) >= 1.0 && source(reading) <= 3.0` |
 | match join | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
 | const name | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
-| another state | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
+| a nested machine | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: value >= 1.0 && value <= 3.0` |
 | another machine | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from deliver: value >= 1.0 && value <= 3.0` |
 | another target body | `native exit 0` / `interp exit: 0` | rejected: `cannot prove requires contract for call verify_window from probe: reading.value >= 1.0 && reading.value <= 3.0` |
 

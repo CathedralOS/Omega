@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | wrapping multiplication result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | wrapping multiplication result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | wrapping inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping multiplication result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | wrapping multiplication result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | wrapping multiplication result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | wrapping multiplication result verified across target-scoped machine bodies |
 
@@ -74,7 +74,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_prod()` computes wrapping multiplication and returns the result across call boundary with ensures contract.
   - `match_join`: wrapping multiplication result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: i16 in Wrapping = 15; const RHS: i16 in Wrapping = 8;`.
-  - `other_state`: wrapping multiplication result is passed across a transition edge into successor state `step(forwarded: i16)`.
+  - `other_state`: wrapping multiplication result is passed across a transition edge into successor machine `step(forwarded: i16)`.
   - `other_machine`: wrapping multiplication result is forwarded through intermediate machine `runner()`.
   - `target_body`: wrapping multiplication result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening inputs to `lhs = 22, rhs = 10` (where `prod` reaches `220i16 > 200i16`), proving that downstream contract verification `requires prod >= 50 && prod <= 200` strictly fails closed when the post-wrapping product exceeds 200.

@@ -15,7 +15,7 @@ Every place performs the same operation: multiply bounded 8-bit signed operands 
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 8-bit operands before saturating multiplication and interval discharge |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 8-bit operands and join before saturating multiplication and interval discharge |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 8-bit operands before saturating multiplication and interval discharge |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives bounded 8-bit operands before saturating multiplication and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 8-bit operands before saturating multiplication and interval discharge |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 8-bit operands to saturating multiplication |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies multiplies bounded 8-bit operands with saturation and discharges interval |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, with `lhs == 10i8` and `rhs == 7i8`, `prod == 70i8`, `headroom == 26i8`, `margin == 30i8`, and `headroom + margin == 56i8`. The transition `probe() == 56 { true -> done() _ -> bad() }` exits 0. If 8-bit signed saturating multiplication or exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, with `lhs == 10i8` and `rhs == 7i8`, `prod == 70i8`, `headroom == 26i8`, `margin == 30i8`, and `headroom + margin == 56i8`. The transition `probe() == 56 { true -> done() _ -> bad() }` exits 0. If 8-bit signed saturating multiplication or exact interval calculations evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `lhs` upper bound is widened to `13i8` so `prod` can reach `104i8 > 96i8`. Proof obligation checking statically detects that `verify_prod` contract precondition `value <= 96i8` cannot be satisfied, failing closed with `cannot prove requires contract for call`. None reaches native execution.
 
 Check all nine invalid twins with:

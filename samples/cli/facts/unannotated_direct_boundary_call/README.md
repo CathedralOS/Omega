@@ -21,7 +21,7 @@ empty ceiling rejects that hidden direct service. It does not close the item.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the boundary result |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return the boundary result |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the comparison uses the named constant the provider returns |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the call result |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the call result |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine returns the boundary result to the checker |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four hosted target bodies performs the call |
 
@@ -67,7 +67,7 @@ empty ceiling.
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `reaches undeclared service \`Mark\`` |
 
@@ -99,7 +99,7 @@ fixtures have no `build.omg`.
    service `Mark` is undeclared.
 2. **Identity and lifetime.** The fact is the value returned by that one
    direct call. Locals, the `Hold.value` field, parameters, call results,
-   match joins, the named constant `MARK_VALUE`, the successor state, the
+   match joins, the named constant `MARK_VALUE`, the successor machine, the
    forwarding machine, and the target bodies carry that value without an
    intervening write of a different value.
 3. **Composition.** Each positive and its twin differ only by inserting bare

@@ -17,7 +17,7 @@ All nine places verify at runtime (`Expected exit: 0` with `crashes Trap`) that
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call that returns the field and `ensures` the bound |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | a match whose arms both evaluate to the field |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the ceiling is named by `const LIMIT: u64 = 3` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a later state parameter carrying the bound |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a later state parameter carrying the bound |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine producing and consuming the bound |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | the same field index in every target-scoped machine body |
 
@@ -54,7 +54,7 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove index `current(main) + 1` is within length 5` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
 

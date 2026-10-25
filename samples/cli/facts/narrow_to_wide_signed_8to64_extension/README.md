@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 8-bit input `narr
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the sign-extended i64 value is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the sign-extended i64 value so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant i8 value is sign-extended to i64 |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the sign-extended i64 value to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the sign-extended i64 value to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the sign-extended i64 value through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit to 64-bit sign extension and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `narrow as i64` with input `60i8` produces `60i64` within static interval `30i64..100i64`. Passing `wide` to `verify_wide(wide)` satisfies its contract `wide >= 30 && wide <= 100`. `verify_wide` evaluates exact subtractions `headroom = 100 - 60 == 40i64` and `margin = 60 - 30 == 30i64`, computes `diff = headroom - margin == 10i64`, and returns `(diff - 10) as i32 == 0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating `narrow as i64` with input `60i8` produces `60i64` within static interval `30i64..100i64`. Passing `wide` to `verify_wide(wide)` satisfies its contract `wide >= 30 && wide <= 100`. `verify_wide` evaluates exact subtractions `headroom = 100 - 60 == 40i64` and `margin = 60 - 30 == 30i64`, computes `diff = headroom - margin == 10i64`, and returns `(diff - 10) as i32 == 0i32`. In `main`, `transition res == 0` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the `narrow` bound (e.g. `narrow <= 101i8` or `const NARROW_CONST: i8 = 101;`), so `narrow as i64` reaches `101i64 > 100i64`. Calling `verify_wide(wide)` fails closed at compile time under the **Contract precondition** obligation class with `cannot prove requires contract for call verify_wide`. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -62,7 +62,7 @@ omega --check samples/cli/facts/narrow_to_wide_signed_8to64_extension/<place>/in
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 

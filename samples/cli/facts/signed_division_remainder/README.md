@@ -15,7 +15,7 @@ Every place performs the same operation: compute the signed remainder of non-neg
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted helper call returns the divisor before remainder and indexing |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return the contracted divisor and join before remainder |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the divisor before remainder and indexing |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the operands and indexes the array |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the operands and indexes the array |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate machine forwards the operands to the indexing machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs remainder and indexes the array |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, `14i64 % 4i64 == 2i64`, selecting element `arr[2] == 30u8`. The transition `probe() == 30 { true -> done() _ -> bad() }` exits 0. If remainder evaluation is corrupted (producing an incorrect index) or returns an element other than 30, execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, `14i64 % 4i64 == 2i64`, selecting element `arr[2] == 30u8`. The transition `probe() == 30 { true -> done() _ -> bad() }` exits 0. If remainder evaluation is corrupted (producing an incorrect index) or returns an element other than 30, execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `divisor` is widened to `5i64`, so the remainder interval is `[0, 4]`, which can produce index `4`. Indexing a 4-element array `[u8; 4]` with an index that may equal 4 violates array bounds safety at compile time, strictly failing closed during proof checking with `cannot prove index \`idx\` is within length 4`. None reaches native execution.
 
 Check all nine invalid twins with:

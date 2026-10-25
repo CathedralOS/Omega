@@ -9,7 +9,7 @@ The borrowed call preserves the owner's custody; cleanup substitutes that exact
 owner into the hook's prerequisite and retains its original output reference.
 
 The nine projects exercise local, field, parameter, call result, match join,
-const name, another state, another machine, and another target body. Each copies
+const name, a nested machine, another machine, and another target body. Each copies
 that sentence and lends the same fresh `Keeper` to the same shared `observe` call.
 Its hook requires code 7 and writes through the original exclusive reference.
 The following check observes 7 in the original `Counter`, so a skipped hook,
@@ -26,7 +26,7 @@ wrong backing or copied referent cannot satisfy the runtime oracle.
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | seed code returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | seed code unified across match branches |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | seed code named and constrained by a constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | seed code transitioned to successor state argument |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | seed code transitioned to successor machine argument |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | seed code forwarded through an intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | seed code consumed across target-scoped machine bodies |
 

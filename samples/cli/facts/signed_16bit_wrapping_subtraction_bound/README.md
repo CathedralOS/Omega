@@ -3,7 +3,7 @@
 Fact: 16-bit signed wrapping subtraction lhs -% rhs with bounded interval 200i16 <= diff <= 450i16 establishes 200i16 <= diff <= 450i16 across all nine places so exact subtractions 450i16 - diff and diff - 200i16 are safe.
 
 Owning board item: `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `ARITHMETIC-POLICY-REALIZATION` (`TASKS.md`).
-Exact requirement: the interval fact `200i16 <= diff <= 450i16` established where a bounded wrapping subtraction is formed transports unchanged through parameters, locals, record fields, helper call results, match joins, named constants, successor states, forwarding machines and target-scoped bodies into the consuming exact subtractions; each place carries a reject twin that still refuses.
+Exact requirement: the interval fact `200i16 <= diff <= 450i16` established where a bounded wrapping subtraction is formed transports unchanged through parameters, locals, record fields, helper call results, match joins, named constants, successor machines, forwarding machines and target-scoped bodies into the consuming exact subtractions; each place carries a reject twin that still refuses.
 
 Every positive place and reject twin tests 16-bit signed wrapping subtraction (`i16 in Wrapping`).
 When bounded operands `lhs >= 300i16 && lhs <= 500i16` and `rhs >= 50i16 && rhs <= 100i16` are cast into the Wrapping arithmetic domain (`lhs as i16 in Wrapping` and `rhs as i16 in Wrapping`), their modular subtraction `wl - wr` produces a bounded result in `[200, 450]`.
@@ -21,7 +21,7 @@ Subsequent exact subtractions `headroom = 450i16 - diff` and `margin = diff - 20
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | wrapping-subtracted 16-bit signed value is returned from a dedicated helper machine |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the wrapping-subtracted 16-bit signed value |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply upper and lower bounds for the wrapping subtraction operands |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the wrapping-subtracted 16-bit signed value into a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the wrapping-subtracted 16-bit signed value into a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the wrapping-subtracted 16-bit signed value |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing the wrapping subtraction and verification |
 

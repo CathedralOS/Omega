@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded unsigned 16-bit inputs `
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the wrapping difference result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the wrapping difference result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs is subtracted via wrapping subtraction from the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping difference result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the wrapping difference result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the wrapping difference result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 16-bit unsigned wrapping subtraction and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating wrapping subtraction with inputs `400u16` and `80u16` produces `diff == 320u16` within static interval `200u16..450u16`. Passing `diff` to `verify_diff(diff)` satisfies its contract `value >= 200 && value <= 450`. `verify_diff` evaluates exact subtractions `head = 450 - 320 == 130u16` and `tail = 320 - 200 == 120u16`, sums them to `250u16`, and returns `250u16`. In `main`, `transition res == 250` transitions to `state done() {}`, terminating with native exit 0. If wrapping subtraction or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating wrapping subtraction with inputs `400u16` and `80u16` produces `diff == 320u16` within static interval `200u16..450u16`. Passing `diff` to `verify_diff(diff)` satisfies its contract `value >= 200 && value <= 450`. `verify_diff` evaluates exact subtractions `head = 450 - 320 == 130u16` and `tail = 320 - 200 == 120u16`, sums them to `250u16`, and returns `250u16`. In `main`, `transition res == 250` transitions to `machine done() {}`, terminating with native exit 0. If wrapping subtraction or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin widens the `lhs` bound (e.g. `lhs <= 520u16` or `const RHS: u16 = 30;`), so `diff` reaches `470u16 > 450u16`. Calling `verify_diff(diff)` fails closed at compile time with `cannot prove requires contract for call verify_diff`. None reaches native execution.
 
 Check all nine invalid twins with:

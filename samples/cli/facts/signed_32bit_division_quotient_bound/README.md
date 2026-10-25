@@ -19,7 +19,7 @@ With `dividend in [200, 200]` and `divisor in [5, 5]`, signed division staticall
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a dedicated `divide` machine returns the quotient under `ensures result >= 40i32 && result <= 40i32` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a `match` unify the quotient under the same `ensures` |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants `DIVIDEND` / `DIVISOR` / `QUOTIENT` supply the bounded division |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a `step(quotient)` successor state receives the quotient under its own `requires` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a `step(quotient)` successor machine receives the quotient under its own `requires` |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine carries the quotient to the verifying machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a `verify_target` body performing the division and verification |
 
@@ -50,7 +50,7 @@ all ten positive programs report `native exit 0` and `interp exit: 0`.
 In each positive place, evaluating the bounded division with `dividend = 200i32` and `divisor = 5i32` computes `quotient = 40i32`, inside the statically established interval `[40, 40]`.
 `verify_quotient` discharges its `requires` with that fact and evaluates `quotient - 40i32 = 0i32`.
 `main`'s guard `probe() == 0` then transitions to `done()`, exiting 0.
-Corrupting the demanded result by one token (`probe() == 0` to `probe() == 1`) routes execution to `state bad() { crash Trap; }`; measured on both engines: `native signal 5` and `interp crash: Trap (host presentation agrees)`, process exit 255.
+Corrupting the demanded result by one token (`probe() == 0` to `probe() == 1`) routes execution to `machine bad() { crash Trap; }`; measured on both engines: `native signal 5` and `interp crash: Trap (host presentation agrees)`, process exit 255.
 A corrupted quotient or bound therefore cannot be read as success.
 
 ### Invalid controls and reject twins

@@ -18,7 +18,7 @@ Every place performs the same operation: define two-level nested records `Inner 
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the shared borrow arrives as the return result of a helper machine and is projected by the caller |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms yield the shared borrow so the joined reference projects the nested field safely |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant `LIMIT: u64 = 72` provides the exact minuend for the nested field subtraction |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a transition forwards the shared borrow to a successor state that projects the nested field |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a transition forwards the shared borrow to a successor machine that projects the nested field |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the shared borrow to an intermediate machine for projection |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the nested shared borrow field projection and exact subtraction |
 
@@ -48,7 +48,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, `Inner` is bounded with `where quota <= 72` and initialized with `quota: 30, tag: 7`. `Outer` contains `inner: Inner` and `header: 10`. Shared borrow field projection yields `view.inner.quota == 30u64`. Exact subtraction `72u64 - quota` produces `42u64`. In `main`, `transition diff == 42` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition diff == 42` to `transition diff == 43`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- In every positive place, `Inner` is bounded with `where quota <= 72` and initialized with `quota: 30, tag: 7`. `Outer` contains `inner: Inner` and `header: 10`. Shared borrow field projection yields `view.inner.quota == 30u64`. Exact subtraction `72u64 - quota` produces `42u64`. In `main`, `transition diff == 42` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded result (`transition diff == 42` to `transition diff == 43`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the inner field bound to `where quota <= 73`. Exact subtraction `72u64 - quota` could underflow if `quota == 73`, so compile-time proof obligation checking fails closed under the **Exact arithmetic overflow/underflow (decision 17)** obligation class with `may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -65,7 +65,7 @@ omega --check samples/cli/facts/nested_record_field_borrow_bound/<place>/invalid
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 

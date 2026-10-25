@@ -196,27 +196,27 @@ whole table needs a checked frame or an explicit preservation guarantee to retai
 that precision. Entry/current comparisons use `old(place)` or a real pre-state
 binding, not a name introduced by an equality expression.
 
-State signatures are arrival contracts. Every incoming transition proves them
+Machine signatures are arrival contracts. Every incoming call or transition proves them
 under the exact substitution, including backedges after mutation:
 
 ```omega
-state fill(buffer: &mut Buffer, i: u64)
+machine fill(buffer: &mut Buffer, i: u64)
 requires
     i <= buffer.cap
 {
     transition i < buffer.cap {
-        true -> fill(buffer, i + 1)
-        false -> done(buffer)
+        true -> fill(&mut buffer, i + 1)
+        false -> done(&mut buffer)
     }
 }
 ```
 
 This sketch assumes a `u64` capacity and an enclosing
-`state done(buffer: &mut Buffer)`. Each jump explicitly carries the buffer's loan;
-the scalar cursor is a state parameter, not persistent buffer scratch. The target
+`machine done(buffer: &mut Buffer)`. Each call explicitly carries the buffer's loan;
+the scalar cursor is a machine parameter, not persistent buffer scratch. The target
 may assume its own arrival facts, not stale machine-entry facts. Proof-only
 arguments obey the same substitution and validity rules before erasure; no hidden
-witness-transition syntax is needed. See [state contracts](../spec/language/state_contracts.md)
+witness-transition syntax is needed. See [invocation contracts](../spec/language/state_contracts.md)
 and [mutation frames](../spec/language/dependent_values.md#mutation-frames).
 
 ## When The Checker Says No

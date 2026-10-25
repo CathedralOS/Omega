@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 16-bit input `val
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the arithmetic right-shifted result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the arithmetic right-shifted result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant operand is arithmetic right-shifted by 2u32 bits |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the arithmetic right-shifted result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the arithmetic right-shifted result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the arithmetic right-shifted result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 16-bit signed arithmetic right shift and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `val >> 2u32` with input `480i16` establishes shifted value `120i16` within static interval `120i16..120i16`. Passing `shifted` to `verify_shifted(shifted)` satisfies its contract `shifted >= 120 && shifted <= 120`. `verify_shifted` evaluates exact subtraction `120 - 120 == 0i16`, which returns `0i32`. In `main`, `transition res == 0` transitions to `state done() {}`, terminating with native exit 0. If right shift or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, evaluating `val >> 2u32` with input `480i16` establishes shifted value `120i16` within static interval `120i16..120i16`. Passing `shifted` to `verify_shifted(shifted)` satisfies its contract `shifted >= 120 && shifted <= 120`. `verify_shifted` evaluates exact subtraction `120 - 120 == 0i16`, which returns `0i32`. In `main`, `transition res == 0` transitions to `machine done() {}`, terminating with native exit 0. If right shift or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin weakens the `val` bound (e.g. `val >= 476 && val <= 480` or `const VAL: i16 = 476`), so `val >> 2u32` can be `119i16`. Calling `verify_shifted(shifted)` fails closed at compile time with `cannot prove requires contract for call verify_shifted`. None reaches native execution.
 
 Check all nine invalid twins with:

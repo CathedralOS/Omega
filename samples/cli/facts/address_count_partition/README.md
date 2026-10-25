@@ -20,7 +20,7 @@ changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call with a declared result supplies the requested count |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms keep the bounded count, so the joined count splits safely |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `const LENGTH: u64 = 20` provides the named requested count |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the operands and splits there |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the operands and splits there |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports operands to the split machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies splits the base and count |
 
@@ -71,7 +71,7 @@ cleanly during compile-time proof checking:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic` |
 

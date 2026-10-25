@@ -15,7 +15,7 @@ Every place performs the same operation: query the alignment-padded byte size (`
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the size and alignment are returned from contracted helper call results before subtracting |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms evaluate the size and alignment queries and join before subtracting |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants evaluate size_of and align_of before subtracting |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the size and alignment queries before subtracting |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the size and alignment queries before subtracting |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine delegates the subtraction to the geometry query machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies evaluates size_of and align_of and subtracts |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, `size_of<Padded>() == 16u64` and `align_of<Padded>() == 8u64`. Exact subtraction `16u64 - (8u64 * 2u64) == 0u64`. The transition `diff == 0 { true -> done() _ -> bad() }` exits 0. If record padding layout geometry queries evaluate incorrectly or arithmetic fails, `diff` is non-zero and execution transitions to `state bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
+- At runtime, `size_of<Padded>() == 16u64` and `align_of<Padded>() == 8u64`. Exact subtraction `16u64 - (8u64 * 2u64) == 0u64`. The transition `diff == 0 { true -> done() _ -> bad() }` exits 0. If record padding layout geometry queries evaluate incorrectly or arithmetic fails, `diff` is non-zero and execution transitions to `machine bad() { crash Trap; }`, causing a native signal 5 / interpreter `Trap` crash (exit 255).
 - In each invalid twin, `Padded` omits `tag: u8` so `Padded` has `size == 8u64` and `align == 8u64`. Exact subtraction `8u64 - (8u64 * 2u64)` (`8u64 - 16u64`) underflows below zero (`bounds [-8, -8] lie outside [0, 18446744073709551615]`), causing compile-time proof obligation checking to fail closed with `exact arithmetic may overflow`. None reaches native execution.
 
 Check all nine invalid twins with:

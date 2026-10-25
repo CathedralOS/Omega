@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | 11th stack argument result returned across intermediate call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | 11th stack argument result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | 11th stack argument supplied by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | 11th stack argument result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | 11th stack argument result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | 11th stack argument result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | 11th stack argument result verified across target-scoped machine bodies |
 
@@ -64,7 +64,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_pick()` invokes `pick11` and returns the result across call boundary.
   - `match_join`: 11th stack argument result converges through match arms into a unified value.
   - `const_name`: input `a11` is declared as compile-time named constant `const A11: u64 = 60;`.
-  - `other_state`: 11th stack argument result is passed across a transition edge into successor state `step(forwarded: u64)`.
+  - `other_state`: 11th stack argument result is passed across a transition edge into successor machine `step(forwarded: u64)`.
   - `other_machine`: 11th stack argument result is forwarded through intermediate machine `runner()`.
   - `target_body`: 11th stack argument result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in setting `a11 = 39u64` (where `res` becomes `39u64 < 40u64`), proving that downstream exact subtraction `res - 40u64` strictly fails closed during proof checking due to potential underflow.

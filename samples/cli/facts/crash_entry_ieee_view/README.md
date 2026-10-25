@@ -18,7 +18,7 @@ The bit pattern is the one pinned by `tests/omega/pass/recast/i32_float_bits_vie
 | Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | [call_result/zero_bits/main.omg](call_result/zero_bits/main.omg) |
 | Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | [match_join/zero_bits/main.omg](match_join/zero_bits/main.omg) |
 | Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | [const_name/zero_bits/main.omg](const_name/zero_bits/main.omg) |
-| Other state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | [other_state/zero_bits/main.omg](other_state/zero_bits/main.omg) |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | [other_state/zero_bits/main.omg](other_state/zero_bits/main.omg) |
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | [other_machine/zero_bits/main.omg](other_machine/zero_bits/main.omg) |
 | Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | [target_body/zero_bits/main.omg](target_body/zero_bits/main.omg) |
 
@@ -42,9 +42,9 @@ measured at.
 
 ## Requirements and Evidence
 
-- **Establishment:** `requires value == 1065353216` (or `packet.bits` / `ONE_BITS` / the successor state's same equality) establishes the entry integer before `&value as &f32` observes it.
+- **Establishment:** `requires value == 1065353216` (or `packet.bits` / `ONE_BITS` / the successor machine's same equality) establishes the entry integer before `&value as &f32` observes it.
 - **Identity and lifetime:** the view records the IEEE value of the entry integer's bits. The crash guard reads that record. A writable local keeps that record only while nothing between its declaration and the read can overwrite it or lend it exclusive access: the write window the shared entry-provenance law applies, witnessed by the writable and written local pins.
-- **Composition:** the same sentence is the local copy, the `Packet.bits` field, the direct parameter, the returned parameter, the match join, the const name, the successor state, the forwarding machine, and the four target-qualified bodies.
+- **Composition:** the same sentence is the local copy, the `Packet.bits` field, the direct parameter, the returned parameter, the match join, the const name, the successor machine, the forwarding machine, and the four target-qualified bodies.
 - **Soundness boundaries:** the recast reinterprets bits. It does not convert the integer numerically. A missing proof or a zero bit pattern keeps the Trap route.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the entry-integer proof and the view's IEEE record are checked and erased; the recast keeps the same scalar carrier, and the Terminal Psi interpreter executes all nine places in complete agreement with native execution (`interp exit: 0` beside `native exit 0`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles for all four hosted targets; the `i32`/`f32` view pair keeps one scalar lane with no aggregate or stack placement, and `CallPlan`/`StatePlan` place the observed value in registers.

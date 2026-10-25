@@ -15,7 +15,7 @@ The operation is `I32::from_f64(...)` under the checked IEEE guard `value == val
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call whose `requires` carries the guard and whose `ensures` equates `result == value` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | a covered boolean match whose arms both yield `value` |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named `f64` constants `LOWER` and `UPPER` in the guard |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state whose `requires` carries the guard |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine whose `requires` carries the guard |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a callee machine whose `requires` carries the guard |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four target-qualified machine bodies whose `requires` carries the guard |
 
@@ -132,7 +132,7 @@ older `ieee_guard_i32_from_f64_*` twins' positive counterparts.
 `above == 0` (out-of-range positive `2000000000.0` fails guard and takes false branch `0`),
 `below == 0` (negative `-1.0` fails guard and takes false branch `0`),
 and `unordered == 0` (NaN `0.0 / 0.0` fails self-equality `value == value` and takes false branch `0`).
-If any conversion or branch evaluates incorrectly, the transition condition `inside == 123 && above == 0 && below == 0 && unordered == 0` evaluates to `false`, transitioning to `state bad() { crash Trap; }` which crashes with a non-zero exit/signal.
+If any conversion or branch evaluates incorrectly, the transition condition `inside == 123 && above == 0 && below == 0 && unordered == 0` evaluates to `false`, transitioning to `machine bad() { crash Trap; }` which crashes with a non-zero exit/signal.
 
 ### Invalid controls and reject twins
 

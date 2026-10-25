@@ -37,7 +37,7 @@ The nine places carry the nominal loan and its cleanup obligation through each l
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | checked result guarantee |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | common completed owned-member fact |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named COUNT |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | helper observation under loan |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | four hosted source bodies |
 
@@ -65,13 +65,13 @@ cleanup-prerequisite twins for original nominal backing through successor
 loans: an affine occurrence's residual custody survives until its actual
 normal death — neither a selection join nor a later reread of the condition
 decides hook timing — the loan carries the original `Room` storage into the
-successor state, and the owner runs `Room::drop` exactly once, after the
+successor machine, and the owner runs `Room::drop` exactly once, after the
 loan closes.
 
 Full 8-layer specification and lowering evidence:
 
 - **Establishment:** Constructing `Room { count: 10 }` (or binding count 10 via parameter, call result, const name, or matching arm) and passing a loan `&mut room` into the successor observation state satisfies the nominal owner's drop prerequisite `requires room.count == 10`. This establishes deterministic cleanup writeback/release when the owner's scope ends, without any post-hoc caller equality guard (`transition x == 100`) after the construct completes.
-- **Identity and lifetime:** The loan `&mut room` inside the state parameter or nominal carrier remains bound to the exact backing storage identity of `room` for the entire lifetime of the nominal owner. The successor state observes the exact original count (10) before `Room::drop` executes, and cleanup sees that exact storage version once (writing 99 or outputting `D`), preventing conflicting access until nominal cleanup completes.
+- **Identity and lifetime:** The loan `&mut room` inside the state parameter or nominal carrier remains bound to the exact backing storage identity of `room` for the entire lifetime of the nominal owner. The successor machine observes the exact original count (10) before `Room::drop` executes, and cleanup sees that exact storage version once (writing 99 or outputting `D`), preventing conflicting access until nominal cleanup completes.
 - **Composition:** The nominal loan carrier and its cleanup obligation compose across all nine standard places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`). In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ strictly in the violated cleanup prerequisite (e.g. establishing count 11 instead of 10 while retaining the hook's `requires room.count == 10`) or conflicting borrow use while the nominal owner is still live, never in a caller guard.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time (`--check`) with `cannot prove automatic cleanup requires Room::drop clause room.count == 10` (exit 1) when the caller accesses the borrowed backing before the nominal owner is cleaned up or violates the cleanup contract. The unequal-match control separately prevents one arm's count from becoming an unjustified join fact.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Nominal scope exit lowers into explicit `InvokeNominal` / `RetireHome` affine cleanup actions and borrow restoration windows in canonical target-neutral Terminal Psi (`PSITERM\0`). Transition edges, state-parameter loans, and normal-edge drop calls lower without loss into canonical IR, executing identically in the Terminal Psi interpreter (`omega run --both`, exit 0, stdout `OD` / `ODOD`).

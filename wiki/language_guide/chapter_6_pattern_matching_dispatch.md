@@ -33,7 +33,7 @@ owned results.
 
 ## Transition Dispatch
 
-A transition can choose the next state:
+A transition can choose the next machine to invoke terminally:
 
 ```omega
 transition navigation.choice {
@@ -43,7 +43,7 @@ transition navigation.choice {
 }
 ```
 
-Only the chosen edge runs. Its pattern facts help establish the target state's
+Only the chosen edge runs. Its pattern facts help establish the target machine's
 requirements, but do not waive its ordinary type, ownership, or authority checks.
 
 ## Tuple Patterns
@@ -74,8 +74,8 @@ transition empty {
 ```
 
 The false arm establishes nonempty input. A target using that fact must receive
-the corresponding view or value through its state parameters. Naming a fact
-does not make the source binding ambient in the target state.
+the corresponding view or value through its machine parameters. Naming a fact
+does not make the source binding ambient in the target machine.
 
 ## Exhaustiveness
 
@@ -103,12 +103,11 @@ An arm's facts do not leak into other arms or survive invalidating mutation.
 
 ## Tail Dispatch
 
-A transition ends the current straight-line segment. Resolve its arm target:
-a local state is an internal jump; a machine is an ordinary final call whose
-result completes the enclosing machine. A value arm completes directly.
-Suspending/blocking machine calls retain their exact acknowledgement markers;
-state jumps acquire no markers or suspension merely from what their destination
-later does. [Chapter 4](chapter_4_states_transitions.md#final-calls-including-suspension)
+A transition ends the current straight-line segment. A machine target, nested
+or otherwise, is a final call whose result completes the current invocation.
+A value arm completes directly. Suspending/blocking calls retain their exact
+acknowledgement markers; lexical nesting grants no exemption.
+[Chapter 4](chapter_4_nested_machines_transitions.md#final-calls-including-suspension)
 explains result forwarding and the retained loan/cleanup obligations.
 
 ## Domain Patterns

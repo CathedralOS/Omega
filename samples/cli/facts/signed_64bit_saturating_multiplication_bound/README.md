@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed 64-bit inputs `lh
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the saturating product result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the saturating product result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant rhs is multiplied via saturating multiplication with the bounded lhs |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the saturating product result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the saturating product result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the saturating product result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 64-bit signed saturating multiplication and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded `0` exit is strictly discriminative:
-- At runtime, evaluating saturating multiplication with inputs `15i64` and `8i64` (or `15i64` and `10i64` for `const_name`) produces `prod == 120i64` (or `150i64`) within static interval `50i64..200i64`. Passing `prod` to `verify_prod(prod)` satisfies its contract `value >= 50 && value <= 200`. `verify_prod` evaluates exact subtractions `head = 200 - prod` and `tail = prod - 50`, sums them to `150i64`, and returns `150i64`. In `main`, `transition res == 150` transitions to `state done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded value (`transition res == 150` to `transition res == 151` in `main.omg`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` and `interp crash: Trap (host presentation agrees)`).
+- At runtime, evaluating saturating multiplication with inputs `15i64` and `8i64` (or `15i64` and `10i64` for `const_name`) produces `prod == 120i64` (or `150i64`) within static interval `50i64..200i64`. Passing `prod` to `verify_prod(prod)` satisfies its contract `value >= 50 && value <= 200`. `verify_prod` evaluates exact subtractions `head = 200 - prod` and `tail = prod - 50`, sums them to `150i64`, and returns `150i64`. In `main`, `transition res == 150` transitions to `machine done() {}`, terminating with native exit 0. A 1-token perturbation of the demanded value (`transition res == 150` to `transition res == 151` in `main.omg`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` and `interp crash: Trap (host presentation agrees)`).
 - Each place has an `invalid/` twin (`sample.json` + `expected.txt`) that breaks only the construct's own contract, input, or domain (never a post-hoc caller guard):
   - **Obligation class (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`):** Call contract precondition (`cannot prove requires contract for call verify_prod`) when `lhs <= 21i64` so `prod` reaches `210i64 > 200i64`, violating the required domain `value >= 50 && value <= 200` on `verify_prod`. Proof obligation checking fails closed at compile time and none reaches native execution.
 
@@ -63,7 +63,7 @@ omega --check samples/cli/facts/signed_64bit_saturating_multiplication_bound/<pl
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_prod` |
 

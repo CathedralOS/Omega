@@ -4,7 +4,7 @@
 
 **Owning task & specification:**
 - Owning outcome: `TERMINAL-INTEGER-ARITHMETIC-INTERVALS` (`TASKS.md`).
-- Governing specification: [numeric values](../../../../wiki/spec/language/numeric_values.md), [domains](../../../../wiki/spec/language/domains.md), [state contracts](../../../../wiki/spec/language/state_contracts.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md).
+- Governing specification: [numeric values](../../../../wiki/spec/language/numeric_values.md), [domains](../../../../wiki/spec/language/domains.md), [invocation contracts](../../../../wiki/spec/language/state_contracts.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md).
 
 ## Witnesses and Pinned Corpus Fixtures
 
@@ -17,7 +17,7 @@
 | Call result | [`call_result/main.omg`](call_result/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_call_result_exit` | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_call_result_rejected` | `may overflow \`u8\`` |
 | Match join | [`match_join/main.omg`](match_join/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_match_join_exit` | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_match_join_rejected` | `may overflow \`u8\`` |
 | Const name | [`const_name/main.omg`](const_name/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_const_name_exit` | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_const_name_rejected` | `may overflow \`u8\`` |
-| Other state | [`other_state/main.omg`](other_state/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_state_exit` | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_other_state_rejected` | `may overflow \`u8\`` |
+| Nested machine | [`other_state/main.omg`](other_state/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_state_exit` | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_other_state_rejected` | `may overflow \`u8\`` |
 | Other machine | [`other_machine/main.omg`](other_machine/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_machine_exit` | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_other_machine_rejected` | `may overflow \`u8\`` |
 | Target body | [`target_body/main.omg`](target_body/main.omg) | `tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_target_body_exit` | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `tests/omega/fail/facts/unsigned_8bit_division_quotient_bound_through_target_body_rejected` | `may overflow \`u8\`` |
 
@@ -30,7 +30,7 @@
 
 | Obligation Class | How Established in This Fact Row | Remaining Open in Parent Outcome |
 | :--- | :--- | :--- |
-| **Establishment** | Entry contracts `requires dividend >= 120u8 && dividend <= 120u8` and `requires divisor >= 4u8 && divisor <= 4u8` prove non-zero denominator safety and bounded dividend range, and `dividend / divisor` synthesizes the quotient interval `[30u8, 30u8]` ([numeric values](../../../../wiki/spec/language/numeric_values.md), [state contracts](../../../../wiki/spec/language/state_contracts.md)). | 8-bit unsigned remainder bounds and other uncovered numeric-value fact rows under `samples/cli/facts`. |
+| **Establishment** | Entry contracts `requires dividend >= 120u8 && dividend <= 120u8` and `requires divisor >= 4u8 && divisor <= 4u8` prove non-zero denominator safety and bounded dividend range, and `dividend / divisor` synthesizes the quotient interval `[30u8, 30u8]` ([numeric values](../../../../wiki/spec/language/numeric_values.md), [invocation contracts](../../../../wiki/spec/language/state_contracts.md)). | 8-bit unsigned remainder bounds and other uncovered numeric-value fact rows under `samples/cli/facts`. |
 | **Identity and lifetime** | The `u8` quotient scalar preserves its 1-byte value and interval `[30u8, 30u8]` across local variables, `Operands` fields, parameter positions, return boundaries, match join expressions, constant bindings, state transitions, machine calls, and target-scoped bodies ([fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md)). | None for `u8` division quotient interval bounds. |
 | **Composition** | The verified interval `[30u8, 30u8]` composes across all nine places, discharging the consuming exact subtraction `quotient - 30u8` without post-hoc caller guards ([evaluation](../../../../wiki/spec/language/evaluation.md)). | None for this row. |
 | **Soundness boundaries** | In invalid twins, widening `divisor <= 5u8` lowers the quotient bound to `24u8`, triggering compile-time rejection (`may overflow \`u8\``) on `quotient - 30u8` ([proof contracts](../../../../wiki/spec/proofs/contracts.md)). | None for this row. |

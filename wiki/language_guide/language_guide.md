@@ -16,7 +16,7 @@ Core language:
 - [Chapter 1: Data, Values, And Literals](chapter_1_data_values_literals.md)
 - [Chapter 2: Ownership, Borrowing, And Moves](chapter_2_ownership_borrowing_moves.md)
 - [Chapter 3: Machines](chapter_3_machines.md)
-- [Chapter 4: States And Transitions](chapter_4_states_transitions.md)
+- [Chapter 4: Nested Machines And Transitions](chapter_4_nested_machines_transitions.md)
 - [Chapter 5: Expressions And Evaluation](chapter_5_expressions_evaluation.md)
 - [Chapter 6: Pattern Matching And Dispatch](chapter_6_pattern_matching_dispatch.md)
 

@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | shifted result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | shifted result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | shifted input provided by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | shifted result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | shifted result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | shifted result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | shifted result verified across target-scoped machine bodies |
 
@@ -55,7 +55,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_shifted()` computes the shift and returns the result across call boundary.
   - `match_join`: shifted result converges through match arms into a unified value.
   - `const_name`: input `VAL` is declared as a compile-time named constant `const VAL: i16 = 30;`.
-  - `other_state`: shifted result is passed across a transition edge into successor state `step(val: i16)`.
+  - `other_state`: shifted result is passed across a transition edge into successor machine `step(val: i16)`.
   - `other_machine`: shifted result is forwarded through intermediate machine `runner()`.
   - `target_body`: shifted result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the input bound to `val >= 29 && val <= 30` (so `val == 29` yields `shifted == 116`), proving that downstream contract verification `requires shifted >= 120 && shifted <= 120` strictly fails closed when the post-shift bound allows values below 120.

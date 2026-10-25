@@ -36,6 +36,14 @@ allocation-independent source estimate. Bind the composed demand to the exact
 physical realization. A separate provisioning judgment establishes usable backing.
 Runtime tail recursion lowers to iteration with no accumulated frames.
 
+Source machine nesting is a visibility relationship, not a storage-allocation
+tree. One machine need not become one physical frame, and one nested helper
+need not share its caller's frame. Frame reuse, inlining and fusion preserve
+the exact live backing and completion obligations; tail position alone cannot
+reclaim storage still borrowed by the callee. Account the chosen realization,
+not a source-keyword estimate. Replacing source states with nested machines
+does not permit frame growth on runtime cycles.
+
 Retain and replay exact code-positioned frame, temporary, argument/shadow,
 return-address, and call evidence. Derive local and caller-live peaks from the
 instructions. Sequential callees compose by maximum; a nested call accounts for

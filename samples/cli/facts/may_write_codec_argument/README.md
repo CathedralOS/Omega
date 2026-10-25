@@ -6,7 +6,7 @@ The helper `choose` returns either mutable `u64`. That result is the exclusive `
 
 The programs are freestanding. They do not depend on `source/library/std`.
 
-This witnesses the codec-argument row of **R5** in `TASKS.md`: caller-visible may-write summaries under [state contracts](../../../../wiki/spec/language/state_contracts.md). It does not close finite write cycles or parameter-permutation write sets.
+This witnesses the codec-argument row of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close finite write cycles or parameter-permutation write sets.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ This witnesses the codec-argument row of **R5** in `TASKS.md`: caller-visible ma
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call returns the preserved index bound |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the preserved index |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `LIMIT` names the index bound |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the index |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the index |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine receives the index |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body reloads the index |
 
@@ -48,7 +48,7 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove` |
 

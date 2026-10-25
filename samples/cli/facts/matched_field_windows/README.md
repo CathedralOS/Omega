@@ -17,7 +17,7 @@ is an application that exits 0:
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the window end is a call whose ensured result is 2 |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the window end joins two spellings of that coordinate |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the window end adds the named constant `SPAN` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the coordinate |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the coordinate |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine receives `which + 2` |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies publishes the same contract |
 
@@ -61,7 +61,7 @@ hands `open_end` the coordinate 3 while that machine requires `end == 2`.
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove ensures contract` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove ensures contract` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove ensures contract` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove ensures contract` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `violates required fact \`end == 2\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove ensures contract` |
 

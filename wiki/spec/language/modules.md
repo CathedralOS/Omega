@@ -124,11 +124,17 @@ Named decision: `public-visibility-spelling`, settled 2026-10-19.
 Independently nameable data, domains, traits, machines,
 wire schemas, operators, constants, and complete named conformances are private
 unless marked `public`. Carrier qualification does not inherit visibility.
-Fields, cases, states, and trait requirements instead inherit their exact
+Fields, cases, and trait requirements instead inherit their exact
 semantic owner's visibility. A data-attached domain head independently selects
 its carrier and therefore needs authority to name that carrier. A machine head
 cannot attach to a data carrier; its argument types and code-owning namespace
 retain their ordinary independent declaration selections.
+
+Nested machines are lexical helpers, not independently package-exportable
+declarations. An enclosing machine's export does not export its descendants,
+and qualification cannot bypass their lexical scope. Source nesting affects
+visibility, not data ownership or implicit runtime arguments. See
+[nested machines](machines.md#nested-machines-and-identity).
 
 Ranking measures are private proof machinery; `public measure` rejects. A public
 termination guarantee does not publish its implementation's ranking witness.

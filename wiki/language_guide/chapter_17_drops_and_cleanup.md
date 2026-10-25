@@ -178,10 +178,10 @@ hand control to the successor or caller
 
 This sequence applies to:
 
-- explicit state transitions;
+- explicit terminal transfers;
 - terminal returns;
 - ordinary success and failure edges;
-- natural state completion; and
+- natural invocation completion; and
 - compiler-synthesized call continuations.
 
 Argument evaluation may itself contain ordinary graph edges. Each such edge
@@ -238,21 +238,21 @@ author must normalize to a common custodian or represent the alternative
 explicitly. A sum contains the same runtime bit that a hidden drop flag would
 have contained, but makes it part of the type, layout, and report.
 
-The checker never duplicates a named semantic state to make an invalid join
+The checker never duplicates a semantic control-flow node to make an invalid join
 typecheck. After checking, code generation may clone or share physical blocks
 when every realization maps back to the same typed edge plan. Physical layout
 cannot create a different frontier meaning.
 
-## State Parameters Remain Explicit
+## Nested Machine Parameters Remain Explicit
 
 Machine parameters are roots owned by the activation, but that ownership does
-not make them ambient names in every internal state. A state receives the
+not make them ambient names in nested machines. Each machine receives the
 values, borrows, and authority named by its parameters, and transitions spell
 the corresponding mappings.
 
 The storage planner may coalesce an unchanged source and target place, so an
 explicit semantic transfer need not copy bytes or execute code. The permission
-ledger still records the transfer. This preserves state signatures as
+ledger still records the transfer. This preserves machine signatures as
 source-visible proof and authority frontiers without imposing a runtime tax.
 
 ## Cleanup Order
@@ -260,7 +260,7 @@ source-visible proof and authority frontiers without imposing a runtime tax.
 Cleanup order is deterministic:
 
 1. Independent roots are cleaned in reverse declaration order.
-2. Locals therefore precede by-value machine or state parameters declared
+2. Locals therefore precede by-value machine parameters declared
    before them.
 3. A whole value's domain-selected cleanup machine runs before structural field
    cleanup.

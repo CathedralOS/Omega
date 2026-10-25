@@ -45,11 +45,11 @@ A consumption point is a use that may rely on the value's domain:
 
 - A read relying on a range or dependent coupling.
 - Borrow creation or a call.
-- A state transition, return, or scope expiration.
+- A terminal transfer, return, or scope expiration.
 - A boundary/capability-carrying call, even when it does not name the place.
 
 The checker must close the relevant windows there. If it cannot, the diagnostic
-names both the opening write and the consuming use. State arrivals prove their
+names both the opening write and the consuming use. Machine arrivals prove their
 own contracts; a backedge cannot reuse entry facts invalidated by its writes.
 
 ## Failure Does Not Cancel A Window
@@ -95,11 +95,11 @@ closes it. No observer sees the established value fall back to invalid storage.
 [Default domains](../spec/language/dependent_values.md#default-domains-and-zero-initialization)
 owns gating and containment.
 
-## Multi-State Construction Ends At The Transition
+## Construction Windows Do Not Cross Terminal Transfers
 
-Windows do not cross state transitions. If a value cannot be made valid in one
-state body, carry independent temporary values or unestablished storage and
-establish the whole where it becomes observable. A state signature is not a way
+Windows do not cross terminal transfers. If a value cannot be made valid in one
+machine body, carry independent temporary values or unestablished storage and
+establish the whole where it becomes observable. A nested machine signature is not a way
 to pass a broken established value onward.
 
 ## Temps And Init-Syntax Remain Good Style

@@ -2,7 +2,7 @@
 
 A computed nested leaf loan captures each selector once before the later argument and preserves caller storage through a state transfer.
 
-Parent: **PLACED-ACCESS-NATIVE-OPS**. This row establishes exact-once evaluation of a computed nested borrowed argument on a named-state edge when selector contracts fix its coordinates. Broader indexed access and foreign-host acceptance remain open.
+Parent: **PLACED-ACCESS-NATIVE-OPS**. This row establishes exact-once evaluation of a computed nested borrowed argument on a nested-machine edge when selector contracts fix its coordinates. Broader indexed access and foreign-host acceptance remain open.
 
 The root loans `rows[choose_row(cursor)].data[choose_column(cursor)]` into `apply`, followed by `replacement(cursor)`. The selectors promise 2 and 1 and increment a counter. `apply` stores 42 through the loan. Exit 0 requires the selected caller cell to be 42, its neighbor zero, its tag 7, and the counter 3. All nine places retain the same selector contracts, extents (3 rows, 2 columns), and operation; they additionally require effect trace 123 and preserve an initialized adjacent cell. The match variant executes both Boolean arms.
 
@@ -37,7 +37,7 @@ python3 tools/corpus_gate.py --filter computed_nested_state_loan
 
 - **Establishment:** exact selector result contracts establish in-bounds coordinates before loan formation. Their effectful computations still execute. Each place carries the selector inputs' exact facts into the operation without a post-hoc caller guard.
 - **Identity and lifetime:** the receiving state writes the selected original caller cell; neighbors and tag remain unchanged. Checked backing and parent relationships retain its lifetime.
-- **Composition:** local bindings, record fields, parameters, contracted call results, both match arms, named constants, another state, a forwarding machine and four target-scoped bodies retain the same operation and facts.
+- **Composition:** local bindings, record fields, parameters, contracted call results, both match arms, named constants, a nested machine, a forwarding machine and four target-scoped bodies retain the same operation and facts.
 - **Soundness boundaries:** each authority-only twin rejects. Exact occurrence identity, access weakening and unknown/mixed incoming predecessors have focused target-custody controls; equal backing alone is insufficient.
 - **Checked-to-Terminal Psi (`Psi 05–07`):** retained reference formation evaluates selectors once before the later argument and transports the captured descriptor. Actual Terminal exit 0 and counter/trace agreement are required.
 - **Providers, geometry and calling plans (`Omega 00–02`):** companions bind all four hosted targets. Nested array/record geometry and state argument placement retain the selected address; target declarations are not foreign-host execution evidence.

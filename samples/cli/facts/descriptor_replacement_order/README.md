@@ -38,7 +38,7 @@ a guard before using the returned carrier.
 | Call result | [program](call_result/main.omg) | [use after transfer](call_result/invalid/main.omg) |
 | Match join | [program](match_join/main.omg) | [use after transfer](match_join/invalid/main.omg) |
 | Const name | [program](const_name/main.omg) | [use after transfer](const_name/invalid/main.omg) |
-| Another state | [program](other_state/main.omg) | [use after transfer](other_state/invalid/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [use after transfer](other_state/invalid/main.omg) |
 | Another machine | [program](other_machine/main.omg) | [use after transfer](other_machine/invalid/main.omg) |
 | Target body | [program](target_body/main.omg) | [use after transfer](target_body/invalid/main.omg) |
 

@@ -2,7 +2,7 @@
 
 `omega run samples/cli/memory/selected_provider_ranges/main.omg` must exit 0.
 It counts an owned record's dynamic byte window, the same projection through a
-shared parameter in another state, an established view, and an empty window.
+shared parameter in a nested machine, an established view, and an empty window.
 Expression and Unit calls retain the selected target-scoped implementation.
 
 The provider checks the first byte and surrounding scalar arguments. A separate

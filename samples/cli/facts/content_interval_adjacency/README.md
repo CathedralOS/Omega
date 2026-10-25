@@ -31,12 +31,12 @@ four hosted targets.
 | Call result | [call result](call_result/main.omg) | [overlap allowed](call_result/invalid/main.omg) | a wrapper returns the completed call's pair |
 | Match join | [match join](match_join/main.omg) | [overlap allowed](match_join/invalid/main.omg) | both match arms build the same pair |
 | Const name | [const name](const_name/main.omg) | [overlap allowed](const_name/invalid/main.omg) | a named constant joins the sum |
-| Another state | [state](other_state/main.omg) | [overlap allowed](other_state/invalid/main.omg) | a successor state receives both claims |
+| A nested machine | [state](other_state/main.omg) | [overlap allowed](other_state/invalid/main.omg) | a successor machine receives both claims |
 | Another machine | [machine](other_machine/main.omg) | [overlap allowed](other_machine/invalid/main.omg) | a forwarding machine supplies the pair |
 | Target body | [target body](target_body/main.omg) | [overlap allowed](target_body/invalid/main.omg) | each of four target bodies supplies the pair |
 
 Each twin changes only the adjacency requirement from `==` to `>=`, allowing
-overlap. It must reject the separated-content postcondition. The named state's
+overlap. It must reject the separated-content postcondition. The nested machine's
 arrival contract repeats the machine's requirement; states do not have result
 postconditions.
 
@@ -72,7 +72,7 @@ candidate adds no Rust. The same measurements on the earlier producers
 | call result | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
 | match join | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
 | const name | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
-| another state | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
+| a nested machine | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
 | another machine | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
 | target body | `interp exit: 0` | `native exit 0` (agrees) | ELF x86-64 static, exit 0 |
 
@@ -229,7 +229,7 @@ nine reject at checking with status 1:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract for exit from carry` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove ensures contract for exit from Forwarder::forward` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
 
@@ -297,7 +297,7 @@ native rows as well as the retained `interpreter:agrees` evidence at
    geometry.
 3. **Composition:** the same content equation is carried through a local, a
    record field, an explicit parameter, a call result, both match arms, a const
-   name, a successor state, a forwarding machine and four target bodies. In each
+   name, a successor machine, a forwarding machine and four target bodies. In each
    place `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the
    adjacency requirement's relation; the consuming operation is the machine's
    `ensures`, proved directly from the fact carried through that place.

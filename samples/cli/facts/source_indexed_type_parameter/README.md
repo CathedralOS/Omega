@@ -21,7 +21,7 @@ oracle after that proved operation.
 | Call result | [call result](call_result/main.omg) | [head 8](call_result/invalid/main.omg) |
 | Match join | [match join](match_join/main.omg) | [head 8](match_join/invalid/main.omg) |
 | Const name | [const name](const_name/main.omg) | [head 8](const_name/invalid/main.omg) |
-| Another state | [state](other_state/main.omg) | [head 8](other_state/invalid/main.omg) |
+| A nested machine | [state](other_state/main.omg) | [head 8](other_state/invalid/main.omg) |
 | Another machine | [machine](other_machine/main.omg) | [head 8](other_machine/invalid/main.omg) |
 | Another target body | [target body](target_body/main.omg) | [head 8](target_body/invalid/main.omg) |
 

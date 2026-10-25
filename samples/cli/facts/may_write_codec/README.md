@@ -14,7 +14,7 @@ The root and nine places bind all four hosted `ProgramEntry` targets and require
 | call result | [call result](call_result/main.omg) | [overlap](call_result/invalid/main.omg) |
 | match join | [match join](match_join/main.omg) | [overlap](match_join/invalid/main.omg) |
 | const name | [const name](const_name/main.omg) | [overlap](const_name/invalid/main.omg) |
-| another state | [state](other_state/main.omg) | [overlap](other_state/invalid/main.omg) |
+| a nested machine | [state](other_state/main.omg) | [overlap](other_state/invalid/main.omg) |
 | another machine | [machine](other_machine/main.omg) | [overlap](other_machine/invalid/main.omg) |
 | another target body | [target body](target_body/main.omg) | [overlap](target_body/invalid/main.omg) |
 

@@ -34,7 +34,7 @@ green through both engines:
 | call result | `native exit 0` / `interp exit: 0` |
 | match join | `native exit 0` / `interp exit: 0` |
 | const name | `native exit 0` / `interp exit: 0` |
-| another state | `native exit 0` / `interp exit: 0` |
+| a nested machine | `native exit 0` / `interp exit: 0` |
 | another machine | `native exit 0` / `interp exit: 0` |
 | another target body | `native exit 0` / `interp exit: 0` |
 
@@ -101,7 +101,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | post-writeback record returned across call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | post-writeback record preserved across match convergence join |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | post-writeback bound constrained against named constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | post-writeback record passed as an argument across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | post-writeback record passed as an argument across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | post-writeback record forwarded through another machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | post-writeback record consumed across target-scoped machine bodies |
 

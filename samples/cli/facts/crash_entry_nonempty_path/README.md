@@ -20,7 +20,7 @@ Windows x86-64 measured 2026-10-21 at `ba1d8505b883b1e956ad907068da2a34e8967bae`
 | Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `identity` returns the nested field |
 | Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Both arms read the same nested field |
 | Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `SEVEN` names the entry equality |
-| Other state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Arrival state reads the same path |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Arrival state reads the same path |
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `forward` keeps the zero-crash route |
 | Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Target-qualified `forward` keeps the route |
 
@@ -36,7 +36,7 @@ Known precision difference, shared with the view rows: a statement that reads a 
 
 - **Establishment:** `requires packet.leaf.bits == 7` (or `== SEVEN`) establishes the nested entry value before `maybe_zero` consumes it. The twin omits only that path equality.
 - **Identity and lifetime:** the operand stays the entry field `leaf.bits`, two steps under `packet`, and a caller crash ceiling is not added on `read_bits`.
-- **Composition:** the same path equality is carried through a local, the field operand, a parameter, a call result, a match join, a const name, another state, another machine, and another target body.
+- **Composition:** the same path equality is carried through a local, the field operand, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another target body.
 - **Soundness boundaries:** deleting the path equality leaves the Trap route uncovered. The witness does not use a proof-only binding as an executable guard.
 - **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the nested read and guarded call lower to Terminal Psi and execute with exit 0 under `omega run --both`.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `Build::bind` settles `ProgramEntry` for the four hosted targets. `Packet` and `Leaf` are ordinary records.

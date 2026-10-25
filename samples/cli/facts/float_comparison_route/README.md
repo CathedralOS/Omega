@@ -11,7 +11,7 @@ still depends on std.
 Every place copies that fact sentence and the same operation: the program
 compares the two `f64` values 212.0 and 2.0 with `==` and reaches `done()`
 (exit 0) only when the comparison is false; a true comparison reaches
-`state bad() { crash Trap; }`. Only the transport of the operands and of the
+`machine bad() { crash Trap; }`. Only the transport of the operands and of the
 comparison result changes. No place imports
 `omega::language::core::float_operations`, and no place adds a `Build::depend`
 line, so the declared route is exercised without a float library in the
@@ -26,7 +26,7 @@ program's package closure.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | both operands arrive as call results |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms compare and one successor observes |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants are the compared operands |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives both operands and compares |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives both operands and compares |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `Comparator::equal` receives both operands through borrowed caller storage |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one comparison body per hosted target |
 

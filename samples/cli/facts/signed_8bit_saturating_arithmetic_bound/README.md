@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | saturating addition result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | saturating addition result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | saturating inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | saturating addition result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | saturating addition result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | saturating addition result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | saturating addition result verified across target-scoped machine bodies |
 
@@ -52,7 +52,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_sum()` computes saturating addition and returns the result across call boundary with ensures contract.
   - `match_join`: saturating addition result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: i8 in Saturating = 60; const RHS: i8 in Saturating = 15;`.
-  - `other_state`: saturating addition result is passed across a transition edge into successor state `step(forwarded: i8)`.
+  - `other_state`: saturating addition result is passed across a transition edge into successor machine `step(forwarded: i8)`.
   - `other_machine`: saturating addition result is forwarded through intermediate machine `runner()`.
   - `target_body`: saturating addition result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in widening inputs to `lhs = 85, rhs = 20` (where `sum` reaches `105i8 > 100i8`), proving that downstream contract verification `requires sum >= 50 && sum <= 100` strictly fails closed when the post-saturating sum exceeds 100.

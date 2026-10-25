@@ -31,7 +31,7 @@ and [fail fixtures](../../../../tests/omega/fail/facts/) as
 | Call result | [program](call_result/main.omg) | [empty view](call_result/invalid/main.omg) |
 | Match join | [program](match_join/main.omg) | [empty view](match_join/invalid/main.omg) |
 | Const name | [program](const_name/main.omg) | [empty view](const_name/invalid/main.omg) |
-| Another state | [program](other_state/main.omg) | [empty view](other_state/invalid/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [empty view](other_state/invalid/main.omg) |
 | Another machine | [program](other_machine/main.omg) | [empty view](other_machine/invalid/main.omg) |
 | Another target body | [program](target_body/main.omg) | [empty view](target_body/invalid/main.omg) |
 

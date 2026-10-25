@@ -19,7 +19,7 @@ Subsequent exact 16-bit subtractions `160u16 - wide` and `wide - 40u16` are prov
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | zero-extended 16-bit value is returned from a dedicated helper machine |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression unify the zero-extended 16-bit value |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply upper and lower ceilings for exact subtractions |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the zero-extended 16-bit value into a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the zero-extended 16-bit value into a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the zero-extended 16-bit value |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body performing the zero extension and subtractions |
 
@@ -51,7 +51,7 @@ In each positive place, evaluating `probe(100u8)` computes `wide = 100u8 as u16 
 Because `narrow in [40, 160]`, zero extension statically proves `wide in [40, 160]`.
 Subsequent exact subtractions `headroom = 160u16 - wide` (`60u16`) and `margin = wide - 40u16` (`60u16`) are proved underflow-free, and their sum `headroom + margin` evaluates to `120u16`.
 The transition guard `combined == 120u16` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
-A 1-token perturbation of the demanded result (`transition combined == 120u16` to `transition combined == 121u16`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+A 1-token perturbation of the demanded result (`transition combined == 120u16` to `transition combined == 121u16`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 
 ### Invalid controls and reject twins
 

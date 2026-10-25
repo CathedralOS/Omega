@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded unsigned 32-bit input `b
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the bitwise OR result is returned from a callee invocation |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the bitwise OR result so the joined binding preserves the bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant operand is bitwise ORed with 32u32 |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bitwise OR result to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bitwise OR result to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the bitwise OR result through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 32-bit unsigned bitwise OR and verifies the bounds |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, evaluating `base | 32` with input `20u32` establishes combined value `52u32` within static interval `40u32..63u32`. Passing `combined` to `verify_combined(res)` satisfies its contract `res >= 40 && res <= 63`. `verify_combined` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, returning `23u32`. In `main`, `transition res == 23` transitions to `state done() {}`, terminating with native exit 0. Perturbing the transition guard by a single token (`transition res == 23` -> `transition res == 22` in `main.omg`) causes both engines to trap at runtime (`native exit -1073741795`, `interp crash: Trap (host presentation agrees)`).
+- In every positive place, evaluating `base | 32` with input `20u32` establishes combined value `52u32` within static interval `40u32..63u32`. Passing `combined` to `verify_combined(res)` satisfies its contract `res >= 40 && res <= 63`. `verify_combined` evaluates exact subtractions `63 - 52 == 11` and `52 - 40 == 12`, returning `23u32`. In `main`, `transition res == 23` transitions to `machine done() {}`, terminating with native exit 0. Perturbing the transition guard by a single token (`transition res == 23` -> `transition res == 22` in `main.omg`) causes both engines to trap at runtime (`native exit -1073741795`, `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin sets `base >= 64 && base <= 64` (or `const BASE: u32 = 64`), so `base | 32` yields `96u32`. Calling `verify_combined(combined)` fails closed at compile time with `cannot prove requires contract for call verify_combined`. None reaches native execution.
 
 Check all nine invalid twins with:

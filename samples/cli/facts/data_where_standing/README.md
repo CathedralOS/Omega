@@ -20,7 +20,7 @@ representable. The lower carrier endpoint remains safe after adding 70.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Counter returned by an ordinary machine |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | scalar join from two bounded fields |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named Counter supplied to a const binder |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Counter passed to successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Counter passed to successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Counter forwarded to another machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four separately checked target bodies |
 
@@ -58,7 +58,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The authored exit 0 is not vacuously assumed:
 - In root `main.omg`, inverting the guard `transition total <= 130` to `total > 130` routes execution to `fail(main)` which invokes `crash Trap;`, terminating with native signal 5 and interpreter crash `Trap`.
-- In child places, failing the outcome condition (e.g. `compute(&counter) == 130 && compute(&low) == -2147483578`) branches to `state bad() { crash Trap; }`, trapping with `rc=255` under both engines.
+- In child places, failing the outcome condition (e.g. `compute(&counter) == 130 && compute(&low) == -2147483578`) branches to `machine bad() { crash Trap; }`, trapping with `rc=255` under both engines.
 - In each `invalid/` twin, removing the standing invariant `where value <= 60` from `data Counter` causes proof checking to fail closed with `exact arithmetic in machine ... may overflow `i32``, preventing execution entirely.
 
 Check all nine invalid twins with:

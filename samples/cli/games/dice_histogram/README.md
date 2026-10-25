@@ -35,6 +35,6 @@ the checked interpreter also exits 0. The CLI reports `native exit 0` and
 alone does not establish the chart's correctness.
 
 The entry receives an explicit `main: &mut Main` context and forwards it to
-the named states. The complete native stdout oracle and both engine exit codes
+the nested machines. The complete native stdout oracle and both engine exit codes
 were verified on macOS ARM64. The other declared hosted targets still require
 matching-host execution.

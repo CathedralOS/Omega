@@ -17,7 +17,7 @@ entered, the machine returns `value`, and `main`'s `observed == 0.0` selects
 binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64` and
 `linux_arm64` in its own `build.omg`. `read_zero` publishes no crash ceiling;
 the entry `requires value == -0.0` (or `packet.value == -0.0` /
-`value == NEGATIVE_ZERO` / the successor state's own requirement) is what
+`value == NEGATIVE_ZERO` / the successor machine's own requirement) is what
 establishes the operand.
 
 Each reject twin proves the entry equal to `1.0` instead: `1.0 != 0.0` stays
@@ -37,7 +37,7 @@ positive; NaN unorderedness is not this sentence, it belongs to
 | Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) |
 | Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) |
 | Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) |
-| Other state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) |
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) |
 | Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) |
 
@@ -45,7 +45,7 @@ positive; NaN unorderedness is not this sentence, it belongs to
 `parameter` passes the entry straight to `maybe_nonzero`, `call_result` carries
 `identity`'s return, `match_join` joins two arms that agree, `const_name` uses
 `public const NEGATIVE_ZERO: f32 = -0.0`, `other_state` moves the value through
-a successor state that restates the requirement, `other_machine` forwards
+a successor machine that restates the requirement, `other_machine` forwards
 through a second machine, and `target_body` repeats the forwarding machine for
 each of the four targets. `main` passes `-0.0` in every place and asserts
 `observed == 0.0`.
@@ -70,7 +70,7 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 ## Requirements and Evidence
 
 - **Establishment:** the entry's `requires value == -0.0` (or
-  `packet.value == -0.0`, `value == NEGATIVE_ZERO`, or the successor state's
+  `packet.value == -0.0`, `value == NEGATIVE_ZERO`, or the successor machine's
   restated requirement) establishes the signed zero before `maybe_nonzero`
   reads it, and the guard's recorded IEEE equality is what the crash route
   consumes. `main` does not re-establish the fact afterwards; it only asserts
@@ -78,7 +78,7 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 - **Identity and lifetime:** the record is the entry operand's own IEEE
   equality, read at the guard. Each carrier transports that one record — the
   local copy, the field read, the parameter itself, the `identity` result, the
-  agreeing match arms, the named const, the successor state's parameter and the
+  agreeing match arms, the named const, the successor machine's parameter and the
   forwarding/target-qualified machines — and nothing writes that storage
   between entry and guard.
 - **Composition:** every place copies the one fact sentence; the consuming

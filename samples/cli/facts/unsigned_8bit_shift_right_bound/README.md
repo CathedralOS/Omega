@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | shifted result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | shifted result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | shifted input provided by named compile-time constant |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | shifted result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | shifted result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | shifted result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | shifted result verified across target-scoped machine bodies |
 
@@ -51,7 +51,7 @@ Each positive place shifts the singly bounded input `160u8` (`val >= 160u8 && va
 `2u32` bits, statically establishing `shifted >= 40u8 && shifted <= 40u8`; the consuming exact 8-bit
 subtraction `shifted - 40u8` is proved underflow-free and evaluates to `0u8`, so `transition check == 0`
 reaches `done()` and the program exits 0. Perturbing that single token in the root witness
-(`transition check == 0` to `transition check == 1`) takes `state bad() { crash Trap; }` instead and
+(`transition check == 0` to `transition check == 1`) takes `machine bad() { crash Trap; }` instead and
 exits 255 reporting `native signal 5` with `interp crash: Trap (host presentation agrees)`, so the
 authored 0 discriminates between correct evaluation and faulty execution.
 
@@ -137,7 +137,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_shifted()` computes the shift and returns the result across call boundary.
   - `match_join`: shifted result converges through match arms into a unified value.
   - `const_name`: input `VAL` is declared as a compile-time named constant `const VAL: u8 = 160;`.
-  - `other_state`: shifted result is passed across a transition edge into successor state `step(val: u8)`.
+  - `other_state`: shifted result is passed across a transition edge into successor machine `step(val: u8)`.
   - `other_machine`: shifted result is forwarded through intermediate machine `runner()`.
   - `target_body`: shifted result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the input bound to `val >= 120 && val <= 160` (so `val == 120` yields `shifted == 30`), proving that downstream contract verification `requires shifted >= 40 && shifted <= 40` strictly fails closed when the post-shift bound allows values below 40.

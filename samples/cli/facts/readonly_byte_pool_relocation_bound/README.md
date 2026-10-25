@@ -17,7 +17,7 @@ Only the transport mechanism of the read-only byte-pool slice literal changes ac
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a helper machine returns the slice literal with guaranteed length contract |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms evaluate the slice literal and join before inspection |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply the projection index (`4u64`) and length subtrahend (`5u64`) |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the slice literal to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the slice literal to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine routes the slice literal to the inspector |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | dedicated target-scoped machine bodies evaluate the slice literal on each target |
 
@@ -42,7 +42,7 @@ All ten positive places produce `native exit 0` and `interp exit: 0`.
 
 ### The Oracle Discriminates
 
-The authored exit code `0` is strictly discriminative. A 1-token perturbation of the demanded byte value in `inspect_bytes()` (from `transition b == 97u8` to `transition b == 98u8`) or of the caller expectation (`transition probe() == 0` to `transition probe() == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines with `native signal 5` and `interp crash: Trap` (exit code 255).
+The authored exit code `0` is strictly discriminative. A 1-token perturbation of the demanded byte value in `inspect_bytes()` (from `transition b == 97u8` to `transition b == 98u8`) or of the caller expectation (`transition probe() == 0` to `transition probe() == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines with `native signal 5` and `interp crash: Trap` (exit code 255).
 
 ### Reject Twins
 
@@ -65,7 +65,7 @@ omega --check samples/cli/facts/readonly_byte_pool_relocation_bound/<place>/inva
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic range | `may overflow `u64`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract` |
 

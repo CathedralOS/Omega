@@ -1,7 +1,7 @@
 # Primitive storage with live claims
 
 Expected exit: 0. The program owns a linear receipt while assembly writes
-unrelated primitive local storage in the entry state and a named state.
+unrelated primitive local storage in the entry state and a nested machine.
 Both writes preserve the receipt until its owner-authored explicit drop.
 A failed scalar check follows the declared Trap route.
 

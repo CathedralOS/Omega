@@ -18,7 +18,7 @@ Every place performs the same operation: construct or transport a 4-level nested
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted helper call returns the nested record before projecting and checking bounds |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the nested record and join before projecting and checking bounds |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the leaf value of the nested record before projecting and checking bounds |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the nested record before projecting and checking bounds |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the nested record before projecting and checking bounds |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine sends the nested record to the verifying machine to discharge bounds |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies receives the nested record and discharges the leaf bound |
 
@@ -51,7 +51,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 
 The recorded 0 exit is discriminating:
 
-- At runtime, with `val == 60u64`, `res == 60u64`, `headroom == 20u64`, `margin == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If four-level field projection or the exact interval calculations evaluate incorrectly, execution transitions to `state bad() { crash Trap; }`, which traps. Measured: perturbing the demanded result (`transition probe() == 0` to `== 1`) routes execution to `bad()` and traps both engines (`native signal 5` / `interp crash: Trap (host presentation agrees)`, exit 255), so the exit-0 oracle actively discriminates the computation.
+- At runtime, with `val == 60u64`, `res == 60u64`, `headroom == 20u64`, `margin == 20u64`, and `headroom + margin == 40u64`. The transition `probe() == 0 { true -> done() _ -> bad() }` exits 0. If four-level field projection or the exact interval calculations evaluate incorrectly, execution transitions to `machine bad() { crash Trap; }`, which traps. Measured: perturbing the demanded result (`transition probe() == 0` to `== 1`) routes execution to `bad()` and traps both engines (`native signal 5` / `interp crash: Trap (host presentation agrees)`, exit 255), so the exit-0 oracle actively discriminates the computation.
 - In each invalid twin, the leaf upper bound is widened to `81u64` so `res` can reach `81u64 > 80u64`. Proof obligation checking statically detects that `80u64 - res` can underflow `u64` below zero, failing closed with `may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:

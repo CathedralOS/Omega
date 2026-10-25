@@ -204,7 +204,7 @@ last-write-wins. Explicit policy failure need not fabricate a selection. A
 partial-coverage contract may instead permit an explicit exclusion, with its
 coverage retained. A skipped callback due to failure is not a successful omission.
 
-These obligations may be expressed with ordinary state contracts or linear
+These obligations may be expressed with ordinary machine contracts or linear
 selection obligations, but a mutable context parameter alone does not establish them.
 The finalized selection set is independently checked for coverage and full
 requirement refinement, not merely a chosen operation's name/signature.

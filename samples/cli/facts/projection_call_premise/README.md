@@ -12,7 +12,7 @@ re-derives the fact from the carrier's bytes and never re-establishes it with a
 post-hoc equality guard.
 
 Every place copies that sentence: the projection premise is transported through
-local, field, parameter, call result, match join, const name, another state,
+local, field, parameter, call result, match join, const name, a nested machine,
 another machine, and a target body, and in each place `hold(direct)` is proved
 from the recorded projection. Only the transport of the fact changes.
 
@@ -31,7 +31,7 @@ never a runtime trap.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `produced()` ensures `result.kept`; the premise projects from the call result |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match yield the same `Mark`; the projection survives the join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the projected value is the named constant `NAMED` |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state `check(mark)` performs the call and reads the record |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `check(mark)` performs the call and reads the record |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine `relay` supplies the projection to `observe`, which forms it |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies performs the call and reads the record |
 
@@ -81,7 +81,7 @@ own transport). Proof checking fails closed during compile-time verification:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract for exit from produced` / `result.kept` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `structurally false` / `mark.kept` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call relay` / `mark.kept` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
 

@@ -27,7 +27,7 @@ prove requires contract for call read_origin`.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `select()` returns the joined primitive (`ensures result == 17`) |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the selected primitive itself arrives from a match join |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the primitives are named constants (`CHOSEN`, `SPARE`) |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the primitives and consumes the join |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the primitives and consumes the join |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the primitives |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the sequence |
 
@@ -78,7 +78,7 @@ Compile-time verification fails closed with:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract for exit from select` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call read_origin` |
 
@@ -114,7 +114,7 @@ are byte-identical copies of their twins, so sample and fixture cannot drift.
    obligation. No intervening mutation occurs between the match and the
    consumer read.
 3. **Composition:** The fact composes through local, field, parameter, call
-   result, match join, const name, successor state, forwarding machine, and
+   result, match join, const name, successor machine, forwarding machine, and
    target body; `<place>/main.omg` vs `<place>/invalid/main.omg` differ only in
    which arm is selected (the construct's own value).
 4. **Soundness boundaries:** All nine twins fail closed during compile-time

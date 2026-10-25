@@ -15,7 +15,7 @@ Every place performs the same operation: define bounded signed parameters `minue
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the difference arrives as the return result of a helper machine call |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the difference so the joined binding preserves the downstream contract |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant subtrahend subtracts from the bounded minuend |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the difference to a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the difference to a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the difference through an intermediate machine call |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the signed exact subtraction and satisfies the downstream contract |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- In every positive place, `subtract_signed(90, 25)` evaluates `90i64 - 25i64`, establishing difference `65i64` which is within `50i64..80i64`. Passing `diff` to `consume(diff)` satisfies its contract `diff >= 50 && diff <= 80`. `consume` converts `65` to `u64`, performs exact subtraction `65u64 - 50u64 == 15u64`, and returns `15i32`. In `main`, `transition res == 15` transitions to `state done() {}`, terminating with native exit 0. If subtraction or contract satisfaction returns an unexpected value, execution branches to `state bad() { crash Trap; }`, causing exit 255.
+- In every positive place, `subtract_signed(90, 25)` evaluates `90i64 - 25i64`, establishing difference `65i64` which is within `50i64..80i64`. Passing `diff` to `consume(diff)` satisfies its contract `diff >= 50 && diff <= 80`. `consume` converts `65` to `u64`, performs exact subtraction `65u64 - 50u64 == 15u64`, and returns `15i32`. In `main`, `transition res == 15` transitions to `machine done() {}`, terminating with native exit 0. If subtraction or contract satisfaction returns an unexpected value, execution branches to `machine bad() { crash Trap; }`, causing exit 255.
 - Each invalid twin weakens the minuend bound (e.g. `minuend >= 79i64` or `minuend >= 74i64`), so `minuend - subtrahend` can be `49i64`. Calling `consume(diff)` fails closed at compile time with `cannot prove requires contract for call consume`. None reaches native execution.
 
 Check all nine invalid twins with:

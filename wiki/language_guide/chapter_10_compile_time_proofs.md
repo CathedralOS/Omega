@@ -475,7 +475,7 @@ source syntax or runtime rewrite requirement.
 
 A proof machine recurses under the ordinary `terminates by` rule. Transition
 cases provide case analysis; the smaller recursive call provides the induction
-hypothesis. State arrival contracts must hold at every incoming edge.
+hypothesis. Machine arrival contracts must hold at every incoming edge.
 
 The recursive contract becomes available only after that exact direct or mutual
 cycle edge proves strict decrease under a well-founded ranking. This applies

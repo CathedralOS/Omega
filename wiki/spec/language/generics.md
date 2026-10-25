@@ -18,6 +18,16 @@ to selected named bodies and does not infer whole-trait conformance evidence.
 
 ## Applications and specialization
 
+Lexically nested machines may refer to enclosing static generic selections
+(types, static values, machine selections and conformance evidence) by their
+exact declaration identities. Elaboration retains that context in the nested
+machine's application identity; flattening must not bind by spelling or merge
+distinct outer applications. This is not a runtime closure. Runtime-value
+generic subjects, like ordinary runtime parameters, must be passed explicitly
+when a nested machine needs their values. Lifetime context constrains explicit
+references and does not supply an enclosing activation or borrowed storage.
+See [nested machines](machines.md#nested-machines-and-identity).
+
 Type parameters use ordinary angle-bracket applications. `const N: u64` binds
 a static value of the declared carrier, usable in layouts, ranges, and contracts.
 `N: u64` binds a value which may be known statically or supplied at runtime.

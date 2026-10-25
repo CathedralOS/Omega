@@ -322,8 +322,13 @@ API and rebuild consequences.
 Independently nameable declarations are private unless marked `public`.
 Qualification does not inherit visibility: a public `Player` does not
 automatically publish a separate `take_damage` machine or create a machine
-namespace. A genuine field, case, state, or
+namespace. A genuine field, case, or
 trait requirement follows its exact containing declaration.
+
+Nested machines instead have lexical visibility inside their enclosing machine
+scope. Exporting a machine does not export its private helpers; qualification
+cannot enter another machine's private descendants. See
+[nested machines](chapter_4_nested_machines_transitions.md).
 
 ```omega
 public data Player {

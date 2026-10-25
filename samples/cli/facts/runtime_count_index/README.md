@@ -5,7 +5,7 @@ A byte view is indexed by a runtime count. Bytes `[9, 8, 7, 6]` indexed at
 
 The count is one value-binder argument. Each directory is one place, the same
 row as `samples/cli/facts/length/`: a local, a field, a parameter, a call
-result, a match join, a const name, another state, another machine, and
+result, a match join, a const name, a nested machine, another machine, and
 another target body.
 
 | Place | Positive Project | Reject Twin (invalid) | Out of Bounds Control | Transport Mechanism |
@@ -17,7 +17,7 @@ another target body.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | [`call_result/controls/out_of_bounds/main.omg`](call_result/controls/out_of_bounds/main.omg) | contracted helper call result supplies the bounded count |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | [`match_join/controls/out_of_bounds/main.omg`](match_join/controls/out_of_bounds/main.omg) | both match arms preserve and join the runtime count |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | [`const_name/controls/out_of_bounds/main.omg`](const_name/controls/out_of_bounds/main.omg) | named constant supplies the count to the value binder |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | [`other_state/controls/out_of_bounds/main.omg`](other_state/controls/out_of_bounds/main.omg) | a successor state receives the count across a transition |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | [`other_state/controls/out_of_bounds/main.omg`](other_state/controls/out_of_bounds/main.omg) | a successor machine receives the count across a transition |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | [`other_machine/controls/out_of_bounds/main.omg`](other_machine/controls/out_of_bounds/main.omg) | a forwarding machine supplies the count to the consumer machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | [`target_body/controls/out_of_bounds/main.omg`](target_body/controls/out_of_bounds/main.omg) | target-scoped machine bodies execute on each hosted platform |
 

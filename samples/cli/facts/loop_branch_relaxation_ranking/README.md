@@ -13,7 +13,7 @@ Every place carries the same construct and operation: a terminating, ranked mult
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a contracted forwarding machine result delivers the loop accumulator |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | reconverging match branches join on the exact loop accumulator bound |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant `const SUBTRAHEND: u64 = 100` supplies the subtrahend |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state transition carries the loop accumulator to subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine transition carries the loop accumulator to subtraction |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate evaluation machine carries the loop accumulator |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies for all four hosted targets evaluate subtraction |
 
@@ -52,7 +52,7 @@ Each place has an `invalid/` twin that breaks only the accumulator obligation by
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `exact arithmetic` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `exact arithmetic` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `exact arithmetic` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `exact arithmetic` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `exact arithmetic` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `exact arithmetic` |
 

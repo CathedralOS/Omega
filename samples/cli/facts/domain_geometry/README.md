@@ -6,7 +6,7 @@ backed allocator, not proof of storage custody or allocator completion.
 
 Acceptance command: `omega run samples/cli/facts/domain_geometry/main.omg`.
 The anchor and all nine places return native exit 0 and Terminal exit 0: local,
-field, parameter, call result, match join, const name, another state, another
+field, parameter, call result, match join, const name, a nested machine, another
 machine, and target body (see [Verification](#verification) for the recorded
 targets). Each weakened-domain twin rejects the same exact address addition. The
 constant place retains its original `[copy]` carrier, predicate, bound,

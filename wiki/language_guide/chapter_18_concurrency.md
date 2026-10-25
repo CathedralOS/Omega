@@ -109,8 +109,8 @@ refinement can narrow it.
 Suspension parks the activation while retaining its fixed stack. The call must
 be a complete statement, simple `let` right-hand side, transition subject, or
 terminal expression, including a final machine call in a transition arm. That
-arm invokes and forwards the eventual result; it does not start a task. Internal
-state jumps have no acknowledgement prefix. A blocking-only call may nest because
+arm invokes and forwards the eventual result; it does not start a task. Nested
+machines have the same call-envelope acknowledgements. A blocking-only call may nest because
 it retains ordinary call execution. A call permitting both uses `suspend block` and the
 suspension position rule:
 
@@ -157,7 +157,7 @@ process_simd_chunk(buffer);   // no semantic suspension; preemption is possible
 suspend scheduler.poll();    // explicit semantic safe point
 ```
 
-Loops, state transitions, allocations, and ordinary calls are not implicit safe
+Loops, terminal transfers, allocations, and ordinary calls are not implicit safe
 points. Optimization cannot insert a suspending poll into a non-suspending
 kernel. Blocking creates no safe point either; an unbounded wait can leave
 cancellation response and replacement quiescence unbounded.

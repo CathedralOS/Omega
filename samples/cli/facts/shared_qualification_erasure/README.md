@@ -19,7 +19,7 @@ obligation. It does not demonstrate physical initialization or retirement.
 | Call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
 | Match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
 | Const evaluation | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Another state | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| A nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | Another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | Target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 

@@ -18,7 +18,7 @@ execute, so the ordinary runtime result is 41 or 42 and the oracle is exit 0.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) (`controls/invalid_call_result/main.omg`) |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) (`controls/invalid_match_join/main.omg`) |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) (`controls/invalid_const_name/main.omg`) |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) (`controls/invalid_other_state/main.omg`) |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) (`controls/invalid_other_state/main.omg`) |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) (`controls/invalid_other_machine/main.omg`) |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) (`controls/invalid_target_body/main.omg`) |
 
@@ -81,7 +81,7 @@ field, address, read, or cleanup" while supplying "proof computation or static
 authorization": a primitive referent observation `witness == 7` is established
 at each witness construction and discharged at the `keep` precondition through
 all nine transport places — a local, a record field, an explicit parameter, a
-completed call result, a covered match join, a const name, a successor state,
+completed call result, a covered match join, a const name, a successor machine,
 another machine, and each of the four target bodies. Composition is covered by
 the parameter, call result and other-machine places, which substitute the
 exact actual witness into the callee's contract. Soundness of erasure is

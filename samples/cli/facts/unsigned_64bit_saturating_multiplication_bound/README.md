@@ -13,7 +13,7 @@
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | helper call returns saturating multiplication product with postcondition contract `ensures result >= 50u64 && result <= 200u64` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | product is synthesized and unified across conditional match branches |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared symbolic constants define operand intervals and bound limits |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor state `check_state(p: u64)` receives product and verifies interval subtractions |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `check_state(p: u64)` receives product and verifies interval subtractions |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine passes the product to another machine for interval verification |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform saturating multiplication and interval verification |
 
@@ -47,7 +47,7 @@ The recorded 0 exit is discriminating:
 - The saturating multiplication product interval is statically proved: `min = 10 * 5 = 50u64`, `max = 20 * 10 = 200u64`.
 - 64-bit unsigned saturating multiplication evaluates to `120u64` and is verified overflow-free.
 - Consuming exact subtractions `let headroom: u64 = 200u64 - prod` (`80u64`) and `let margin: u64 = prod - 50u64` (`70u64`) are statically proved safe in interval `[0u64, 150u64]`.
-- At runtime, `prod == 120u64 && headroom + margin == 150u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, `prod == 120u64 && headroom + margin == 150u64` confirms exact arithmetic agreement, branching to `pass()` (exit 0) or `fail()` (`crash Trap;`, exit 255) on discrepancy. A 1-token perturbation of the demanded result (`transition res == 0` to `transition res == 1`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - Each invalid twin widens the `lhs` bound to `lhs <= 21u64`, allowing `prod` to take value `21 * 10 = 210u64 > 200u64`. The headroom subtraction `200u64 - prod` fails closed at compile time under the **Exact arithmetic overflow** obligation class with diagnostic `exact arithmetic in machine ... local \`headroom\` may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -64,7 +64,7 @@ omega --check samples/cli/facts/unsigned_64bit_saturating_multiplication_bound/<
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow | `may overflow \`u64\`` |
 

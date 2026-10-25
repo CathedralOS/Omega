@@ -34,7 +34,7 @@ The root application and nine place projects all verify that extent.
 | call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | `call_result/controls/short_extent/` | borrowed result with exact extent guarantee |
 | match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | `match_join/controls/short_extent/` | both arms return the whole-array view; both execute |
 | const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `const_name/controls/short_extent/` | named constant fixes the backing array extent |
-| another state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | `other_state/controls/short_extent/` | view arrives under an exact extent requirement |
+| a nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | `other_state/controls/short_extent/` | view arrives under an exact extent requirement |
 | another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | `other_machine/controls/short_extent/` | helper receives the view under its extent requirement |
 | another target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | `target_body/controls/short_extent/` | all four hosted bodies read the extent |
 

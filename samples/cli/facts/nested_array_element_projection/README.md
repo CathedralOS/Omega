@@ -15,7 +15,7 @@ Every place performs the same operation: index a fixed-size array field inside a
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the bounded element is returned from a contracted helper call result before subtracting |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms project the bounded element and join before subtracting |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the element ceiling bound is governed by a named constant |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the row and index to project the element and subtract |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the row and index to project the element and subtract |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine passes the row and index to the projection machine |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies indexes the array and subtracts |
 
@@ -45,7 +45,7 @@ All 10 applications pass with `native exit 0` and `interp exit: 0`.
 ### The oracle discriminates
 
 The recorded 0 exit is discriminating:
-- At runtime, `row = Row { cells: [10, 20, 50, 80] }` and `idx = 2`. The projected element is `row.cells[2] == 50u64`, and exact subtraction `80u64 - 50u64 == 30u64`. The transition `spare == 30 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded result (`transition spare == 30` to `transition spare == 31`) routes execution to `state bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
+- At runtime, `row = Row { cells: [10, 20, 50, 80] }` and `idx = 2`. The projected element is `row.cells[2] == 50u64`, and exact subtraction `80u64 - 50u64 == 30u64`. The transition `spare == 30 { true -> done() _ -> bad() }` exits 0. A 1-token perturbation of the demanded result (`transition spare == 30` to `transition spare == 31`) routes execution to `machine bad() { crash Trap; }`, trapping both engines (`native exit -1073741795` / `interp crash: Trap (host presentation agrees)`).
 - In each invalid twin, the element bound is widened to `81` (allowing `elem == 81u64`). Exact subtraction `80u64 - elem` (`80u64 - 81u64`) underflows below zero, causing compile-time proof obligation checking under the **Exact arithmetic** obligation class to fail closed with `exact arithmetic in machine ... may overflow \`u64\``. None reaches native execution.
 
 Check all nine invalid twins with:
@@ -62,7 +62,7 @@ omega --check samples/cli/facts/nested_array_element_projection/<place>/invalid/
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
 

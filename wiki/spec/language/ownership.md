@@ -96,7 +96,7 @@ entitlement. Duplicate and overlapping moves reject. An owned extraction
 must identify the unique moved element and retain its residual frontier;
 unsupported runtime-indexed extraction cannot fall back to forgetting the root.
 
-Source and result claims keep their provenance through calls, state transitions,
+Source and result claims keep their provenance through calls, terminal transfers,
 wrappers, and generic substitutions. A moved input returned in an outcome
 remains that same obligation. Ambiguous opaque multi-resource output maps reject;
 equal bytes or matching result types are not transfer evidence. Terminal
@@ -144,7 +144,7 @@ authority. [Loan compatibility](../terminal-psi/loans.md) owns captured places,
 formation proofs, lifetimes, closure order, and restored-use evidence.
 
 [Source lifetimes](lifetimes.md) specify explicit binders, result elision, and
-structural carried-loan transport through values and state transitions.
+structural carried-loan transport through values and terminal transfers.
 
 Suspension does not end a loan, restore its parent's access or transfer ownership
 of its referent. Borrowed arguments and other retained loans remain valid for the
@@ -178,7 +178,7 @@ also be restored before an observation relying on them. Predicate evidence alone
 cannot establish absent content. [Carried-loan transport](lifetimes.md#carried-loan-transport)
 tracks loans in the removed and replacement values independently.
 
-Every return or state transition from the region owing restoration, scope
+Every return or terminal transfer from the region owing restoration, scope
 expiration releasing its custody, or restoration of the borrow to its parent
 must close the window. Calls may consume the detached value
 or use disjoint storage only when their complete access and outcome contracts

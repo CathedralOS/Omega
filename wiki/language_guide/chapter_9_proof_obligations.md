@@ -91,7 +91,7 @@ inferred from today's implementation. Changing a valid private witness does not
 change the public guarantee.
 
 Runtime recursive calls are tail-only and lower to iteration. Proof/compile-time
-recursion can be non-tail when admitted. Productive state loops may omit a
+recursion can be non-tail when admitted. Productive terminal-transfer cycles may omit a
 termination promise; that supplies neither fairness nor bounded response.
 
 A quantitative work bound is another obligation: proving eventual termination

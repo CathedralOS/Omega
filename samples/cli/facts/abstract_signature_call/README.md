@@ -34,7 +34,7 @@ transport of the premise subject and its read changes.
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call result supplies the premise subject |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the premise subject |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant is the premise subject |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor state receives the premise subject and reads the record there |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the premise subject and reads the record there |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the premise subject |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one body per hosted target uses the subject and reads the record |
 
@@ -64,7 +64,7 @@ Measured at base `c1c6bc8cb8ec886f645976a82e496d4191937339` on macOS arm64
 - All nine twins exit 200 at compile time naming the row's own premise — the
   `premise(kept)` violation with `the instantiated fact is structurally false`
   — from `main` state `entry` (local, field, call result, match join, const
-  name), `main` state `check` (another state), and `observe` state `entry`
+  name), `main` state `check` (a nested machine), and `observe` state `entry`
   (parameter, another machine, and each of the four target bodies), each
   beside the specialized `apply$specialized$b37cdd08ebba4760$0` companion.
 - `python3 tools/sample_native_gate.py --cli <producer> --facts --filter
@@ -85,8 +85,8 @@ unchanged and keep their `@c1c6bc8cb8ec+wt` stamp.
 ### The oracle discriminates
 
 `hold(direct)` carries `requires direct == true`, and the program reaches
-`state done() {}` (exit 0) only through it; any other result takes
-`state bad() { crash Trap; }`. The twin keeps the same caller, the same
+`machine done() {}` (exit 0) only through it; any other result takes
+`machine bad() { crash Trap; }`. The twin keeps the same caller, the same
 obligation and the same subject, and changes only the premise call's own result:
 the refusal is the fact's own negative, not an unrelated failure. A supplied
 caller-side guard would be a different fact and is not used anywhere in this
@@ -109,7 +109,7 @@ to a structurally false fact and proof checking fails closed:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | same fragment from `main` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | same fragment from `main` |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | same fragment from `main` |
-| another state | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment from `main` state `check` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment from `main` state `check` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | same fragment from `observe` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | same fragment per target body from `observe` |
 

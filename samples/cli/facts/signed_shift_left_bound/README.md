@@ -17,7 +17,7 @@ Subsequent exact subtraction `shifted - 100i64` is proved free of overflow/under
 | call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | bounded signed operand is returned from a dedicated provider machine |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match expression produce the bounded signed operand |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant supplies the bounded signed operand |
-| another state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the bounded signed operand into a successor state |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition carries the bounded signed operand into a successor machine |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an independent forwarding machine transports the bounded signed operand |
 | another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target provides a target-scoped machine body for the shift |
 
@@ -56,7 +56,7 @@ Each place has an `invalid/` reject twin that weakens the shift's own contract: 
 `requires val >= 25i64 && val <= 25i64` and the derived `ensures result >= 100i64 && result <= 100i64`
 from the machine(s) that compute or forward the shift in that place (`forward_param`, `dispatch_shift`, and
 the four target bodies included). Every other line is byte-identical to the positive: the carrier
-(`local` binding, record field, parameter, return value, match join, named constant, successor state,
+(`local` binding, record field, parameter, return value, match join, named constant, successor machine,
 forwarding machine, target body), the `shifted` guard, the `done` subtraction and `bad` Trap stay the same.
 Without the bound, exact integer shift left on `i64` may overflow and fails closed at checked compilation:
 

@@ -14,7 +14,7 @@ instantiation substitutes `Seven`. The consuming operation is `value - 7`.
 The witnesses are [local](local/main.omg), [field](field/main.omg),
 [parameter](parameter/main.omg), [call result](call_result/main.omg),
 [match join](match_join/main.omg), [const name](const_name/main.omg),
-[another state](other_state/main.omg), [another machine](other_machine/main.omg),
+[a nested machine](other_state/main.omg), [another machine](other_machine/main.omg),
 and [another target body](target_body/main.omg). Each has
 `invalid/main.omg` beside it. Every twin changes only `Seven` to `Other`.
 `Other` satisfies `Loose`, whose `floor` ensures `result >= 6`, and does not
@@ -32,7 +32,7 @@ Applicable requirements:
   default call must satisfy. No data value or `Self` subject is introduced.
 - **Composition:** the same binder, bound, and `value - 7` operation are
   carried through a local, a field, a parameter, a call result, a match join,
-  a const name, another state, another machine, and another target body.
+  a const name, a nested machine, another machine, and another target body.
   Each twin differs only in the implementation supplied to that binder.
 - **Soundness boundaries:** an implementation of `Loose` is not an
   implementation of `Reading`. The default call `Reading::floor<Other>()`

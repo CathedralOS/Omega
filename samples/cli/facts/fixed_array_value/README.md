@@ -29,7 +29,7 @@ Reserved Claim Ticket: `26cce69dcf0e413baec3f321436e739b`
 | call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | The index arrives from a helper call with an ensures result < 2 contract. |
 | match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both branches of a match expression produce in-bounds indices. |
 | const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | A named constant bounds the index contract for the fixed-extent array. |
-| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition to a successor state forwards the bounded index and array. |
+| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | A transition to a successor machine forwards the bounded index and array. |
 | other machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | A forwarding machine transports the bounded index and array to the reader. |
 | target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Each of the four target bodies reads the array element using the bounded index. |
 

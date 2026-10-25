@@ -18,7 +18,7 @@ accompanied by `<place>/invalid/` reject twins:
 | call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | subtraction result returned across machine call boundary |
 | match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | subtraction result converged across match join arms |
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | subtraction inputs provided by named compile-time constants |
-| another state | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | subtraction result forwarded across state machine transition |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | subtraction result forwarded across state machine transition |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | subtraction result forwarded through intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | subtraction result verified across target-scoped machine bodies |
 
@@ -69,7 +69,7 @@ Full 8-layer specification and lowering evidence:
   - `call_result`: helper machine `produce_diff()` computes subtraction and returns the result across call boundary with ensures contract.
   - `match_join`: subtraction result converges through match arms into a unified value.
   - `const_name`: inputs `LHS` and `RHS` are declared as compile-time named constants `const LHS: u32 = 100; const RHS: u32 = 30;`.
-  - `other_state`: subtraction result is passed across a transition edge into successor state `step(forwarded: u32)`.
+  - `other_state`: subtraction result is passed across a transition edge into successor machine `step(forwarded: u32)`.
   - `other_machine`: subtraction result is forwarded through intermediate machine `runner()`.
   - `target_body`: subtraction result is evaluated and verified across target-scoped machine bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
   In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in the construct's own input and domain: the `rhs` upper bound widens to `rhs >= 20 && rhs <= 41` and the witness actuals move to `lhs = 80u32` / `rhs = 41u32` (const name `RHS = 41u32`), where `diff` reaches `80 - 41 = 39u32 < 40u32`, proving that downstream contract verification `requires diff >= 40 && diff <= 100` strictly fails closed when the post-subtraction bound drops below 40.

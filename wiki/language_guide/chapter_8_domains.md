@@ -104,7 +104,7 @@ applying the family substitutes indices without adding routes.
 
 ## Domains In Contracts
 
-Machines and states can require or guarantee domains.
+Machines can require or guarantee domains.
 
 ```omega
 machine PlayerSystem::respawn(
@@ -416,11 +416,10 @@ callee may then treat the immutable parameter as qualified and forward that
 fact. Matching the runtime representation of `T` never satisfies a routed
 obligation by itself.
 
-For a graph machine this obligation belongs to the exact state declaring the
-parameter. A qualification introduced after machine entry may therefore cross
-later constrained states without becoming a prerequisite of the machine's
-outer entry call. Every transition into those states still proves the
-state-local obligation.
+This obligation belongs to the exact machine declaring the parameter. A
+qualification established after an outer entry may be passed to a constrained
+nested helper without becoming a prerequisite of that outer entry. Every call
+or terminal transfer into the helper still proves its invocation-local obligation.
 
 ### `as`
 
@@ -1004,7 +1003,7 @@ publish UTF-8 guarantees. Callers use those guarantees rather than rescan.
 Writes invalidate affected facts unless their contracts preserve or re-establish
 them. Domain annotations never bless arbitrary incoming bytes.
 
-The executable validator is an ordinary total machine. Its recursive or state
+The executable validator is an ordinary total machine. Its recursive or iterative
 walk must prove termination and bounds like any other code. It returns a success
 carrying qualified bytes or an ordinary failure; proof search failure itself
 is not a runtime validation outcome.

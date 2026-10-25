@@ -21,7 +21,7 @@ the truth of a foreign contract.
 The places are [local](local/main.omg), [field](field/main.omg),
 [parameter](parameter/main.omg), [call result](call_result/main.omg),
 [match join](match_join/main.omg), [const name](const_name/main.omg),
-[another state](other_state/main.omg), [another machine](other_machine/main.omg)
+[a nested machine](other_state/main.omg), [another machine](other_machine/main.omg)
 and [target body](target_body/main.omg). Each place has an `invalid/main.omg`.
 Matching fixtures are under
 `tests/omega/{pass,fail}/facts/scalar_boundary_parameter_through_<place>_{exit,rejected}`.

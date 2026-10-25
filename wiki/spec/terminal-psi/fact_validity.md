@@ -66,7 +66,7 @@ substituting the wrong caller term are distinct failures.
 
 Entry hypotheses bind exact invocation formals or structural entry paths, with
 their retained types and access. Current body values are not entry snapshots.
-Named-state requirements do not become ambient invocation-entry assumptions.
+Nested-machine requirements do not become ambient invocation-entry assumptions.
 A block parameter is a forwarded formal only when every incoming edge proves
 the same typed origin; unknown, conflicting, or unestablished cyclic origins
 supply no such equality.

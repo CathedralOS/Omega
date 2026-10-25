@@ -70,10 +70,10 @@ live. Facts and loans are checked together before erasure; forgetting a layout
 parameter or a displayed qualification cannot remove this obligation.
 
 Across calls, transport facts only through their exact parameter/result
-substitution and checked contract. State-arrival requirements are proved on
+substitution and checked contract. Machine-arrival requirements are proved on
 every incoming edge and assumed only at arrival. Mutation invalidates stale
 entry facts; a backedge cannot prove itself from a premise invalidated by its
-own writes. See [state contracts](state_contracts.md).
+own writes. See [invocation contracts](state_contracts.md).
 
 ## Default domains and zero initialization
 
@@ -162,7 +162,7 @@ create a reader/writer grant; retained restrictions follow their governed lifeti
 
 For `per-element-array-bounds`, use an ordinary pure, total, terminating
 machine over the collection as a predicate in `where` or `requires`. Its body
-walks the elements with ordinary states; collection invariants introduce no
+walks the elements with ordinary recursive machines; collection invariants introduce no
 `forall`, `foreach`, or bracketed scalar-range type suffix.
 
 For example, a field `cells: [i32; 16]` can be constrained by
@@ -198,7 +198,7 @@ The domain must be proved again at the next consumption point:
 
 - A read relying on the domain or a dependent coupling.
 - Borrow creation or a call.
-- State transition, return, or scope expiration.
+- Terminal transfer, return, or scope expiration.
 - Boundary/capability-carrying calls, even when they do not name the place.
 
 An unclosed window rejects with both the opening write and failing consumption
@@ -228,7 +228,7 @@ obligations and explicit domain qualifications must be re-established before
 consumption, not assumed to be unchanged values. Body-derived frames are implementation evidence,
 not changes to public contract or specialization identity.
 
-Frames retain exact subject substitution across aliases, calls, and state
+Frames retain exact subject substitution across aliases, calls, and terminal
 transitions. Where only collection-level origin is known, later field
 projections cannot recover narrower precision without new evidence. An
 unrepresentable origin or incomplete recursive summary uses the conservative
