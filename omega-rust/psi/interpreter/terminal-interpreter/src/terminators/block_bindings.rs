@@ -46,10 +46,10 @@ use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 pub(crate) struct BlockBindings {
     scalars: RuntimeRows<ValueId, TerminalScalarValue>,
     structural: RuntimeRows<PlaceId, TerminalStructuralValue>,
-    aggregate_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
-    byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
-    primitive_loans: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
-    element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
+    aggregate_backings: RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
+    byte_sequences: RuntimeRows<PlaceId, ByteSequenceBinding>,
+    primitive_loans: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+    element_views: RuntimeRows<PlaceId, crate::element_views::ElementView>,
     owned_sources: BTreeSet<PlaceId>,
     claims: BTreeMap<ClaimId, LiveClaim>,
     /// Roots whose projected children moved on this edge. Their whole-root
@@ -65,10 +65,10 @@ impl Default for BlockBindings {
         Self {
             scalars: RuntimeRows::new(None),
             structural: RuntimeRows::new(None),
-            aggregate_backings: BTreeMap::new(),
-            byte_sequences: BTreeMap::new(),
-            primitive_loans: BTreeMap::new(),
-            element_views: BTreeMap::new(),
+            aggregate_backings: RuntimeRows::new(None),
+            byte_sequences: RuntimeRows::new(None),
+            primitive_loans: RuntimeRows::new(None),
+            element_views: RuntimeRows::new(None),
             owned_sources: BTreeSet::new(),
             claims: BTreeMap::new(),
             projected_sources: BTreeSet::new(),
@@ -136,10 +136,16 @@ impl BlockBindings {
         execution.structural_values.append(&mut self.structural)?;
         execution
             .aggregate_argument_backings
-            .extend(self.aggregate_backings);
-        execution.byte_sequence_values.extend(self.byte_sequences);
-        execution.primitive_loan_values.extend(self.primitive_loans);
-        execution.element_view_values.extend(self.element_views);
+            .append(&mut self.aggregate_backings)?;
+        execution
+            .byte_sequence_values
+            .append(&mut self.byte_sequences)?;
+        execution
+            .primitive_loan_values
+            .append(&mut self.primitive_loans)?;
+        execution
+            .element_view_values
+            .append(&mut self.element_views)?;
         execution
             .live_affine_frontier
             .extend(self.affine_destinations);
@@ -326,16 +332,16 @@ impl TerminalExecution<'_> {
             });
         }
         let mut resolved_arguments = Vec::with_capacity(structural_arguments.len());
-        let mut aggregate_backings = BTreeMap::new();
+        let mut aggregate_backings = RuntimeRows::new(self.account.as_ref());
         let contains_payloads = structural_arguments
             .iter()
             .any(|argument| self.scalar_array_values.contains_key(&argument.place));
         let mut descriptor_parameters = Vec::new();
         let mut descriptor_arguments = Vec::new();
         let mut packed_arguments = Vec::new();
-        let mut primitive_loans = BTreeMap::new();
-        let mut array_loans = BTreeMap::new();
-        let mut byte_loans = BTreeMap::new();
+        let mut primitive_loans = RuntimeRows::new(self.account.as_ref());
+        let mut array_loans = RuntimeRows::new(self.account.as_ref());
+        let mut byte_loans = RuntimeRows::new(self.account.as_ref());
         let mut local_array_roots = RuntimeRows::new(self.account.as_ref());
         let mut identity_cursor = self.local_structural_identities.cursor();
         let mut owned_sources = BTreeSet::new();
@@ -376,7 +382,7 @@ impl TerminalExecution<'_> {
                         error.in_argument_preparation("capture primitive state arrival")
                     })?;
                 resolved_arguments.push(loan.referent.clone());
-                primitive_loans.insert(parameter.place, loan);
+                primitive_loans.insert(parameter.place, loan)?;
                 if contains_payloads {
                     descriptor_parameters.push(parameter.clone());
                     descriptor_arguments.push(argument.clone());
@@ -394,7 +400,7 @@ impl TerminalExecution<'_> {
             {
                 if !self.block_parameter_is_declared(target, parameter)
                     || self.live_affine_discard_at(parameter.place).is_some()
-                    || array_loans.insert(parameter.place, loan).is_some()
+                    || array_loans.insert(parameter.place, loan)?.is_some()
                 {
                     return Err(malformed());
                 }
@@ -430,7 +436,7 @@ impl TerminalExecution<'_> {
                         entry.place == parameter.place
                             || (entry.place == argument.place && !entry.path.is_empty())
                     })
-                    || byte_loans.insert(parameter.place, binding).is_some()
+                    || byte_loans.insert(parameter.place, binding)?.is_some()
                 {
                     return Err(malformed());
                 }
@@ -763,11 +769,13 @@ impl TerminalExecution<'_> {
             self.bind_byte_sequence_arguments(&parameters, &arguments, &values)
                 .map_err(|error| error.in_argument_preparation("bind byte state arrivals"))?
         };
-        for (place, binding) in byte_loans {
-            if byte_sequences.insert(place, binding).is_some() {
-                return Err(malformed());
-            }
+        if byte_loans
+            .keys()
+            .any(|place| byte_sequences.contains_key(place))
+        {
+            return Err(malformed());
         }
+        byte_sequences.append(&mut byte_loans)?;
         // An owned byte copy was just checked against every domain its formal
         // names, so the destination holds the copy under those domains, exactly
         // as an ordinary call's owned copy.
@@ -870,11 +878,13 @@ impl TerminalExecution<'_> {
                 &resolved_arguments,
             )
             .map_err(|error| error.in_argument_preparation("bind element state arrivals"))?;
-        for (place, loan) in array_loans {
-            if element_views.insert(place, loan).is_some() {
-                return Err(malformed());
-            }
+        if array_loans
+            .keys()
+            .any(|place| element_views.contains_key(place))
+        {
+            return Err(malformed());
         }
+        element_views.append(&mut array_loans)?;
         let mut aggregate_payload = self
             .stage_owned_value_arguments(
                 descriptor_parameters,
@@ -1041,13 +1051,13 @@ impl TerminalExecution<'_> {
         &self,
         argument: &StructuralArgument,
         parameter: &StructuralParameterDeclaration,
-        aggregate_backings: &mut BTreeMap<PlaceId, crate::reference::AggregateBacking>,
+        aggregate_backings: &mut RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
         let (view, backing) =
             self.present_structural_argument(argument, parameter.structural_type)?;
         if let Some(backing) = backing
             && aggregate_backings
-                .insert(parameter.place, backing)
+                .insert(parameter.place, backing)?
                 .is_some()
         {
             return Err(malformed());

@@ -103,7 +103,8 @@ pub struct TerminalExecution<'artifact> {
     /// inputs: an owned argument transfers custody and cannot be read back.
     pub(crate) borrowed_entry_storage: Vec<(u32, PlaceId, TerminalStructuralValue)>,
     pub(crate) private_entry_ram: Vec<crate::reference::placed::PrivateEntryRamAllocation>,
-    pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
+    pub(crate) aggregate_argument_backings:
+        RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
     /// A reference carrier owns this descriptor, never the referent's backing.
     /// Carrier identities survive structural call/return moves across frames.
     pub(crate) reference_referents:
@@ -148,15 +149,15 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) structural_host_atoms:
         BTreeMap<StructuralRuntimePlace, crate::structural_storage::HostStructuralPayload>,
     pub(crate) next_host_atom_collection_size: usize,
-    pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) scalar_array_values: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
-    pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
-    pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+    pub(crate) byte_sequence_values: RuntimeRows<PlaceId, ByteSequenceBinding>,
+    pub(crate) primitive_loan_values: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
     /// Shared immutable element views rebound to callee parameters, parallel
     /// to `byte_sequence_values` for borrowed `&[T]` storage.
-    pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
+    pub(crate) element_view_values: RuntimeRows<PlaceId, crate::element_views::ElementView>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -189,6 +190,10 @@ pub struct TerminalExecution<'artifact> {
     /// bindings. Keep that custody in the failed activation, not a new unpaid
     /// frame; the sticky execution fault prevents another capture attempt.
     pub(crate) failed_call_result: Option<SuspendedCallResult>,
+    /// A return remains the backing owner while its caller rows and loans are
+    /// installed. Failed installation retains it beside the exact continuation;
+    /// already-installed rows remain in the failed activation, never replayed.
+    pub(crate) failed_return: Option<FailedReturn>,
     // The retained root activation remains allocated through normal-return
     // readback. Release its header after the execution state is retired.
     _frame_storage: Option<EvaluationStorageLease>,
@@ -199,11 +204,12 @@ pub(crate) struct SuspendedCall {
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
-    pub(crate) aggregate_argument_backings: BTreeMap<PlaceId, crate::reference::AggregateBacking>,
-    pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
-    pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
-    pub(crate) primitive_loan_values: BTreeMap<PlaceId, crate::primitive_storage::PrimitiveLoan>,
-    pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
+    pub(crate) aggregate_argument_backings:
+        RuntimeRows<PlaceId, crate::reference::AggregateBacking>,
+    pub(crate) scalar_array_values: RuntimeRows<PlaceId, TerminalScalarArrayValue>,
+    pub(crate) byte_sequence_values: RuntimeRows<PlaceId, ByteSequenceBinding>,
+    pub(crate) primitive_loan_values: RuntimeRows<PlaceId, crate::primitive_storage::PrimitiveLoan>,
+    pub(crate) element_view_values: RuntimeRows<PlaceId, crate::element_views::ElementView>,
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
     pub(crate) current_machine: MachineId,
@@ -338,6 +344,16 @@ impl CompletedReturn {
     }
 }
 
+/// A sticky return fault retains its output, unconsumed caller continuation,
+/// and loan-completion roster. Mutations already committed stay in the runtime
+/// tables; this record grants neither replay nor another cleanup attempt.
+pub(crate) struct FailedReturn {
+    pub(crate) _completed: CompletedReturn,
+    // None means the caller is still saved on the call stack (or is the host).
+    pub(crate) _expected: Option<SuspendedCallResult>,
+    pub(crate) _loan_completions: Vec<terminal_psi::LoanCompletion>,
+}
+
 /// Dispatch rows of the interpreter loop: `advance` rows run the operation's
 /// `execute_*` method and continue the block; `flow` rows take the method's
 /// own flow decision. Literal arms (operations whose dispatch passes fields)
@@ -467,7 +483,6 @@ impl<'artifact> TerminalExecution<'artifact> {
             borrowed_entry_storage.push((argument_index, parameter.place, value.clone()));
         }
         let mut execution = Self {
-            account,
             failure: None,
             x86_flags: installation.and_then(|supplies| supplies.x86_flags),
             activation_storage: Default::default(),
@@ -483,7 +498,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             values,
             borrowed_entry_storage,
             structural_values,
-            aggregate_argument_backings: BTreeMap::new(),
+            aggregate_argument_backings: RuntimeRows::new(account.as_ref()),
             reference_referents: BTreeMap::new(),
             structural_element_view_fields: BTreeMap::new(),
             structural_byte_descriptors: BTreeMap::new(),
@@ -500,10 +515,10 @@ impl<'artifact> TerminalExecution<'artifact> {
             structural_cases: BTreeMap::new(),
             structural_host_atoms: BTreeMap::new(),
             next_host_atom_collection_size: 1024,
-            scalar_array_values: BTreeMap::new(),
-            byte_sequence_values: BTreeMap::new(),
-            primitive_loan_values: BTreeMap::new(),
-            element_view_values: BTreeMap::new(),
+            scalar_array_values: RuntimeRows::new(account.as_ref()),
+            byte_sequence_values: RuntimeRows::new(account.as_ref()),
+            primitive_loan_values: RuntimeRows::new(account.as_ref()),
+            element_view_values: RuntimeRows::new(account.as_ref()),
             live_affine_frontier,
             live_claims,
             placed_view_occurrences,
@@ -521,7 +536,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             established_erased_fields: established_erased_fields.to_vec(),
             effects: Vec::new(),
             failed_call_result: None,
+            failed_return: None,
             _frame_storage: frame_storage,
+            account,
         };
         for argument_index in zero_initialized_arguments {
             let parameter = machine

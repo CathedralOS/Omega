@@ -500,7 +500,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         .insert(
                             formal.place,
                             self.prepare_scalar_array_argument(callee, formal, argument)?,
-                        )
+                        )?
                         .is_some()
                 {
                     return Err(malformed());

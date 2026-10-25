@@ -250,7 +250,7 @@ impl TerminalExecution<'_> {
             .chain(self.live_claims.values().filter_map(|claim| claim.place))
             .collect::<std::collections::BTreeSet<_>>();
         let frame_has_loan =
-            |bindings: &BTreeMap<semantic_vocabulary::PlaceId, ByteSequenceBinding>,
+            |bindings: &RuntimeRows<semantic_vocabulary::PlaceId, ByteSequenceBinding>,
              values: &RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
              honor_retired: bool|
              -> Result<bool, TerminalInterpretError> {

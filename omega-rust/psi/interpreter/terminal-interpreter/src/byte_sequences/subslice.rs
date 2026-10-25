@@ -122,7 +122,7 @@ impl TerminalExecution<'_> {
         )?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
-        self.byte_sequence_values.insert(result.place, view);
+        self.byte_sequence_values.insert(result.place, view)?;
         self.structural_values.insert(result.place, destination)?;
         if result.multiplicity == StructuralMultiplicity::Affine {
             self.live_affine_frontier

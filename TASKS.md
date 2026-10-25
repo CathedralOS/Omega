@@ -1008,9 +1008,11 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     scalar/structural/cleanup custody and retires saved headers on return.
     Packed scalar-array backing now retains element reservations through guest
     snapshots and result inspection, including after instance close; plain
-    projection copies share that snapshot operation. Descriptor maps, placed/case
-    storage and cumulative result custody remain. Connect those
-    admitted operations, remaining live-storage and result accounting, remaining
+    projection copies share that snapshot operation. Frame-local descriptors now
+    retain row reservations through call staging, suspension, joins and returns;
+    refused return installation retains outgoing backing and continuation custody.
+    Global descriptor/placed/case storage and cumulative result custody remain.
+    Connect those admitted operations, remaining live-storage and result accounting, remaining
     host operations, and `suspend Build::await_provider<R>(builder, alias)`
     park/resume to the production Build scheduler, replacing checked-tree Build
     evaluation.
