@@ -19,6 +19,7 @@ use super::{
     decoded_footprint, operand_views, validate_machine_footprint, validate_size, views_for_effects,
 };
 use crate::OptimizedSelectedFormEncodingError;
+use crate::row_encoding::normalized_foreign_call_record;
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
     SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
@@ -42,20 +43,7 @@ pub(super) fn validate(
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    };
-    let record = selected_function
-        .normalized_foreign_calls
-        .get(ordinal as usize)
-        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
-    if record.instruction != instruction
-        || record.call.boundary != boundary
-        || record.call.binding.native_target() != Some(target)
-        || !record.call.binding.has_valid_entry_mechanism()
-    {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
-    }
+    let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
     if record.call.binding.table_dispatch().is_some() {
         if target.architecture != Architecture::X86_64
             || !matches!(row.state, SelectedFormEncodingState::Encoded)
